@@ -1,0 +1,127 @@
+esphomeyaml:
+  name: cabinet
+  platform: ESP32
+  board: nodemcu-32s
+
+logger:
+  level: verbose
+
+wifi:
+  ssid: '[SSID]'
+  password: '[PASSWORD]'
+  manual_ip:
+    static_ip: 192.168.178.203
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+
+ota:
+
+mqtt:
+  broker: 192.168.178.84
+  username: cabinet
+  password: '[PASSWORD]'
+  # This is the default
+  discovery: true
+
+power_supply:
+  - id: 'atx'
+    pin:
+      number: 13
+      inverted: true
+
+i2c:
+  sda: 14
+  scl: 27
+  frequency: 400000
+
+pca9685:
+  - id: 'pca9685'
+    frequency: 500
+
+output:
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet1_red'
+    channel: 14
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet1_green'
+    channel: 15
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet1_blue'
+    channel: 13
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet2_red'
+    channel: 11
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet2_green'
+    channel: 12
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'cabinet2_blue'
+    channel: 10
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'room_red'
+    channel: 8
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'room_green'
+    channel: 9
+    power_supply: 'atx'
+  - platform: pca9685
+    pca9685_id: 'pca9685'
+    id: 'room_blue'
+    channel: 7
+    power_supply: 'atx'
+
+light:
+  - platform: rgb
+    name: 'Cabinet Light 1'
+    red: 'cabinet1_red'
+    green: 'cabinet1_green'
+    blue: 'cabinet1_blue'
+  - platform: rgb
+    name: 'Cabinet Light 2'
+    red: 'cabinet2_red'
+    green: 'cabinet2_green'
+    blue: 'cabinet2_blue'
+  - platform: rgb
+    name: 'Room Light'
+    red: 'room_red'
+    green: 'room_green'
+    blue: 'room_blue'
+
+sensor:
+  - platform: dht
+    pin: 23
+    temperature:
+      name: 'Cabinet Temperature'
+    humidity:
+      name: 'Cabinet Humidity'
+    model: DHT22
+
+binary_sensor:
+  - platform: gpio
+    pin: 25
+    name: 'Cabinet Motion'
+    device_class: motion
+  # Simple binary sensor that uses last will and birth messages to show
+  # node state
+  - platform: status
+    name: "Cabinet Status"
+
+switch:
+  # Simple switch that restarts the ESP32
+  - platform: restart
+    name: "Cabinet Restart"

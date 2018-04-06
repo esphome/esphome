@@ -1,0 +1,25 @@
+import voluptuous as vol
+
+import esphomeyaml.config_validation as cv
+from esphomeyaml import pins
+from esphomeyaml.const import CONF_ENABLE_TIME, CONF_ID, CONF_KEEP_ON_TIME, CONF_PIN
+from esphomeyaml.helpers import App, Pvariable, add, exp_gpio_output_pin
+
+POWER_SUPPLY_SCHEMA = cv.REQUIRED_ID_SCHEMA.extend({
+    vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
+    vol.Optional(CONF_ENABLE_TIME): cv.positive_time_period,
+    vol.Optional(CONF_KEEP_ON_TIME): cv.positive_time_period,
+})
+
+CONFIG_SCHEMA = vol.All(cv.ensure_list, [POWER_SUPPLY_SCHEMA])
+
+
+def to_code(config):
+    for conf in config:
+        pin = exp_gpio_output_pin(conf[CONF_PIN])
+        rhs = App.make_power_supply(pin)
+        psu = Pvariable('PowerSupplyComponent', conf[CONF_ID], rhs)
+        if CONF_ENABLE_TIME in conf:
+            add(psu.set_enable_time(conf[CONF_ENABLE_TIME]))
+        if CONF_KEEP_ON_TIME in conf:
+            add(psu.set_keep_on_time(conf[CONF_KEEP_ON_TIME]))

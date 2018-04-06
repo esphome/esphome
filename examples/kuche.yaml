@@ -1,0 +1,60 @@
+esphomeyaml:
+  name: kuche
+  platform: ESP8266
+  board: nodemcuv2
+
+logger:
+  level: verbose
+
+wifi:
+  ssid: '[SSID]'
+  password: '[PASSWORD]'
+  manual_ip:
+    static_ip: 192.168.178.211
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+
+ota:
+
+mqtt:
+  broker: 192.168.178.84
+  username: kuche
+  password: '[PASSWORD]'
+  # This is the default
+  discovery: true
+
+
+dallas:
+  id: 'dallas'
+  pin: D1
+
+sensor:
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x69041662d7f1ff28
+    name: "Küche Raumtemperatur"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x800416636bebff28
+    name: "Küche Heizkörpertemperatur"
+  - platform: adc
+    pin: A0
+    name: "Küche Helligkeit"
+
+output:
+  - platform: gpio
+    pin: D2
+    id: 'ventilator'
+
+fan:
+  - platform: binary
+    output: 'ventilator'
+    name: 'Küche Heizkörper Ventilator'
+
+binary_sensor:
+  - platform: status
+    name: "Küche Status"
+
+switch:
+  - platform: restart
+    name: "Küche Neustart"

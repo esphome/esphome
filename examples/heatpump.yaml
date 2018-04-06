@@ -1,0 +1,117 @@
+esphomeyaml:
+  name: heatpump
+  platform: ESP32
+  board: nodemcu-32s
+
+logger:
+  level: verbose
+
+wifi:
+  ssid: '[SSID]'
+  password: '[PASSWORD]'
+  manual_ip:
+    static_ip: 192.168.178.204
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+
+ota:
+
+mqtt:
+  broker: 192.168.178.84
+  username: heatpump
+  password: '[PASSWORD]'
+  # This is the default
+  discovery: true
+
+dallas:
+  id: 'dallas'
+  pin: 15
+
+sensor:
+  - platform: dht
+    pin: 0
+    temperature:
+      name: 'Outside Temperature'
+    humidity:
+      name: 'Outside Humidity'
+    model: DHT22
+  - platform: pulse_counter
+    pin: 12
+    unit_of_measurement: 'kW'
+    name: 'Stromverbrauch Wintergarten'
+    update_interval: 30s
+    expire_after: 60s
+    filters:
+      - multiply: 0.06
+  - platform: pulse_counter
+    pin: 13
+    unit_of_measurement: 'kW'
+    name: 'Stromverbrauch Wärmepumpe'
+    update_interval: 30s
+    expire_after: 60s
+    filters:
+      - multiply: 0.06
+  - platform: pulse_counter
+    pin: 14
+    unit_of_measurement: 'kW'
+    name: 'Stromverbrauch Gesamt'
+    update_interval: 30s
+    expire_after: 60s
+    filters:
+      - multiply: 0.06
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0xfe0000031f1eaf28
+    name: "Boiler Temperatur Oben"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0xba0000031f0e5228
+    name: "Boiler Temperatur Unten"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0xa40000031f055028
+    name: "Boiler Temperatur Mitte"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x790000031ee1dc28
+    name: "Heizung Rücklauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0xdd0000031efb0428
+    name: "Ölheizung Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x710000031f0e7e28
+    name: "Boiler Solar Rücklauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x92041703081aff28
+    name: "Boiler Solar Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x2c04173159f4ff28
+    name: "Heizung Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0xd10417315babff28
+    name: "Wärmepumpe Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x6c0517024a17ff28
+    name: "Boiler Heizung Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x7d04173139eeff28
+    name: "Wärmepumpe Rücklauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x3204166398a5ff28
+    name: "Wärmepumpe Verdampfer"
+
+binary_sensor:
+  - platform: status
+    name: "Heizung Status"
+
+switch:
+  - platform: restart
+    name: "Heizung Neustart"

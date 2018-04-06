@@ -1,0 +1,57 @@
+esphomeyaml:
+  name: dachboden
+  platform: ESP8266
+  board: nodemcuv2
+
+logger:
+  level: verbose
+
+wifi:
+  ssid: '[SSID]'
+  password: '[PASSWORD]'
+  manual_ip:
+    static_ip: 192.168.178.212
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+
+ota:
+
+mqtt:
+  broker: 192.168.178.84
+  username: dachboden
+  password: '[PASSWORD]'
+  # This is the default
+  discovery: true
+
+
+dallas:
+  id: 'dallas'
+  pin: D1
+
+sensor:
+  - platform: dht
+    pin: D3
+    temperature:
+      name: 'Dachboden Temperatur'
+    humidity:
+      name: 'Dachboden Luftfeuchtigkeit'
+    model: DHT22
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x01031663650aff28
+    name: "Dachboden Solar Süd Vorlauf"
+  - platform: dallas
+    dallas_id: 'dallas'
+    address: 0x2b0416638fe6ff28
+    name: "Dachboden Solar Süd Rücklauf"
+  - platform: adc
+    pin: A0
+    name: "Dachboden Helligkeit"
+
+binary_sensor:
+  - platform: status
+    name: "Dachboden Status"
+
+switch:
+  - platform: restart
+    name: "Dachboden Neustart"
