@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """esphomeyaml setup script."""
-from setuptools import setup
+from setuptools import setup, find_packages
 
 from esphomeyaml import const
 
@@ -9,11 +9,11 @@ PROJECT_PACKAGE_NAME = 'esphomeyaml'
 PROJECT_LICENSE = 'MIT'
 PROJECT_AUTHOR = 'Otto Winter'
 PROJECT_COPYRIGHT = '2018, Otto Winter'
-PROJECT_URL = 'http://esphomelib.com/'
+PROJECT_URL = 'https://esphomelib.com/esphomeyaml/index.html'
 PROJECT_EMAIL = 'contact@otto-winter.com'
 
 PROJECT_GITHUB_USERNAME = 'OttoWinter'
-PROJECT_GITHUB_REPOSITORY = 'esphomelib'
+PROJECT_GITHUB_REPOSITORY = 'esphomeyaml'
 
 PYPI_URL = 'https://pypi.python.org/pypi/{}'.format(PROJECT_PACKAGE_NAME)
 GITHUB_PATH = '{}/{}'.format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
@@ -59,5 +59,6 @@ setup(
         'console_scripts': [
             'esphomeyaml = esphomeyaml.__main__:main'
         ]
-    }
+    },
+    packages=find_packages()
 )

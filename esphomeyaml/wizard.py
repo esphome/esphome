@@ -267,7 +267,7 @@ def wizard(path):
                                 mqtt_username=mqtt_username, mqtt_password=mqtt_password)
 
     if ota_password:
-        config += "ota:\n  password: '{}'".format(ota_password)
+        config += "ota:\n  password: '{}'\n".format(ota_password)
     else:
         config += "ota:\n"
 

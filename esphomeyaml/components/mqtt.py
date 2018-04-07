@@ -22,6 +22,8 @@ def validate_broker(value):
                           u" Please specify the static IP instead.")
     if u':' in value:
         raise vol.Invalid(u"Please specify the port using the port: option")
+    if not value:
+        raise vol.Invalid(u"Broker cannot be empty")
     return value
 
 

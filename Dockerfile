@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY docker/platformio.ini /usr/src/app/
 RUN platformio settings set enable_telemetry No && \
-    platformio lib --global install esphomelib && \
+    platformio lib --global install esphomelib=https://github.com/OttoWinter/esphomelib.git#v1.2.1 && \
     platformio run -e espressif32 -e espressif8266; exit 0
 
 # Fix issue with static IP on ESP32: https://github.com/espressif/arduino-esp32/issues/1081
