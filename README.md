@@ -1,7 +1,8 @@
 # esphomeyaml for [esphomelib](https://github.com/OttoWinter/esphomelib)
 
-Getting Started Guide: https://esphomlib.com/esphomeyaml/getting-started.html
-Available Components: https://esphomelib.com/esphomeyaml/index.html
+### Getting Started Guide: https://esphomlib.com/esphomeyaml/getting-started.html
+
+### Available Components: https://esphomelib.com/esphomeyaml/index.html
 
 esphomeyaml is the solution for your ESP8266/ESP32 projects with Home Assistant. It allows you to create **custom firmwares** for your microcontrollers with no programming experience required. All you need to know is the YAML configuration format which is also used by Home Assistant.
 
