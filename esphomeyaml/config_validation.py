@@ -150,7 +150,6 @@ def only_on(platforms):
         platforms = [platforms]
 
     def validator_(obj):
-        print(obj)
         if ESP_PLATFORM not in platforms:
             raise vol.Invalid(u"This feature is only available on {}".format(platforms))
         return obj
