@@ -35,9 +35,9 @@ void loop() {
 INI_BASE_FORMAT = (u"""; Auto generated code by esphomeyaml
 
 [common]
-lib_deps = 
-build_flags = 
-upload_flags = 
+lib_deps =
+build_flags =
+upload_flags =
 
 ; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
 """, u"""
