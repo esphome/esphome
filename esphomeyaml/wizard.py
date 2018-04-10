@@ -290,4 +290,3 @@ def wizard(path):
     print("  > Then follow the rest of the getting started guide:")
     print("  > https://esphomelib.com/esphomeyaml/getting-started.html")
     return 0
-

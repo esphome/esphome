@@ -392,7 +392,7 @@ def quote(s):
     return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
 
 
-def color(the_color, message = '', reset=None):
+def color(the_color, message='', reset=None):
     """Color helper."""
     from colorlog.escape_codes import escape_codes, parse_colors
     if not message:
