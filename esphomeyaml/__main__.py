@@ -12,7 +12,7 @@ from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_MANUAL_IP, C
     CONF_STATIC_IP, \
     CONF_WIFI, CONF_LOGGER, CONF_BAUD_RATE
 from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, \
-    get_variable, indent, quote, statement
+    get_variable, indent, quote, statement, color
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,16 +36,39 @@ def discover_serial_ports():
     except ImportError:
         return None
 
-    result = None
-    for port, _, info in comports():
+    result = []
+    descs = []
+    for port, desc, info in comports():
         if not port:
             continue
         if "VID:PID" in info:
-            if result is not None:
-                return None
-            result = port
+            result.append(port)
+            descs.append(desc)
 
-    return result
+    if not result:
+        return None
+    if len(result) == 1:
+        return result[0]
+    print(u"Found multiple serial port options, please choose one:")
+    for i, (res, desc) in enumerate(zip(result, descs)):
+        print(u"  [{}] {} ({})".format(i, res, desc))
+    print(u"  [{}] Over The Air".format(len(result)))
+    print()
+    while True:
+        opt = raw_input('(number): ')
+        if opt in result:
+            opt = result.index(opt)
+            break
+        try:
+            opt = int(opt)
+            if opt < 0 or opt > len(result):
+                raise ValueError
+            break
+        except ValueError:
+            print(color('red', u"Invalid option: '{}'".format(opt)))
+    if opt == len(result):
+        return None
+    return result[opt]
 
 
 def run_platformio(*cmd):
@@ -125,15 +148,7 @@ def compile_program(config):
 
 def upload_program(config, args, port):
     _LOGGER.info("Uploading binary...")
-    if args.upload_port is not None:
-        if args.upload_port == 'HELLO':
-            return run_platformio('platformio', 'run', '-d', get_base_path(config),
-                                  '-t', 'upload')
-        return run_platformio('platformio', 'run', '-d', get_base_path(config),
-                              '-t', 'upload', '--upload-port', args.upload_port)
-
     if port is not None:
-        _LOGGER.info("Serial device discovered, using it for upload")
         return run_platformio('platformio', 'run', '-d', get_base_path(config),
                               '-t', 'upload', '--upload-port', port)
 
@@ -159,7 +174,7 @@ def upload_program(config, args, port):
 
 
 def show_logs(config, args, port):
-    if port is not None:
+    if port is not None and port != 'OTA':
         run_miniterm(config, port)
         return 0
     return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
@@ -211,8 +226,7 @@ def main():
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
                                                          'and upload the latest binary.')
     parser_upload.add_argument('--upload-port', help="Manually specify the upload port to use. "
-                                                     "For example /dev/cu.SLAB_USBtoUAR.",
-                               nargs='?', const='HELLO')
+                                                     "For example /dev/cu.SLAB_USBtoUART.")
     parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
@@ -221,12 +235,13 @@ def main():
     parser_logs.add_argument('--username', help='Manually set the username.')
     parser_logs.add_argument('--password', help='Manually set the password.')
     parser_logs.add_argument('--client-id', help='Manually set the client id.')
+    parser_logs.add_argument('--serial-port', help="Manually specify a serial port to use"
+                                                   "For example /dev/cu.SLAB_USBtoUART.")
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
                                                    'upload it, and start MQTT logs.')
     parser_run.add_argument('--upload-port', help="Manually specify the upload port to use. "
-                                                  "For example /dev/cu.SLAB_USBtoUAR.",
-                            nargs='?', const='HELLO')
+                                                  "For example /dev/cu.SLAB_USBtoUART.")
     parser_run.add_argument('--host-port', help="Specify the host port to use for OTA", type=int)
     parser_run.add_argument('--no-logs', help='Disable starting MQTT logs.',
                             action='store_true')
@@ -268,14 +283,14 @@ def main():
         _LOGGER.info(u"Successfully compiled program.")
         return 0
     elif args.command == 'upload':
-        port = discover_serial_ports()
+        port = args.upload_port or discover_serial_ports()
         exit_code = upload_program(config, args, port)
         if exit_code != 0:
             return exit_code
         _LOGGER.info(u"Successfully uploaded program.")
         return 0
     elif args.command == 'logs':
-        port = discover_serial_ports()
+        port = args.serial_port or discover_serial_ports()
         return show_logs(config, args, port)
     elif args.command == 'clean-mqtt':
         return clean_mqtt(config, args)
@@ -289,7 +304,7 @@ def main():
         _LOGGER.info(u"Successfully compiled program.")
         if args.no_logs:
             return 0
-        port = discover_serial_ports()
+        port = args.upload_port or discover_serial_ports()
         exit_code = upload_program(config, args, port)
         if exit_code != 0:
             return exit_code
