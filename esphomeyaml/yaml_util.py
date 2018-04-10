@@ -1,13 +1,20 @@
 from __future__ import print_function
 import codecs
+import fnmatch
 import logging
 from collections import OrderedDict
+import os
 
 import yaml
 
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress
 
 _LOGGER = logging.getLogger(__name__)
+
+# Mostly copied from Home Assistant because that code works fine and
+# let's not reinvent the wheel here
+
+SECRET_YAML = u'secrets.yaml'
 
 
 class NodeListClass(list):
@@ -97,8 +104,107 @@ def _add_reference(obj, loader, node):
     return obj
 
 
+def _env_var_yaml(loader, node):
+    """Load environment variables and embed it into the configuration YAML."""
+    args = node.value.split()
+
+    # Check for a default value
+    if len(args) > 1:
+        return os.getenv(args[0], u' '.join(args[1:]))
+    elif args[0] in os.environ:
+        return os.environ[args[0]]
+    raise ESPHomeYAMLError(u"Environment variable {} not defined.".format(node.value))
+
+
+def _include_yaml(loader, node):
+    """Load another YAML file and embeds it using the !include tag.
+
+    Example:
+        device_tracker: !include device_tracker.yaml
+    """
+    fname = os.path.join(os.path.dirname(loader.name), node.value)
+    return _add_reference(load_yaml(fname), loader, node)
+
+
+def _is_file_valid(name):
+    """Decide if a file is valid."""
+    return not name.startswith(u'.')
+
+
+def _find_files(directory, pattern):
+    """Recursively load files in a directory."""
+    for root, dirs, files in os.walk(directory, topdown=True):
+        dirs[:] = [d for d in dirs if _is_file_valid(d)]
+        for basename in files:
+            if _is_file_valid(basename) and fnmatch.fnmatch(basename, pattern):
+                filename = os.path.join(root, basename)
+                yield filename
+
+
+def _include_dir_named_yaml(loader, node):
+    """Load multiple files from directory as a dictionary."""
+    mapping = OrderedDict()  # type: OrderedDict
+    loc = os.path.join(os.path.dirname(loader.name), node.value)
+    for fname in _find_files(loc, '*.yaml'):
+        filename = os.path.splitext(os.path.basename(fname))[0]
+        mapping[filename] = load_yaml(fname)
+    return _add_reference(mapping, loader, node)
+
+
+def _include_dir_merge_named_yaml(loader, node):
+    """Load multiple files from directory as a merged dictionary."""
+    mapping = OrderedDict()  # type: OrderedDict
+    loc = os.path.join(os.path.dirname(loader.name), node.value)
+    for fname in _find_files(loc, '*.yaml'):
+        if os.path.basename(fname) == SECRET_YAML:
+            continue
+        loaded_yaml = load_yaml(fname)
+        if isinstance(loaded_yaml, dict):
+            mapping.update(loaded_yaml)
+    return _add_reference(mapping, loader, node)
+
+
+def _include_dir_list_yaml(loader, node):
+    """Load multiple files from directory as a list."""
+    loc = os.path.join(os.path.dirname(loader.name), node.value)
+    return [load_yaml(f) for f in _find_files(loc, '*.yaml')
+            if os.path.basename(f) != SECRET_YAML]
+
+
+def _include_dir_merge_list_yaml(loader, node):
+    """Load multiple files from directory as a merged list."""
+    path = os.path.join(os.path.dirname(loader.name), node.value)
+    merged_list = []
+    for fname in _find_files(path, '*.yaml'):
+        if os.path.basename(fname) == SECRET_YAML:
+            continue
+        loaded_yaml = load_yaml(fname)
+        if isinstance(loaded_yaml, list):
+            merged_list.extend(loaded_yaml)
+    return _add_reference(merged_list, loader, node)
+
+
+# pylint: disable=protected-access
+def _secret_yaml(loader, node):
+    """Load secrets and embed it into the configuration YAML."""
+    secret_path = os.path.join(os.path.dirname(loader.name), SECRET_YAML)
+    secrets = load_yaml(secret_path)
+    if node.value not in secrets:
+        raise ESPHomeYAMLError(u"Secret {} not defined".format(node.value))
+    return secrets[node.value]
+
+
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_SEQUENCE_TAG, _construct_seq)
+yaml.SafeLoader.add_constructor('!env_var', _env_var_yaml)
+yaml.SafeLoader.add_constructor('!secret', _secret_yaml)
+yaml.SafeLoader.add_constructor('!include', _include_yaml)
+yaml.SafeLoader.add_constructor('!include_dir_list', _include_dir_list_yaml)
+yaml.SafeLoader.add_constructor('!include_dir_merge_list',
+                                _include_dir_merge_list_yaml)
+yaml.SafeLoader.add_constructor('!include_dir_named', _include_dir_named_yaml)
+yaml.SafeLoader.add_constructor('!include_dir_merge_named',
+                                _include_dir_merge_named_yaml)
 
 
 # From: https://gist.github.com/miracle2k/3184458

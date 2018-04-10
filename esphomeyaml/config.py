@@ -262,7 +262,11 @@ def dump_dict(layer, indent_count=3, listi=False, **kwargs):
 
 def read_config(path):
     _LOGGER.debug("Reading configuration...")
-    res = load_config(path)
+    try:
+        res = load_config(path)
+    except ESPHomeYAMLError as e:
+        _LOGGER.error(u"Error while reading config: %s", e)
+        return None
     excepts = {}
     for err in res.errors:
         domain = err[1] or u"General Error"
