@@ -37,20 +37,20 @@ def discover_serial_ports():
         return None
 
     result = None
-    for p, d, h in comports():
-        if not p:
+    for port, _, info in comports():
+        if not port:
             continue
-        if "VID:PID" in h:
+        if "VID:PID" in info:
             if result is not None:
                 return None
-            result = p
+            result = port
 
     return result
 
 
 def run_platformio(*cmd):
-    def mock_exit(rc):
-        raise SystemExit(rc)
+    def mock_exit(return_code):
+        raise SystemExit(return_code)
 
     orig_argv = sys.argv
     orig_exit = sys.exit  # mock sys.exit
@@ -63,10 +63,10 @@ def run_platformio(*cmd):
         return platformio.__main__.main()
     except KeyboardInterrupt:
         return 1
-    except SystemExit as e:
-        return e.args[0]
-    except Exception as e:
-        _LOGGER.error(u"Running platformio failed: %s", e)
+    except SystemExit as err:
+        return err.args[0]
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error(u"Running platformio failed: %s", err)
         _LOGGER.error(u"Please try running %s locally.", full_cmd)
     finally:
         sys.argv = orig_argv
@@ -129,9 +129,8 @@ def upload_program(config, args, port):
         if args.upload_port == 'HELLO':
             return run_platformio('platformio', 'run', '-d', get_base_path(config),
                                   '-t', 'upload')
-        else:
-            return run_platformio('platformio', 'run', '-d', get_base_path(config),
-                                  '-t', 'upload', '--upload-port', args.upload_port)
+        return run_platformio('platformio', 'run', '-d', get_base_path(config),
+                              '-t', 'upload', '--upload-port', args.upload_port)
 
     if port is not None:
         _LOGGER.info("Serial device discovered, using it for upload")
@@ -258,6 +257,7 @@ def main():
 
     if args.command == 'config':
         print(yaml_util.dump(config))
+        return 0
     elif args.command == 'compile':
         exit_code = write_cpp(config)
         if exit_code != 0:
@@ -288,16 +288,15 @@ def main():
             return exit_code
         _LOGGER.info(u"Successfully compiled program.")
         if args.no_logs:
-            return
+            return 0
         port = discover_serial_ports()
         exit_code = upload_program(config, args, port)
         if exit_code != 0:
             return exit_code
         _LOGGER.info(u"Successfully uploaded program.")
         return show_logs(config, args, port)
-    else:
-        print(u"Unknown command {}".format(args.command))
-        return 1
+    print(u"Unknown command {}".format(args.command))
+    return 1
 
 
 if __name__ == "__main__":

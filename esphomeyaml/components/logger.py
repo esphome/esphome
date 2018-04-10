@@ -8,6 +8,8 @@ from esphomeyaml.helpers import App, Pvariable, RawExpression, add, exp_empty_op
 
 LOG_LEVELS = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE']
 
+
+# pylint: disable=invalid-name
 is_log_level = vol.All(vol.Upper, vol.Any(*LOG_LEVELS))
 
 CONFIG_SCHEMA = cv.ID_SCHEMA.extend({

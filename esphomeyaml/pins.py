@@ -101,16 +101,16 @@ def _validate_gpio_pin(value):
         if value < 0 or value > 39:
             raise vol.Invalid(u"ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
-            _LOGGER.warning(u"ESP32: Pin {} (6-11) might already be used by the "
-                            u"flash interface. Be warned.".format(value))
+            _LOGGER.warning(u"ESP32: Pin %s (6-11) might already be used by the "
+                            u"flash interface. Be warned.", value)
         if value in (20, 24, 28, 29, 30, 31):
-            _LOGGER.warning(u"ESP32: Pin {} (20, 24, 28-31) can usually not be used. "
-                            u"Be warned.".format(value))
+            _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
+                            u"Be warned.", value)
         return value
     elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         if 6 <= value <= 11:
-            _LOGGER.warning(u"ESP8266: Pin {} (6-11) might already be used by the "
-                            u"flash interface. Be warned.".format(value))
+            _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
+                            u"flash interface. Be warned.", value)
         if value < 0 or value > 17:
             raise vol.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
         return value
@@ -153,6 +153,7 @@ def analog_pin(value):
     raise vol.Invalid(u"Invalid ESP platform.")
 
 
+# pylint: disable=invalid-name
 input_output_pin = vol.All(input_pin, output_pin)
 gpio_pin = vol.Any(input_pin, output_pin)
 PIN_MODES_ESP8266 = [

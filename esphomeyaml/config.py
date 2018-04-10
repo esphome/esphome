@@ -50,7 +50,6 @@ def get_component(domain):
         module = importlib.import_module(path)
     except ImportError as err:
         _LOGGER.debug(err)
-        pass
     else:
         _COMPONENT_CACHE[domain] = module
         return module
@@ -87,7 +86,7 @@ def validate_config(config):
 
     for req in REQUIRED_COMPONENTS:
         if req not in config:
-            raise ESPHomeYAMLError("Component %s is required for esphomeyaml.", req)
+            raise ESPHomeYAMLError("Component {} is required for esphomeyaml.".format(req))
 
     _ALL_COMPONENTS = list(config.keys())
 
@@ -137,7 +136,7 @@ def validate_config(config):
             continue
 
         platforms = []
-        for i, p_config in enumerate(conf):
+        for p_config in conf:
             if not isinstance(p_config, dict):
                 result.add_error(u"Platform schemas mus have 'platform:' key")
                 continue

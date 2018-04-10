@@ -43,6 +43,8 @@ import random
 import socket
 import sys
 
+# pylint: disable=no-member
+
 # Commands
 FLASH = 0
 SPIFFS = 100
@@ -62,7 +64,7 @@ def update_progress(progress):
     :return:
     """
     if PROGRESS:
-        barLength = 60  # Modify this to change the length of the progress bar
+        bar_length = 60  # Modify this to change the length of the progress bar
         status = ""
         if isinstance(progress, int):
             progress = float(progress)
@@ -75,8 +77,8 @@ def update_progress(progress):
         if progress >= 1:
             progress = 1
             status = "Done...\r\n"
-        block = int(round(barLength * progress))
-        text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (barLength - block),
+        block = int(round(bar_length * progress))
+        text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
                                                     int(progress * 100), status)
         sys.stderr.write(text)
         sys.stderr.flush()
@@ -93,14 +95,14 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
     try:
         sock.bind(server_address)
         sock.listen(1)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         _LOGGER.error("Listen Failed")
         return 1
 
     content_size = os.path.getsize(filename)
-    f = open(filename, 'rb')
-    file_md5 = hashlib.md5(f.read()).hexdigest()
-    f.close()
+    f_handle = open(filename, 'rb')
+    file_md5 = hashlib.md5(f_handle.read()).hexdigest()
+    f_handle.close()
     _LOGGER.info('Upload size: %d', content_size)
     message = '%d %d %d %s\n' % (command, local_port, content_size, file_md5)
 
@@ -116,7 +118,7 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
         sock2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock2.sendto(message.encode(), remote_address)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             _LOGGER.error('Failed')
             sock2.close()
             _LOGGER.error('Host %s Not Found', remote_host)
@@ -125,7 +127,7 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
         try:
             data = sock2.recv(37).decode()
             break
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             sys.stderr.write('.')
             sys.stderr.flush()
             sock2.close()
@@ -148,7 +150,7 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
             sock2.settimeout(10)
             try:
                 data = sock2.recv(32).decode()
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 _LOGGER.error('FAIL: No Answer to our Authentication')
                 sock2.close()
                 return 1
@@ -166,23 +168,23 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
     _LOGGER.info('Waiting for device...')
     try:
         sock.settimeout(10)
-        connection, client_address = sock.accept()
+        connection, _ = sock.accept()
         sock.settimeout(None)
         connection.settimeout(None)
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         _LOGGER.error('No response from device')
         sock.close()
         return 1
 
     try:
-        f = open(filename, "rb")
+        f_handle = open(filename, "rb")
         if PROGRESS:
             update_progress(0)
         else:
             _LOGGER.info('Uploading...')
         offset = 0
         while True:
-            chunk = f.read(1024)
+            chunk = f_handle.read(1024)
             if not chunk:
                 break
             offset += len(chunk)
@@ -191,11 +193,11 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
             try:
                 connection.sendall(chunk)
                 connection.recv(10)
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 sys.stderr.write('\n')
                 _LOGGER.error('Error Uploading')
                 connection.close()
-                f.close()
+                f_handle.close()
                 sock.close()
                 return 1
 
@@ -208,26 +210,26 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
                     break
             _LOGGER.info('Result: OK')
             connection.close()
-            f.close()
+            f_handle.close()
             sock.close()
             if data != "OK":
                 _LOGGER.error('%s', data)
                 return 1
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             _LOGGER.error('No Result!')
             connection.close()
-            f.close()
+            f_handle.close()
             sock.close()
             return 1
 
     finally:
         connection.close()
-        f.close()
+        f_handle.close()
 
     return 0
 
 
-def parser(unparsed_args):
+def parse_args(unparsed_args):
     parser = optparse.OptionParser(
         usage="%prog [options]",
         description="Transmit image over the air to the esp8266 module with OTA support."
@@ -235,82 +237,91 @@ def parser(unparsed_args):
 
     # destination ip and port
     group = optparse.OptionGroup(parser, "Destination")
-    group.add_option("-i", "--ip",
-                     dest="esp_ip",
-                     action="store",
-                     help="ESP8266 IP Address.",
-                     default=False
-                     )
-    group.add_option("-I", "--host_ip",
-                     dest="host_ip",
-                     action="store",
-                     help="Host IP Address.",
-                     default="0.0.0.0"
-                     )
-    group.add_option("-p", "--port",
-                     dest="esp_port",
-                     type="int",
-                     help="ESP8266 ota Port. Default 8266",
-                     default=8266
-                     )
-    group.add_option("-P", "--host_port",
-                     dest="host_port",
-                     type="int",
-                     help="Host server ota Port. Default random 10000-60000",
-                     default=random.randint(10000, 60000)
-                     )
+    group.add_option(
+        "-i", "--ip",
+        dest="esp_ip",
+        action="store",
+        help="ESP8266 IP Address.",
+        default=False
+    )
+    group.add_option(
+        "-I", "--host_ip",
+        dest="host_ip",
+        action="store",
+        help="Host IP Address.",
+        default="0.0.0.0"
+    )
+    group.add_option(
+        "-p", "--port",
+        dest="esp_port",
+        type="int",
+        help="ESP8266 ota Port. Default 8266",
+        default=8266
+    )
+    group.add_option(
+        "-P", "--host_port",
+        dest="host_port",
+        type="int",
+        help="Host server ota Port. Default random 10000-60000",
+        default=random.randint(10000, 60000)
+    )
     parser.add_option_group(group)
 
     # auth
     group = optparse.OptionGroup(parser, "Authentication")
-    group.add_option("-a", "--auth",
-                     dest="auth",
-                     help="Set authentication password.",
-                     action="store",
-                     default=""
-                     )
+    group.add_option(
+        "-a", "--auth",
+        dest="auth",
+        help="Set authentication password.",
+        action="store",
+        default=""
+    )
     parser.add_option_group(group)
 
     # image
     group = optparse.OptionGroup(parser, "Image")
-    group.add_option("-f", "--file",
-                     dest="image",
-                     help="Image file.",
-                     metavar="FILE",
-                     default=None
-                     )
-    group.add_option("-s", "--spiffs",
-                     dest="spiffs",
-                     action="store_true",
-                     help="Use this option to transmit a SPIFFS image and do not flash the "
-                          "module.",
-                     default=False
-                     )
+    group.add_option(
+        "-f", "--file",
+        dest="image",
+        help="Image file.",
+        metavar="FILE",
+        default=None
+    )
+    group.add_option(
+        "-s", "--spiffs",
+        dest="spiffs",
+        action="store_true",
+        help="Use this option to transmit a SPIFFS image and do not flash the "
+             "module.",
+        default=False
+    )
     parser.add_option_group(group)
 
     # output group
     group = optparse.OptionGroup(parser, "Output")
-    group.add_option("-d", "--debug",
-                     dest="debug",
-                     help="Show debug output. And override loglevel with debug.",
-                     action="store_true",
-                     default=False
-                     )
-    group.add_option("-r", "--progress",
-                     dest="progress",
-                     help="Show progress output. Does not work for ArduinoIDE",
-                     action="store_true",
-                     default=False
-                     )
+    group.add_option(
+        "-d", "--debug",
+        dest="debug",
+        help="Show debug output. And override loglevel with debug.",
+        action="store_true",
+        default=False
+    )
+    group.add_option(
+        "-r", "--progress",
+        dest="progress",
+        help="Show progress output. Does not work for ArduinoIDE",
+        action="store_true",
+        default=False
+    )
     parser.add_option_group(group)
 
-    (options, args) = parser.parse_args(unparsed_args)
+    options, _ = parser.parse_args(unparsed_args)
 
     return options
 
 
 def main(args):
-    options = parser(args)
+    options = parse_args(args)
     _LOGGER.debug("Options: %s", str(options))
 
     # check options

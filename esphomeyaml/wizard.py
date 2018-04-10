@@ -13,6 +13,7 @@ from esphomeyaml.const import ESP_BOARDS_FOR_PLATFORM, ESP_PLATFORMS, ESP_PLATFO
 from esphomeyaml.helpers import color
 
 
+# pylint: disable=anomalous-backslash-in-string
 CORE_BIG = """    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
   | |   | |  | | |__) | |__
@@ -86,8 +87,8 @@ def default_input(text, default):
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(s):
-    return u''.join(c for c in unicodedata.normalize('NFD', unicode(s))
+def strip_accents(string):
+    return u''.join(c for c in unicodedata.normalize('NFD', unicode(string))
                     if unicodedata.category(c) != 'Mn')
 
 
@@ -231,9 +232,9 @@ def wizard(path):
         try:
             broker = mqtt.validate_broker(broker)
             break
-        except vol.Invalid as e:
+        except vol.Invalid as err:
             print(color('red', "The broker address \"{}\" seems to be invalid: {} :(".format(
-                broker, e)))
+                broker, err)))
             print("Please try again.")
             print()
             sleep(1)
@@ -272,8 +273,8 @@ def wizard(path):
     else:
         config += "ota:\n"
 
-    with codecs.open(path, 'w') as f:
-        f.write(config)
+    with codecs.open(path, 'w') as f_handle:
+        f_handle.write(config)
 
     print()
     print(color('cyan', "DONE! I've now written a new configuration file to ") +

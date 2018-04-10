@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def initialize(config, subscriptions, on_message, username, password, client_id):
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(client, userdata, flags, return_code):
         for topic in subscriptions:
             client.subscribe(topic)
 
@@ -47,8 +47,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info(u"Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        t = datetime.now().time().strftime(u'[%H:%M:%S] ')
-        print(t + msg.payload)
+        time = datetime.now().time().strftime(u'[%H:%M:%S] ')
+        print(time + msg.payload)
 
     return initialize(config, [topic], on_message, username, password, client_id)
 
@@ -58,7 +58,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, u'homeassistant')
         name = config[CONF_ESPHOMEYAML][CONF_NAME]
         topic = u'{}/+/{}/#'.format(discovery_prefix, name)
-    _LOGGER.info(u"Clearing messages from {}".format(topic))
+    _LOGGER.info(u"Clearing messages from %s", topic)
 
     def on_message(client, userdata, msg):
         if not msg.payload:
