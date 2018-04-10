@@ -35,9 +35,9 @@ void loop() {
 INI_BASE_FORMAT = (u"""; Auto generated code by esphomeyaml
 
 [common]
-lib_deps = 
-build_flags = 
-upload_flags = 
+lib_deps =
+build_flags =
+upload_flags =
 
 ; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
 """, u"""
@@ -63,7 +63,7 @@ PLATFORM_TO_PLATFORMIO = {
 
 
 def get_ini_content(config):
-    d = {
+    options = {
         u'env': config[CONF_ESPHOMEYAML][CONF_NAME],
         u'platform': PLATFORM_TO_PLATFORMIO[config[CONF_ESPHOMEYAML][CONF_PLATFORM]],
         u'board': config[CONF_ESPHOMEYAML][CONF_BOARD],
@@ -73,8 +73,8 @@ def get_ini_content(config):
     if CONF_LOGGER in config:
         build_flags = get_component(CONF_LOGGER).get_build_flags(config[CONF_LOGGER])
         if build_flags:
-            d[u'build_flags'] = u'\n    ' + build_flags
-    return INI_CONTENT_FORMAT.format(**d)
+            options[u'build_flags'] = u'\n    ' + build_flags
+    return INI_CONTENT_FORMAT.format(**options)
 
 
 def mkdir_p(path):
@@ -109,8 +109,8 @@ def find_begin_end(text, begin_s, end_s):
 def write_platformio_ini(content, path):
     if os.path.isfile(path):
         try:
-            with codecs.open(path, 'r', encoding='utf-8') as f:
-                text = f.read()
+            with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+                text = f_handle.read()
         except OSError:
             raise ESPHomeYAMLError(u"Could not read ini file at {}".format(path))
         prev_file = text
@@ -123,15 +123,15 @@ def write_platformio_ini(content, path):
         content + INI_AUTO_GENERATE_END + content_format[1]
     if prev_file == full_file:
         return
-    with codecs.open(path, mode='w+', encoding='utf-8') as f:
-        f.write(full_file)
+    with codecs.open(path, mode='w+', encoding='utf-8') as f_handle:
+        f_handle.write(full_file)
 
 
 def write_cpp(code_s, path):
     if os.path.isfile(path):
         try:
-            with codecs.open(path, 'r', encoding='utf-8') as f:
-                text = f.read()
+            with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+                text = f_handle.read()
         except OSError:
             raise ESPHomeYAMLError(u"Could not read C++ file at {}".format(path))
         prev_file = text
@@ -145,5 +145,5 @@ def write_cpp(code_s, path):
         code_s + CPP_AUTO_GENERATE_END + code_format[1]
     if prev_file == full_file:
         return
-    with codecs.open(path, 'w+', encoding='utf-8') as f:
-        f.write(full_file)
+    with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
+        f_handle.write(full_file)

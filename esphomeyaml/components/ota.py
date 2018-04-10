@@ -24,8 +24,8 @@ def to_code(config):
     rhs = App.init_ota()
     ota = Pvariable('OTAComponent', config[CONF_ID], rhs)
     if CONF_PASSWORD in config:
-        h = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
-        add(ota.set_auth_password_hash(h))
+        hash_ = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
+        add(ota.set_auth_password_hash(hash_))
     if config[CONF_SAFE_MODE]:
         add(ota.start_safe_mode())
 

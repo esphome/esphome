@@ -46,6 +46,7 @@ MQTT_SENSOR_ID_SCHEMA = MQTT_SENSOR_SCHEMA.extend({
     cv.GenerateID('mqtt_sensor'): cv.register_variable_id,
 })
 
+# pylint: disable=invalid-name
 OffsetFilter = MockObj('new sensor::OffsetFilter')
 MultiplyFilter = MockObj('new sensor::MultiplyFilter')
 FilterOutValueFilter = MockObj('new sensor::FilterOutValueFilter')

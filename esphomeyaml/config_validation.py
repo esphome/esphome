@@ -16,9 +16,11 @@ from esphomeyaml.helpers import ensure_unique_string
 
 _LOGGER = logging.getLogger(__name__)
 
+# pylint: disable=invalid-name
+
 port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 positive_float = vol.All(vol.Coerce(float), vol.Range(min=0))
-zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1)),
+zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
 
@@ -57,7 +59,7 @@ def alphanumeric(value):
 def valid_name(value):
     value = string_strict(value)
     if not all(c in ALLOWED_NAME_CHARS for c in value):
-        raise vol.Invalid(u"Valid characters for name are %s", ALLOWED_NAME_CHARS)
+        raise vol.Invalid(u"Valid characters for name are {}".format(ALLOWED_NAME_CHARS))
     return value
 
 
@@ -71,7 +73,7 @@ def string(value):
 
 def string_strict(value):
     """Strictly only allow strings."""
-    if isinstance(value, str) or isinstance(value, unicode):
+    if isinstance(value, (str, unicode)):
         return value
     raise vol.Invalid("Must be string, did you forget putting quotes "
                       "around the value?")

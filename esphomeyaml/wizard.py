@@ -2,49 +2,51 @@ from __future__ import print_function
 
 import codecs
 import os
-from time import sleep
 import unicodedata
+from time import sleep
 
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import mqtt
-from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_BOARDS_FOR_PLATFORM
+from esphomeyaml.const import ESP_BOARDS_FOR_PLATFORM, ESP_PLATFORMS, ESP_PLATFORM_ESP32
 from esphomeyaml.helpers import color
 
-CORE_BIG = """    _____ ____  _____  ______ 
+
+# pylint: disable=anomalous-backslash-in-string
+CORE_BIG = """    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
-  | |   | |  | | |__) | |__   
-  | |   | |  | |  _  /|  __|  
-  | |___| |__| | | \ \| |____ 
+  | |   | |  | | |__) | |__
+  | |   | |  | |  _  /|  __|
+  | |___| |__| | | \ \| |____
    \_____\____/|_|  \_\______|
 """
-ESP_BIG = """      ______  _____ _____  
-     |  ____|/ ____|  __ \ 
+ESP_BIG = """      ______  _____ _____
+     |  ____|/ ____|  __ \\
      | |__  | (___ | |__) |
-     |  __|  \___ \|  ___/ 
-     | |____ ____) | |     
-     |______|_____/|_|     
+     |  __|  \___ \|  ___/
+     | |____ ____) | |
+     |______|_____/|_|
 """
-WIFI_BIG = """   __          ___ ______ _ 
+WIFI_BIG = """   __          ___ ______ _
    \ \        / (_)  ____(_)
-    \ \  /\  / / _| |__   _ 
+    \ \  /\  / / _| |__   _
      \ \/  \/ / | |  __| | |
       \  /\  /  | | |    | |
        \/  \/   |_|_|    |_|
 """
-MQTT_BIG = """   __  __  ____ _______ _______ 
+MQTT_BIG = """   __  __  ____ _______ _______
   |  \/  |/ __ \__   __|__   __|
-  | \  / | |  | | | |     | |   
-  | |\/| | |  | | | |     | |   
-  | |  | | |__| | | |     | |   
-  |_|  |_|\___\_\ |_|     |_|   
+  | \  / | |  | | | |     | |
+  | |\/| | |  | | | |     | |
+  | |  | | |__| | | |     | |
+  |_|  |_|\___\_\ |_|     |_|
 """
-OTA_BIG = """       ____ _______       
-      / __ \__   __|/\    
-     | |  | | | |  /  \   
-     | |  | | | | / /\ \  
-     | |__| | | |/ ____ \ 
+OTA_BIG = """       ____ _______
+      / __ \__   __|/\\
+     | |  | | | |  /  \\
+     | |  | | | | / /\ \\
+     | |__| | | |/ ____ \\
       \____/  |_/_/    \_\\
 """
 
@@ -85,8 +87,8 @@ def default_input(text, default):
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(s):
-    return u''.join(c for c in unicodedata.normalize('NFD', unicode(s))
+def strip_accents(string):
+    return u''.join(c for c in unicodedata.normalize('NFD', unicode(string))
                     if unicodedata.category(c) != 'Mn')
 
 
@@ -190,7 +192,7 @@ def wizard(path):
     print()
     sleep(1)
     print("First, what's the " + color('green', 'SSID') + " (the name) of the WiFi network {} "
-          "I should connect to?".format(name))
+                                                          "I should connect to?".format(name))
     sleep(1.5)
     print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:
@@ -200,7 +202,7 @@ def wizard(path):
             break
         except vol.Invalid:
             print(color('red', "Unfortunately, \"{}\" doesn't seem to be a valid SSID. "
-                  "Please try again.".format(ssid)))
+                               "Please try again.".format(ssid)))
             print()
             sleep(1)
 
@@ -230,9 +232,9 @@ def wizard(path):
         try:
             broker = mqtt.validate_broker(broker)
             break
-        except vol.Invalid as e:
+        except vol.Invalid as err:
             print(color('red', "The broker address \"{}\" seems to be invalid: {} :(".format(
-                broker, e)))
+                broker, err)))
             print("Please try again.")
             print()
             sleep(1)
@@ -271,8 +273,8 @@ def wizard(path):
     else:
         config += "ota:\n"
 
-    with codecs.open(path, 'w') as f:
-        f.write(config)
+    with codecs.open(path, 'w') as f_handle:
+        f_handle.write(config)
 
     print()
     print(color('cyan', "DONE! I've now written a new configuration file to ") +

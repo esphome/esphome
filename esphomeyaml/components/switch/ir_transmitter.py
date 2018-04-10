@@ -38,6 +38,8 @@ PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
 }).extend(switch.MQTT_SWITCH_SCHEMA.schema)
 
+
+# pylint: disable=invalid-name
 SendData = MockObj('switch_::ir::SendData', '::')
 
 

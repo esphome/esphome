@@ -48,7 +48,7 @@ class Expression(object):
         pass
 
     def __str__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class RawExpression(Expression):
@@ -107,11 +107,11 @@ class StructInitializer(Expression):
                 self.args[key] = safe_exp(value)
 
     def __str__(self):
-        s = u'{}{{\n'.format(self.base)
+        cpp = u'{}{{\n'.format(self.base)
         for key, value in self.args.iteritems():
-            s += u'  .{} = {},\n'.format(key, value)
-        s += u'}'
-        return s
+            cpp += u'  .{} = {},\n'.format(key, value)
+        cpp += u'}'
+        return cpp
 
 
 class ArrayInitializer(Expression):
@@ -122,25 +122,25 @@ class ArrayInitializer(Expression):
     def __str__(self):
         if not self.args:
             return u'{}'
-        s = u'{\n'
+        cpp = u'{\n'
         for arg in self.args:
-            s += u'  {},\n'.format(arg)
-        s += u'}'
-        return s
+            cpp += u'  {},\n'.format(arg)
+        cpp += u'}'
+        return cpp
 
 
 class Literal(Expression):
-    def __init__(self):
-        super(Literal, self).__init__()
+    def __str__(self):
+        raise NotImplementedError
 
 
 class StringLiteral(Literal):
-    def __init__(self, s):
+    def __init__(self, string):
         super(StringLiteral, self).__init__()
-        self.s = s
+        self.string = string
 
     def __str__(self):
-        return u'"{}"'.format(self.s)
+        return u'"{}"'.format(self.string)
 
 
 class IntLiteral(Literal):
@@ -153,12 +153,12 @@ class IntLiteral(Literal):
 
 
 class BoolLiteral(Literal):
-    def __init__(self, b):
+    def __init__(self, binary):
         super(BoolLiteral, self).__init__()
-        self.b = b
+        self.binary = binary
 
     def __str__(self):
-        return u"true" if self.b else u"false"
+        return u"true" if self.binary else u"false"
 
 
 class HexIntLiteral(Literal):
@@ -171,12 +171,12 @@ class HexIntLiteral(Literal):
 
 
 class FloatLiteral(Literal):
-    def __init__(self, f):
+    def __init__(self, float_):
         super(FloatLiteral, self).__init__()
-        self.f = f
+        self.float_ = float_
 
     def __str__(self):
-        return u"{:f}f".format(self.f)
+        return u"{:f}f".format(self.float_)
 
 
 def safe_exp(obj):
@@ -184,7 +184,7 @@ def safe_exp(obj):
         return obj
     elif isinstance(obj, bool):
         return BoolLiteral(obj)
-    elif isinstance(obj, str) or isinstance(obj, unicode):
+    elif isinstance(obj, (str, unicode)):
         return StringLiteral(obj)
     elif isinstance(obj, (int, long)):
         return IntLiteral(obj)
@@ -198,7 +198,7 @@ class Statement(object):
         pass
 
     def __str__(self):
-        raise NotImplemented
+        raise NotImplementedError
 
 
 class RawStatement(Statement):
@@ -225,6 +225,7 @@ def statement(expression):
     return ExpressionStatement(expression)
 
 
+# pylint: disable=redefined-builtin, invalid-name
 def variable(type, id, rhs):
     lhs = RawExpression(u'{} {}'.format(type if not SIMPLIFY else u'auto', id))
     rhs = safe_exp(rhs)

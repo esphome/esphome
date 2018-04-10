@@ -19,6 +19,8 @@ CONFIG_SCHEMA = cv.ID_SCHEMA.extend({
     vol.Optional(CONF_HOSTNAME): cv.hostname,
 })
 
+
+# pylint: disable=invalid-name
 IPAddress = MockObj('IPAddress')
 
 
