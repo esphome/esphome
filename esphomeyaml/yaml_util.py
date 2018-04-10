@@ -97,8 +97,16 @@ def _add_reference(obj, loader, node):
     return obj
 
 
+def _include(self, node):
+        """Include file"""
+        filename = self.construct_scalar(node)
+        with open(filename, 'r') as f:
+            return yaml.load(f, yaml.SafeLoader)
+
+
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_SEQUENCE_TAG, _construct_seq)
+yaml.SafeLoader.add_constructor('!include', _include)
 
 
 # From: https://gist.github.com/miracle2k/3184458
