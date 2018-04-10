@@ -183,7 +183,8 @@ def serve(remote_host, local_addr, remote_port, local_port, password, filename, 
         offset = 0
         while True:
             chunk = f.read(1024)
-            if not chunk: break
+            if not chunk:
+                break
             offset += len(chunk)
             update_progress(offset / float(content_size))
             connection.settimeout(10)

@@ -6,7 +6,7 @@ import os
 
 from esphomeyaml.config import get_component
 from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_LOGGER, \
-    CONF_NAME, CONF_OTA, CONF_PLATFORM, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_NAME, CONF_PLATFORM, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='

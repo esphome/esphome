@@ -205,11 +205,9 @@ def main():
     parser.add_argument('configuration', help='Your YAML configuration file.')
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
-    parser_config = subparsers.add_parser('config',
-                                          help='Validate the configuration and spit it out.')
+    subparsers.add_parser('config', help='Validate the configuration and spit it out.')
 
-    parser_compile = subparsers.add_parser('compile',
-                                           help='Read the configuration and compile a program.')
+    subparsers.add_parser('compile', help='Read the configuration and compile a program.')
 
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
                                                          'and upload the latest binary.')
@@ -245,8 +243,8 @@ def main():
     parser_clean.add_argument('--password', help='Manually set the password.')
     parser_clean.add_argument('--client-id', help='Manually set the client id.')
 
-    parser_wizard = subparsers.add_parser('wizard', help="A helpful setup wizard that will guide "
-                                                         "you through setting up esphomeyaml.")
+    subparsers.add_parser('wizard', help="A helpful setup wizard that will guide "
+                                         "you through setting up esphomeyaml.")
 
     args = parser.parse_args()
 

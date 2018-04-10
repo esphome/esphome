@@ -197,7 +197,7 @@ def load_config(path):
 
     try:
         result = validate_config(config)
-    except Exception as e:
+    except Exception:
         print(u"Unexpected exception while reading configuration:")
         raise
 
