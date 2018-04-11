@@ -69,8 +69,7 @@ logger:
 
 """
 
-
-if os.environ['QUICKWIZARD']:
+if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
     def sleep(time):
         pass
 else:
