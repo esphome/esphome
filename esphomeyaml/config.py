@@ -263,8 +263,8 @@ def read_config(path):
     _LOGGER.debug("Reading configuration...")
     try:
         res = load_config(path)
-    except ESPHomeYAMLError as e:
-        _LOGGER.error(u"Error while reading config: %s", e)
+    except ESPHomeYAMLError as err:
+        _LOGGER.error(u"Error while reading config: %s", err)
         return None
     excepts = {}
     for err in res.errors:
