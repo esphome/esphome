@@ -3,7 +3,6 @@ from __future__ import print_function
 import codecs
 import os
 import unicodedata
-from time import sleep
 
 import voluptuous as vol
 
@@ -69,6 +68,12 @@ mqtt:
 logger:
 
 """
+
+if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
+    def sleep(time):
+        pass
+else:
+    from time import sleep
 
 
 def print_step(step, big):
