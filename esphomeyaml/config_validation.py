@@ -314,7 +314,7 @@ hex_uint32_t = vol.All(hex_int, vol.Range(min=0, max=4294967295))
 i2c_address = hex_uint8_t
 
 
-def invalid(value):
+def invalid(_):
     raise vol.Invalid("This shouldn't happen.")
 
 

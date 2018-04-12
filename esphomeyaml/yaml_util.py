@@ -29,7 +29,7 @@ class NodeStrClass(unicode):
     pass
 
 
-class SafeLineLoader(yaml.SafeLoader):
+class SafeLineLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     """Loader class that keeps track of line numbers."""
 
     def compose_node(self, parent, index):
@@ -104,7 +104,7 @@ def _add_reference(obj, loader, node):
     return obj
 
 
-def _env_var_yaml(loader, node):
+def _env_var_yaml(_, node):
     """Load environment variables and embed it into the configuration YAML."""
     args = node.value.split()
 
@@ -235,17 +235,17 @@ def represent_odict(dump, tag, mapping, flow_style=None):
     return node
 
 
-def unicode_representer(dumper, uni):
+def unicode_representer(_, uni):
     node = yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=uni)
     return node
 
 
-def hex_int_representer(dumper, data):
+def hex_int_representer(_, data):
     node = yaml.ScalarNode(tag=u'tag:yaml.org,2002:int', value=str(data))
     return node
 
 
-def ipaddress_representer(dumper, data):
+def ipaddress_representer(_, data):
     node = yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=str(data))
     return node
 
