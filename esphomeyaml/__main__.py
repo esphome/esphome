@@ -6,19 +6,16 @@ import os
 import random
 import sys
 
-from esphomeyaml import helpers, mqtt, writer, yaml_util, wizard
-from esphomeyaml.config import add_component_task, read_config
-from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_MANUAL_IP, CONF_NAME, \
-    CONF_STATIC_IP, \
-    CONF_WIFI, CONF_LOGGER, CONF_BAUD_RATE
-from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, \
-    get_variable, indent, quote, statement, color
+from esphomeyaml import core, mqtt, wizard, writer, yaml_util, const
+from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_LOGGER, \
+    CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI
+from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, add_task, \
+    color, get_variable, indent, quote, statement, Expression
 
 _LOGGER = logging.getLogger(__name__)
 
-PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'i2c']
-
-CONFIG_PATH = None
+PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'i2c']
 
 
 def get_name(config):
@@ -26,7 +23,7 @@ def get_name(config):
 
 
 def get_base_path(config):
-    return os.path.join(os.path.dirname(CONFIG_PATH), get_name(config))
+    return os.path.join(os.path.dirname(core.CONFIG_PATH), get_name(config))
 
 
 def discover_serial_ports():
@@ -47,8 +44,6 @@ def discover_serial_ports():
 
     if not result:
         return None
-    if len(result) == 1:
-        return result[0]
     print(u"Found multiple serial port options, please choose one:")
     for i, (res, desc) in enumerate(zip(result, descs)):
         print(u"  [{}] {} ({})".format(i, res, desc))
@@ -107,18 +102,24 @@ def run_miniterm(config, port):
 
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
+
+    add_task(core_to_code, config[CONF_ESPHOMEYAML])
     for domain in PRE_INITIALIZE:
+        if domain == CONF_ESPHOMEYAML:
+            continue
         if domain in config:
-            add_component_task(domain, config[domain])
+            add_task(get_component(domain).to_code, config[domain])
 
     # Clear queue
     get_variable(None)
     add(RawStatement(''))
 
-    for domain, conf in config.iteritems():
+    for domain, component, conf in iter_components(config):
         if domain in PRE_INITIALIZE:
             continue
-        add_component_task(domain, conf)
+        if not hasattr(component, 'to_code'):
+            continue
+        add_task(component.to_code, conf)
 
     # Clear queue
     get_variable(None)
@@ -127,8 +128,11 @@ def write_cpp(config):
 
     all_code = []
     for exp in _EXPRESSIONS:
-        if helpers.SIMPLIFY and isinstance(exp, AssignmentExpression) and exp.obj.usages == 0:
-            exp = exp.rhs
+        if core.SIMPLIFY:
+            if isinstance(exp, Expression) and not exp.required:
+                continue
+            if isinstance(exp, AssignmentExpression) and not exp.obj.required:
+                exp = exp.rhs
         all_code.append(unicode(statement(exp)))
 
     platformio_ini_s = writer.get_ini_content(config)
@@ -211,8 +215,6 @@ def setup_log():
 
 
 def main():
-    global CONFIG_PATH
-
     setup_log()
 
     parser = argparse.ArgumentParser(prog='esphomeyaml')
@@ -260,13 +262,17 @@ def main():
     subparsers.add_parser('wizard', help="A helpful setup wizard that will guide "
                                          "you through setting up esphomeyaml.")
 
+    subparsers.add_parser('mqtt-fingerprint', help="Get the SSL fingerprint from a MQTT broker.")
+    subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
+
     args = parser.parse_args()
 
     if args.command == 'wizard':
         return wizard.wizard(args.configuration)
 
-    CONFIG_PATH = args.configuration
-    config = read_config(CONFIG_PATH)
+    core.CONFIG_PATH = args.configuration
+
+    config = read_config(core.CONFIG_PATH)
     if config is None:
         return 1
 
@@ -294,6 +300,8 @@ def main():
         return show_logs(config, args, port)
     elif args.command == 'clean-mqtt':
         return clean_mqtt(config, args)
+    elif args.command == 'mqtt-fingerprint':
+        return mqtt.get_fingerprint(config)
     elif args.command == 'run':
         exit_code = write_cpp(config)
         if exit_code != 0:
@@ -310,6 +318,9 @@ def main():
             return exit_code
         _LOGGER.info(u"Successfully uploaded program.")
         return show_logs(config, args, port)
+    elif args.command == 'version':
+        print(u"Version: {}".format(const.__version__))
+        return 0
     print(u"Unknown command {}".format(args.command))
     return 1
 

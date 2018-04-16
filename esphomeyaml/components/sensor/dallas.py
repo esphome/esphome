@@ -3,11 +3,13 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.components.dallas import DALLAS_COMPONENT_CLASS
-from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_RESOLUTION, \
-    CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import HexIntLiteral, get_variable
+from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAME, \
+    CONF_RESOLUTION, \
+    CONF_UPDATE_INTERVAL, CONF_ID
+from esphomeyaml.helpers import HexIntLiteral, get_variable, Pvariable
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+    cv.GenerateID('dallas_sensor'): cv.register_variable_id,
     vol.Exclusive(CONF_ADDRESS, 'dallas'): cv.hex_int,
     vol.Exclusive(CONF_INDEX, 'dallas'): cv.positive_int,
     vol.Optional(CONF_DALLAS_ID): cv.variable_id,
@@ -23,9 +25,14 @@ def to_code(config):
 
     if CONF_ADDRESS in config:
         address = HexIntLiteral(config[CONF_ADDRESS])
-        sensor_ = hub.Pget_sensor_by_address(address, update_interval,
-                                             config.get(CONF_RESOLUTION))
+        rhs = hub.Pget_sensor_by_address(config[CONF_NAME], address, update_interval,
+                                         config.get(CONF_RESOLUTION))
     else:
-        sensor_ = hub.Pget_sensor_by_index(config[CONF_INDEX], update_interval,
-                                           config.get(CONF_RESOLUTION))
-    sensor.make_mqtt_sensor_for(sensor_, config)
+        rhs = hub.Pget_sensor_by_index(config[CONF_NAME], config[CONF_INDEX],
+                                       update_interval, config.get(CONF_RESOLUTION))
+    sensor_ = Pvariable('sensor::DallasTemperatureSensor', config[CONF_ID], rhs)
+    sensor.register_sensor(sensor_, config)
+
+
+def build_flags(config):
+    return '-DUSE_DALLAS_SENSOR'

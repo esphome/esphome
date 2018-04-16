@@ -5,12 +5,12 @@ from esphomeyaml.components import switch
 from esphomeyaml.components.ir_transmitter import IR_TRANSMITTER_COMPONENT_CLASS
 from esphomeyaml.const import CONF_ADDRESS, CONF_COMMAND, CONF_DATA, CONF_IR_TRANSMITTER_ID, \
     CONF_LG, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_REPEAT, CONF_SONY, CONF_TIMES, \
-    CONF_WAIT_TIME_US, CONF_RAW, CONF_CARRIER_FREQUENCY
+    CONF_WAIT_TIME_US, CONF_RAW, CONF_CARRIER_FREQUENCY, CONF_NAME, CONF_ID
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import HexIntLiteral, MockObj, get_variable, ArrayInitializer
+from esphomeyaml.helpers import HexIntLiteral, MockObj, get_variable, ArrayInitializer, Pvariable
 
 PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('ir_transmitter'): cv.register_variable_id,
+    cv.GenerateID('ir_transmitter_switch'): cv.register_variable_id,
     vol.Exclusive(CONF_NEC, 'code'): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint16_t,
@@ -36,7 +36,7 @@ PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
         vol.Required(CONF_WAIT_TIME_US): cv.uint32_t,
     })),
     vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
-}).extend(switch.MQTT_SWITCH_SCHEMA.schema)
+}).extend(switch.MQTT_SWITCH_ID_SCHEMA.schema)
 
 
 # pylint: disable=invalid-name
@@ -86,4 +86,11 @@ def exp_send_data(config):
 def to_code(config):
     ir = get_variable(config.get(CONF_IR_TRANSMITTER_ID), IR_TRANSMITTER_COMPONENT_CLASS)
     send_data = exp_send_data(config)
-    switch.make_mqtt_switch_for(ir.create_transmitter(send_data), config)
+    rhs = ir.create_transmitter(config[CONF_NAME], send_data)
+    switch_ = Pvariable(IR_TRANSMITTER_COMPONENT_CLASS + '::DataTransmitter', config[CONF_ID],
+                        rhs)
+    switch.register_switch(switch_, config)
+
+
+def build_flags(config):
+    return '-DUSE_IR_TRANSMITTER'

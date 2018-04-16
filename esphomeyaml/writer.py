@@ -4,9 +4,9 @@ import codecs
 import errno
 import os
 
-from esphomeyaml.config import get_component
-from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_LOGGER, \
-    CONF_NAME, CONF_PLATFORM, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphomeyaml.config import iter_components
+from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
+    CONF_PLATFORM, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_USE_BUILD_FLAGS
 from esphomeyaml.core import ESPHomeYAMLError
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
@@ -52,7 +52,8 @@ framework = arduino
 lib_deps =
     {esphomeyaml_uri}
     ${{common.lib_deps}}
-build_flags ={build_flags}
+build_flags =
+    {build_flags}
     ${{common.build_flags}}
 """
 
@@ -70,10 +71,21 @@ def get_ini_content(config):
         u'esphomeyaml_uri': config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI],
         u'build_flags': u'',
     }
-    if CONF_LOGGER in config:
-        build_flags = get_component(CONF_LOGGER).get_build_flags(config[CONF_LOGGER])
-        if build_flags:
-            options[u'build_flags'] = u'\n    ' + build_flags
+    if config[CONF_ESPHOMEYAML][CONF_USE_BUILD_FLAGS]:
+        build_flags = set()
+        build_flags.add(u"-DESPHOMEYAML_USE")
+        for domain, component, conf in iter_components(config):
+            if not hasattr(component, u'build_flags'):
+                continue
+            flags = component.build_flags(conf)
+            if flags is None:
+                continue
+            if isinstance(flags, (str, unicode)):
+                flags = [flags]
+            build_flags |= set(flags)
+        # avoid changing build flags order
+        build_flags = sorted(list(build_flags))
+        options[u'build_flags'] = u'\n    '.join(build_flags)
     return INI_CONTENT_FORMAT.format(**options)
 
 
@@ -120,7 +132,7 @@ def write_platformio_ini(content, path):
         mkdir_p(os.path.dirname(path))
         content_format = INI_BASE_FORMAT
     full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + \
-        content + INI_AUTO_GENERATE_END + content_format[1]
+                content + INI_AUTO_GENERATE_END + content_format[1]
     if prev_file == full_file:
         return
     with codecs.open(path, mode='w+', encoding='utf-8') as f_handle:
@@ -142,7 +154,7 @@ def write_cpp(code_s, path):
         code_format = CPP_BASE_FORMAT
 
     full_file = code_format[0] + CPP_AUTO_GENERATE_BEGIN + '\n' + \
-        code_s + CPP_AUTO_GENERATE_END + code_format[1]
+                code_s + CPP_AUTO_GENERATE_END + code_format[1]
     if prev_file == full_file:
         return
     with codecs.open(path, 'w+', encoding='utf-8') as f_handle:

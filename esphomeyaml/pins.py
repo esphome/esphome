@@ -3,6 +3,7 @@ import logging
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
+from esphomeyaml import core
 from esphomeyaml.const import ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_NUMBER, CONF_MODE, \
     CONF_INVERTED
 
@@ -72,32 +73,32 @@ def _translate_pin(value):
         pass
     if value.startswith('GPIO'):
         return vol.Coerce(int)(value[len('GPIO'):])
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         if value in ESP32_PINS:
             return ESP32_PINS[value]
-        if cv.BOARD not in ESP32_BOARD_TO_PINS:
+        if core.BOARD not in ESP32_BOARD_TO_PINS:
             raise vol.Invalid(u"ESP32: Unknown board {} with unknown "
-                              u"pin {}.".format(cv.BOARD, value))
-        if value not in ESP32_BOARD_TO_PINS[cv.BOARD]:
+                              u"pin {}.".format(core.BOARD, value))
+        if value not in ESP32_BOARD_TO_PINS[core.BOARD]:
             raise vol.Invalid(u"ESP32: Board {} doesn't have"
-                              u"pin {}".format(cv.BOARD, value))
-        return ESP32_BOARD_TO_PINS[cv.BOARD][value]
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+                              u"pin {}".format(core.BOARD, value))
+        return ESP32_BOARD_TO_PINS[core.BOARD][value]
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         if value in ESP8266_PINS:
             return ESP8266_PINS[value]
-        if cv.BOARD not in ESP8266_BOARD_TO_PINS:
+        if core.BOARD not in ESP8266_BOARD_TO_PINS:
             raise vol.Invalid(u"ESP8266: Unknown board {} with unknown "
-                              u"pin {}.".format(cv.BOARD, value))
-        if value not in ESP8266_BOARD_TO_PINS[cv.BOARD]:
+                              u"pin {}.".format(core.BOARD, value))
+        if value not in ESP8266_BOARD_TO_PINS[core.BOARD]:
             raise vol.Invalid(u"ESP8266: Board {} doesn't have"
-                              u"pin {}".format(cv.BOARD, value))
-        return ESP8266_BOARD_TO_PINS[cv.BOARD][value]
+                              u"pin {}".format(core.BOARD, value))
+        return ESP8266_BOARD_TO_PINS[core.BOARD][value]
     raise vol.Invalid(u"Invalid ESP platform.")
 
 
 def _validate_gpio_pin(value):
     value = _translate_pin(value)
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         if value < 0 or value > 39:
             raise vol.Invalid(u"ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
@@ -107,7 +108,7 @@ def _validate_gpio_pin(value):
             _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
                             u"Be warned.", value)
         return value
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         if 6 <= value <= 11:
             _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
@@ -119,21 +120,21 @@ def _validate_gpio_pin(value):
 
 def input_pin(value):
     value = _validate_gpio_pin(value)
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         return value
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         return value
     raise vol.Invalid(u"Invalid ESP platform.")
 
 
 def output_pin(value):
     value = _validate_gpio_pin(value)
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         if 34 <= value <= 39:
             raise vol.Invalid(u"ESP32: Pin {} (34-39) can only be used as "
                               u"input pins.".format(value))
         return value
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         if value == 16:
             raise vol.Invalid(u"Pin {} doesn't support output mode".format(value))
         return value
@@ -142,11 +143,11 @@ def output_pin(value):
 
 def analog_pin(value):
     value = _validate_gpio_pin(value)
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         if 32 <= value <= 39:  # ADC1
             return value
         raise vol.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         if value == 17:  # A0
             return value
         raise vol.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
@@ -171,9 +172,9 @@ PIN_MODES_ESP32 = [
 
 def pin_mode(value):
     value = vol.All(vol.Coerce(str), vol.Upper)(value)
-    if cv.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         return vol.Any(*PIN_MODES_ESP32)(value)
-    elif cv.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
         return vol.Any(*PIN_MODES_ESP8266)(value)
     raise vol.Invalid(u"Invalid ESP platform.")
 
@@ -195,3 +196,14 @@ GPIO_INPUT_PIN_SCHEMA = vol.Any(input_pin, vol.Schema({
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
 }))
+
+
+def schema_validate_number(validator):
+    def valid(value):
+        if isinstance(value, dict):
+            value[CONF_NUMBER] = validator(value[CONF_NUMBER])
+        else:
+            value = validator(value)
+        return value
+
+    return valid

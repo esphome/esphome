@@ -4,6 +4,7 @@ import logging
 import re
 from collections import OrderedDict, deque
 
+from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, \
@@ -11,8 +12,6 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
 from esphomeyaml.core import ESPHomeYAMLError, HexInt
 
 _LOGGER = logging.getLogger(__name__)
-
-SIMPLIFY = False
 
 
 def ensure_unique_string(preferred_string, current_strings):
@@ -45,10 +44,18 @@ def indent(text, padding=u'  '):
 
 class Expression(object):
     def __init__(self):
-        pass
+        self.requires = []
+        self.required = False
 
     def __str__(self):
         raise NotImplementedError
+
+    def require(self):
+        self.required = True
+        for require in self.requires:
+            if require.required:
+                continue
+            require.require()
 
 
 class RawExpression(Expression):
@@ -61,14 +68,20 @@ class RawExpression(Expression):
 
 
 class AssignmentExpression(Expression):
-    def __init__(self, lhs, rhs, obj):
+    def __init__(self, type, modifier, name, rhs, obj):
         super(AssignmentExpression, self).__init__()
-        self.obj = obj
-        self.lhs = safe_exp(lhs)
+        self.type = type
+        self.modifier = modifier
+        self.name = name
         self.rhs = safe_exp(rhs)
+        self.requires.append(self.rhs)
+        self.obj = obj
 
     def __str__(self):
-        return u"{} = {}".format(self.lhs, self.rhs)
+        type_ = self.type
+        if core.SIMPLIFY:
+            type_ = u'auto'
+        return u"{} {}{} = {}".format(type_, self.modifier, self.name, self.rhs)
 
 
 class ExpressionList(Expression):
@@ -78,7 +91,11 @@ class ExpressionList(Expression):
         args = list(args)
         while args and args[-1] is None:
             args.pop()
-        self.args = [safe_exp(x) for x in args]
+        self.args = []
+        for arg in args:
+            exp = safe_exp(arg)
+            self.requires.append(exp)
+            self.args.append(exp)
 
     def __str__(self):
         text = u", ".join(unicode(x) for x in self.args)
@@ -90,6 +107,7 @@ class CallExpression(Expression):
         super(CallExpression, self).__init__()
         self.base = base
         self.args = ExpressionList(*args)
+        self.requires.append(self.args)
 
     def __str__(self):
         return u'{}({})'.format(self.base, self.args)
@@ -103,8 +121,11 @@ class StructInitializer(Expression):
             args = OrderedDict(args)
         self.args = OrderedDict()
         for key, value in args.iteritems():
-            if value is not None:
-                self.args[key] = safe_exp(value)
+            if value is None:
+                continue
+            exp = safe_exp(value)
+            self.args[key] = exp
+            self.requires.append(exp)
 
     def __str__(self):
         cpp = u'{}{{\n'.format(self.base)
@@ -117,7 +138,13 @@ class StructInitializer(Expression):
 class ArrayInitializer(Expression):
     def __init__(self, *args):
         super(ArrayInitializer, self).__init__()
-        self.args = [safe_exp(x) for x in args if x is not None]
+        self.args = []
+        for x in args:
+            if x is None:
+                continue
+            exp = safe_exp(x)
+            self.args.append(exp)
+            self.requires.append(exp)
 
     def __str__(self):
         if not self.args:
@@ -227,20 +254,22 @@ def statement(expression):
 
 # pylint: disable=redefined-builtin, invalid-name
 def variable(type, id, rhs):
-    lhs = RawExpression(u'{} {}'.format(type if not SIMPLIFY else u'auto', id))
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'.')
-    add(AssignmentExpression(lhs, rhs, obj))
+    assignment = AssignmentExpression(type, '', id, rhs, obj)
+    add(assignment)
     _VARIABLES[id] = obj, type
+    obj.requires.append(assignment)
     return obj
 
 
 def Pvariable(type, id, rhs):
-    lhs = RawExpression(u'{} *{}'.format(type if not SIMPLIFY else u'auto', id))
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'->')
-    add(AssignmentExpression(lhs, rhs, obj))
+    assignment = AssignmentExpression(type, '*', id, rhs, obj)
+    add(assignment)
     _VARIABLES[id] = obj, type
+    obj.requires.append(assignment)
     return obj
 
 
@@ -272,7 +301,6 @@ def get_variable(id, type=None):
 
         if result is None:
             raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type {}".format(id, type))
-    result.usages += 1
     return result
 
 
@@ -280,17 +308,17 @@ def add_task(func, config):
     _QUEUE.append((func, config))
 
 
-def add(expression):
+def add(expression, require=True):
+    if require and isinstance(expression, Expression):
+        expression.require()
     _EXPRESSIONS.append(expression)
     return expression
 
 
 class MockObj(Expression):
-    def __init__(self, base, op=u'.', parent=None):
+    def __init__(self, base, op=u'.'):
         self.base = base
         self.op = op
-        self.usages = 0
-        self.parent = parent
         super(MockObj, self).__init__()
 
     def __getattr__(self, attr):
@@ -299,18 +327,26 @@ class MockObj(Expression):
             attr = attr[1:]
             next_op = u'->'
         op = self.op
-        return MockObj(u'{}{}{}'.format(self.base, op, attr), next_op, self)
+        obj = MockObj(u'{}{}{}'.format(self.base, op, attr), next_op)
+        obj.requires.append(self)
+        return obj
 
     def __call__(self, *args, **kwargs):
-        self.usages += 1
-        it = self.parent
-        while it is not None:
-            it.usages += 1
-            it = it.parent
-        return CallExpression(self.base, *args)
+        call = CallExpression(self.base, *args)
+        obj = MockObj(call, self.op)
+        obj.requires.append(self)
+        obj.requires.append(call)
+        return obj
 
     def __str__(self):
-        return self.base
+        return unicode(self.base)
+
+    def require(self):
+        self.required = True
+        for require in self.requires:
+            if require.required:
+                continue
+            require.require()
 
 
 App = MockObj(u'App')
@@ -358,13 +394,8 @@ def setup_mqtt_component(obj, config):
         add(obj.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
-        exp = StructInitializer(
-            u'mqtt::Availability',
-            (u'topic', availability[CONF_TOPIC]),
-            (u'payload_available', availability[CONF_PAYLOAD_AVAILABLE]),
-            (u'payload_not_available', availability[CONF_PAYLOAD_NOT_AVAILABLE]),
-        )
-        add(obj.set_availability(exp))
+        add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
+                                 availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 
 def exp_empty_optional(type):

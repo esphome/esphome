@@ -31,3 +31,7 @@ def to_code(config):
             phase_balancer = RawExpression(u'PCA9685_PhaseBalancer_{}'.format(
                 conf[CONF_PHASE_BALANCER]))
             add(pca9685.set_phase_balancer(phase_balancer))
+
+
+def build_flags(config):
+    return '-DUSE_PCA9685_OUTPUT'

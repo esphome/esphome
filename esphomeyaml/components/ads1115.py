@@ -35,3 +35,7 @@ def to_code(config):
         ads1115 = Pvariable(ADS1115_COMPONENT_CLASS, conf[CONF_ID], rhs)
         if CONF_RATE in conf:
             add(ads1115.set_rate(RawExpression(RATES[conf[CONF_RATE]])))
+
+
+def build_flags(config):
+    return '-DUSE_ADS1115_SENSOR'

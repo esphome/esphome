@@ -2,8 +2,9 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import get_variable, RawExpression
+from esphomeyaml.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_UPDATE_INTERVAL, \
+    CONF_NAME, CONF_ID
+from esphomeyaml.helpers import RawExpression, get_variable, Pvariable
 
 DEPENDENCIES = ['ads1115']
 
@@ -40,6 +41,7 @@ def validate_gain(value):
 
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+    cv.GenerateID('ads1115_sensor'): cv.register_variable_id,
     vol.Required(CONF_MULTIPLEXER): vol.All(vol.Upper, vol.Any(*list(MUX.keys()))),
     vol.Required(CONF_GAIN): validate_gain,
     vol.Optional(CONF_ADS1115_ID): cv.variable_id,
@@ -52,5 +54,10 @@ def to_code(config):
 
     mux = RawExpression(MUX[config[CONF_MULTIPLEXER]])
     gain = RawExpression(GAIN[config[CONF_GAIN]])
-    sensor_ = hub.get_sensor(mux, gain, config.get(CONF_UPDATE_INTERVAL))
-    sensor.make_mqtt_sensor_for(sensor_, config)
+    rhs = hub.get_sensor(config[CONF_NAME], mux, gain, config.get(CONF_UPDATE_INTERVAL))
+    sensor_ = Pvariable('sensor::ADS1115Sensor', config[CONF_ID], rhs)
+    sensor.register_sensor(sensor_, config)
+
+
+def build_flags(config):
+    return '-DUSE_ADS1115_SENSOR'

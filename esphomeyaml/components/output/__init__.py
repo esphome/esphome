@@ -23,3 +23,7 @@ def setup_output_platform(obj, config, skip_power_supply=False):
         add(obj.set_power_supply(power_supply))
     if CONF_MAX_POWER in config:
         add(obj.set_max_power(config[CONF_MAX_POWER]))
+
+
+def build_flags(config):
+    return '-DUSE_OUTPUT'

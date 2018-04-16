@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import light
 from esphomeyaml.const import CONF_BLUE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, \
     CONF_GREEN, CONF_ID, CONF_NAME, CONF_RED, CONF_WHITE
-from esphomeyaml.helpers import App, get_variable, variable, add
+from esphomeyaml.helpers import App, add, get_variable, setup_mqtt_component, variable
 
 PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
     cv.GenerateID('rgbw_light'): cv.register_variable_id,
@@ -23,7 +23,8 @@ def to_code(config):
     blue = get_variable(config[CONF_BLUE])
     white = get_variable(config[CONF_WHITE])
     rhs = App.make_rgbw_light(config[CONF_NAME], red, green, blue, white)
-    light_struct = variable('Application::LightStruct', config[CONF_ID], rhs)
+    light_struct = variable('Application::MakeLight', config[CONF_ID], rhs)
     if CONF_GAMMA_CORRECT in config:
         add(light_struct.Poutput.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
-    light.setup_mqtt_light_component(light_struct.Pmqtt, config)
+    setup_mqtt_component(light_struct.Pmqtt, config)
+    light.setup_light_component(light_struct.Pstate, config)

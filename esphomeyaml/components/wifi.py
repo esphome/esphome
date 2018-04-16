@@ -5,7 +5,7 @@ from esphomeyaml.const import CONF_DNS1, CONF_DNS2, CONF_GATEWAY, CONF_HOSTNAME,
     CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_WIFI
 from esphomeyaml.helpers import App, MockObj, Pvariable, StructInitializer, add
 
-CONFIG_SCHEMA = cv.ID_SCHEMA.extend({
+CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(CONF_WIFI): cv.register_variable_id,
     vol.Required(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): cv.string,

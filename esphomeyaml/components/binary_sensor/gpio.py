@@ -3,7 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import binary_sensor
-from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INVERTED, CONF_NAME, CONF_PIN
+from esphomeyaml.const import CONF_ID, CONF_INVERTED, CONF_NAME, CONF_PIN
 from esphomeyaml.helpers import App, add, exp_gpio_input_pin, variable
 
 PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
@@ -13,9 +13,13 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_gpio_binary_sensor(exp_gpio_input_pin(config[CONF_PIN]),
-                                      config[CONF_NAME], config.get(CONF_DEVICE_CLASS))
-    gpio = variable('Application::SimpleBinarySensor', config[CONF_ID], rhs)
+    rhs = App.make_gpio_binary_sensor(config[CONF_NAME], exp_gpio_input_pin(config[CONF_PIN]))
+    gpio = variable('Application::MakeGPIOBinarySensor', config[CONF_ID], rhs)
     if CONF_INVERTED in config:
         add(gpio.Pgpio.set_inverted(config[CONF_INVERTED]))
-    binary_sensor.setup_mqtt_binary_sensor(gpio.Pmqtt, config, skip_device_class=True)
+    binary_sensor.setup_binary_sensor(gpio.Pgpio, config)
+    binary_sensor.setup_mqtt_binary_sensor(gpio.Pmqtt, config)
+
+
+def build_flags(config):
+    return '-DUSE_GPIO_BINARY_SENSOR'

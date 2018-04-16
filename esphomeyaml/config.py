@@ -8,13 +8,13 @@ import voluptuous as vol
 from voluptuous.humanize import humanize_error
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml import helpers, yaml_util
+from esphomeyaml import core, yaml_util
 from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_MQTT, \
     CONF_NAME, \
     CONF_PLATFORM, CONF_SIMPLIFY, CONF_WIFI, ESP_PLATFORMS, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266
+    ESP_PLATFORM_ESP8266, CONF_USE_BUILD_FLAGS
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, add, add_task, color
+from esphomeyaml.helpers import App, add, color
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,6 +27,7 @@ CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_BOARD): cv.string,
     vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
+    vol.Optional(CONF_USE_BUILD_FLAGS, default=False): cv.boolean,
 })
 
 REQUIRED_COMPONENTS = [
@@ -66,8 +67,17 @@ def is_platform_component(component):
     return hasattr(component, 'PLATFORM_SCHEMA')
 
 
-def validate_schema(config, schema):
-    return schema(config)
+def iter_components(config):
+    for domain, conf in config.iteritems():
+        if domain == CONF_ESPHOMEYAML:
+            continue
+        component = get_component(domain)
+        yield domain, component, conf
+        if is_platform_component(component):
+            for p_config in conf:
+                p_name = u"{}.{}".format(domain, p_config[CONF_PLATFORM])
+                platform = get_component(p_name)
+                yield p_name, platform, p_config
 
 
 class Config(OrderedDict):
@@ -96,7 +106,7 @@ def validate_config(config):
         result.add_error(_format_config_error(ex, domain, config), domain, config)
 
     try:
-        result[CONF_ESPHOMEYAML] = validate_schema(config[CONF_ESPHOMEYAML], CORE_SCHEMA)
+        result[CONF_ESPHOMEYAML] = CORE_SCHEMA(config[CONF_ESPHOMEYAML])
     except vol.Invalid as ex:
         _comp_error(ex, CONF_ESPHOMEYAML, config)
 
@@ -111,8 +121,8 @@ def validate_config(config):
             continue
 
         esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
-        if cv.ESP_PLATFORM not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, cv.ESP_PLATFORM))
+        if core.ESP_PLATFORM not in esp_platforms:
+            result.add_error(u"Component {} doesn't support {}.".format(domain, core.ESP_PLATFORM))
             continue
 
         success = True
@@ -138,7 +148,7 @@ def validate_config(config):
         platforms = []
         for p_config in conf:
             if not isinstance(p_config, dict):
-                result.add_error(u"Platform schemas mus have 'platform:' key")
+                result.add_error(u"Platform schemas must have 'platform:' key")
                 continue
             p_name = p_config.get(u'platform')
             if p_name is None:
@@ -160,7 +170,7 @@ def validate_config(config):
     return result
 
 
-REQUIRED = ['esphomeyaml', 'wifi', 'mqtt']
+REQUIRED = ['esphomeyaml', 'wifi']
 
 
 def _format_config_error(ex, domain, config):
@@ -186,13 +196,16 @@ def load_config(path):
     except OSError:
         raise ESPHomeYAMLError(u"Could not read configuration file at {}".format(path))
 
-    esp_platform = unicode(config.get(CONF_ESPHOMEYAML, {}).get(CONF_PLATFORM, u""))
+    if CONF_ESPHOMEYAML not in config:
+        raise ESPHomeYAMLError(u"No esphomeyaml section in config")
+    core_conf = config[CONF_ESPHOMEYAML]
+    esp_platform = unicode(core_conf.get(CONF_PLATFORM, u""))
     esp_platform = esp_platform.upper()
     if esp_platform not in (ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266):
         raise ESPHomeYAMLError(u"Invalid ESP Platform {}".format(esp_platform))
-    cv.ESP_PLATFORM = esp_platform
-    cv.BOARD = unicode(config.get(CONF_ESPHOMEYAML, {}).get(CONF_BOARD, u""))
-    helpers.SIMPLIFY = cv.boolean(config.get(CONF_SIMPLIFY, True))
+    core.ESP_PLATFORM = esp_platform
+    core.BOARD = unicode(core_conf.get(CONF_BOARD, u""))
+    core.SIMPLIFY = cv.boolean(core_conf.get(CONF_SIMPLIFY, True))
 
     try:
         result = validate_config(config)
@@ -201,28 +214,6 @@ def load_config(path):
         raise
 
     return result
-
-
-def add_platform_task(domain, config):
-    platform_ = config[CONF_PLATFORM]
-    platform = get_platform(domain, platform_)
-    if not hasattr(platform, 'to_code'):
-        raise ESPHomeYAMLError(u"Platform '{}.{}' doesn't have to_code.".format(domain, platform_))
-    add_task(platform.to_code, config)
-
-
-def add_component_task(domain, config):
-    if domain == CONF_ESPHOMEYAML:
-        add_task(core_to_code, config)
-        return
-    component = get_component(domain)
-    if is_platform_component(component):
-        for conf in config:
-            add_platform_task(domain, conf)
-    else:
-        if not hasattr(component, 'to_code'):
-            raise ESPHomeYAMLError(u"Component '{}' doesn't have to_code.".format(domain))
-        add_task(component.to_code, config)
 
 
 def line_info(obj, **kwargs):

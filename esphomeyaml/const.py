@@ -2,7 +2,7 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 2
-PATCH_VERSION = '2'
+PATCH_VERSION = '2-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
 
@@ -17,6 +17,7 @@ CONF_NAME = 'name'
 CONF_PLATFORM = 'platform'
 CONF_BOARD = 'board'
 CONF_SIMPLIFY = 'simplify'
+CONF_USE_BUILD_FLAGS = 'use_build_flags'
 CONF_LIBRARY_URI = 'library_uri'
 CONF_LOGGER = 'logger'
 CONF_WIFI = 'wifi'
@@ -32,6 +33,7 @@ CONF_BROKER = 'broker'
 CONF_USERNAME = 'username'
 CONF_POWER_SUPPLY = 'power_supply'
 CONF_ID = 'id'
+CONF_MQTT_ID = 'mqtt_id'
 CONF_PIN = 'pin'
 CONF_NUMBER = 'number'
 CONF_INVERTED = 'inverted'
@@ -151,6 +153,10 @@ CONF_RATE = 'rate'
 CONF_ADS1115_ID = 'ads1115_id'
 CONF_MULTIPLEXER = 'multiplexer'
 CONF_GAIN = 'gain'
+CONF_SLEEP_DURATION = 'sleep_duration'
+CONF_WAKEUP_PIN = 'wakeup_pin'
+CONF_RUN_CYCLES = 'run_cycles'
+CONF_RUN_DURATION = 'run_duration'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',

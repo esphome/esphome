@@ -13,6 +13,11 @@ PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_gpio_switch(exp_gpio_output_pin(config[CONF_PIN]), config[CONF_NAME])
-    gpio = variable('Application::GPIOSwitchStruct', config[CONF_ID], rhs)
+    rhs = App.make_gpio_switch(config[CONF_NAME], exp_gpio_output_pin(config[CONF_PIN]))
+    gpio = variable('Application::MakeGPIOSwitch', config[CONF_ID], rhs)
+    switch.setup_switch(gpio.Pswitch_, config)
     switch.setup_mqtt_switch(gpio.Pmqtt, config)
+
+
+def build_flags(config):
+    return '-DUSE_GPIO_SWITCH'

@@ -3,8 +3,8 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_EXPIRE_AFTER, \
     CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_ICON, \
-    CONF_ID, CONF_LAMBDA, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_SEND_EVERY, \
-    CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+    CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_SEND_EVERY, \
+    CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, CONF_ID
 from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add, \
     setup_mqtt_component
 
@@ -13,7 +13,6 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.Any(
-    # TODO Fix weird voluptuous error messages
     vol.Schema({vol.Required(CONF_OFFSET): vol.Coerce(float)}),
     vol.Schema({vol.Required(CONF_MULTIPLY): vol.Coerce(float)}),
     vol.Schema({vol.Required(CONF_FILTER_OUT): vol.Coerce(float)}),
@@ -43,7 +42,7 @@ MQTT_SENSOR_SCHEMA = vol.Schema({
 })
 
 MQTT_SENSOR_ID_SCHEMA = MQTT_SENSOR_SCHEMA.extend({
-    cv.GenerateID('mqtt_sensor'): cv.register_variable_id,
+    cv.GenerateID('mqtt_sensor', CONF_MQTT_ID): cv.register_variable_id,
 })
 
 # pylint: disable=invalid-name
@@ -72,30 +71,38 @@ def setup_filter(config):
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
         return ExponentialMovingAverageFilter(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
     if CONF_LAMBDA in config:
-        s = '[](float x) -> Optional<float> {{ return {}; }}'.format(config[CONF_LAMBDA])
+        s = u'[](float x) -> Optional<float> {{ return {}; }}'.format(config[CONF_LAMBDA])
         return LambdaFilter(RawExpression(s))
-    raise ValueError("Filter unsupported: {}".format(config))
+    raise ValueError(u"Filter unsupported: {}".format(config))
 
 
 def setup_mqtt_sensor_component(obj, config):
+    if CONF_EXPIRE_AFTER in config:
+        if config[CONF_EXPIRE_AFTER] is None:
+            add(obj.disable_expire_after())
+        else:
+            add(obj.set_expire_after(config[CONF_EXPIRE_AFTER]))
+    setup_mqtt_component(obj, config)
+
+
+def setup_sensor(obj, config):
     if CONF_UNIT_OF_MEASUREMENT in config:
         add(obj.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:
         add(obj.set_icon(config[CONF_ICON]))
     if CONF_ACCURACY_DECIMALS in config:
         add(obj.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
-    if CONF_EXPIRE_AFTER in config:
-        if config[CONF_EXPIRE_AFTER] is None:
-            add(obj.disable_expire_after())
-        else:
-            add(obj.set_expire_after(config[CONF_EXPIRE_AFTER]))
     if CONF_FILTERS in config:
         filters = [setup_filter(x) for x in config[CONF_FILTERS]]
         add(obj.set_filters(ArrayInitializer(*filters)))
-    setup_mqtt_component(obj, config)
 
 
-def make_mqtt_sensor_for(exp, config):
-    rhs = App.make_mqtt_sensor_for(exp, config[CONF_NAME])
-    mqtt_sensor = Pvariable('sensor::MQTTSensorComponent', config[CONF_ID], rhs)
+def register_sensor(var, config):
+    setup_sensor(var, config)
+    rhs = App.register_sensor(var)
+    mqtt_sensor = Pvariable('sensor::MQTTSensorComponent', config[CONF_MQTT_ID], rhs)
     setup_mqtt_sensor_component(mqtt_sensor, config)
+
+
+def build_flags(config):
+    return '-DUSE_SENSOR'

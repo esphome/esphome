@@ -21,3 +21,7 @@ def setup_mqtt_fan(obj, config):
     if CONF_SPEED_COMMAND_TOPIC in config:
         add(obj.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC]))
     setup_mqtt_component(obj, config)
+
+
+def build_flags(config):
+    return '-DUSE_FAN'

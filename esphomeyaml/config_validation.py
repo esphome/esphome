@@ -7,6 +7,7 @@ from datetime import timedelta
 
 import voluptuous as vol
 
+from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
@@ -23,9 +24,6 @@ positive_float = vol.All(vol.Coerce(float), vol.Range(min=0))
 zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
-
-ESP_PLATFORM = ''
-BOARD = ''
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
 
@@ -150,7 +148,7 @@ def only_on(platforms):
         platforms = [platforms]
 
     def validator_(obj):
-        if ESP_PLATFORM not in platforms:
+        if core.ESP_PLATFORM not in platforms:
             raise vol.Invalid(u"This feature is only available on {}".format(platforms))
         return obj
 
@@ -300,6 +298,8 @@ def publish_topic(value):
     value = string_strict(value)
     if value.endswith('/'):
         raise vol.Invalid("Publish topic can't end with '/'")
+    if '+' in value or '#' in value:
+        raise vol.Invalid("Publish topic can't contain '+' or '#'")
     return value
 
 
@@ -334,23 +334,19 @@ def register_variable_id(value):
 
 
 class GenerateID(vol.Optional):
-    def __init__(self, basename):
+    def __init__(self, basename, key=CONF_ID):
         self._basename = basename
-        super(GenerateID, self).__init__(CONF_ID, default=self.default_variable_id)
+        super(GenerateID, self).__init__(key, default=self.default_variable_id)
 
     def default_variable_id(self):
         return ensure_unique_string(self._basename, REGISTERED_IDS)
 
 
-ID_SCHEMA = vol.Schema({
-    vol.Required(CONF_ID): invalid,
-})
-
 REQUIRED_ID_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): register_variable_id,
 })
 
-PLATFORM_SCHEMA = ID_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.Schema({
     vol.Required(CONF_PLATFORM): valid,
 })
 

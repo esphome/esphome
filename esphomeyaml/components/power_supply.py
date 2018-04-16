@@ -23,3 +23,7 @@ def to_code(config):
             add(psu.set_enable_time(conf[CONF_ENABLE_TIME]))
         if CONF_KEEP_ON_TIME in conf:
             add(psu.set_keep_on_time(conf[CONF_KEEP_ON_TIME]))
+
+
+def build_flags(config):
+    return '-DUSE_OUTPUT'

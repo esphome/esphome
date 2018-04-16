@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_DISCOVERY, \
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_MQTT, CONF_PASSWORD, \
     CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME, \
-    CONF_WILL_MESSAGE, CONF_CLIENT_ID
+    CONF_WILL_MESSAGE, CONF_CLIENT_ID, CONF_LOG_TOPIC
 from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, exp_empty_optional
 
 MQTT_WILL_BIRTH_SCHEMA = vol.Any(None, vol.Schema({
@@ -27,7 +27,7 @@ def validate_broker(value):
     return value
 
 
-CONFIG_SCHEMA = cv.ID_SCHEMA.extend({
+CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(CONF_MQTT): cv.register_variable_id,
     vol.Required(CONF_BROKER): validate_broker,
     vol.Optional(CONF_PORT, default=1883): cv.port,
@@ -40,6 +40,7 @@ CONFIG_SCHEMA = cv.ID_SCHEMA.extend({
     vol.Optional(CONF_BIRTH_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
     vol.Optional(CONF_WILL_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
     vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
+    vol.Optional(CONF_LOG_TOPIC): cv.publish_topic,
 })
 
 
@@ -74,3 +75,5 @@ def to_code(config):
         add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
     if CONF_CLIENT_ID in config:
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
+    if CONF_LOG_TOPIC in config:
+        add(mqtt.set_log_topic(config[CONF_LOG_TOPIC]))

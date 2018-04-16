@@ -14,3 +14,7 @@ CONFIG_SCHEMA = vol.Schema({
 
 def to_code(config):
     add(App.init_i2c(config[CONF_SDA], config[CONF_SCL], config.get(CONF_FREQUENCY)))
+
+
+def build_flags(config):
+    return '-DUSE_I2C'

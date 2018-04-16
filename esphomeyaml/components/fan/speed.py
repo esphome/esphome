@@ -24,7 +24,7 @@ PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
 def to_code(config):
     output = get_variable(config[CONF_OUTPUT])
     rhs = App.make_fan(config[CONF_NAME])
-    fan_struct = variable('Application::FanStruct', config[CONF_ID], rhs)
+    fan_struct = variable('Application::MakeFan', config[CONF_ID], rhs)
     if CONF_SPEED in config:
         speeds = config[CONF_SPEED]
         add(fan_struct.Poutput.set_speed(output, 0.0,
