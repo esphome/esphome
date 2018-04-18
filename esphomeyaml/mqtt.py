@@ -7,8 +7,9 @@ from datetime import datetime
 import paho.mqtt.client as mqtt
 
 from esphomeyaml import core
-from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, CONF_LOGGER, \
-    CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
+from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
+    CONF_LOG_TOPIC, \
+    CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
     CONF_USERNAME
 from esphomeyaml.helpers import color
 
@@ -41,12 +42,17 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
 def show_logs(config, topic=None, username=None, password=None, client_id=None):
     if topic is not None:
         pass  # already have topic
-    elif CONF_LOG_TOPIC in config.get(CONF_MQTT, {}):
-        topic = config[CONF_MQTT][CONF_LOG_TOPIC]
-    elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
-        topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + u'/debug'
+    elif CONF_MQTT in config:
+        conf = config[CONF_MQTT]
+        if CONF_LOG_TOPIC in conf:
+            topic = config[CONF_MQTT][CONF_LOG_TOPIC]
+        elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
+            topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + u'/debug'
+        else:
+            topic = config[CONF_ESPHOMEYAML][CONF_NAME] + u'/debug'
     else:
-        topic = config[CONF_ESPHOMEYAML][CONF_NAME] + u'/debug'
+        _LOGGER.error(u"MQTT isn't setup, can't start MQTT logs")
+        return 1
     _LOGGER.info(u"Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):

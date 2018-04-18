@@ -1,11 +1,14 @@
+import re
+
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_DISCOVERY, \
-    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_MQTT, CONF_PASSWORD, \
-    CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME, \
-    CONF_WILL_MESSAGE, CONF_CLIENT_ID, CONF_LOG_TOPIC
-from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, exp_empty_optional
+from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
+    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_FINGERPRINTS, CONF_ID, CONF_LOG_TOPIC, \
+    CONF_MQTT, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, \
+    CONF_TOPIC_PREFIX, CONF_USERNAME, CONF_WILL_MESSAGE
+from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, add, \
+    exp_empty_optional
 
 MQTT_WILL_BIRTH_SCHEMA = vol.Any(None, vol.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
@@ -19,11 +22,18 @@ def validate_broker(value):
     value = cv.string_strict(value)
     if value.endswith(u'.local'):
         raise vol.Invalid(u"MQTT server addresses ending with '.local' are currently unsupported."
-                          u" Please specify the static IP instead.")
+                          u" Please use the static IP instead.")
     if u':' in value:
         raise vol.Invalid(u"Please specify the port using the port: option")
     if not value:
         raise vol.Invalid(u"Broker cannot be empty")
+    return value
+
+
+def validate_fingerprint(value):
+    value = cv.string(value)
+    if re.match(r'^[0-9a-f]{40}$', value) is None:
+        raise vol.Invalid(u"fingerprint must be valid SHA1 hash")
     return value
 
 
@@ -41,6 +51,8 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_WILL_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
     vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
     vol.Optional(CONF_LOG_TOPIC): cv.publish_topic,
+    vol.Optional(CONF_FINGERPRINTS): vol.All(cv.only_on_esp8266,
+                                             cv.ensure_list, [validate_fingerprint]),
 })
 
 
@@ -77,3 +89,13 @@ def to_code(config):
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
     if CONF_LOG_TOPIC in config:
         add(mqtt.set_log_topic(config[CONF_LOG_TOPIC]))
+    if CONF_FINGERPRINTS in config:
+        for fingerprint in config[CONF_FINGERPRINTS]:
+            arr = [fingerprint[i:i + 2] for i in range(0, 40, 2)]
+            add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr)))
+
+
+def build_flags(config):
+    if CONF_FINGERPRINTS in config:
+        return '-DASYNC_TCP_SSL_ENABLED'
+    return None

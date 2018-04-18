@@ -67,6 +67,7 @@ class RawExpression(Expression):
         return self.text
 
 
+# pylint: disable=redefined-builtin
 class AssignmentExpression(Expression):
     def __init__(self, type, modifier, name, rhs, obj):
         super(AssignmentExpression, self).__init__()
@@ -136,23 +137,27 @@ class StructInitializer(Expression):
 
 
 class ArrayInitializer(Expression):
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         super(ArrayInitializer, self).__init__()
+        self.multiline = kwargs.get('multiline', True)
         self.args = []
-        for x in args:
-            if x is None:
+        for arg in args:
+            if arg is None:
                 continue
-            exp = safe_exp(x)
+            exp = safe_exp(arg)
             self.args.append(exp)
             self.requires.append(exp)
 
     def __str__(self):
         if not self.args:
             return u'{}'
-        cpp = u'{\n'
-        for arg in self.args:
-            cpp += u'  {},\n'.format(arg)
-        cpp += u'}'
+        if self.multiline:
+            cpp = u'{\n'
+            for arg in self.args:
+                cpp += u'  {},\n'.format(arg)
+            cpp += u'}'
+        else:
+            cpp = u'{' + u', '.join(str(arg) for arg in self.args) + u'}'
         return cpp
 
 

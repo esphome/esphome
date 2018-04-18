@@ -2,10 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml import pins
 from esphomeyaml.components import output
-from esphomeyaml.const import CONF_ID, CONF_PIN, \
-    ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_ID, CONF_PIN, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, exp_gpio_output_pin, get_gpio_pin_number
+from esphomeyaml.helpers import App, Pvariable, exp_gpio_output_pin
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
 

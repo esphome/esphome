@@ -9,10 +9,9 @@ from voluptuous.humanize import humanize_error
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core, yaml_util
-from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_MQTT, \
-    CONF_NAME, \
-    CONF_PLATFORM, CONF_SIMPLIFY, CONF_WIFI, ESP_PLATFORMS, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266, CONF_USE_BUILD_FLAGS
+from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
+    CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, ESP_PLATFORMS, \
+    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, add, color
 
@@ -22,8 +21,7 @@ DEFAULT_LIBRARY_URI = u'esphomelib@1.2.1'
 
 CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
-    vol.Required(CONF_PLATFORM): vol.All(
-        vol.Upper, vol.Any(ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266)),
+    vol.Required(CONF_PLATFORM): cv.string,
     vol.Required(CONF_BOARD): cv.string,
     vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
@@ -31,7 +29,7 @@ CORE_SCHEMA = vol.Schema({
 })
 
 REQUIRED_COMPONENTS = [
-    CONF_ESPHOMEYAML, CONF_WIFI, CONF_MQTT
+    CONF_ESPHOMEYAML, CONF_WIFI
 ]
 
 _COMPONENT_CACHE = {}
@@ -159,6 +157,16 @@ def validate_config(config):
                 result.add_error(u"Platform not found: {}.{}")
                 continue
 
+            success = True
+            dependencies = getattr(platform, 'DEPENDENCIES', [])
+            for dependency in dependencies:
+                if dependency not in _ALL_COMPONENTS:
+                    result.add_error(u"Platform {}.{} requires {}".format(domain, p_name,
+                                                                          dependency))
+                    success = False
+            if not success:
+                continue
+
             if hasattr(platform, u'PLATFORM_SCHEMA'):
                 try:
                     p_validated = platform.PLATFORM_SCHEMA(p_config)
@@ -201,8 +209,10 @@ def load_config(path):
     core_conf = config[CONF_ESPHOMEYAML]
     esp_platform = unicode(core_conf.get(CONF_PLATFORM, u""))
     esp_platform = esp_platform.upper()
-    if esp_platform not in (ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266):
-        raise ESPHomeYAMLError(u"Invalid ESP Platform {}".format(esp_platform))
+    if '8266' in esp_platform:
+        esp_platform = ESP_PLATFORM_ESP8266
+    if '32' in esp_platform:
+        esp_platform = ESP_PLATFORM_ESP32
     core.ESP_PLATFORM = esp_platform
     core.BOARD = unicode(core_conf.get(CONF_BOARD, u""))
     core.SIMPLIFY = cv.boolean(core_conf.get(CONF_SIMPLIFY, True))

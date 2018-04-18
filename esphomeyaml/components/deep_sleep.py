@@ -1,9 +1,9 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
-from esphomeyaml.const import CONF_SLEEP_DURATION, CONF_WAKEUP_PIN, CONF_RUN_CYCLES, \
-    CONF_RUN_DURATION, CONF_ID, CONF_NUMBER
-from esphomeyaml.helpers import App, add, Pvariable, exp_gpio_input_pin
+from esphomeyaml.const import CONF_ID, CONF_RUN_CYCLES, CONF_RUN_DURATION, CONF_SLEEP_DURATION, \
+    CONF_WAKEUP_PIN
+from esphomeyaml.helpers import App, Pvariable, add, exp_gpio_input_pin
 
 DEPENDENCIES = ['logger']
 
@@ -11,9 +11,8 @@ DEPENDENCIES = ['logger']
 def validate_pin_number(value):
     valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 39]
     if value not in valid_pins:
-        raise vol.Invalid(u"Only pins {} support wakeup".format(
-            ', '.join(str(x) for x in valid_pins))
-        )
+        raise vol.Invalid(u"Only pins {} support wakeup"
+                          u"".format(', '.join(str(x) for x in valid_pins)))
     return value
 
 

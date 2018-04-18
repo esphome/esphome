@@ -157,6 +157,10 @@ CONF_SLEEP_DURATION = 'sleep_duration'
 CONF_WAKEUP_PIN = 'wakeup_pin'
 CONF_RUN_CYCLES = 'run_cycles'
 CONF_RUN_DURATION = 'run_duration'
+CONF_AP = 'ap'
+CONF_CSS_URL = 'css_url'
+CONF_JS_URL = 'js_url'
+CONF_FINGERPRINTS = 'fingerprints'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',

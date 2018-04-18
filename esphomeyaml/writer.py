@@ -6,7 +6,7 @@ import os
 
 from esphomeyaml.config import iter_components
 from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
-    CONF_PLATFORM, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_USE_BUILD_FLAGS
+    CONF_PLATFORM, CONF_USE_BUILD_FLAGS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
@@ -64,9 +64,12 @@ PLATFORM_TO_PLATFORMIO = {
 
 
 def get_ini_content(config):
+    platform = config[CONF_ESPHOMEYAML][CONF_PLATFORM]
+    if platform in PLATFORM_TO_PLATFORMIO:
+        platform = PLATFORM_TO_PLATFORMIO[platform]
     options = {
         u'env': config[CONF_ESPHOMEYAML][CONF_NAME],
-        u'platform': PLATFORM_TO_PLATFORMIO[config[CONF_ESPHOMEYAML][CONF_PLATFORM]],
+        u'platform': platform,
         u'board': config[CONF_ESPHOMEYAML][CONF_BOARD],
         u'esphomeyaml_uri': config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI],
         u'build_flags': u'',
@@ -74,7 +77,7 @@ def get_ini_content(config):
     if config[CONF_ESPHOMEYAML][CONF_USE_BUILD_FLAGS]:
         build_flags = set()
         build_flags.add(u"-DESPHOMEYAML_USE")
-        for domain, component, conf in iter_components(config):
+        for _, component, conf in iter_components(config):
             if not hasattr(component, u'build_flags'):
                 continue
             flags = component.build_flags(conf)
