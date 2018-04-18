@@ -310,13 +310,13 @@ def main():
         if exit_code != 0:
             return exit_code
         _LOGGER.info(u"Successfully compiled program.")
-        if args.no_logs:
-            return 0
         port = args.upload_port or discover_serial_ports()
         exit_code = upload_program(config, args, port)
         if exit_code != 0:
             return exit_code
         _LOGGER.info(u"Successfully uploaded program.")
+        if args.no_logs:
+            return 0
         return show_logs(config, args, port)
     elif args.command == 'version':
         print(u"Version: {}".format(const.__version__))

@@ -1,9 +1,10 @@
 from __future__ import print_function
+
 import codecs
 import fnmatch
 import logging
-from collections import OrderedDict
 import os
+from collections import OrderedDict
 
 import yaml
 
@@ -79,9 +80,8 @@ def _ordered_dict(loader, node):
 
         if key in seen:
             fname = getattr(loader.stream, 'name', '')
-            _LOGGER.error(
-                u'YAML file %s contains duplicate key "%s". '
-                u'Check lines %d and %d.', fname, key, seen[key], line)
+            raise ESPHomeYAMLError(u'YAML file {} contains duplicate key "{}". '
+                                   u'Check lines {} and {}.'.format(fname, key, seen[key], line))
         seen[key] = line
 
     return _add_reference(OrderedDict(nodes), loader, node)

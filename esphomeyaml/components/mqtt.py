@@ -4,11 +4,11 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
-    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_FINGERPRINTS, CONF_ID, CONF_LOG_TOPIC, \
+    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_SSL_FINGERPRINTS, CONF_ID, CONF_LOG_TOPIC, \
     CONF_MQTT, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, add, \
-    exp_empty_optional
+    exp_empty_optional, RawExpression
 
 MQTT_WILL_BIRTH_SCHEMA = vol.Any(None, vol.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
@@ -51,8 +51,8 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_WILL_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
     vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
     vol.Optional(CONF_LOG_TOPIC): cv.publish_topic,
-    vol.Optional(CONF_FINGERPRINTS): vol.All(cv.only_on_esp8266,
-                                             cv.ensure_list, [validate_fingerprint]),
+    vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
+                                                 cv.ensure_list, [validate_fingerprint]),
 })
 
 
@@ -89,13 +89,13 @@ def to_code(config):
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
     if CONF_LOG_TOPIC in config:
         add(mqtt.set_log_topic(config[CONF_LOG_TOPIC]))
-    if CONF_FINGERPRINTS in config:
-        for fingerprint in config[CONF_FINGERPRINTS]:
-            arr = [fingerprint[i:i + 2] for i in range(0, 40, 2)]
-            add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr)))
+    if CONF_SSL_FINGERPRINTS in config:
+        for fingerprint in config[CONF_SSL_FINGERPRINTS]:
+            arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
+            add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
 
 
-def build_flags(config):
-    if CONF_FINGERPRINTS in config:
-        return '-DASYNC_TCP_SSL_ENABLED'
+def required_build_flags(config):
+    if CONF_SSL_FINGERPRINTS in config:
+        return '-DASYNC_TCP_SSL_ENABLED=1'
     return None

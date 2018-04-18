@@ -30,7 +30,7 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
 })
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(CONF_WIFI): cv.register_variable_id,
+    cv.GenerateID('wifi'): cv.register_variable_id,
     vol.Optional(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): validate_password,
     vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,

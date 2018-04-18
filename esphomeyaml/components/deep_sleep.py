@@ -5,8 +5,6 @@ from esphomeyaml.const import CONF_ID, CONF_RUN_CYCLES, CONF_RUN_DURATION, CONF_
     CONF_WAKEUP_PIN
 from esphomeyaml.helpers import App, Pvariable, add, exp_gpio_input_pin
 
-DEPENDENCIES = ['logger']
-
 
 def validate_pin_number(value):
     valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 39]

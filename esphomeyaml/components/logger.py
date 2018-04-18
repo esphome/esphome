@@ -45,7 +45,7 @@ def to_code(config):
         add(log.set_log_level(tag, exp_log_level(level)))
 
 
-def build_flags(config):
+def required_build_flags(config):
     if CONF_LEVEL in config:
         return u'-DESPHOMELIB_LOG_LEVEL={}'.format(esphomelib_log_level(config[CONF_LEVEL]))
     return None

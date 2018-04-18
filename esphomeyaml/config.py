@@ -137,7 +137,7 @@ def validate_config(config):
                 validated = component.CONFIG_SCHEMA(conf)
                 result[domain] = validated
             except vol.Invalid as ex:
-                _comp_error(ex, domain, config)
+                _comp_error(ex, domain, conf)
                 continue
 
         if not hasattr(component, 'PLATFORM_SCHEMA'):

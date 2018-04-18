@@ -63,6 +63,20 @@ PLATFORM_TO_PLATFORMIO = {
 }
 
 
+def get_build_flags(config, key):
+    build_flags = set()
+    for _, component, conf in iter_components(config):
+        if not hasattr(component, key):
+            continue
+        flags = getattr(component, key)(conf)
+        if flags is None:
+            continue
+        if isinstance(flags, (str, unicode)):
+            flags = [flags]
+        build_flags |= set(flags)
+    return build_flags
+
+
 def get_ini_content(config):
     platform = config[CONF_ESPHOMEYAML][CONF_PLATFORM]
     if platform in PLATFORM_TO_PLATFORMIO:
@@ -74,20 +88,15 @@ def get_ini_content(config):
         u'esphomeyaml_uri': config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI],
         u'build_flags': u'',
     }
+    build_flags = set()
     if config[CONF_ESPHOMEYAML][CONF_USE_BUILD_FLAGS]:
-        build_flags = set()
+        build_flags |= get_build_flags(config, 'build_flags')
         build_flags.add(u"-DESPHOMEYAML_USE")
-        for _, component, conf in iter_components(config):
-            if not hasattr(component, u'build_flags'):
-                continue
-            flags = component.build_flags(conf)
-            if flags is None:
-                continue
-            if isinstance(flags, (str, unicode)):
-                flags = [flags]
-            build_flags |= set(flags)
-        # avoid changing build flags order
-        build_flags = sorted(list(build_flags))
+    build_flags |= get_build_flags(config, 'required_build_flags')
+
+    # avoid changing build flags order
+    build_flags = sorted(list(build_flags))
+    if build_flags:
         options[u'build_flags'] = u'\n    '.join(build_flags)
     return INI_CONTENT_FORMAT.format(**options)
 
