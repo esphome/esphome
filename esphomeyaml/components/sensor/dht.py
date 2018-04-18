@@ -21,11 +21,18 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_dht_sensor(config[CONF_PIN], config[CONF_TEMPERATURE][CONF_NAME],
-                              config[CONF_HUMIDITY][CONF_NAME], config.get(CONF_UPDATE_INTERVAL))
-    dht = variable('Application::MakeDHTComponent', config[CONF_ID], rhs)
+    rhs = App.make_dht_sensor(config[CONF_TEMPERATURE][CONF_NAME],
+                              config[CONF_HUMIDITY][CONF_NAME],
+                              config[CONF_PIN], config.get(CONF_UPDATE_INTERVAL))
+    dht = variable('Application::MakeDHTSensor', config[CONF_ID], rhs)
     if CONF_MODEL in config:
         model = RawExpression('DHT::{}'.format(config[CONF_MODEL]))
         add(dht.Pdht.set_dht_model(model))
+    sensor.setup_sensor(dht.Pdht.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
     sensor.setup_mqtt_sensor_component(dht.Pmqtt_temperature, config[CONF_TEMPERATURE])
+    sensor.setup_sensor(dht.Pdht.Pget_humidity_sensor(), config[CONF_HUMIDITY])
     sensor.setup_mqtt_sensor_component(dht.Pmqtt_humidity, config[CONF_HUMIDITY])
+
+
+def build_flags(config):
+    return '-DUSE_DHT_SENSOR'

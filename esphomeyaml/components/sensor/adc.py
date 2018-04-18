@@ -25,11 +25,16 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_adc_sensor(config[CONF_PIN], config[CONF_NAME],
+    rhs = App.make_adc_sensor(config[CONF_NAME], config[CONF_PIN],
                               config.get(CONF_UPDATE_INTERVAL))
     make = variable('Application::MakeADCSensor', config[CONF_ID], rhs)
     adc = make.Padc
     if CONF_ATTENUATION in config:
         attenuation = ATTENUATION_MODES[config[CONF_ATTENUATION]]
         add(adc.set_attenuation(RawExpression(attenuation)))
+    sensor.setup_sensor(adc, config)
     sensor.setup_mqtt_sensor_component(make.Pmqtt, config)
+
+
+def build_flags(config):
+    return '-DUSE_ADC_SENSOR'

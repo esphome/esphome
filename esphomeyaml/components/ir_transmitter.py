@@ -21,3 +21,7 @@ def to_code(config):
         pin = exp_gpio_output_pin(conf[CONF_PIN])
         rhs = App.make_ir_transmitter(pin, conf.get(CONF_CARRIER_DUTY_PERCENT))
         Pvariable(IR_TRANSMITTER_COMPONENT_CLASS, conf[CONF_ID], rhs)
+
+
+def build_flags(config):
+    return '-DUSE_IR_TRANSMITTER'

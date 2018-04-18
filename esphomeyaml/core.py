@@ -16,3 +16,9 @@ class IPAddress(object):
 
     def __str__(self):
         return '.'.join(str(x) for x in self.args)
+
+
+CONFIG_PATH = None
+SIMPLIFY = True
+ESP_PLATFORM = ''
+BOARD = ''

@@ -36,3 +36,7 @@ def to_code(config):
     if CONF_CHANNEL in config:
         add(ledc.set_channel(config[CONF_CHANNEL]))
     output.setup_output_platform(ledc, config)
+
+
+def build_flags(config):
+    return '-DUSE_LEDC_OUTPUT'

@@ -21,7 +21,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 def to_code(config):
     trigger = exp_gpio_output_pin(config[CONF_TRIGGER_PIN])
     echo = exp_gpio_input_pin(config[CONF_ECHO_PIN])
-    rhs = App.make_ultrasonic_sensor(trigger, echo, config[CONF_NAME],
+    rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
     make = variable('Application::MakeUltrasonicSensor', config[CONF_ID], rhs)
     ultrasonic = make.Pultrasonic
@@ -29,4 +29,9 @@ def to_code(config):
         add(ultrasonic.set_timeout_us(config[CONF_TIMEOUT_TIME]))
     elif CONF_TIMEOUT_METER in config:
         add(ultrasonic.set_timeout_m(config[CONF_TIMEOUT_METER]))
+    sensor.setup_sensor(ultrasonic, config)
     sensor.setup_mqtt_sensor_component(make.Pmqtt, config)
+
+
+def build_flags(config):
+    return '-DUSE_ULTRASONIC_SENSOR'

@@ -15,3 +15,7 @@ def to_code(config):
     rhs = App.make_gpio_output(pin)
     gpio = Pvariable('output::GPIOBinaryOutputComponent', config[CONF_ID], rhs)
     output.setup_output_platform(gpio, config)
+
+
+def build_flags(config):
+    return '-DUSE_GPIO_OUTPUT'

@@ -21,6 +21,12 @@ def to_code(config):
     rhs = App.make_htu21d_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_HUMIDITY][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
-    htu21d = variable('Application::MakeHTU21DComponent', config[CONF_ID], rhs)
+    htu21d = variable('Application::MakeHTU21DSensor', config[CONF_ID], rhs)
+    sensor.setup_sensor(htu21d.Phtu21d.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
     sensor.setup_mqtt_sensor_component(htu21d.Pmqtt_temperature, config[CONF_TEMPERATURE])
+    sensor.setup_sensor(htu21d.Phtu21d.Pget_humidity_sensor(), config[CONF_HUMIDITY])
     sensor.setup_mqtt_sensor_component(htu21d.Pmqtt_humidity, config[CONF_HUMIDITY])
+
+
+def build_flags(config):
+    return '-DUSE_HTU21D_SENSOR'

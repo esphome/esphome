@@ -18,3 +18,7 @@ def to_code(config):
     for conf in config:
         rhs = App.make_dallas_component(conf[CONF_PIN], conf.get(CONF_UPDATE_INTERVAL))
         Pvariable(DALLAS_COMPONENT_CLASS, conf[CONF_ID], rhs)
+
+
+def build_flags(config):
+    return '-DUSE_DALLAS_SENSOR'

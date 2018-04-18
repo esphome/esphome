@@ -22,8 +22,14 @@ def to_code(config):
     rhs = App.make_bmp085_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_PRESSURE][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
-    bmp = variable('Application::MakeBMP085Component', config[CONF_ID], rhs)
+    bmp = variable('Application::MakeBMP085Sensor', config[CONF_ID], rhs)
     if CONF_ADDRESS in config:
         add(bmp.Pbmp.set_address(HexIntLiteral(config[CONF_ADDRESS])))
+    sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
     sensor.setup_mqtt_sensor_component(bmp.Pmqtt_temperature, config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), config[CONF_PRESSURE])
     sensor.setup_mqtt_sensor_component(bmp.Pmqtt_pressure, config[CONF_PRESSURE])
+
+
+def build_flags(config):
+    return '-DUSE_BMP085_SENSOR'

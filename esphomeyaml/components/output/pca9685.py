@@ -23,3 +23,7 @@ def to_code(config):
     rhs = pca9685.create_channel(config[CONF_CHANNEL], power_supply)
     out = Pvariable('output::PCA9685OutputComponent::Channel', config[CONF_ID], rhs)
     output.setup_output_platform(out, config, skip_power_supply=True)
+
+
+def build_flags(config):
+    return '-DUSE_PCA9685_OUTPUT'

@@ -41,9 +41,9 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_pulse_counter_sensor(config[CONF_PIN], config[CONF_NAME],
+    rhs = App.make_pulse_counter_sensor(config[CONF_NAME], config[CONF_PIN],
                                         config.get(CONF_UPDATE_INTERVAL))
-    make = variable('Application::MakePulseCounter', config[CONF_ID], rhs)
+    make = variable('Application::MakePulseCounterSensor', config[CONF_ID], rhs)
     pcnt = make.Ppcnt
     if CONF_PULL_MODE in config:
         pull_mode = GPIO_PULL_MODES[config[CONF_PULL_MODE]]
@@ -55,4 +55,9 @@ def to_code(config):
         add(pcnt.set_edge_mode(RawExpression(rising_edge), RawExpression(falling_edge)))
     if CONF_INTERNAL_FILTER in config:
         add(pcnt.set_filter(config[CONF_INTERNAL_FILTER]))
+    sensor.setup_sensor(pcnt, config)
     sensor.setup_mqtt_sensor_component(make.Pmqtt, config)
+
+
+def build_flags(config):
+    return '-DUSE_PULSE_COUNTER_SENSOR'
