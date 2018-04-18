@@ -1,9 +1,8 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_DNS1, CONF_DNS2, CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, \
-    CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_WIFI, CONF_AP, \
-    CONF_CHANNEL
+from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_GATEWAY, \
+    CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET
 from esphomeyaml.helpers import App, MockObj, Pvariable, StructInitializer, add
 
 
