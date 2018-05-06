@@ -17,7 +17,7 @@ from esphomeyaml.helpers import App, add, color
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.3.0'
+DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.4.0'
 
 CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
