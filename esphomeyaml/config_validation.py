@@ -237,21 +237,26 @@ def time_period_str_unit(value):
 
     unit_to_kwarg = {
         'ms': 'milliseconds',
+        'milliseconds': 'milliseconds',
         's': 'seconds',
         'sec': 'seconds',
+        'seconds': 'seconds',
         'min': 'minutes',
+        'minutes': 'minutes',
         'h': 'hours',
+        'hours': 'hours',
         'd': 'days',
+        'days': 'days',
     }
 
-    match = re.match(r"^([-+]?\d+)\s*(\w*)$", value)
+    match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
     if match is None or match.group(2) not in unit_to_kwarg:
         raise vol.Invalid(u"Expected time period with unit, "
                           u"got {}".format(value))
 
     kwarg = unit_to_kwarg[match.group(2)]
-    return timedelta(**{kwarg: int(match.group(1))})
+    return timedelta(**{kwarg: float(match.group(1))})
 
 
 def time_period_to_milliseconds(value):
