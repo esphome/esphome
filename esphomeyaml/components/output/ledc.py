@@ -38,5 +38,4 @@ def to_code(config):
     output.setup_output_platform(ledc, config)
 
 
-def build_flags(config):
-    return '-DUSE_LEDC_OUTPUT'
+BUILD_FLAGS = '-DUSE_LEDC_OUTPUT'

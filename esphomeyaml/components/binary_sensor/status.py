@@ -17,5 +17,4 @@ def to_code(config):
     binary_sensor.setup_mqtt_binary_sensor(status.Pmqtt, config)
 
 
-def build_flags(config):
-    return '-DUSE_STATUS_BINARY_SENSOR'
+BUILD_FLAGS = '-DUSE_STATUS_BINARY_SENSOR'

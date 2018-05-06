@@ -104,5 +104,4 @@ def register_sensor(var, config):
     setup_mqtt_sensor_component(mqtt_sensor, config)
 
 
-def build_flags(config):
-    return '-DUSE_SENSOR'
+BUILD_FLAGS = '-DUSE_SENSOR'

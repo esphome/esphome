@@ -34,5 +34,4 @@ def to_code(config):
     sensor.register_sensor(sensor_, config)
 
 
-def build_flags(config):
-    return '-DUSE_DALLAS_SENSOR'
+BUILD_FLAGS = '-DUSE_DALLAS_SENSOR'

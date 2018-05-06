@@ -4,6 +4,7 @@ import codecs
 import errno
 import os
 
+from esphomeyaml import core
 from esphomeyaml.config import iter_components
 from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
     CONF_PLATFORM, CONF_USE_BUILD_FLAGS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
@@ -50,7 +51,7 @@ platform = {platform}
 board = {board}
 framework = arduino
 lib_deps =
-    {esphomeyaml_uri}
+    {lib_deps}
     ${{common.lib_deps}}
 build_flags =
     {build_flags}
@@ -68,7 +69,9 @@ def get_build_flags(config, key):
     for _, component, conf in iter_components(config):
         if not hasattr(component, key):
             continue
-        flags = getattr(component, key)(conf)
+        flags = getattr(component, key)
+        if callable(flags):
+            flags = flags(conf)
         if flags is None:
             continue
         if isinstance(flags, (str, unicode)):
@@ -85,12 +88,12 @@ def get_ini_content(config):
         u'env': config[CONF_ESPHOMEYAML][CONF_NAME],
         u'platform': platform,
         u'board': config[CONF_ESPHOMEYAML][CONF_BOARD],
-        u'esphomeyaml_uri': config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI],
         u'build_flags': u'',
     }
     build_flags = set()
     if config[CONF_ESPHOMEYAML][CONF_USE_BUILD_FLAGS]:
         build_flags |= get_build_flags(config, 'build_flags')
+        build_flags |= get_build_flags(config, 'BUILD_FLAGS')
         build_flags.add(u"-DESPHOMEYAML_USE")
     build_flags |= get_build_flags(config, 'required_build_flags')
 
@@ -98,6 +101,31 @@ def get_ini_content(config):
     build_flags = sorted(list(build_flags))
     if build_flags:
         options[u'build_flags'] = u'\n    '.join(build_flags)
+
+    lib_deps = set()
+    lib_deps.add(config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI])
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+        lib_deps |= {
+            'ArduinoOTA',
+            'Update',
+            'ESPmDNS',
+            'Wire',
+            'FS',
+            'Preferences',
+
+        }
+    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+        lib_deps |= {
+            'ESP8266WiFi',
+            'Wire',
+            'Hash',
+            'ESP8266mDNS',
+            'ArduinoOTA',
+        }
+    else:
+        raise ESPHomeYAMLError("Unsupported platform {}".format(core.ESP_PLATFORM))
+    options[u'lib_deps'] = u'\n    '.join(sorted(list(lib_deps)))
+
     return INI_CONTENT_FORMAT.format(**options)
 
 

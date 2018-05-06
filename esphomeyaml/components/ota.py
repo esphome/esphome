@@ -45,5 +45,4 @@ def get_auth(config):
     return config[CONF_OTA].get(CONF_PASSWORD, '')
 
 
-def build_flags(config):
-    return '-DUSE_OTA'
+BUILD_FLAGS = '-DUSE_OTA'

@@ -370,6 +370,18 @@ def get_gpio_pin_number(conf):
 def exp_gpio_pin_(obj, conf, default_mode):
     if isinstance(conf, int):
         return conf
+
+    if 'pcf8574' in conf:
+        hub = get_variable(conf['pcf8574'])
+        if default_mode == u'INPUT':
+            return hub.make_input_pin(conf[CONF_NUMBER],
+                                      RawExpression('PCF8574_' + conf[CONF_MODE]),
+                                      conf[CONF_INVERTED])
+        elif default_mode == u'OUTPUT':
+            return hub.make_output_pin(conf[CONF_NUMBER], conf[CONF_INVERTED])
+        else:
+            raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
+
     if conf.get(CONF_INVERTED) is None:
         return obj(conf[CONF_NUMBER], conf.get(CONF_MODE))
     return obj(conf[CONF_NUMBER], RawExpression(conf.get(CONF_MODE, default_mode)),

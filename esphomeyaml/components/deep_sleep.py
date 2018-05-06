@@ -38,5 +38,4 @@ def to_code(config):
         add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
 
 
-def build_flags(config):
-    return '-DUSE_DEEP_SLEEP'
+BUILD_FLAGS = '-DUSE_DEEP_SLEEP'

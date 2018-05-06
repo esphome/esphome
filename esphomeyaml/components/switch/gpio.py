@@ -19,5 +19,4 @@ def to_code(config):
     switch.setup_mqtt_switch(gpio.Pmqtt, config)
 
 
-def build_flags(config):
-    return '-DUSE_GPIO_SWITCH'
+BUILD_FLAGS = '-DUSE_GPIO_SWITCH'

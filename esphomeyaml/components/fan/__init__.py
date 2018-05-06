@@ -23,5 +23,4 @@ def setup_mqtt_fan(obj, config):
     setup_mqtt_component(obj, config)
 
 
-def build_flags(config):
-    return '-DUSE_FAN'
+BUILD_FLAGS = '-DUSE_FAN'

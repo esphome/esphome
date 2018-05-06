@@ -3,6 +3,7 @@
 from __future__ import print_function
 
 import logging
+import re
 from datetime import timedelta
 
 import voluptuous as vol
@@ -192,30 +193,65 @@ time_period_dict = vol.All(
     lambda value: timedelta(**value))
 
 
-def time_period_str(value):
-    """Validate and transform time offset."""
+def time_period_str_colon(value):
+    """Validate and transform time offset with format HH:MM[:SS]."""
     if isinstance(value, int):
-        raise vol.Invalid("Make sure you wrap time values in quotes")
-    elif not isinstance(value, (str, unicode)):
+        raise vol.Invalid('Make sure you wrap time values in quotes')
+    elif not isinstance(value, str):
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
-    value = unicode(value)
-    if value.endswith(u'ms'):
-        return vol.Coerce(int)(value[:-2])
-    elif value.endswith(u's'):
-        return vol.Coerce(float)(value[:-1]) * 1000
-    elif value.endswith(u'min'):
-        return vol.Coerce(float)(value[:-3]) * 1000 * 60
-    elif value.endswith(u'h'):
-        return vol.Coerce(float)(value[:-1]) * 1000 * 60 * 60
-    raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
+    negative_offset = False
+    if value.startswith('-'):
+        negative_offset = True
+        value = value[1:]
+    elif value.startswith('+'):
+        value = value[1:]
 
-
-def time_period_milliseconds(value):
     try:
-        return timedelta(milliseconds=int(value))
-    except (ValueError, TypeError):
-        raise vol.Invalid('Expected milliseconds, got {}'.format(value))
+        parsed = [int(x) for x in value.split(':')]
+    except ValueError:
+        raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
+
+    if len(parsed) == 2:
+        hour, minute = parsed
+        second = 0
+    elif len(parsed) == 3:
+        hour, minute, second = parsed
+    else:
+        raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
+
+    offset = timedelta(hours=hour, minutes=minute, seconds=second)
+
+    if negative_offset:
+        offset *= -1
+
+    return offset
+
+
+def time_period_str_unit(value):
+    """Validate and transform time period with time unit and integer value."""
+    if isinstance(value, int):
+        value = str(value)
+    elif not isinstance(value, str):
+        raise vol.Invalid("Expected string for time period with unit.")
+
+    unit_to_kwarg = {
+        'ms': 'milliseconds',
+        's': 'seconds',
+        'sec': 'seconds',
+        'min': 'minutes',
+        'h': 'hours',
+        'd': 'days',
+    }
+
+    match = re.match(r"^([-+]?\d+)\s*(\w*)$", value)
+
+    if match is None or match.group(2) not in unit_to_kwarg:
+        raise vol.Invalid(u"Expected time period with unit, "
+                          u"got {}".format(value))
+
+    kwarg = unit_to_kwarg[match.group(2)]
+    return timedelta(**{kwarg: int(match.group(1))})
 
 
 def time_period_to_milliseconds(value):
@@ -223,11 +259,18 @@ def time_period_to_milliseconds(value):
         return value
     if isinstance(value, float):
         return int(value)
-    return value / timedelta(milliseconds=1)
+    return int(value.total_seconds() * 1000)
 
 
-time_period = vol.All(vol.Any(time_period_str, timedelta, time_period_dict,
-                              time_period_milliseconds), time_period_to_milliseconds)
+def time_period_to_seconds(value):
+    if value / 1000 != value // 1000:
+        raise vol.Invalid("Fractions of seconds are not supported here.")
+    return value / 1000
+
+
+time_period = vol.All(vol.Any(time_period_str_colon, time_period_str_unit, timedelta,
+                              time_period_dict),
+                      time_period_to_milliseconds)
 positive_time_period = vol.All(time_period, vol.Range(min=0))
 positive_not_null_time_period = vol.All(time_period, vol.Range(min=0, min_included=False))
 
@@ -294,17 +337,62 @@ def ipv4(value):
     return IPAddress(*parts_)
 
 
-def publish_topic(value):
-    value = string_strict(value)
-    if value.endswith('/'):
-        raise vol.Invalid("Publish topic can't end with '/'")
-    if '+' in value or '#' in value:
-        raise vol.Invalid("Publish topic can't contain '+' or '#'")
+def _valid_topic(value):
+    """Validate that this is a valid topic name/filter."""
+    if isinstance(value, dict):
+        raise vol.Invalid("Can't use dictionary with topic")
+    value = string(value)
+    try:
+        raw_value = value.encode('utf-8')
+    except UnicodeError:
+        raise vol.Invalid("MQTT topic name/filter must be valid UTF-8 string.")
+    if not raw_value:
+        raise vol.Invalid("MQTT topic name/filter must not be empty.")
+    if len(raw_value) > 65535:
+        raise vol.Invalid("MQTT topic name/filter must not be longer than "
+                          "65535 encoded bytes.")
+    if '\0' in value:
+        raise vol.Invalid("MQTT topic name/filter must not contain null "
+                          "character.")
     return value
 
 
-subscribe_topic = string_strict  # TODO improve this
-mqtt_payload = string  # TODO improve this
+def subscribe_topic(value):
+    """Validate that we can subscribe using this MQTT topic."""
+    value = _valid_topic(value)
+    for i in (i for i, c in enumerate(value) if c == '+'):
+        if (i > 0 and value[i - 1] != '/') or \
+                (i < len(value) - 1 and value[i + 1] != '/'):
+            raise vol.Invalid("Single-level wildcard must occupy an entire "
+                              "level of the filter")
+
+    index = value.find('#')
+    if index != -1:
+        if index != len(value) - 1:
+            # If there are multiple wildcards, this will also trigger
+            raise vol.Invalid("Multi-level wildcard must be the last "
+                              "character in the topic filter.")
+        if len(value) > 1 and value[index - 1] != '/':
+            raise vol.Invalid("Multi-level wildcard must be after a topic "
+                              "level separator.")
+
+    return value
+
+
+def publish_topic(value):
+    """Validate that we can publish using this MQTT topic."""
+    value = _valid_topic(value)
+    if '+' in value or '#' in value:
+        raise vol.Invalid("Wildcards can not be used in topic names")
+    return value
+
+
+def mqtt_payload(value):
+    if value is None:
+        return ''
+    return string(value)
+
+
 uint8_t = vol.All(int_, vol.Range(min=0, max=255))
 uint16_t = vol.All(int_, vol.Range(min=0, max=65535))
 uint32_t = vol.All(int_, vol.Range(min=0, max=4294967295))

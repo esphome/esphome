@@ -17,5 +17,4 @@ def to_code(config):
     output.setup_output_platform(gpio, config)
 
 
-def build_flags(config):
-    return '-DUSE_GPIO_OUTPUT'
+BUILD_FLAGS = '-DUSE_GPIO_OUTPUT'

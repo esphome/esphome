@@ -5,7 +5,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
 from esphomeyaml.const import ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_NUMBER, CONF_MODE, \
-    CONF_INVERTED
+    CONF_INVERTED, CONF_ID, CONF_PCF8575
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -72,7 +72,7 @@ def _translate_pin(value):
     except ValueError:
         pass
     if value.startswith('GPIO'):
-        return vol.Coerce(int)(value[len('GPIO'):])
+        return vol.Coerce(int)(value[len('GPIO'):].strip())
     if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         if value in ESP32_PINS:
             return ESP32_PINS[value]
@@ -80,7 +80,7 @@ def _translate_pin(value):
             raise vol.Invalid(u"ESP32: Unknown board {} with unknown "
                               u"pin {}.".format(core.BOARD, value))
         if value not in ESP32_BOARD_TO_PINS[core.BOARD]:
-            raise vol.Invalid(u"ESP32: Board {} doesn't have"
+            raise vol.Invalid(u"ESP32: Board {} doesn't have "
                               u"pin {}".format(core.BOARD, value))
         return ESP32_BOARD_TO_PINS[core.BOARD][value]
     elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
@@ -90,7 +90,7 @@ def _translate_pin(value):
             raise vol.Invalid(u"ESP8266: Unknown board {} with unknown "
                               u"pin {}.".format(core.BOARD, value))
         if value not in ESP8266_BOARD_TO_PINS[core.BOARD]:
-            raise vol.Invalid(u"ESP8266: Board {} doesn't have"
+            raise vol.Invalid(u"ESP8266: Board {} doesn't have "
                               u"pin {}".format(core.BOARD, value))
         return ESP8266_BOARD_TO_PINS[core.BOARD][value]
     raise vol.Invalid(u"Invalid ESP platform.")
@@ -179,19 +179,57 @@ def pin_mode(value):
     raise vol.Invalid(u"Invalid ESP platform.")
 
 
-GPIO_PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_NUMBER): gpio_pin,
-    vol.Required(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
-})
+def pcf8574_pin(value, default_mode):
+    if 'pcf8574' not in core.RAW_CONFIG:
+        raise vol.Invalid("PCF8574 not loaded, ignore this.")
 
-GPIO_OUTPUT_PIN_SCHEMA = vol.Any(output_pin, vol.Schema({
+    if isinstance(value, (str, unicode)):
+        value = {CONF_NUMBER: value}
+
+    if not isinstance(value, dict) or not isinstance(value.get(CONF_NUMBER), (str, unicode)) or \
+            value[CONF_NUMBER].count('.') != 1:
+        raise vol.Invalid("Not PCF8574 pin")
+
+    pcf_id, pin = value[CONF_NUMBER].split('.')
+    pin = vol.Coerce(int)(pin)
+
+    pcf_conf = cv.ensure_list(core.RAW_CONFIG['pcf8574'])
+    pcf = next((conf for conf in pcf_conf if conf[CONF_ID] == pcf_id), None)
+    if pcf is None:
+        raise vol.Invalid("Unknown PCF8574 id: {}".format(pcf_id))
+
+    if pcf.get(CONF_PCF8575, False):
+        pin = vol.Range(min=0, max=15)(pin)
+    else:
+        pin = vol.Range(min=0, max=7)(pin)
+
+    mode = vol.All(vol.Coerce(str), vol.Upper)(value.get(CONF_MODE, default_mode))
+    if mode not in ['INPUT', 'INPUT_PULLUP', 'OUTPUT']:
+        raise vol.Invalid("Invalid pin mode for PCF8575: {}".format(mode))
+
+    return {
+        'pcf8574': pcf[CONF_ID],
+        CONF_NUMBER: pin,
+        CONF_INVERTED: value.get(CONF_INVERTED, False),
+        CONF_MODE: mode
+    }
+
+
+def pcf8574_output_pin(value):
+    return pcf8574_pin(value, 'OUTPUT')
+
+
+def pcf8574_input_pin(value):
+    return pcf8574_pin(value, 'INPUT')
+
+
+GPIO_OUTPUT_PIN_SCHEMA = vol.Any(output_pin, pcf8574_output_pin, vol.Schema({
     vol.Required(CONF_NUMBER): output_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
 }))
 
-GPIO_INPUT_PIN_SCHEMA = vol.Any(input_pin, vol.Schema({
+GPIO_INPUT_PIN_SCHEMA = vol.Any(input_pin, pcf8574_input_pin, vol.Schema({
     vol.Required(CONF_NUMBER): input_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,

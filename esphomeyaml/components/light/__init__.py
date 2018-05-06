@@ -12,5 +12,4 @@ def setup_light_component(obj, config):
         add(obj.set_default_transition_length(config[CONF_DEFAULT_TRANSITION_LENGTH]))
 
 
-def build_flags(config):
-    return '-DUSE_LIGHT'
+BUILD_FLAGS = '-DUSE_LIGHT'

@@ -25,5 +25,4 @@ def to_code(config):
     output.setup_output_platform(out, config, skip_power_supply=True)
 
 
-def build_flags(config):
-    return '-DUSE_PCA9685_OUTPUT'
+BUILD_FLAGS = '-DUSE_PCA9685_OUTPUT'

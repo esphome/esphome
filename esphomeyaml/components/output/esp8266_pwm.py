@@ -28,5 +28,4 @@ def to_code(config):
     output.setup_output_platform(gpio, config)
 
 
-def build_flags(config):
-    return '-DUSE_ESP8266_PWM_OUTPUT'
+BUILD_FLAGS = '-DUSE_ESP8266_PWM_OUTPUT'

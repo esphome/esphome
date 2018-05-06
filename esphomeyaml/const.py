@@ -161,6 +161,9 @@ CONF_AP = 'ap'
 CONF_CSS_URL = 'css_url'
 CONF_JS_URL = 'js_url'
 CONF_SSL_FINGERPRINTS = 'ssl_fingerprints'
+CONF_PCF8575 = 'pcf8575'
+CONF_SCAN = 'scan'
+CONF_KEEPALIVE = 'keepalive'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',

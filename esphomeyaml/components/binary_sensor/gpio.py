@@ -21,5 +21,4 @@ def to_code(config):
     binary_sensor.setup_mqtt_binary_sensor(gpio.Pmqtt, config)
 
 
-def build_flags(config):
-    return '-DUSE_GPIO_BINARY_SENSOR'
+BUILD_FLAGS = '-DUSE_GPIO_BINARY_SENSOR'

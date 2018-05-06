@@ -25,5 +25,4 @@ def to_code(config):
             add(psu.set_keep_on_time(conf[CONF_KEEP_ON_TIME]))
 
 
-def build_flags(config):
-    return '-DUSE_OUTPUT'
+BUILD_FLAGS = '-DUSE_OUTPUT'

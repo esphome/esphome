@@ -33,5 +33,4 @@ def to_code(config):
             add(pca9685.set_phase_balancer(phase_balancer))
 
 
-def build_flags(config):
-    return '-DUSE_PCA9685_OUTPUT'
+BUILD_FLAGS = '-DUSE_PCA9685_OUTPUT'

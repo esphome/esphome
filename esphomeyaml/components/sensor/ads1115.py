@@ -59,5 +59,4 @@ def to_code(config):
     sensor.register_sensor(sensor_, config)
 
 
-def build_flags(config):
-    return '-DUSE_ADS1115_SENSOR'
+BUILD_FLAGS = '-DUSE_ADS1115_SENSOR'

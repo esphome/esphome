@@ -15,5 +15,4 @@ def to_code(config):
     switch.setup_mqtt_switch(restart.Pmqtt, config)
 
 
-def build_flags(config):
-    return '-DUSE_RESTART_SWITCH'
+BUILD_FLAGS = '-DUSE_RESTART_SWITCH'

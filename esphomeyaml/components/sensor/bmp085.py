@@ -31,5 +31,4 @@ def to_code(config):
     sensor.setup_mqtt_sensor_component(bmp.Pmqtt_pressure, config[CONF_PRESSURE])
 
 
-def build_flags(config):
-    return '-DUSE_BMP085_SENSOR'
+BUILD_FLAGS = '-DUSE_BMP085_SENSOR'

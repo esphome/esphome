@@ -92,5 +92,4 @@ def to_code(config):
     switch.register_switch(switch_, config)
 
 
-def build_flags(config):
-    return '-DUSE_IR_TRANSMITTER'
+BUILD_FLAGS = '-DUSE_IR_TRANSMITTER'

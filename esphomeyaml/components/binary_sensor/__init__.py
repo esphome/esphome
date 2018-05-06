@@ -35,5 +35,4 @@ def setup_mqtt_binary_sensor(obj, config):
     setup_mqtt_component(obj, config)
 
 
-def build_flags(config):
-    return '-DUSE_BINARY_SENSOR'
+BUILD_FLAGS = '-DUSE_BINARY_SENSOR'

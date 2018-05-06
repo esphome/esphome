@@ -25,5 +25,4 @@ def setup_output_platform(obj, config, skip_power_supply=False):
         add(obj.set_max_power(config[CONF_MAX_POWER]))
 
 
-def build_flags(config):
-    return '-DUSE_OUTPUT'
+BUILD_FLAGS = '-DUSE_OUTPUT'

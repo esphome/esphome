@@ -59,5 +59,4 @@ def to_code(config):
     sensor.setup_mqtt_sensor_component(make.Pmqtt, config)
 
 
-def build_flags(config):
-    return '-DUSE_PULSE_COUNTER_SENSOR'
+BUILD_FLAGS = '-DUSE_PULSE_COUNTER_SENSOR'

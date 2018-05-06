@@ -190,6 +190,9 @@ def _format_config_error(ex, domain, config):
     else:
         message += u'{}.'.format(humanize_error(config, ex))
 
+    if isinstance(config, list):
+        return message
+
     domain_config = config.get(domain, config)
     message += u" (See {}, line {}). ".format(
         getattr(domain_config, '__config_file__', '?'),
@@ -203,6 +206,7 @@ def load_config(path):
         config = yaml_util.load_yaml(path)
     except OSError:
         raise ESPHomeYAMLError(u"Could not read configuration file at {}".format(path))
+    core.RAW_CONFIG = config
 
     if CONF_ESPHOMEYAML not in config:
         raise ESPHomeYAMLError(u"No esphomeyaml section in config")

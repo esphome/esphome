@@ -33,5 +33,4 @@ def register_switch(var, config):
     setup_mqtt_switch(mqtt_switch, config)
 
 
-def build_flags(config):
-    return '-DUSE_SWITCH'
+BUILD_FLAGS = '-DUSE_SWITCH'

@@ -20,5 +20,4 @@ def to_code(config):
         Pvariable(DALLAS_COMPONENT_CLASS, conf[CONF_ID], rhs)
 
 
-def build_flags(config):
-    return '-DUSE_DALLAS_SENSOR'
+BUILD_FLAGS = '-DUSE_DALLAS_SENSOR'

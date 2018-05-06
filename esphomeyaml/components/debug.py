@@ -11,5 +11,4 @@ def to_code(config):
     add(App.make_debug_component())
 
 
-def build_flags(config):
-    return '-DUSE_DEBUG_COMPONENT'
+BUILD_FLAGS = '-DUSE_DEBUG_COMPONENT'

@@ -139,7 +139,7 @@ def write_cpp(config):
     ini_path = os.path.join(get_base_path(config), 'platformio.ini')
     writer.write_platformio_ini(platformio_ini_s, ini_path)
 
-    code_s = indent('\n'.join(all_code))
+    code_s = indent('\n'.join(line.rstrip() for line in all_code))
     cpp_path = os.path.join(get_base_path(config), 'src', 'main.cpp')
     writer.write_cpp(code_s, cpp_path)
     return 0

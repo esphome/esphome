@@ -28,5 +28,4 @@ def to_code(config):
     sensor.setup_mqtt_sensor_component(htu21d.Pmqtt_humidity, config[CONF_HUMIDITY])
 
 
-def build_flags(config):
-    return '-DUSE_HTU21D_SENSOR'
+BUILD_FLAGS = '-DUSE_HTU21D_SENSOR'

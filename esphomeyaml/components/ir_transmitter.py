@@ -23,5 +23,4 @@ def to_code(config):
         Pvariable(IR_TRANSMITTER_COMPONENT_CLASS, conf[CONF_ID], rhs)
 
 
-def build_flags(config):
-    return '-DUSE_IR_TRANSMITTER'
+BUILD_FLAGS = '-DUSE_IR_TRANSMITTER'

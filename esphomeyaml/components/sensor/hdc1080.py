@@ -28,5 +28,4 @@ def to_code(config):
     sensor.setup_mqtt_sensor_component(hdc1080.Pmqtt_humidity, config[CONF_HUMIDITY])
 
 
-def build_flags(config):
-    return '-DUSE_HDC1080_SENSOR'
+BUILD_FLAGS = '-DUSE_HDC1080_SENSOR'

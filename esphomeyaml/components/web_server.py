@@ -25,5 +25,4 @@ def to_code(config):
         add(web_server.set_js_url(config[CONF_JS_URL]))
 
 
-def build_flags(config):
-    return '-DUSE_WEB_SERVER'
+BUILD_FLAGS = '-DUSE_WEB_SERVER'

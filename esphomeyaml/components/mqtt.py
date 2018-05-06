@@ -6,15 +6,26 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_SSL_FINGERPRINTS, CONF_ID, CONF_LOG_TOPIC, \
     CONF_MQTT, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, \
-    CONF_TOPIC_PREFIX, CONF_USERNAME, CONF_WILL_MESSAGE
+    CONF_TOPIC_PREFIX, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_KEEPALIVE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, add, \
     exp_empty_optional, RawExpression
 
-MQTT_WILL_BIRTH_SCHEMA = vol.Any(None, vol.Schema({
+
+def validate_message_just_topic(value):
+    value = cv.publish_topic(value)
+    return {CONF_TOPIC: value}
+
+
+MQTT_MESSAGE_BASE = vol.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
-    vol.Required(CONF_PAYLOAD): cv.mqtt_payload,
     vol.Optional(CONF_QOS, default=0): vol.All(vol.Coerce(int), vol.In([0, 1, 2])),
     vol.Optional(CONF_RETAIN, default=True): cv.boolean,
+})
+
+MQTT_MESSAGE_TEMPLATE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE, validate_message_just_topic)
+
+MQTT_MESSAGE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE.extend({
+    vol.Required(CONF_PAYLOAD): cv.mqtt_payload,
 }))
 
 
@@ -47,12 +58,13 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_DISCOVERY): cv.boolean,
     vol.Optional(CONF_DISCOVERY_RETAIN): cv.boolean,
     vol.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
-    vol.Optional(CONF_BIRTH_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
-    vol.Optional(CONF_WILL_MESSAGE): MQTT_WILL_BIRTH_SCHEMA,
+    vol.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
+    vol.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
     vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
-    vol.Optional(CONF_LOG_TOPIC): cv.publish_topic,
+    vol.Optional(CONF_LOG_TOPIC): MQTT_MESSAGE_TEMPLATE_SCHEMA,
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
                                                  cv.ensure_list, [validate_fingerprint]),
+    vol.Optional(CONF_KEEPALIVE): vol.All(cv.positive_time_period, cv.time_period_to_seconds)
 })
 
 
@@ -62,7 +74,7 @@ def exp_mqtt_message(config):
     exp = StructInitializer(
         'mqtt::MQTTMessage',
         ('topic', config[CONF_TOPIC]),
-        ('payload', config[CONF_PAYLOAD]),
+        ('payload', config.get(CONF_PAYLOAD, "")),
         ('qos', config[CONF_QOS]),
         ('retain', config[CONF_RETAIN])
     )
@@ -79,20 +91,34 @@ def to_code(config):
         discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
         discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
-    if CONF_BIRTH_MESSAGE in config:
-        add(mqtt.set_birth_message(config[CONF_BIRTH_MESSAGE]))
-    if CONF_WILL_MESSAGE in config:
-        add(mqtt.set_last_will(config[CONF_WILL_MESSAGE]))
     if CONF_TOPIC_PREFIX in config:
         add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+    if CONF_BIRTH_MESSAGE in config:
+        birth_message = config[CONF_BIRTH_MESSAGE]
+        if birth_message is None:
+            add(mqtt.disable_birth_message())
+        else:
+            add(mqtt.set_birth_message(exp_mqtt_message(birth_message)))
+    if CONF_WILL_MESSAGE in config:
+        will_message = config[CONF_WILL_MESSAGE]
+        if will_message is None:
+            add(mqtt.disable_last_will())
+        else:
+            add(mqtt.set_last_will(exp_mqtt_message(will_message)))
     if CONF_CLIENT_ID in config:
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
     if CONF_LOG_TOPIC in config:
-        add(mqtt.set_log_topic(config[CONF_LOG_TOPIC]))
+        log_topic = config[CONF_LOG_TOPIC]
+        if log_topic is None:
+            add(mqtt.disable_log_message())
+        else:
+            add(mqtt.set_log_topic(exp_mqtt_message(log_topic)))
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
             add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
+    if CONF_KEEPALIVE in config:
+        add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
 
 
 def required_build_flags(config):
