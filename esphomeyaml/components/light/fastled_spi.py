@@ -66,4 +66,4 @@ def to_code(config):
     light.setup_light_component(make.Pstate, config)
 
 
-BUILD_FLAGS = 'DUSE_FAST_LED_LIGHT'
+BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'

@@ -1,11 +1,10 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml import pins, core
+from esphomeyaml import pins
 from esphomeyaml.components import light
 from esphomeyaml.const import CONF_CHIPSET, CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, \
-    CONF_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_PIN, CONF_RGB_ORDER, \
-    ESP_PLATFORM_ESP32
+    CONF_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_PIN, CONF_RGB_ORDER
 from esphomeyaml.helpers import App, RawExpression, TemplateArguments, add, setup_mqtt_component, \
     variable
 

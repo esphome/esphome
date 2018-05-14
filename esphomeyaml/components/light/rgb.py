@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import light
 from esphomeyaml.const import CONF_BLUE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, \
     CONF_GREEN, CONF_ID, CONF_NAME, CONF_RED
-from esphomeyaml.helpers import App, add, get_variable, variable, setup_mqtt_component
+from esphomeyaml.helpers import App, get_variable, setup_mqtt_component, variable
 
 PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
     cv.GenerateID('rgb_light'): cv.register_variable_id,

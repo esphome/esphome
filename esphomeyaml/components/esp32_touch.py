@@ -47,7 +47,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_SETUP_MODE): cv.boolean,
     vol.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_SLEEP_DURATION):
-        vol.All(cv.positive_time_period, vol.Range(max=TimePeriod(microseconds=436900))),
+        vol.All(cv.positive_time_period, vol.Range(max=TimePeriod(microseconds=436906))),
     vol.Optional(CONF_MEASUREMENT_DURATION):
         vol.All(cv.positive_time_period, vol.Range(max=TimePeriod(microseconds=8192))),
     vol.Optional(CONF_LOW_VOLTAGE_REFERENCE): validate_voltage(LOW_VOLTAGE_REFERENCE),

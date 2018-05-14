@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, vol.Any(*IIR_FILTER_OPTIONS)),
     # TODO: Heater
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.MQTT_SENSOR_SCHEMA.schema)
+})
 
 
 def to_code(config):

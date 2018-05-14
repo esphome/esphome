@@ -38,7 +38,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HUMIDITY): BME280_OVERSAMPLING_SENSOR_SCHEMA,
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, vol.Any(*IIR_FILTER_OPTIONS)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.MQTT_SENSOR_SCHEMA.schema)
+})
 
 
 def to_code(config):

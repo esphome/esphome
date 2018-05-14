@@ -184,6 +184,7 @@ CONF_CHIPSET = 'chipset'
 CONF_DATA_PIN = 'data_pin'
 CONF_CLOCK_PIN = 'clock_pin'
 CONF_RGB_ORDER = 'rgb_order'
+CONF_ACCURACY = 'accuracy'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',

@@ -39,7 +39,7 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = get_variable(None, type='ESP32TouchComponent')
+    hub = get_variable(None, type='binary_sensor::ESP32TouchComponent')
     touch_pad = RawExpression(TOUCH_PADS[config[CONF_PIN]])
     rhs = hub.make_touch_pad(config[CONF_NAME], touch_pad, config[CONF_THRESHOLD])
     device = Pvariable('ESP32TouchBinarySensor', config[CONF_ID], rhs)
