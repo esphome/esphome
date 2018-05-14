@@ -6,8 +6,8 @@ from esphomeyaml.components import light
 from esphomeyaml.const import CONF_CHIPSET, CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, \
     CONF_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_PIN, CONF_RGB_ORDER, \
     ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, TemplateArguments, add, setup_mqtt_component, variable, \
-    RawExpression
+from esphomeyaml.helpers import App, RawExpression, TemplateArguments, add, setup_mqtt_component, \
+    variable
 
 TYPES = [
     'NEOPIXEL',
@@ -34,7 +34,6 @@ TYPES = [
     'GW6205_400',
     'LPD1886',
     'LPD1886_8BIT',
-    'PIXIE',
 ]
 
 RGB_ORDERS = [
@@ -50,8 +49,6 @@ RGB_ORDERS = [
 def validate(value):
     if value[CONF_CHIPSET] == 'NEOPIXEL' and CONF_RGB_ORDER in value:
         raise vol.Invalid("NEOPIXEL doesn't support RGB order")
-    if value[CONF_CHIPSET] == 'PIXIE' and core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
-        raise vol.Invalid("PIXIE lights are not supported with the ESP32")
     return value
 
 
@@ -90,9 +87,3 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'
-
-
-def required_build_flags(config):
-    if config[CONF_CHIPSET] == 'PIXIE':
-        return '-DUSE_FAST_LED_LIGHT_PIXIE'
-    return None

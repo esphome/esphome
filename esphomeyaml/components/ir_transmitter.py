@@ -11,7 +11,7 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID('ir_transmitter'): cv.register_variable_id,
     vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
     vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(vol.Coerce(int),
-                                                     vol.Range(min=0, max=100, min_included=False)),
+                                                     vol.Range(min=1, max=100)),
 })])
 
 

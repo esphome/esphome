@@ -312,6 +312,7 @@ METRIC_SUFFIXES = {
 
 
 def frequency(value):
+    value = string(value)
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)(?:Hz|HZ|hz)?$", value)
 
     if match is None:

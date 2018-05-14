@@ -135,8 +135,6 @@ def output_pin(value):
                               u"input pins.".format(value))
         return value
     elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
-        if value == 16:
-            raise vol.Invalid(u"Pin {} doesn't support output mode".format(value))
         return value
     raise vol.Invalid("Invalid ESP platform.")
 
