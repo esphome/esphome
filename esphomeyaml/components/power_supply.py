@@ -7,8 +7,8 @@ from esphomeyaml.helpers import App, Pvariable, add, exp_gpio_output_pin
 
 POWER_SUPPLY_SCHEMA = cv.REQUIRED_ID_SCHEMA.extend({
     vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
-    vol.Optional(CONF_ENABLE_TIME): cv.positive_time_period,
-    vol.Optional(CONF_KEEP_ON_TIME): cv.positive_time_period,
+    vol.Optional(CONF_ENABLE_TIME): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_KEEP_ON_TIME): cv.positive_time_period_milliseconds,
 })
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [POWER_SUPPLY_SCHEMA])

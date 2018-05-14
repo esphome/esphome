@@ -37,7 +37,7 @@ MQTT_SENSOR_SCHEMA = vol.Schema({
     vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ACCURACY_DECIMALS): vol.Coerce(int),
-    vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period),
+    vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA
 })
 

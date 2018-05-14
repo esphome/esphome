@@ -25,7 +25,7 @@ CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_BOARD): cv.string,
     vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
-    vol.Optional(CONF_USE_BUILD_FLAGS, default=False): cv.boolean,
+    vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
 })
 
 REQUIRED_COMPONENTS = [

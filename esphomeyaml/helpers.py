@@ -8,8 +8,9 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, \
-    CONF_STATE_TOPIC, CONF_TOPIC
-from esphomeyaml.core import ESPHomeYAMLError, HexInt
+    CONF_STATE_TOPIC, CONF_TOPIC, CONF_PCF8574
+from esphomeyaml.core import ESPHomeYAMLError, HexInt, TimePeriodMicroseconds, \
+    TimePeriodMilliseconds, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -103,14 +104,32 @@ class ExpressionList(Expression):
         return indent_all_but_first_and_last(text)
 
 
-class CallExpression(Expression):
-    def __init__(self, base, *args):
-        super(CallExpression, self).__init__()
-        self.base = base
+class TemplateArguments(Expression):
+    def __init__(self, *args):
+        super(TemplateArguments, self).__init__()
         self.args = ExpressionList(*args)
         self.requires.append(self.args)
 
     def __str__(self):
+        return u'<{}>'.format(self.args)
+
+
+class CallExpression(Expression):
+    def __init__(self, base, *args):
+        super(CallExpression, self).__init__()
+        self.base = base
+        if args and isinstance(args[0], TemplateArguments):
+            self.template_args = args[0]
+            self.requires.append(self.template_args)
+            args = args[1:]
+        else:
+            self.template_args = None
+        self.args = ExpressionList(*args)
+        self.requires.append(self.args)
+
+    def __str__(self):
+        if self.template_args is not None:
+            return u'{}{}({})'.format(self.base, self.template_args, self.args)
         return u'{}({})'.format(self.base, self.args)
 
 
@@ -218,10 +237,18 @@ def safe_exp(obj):
         return BoolLiteral(obj)
     elif isinstance(obj, (str, unicode)):
         return StringLiteral(obj)
+    elif isinstance(obj, HexInt):
+        return HexIntLiteral(obj)
     elif isinstance(obj, (int, long)):
         return IntLiteral(obj)
     elif isinstance(obj, float):
         return FloatLiteral(obj)
+    elif isinstance(obj, TimePeriodMicroseconds):
+        return IntLiteral(int(obj.total_microseconds))
+    elif isinstance(obj, TimePeriodMilliseconds):
+        return IntLiteral(int(obj.total_milliseconds))
+    elif isinstance(obj, TimePeriodSeconds):
+        return IntLiteral(int(obj.total_seconds))
     raise ValueError(u"Object is not an expression", obj)
 
 
@@ -300,7 +327,8 @@ def get_variable(id, type=None):
         return None
     if result is None:
         if id is not None:
-            result = _VARIABLES[id][0]
+            if id in _VARIABLES:
+                result = _VARIABLES[id][0]
         elif type is not None:
             result = next((x[0] for x in _VARIABLES.itervalues() if x[1] == type), None)
 
@@ -371,8 +399,8 @@ def exp_gpio_pin_(obj, conf, default_mode):
     if isinstance(conf, int):
         return conf
 
-    if 'pcf8574' in conf:
-        hub = get_variable(conf['pcf8574'])
+    if CONF_PCF8574 in conf:
+        hub = get_variable(conf[CONF_PCF8574], 'io::PCF8574Component')
         if default_mode == u'INPUT':
             return hub.make_input_pin(conf[CONF_NUMBER],
                                       RawExpression('PCF8574_' + conf[CONF_MODE]),

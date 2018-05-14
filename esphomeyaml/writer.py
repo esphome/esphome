@@ -96,6 +96,7 @@ def get_ini_content(config):
         build_flags |= get_build_flags(config, 'BUILD_FLAGS')
         build_flags.add(u"-DESPHOMEYAML_USE")
     build_flags |= get_build_flags(config, 'required_build_flags')
+    build_flags |= get_build_flags(config, 'REQUIRED_BUILD_FLAGS')
 
     # avoid changing build flags order
     build_flags = sorted(list(build_flags))
@@ -104,27 +105,16 @@ def get_ini_content(config):
 
     lib_deps = set()
     lib_deps.add(config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI])
+    lib_deps |= get_build_flags(config, 'LIB_DEPS')
+    lib_deps |= get_build_flags(config, 'lib_deps')
     if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         lib_deps |= {
-            'ArduinoOTA',
-            'Update',
-            'ESPmDNS',
-            'Wire',
-            'FS',
-            'Preferences',
-
+            'Preferences',  # Preferences helper
         }
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
-        lib_deps |= {
-            'ESP8266WiFi',
-            'Wire',
-            'Hash',
-            'ESP8266mDNS',
-            'ArduinoOTA',
-        }
-    else:
-        raise ESPHomeYAMLError("Unsupported platform {}".format(core.ESP_PLATFORM))
-    options[u'lib_deps'] = u'\n    '.join(sorted(list(lib_deps)))
+    # avoid changing build flags order
+    lib_deps = sorted(x for x in lib_deps if x)
+    if lib_deps:
+        options[u'lib_deps'] = u'\n    '.join(lib_deps)
 
     return INI_CONTENT_FORMAT.format(**options)
 

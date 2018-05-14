@@ -36,7 +36,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
         vol.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
     }),
     vol.Optional(CONF_INTERNAL_FILTER): vol.All(vol.Coerce(int), vol.Range(min=0, max=1023)),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.MQTT_SENSOR_SCHEMA.schema)
 
 

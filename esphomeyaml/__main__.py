@@ -156,6 +156,10 @@ def upload_program(config, args, port):
         return run_platformio('platformio', 'run', '-d', get_base_path(config),
                               '-t', 'upload', '--upload-port', port)
 
+    if 'ota' not in config:
+        _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
+        return -1
+
     if CONF_MANUAL_IP in config[CONF_WIFI]:
         host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
     elif CONF_HOSTNAME in config[CONF_WIFI]:

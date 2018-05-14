@@ -10,12 +10,16 @@ PHASE_BALANCERS = ['None', 'Linear', 'Weaved']
 
 PCA9685_COMPONENT_TYPE = 'output::PCA9685OutputComponent'
 
+PHASE_BALANCER_MESSAGE = ("The phase_balancer option has been removed in version 1.5.0. "
+                          "esphomelib will now automatically choose a suitable phase balancer.")
+
 PCA9685_SCHEMA = vol.Schema({
     cv.GenerateID('pca9685'): cv.register_variable_id,
     vol.Required(CONF_FREQUENCY): vol.All(cv.frequency,
-                                          vol.Range(min=24, max=1526)),
-    vol.Optional(CONF_PHASE_BALANCER): vol.All(vol.Title, vol.Any(*PHASE_BALANCERS)),
+                                          vol.Range(min=23.84, max=1525.88)),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
+
+    vol.Optional(CONF_PHASE_BALANCER): cv.invalid(PHASE_BALANCER_MESSAGE),
 })
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [PCA9685_SCHEMA])

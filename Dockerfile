@@ -13,10 +13,6 @@ COPY docker/platformio.ini /usr/src/app/
 RUN platformio settings set enable_telemetry No && \
     platformio run -e espressif32 -e espressif8266; exit 0
 
-# Fix issue with static IP on ESP32: https://github.com/espressif/arduino-esp32/issues/1081
-RUN curl https://github.com/espressif/arduino-esp32/commit/144480637a718844b8f48f4392da8d4f622f2e5e.patch | \
-    patch /root/.platformio/packages/framework-arduinoespressif32/libraries/WiFi/src/WiFiGeneric.cpp
-
 COPY . .
 RUN pip install -e .
 

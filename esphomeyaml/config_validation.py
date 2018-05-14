@@ -4,7 +4,6 @@ from __future__ import print_function
 
 import logging
 import re
-from datetime import timedelta
 
 import voluptuous as vol
 
@@ -13,7 +12,8 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import HexInt, IPAddress
+from esphomeyaml.core import HexInt, IPAddress, TimePeriod, TimePeriodMilliseconds, \
+    TimePeriodMicroseconds, TimePeriodSeconds
 from esphomeyaml.helpers import ensure_unique_string
 
 _LOGGER = logging.getLogger(__name__)
@@ -178,19 +178,28 @@ def has_at_least_one_key(*keys):
     return validate
 
 
-TIME_PERIOD_ERROR = "Time period {} should be format 5ms, 5s, 5min, 5h"
+TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 
 time_period_dict = vol.All(
     dict, vol.Schema({
-        'days': vol.Coerce(int),
-        'hours': vol.Coerce(int),
-        'minutes': vol.Coerce(int),
-        'seconds': vol.Coerce(int),
-        'milliseconds': vol.Coerce(int),
+        'days': vol.Coerce(float),
+        'hours': vol.Coerce(float),
+        'minutes': vol.Coerce(float),
+        'seconds': vol.Coerce(float),
+        'milliseconds': vol.Coerce(float),
+        'microseconds': vol.Coerce(float),
     }),
     has_at_least_one_key('days', 'hours', 'minutes',
-                         'seconds', 'milliseconds'),
-    lambda value: timedelta(**value))
+                         'seconds', 'milliseconds', 'microseconds'),
+    lambda value: TimePeriod(**value))
+
+
+TIME_PERIOD_EXPLICIT_MESSAGE = ("The old way of being able to write time values without a "
+                                "time unit (like \"1000\" for 1000 milliseconds) has been "
+                                "removed in 1.5.0 as it was ambiguous in some places. Please "
+                                "now explicitly specify the time unit (like \"1000ms\"). See "
+                                "https://esphomelib.com/esphomeyaml/configuration-types.html#time "
+                                "for more information.")
 
 
 def time_period_str_colon(value):
@@ -220,7 +229,7 @@ def time_period_str_colon(value):
     else:
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
-    offset = timedelta(hours=hour, minutes=minute, seconds=second)
+    offset = TimePeriod(hours=hour, minutes=minute, seconds=second)
 
     if negative_offset:
         offset *= -1
@@ -232,10 +241,19 @@ def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
     if isinstance(value, int):
         value = str(value)
-    elif not isinstance(value, str):
+    elif not isinstance(value, (str, unicode)):
         raise vol.Invalid("Expected string for time period with unit.")
 
+    try:
+        float(value)
+    except ValueError:
+        pass
+    else:
+        raise vol.Invalid(TIME_PERIOD_EXPLICIT_MESSAGE)
+
     unit_to_kwarg = {
+        'us': 'microseconds',
+        'microseconds': 'microseconds',
         'ms': 'milliseconds',
         'milliseconds': 'milliseconds',
         's': 'seconds',
@@ -256,51 +274,56 @@ def time_period_str_unit(value):
                           u"got {}".format(value))
 
     kwarg = unit_to_kwarg[match.group(2)]
-    return timedelta(**{kwarg: float(match.group(1))})
+    return TimePeriod(**{kwarg: float(match.group(1))})
 
 
-def time_period_to_milliseconds(value):
-    if isinstance(value, (int, long)):
-        return value
-    if isinstance(value, float):
-        return int(value)
-    return int(value.total_seconds() * 1000)
+def time_period_in_milliseconds(value):
+    if value.microseconds is not None and value.microseconds != 0:
+        raise vol.Invalid("Maximum precision is milliseconds")
+    return TimePeriodMilliseconds(**value.as_dict())
 
 
-def time_period_to_seconds(value):
-    if value / 1000 != value // 1000:
-        raise vol.Invalid("Fractions of seconds are not supported here.")
-    return value / 1000
+def time_period_in_microseconds(value):
+    return TimePeriodMicroseconds(**value.as_dict())
 
 
-time_period = vol.All(vol.Any(time_period_str_colon, time_period_str_unit, timedelta,
-                              time_period_dict),
-                      time_period_to_milliseconds)
-positive_time_period = vol.All(time_period, vol.Range(min=0))
-positive_not_null_time_period = vol.All(time_period, vol.Range(min=0, min_included=False))
+def time_period_in_seconds(value):
+    if value.microseconds is not None and value.microseconds != 0:
+        raise vol.Invalid("Maximum precision is seconds")
+    if value.milliseconds is not None and value.milliseconds != 0:
+        raise vol.Invalid("Maximum precision is seconds")
+    return TimePeriodSeconds(**value.as_dict())
+
+
+time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_dict)
+positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
+positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds)
+positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds)
+positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds)
+positive_not_null_time_period = vol.All(time_period,
+                                        vol.Range(min=TimePeriod(), min_included=False))
 
 
 METRIC_SUFFIXES = {
     'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
     'c': 1e-2, 'm': 0.001, u'µ': 1e-6, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12, 'f': 1e-15, 'a': 1e-18,
+    '': 1
 }
 
 
 def frequency(value):
-    value = string(value).replace(' ', '').lower()
-    if value.endswith('Hz') or value.endswith('hz') or value.endswith('HZ'):
-        value = value[:-2]
-    if not value:
-        raise vol.Invalid(u"Frequency must have value")
-    multiplier = 1
-    if value[:-1] in METRIC_SUFFIXES:
-        multiplier = METRIC_SUFFIXES[value[:-1]]
-        value = value[:-1]
-    elif len(value) >= 2 and value[:-2] in METRIC_SUFFIXES:
-        multiplier = METRIC_SUFFIXES[value[:-2]]
-        value = value[:-2]
-    float_val = vol.Coerce(float)(value)
-    return float_val * multiplier
+    match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)(?:Hz|HZ|hz)?$", value)
+
+    if match is None:
+        raise vol.Invalid(u"Expected frequency with unit, "
+                          u"got {}".format(value))
+
+    mantissa = float(match.group(1))
+    if match.group(2) not in METRIC_SUFFIXES:
+        raise vol.Invalid(u"Invalid frequency suffix {}".format(match.group(2)))
+
+    multiplier = METRIC_SUFFIXES[match.group(2)]
+    return mantissa * multiplier
 
 
 def hostname(value):
@@ -407,8 +430,10 @@ hex_uint32_t = vol.All(hex_int, vol.Range(min=0, max=4294967295))
 i2c_address = hex_uint8_t
 
 
-def invalid(_):
-    raise vol.Invalid("This shouldn't happen.")
+def invalid(message):
+    def validator(value):
+        raise vol.Invalid(message)
+    return validator
 
 
 def valid(value):

@@ -8,13 +8,13 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAM
     CONF_UPDATE_INTERVAL, CONF_ID
 from esphomeyaml.helpers import HexIntLiteral, get_variable, Pvariable
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('dallas_sensor'): cv.register_variable_id,
     vol.Exclusive(CONF_ADDRESS, 'dallas'): cv.hex_int,
     vol.Exclusive(CONF_INDEX, 'dallas'): cv.positive_int,
     vol.Optional(CONF_DALLAS_ID): cv.variable_id,
     vol.Optional(CONF_RESOLUTION): vol.All(vol.Coerce(int), vol.Range(min=8, max=12)),
-}).extend(sensor.MQTT_SENSOR_ID_SCHEMA.schema)
+}).extend(sensor.MQTT_SENSOR_ID_SCHEMA.schema), cv.has_at_least_one_key(CONF_ADDRESS, CONF_INDEX))
 
 
 def to_code(config):

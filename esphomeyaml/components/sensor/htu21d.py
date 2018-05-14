@@ -13,7 +13,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('htu21d'): cv.register_variable_id,
     vol.Required(CONF_TEMPERATURE): MQTT_SENSOR_SCHEMA,
     vol.Required(CONF_HUMIDITY): MQTT_SENSOR_SCHEMA,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
 

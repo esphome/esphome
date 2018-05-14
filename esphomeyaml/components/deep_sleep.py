@@ -16,11 +16,11 @@ def validate_pin_number(value):
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID('deep_sleep'): cv.register_variable_id,
-    vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period,
+    vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.GPIO_INPUT_PIN_SCHEMA,
                                            pins.schema_validate_number(validate_pin_number)),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
-    vol.Optional(CONF_RUN_DURATION): cv.positive_time_period,
+    vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 })
 
 

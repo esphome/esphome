@@ -64,7 +64,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_LOG_TOPIC): MQTT_MESSAGE_TEMPLATE_SCHEMA,
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
                                                  cv.ensure_list, [validate_fingerprint]),
-    vol.Optional(CONF_KEEPALIVE): vol.All(cv.positive_time_period, cv.time_period_to_seconds)
+    vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
 })
 
 

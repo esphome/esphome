@@ -6,7 +6,7 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_LEVEL, CONF_LOGGER, 
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, Pvariable, RawExpression, add
 
-LOG_LEVELS = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE']
+LOG_LEVELS = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
 
 # pylint: disable=invalid-name
 is_log_level = vol.All(vol.Upper, vol.Any(*LOG_LEVELS))

@@ -14,7 +14,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_TEMPERATURE): MQTT_SENSOR_SCHEMA,
     vol.Required(CONF_PRESSURE): MQTT_SENSOR_SCHEMA,
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
 

@@ -3,7 +3,8 @@ import logging
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_PORT, CONF_JS_URL, CONF_CSS_URL, CONF_ID
+from esphomeyaml import core
+from esphomeyaml.const import CONF_PORT, CONF_JS_URL, CONF_CSS_URL, CONF_ID, ESP_PLATFORM_ESP32
 from esphomeyaml.helpers import App, add, Pvariable
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,3 +27,9 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_WEB_SERVER'
+
+
+def lib_deps(config):
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+        return 'FS'
+    return ''

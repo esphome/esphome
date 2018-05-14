@@ -20,7 +20,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('adc'): cv.register_variable_id,
     vol.Required(CONF_PIN): pins.analog_pin,
     vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, ATTENUATION_MODE_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.MQTT_SENSOR_SCHEMA.schema)
 
 

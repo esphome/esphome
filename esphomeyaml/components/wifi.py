@@ -1,8 +1,10 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
+from esphomeyaml import core
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_GATEWAY, \
-    CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET
+    CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, \
+    ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import App, MockObj, Pvariable, StructInitializer, add
 
 
@@ -87,3 +89,9 @@ def to_code(config):
 
     if CONF_HOSTNAME in config:
         add(wifi.set_hostname(config[CONF_HOSTNAME]))
+
+
+def lib_deps(config):
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+        return 'ESP8266WiFi'
+    return None

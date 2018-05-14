@@ -26,7 +26,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GYRO_Y): MQTT_SENSOR_ID_SCHEMA,
     vol.Optional(CONF_GYRO_Z): MQTT_SENSOR_ID_SCHEMA,
     vol.Optional(CONF_TEMPERATURE): MQTT_SENSOR_ID_SCHEMA,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
 

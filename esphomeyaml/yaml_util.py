@@ -8,7 +8,8 @@ from collections import OrderedDict
 
 import yaml
 
-from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress
+from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, MACAddress, TimePeriod, \
+    TimePeriodMicroseconds, TimePeriodMilliseconds, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -245,9 +246,28 @@ def hex_int_representer(_, data):
     return node
 
 
-def ipaddress_representer(_, data):
+def stringify_representer(_, data):
     node = yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=str(data))
     return node
+
+
+TIME_PERIOD_UNIT_MAP = {
+    'microseconds': 'us',
+    'milliseconds': 'ms',
+    'seconds': 's',
+    'minutes': 'min',
+    'hours': 'h',
+    'days': 'd',
+}
+
+
+def represent_time_period(dumper, data):
+    dictionary = data.as_dict()
+    if len(dictionary) == 1:
+        unit, value = dictionary.popitem()
+        out = '{}{}'.format(value, TIME_PERIOD_UNIT_MAP[unit])
+        return yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=out)
+    return represent_odict(dumper, 'tag:yaml.org,2002:map', dictionary)
 
 
 yaml.SafeDumper.add_representer(
@@ -264,4 +284,9 @@ yaml.SafeDumper.add_representer(
 
 yaml.SafeDumper.add_representer(unicode, unicode_representer)
 yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
-yaml.SafeDumper.add_representer(IPAddress, ipaddress_representer)
+yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
+yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
+yaml.SafeDumper.add_representer(TimePeriod, represent_time_period)
+yaml.SafeDumper.add_representer(TimePeriodMicroseconds, represent_time_period)
+yaml.SafeDumper.add_representer(TimePeriodMilliseconds, represent_time_period)
+yaml.SafeDumper.add_representer(TimePeriodSeconds, represent_time_period)

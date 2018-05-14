@@ -46,3 +46,9 @@ def get_auth(config):
 
 
 BUILD_FLAGS = '-DUSE_OTA'
+
+
+def lib_deps(config):
+    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+        return ['ArduinoOTA', 'Update', 'ESPmDNS']
+    return ['Hash', 'ESP8266mDNS', 'ArduinoOTA']

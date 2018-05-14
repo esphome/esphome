@@ -12,7 +12,7 @@ PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_GREEN): cv.variable_id,
     vol.Required(CONF_BLUE): cv.variable_id,
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period,
+    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
 })
 
 
@@ -22,7 +22,5 @@ def to_code(config):
     blue = get_variable(config[CONF_BLUE])
     rhs = App.make_rgb_light(config[CONF_NAME], red, green, blue)
     light_struct = variable('Application::MakeLight', config[CONF_ID], rhs)
-    if CONF_GAMMA_CORRECT in config:
-        add(light_struct.Poutput.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
     setup_mqtt_component(light_struct.Pmqtt, config)
     light.setup_light_component(light_struct.Pstate, config)

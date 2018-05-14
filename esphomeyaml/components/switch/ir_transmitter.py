@@ -3,13 +3,20 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch
 from esphomeyaml.components.ir_transmitter import IR_TRANSMITTER_COMPONENT_CLASS
-from esphomeyaml.const import CONF_ADDRESS, CONF_COMMAND, CONF_DATA, CONF_IR_TRANSMITTER_ID, \
-    CONF_LG, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_REPEAT, CONF_SONY, CONF_TIMES, \
-    CONF_WAIT_TIME_US, CONF_RAW, CONF_CARRIER_FREQUENCY, CONF_NAME, CONF_ID
+from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_COMMAND, CONF_DATA, \
+    CONF_ID, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, \
+    CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import HexIntLiteral, MockObj, get_variable, ArrayInitializer, Pvariable
+from esphomeyaml.helpers import ArrayInitializer, HexIntLiteral, MockObj, Pvariable, get_variable
 
-PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
+DEPENDENCIES = ['ir_transmitter']
+
+IR_KEYS = [CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_RAW]
+
+WAIT_TIME_MESSAGE = "The wait_time_us option has been renamed to wait_time in order to decrease " \
+                    "ambiguity. "
+
+PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
     cv.GenerateID('ir_transmitter_switch'): cv.register_variable_id,
     vol.Exclusive(CONF_NEC, 'code'): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -33,11 +40,12 @@ PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
     }),
     vol.Optional(CONF_REPEAT): vol.Any(cv.positive_not_null_int, vol.Schema({
         vol.Required(CONF_TIMES): cv.positive_not_null_int,
-        vol.Required(CONF_WAIT_TIME_US): cv.uint32_t,
+        vol.Required(CONF_WAIT_TIME): cv.positive_time_period_microseconds,
+
+        vol.Optional('wait_time_us'): cv.invalid(WAIT_TIME_MESSAGE),
     })),
     vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
-}).extend(switch.MQTT_SWITCH_ID_SCHEMA.schema)
-
+}).extend(switch.MQTT_SWITCH_ID_SCHEMA.schema), cv.has_at_least_one_key(*IR_KEYS))
 
 # pylint: disable=invalid-name
 SendData = MockObj('switch_::ir::SendData', '::')
@@ -77,7 +85,7 @@ def exp_send_data(config):
             wait_us = None
         else:
             times = config[CONF_REPEAT][CONF_TIMES]
-            wait_us = config[CONF_REPEAT][CONF_WAIT_TIME_US]
+            wait_us = config[CONF_REPEAT][CONF_WAIT_TIME]
         base = MockObj(unicode(base), u'.')
         base = base.repeat(times, wait_us)
     return base

@@ -9,23 +9,23 @@ from esphomeyaml.helpers import RawExpression, get_variable, Pvariable
 DEPENDENCIES = ['ads1115']
 
 MUX = {
-    'A0_A1': 'ADS1115_MUX_P0_N1',
-    'A0_A3': 'ADS1115_MUX_P0_N3',
-    'A1_A3': 'ADS1115_MUX_P1_N3',
-    'A2_A3': 'ADS1115_MUX_P2_N3',
-    'A0_GND': 'ADS1115_MUX_P0_NG',
-    'A1_GND': 'ADS1115_MUX_P1_NG',
-    'A2_GND': 'ADS1115_MUX_P2_NG',
-    'A3_GND': 'ADS1115_MUX_P3_NG',
+    'A0_A1': 'sensor::ADS1115_MULTIPLEXER_P0_N1',
+    'A0_A3': 'sensor::ADS1115_MULTIPLEXER_P0_N3',
+    'A1_A3': 'sensor::ADS1115_MULTIPLEXER_P1_N3',
+    'A2_A3': 'sensor::ADS1115_MULTIPLEXER_P2_N3',
+    'A0_GND': 'sensor::ADS1115_MULTIPLEXER_P0_NG',
+    'A1_GND': 'sensor::ADS1115_MULTIPLEXER_P1_NG',
+    'A2_GND': 'sensor::ADS1115_MULTIPLEXER_P2_NG',
+    'A3_GND': 'sensor::ADS1115_MULTIPLEXER_P3_NG',
 }
 
 GAIN = {
-    '6.144': 'ADS1115_PGA_6P144',
-    '4.096': 'ADS1115_PGA_6P096',
-    '2.048': 'ADS1115_PGA_2P048',
-    '1.024': 'ADS1115_PGA_1P024',
-    '0.512': 'ADS1115_PGA_0P512',
-    '0.256': 'ADS1115_PGA_0P256',
+    '6.144': 'sensor::ADS1115_GAIN_6P144',
+    '4.096': 'sensor::ADS1115_GAIN_6P096',
+    '2.048': 'sensor::ADS1115_GAIN_2P048',
+    '1.024': 'sensor::ADS1115_GAIN_1P024',
+    '0.512': 'sensor::ADS1115_GAIN_0P512',
+    '0.256': 'sensor::ADS1115_GAIN_0P256',
 }
 
 
@@ -45,7 +45,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MULTIPLEXER): vol.All(vol.Upper, vol.Any(*list(MUX.keys()))),
     vol.Required(CONF_GAIN): validate_gain,
     vol.Optional(CONF_ADS1115_ID): cv.variable_id,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_not_null_time_period,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.MQTT_SENSOR_ID_SCHEMA.schema)
 
 
