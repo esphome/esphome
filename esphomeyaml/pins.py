@@ -180,7 +180,7 @@ def pin_mode(value):
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
     vol.Required(CONF_PCF8574): cv.variable_id,
     vol.Required(CONF_NUMBER): vol.Coerce(int),
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
