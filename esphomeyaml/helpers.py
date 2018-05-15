@@ -7,8 +7,8 @@ from collections import OrderedDict, deque
 from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
-    CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, \
-    CONF_STATE_TOPIC, CONF_TOPIC, CONF_PCF8574
+    CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
+    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -185,13 +185,26 @@ class Literal(Expression):
         raise NotImplementedError
 
 
+# From https://stackoverflow.com/a/14945195/8924614
+def cpp_string_escape(s, encoding='utf-8'):
+    if isinstance(s, unicode):
+        s = s.encode(encoding)
+    result = ''
+    for c in s:
+        if not (32 <= ord(c) < 127) or c in ('\\', '"'):
+            result += '\\%03o' % ord(c)
+        else:
+            result += c
+    return '"' + result + '"'
+
+
 class StringLiteral(Literal):
     def __init__(self, string):
         super(StringLiteral, self).__init__()
         self.string = string
 
     def __str__(self):
-        return u'"{}"'.format(self.string)
+        return u'{}'.format(cpp_string_escape(self.string))
 
 
 class IntLiteral(Literal):
