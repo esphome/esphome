@@ -8,7 +8,8 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import mqtt
-from esphomeyaml.const import ESP_BOARDS_FOR_PLATFORM, ESP_PLATFORMS, ESP_PLATFORM_ESP32
+from esphomeyaml.const import ESP_BOARDS_FOR_PLATFORM, ESP_PLATFORMS, ESP_PLATFORM_ESP32, \
+    ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import color
 
 
@@ -141,10 +142,10 @@ def wizard(path):
     print("Great! Your node is now called \"{}\".".format(color('cyan', name)))
     sleep(1)
     print_step(2, ESP_BIG)
-    print("Now I'd like to know which *board* you're using so that I can compile "
+    print("Now I'd like to know what microcontroller you're using so that I can compile "
           "firmwares for it.")
     print("Are you using an " + color('green', 'ESP32') + " or " +
-          color('green', 'ESP8266') + " based board?")
+          color('green', 'ESP8266') + " platform? (Choose ESP8266 for Sonoff devices)")
     while True:
         sleep(0.5)
         print()
@@ -168,6 +169,8 @@ def wizard(path):
     print("Next, I need to know what " + color('green', 'board') + " you're using.")
     sleep(0.5)
     print("Please go to {} and choose a board.".format(color('green', board_link)))
+    if platform == ESP_PLATFORM_ESP8266:
+        print("(Type " + color('green', 'esp01_1m') + " for Sonoff devices)")
     print()
     # Don't sleep because user needs to copy link
     if platform == ESP_PLATFORM_ESP32:
@@ -217,7 +220,7 @@ def wizard(path):
     sleep(0.75)
 
     print("Now please state the " + color('green', 'password') +
-          " of the WiFi network so that I can connect to it.")
+          " of the WiFi network so that I can connect to it (Leave empty for no password)")
     print()
     print("For example \"{}\"".format(color('bold_white', 'PASSWORD42')))
     sleep(0.5)

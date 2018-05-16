@@ -6,8 +6,9 @@ import os
 
 from esphomeyaml import core
 from esphomeyaml.config import iter_components
-from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
-    CONF_PLATFORM, CONF_USE_BUILD_FLAGS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
+    CONF_LIBRARY_URI, \
+    CONF_NAME, CONF_PLATFORM, CONF_USE_BUILD_FLAGS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
@@ -116,7 +117,11 @@ def get_ini_content(config):
     if lib_deps:
         options[u'lib_deps'] = u'\n    '.join(lib_deps)
 
-    return INI_CONTENT_FORMAT.format(**options)
+    content = INI_CONTENT_FORMAT.format(**options)
+    if CONF_BOARD_FLASH_MODE in config[CONF_ESPHOMEYAML]:
+        flash_mode = config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
+        content += "board_flash_mode = {}\n".format(flash_mode)
+    return content
 
 
 def mkdir_p(path):

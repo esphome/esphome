@@ -9,8 +9,9 @@ from voluptuous.humanize import humanize_error
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core, yaml_util
-from esphomeyaml.const import CONF_BOARD, CONF_ESPHOMEYAML, CONF_LIBRARY_URI, CONF_NAME, \
-    CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, ESP_PLATFORMS, \
+from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
+    CONF_LIBRARY_URI, \
+    CONF_NAME, CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, ESP_PLATFORMS, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, add, color
@@ -19,6 +20,8 @@ _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.5.0'
 
+BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
+
 CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
     vol.Required(CONF_PLATFORM): cv.string,
@@ -26,6 +29,7 @@ CORE_SCHEMA = vol.Schema({
     vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
     vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
+    vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, vol.Any(*BUILD_FLASH_MODES)),
 })
 
 REQUIRED_COMPONENTS = [
