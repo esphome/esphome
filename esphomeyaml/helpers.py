@@ -424,7 +424,7 @@ def exp_gpio_pin_(obj, conf, default_mode):
             raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
 
     if conf.get(CONF_INVERTED) is None:
-        return obj(conf[CONF_NUMBER], conf.get(CONF_MODE))
+        return obj(conf[CONF_NUMBER], RawExpression(conf.get(CONF_MODE, default_mode)))
     return obj(conf[CONF_NUMBER], RawExpression(conf.get(CONF_MODE, default_mode)),
                conf[CONF_INVERTED])
 
