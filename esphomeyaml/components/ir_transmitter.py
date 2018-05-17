@@ -3,7 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_CARRIER_DUTY_PERCENT, CONF_ID, CONF_PIN
-from esphomeyaml.helpers import App, Pvariable, exp_gpio_output_pin
+from esphomeyaml.helpers import App, Pvariable, gpio_output_pin_expression
 
 IR_TRANSMITTER_COMPONENT_CLASS = 'switch_::IRTransmitterComponent'
 
@@ -17,7 +17,7 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
 
 def to_code(config):
     for conf in config:
-        pin = exp_gpio_output_pin(conf[CONF_PIN])
+        pin = gpio_output_pin_expression(conf[CONF_PIN])
         rhs = App.make_ir_transmitter(pin, conf.get(CONF_CARRIER_DUTY_PERCENT))
         Pvariable(IR_TRANSMITTER_COMPONENT_CLASS, conf[CONF_ID], rhs)
 

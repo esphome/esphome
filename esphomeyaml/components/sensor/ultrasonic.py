@@ -5,8 +5,8 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ECHO_PIN, CONF_ID, CONF_NAME, \
     CONF_TIMEOUT_METER, CONF_TIMEOUT_TIME, CONF_TRIGGER_PIN, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, add, exp_gpio_input_pin, exp_gpio_output_pin, \
-    variable
+from esphomeyaml.helpers import App, add, variable, gpio_output_pin_expression, \
+    gpio_input_pin_expression
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('ultrasonic'): cv.register_variable_id,
@@ -19,8 +19,8 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    trigger = exp_gpio_output_pin(config[CONF_TRIGGER_PIN])
-    echo = exp_gpio_input_pin(config[CONF_ECHO_PIN])
+    trigger = gpio_output_pin_expression(config[CONF_TRIGGER_PIN])
+    echo = gpio_input_pin_expression(config[CONF_ECHO_PIN])
     rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
     make = variable('Application::MakeUltrasonicSensor', config[CONF_ID], rhs)

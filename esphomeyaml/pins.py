@@ -177,6 +177,29 @@ def pin_mode(value):
     raise vol.Invalid(u"Invalid ESP platform.")
 
 
+GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
+    vol.Required(CONF_NUMBER): output_pin,
+    vol.Optional(CONF_MODE): pin_mode,
+    vol.Optional(CONF_INVERTED): cv.boolean,
+})
+
+GPIO_FULL_INPUT_PIN_SCHEMA = vol.Schema({
+    vol.Required(CONF_NUMBER): output_pin,
+    vol.Optional(CONF_MODE): pin_mode,
+    vol.Optional(CONF_INVERTED): cv.boolean,
+})
+
+
+def shorthand_output_pin(value):
+    value = output_pin(value)
+    return {CONF_NUMBER: value}
+
+
+def shorthand_input_pin(value):
+    value = input_pin(value)
+    return {CONF_NUMBER: value}
+
+
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
     vol.Required(CONF_PCF8574): cv.variable_id,
     vol.Required(CONF_NUMBER): vol.Coerce(int),
@@ -184,28 +207,13 @@ PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
 })
 
 PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE, default='INPUT'): vol.All(vol.Upper, vol.Any("INPUT", "INPUT_PULLUP")),
+    vol.Optional(CONF_MODE): vol.All(vol.Upper, vol.Any("INPUT", "INPUT_PULLUP")),
 })
 
-GPIO_OUTPUT_PIN_SCHEMA = vol.Any(output_pin, PCF8574_OUTPUT_PIN_SCHEMA, vol.Schema({
-    vol.Required(CONF_NUMBER): output_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
-}))
+GPIO_INTERNAL_OUTPUT_PIN_SCHEMA = vol.Any(shorthand_output_pin, GPIO_FULL_OUTPUT_PIN_SCHEMA)
 
-GPIO_INPUT_PIN_SCHEMA = vol.Any(input_pin, PCF8574_INPUT_PIN_SCHEMA, vol.Schema({
-    vol.Required(CONF_NUMBER): input_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
-}))
+GPIO_OUTPUT_PIN_SCHEMA = vol.Any(PCF8574_OUTPUT_PIN_SCHEMA, GPIO_INTERNAL_OUTPUT_PIN_SCHEMA)
 
+GPIO_INTERNAL_INPUT_PIN_SCHEMA = vol.Any(shorthand_input_pin, GPIO_FULL_INPUT_PIN_SCHEMA)
 
-def schema_validate_number(validator):
-    def valid(value):
-        if isinstance(value, dict):
-            value[CONF_NUMBER] = validator(value[CONF_NUMBER])
-        else:
-            value = validator(value)
-        return value
-
-    return valid
+GPIO_INPUT_PIN_SCHEMA = vol.Any(PCF8574_INPUT_PIN_SCHEMA, GPIO_INTERNAL_INPUT_PIN_SCHEMA)

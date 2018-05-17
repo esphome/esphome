@@ -5,7 +5,7 @@ from esphomeyaml.components import sensor
 from esphomeyaml.components.sensor import MQTT_SENSOR_SCHEMA
 from esphomeyaml.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_NAME, CONF_PIN, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, RawExpression, add, variable, exp_gpio_output_pin
+from esphomeyaml.helpers import App, RawExpression, add, variable, gpio_output_pin_expression
 from esphomeyaml.pins import GPIO_OUTPUT_PIN_SCHEMA
 
 DHT_MODELS = {
@@ -27,7 +27,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    pin = exp_gpio_output_pin(config[CONF_PIN])
+    pin = gpio_output_pin_expression(config[CONF_PIN])
     rhs = App.make_dht_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                               config[CONF_HUMIDITY][CONF_NAME],
                               pin, config.get(CONF_UPDATE_INTERVAL))
