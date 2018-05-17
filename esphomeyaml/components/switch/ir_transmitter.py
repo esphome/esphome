@@ -5,7 +5,7 @@ from esphomeyaml.components import switch
 from esphomeyaml.components.ir_transmitter import IR_TRANSMITTER_COMPONENT_CLASS
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_COMMAND, CONF_DATA, \
     CONF_ID, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, \
-    CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME
+    CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME, CONF_INVERTED
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import ArrayInitializer, HexIntLiteral, MockObj, Pvariable, get_variable
 
@@ -45,6 +45,7 @@ PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
         vol.Optional('wait_time_us'): cv.invalid(WAIT_TIME_MESSAGE),
     })),
     vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
+    vol.Optional(CONF_INVERTED): cv.invalid("IR Transmitters do not support inverted mode!"),
 }).extend(switch.MQTT_SWITCH_ID_SCHEMA.schema), cv.has_at_least_one_key(*IR_KEYS))
 
 # pylint: disable=invalid-name

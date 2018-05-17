@@ -30,7 +30,7 @@ void setup() {
 
 void loop() {
   App.loop();
-  delay(1);
+  delay(16);
 }
 """)
 

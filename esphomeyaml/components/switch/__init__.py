@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_NAME, CONF_MQTT_ID
+from esphomeyaml.const import CONF_ICON, CONF_INVERTED, CONF_MQTT_ID
 from esphomeyaml.helpers import App, Pvariable, add, setup_mqtt_component
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
@@ -10,6 +10,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 MQTT_SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_ICON): cv.icon,
+    vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
 MQTT_SWITCH_ID_SCHEMA = MQTT_SWITCH_SCHEMA.extend({
@@ -24,6 +25,8 @@ def setup_mqtt_switch(obj, config):
 def setup_switch(obj, config):
     if CONF_ICON in config:
         add(obj.set_icon(config[CONF_ICON]))
+    if CONF_INVERTED in config:
+        add(obj.set_inverted(config[CONF_INVERTED]))
 
 
 def register_switch(var, config):

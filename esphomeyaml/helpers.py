@@ -186,15 +186,15 @@ class Literal(Expression):
 
 
 # From https://stackoverflow.com/a/14945195/8924614
-def cpp_string_escape(s, encoding='utf-8'):
-    if isinstance(s, unicode):
-        s = s.encode(encoding)
+def cpp_string_escape(string, encoding='utf-8'):
+    if isinstance(string, unicode):
+        string = string.encode(encoding)
     result = ''
-    for c in s:
-        if not (32 <= ord(c) < 127) or c in ('\\', '"'):
-            result += '\\%03o' % ord(c)
+    for character in string:
+        if not (32 <= ord(character) < 127) or character in ('\\', '"'):
+            result += '\\%03o' % ord(character)
         else:
-            result += c
+            result += character
     return '"' + result + '"'
 
 
