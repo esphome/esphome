@@ -209,13 +209,6 @@ def time_period_str_colon(value):
     elif not isinstance(value, str):
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
-    negative_offset = False
-    if value.startswith('-'):
-        negative_offset = True
-        value = value[1:]
-    elif value.startswith('+'):
-        value = value[1:]
-
     try:
         parsed = [int(x) for x in value.split(':')]
     except ValueError:
@@ -229,12 +222,7 @@ def time_period_str_colon(value):
     else:
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
-    offset = TimePeriod(hours=hour, minutes=minute, seconds=second)
-
-    if negative_offset:
-        offset *= -1
-
-    return offset
+    return TimePeriod(hours=hour, minutes=minute, seconds=second)
 
 
 def time_period_str_unit(value):
@@ -277,17 +265,17 @@ def time_period_str_unit(value):
     return TimePeriod(**{kwarg: float(match.group(1))})
 
 
-def time_period_in_milliseconds(value):
+def time_period_in_milliseconds_(value):
     if value.microseconds is not None and value.microseconds != 0:
         raise vol.Invalid("Maximum precision is milliseconds")
     return TimePeriodMilliseconds(**value.as_dict())
 
 
-def time_period_in_microseconds(value):
+def time_period_in_microseconds_(value):
     return TimePeriodMicroseconds(**value.as_dict())
 
 
-def time_period_in_seconds(value):
+def time_period_in_seconds_(value):
     if value.microseconds is not None and value.microseconds != 0:
         raise vol.Invalid("Maximum precision is seconds")
     if value.milliseconds is not None and value.milliseconds != 0:
@@ -297,9 +285,9 @@ def time_period_in_seconds(value):
 
 time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_dict)
 positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
-positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds)
-positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds)
-positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds)
+positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds_)
+positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds_)
+positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
                                         vol.Range(min=TimePeriod(), min_included=False))
 

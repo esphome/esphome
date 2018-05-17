@@ -408,37 +408,34 @@ def get_gpio_pin_number(conf):
     return conf[CONF_NUMBER]
 
 
-def exp_gpio_pin_(obj, conf, default_mode):
-    if isinstance(conf, int):
-        return conf
-
+def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
+    if conf is None:
+        return None
+    number = conf[CONF_NUMBER]
+    inverted = conf.get(CONF_INVERTED)
     if CONF_PCF8574 in conf:
         hub = get_variable(conf[CONF_PCF8574], 'io::PCF8574Component')
         if default_mode == u'INPUT':
-            return hub.make_input_pin(conf[CONF_NUMBER],
-                                      RawExpression('PCF8574_' + conf[CONF_MODE]),
-                                      conf[CONF_INVERTED])
+            mode = conf.get(CONF_MODE, u'INPUT')
+            return hub.make_input_pin(number,
+                                      RawExpression('PCF8574_' + mode),
+                                      inverted)
         elif default_mode == u'OUTPUT':
-            return hub.make_output_pin(conf[CONF_NUMBER], conf[CONF_INVERTED])
+            return hub.make_output_pin(number, inverted)
         else:
             raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
-
-    if conf.get(CONF_INVERTED) is None:
-        return obj(conf[CONF_NUMBER], RawExpression(conf.get(CONF_MODE, default_mode)))
-    return obj(conf[CONF_NUMBER], RawExpression(conf.get(CONF_MODE, default_mode)),
-               conf[CONF_INVERTED])
-
-
-def exp_gpio_pin(conf):
-    return GPIOPin(conf[CONF_NUMBER], conf[CONF_MODE], conf.get(CONF_INVERTED))
+    if len(conf) == 1:
+        return IntLiteral(number)
+    mode = RawExpression(conf.get(CONF_MODE, default_mode))
+    return mock_obj(number, mode, inverted)
 
 
-def exp_gpio_output_pin(conf):
-    return exp_gpio_pin_(GPIOOutputPin, conf, u'OUTPUT')
+def gpio_output_pin_expression(conf):
+    return generic_gpio_pin_expression_(conf, GPIOOutputPin, 'OUTPUT')
 
 
-def exp_gpio_input_pin(conf):
-    return exp_gpio_pin_(GPIOInputPin, conf, u'INPUT')
+def gpio_input_pin_expression(conf):
+    return generic_gpio_pin_expression_(conf, GPIOInputPin, 'INPUT')
 
 
 def setup_mqtt_component(obj, config):
