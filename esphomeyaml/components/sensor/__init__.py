@@ -1,11 +1,11 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_EXPIRE_AFTER, \
-    CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_ICON, \
-    CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_SEND_EVERY, \
-    CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, CONF_ID, \
-    CONF_THROTTLE, CONF_DELTA, CONF_OR, CONF_AND, CONF_UNIQUE
+from esphomeyaml.const import CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_DEBOUNCE, CONF_DELTA, \
+    CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_NAN, \
+    CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, \
+    CONF_NAME, CONF_OFFSET, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
+    CONF_THROTTLE, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
 from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add, \
     setup_mqtt_component
 
@@ -15,7 +15,6 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 
 def validate_recursive_filter(value):
-    print(value)
     return FILTERS_SCHEMA(value)
 
 
@@ -40,10 +39,9 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.Any(
     vol.Schema({vol.Required(CONF_THROTTLE): cv.positive_time_period_milliseconds}),
     vol.Schema({vol.Required(CONF_DELTA): vol.Coerce(float)}),
     vol.Schema({vol.Required(CONF_UNIQUE): None}),
-
-    # No ensure_list here as OR/AND filters only make sense with multiple children
+    vol.Schema({vol.Required(CONF_HEARTBEAT): cv.positive_time_period_milliseconds}),
+    vol.Schema({vol.Required(CONF_DEBOUNCE): cv.positive_time_period_milliseconds}),
     vol.Schema({vol.Required(CONF_OR): validate_recursive_filter}),
-    vol.Schema({vol.Required(CONF_AND): validate_recursive_filter}),
 )])
 
 MQTT_SENSOR_SCHEMA = vol.Schema({
@@ -70,7 +68,8 @@ LambdaFilter = MockObj('new sensor::LambdaFilter')
 ThrottleFilter = MockObj('new sensor::ThrottleFilter')
 DeltaFilter = MockObj('new sensor::DeltaFilter')
 OrFilter = MockObj('new sensor::OrFilter')
-AndFilter = MockObj('new sensor::AndFilter')
+HeartbeatFilter = MockObj('new sensor::HeartbeatFilter')
+DebounceFilter = MockObj('new sensor::DebounceFilter')
 UniqueFilter = MockObj('new sensor::UniqueFilter')
 
 
@@ -98,8 +97,10 @@ def setup_filter(config):
         return DeltaFilter(config[CONF_DELTA])
     if CONF_OR in config:
         return OrFilter(setup_filters(config[CONF_OR]))
-    if CONF_AND in config:
-        return OrFilter(setup_filters(config[CONF_AND]))
+    if CONF_HEARTBEAT in config:
+        return App.register_component(HeartbeatFilter(config[CONF_HEARTBEAT]))
+    if CONF_DEBOUNCE in config:
+        return App.register_component(DebounceFilter(config[CONF_DEBOUNCE]))
     if CONF_UNIQUE in config:
         return UniqueFilter()
     raise ValueError(u"Filter unsupported: {}".format(config))
