@@ -5,9 +5,9 @@ from esphomeyaml import pins
 from esphomeyaml.components import light
 from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, \
-    CONF_NUM_LEDS, CONF_RGB_ORDER
-from esphomeyaml.helpers import App, TemplateArguments, add, setup_mqtt_component, variable, \
-    RawExpression
+    CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER
+from esphomeyaml.helpers import App, RawExpression, TemplateArguments, add, get_variable, \
+    setup_mqtt_component, variable
 
 CHIPSETS = [
     'LPD8806',
@@ -42,6 +42,7 @@ PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
 
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_POWER_SUPPLY): cv.variable_id,
 })
 
 
@@ -61,6 +62,10 @@ def to_code(config):
 
     if CONF_MAX_REFRESH_RATE in config:
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
+
+    if CONF_POWER_SUPPLY in config:
+        power_supply = get_variable(config[CONF_POWER_SUPPLY])
+        add(fast_led.set_power_supply(power_supply))
 
     setup_mqtt_component(make.Pmqtt, config)
     light.setup_light_component(make.Pstate, config)
