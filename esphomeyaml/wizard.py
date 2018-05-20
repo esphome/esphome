@@ -70,6 +70,18 @@ logger:
 
 """
 
+
+def wizard_file(**kwargs):
+    config = BASE_CONFIG.format(**kwargs)
+
+    if kwargs['ota_password']:
+        config += "ota:\n  password: '{}'\n".format(kwargs['ota_password'])
+    else:
+        config += "ota:\n"
+
+    return config
+
+
 if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
     def sleep(time):
         pass
@@ -272,14 +284,10 @@ def wizard(path):
     print("Press ENTER for no password")
     ota_password = raw_input(color('bold_white', '(password): '))
 
-    config = BASE_CONFIG.format(name=name, platform=platform, board=board,
-                                ssid=ssid, psk=psk, broker=broker,
-                                mqtt_username=mqtt_username, mqtt_password=mqtt_password)
-
-    if ota_password:
-        config += "ota:\n  password: '{}'\n".format(ota_password)
-    else:
-        config += "ota:\n"
+    config = wizard_file(name=name, platform=platform, board=board,
+                         ssid=ssid, psk=psk, broker=broker,
+                         mqtt_username=mqtt_username, mqtt_password=mqtt_password,
+                         ota_password=ota_password)
 
     with codecs.open(path, 'w') as f_handle:
         f_handle.write(config)

@@ -27,28 +27,27 @@ def get_base_path(config):
     return os.path.join(os.path.dirname(core.CONFIG_PATH), get_name(config))
 
 
-def discover_serial_ports():
+def get_serial_ports():
     # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
-    try:
-        from serial.tools.list_ports import comports
-    except ImportError:
-        return None
-
+    from serial.tools.list_ports import comports
     result = []
-    descs = []
     for port, desc, info in comports():
         if not port:
             continue
         if "VID:PID" in info:
-            result.append(port)
-            descs.append(desc)
+            result.append((port, desc))
+    return result
+
+
+def choose_serial_port(config):
+    result = get_serial_ports()
 
     if not result:
-        return None
+        return 'OTA'
     print(u"Found multiple serial port options, please choose one:")
-    for i, (res, desc) in enumerate(zip(result, descs)):
+    for i, (res, desc) in enumerate(result):
         print(u"  [{}] {} ({})".format(i, res, desc))
-    print(u"  [{}] Over The Air".format(len(result)))
+    print(u"  [{}] Over The Air ({})".format(len(result), get_upload_host(config)))
     print()
     while True:
         opt = raw_input('(number): ')
@@ -63,8 +62,8 @@ def discover_serial_ports():
         except ValueError:
             print(color('red', u"Invalid option: '{}'".format(opt)))
     if opt == len(result):
-        return None
-    return result[opt]
+        return 'OTA'
+    return result[opt][0]
 
 
 def run_platformio(*cmd):
@@ -153,9 +152,19 @@ def compile_program(config):
     return run_platformio('platformio', 'run', '-d', get_base_path(config))
 
 
+def get_upload_host(config):
+    if CONF_MANUAL_IP in config[CONF_WIFI]:
+        host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
+    elif CONF_HOSTNAME in config[CONF_WIFI]:
+        host = config[CONF_WIFI][CONF_HOSTNAME] + config[CONF_WIFI][CONF_DOMAIN]
+    else:
+        host = config[CONF_ESPHOMEYAML][CONF_NAME] + config[CONF_WIFI][CONF_DOMAIN]
+    return host
+
+
 def upload_program(config, args, port):
     _LOGGER.info("Uploading binary...")
-    if port is not None:
+    if port != 'OTA':
         return run_platformio('platformio', 'run', '-d', get_base_path(config),
                               '-t', 'upload', '--upload-port', port)
 
@@ -163,12 +172,7 @@ def upload_program(config, args, port):
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
         return -1
 
-    if CONF_MANUAL_IP in config[CONF_WIFI]:
-        host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
-    elif CONF_HOSTNAME in config[CONF_WIFI]:
-        host = config[CONF_WIFI][CONF_HOSTNAME] + config[CONF_WIFI][CONF_DOMAIN]
-    else:
-        host = config[CONF_ESPHOMEYAML][CONF_NAME] + config[CONF_WIFI][CONF_DOMAIN]
+    host = get_upload_host(config)
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota
@@ -184,11 +188,12 @@ def upload_program(config, args, port):
     return espota.main(espota_args)
 
 
-def show_logs(config, args, port):
-    if port is not None and port != 'OTA':
+def show_logs(config, args, port, escape=False):
+    if port != 'OTA':
         run_miniterm(config, port)
         return 0
-    return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
+    return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id,
+                          escape=escape)
 
 
 def clean_mqtt(config, args):
@@ -221,11 +226,98 @@ def setup_log():
         pass
 
 
-def main():
-    setup_log()
+def command_wizard(args):
+    return wizard.wizard(args.configuration)
 
+
+def command_config(args, config):
+    print(yaml_util.dump(config))
+    return 0
+
+
+def command_compile(args, config):
+    exit_code = write_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = compile_program(config)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info(u"Successfully compiled program.")
+    return 0
+
+
+def command_upload(args, config):
+    port = args.upload_port or choose_serial_port(config)
+    exit_code = upload_program(config, args, port)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info(u"Successfully uploaded program.")
+    return 0
+
+
+def command_logs(args, config):
+    port = args.serial_port or choose_serial_port(config)
+    return show_logs(config, args, port, escape=args.escape)
+
+
+def command_run(args, config):
+    exit_code = write_cpp(config)
+    if exit_code != 0:
+        return exit_code
+    exit_code = compile_program(config)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info(u"Successfully compiled program.")
+    port = args.upload_port or choose_serial_port(config)
+    exit_code = upload_program(config, args, port)
+    if exit_code != 0:
+        return exit_code
+    _LOGGER.info(u"Successfully uploaded program.")
+    if args.no_logs:
+        return 0
+    return show_logs(config, args, port, escape=args.escape)
+
+
+def command_clean_mqtt(args, config):
+    return clean_mqtt(config, args)
+
+
+def command_mqtt_fingerprint(args, config):
+    return mqtt.get_fingerprint(config)
+
+
+def command_version(args):
+    print(u"Version: {}".format(const.__version__))
+    return 0
+
+
+def command_hassio(args):
+    from esphomeyaml.hassio import hassio
+
+    return hassio.start_web_server(args)
+
+
+PRE_CONFIG_ACTIONS = {
+    'wizard': command_wizard,
+    'version': command_version,
+    'hassio': command_hassio
+}
+
+POST_CONFIG_ACTIONS = {
+    'config': command_config,
+    'compile': command_compile,
+    'upload': command_upload,
+    'logs': command_logs,
+    'run': command_run,
+    'clean-mqtt': command_clean_mqtt,
+    'mqtt-fingerprint': command_mqtt_fingerprint,
+}
+
+
+def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphomeyaml')
     parser.add_argument('configuration', help='Your YAML configuration file.')
+
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
     subparsers.add_parser('config', help='Validate the configuration and spit it out.')
@@ -246,6 +338,8 @@ def main():
     parser_logs.add_argument('--client-id', help='Manually set the client id.')
     parser_logs.add_argument('--serial-port', help="Manually specify a serial port to use"
                                                    "For example /dev/cu.SLAB_USBtoUART.")
+    parser_logs.add_argument('--escape', help="Escape ANSI color codes for HassIO",
+                             action='store_true')
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
                                                    'upload it, and start MQTT logs.')
@@ -258,6 +352,8 @@ def main():
     parser_run.add_argument('--username', help='Manually set the MQTT username for logs.')
     parser_run.add_argument('--password', help='Manually set the MQTT password for logs.')
     parser_run.add_argument('--client-id', help='Manually set the client id for logs.')
+    parser_run.add_argument('--escape', help="Escape ANSI color codes for HassIO",
+                            action='store_true')
 
     parser_clean = subparsers.add_parser('clean-mqtt', help="Helper to clear an MQTT topic from "
                                                             "retain messages.")
@@ -270,12 +366,25 @@ def main():
                                          "you through setting up esphomeyaml.")
 
     subparsers.add_parser('mqtt-fingerprint', help="Get the SSL fingerprint from a MQTT broker.")
+
     subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
 
-    args = parser.parse_args()
+    hassio = subparsers.add_parser('hassio', help="Create a simple webserver for a HassIO add-on.")
+    hassio.add_argument("--port", help="The HTTP port to open connections on.", type=int,
+                        default=6052)
 
-    if args.command == 'wizard':
-        return wizard.wizard(args.configuration)
+    return parser.parse_args(argv[1:])
+
+
+def run_esphomeyaml(argv):
+    setup_log()
+    args = parse_args(argv)
+    if args.command in PRE_CONFIG_ACTIONS:
+        try:
+            return PRE_CONFIG_ACTIONS[args.command](args)
+        except ESPHomeYAMLError as e:
+            _LOGGER.error(e)
+            return 1
 
     core.CONFIG_PATH = args.configuration
 
@@ -283,57 +392,22 @@ def main():
     if config is None:
         return 1
 
-    if args.command == 'config':
-        print(yaml_util.dump(config))
-        return 0
-    elif args.command == 'compile':
+    if args.command in POST_CONFIG_ACTIONS:
         try:
-            exit_code = write_cpp(config)
+            return POST_CONFIG_ACTIONS[args.command](args, config)
         except ESPHomeYAMLError as e:
             _LOGGER.error(e)
             return 1
-        if exit_code != 0:
-            return exit_code
-        exit_code = compile_program(config)
-        if exit_code != 0:
-            return exit_code
-        _LOGGER.info(u"Successfully compiled program.")
-        return 0
-    elif args.command == 'upload':
-        port = args.upload_port or discover_serial_ports()
-        exit_code = upload_program(config, args, port)
-        if exit_code != 0:
-            return exit_code
-        _LOGGER.info(u"Successfully uploaded program.")
-        return 0
-    elif args.command == 'logs':
-        port = args.serial_port or discover_serial_ports()
-        return show_logs(config, args, port)
-    elif args.command == 'clean-mqtt':
-        return clean_mqtt(config, args)
-    elif args.command == 'mqtt-fingerprint':
-        return mqtt.get_fingerprint(config)
-    elif args.command == 'run':
-        exit_code = write_cpp(config)
-        if exit_code != 0:
-            return exit_code
-        exit_code = compile_program(config)
-        if exit_code != 0:
-            return exit_code
-        _LOGGER.info(u"Successfully compiled program.")
-        port = args.upload_port or discover_serial_ports()
-        exit_code = upload_program(config, args, port)
-        if exit_code != 0:
-            return exit_code
-        _LOGGER.info(u"Successfully uploaded program.")
-        if args.no_logs:
-            return 0
-        return show_logs(config, args, port)
-    elif args.command == 'version':
-        print(u"Version: {}".format(const.__version__))
-        return 0
     print(u"Unknown command {}".format(args.command))
     return 1
+
+
+def main():
+    try:
+        return run_esphomeyaml(sys.argv)
+    except ESPHomeYAMLError as e:
+        _LOGGER.error(e)
+        return 1
 
 
 if __name__ == "__main__":
