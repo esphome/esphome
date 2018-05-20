@@ -8,8 +8,7 @@ from collections import OrderedDict
 
 import yaml
 
-from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, MACAddress, TimePeriod, \
-    TimePeriodMicroseconds, TimePeriodMilliseconds, TimePeriodSeconds
+from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -195,6 +194,10 @@ def _secret_yaml(loader, node):
     return secrets[node.value]
 
 
+def _lambda(loader, node):
+    return Lambda(unicode(node.value))
+
+
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_SEQUENCE_TAG, _construct_seq)
 yaml.SafeLoader.add_constructor('!env_var', _env_var_yaml)
@@ -206,6 +209,7 @@ yaml.SafeLoader.add_constructor('!include_dir_merge_list',
 yaml.SafeLoader.add_constructor('!include_dir_named', _include_dir_named_yaml)
 yaml.SafeLoader.add_constructor('!include_dir_merge_named',
                                 _include_dir_merge_named_yaml)
+yaml.SafeLoader.add_constructor('!lambda', _lambda)
 
 
 # From: https://gist.github.com/miracle2k/3184458
@@ -270,6 +274,11 @@ def represent_time_period(dumper, data):
     return represent_odict(dumper, 'tag:yaml.org,2002:map', dictionary)
 
 
+def represent_lambda(_, data):
+    node = yaml.ScalarNode(tag='!lambda', value=data.value, style='>')
+    return node
+
+
 yaml.SafeDumper.add_representer(
     OrderedDict,
     lambda dumper, value:
@@ -286,7 +295,5 @@ yaml.SafeDumper.add_representer(unicode, unicode_representer)
 yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
 yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
 yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
-yaml.SafeDumper.add_representer(TimePeriod, represent_time_period)
-yaml.SafeDumper.add_representer(TimePeriodMicroseconds, represent_time_period)
-yaml.SafeDumper.add_representer(TimePeriodMilliseconds, represent_time_period)
-yaml.SafeDumper.add_representer(TimePeriodSeconds, represent_time_period)
+yaml.SafeDumper.add_multi_representer(TimePeriod, represent_time_period)
+yaml.SafeDumper.add_multi_representer(Lambda, represent_lambda)

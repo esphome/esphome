@@ -19,12 +19,15 @@ def validate_frequency_bit_depth(obj):
     return obj
 
 
-PLATFORM_SCHEMA = vol.All(output.FLOAT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.All(output.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PIN): vol.All(pins.output_pin, vol.Range(min=0, max=33)),
     vol.Optional(CONF_FREQUENCY): cv.frequency,
     vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int), vol.Range(min=1, max=15)),
     vol.Optional(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))
-}), validate_frequency_bit_depth)
+}).extend(output.FLOAT_OUTPUT_SCHEMA.schema), validate_frequency_bit_depth)
+
+
+LEDCOutputComponent = output.output_ns.LEDCOutputComponent
 
 
 def to_code(config):
@@ -32,7 +35,7 @@ def to_code(config):
     if frequency is None and CONF_BIT_DEPTH in config:
         frequency = 1000
     rhs = App.make_ledc_output(config[CONF_PIN], frequency, config.get(CONF_BIT_DEPTH))
-    ledc = Pvariable('output::LEDCOutputComponent', config[CONF_ID], rhs)
+    ledc = Pvariable(LEDCOutputComponent, config[CONF_ID], rhs)
     if CONF_CHANNEL in config:
         add(ledc.set_channel(config[CONF_CHANNEL]))
     output.setup_output_platform(ledc, config)

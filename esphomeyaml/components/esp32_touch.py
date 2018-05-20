@@ -1,11 +1,12 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
+from esphomeyaml.components import binary_sensor
 from esphomeyaml.const import CONF_ID, CONF_SETUP_MODE, CONF_IIR_FILTER, \
     CONF_SLEEP_DURATION, CONF_MEASUREMENT_DURATION, CONF_LOW_VOLTAGE_REFERENCE, \
     CONF_HIGH_VOLTAGE_REFERENCE, CONF_VOLTAGE_ATTENUATION, ESP_PLATFORM_ESP32
 from esphomeyaml.core import TimePeriod
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, Pvariable, add, global_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -17,29 +18,27 @@ def validate_voltage(values):
         value = cv.string(value)
         if not value.endswith('V'):
             value += 'V'
-        if value not in values:
-            raise vol.Invalid('Must be one of {}'.format(values))
-        return value
+        return cv.one_of(values)(value)
     return validator
 
 
 LOW_VOLTAGE_REFERENCE = {
-    '0.5V': 'TOUCH_LVOLT_0V5',
-    '0.6V': 'TOUCH_LVOLT_0V6',
-    '0.7V': 'TOUCH_LVOLT_0V7',
-    '0.8V': 'TOUCH_LVOLT_0V8',
+    '0.5V': global_ns.TOUCH_LVOLT_0V5,
+    '0.6V': global_ns.TOUCH_LVOLT_0V6,
+    '0.7V': global_ns.TOUCH_LVOLT_0V7,
+    '0.8V': global_ns.TOUCH_LVOLT_0V8,
 }
 HIGH_VOLTAGE_REFERENCE = {
-    '2.4V': 'TOUCH_HVOLT_2V4',
-    '2.5V': 'TOUCH_HVOLT_2V5',
-    '2.6V': 'TOUCH_HVOLT_2V6',
-    '2.7V': 'TOUCH_HVOLT_2V7',
+    '2.4V': global_ns.TOUCH_HVOLT_2V4,
+    '2.5V': global_ns.TOUCH_HVOLT_2V5,
+    '2.6V': global_ns.TOUCH_HVOLT_2V6,
+    '2.7V': global_ns.TOUCH_HVOLT_2V7,
 }
 VOLTAGE_ATTENUATION = {
-    '1.5V': 'TOUCH_HVOLT_ATTEN_1V5',
-    '1V': 'TOUCH_HVOLT_ATTEN_1V',
-    '0.5V': 'TOUCH_HVOLT_ATTEN_0V5',
-    '0V': 'TOUCH_HVOLT_ATTEN_0V',
+    '1.5V': global_ns.TOUCH_HVOLT_ATTEN_1V5,
+    '1V': global_ns.TOUCH_HVOLT_ATTEN_1V,
+    '0.5V': global_ns.TOUCH_HVOLT_ATTEN_0V5,
+    '0V': global_ns.TOUCH_HVOLT_ATTEN_0V,
 }
 
 CONFIG_SCHEMA = vol.Schema({
@@ -55,10 +54,12 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_VOLTAGE_ATTENUATION): validate_voltage(VOLTAGE_ATTENUATION),
 })
 
+ESP32TouchComponent = binary_sensor.binary_sensor_ns.ESP32TouchComponent
+
 
 def to_code(config):
     rhs = App.make_esp32_touch_component()
-    touch = Pvariable('binary_sensor::ESP32TouchComponent', config[CONF_ID], rhs)
+    touch = Pvariable(ESP32TouchComponent, config[CONF_ID], rhs)
     if CONF_SETUP_MODE in config:
         add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
     if CONF_IIR_FILTER in config:

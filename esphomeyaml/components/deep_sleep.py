@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
     CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression
+from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns
 
 
 def validate_pin_number(value):
@@ -23,10 +23,12 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 })
 
+DeepSleepComponent = esphomelib_ns.DeepSleepComponent
+
 
 def to_code(config):
     rhs = App.make_deep_sleep_component()
-    deep_sleep = Pvariable('DeepSleepComponent', config[CONF_ID], rhs)
+    deep_sleep = Pvariable(DeepSleepComponent, config[CONF_ID], rhs)
     if CONF_SLEEP_DURATION in config:
         add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:

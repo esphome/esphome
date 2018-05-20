@@ -3,12 +3,14 @@ import re
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
+from esphomeyaml import automation
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
-    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_SSL_FINGERPRINTS, CONF_ID, CONF_LOG_TOPIC, \
-    CONF_MQTT, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, CONF_TOPIC, \
-    CONF_TOPIC_PREFIX, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_KEEPALIVE
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, add, \
-    exp_empty_optional, RawExpression
+    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LOG_TOPIC, \
+    CONF_MQTT, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, \
+    CONF_SSL_FINGERPRINTS, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
+    CONF_WILL_MESSAGE
+from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, \
+    TemplateArguments, add, esphomelib_ns, optional, std_string, RawExpression
 
 
 def validate_message_just_topic(value):
@@ -18,7 +20,7 @@ def validate_message_just_topic(value):
 
 MQTT_MESSAGE_BASE = vol.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
-    vol.Optional(CONF_QOS, default=0): vol.All(vol.Coerce(int), vol.In([0, 1, 2])),
+    vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     vol.Optional(CONF_RETAIN, default=True): cv.boolean,
 })
 
@@ -28,12 +30,15 @@ MQTT_MESSAGE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE.extend({
     vol.Required(CONF_PAYLOAD): cv.mqtt_payload,
 }))
 
+mqtt_ns = esphomelib_ns.namespace('mqtt')
+MQTTMessage = mqtt_ns.MQTTMessage
+MQTTClientComponent = mqtt_ns.MQTTClientComponent
+MQTTPublishAction = mqtt_ns.MQTTPublishAction
+MQTTMessageTrigger = mqtt_ns.MQTTMessageTrigger
+
 
 def validate_broker(value):
     value = cv.string_strict(value)
-    if value.endswith(u'.local'):
-        raise vol.Invalid(u"MQTT server addresses ending with '.local' are currently unsupported."
-                          u" Please use the static IP instead.")
     if u':' in value:
         raise vol.Invalid(u"Please specify the port using the port: option")
     if not value:
@@ -65,14 +70,18 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
                                                  cv.ensure_list, [validate_fingerprint]),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
+    vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        vol.Required(CONF_TOPIC): cv.publish_topic,
+        vol.Optional(CONF_QOS, 0): cv.mqtt_qos,
+    })])
 })
 
 
 def exp_mqtt_message(config):
     if config is None:
-        return exp_empty_optional('mqtt::MQTTMessage')
+        return optional(TemplateArguments(MQTTMessage))
     exp = StructInitializer(
-        'mqtt::MQTTMessage',
+        MQTTMessage,
         ('topic', config[CONF_TOPIC]),
         ('payload', config.get(CONF_PAYLOAD, "")),
         ('qos', config[CONF_QOS]),
@@ -84,7 +93,7 @@ def exp_mqtt_message(config):
 def to_code(config):
     rhs = App.init_mqtt(config[CONF_BROKER], config[CONF_PORT],
                         config[CONF_USERNAME], config[CONF_PASSWORD])
-    mqtt = Pvariable('mqtt::MQTTClientComponent', config[CONF_ID], rhs)
+    mqtt = Pvariable(MQTTClientComponent, config[CONF_ID], rhs)
     if not config.get(CONF_DISCOVERY, True):
         add(mqtt.disable_discovery())
     if CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
@@ -119,6 +128,11 @@ def to_code(config):
             add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
     if CONF_KEEPALIVE in config:
         add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
+
+    for conf in config.get(CONF_ON_MESSAGE, []):
+        rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
+        trigger = Pvariable(MQTTMessageTrigger, conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, std_string, conf)
 
 
 def required_build_flags(config):

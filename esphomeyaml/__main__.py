@@ -10,6 +10,7 @@ from esphomeyaml import core, mqtt, wizard, writer, yaml_util, const
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_LOGGER, \
     CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI
+from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, add_task, \
     color, get_variable, indent, quote, statement, Expression
 
@@ -132,6 +133,8 @@ def write_cpp(config):
             if isinstance(exp, Expression) and not exp.required:
                 continue
             if isinstance(exp, AssignmentExpression) and not exp.obj.required:
+                if not exp.has_side_effects():
+                    continue
                 exp = exp.rhs
         all_code.append(unicode(statement(exp)))
 
@@ -284,7 +287,11 @@ def main():
         print(yaml_util.dump(config))
         return 0
     elif args.command == 'compile':
-        exit_code = write_cpp(config)
+        try:
+            exit_code = write_cpp(config)
+        except ESPHomeYAMLError as e:
+            _LOGGER.error(e)
+            return 1
         if exit_code != 0:
             return exit_code
         exit_code = compile_program(config)

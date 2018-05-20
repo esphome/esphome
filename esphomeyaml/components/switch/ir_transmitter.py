@@ -2,12 +2,13 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch
-from esphomeyaml.components.ir_transmitter import IR_TRANSMITTER_COMPONENT_CLASS
+from esphomeyaml.components.ir_transmitter import IRTransmitterComponent
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_COMMAND, CONF_DATA, \
-    CONF_ID, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, \
-    CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME, CONF_INVERTED
+    CONF_ID, CONF_INVERTED, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
+    CONF_PANASONIC, CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import ArrayInitializer, HexIntLiteral, MockObj, Pvariable, get_variable
+from esphomeyaml.helpers import App, ArrayInitializer, HexIntLiteral, Pvariable, \
+    get_variable
 
 DEPENDENCIES = ['ir_transmitter']
 
@@ -46,10 +47,12 @@ PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
     })),
     vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
     vol.Optional(CONF_INVERTED): cv.invalid("IR Transmitters do not support inverted mode!"),
-}).extend(switch.MQTT_SWITCH_ID_SCHEMA.schema), cv.has_at_least_one_key(*IR_KEYS))
+}).extend(switch.SWITCH_SCHEMA.schema), cv.has_at_least_one_key(*IR_KEYS))
 
 # pylint: disable=invalid-name
-SendData = MockObj('switch_::ir::SendData', '::')
+ir_ns = switch.switch_ns.namespace('ir')
+SendData = ir_ns.namespace('SendData')
+DataTransmitter = IRTransmitterComponent.DataTransmitter
 
 
 def safe_hex(value):
@@ -87,17 +90,15 @@ def exp_send_data(config):
         else:
             times = config[CONF_REPEAT][CONF_TIMES]
             wait_us = config[CONF_REPEAT][CONF_WAIT_TIME]
-        base = MockObj(unicode(base), u'.')
         base = base.repeat(times, wait_us)
     return base
 
 
 def to_code(config):
-    ir = get_variable(config.get(CONF_IR_TRANSMITTER_ID), IR_TRANSMITTER_COMPONENT_CLASS)
+    ir = get_variable(config.get(CONF_IR_TRANSMITTER_ID), IRTransmitterComponent)
     send_data = exp_send_data(config)
-    rhs = ir.create_transmitter(config[CONF_NAME], send_data)
-    switch_ = Pvariable(IR_TRANSMITTER_COMPONENT_CLASS + '::DataTransmitter', config[CONF_ID],
-                        rhs)
+    rhs = App.register_component(ir.create_transmitter(config[CONF_NAME], send_data))
+    switch_ = Pvariable(DataTransmitter, config[CONF_ID], rhs)
     switch.register_switch(switch_, config)
 
 

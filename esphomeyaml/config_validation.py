@@ -12,8 +12,8 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import HexInt, IPAddress, TimePeriod, TimePeriodMilliseconds, \
-    TimePeriodMicroseconds, TimePeriodSeconds
+from esphomeyaml.core import HexInt, IPAddress, TimePeriod, TimePeriodMicroseconds, \
+    TimePeriodMilliseconds, TimePeriodSeconds, Lambda
 from esphomeyaml.helpers import ensure_unique_string
 
 _LOGGER = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def int_(value):
 
 
 hex_int = vol.Coerce(hex_int_)
-match_cpp_var_ = vol.Match(r'^[a-zA-Z_][a-zA-Z0-9_]+$', msg=u"Must be a valid C++ variable name")
+match_cpp_var_ = vol.Match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', msg=u"Must be a valid C++ variable name")
 
 
 def variable_id(value):
@@ -142,6 +142,14 @@ def variable_id(value):
     if value in RESERVED_IDS:
         raise vol.Invalid(u"ID {} is reserved internally and cannot be used".format(value))
     return value
+
+
+def templatable(other_validators):
+    def validator(value):
+        if isinstance(value, Lambda):
+            return value
+        return other_validators(value)
+    return validator
 
 
 def only_on(platforms):
@@ -170,10 +178,24 @@ def has_at_least_one_key(*keys):
         if not isinstance(obj, dict):
             raise vol.Invalid('expected dictionary')
 
-        for k in obj.keys():
-            if k in keys:
-                return obj
-        raise vol.Invalid('must contain one of {}.'.format(', '.join(keys)))
+        if not any(k in keys for k in obj):
+            raise vol.Invalid('Must contain at least one of {}.'.format(', '.join(keys)))
+        return obj
+
+    return validate
+
+
+def has_at_exactly_one_key(*keys):
+    def validate(obj):
+        if not isinstance(obj, dict):
+            raise vol.Invalid('expected dictionary')
+
+        number = sum(k in keys for k in obj)
+        if number > 1:
+            raise vol.Invalid("Cannot specify more than one of {}.".format(', '.join(keys)))
+        if number < 1:
+            raise vol.Invalid('Must contain exactly one of {}.'.format(', '.join(keys)))
+        return obj
 
     return validate
 
@@ -410,6 +432,14 @@ def mqtt_payload(value):
     return string(value)
 
 
+def mqtt_qos(value):
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise vol.Invalid(u"MQTT Quality of Service must be integer, got {}".format(value))
+    return one_of(0, 1, 2)(value)
+
+
 uint8_t = vol.All(int_, vol.Range(min=0, max=255))
 uint16_t = vol.All(int_, vol.Range(min=0, max=65535))
 uint32_t = vol.All(int_, vol.Range(min=0, max=4294967295))
@@ -427,6 +457,22 @@ def invalid(message):
 
 def valid(value):
     return value
+
+
+def one_of(*values):
+    options = u', '.join(u"'{}'".format(x) for x in values)
+
+    def validator(value):
+        if value not in values:
+            raise vol.Invalid(u"Unknown value '{}', must be one of {}".format(value, options))
+        return value
+    return validator
+
+
+def lambda_(value):
+    if isinstance(value, Lambda):
+        return value
+    return Lambda(string_strict(value))
 
 
 REGISTERED_IDS = set()

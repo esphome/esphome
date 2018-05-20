@@ -2,9 +2,10 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
-from esphomeyaml.const import CONF_ID, CONF_MAC_ADDRESS, CONF_NAME, ESP_PLATFORM_ESP32
+from esphomeyaml.components.esp32_ble import ESP32BLETracker
+from esphomeyaml.const import CONF_MAC_ADDRESS, CONF_NAME, ESP_PLATFORM_ESP32
 from esphomeyaml.core import HexInt, MACAddress
-from esphomeyaml.helpers import ArrayInitializer, Pvariable, get_variable
+from esphomeyaml.helpers import ArrayInitializer, get_variable
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ['esp32_ble']
@@ -28,17 +29,15 @@ def validate_mac(value):
 
 
 PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('esp32_ble_device'): cv.register_variable_id,
     vol.Required(CONF_MAC_ADDRESS): validate_mac,
-}).extend(binary_sensor.MQTT_BINARY_SENSOR_ID_SCHEMA.schema)
+}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
 
 
 def to_code(config):
-    hub = get_variable(None, type='ESP32BLETracker')
+    hub = get_variable(None, type=ESP32BLETracker)
     addr = [HexInt(i) for i in config[CONF_MAC_ADDRESS].parts]
     rhs = hub.make_device(config[CONF_NAME], ArrayInitializer(*addr, multiline=False))
-    device = Pvariable('ESP32BLEDevice', config[CONF_ID], rhs)
-    binary_sensor.register_binary_sensor(device, config)
+    binary_sensor.register_binary_sensor(rhs, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_BLE_TRACKER'

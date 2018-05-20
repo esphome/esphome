@@ -64,7 +64,8 @@ ESP32_BOARD_TO_PINS = {
 
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
-        raise vol.Invalid(u"This option doesn't allow more complicated options like inverted.")
+        raise vol.Invalid(u"This variable only supports pin numbers, not full pin schemas "
+                          u"(with inverted and mode).")
     if isinstance(value, int):
         return value
     try:
@@ -171,9 +172,9 @@ PIN_MODES_ESP32 = [
 def pin_mode(value):
     value = vol.All(vol.Coerce(str), vol.Upper)(value)
     if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
-        return vol.Any(*PIN_MODES_ESP32)(value)
+        return cv.one_of(*PIN_MODES_ESP32)(value)
     elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
-        return vol.Any(*PIN_MODES_ESP8266)(value)
+        return cv.one_of(*PIN_MODES_ESP8266)(value)
     raise vol.Invalid(u"Invalid ESP platform.")
 
 

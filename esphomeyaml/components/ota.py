@@ -8,7 +8,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_ID, CONF_OTA, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,10 +20,12 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_PASSWORD): cv.string,
 })
 
+OTAComponent = esphomelib_ns.OTAComponent
+
 
 def to_code(config):
     rhs = App.init_ota()
-    ota = Pvariable('OTAComponent', config[CONF_ID], rhs)
+    ota = Pvariable(OTAComponent, config[CONF_ID], rhs)
     if CONF_PASSWORD in config:
         hash_ = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
         add(ota.set_auth_password_hash(hash_))

@@ -1,18 +1,23 @@
-
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_POWER_SUPPLY, CONF_INVERTED, CONF_MAX_POWER
-from esphomeyaml.helpers import get_variable, add
+from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY
+from esphomeyaml.helpers import add, esphomelib_ns, get_variable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
+
+})
+
+BINARY_OUTPUT_SCHEMA = cv.REQUIRED_ID_SCHEMA.extend({
     vol.Optional(CONF_POWER_SUPPLY): cv.variable_id,
     vol.Optional(CONF_INVERTED): cv.boolean,
-}).extend(cv.REQUIRED_ID_SCHEMA.schema)
+})
 
-FLOAT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
     vol.Optional(CONF_MAX_POWER): cv.zero_to_one_float,
 })
+
+output_ns = esphomelib_ns.namespace('output')
 
 
 def setup_output_platform(obj, config, skip_power_supply=False):

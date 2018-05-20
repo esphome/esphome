@@ -29,7 +29,7 @@ CORE_SCHEMA = vol.Schema({
     vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
     vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
-    vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, vol.Any(*BUILD_FLASH_MODES)),
+    vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
 })
 
 REQUIRED_COMPONENTS = [
@@ -169,6 +169,12 @@ def validate_config(config):
                                                                           dependency))
                     success = False
             if not success:
+                continue
+
+            esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
+            if core.ESP_PLATFORM not in esp_platforms:
+                result.add_error(
+                    u"Platform {}.{} doesn't support {}.".format(domain, p_name, core.ESP_PLATFORM))
                 continue
 
             if hasattr(platform, u'PLATFORM_SCHEMA'):

@@ -171,6 +171,14 @@ class TimePeriodSeconds(TimePeriod):
     pass
 
 
+class Lambda(object):
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return u'Lambda<{}>'.format(self.value)
+
+
 CONFIG_PATH = None
 SIMPLIFY = True
 ESP_PLATFORM = ''

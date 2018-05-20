@@ -10,7 +10,7 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
     CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds
+    TimePeriodMilliseconds, TimePeriodSeconds, Lambda
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +58,9 @@ class Expression(object):
                 continue
             require.require()
 
+    def has_side_effects(self):
+        return self.required
+
 
 class RawExpression(Expression):
     def __init__(self, text):
@@ -65,7 +68,7 @@ class RawExpression(Expression):
         self.text = text
 
     def __str__(self):
-        return self.text
+        return str(self.text)
 
 
 # pylint: disable=redefined-builtin
@@ -85,6 +88,9 @@ class AssignmentExpression(Expression):
             type_ = u'auto'
         return u"{} {}{} = {}".format(type_, self.modifier, self.name, self.rhs)
 
+    def has_side_effects(self):
+        return self.rhs.has_side_effects()
+
 
 class ExpressionList(Expression):
     def __init__(self, *args):
@@ -100,7 +106,7 @@ class ExpressionList(Expression):
             self.args.append(exp)
 
     def __str__(self):
-        text = u", ".join(unicode(x) for x in self.args)
+        text = u", ".join(str(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
 
@@ -137,6 +143,8 @@ class StructInitializer(Expression):
     def __init__(self, base, *args):
         super(StructInitializer, self).__init__()
         self.base = base
+        if isinstance(base, Expression):
+            self.requires.append(base)
         if not isinstance(args, OrderedDict):
             args = OrderedDict(args)
         self.args = OrderedDict()
@@ -178,6 +186,57 @@ class ArrayInitializer(Expression):
         else:
             cpp = u'{' + u', '.join(str(arg) for arg in self.args) + u'}'
         return cpp
+
+
+# pylint: disable=invalid-name
+class ParameterExpression(Expression):
+    def __init__(self, type, id):
+        super(ParameterExpression, self).__init__()
+        self.type = type
+        self.id = id
+
+    def __str__(self):
+        return u"{} {}".format(self.type, self.id)
+
+
+class ParameterListExpression(Expression):
+    def __init__(self, *parameters):
+        super(ParameterListExpression, self).__init__()
+        self.parameters = []
+        for parameter in parameters:
+            if not isinstance(parameter, ParameterExpression):
+                parameter = ParameterExpression(*parameter)
+            self.parameters.append(parameter)
+            self.requires.append(parameter)
+
+    def __str__(self):
+        return u", ".join(unicode(x) for x in self.parameters)
+
+
+class LambdaExpression(Expression):
+    def __init__(self, parts, parameters, capture='=', return_type=None):
+        super(LambdaExpression, self).__init__()
+        self.parts = parts
+        if not isinstance(parameters, ParameterListExpression):
+            parameters = ParameterListExpression(*parameters)
+        self.parameters = parameters
+        self.requires.append(self.parameters)
+        self.capture = capture
+        self.return_type = return_type
+        if return_type is not None:
+            self.requires.append(return_type)
+        for i in range(1, len(parts), 2):
+            self.requires.append(parts[i])
+
+    def __str__(self):
+        cpp = u'[{}]({})'.format(self.capture, self.parameters)
+        if self.return_type is not None:
+            cpp += u' -> {}'.format(self.return_type)
+        cpp += u' {\n'
+        for part in self.parts:
+            cpp += unicode(part)
+        cpp += u'\n}'
+        return indent_all_but_first_and_last(cpp)
 
 
 class Literal(Expression):
@@ -235,9 +294,9 @@ class HexIntLiteral(Literal):
 
 
 class FloatLiteral(Literal):
-    def __init__(self, float_):
+    def __init__(self, value):
         super(FloatLiteral, self).__init__()
-        self.float_ = float_
+        self.float_ = value
 
     def __str__(self):
         return u"{:f}f".format(self.float_)
@@ -297,23 +356,30 @@ def statement(expression):
     return ExpressionStatement(expression)
 
 
+def register_variable(type, id, obj):
+    _VARIABLES[id] = obj, type
+
+
 # pylint: disable=redefined-builtin, invalid-name
 def variable(type, id, rhs):
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'.')
     assignment = AssignmentExpression(type, '', id, rhs, obj)
     add(assignment)
-    _VARIABLES[id] = obj, type
+    register_variable(type, id, obj)
     obj.requires.append(assignment)
     return obj
 
 
-def Pvariable(type, id, rhs):
+def Pvariable(type, id, rhs, has_side_effects=True):
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'->')
+    if not has_side_effects and hasattr(rhs, '_has_side_effects'):
+        # pylint: disable=attribute-defined-outside-init, protected-access
+        rhs._has_side_effects = False
+    obj = MockObj(id, u'->', has_side_effects=has_side_effects)
     assignment = AssignmentExpression(type, '*', id, rhs, obj)
     add(assignment)
-    _VARIABLES[id] = obj, type
+    register_variable(type, id, obj)
     obj.requires.append(assignment)
     return obj
 
@@ -324,30 +390,39 @@ _EXPRESSIONS = []
 
 
 def get_variable(id, type=None):
-    result = None
-    while _QUEUE:
+    def get_result():
         if id is not None:
             if id in _VARIABLES:
-                result = _VARIABLES[id][0]
-                break
+                return _VARIABLES[id][0]
         elif type is not None:
-            result = next((x[0] for x in _VARIABLES.itervalues() if x[1] == type), None)
-            if result is not None:
-                break
+            return next((x[0] for x in _VARIABLES.itervalues() if x[1] == type), None)
+        return None
+
+    while _QUEUE:
+        result = get_result()
+        if result is not None:
+            return result
         func, config = _QUEUE.popleft()
         func(config)
     if id is None and type is None:
         return None
+    result = get_result()
     if result is None:
-        if id is not None:
-            if id in _VARIABLES:
-                result = _VARIABLES[id][0]
-        elif type is not None:
-            result = next((x[0] for x in _VARIABLES.itervalues() if x[1] == type), None)
-
-        if result is None:
-            raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type {}".format(id, type))
+        raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type {}".format(id, type))
     return result
+
+
+def process_lambda(value, parameters, capture='=', return_type=None):
+    parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\.', value.value)
+    for i in range(1, len(parts), 2):
+        parts[i] = get_variable(parts[i])._
+    return LambdaExpression(parts, parameters, capture, return_type)
+
+
+def templatable(value, input_type, output_type):
+    if isinstance(value, Lambda):
+        return process_lambda(value, [(input_type, 'x')], return_type=output_type)
+    return value
 
 
 def add_task(func, config):
@@ -362,18 +437,28 @@ def add(expression, require=True):
 
 
 class MockObj(Expression):
-    def __init__(self, base, op=u'.'):
+    def __init__(self, base, op=u'.', has_side_effects=True):
         self.base = base
         self.op = op
+        self._has_side_effects = has_side_effects
         super(MockObj, self).__init__()
 
     def __getattr__(self, attr):
+        if attr == u'_':
+            obj = MockObj(u'{}{}'.format(self.base, self.op))
+            obj.requires.append(self)
+            return obj
+        if attr == u'new':
+            obj = MockObj(u'new {}'.format(self.base), u'->')
+            obj.requires.append(self)
+            return obj
         next_op = u'.'
-        if attr.startswith(u'P'):
+        if attr.startswith(u'P') and self.op != '::':
             attr = attr[1:]
             next_op = u'->'
-        op = self.op
-        obj = MockObj(u'{}{}{}'.format(self.base, op, attr), next_op)
+        if attr.startswith(u'_'):
+            attr = attr[1:]
+        obj = MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
         obj.requires.append(self)
         return obj
 
@@ -394,12 +479,41 @@ class MockObj(Expression):
                 continue
             require.require()
 
+    def template(self, args):
+        if not isinstance(args, TemplateArguments):
+            args = TemplateArguments(args)
+        obj = MockObj(u'{}{}'.format(self.base, args))
+        obj.requires.append(self)
+        obj.requires.append(args)
+        return obj
 
-App = MockObj(u'App')
+    def namespace(self, name):
+        obj = MockObj(u'{}{}{}'.format(self.base, self.op, name), u'::')
+        obj.requires.append(self)
+        return obj
 
-GPIOPin = MockObj(u'GPIOPin')
-GPIOOutputPin = MockObj(u'GPIOOutputPin')
-GPIOInputPin = MockObj(u'GPIOInputPin')
+    def has_side_effects(self):
+        return self._has_side_effects
+
+
+global_ns = MockObj('', '')
+float_ = global_ns.namespace('float')
+bool_ = global_ns.namespace('bool')
+std_ns = global_ns.namespace('std')
+std_string = std_ns.string
+uint8 = global_ns.namespace('uint8_t')
+uint16 = global_ns.namespace('uint16_t')
+uint32 = global_ns.namespace('uint32_t')
+NAN = global_ns.namespace('NAN')
+esphomelib_ns = global_ns  # using namespace esphomelib;
+NoArg = esphomelib_ns.NoArg
+App = esphomelib_ns.App
+Application = esphomelib_ns.namespace('Application')
+optional = esphomelib_ns.optional
+
+GPIOPin = esphomelib_ns.GPIOPin
+GPIOOutputPin = esphomelib_ns.GPIOOutputPin
+GPIOInputPin = esphomelib_ns.GPIOInputPin
 
 
 def get_gpio_pin_number(conf):
@@ -452,15 +566,6 @@ def setup_mqtt_component(obj, config):
         add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                  availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
-
-def exp_empty_optional(type):
-    return RawExpression(u'Optional<{}>()'.format(type))
-
-
-def exp_optional(type, value):
-    if value is None:
-        return exp_empty_optional(type)
-    return value
 
 
 # shlex's quote for Python 2.7

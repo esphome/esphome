@@ -5,7 +5,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_GATEWAY, \
     CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, \
     ESP_PLATFORM_ESP8266
-from esphomeyaml.helpers import App, MockObj, Pvariable, StructInitializer, add
+from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
 
 
 def validate_password(value):
@@ -45,7 +45,9 @@ CONFIG_SCHEMA = vol.Schema({
 })
 
 # pylint: disable=invalid-name
-IPAddress = MockObj('IPAddress')
+IPAddress = global_ns.IPAddress
+ManualIP = esphomelib_ns.ManualIP
+WiFiComponent = esphomelib_ns.WiFiComponent
 
 
 def safe_ip(ip):
@@ -56,7 +58,7 @@ def safe_ip(ip):
 
 def manual_ip(config):
     return StructInitializer(
-        'ManualIP',
+        ManualIP,
         ('static_ip', safe_ip(config[CONF_STATIC_IP])),
         ('gateway', safe_ip(config[CONF_GATEWAY])),
         ('subnet', safe_ip(config[CONF_SUBNET])),
@@ -72,7 +74,7 @@ def to_code(config):
         rhs = App.init_wifi(config[CONF_SSID], config.get(CONF_PASSWORD))
     else:
         rhs = App.init_wifi()
-    wifi = Pvariable('WiFiComponent', config[CONF_ID], rhs)
+    wifi = Pvariable(WiFiComponent, config[CONF_ID], rhs)
 
     if sta and CONF_MANUAL_IP in config:
         add(wifi.set_sta_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
