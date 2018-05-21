@@ -4,11 +4,10 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch
 from esphomeyaml.components.ir_transmitter import IRTransmitterComponent
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_COMMAND, CONF_DATA, \
-    CONF_ID, CONF_INVERTED, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
+    CONF_INVERTED, CONF_IR_TRANSMITTER_ID, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
     CONF_PANASONIC, CONF_RAW, CONF_REPEAT, CONF_SONY, CONF_TIMES, CONF_WAIT_TIME
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, ArrayInitializer, HexIntLiteral, Pvariable, \
-    get_variable
+from esphomeyaml.helpers import App, ArrayInitializer, HexIntLiteral, get_variable
 
 DEPENDENCIES = ['ir_transmitter']
 
