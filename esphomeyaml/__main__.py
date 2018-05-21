@@ -76,13 +76,13 @@ def run_platformio(*cmd, **kwargs):
     full_cmd = u' '.join(quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
     try:
-        main = kwargs.get('main')
-        if main is None:
+        func = kwargs.get('main')
+        if func is None:
             import platformio.__main__
-            main = platformio.__main__.main
+            func = platformio.__main__.main
         sys.argv = list(cmd)
         sys.exit = mock_exit
-        return main() or 0
+        return func() or 0
     except KeyboardInterrupt:
         return 1
     except SystemExit as err:
@@ -177,6 +177,7 @@ def upload_using_esptool(config, port):
 
     name = get_name(config)
     path = os.path.join(get_base_path(config), '.pioenvs', name, 'firmware.bin')
+    # pylint: disable=protected-access
     return run_platformio('esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
                           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0',
                           path, main=esptool._main)

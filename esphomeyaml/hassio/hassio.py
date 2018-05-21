@@ -26,7 +26,7 @@ from esphomeyaml.helpers import quote
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
 
-
+# pylint: disable=abstract-method, arguments-differ
 class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super(EsphomeyamlCommandWebSocket, self).__init__(application, request, **kwargs)
@@ -72,9 +72,6 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
 
 
 class EsphomeyamlLogsHandler(EsphomeyamlCommandWebSocket):
-    def __init__(self, application, request, **kwargs):
-        super(EsphomeyamlLogsHandler, self).__init__(application, request, **kwargs)
-
     def build_command(self, message):
         js = json.loads(message)
         config_file = CONFIG_DIR + '/' + js['configuration']
@@ -82,9 +79,6 @@ class EsphomeyamlLogsHandler(EsphomeyamlCommandWebSocket):
 
 
 class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
-    def __init__(self, application, request, **kwargs):
-        super(EsphomeyamlRunHandler, self).__init__(application, request, **kwargs)
-
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
@@ -93,9 +87,6 @@ class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
 
 
 class EsphomeyamlCompileHandler(EsphomeyamlCommandWebSocket):
-    def __init__(self, application, request, **kwargs):
-        super(EsphomeyamlCompileHandler, self).__init__(application, request, **kwargs)
-
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
