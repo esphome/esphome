@@ -167,7 +167,7 @@ def write_platformio_ini(content, path):
         mkdir_p(os.path.dirname(path))
         content_format = INI_BASE_FORMAT
     full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + \
-                content + INI_AUTO_GENERATE_END + content_format[1]
+        content + INI_AUTO_GENERATE_END + content_format[1]
     if prev_file == full_file:
         return
     with codecs.open(path, mode='w+', encoding='utf-8') as f_handle:
@@ -189,7 +189,7 @@ def write_cpp(code_s, path):
         code_format = CPP_BASE_FORMAT
 
     full_file = code_format[0] + CPP_AUTO_GENERATE_BEGIN + '\n' + \
-                code_s + CPP_AUTO_GENERATE_END + code_format[1]
+        code_s + CPP_AUTO_GENERATE_END + code_format[1]
     if prev_file == full_file:
         return
     with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
