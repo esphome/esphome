@@ -18,7 +18,8 @@ from esphomeyaml.helpers import App, add, color
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.5.3'
+DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#' \
+                      u'2693649d487bcb2e351d4b7b7296bd9237e963f7'
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
 

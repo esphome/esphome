@@ -39,7 +39,7 @@ FAN_SPEEDS = {
 
 
 def validate_fan_speed(value):
-    return vol.All(vol.Upper, cv.one_of(FAN_SPEEDS))(value)
+    return vol.All(vol.Upper, cv.one_of(*FAN_SPEEDS))(value)
 
 
 def setup_fan_core_(fan_var, mqtt_var, config):

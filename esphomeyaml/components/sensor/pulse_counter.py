@@ -25,7 +25,7 @@ COUNT_MODES = {
     'DECREMENT': global_ns.PCNT_COUNT_DEC,
 }
 
-COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(COUNT_MODES))
+COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(*COUNT_MODES))
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('pulse_counter', CONF_MAKE_ID): cv.register_variable_id,

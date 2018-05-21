@@ -30,7 +30,7 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID('mqtt_binary_sensor', CONF_MQTT_ID): cv.register_variable_id,
     cv.GenerateID('binary_sensor'): cv.register_variable_id,
     vol.Optional(CONF_INVERTED): cv.boolean,
-    vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(DEVICE_CLASSES)),
+    vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
     vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
     vol.Optional(CONF_ON_RELEASE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
     vol.Optional(CONF_ON_CLICK): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
