@@ -1,8 +1,8 @@
 """Constants used by esphomeyaml."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 5
-PATCH_VERSION = '3'
+MINOR_VERSION = 6
+PATCH_VERSION = '0'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
 

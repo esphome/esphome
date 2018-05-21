@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>esphomeyaml Dashboard</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/css/materialize.min.css">
+
+  <link rel="stylesheet" href="/static/materialize-stepper.min.css">
+
+  <!-- jQuery :( -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.8.5/jquery-ui.min.js" integrity="sha256-fOse6WapxTrUSJOJICXXYwHRJOPa6C1OUQXi7C9Ddy8=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/js/materialize.min.js"></script>
+  <script src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.15.0/jquery.validate.min.js"></script>
+
+
+  <script src="/static/materialize-stepper.min.js"></script>
+
+  <style>
+    nav .brand-logo {
+      margin-left: 48px;
+      font-size: 20px;
+    }
+
+    main .container {
+      margin-top: -12vh;
+      flex-shrink: 0;
+    }
+
+    .ribbon {
+      width: 100%;
+      height: 17vh;
+      background-color: #3F51B5;
+      flex-shrink: 0;
+    }
+
+    .ribbon-fab:not(.tap-target-origin) {
+      position: absolute;
+      right: 24px;
+      top: calc(17vh + 34px);
+    }
+
+    i.very-large {
+      font-size: 8rem;
+      padding-top: 2px;
+      color: #424242;
+    }
+
+    .card .card-content {
+      padding-left: 18px;
+      padding-bottom: 10px;
+    }
+
+    .chip {
+      height: 26px;
+      font-size: 12px;
+      line-height: 26px;
+    }
+
+    .log {
+      background-color: #1c1c1c;
+      margin-top: 0;
+      margin-bottom: 0;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+      font-size: 12px;
+      padding: 16px;
+      overflow: auto;
+      line-height: 1.45;
+      border-radius: 3px;
+      word-wrap: normal;
+      color: #DDD;
+    }
+
+    .inlinecode {
+      box-sizing: border-box;
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      background-color: rgba(27,31,35,0.05);
+      border-radius: 3px;
+      font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+    }
+
+    .log.bold {
+      font-weight: bold;
+    }
+
+    .log .v {
+      color: #888888;
+    }
+
+    .log .d {
+      color: #00DDDD;
+    }
+
+    .log .c {
+      color: magenta;
+    }
+
+    .log .i {
+      color: limegreen;
+    }
+
+    .log .w {
+      color: yellow;
+    }
+
+    .log .e {
+      color: red;
+      font-weight: bold;
+    }
+
+    .log .e {
+      color: red;
+    }
+
+    .log .ww {
+      color: white;
+    }
+
+    .modal {
+      width: 90%;
+      max-height: 85%;
+      height: 80% !important;
+    }
+
+    .log {
+
+    }
+
+    .page-footer {
+      padding-top: 0;
+    }
+
+    body {
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1 0 auto;
+    }
+
+    ul.browser-default {
+      padding-left: 30px;
+      margin-top: 10px;
+      margin-bottom: 15px;
+    }
+
+    ul.browser-default li {
+      list-style-type: initial;
+    }
+
+    ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .step.done::before, ul.stepper.horizontal .step.active .step-title::before, ul.stepper.horizontal .step.done .step-title::before {
+      background-color: #3f51b5 !important;
+    }
+
+    .select-port-container {
+      margin-top: 19px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+<nav>
+  <div class="nav-wrapper indigo">
+    <a href="#" class="brand-logo left">esphomeyaml Dashboard</a>
+  </div>
+</nav>
+
+<div class="ribbon"></div>
+</header>
+
+<main>
+<div class="container">
+  {% for file, full_path in zip(files, full_path_files) %}
+  <div class="row">
+    <div class="col s8 offset-s2 m10 offset-m1 l12">
+      <div class="card horizontal">
+        <div class="card-image center-align">
+          <i class="material-icons very-large icon-grey">memory</i>
+        </div>
+        <div class="card-stacked">
+          <div class="card-content">
+            <span class="card-title">{{ escape(file) }}</span>
+            <p>
+              Full path: <code class="inlinecode">{{ escape(full_path) }}</code>
+            </p>
+          </div>
+          <div class="card-action">
+            <a href="#" class="action-upload" data-node="{{ file }}">Upload</a>
+            <a href="#" class="action-compile" data-node="{{ file }}">Compile</a>
+            <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% end %}
+</div>
+
+<div id="modal-logs" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Show Logs</h4>
+    <div class="upload-port row">
+      <div class="col s12">
+        <h5>Found multiple serial ports, please choose one:</h5>
+      </div>
+      <div class="input-field col s8">
+        <select></select>
+      </div>
+      <div class="col s4 select-port-container">
+        <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
+          <i class="material-icons right">send</i>
+        </button>
+      </div>
+    </div>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat">Close</a>
+  </div>
+</div>
+
+<div id="modal-upload" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Compile And Upload</h4>
+    <div class="upload-port row">
+      <div class="col s12">
+        <h5>Found multiple upload options, please choose one:</h5>
+      </div>
+      <div class="input-field col s8">
+        <select></select>
+      </div>
+      <div class="col s4 select-port-container">
+        <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
+          <i class="material-icons right">send</i>
+        </button>
+      </div>
+    </div>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
+  </div>
+</div>
+
+<div id="modal-compile" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Compile</h4>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
+    <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
+  </div>
+</div>
+
+<div id="modal-wizard" class="modal">
+  <div class="modal-content">
+    <form action="/wizard.html" method="POST">
+    <ul class="stepper linear">
+      <li class="step active">
+        <div class="step-title waves-effect">Introduction And Name</div>
+        <div class="step-content">
+          <div class="row">
+            <p>
+              Hi there! I'm the esphomeyaml setup wizard and will guide you through setting up
+              your first ESP8266 or ESP32-powered device using esphomeyaml.
+            </p>
+              <a href="https://www.espressif.com/en/products/hardware/esp8266ex/overview" target="_blank">ESP8266s</a> and
+              their successors (the <a href="https://www.espressif.com/en/products/hardware/esp32/overview" target="_blank">ESP32s</a>)
+              are great low-cost microcontrollers that can communicate with the outside world using WiFi.
+              They're found in many devices such as the popular Sonoff/iTead, but also exist as development boards
+              such as the <a href="http://nodemcu.com/index_en.html" target="_blank">NodeMCU</a>.
+            <p>
+            </p>
+              <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml</a>,
+              the tool you're using here, creates custom firmwares for these devices using YAML configuration
+              files (similar to the ones you might be used to with Home Assistant).
+            <p>
+            </p>
+              This wizard will create a basic YAML configuration file for your "node" (the microcontroller).
+              Later, you will be able to customize this file and add some of
+              <a href="https://github.com/OttoWinter/esphomelib" target="_blank">esphomelib's</a>
+              many integrations.
+            <p>
+            <p>
+              First, I need to know what this node should be called. Choose this name wisely, changing this
+              later makes Over-The-Air Update attempts difficult.
+              It may only contain the characters <code class="inlinecode">a-z</code>,
+              <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>
+            </p>
+            <div class="input-field col s12">
+              <input id="node_name" class="validate" type="text" name="name" required>
+              <label for="node_name">Name of node</label>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button class="waves-effect waves-dark btn indigo next-step"">CONTINUE</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-title waves-effect">Device Type</div>
+        <div class="step-content">
+          <div class="row">
+            <p>
+              Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
+              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices). Note that the ESP32 is currently
+              unsupported if HassIO is running on a Raspberry Pi.
+            </p>
+            <div class="input-field col s12">
+              <select id="esp_type" name="platform" required>
+                <option value="ESP8266">ESP8266</option>
+                <option value="ESP32">ESP32</option>
+              </select>
+              <label>Microcontroller Type</label>
+            </div>
+            <p>
+              I'm also going to need to know which type of board you're using. Please go to
+              <a href="http://docs.platformio.org/en/latest/platforms/espressif32.html#boards" target="_blank">ESP32 boards</a> or
+              <a href="http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards" target="_blank">ESP8266 boards</a>,
+              find your board and enter it here. For example, enter <code class="inlinecode">nodemcuv2</code>
+              for ESP8266 NodeMCU boards. Note: Use <code class="inlinecode">esp01_1m</code> for Sonoff devices.
+            </p>
+            <div class="input-field col s12">
+              <input id="board_type" class="validate" type="text" name="board" required>
+              <label for="board_type">Board Type</label>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-title waves-effect">WiFi And Over-The-Air Updates</div>
+        <div class="step-content">
+          <div class="row">
+            <p>
+              Thanks! Now I need to know what WiFi Access Point I should instruct the node to connect to.
+              Please enter an SSID (name of the WiFi network) and password (leave empty for no password).
+            </p>
+            <div class="input-field col s12">
+              <input id="wifi_ssid" class="validate" type="text" name="ssid" required>
+              <label for="wifi_ssid">WiFi SSID</label>
+            </div>
+            <div class="input-field col s12">
+              <input id="wifi_password" name="psk" type="password">
+              <label for="wifi_password">WiFi Password</label>
+            </div>
+            <p>
+              Esphomelib automatically sets up an Over-The-Air update server on the node
+              so that you only need to flash a firmware once. Optionally, you can set a password for this
+              upload process here.
+            </p>
+            <div class="input-field col s12">
+              <input id="ota_password" class="validate" name="ota_password" type="password">
+              <label for="ota_password">OTA Password</label>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-title waves-effect">MQTT</div>
+        <div class="step-content">
+          <div class="row">
+            <p>
+              esphomelib connects to your Home Assistant instance via
+              <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>. If you haven't already, please set up
+              MQTT on your Home Assistant server, for example with the awesome
+              <a href="https://www.home-assistant.io/addons/mosquitto/">Mosquitto Hass.io Add-on</a>.
+            </p>
+            <p>
+              When you're done with that, please enter your MQTT broker here. For example
+              <code class="inlinecode">192.168.1.100</code> (Note
+              <code class="inlinecode">hassio.local</code> often doesn't work, please use a static IP).
+              Please also specify the MQTT username and password you wish esphomelib to use
+              (leave them empty if you're not using any authentication).
+            </p>
+            <div class="input-field col s12">
+              <input id="mqtt_broker" class="validate" type="text" name="broker" required>
+              <label for="mqtt_broker">MQTT Broker</label>
+            </div>
+            <div class="input-field col s6">
+              <input id="mqtt_username" class="validate" type="text" name="mqtt_username">
+              <label for="mqtt_username">MQTT Username</label>
+            </div>
+            <div class="input-field col s6">
+              <input id="mqtt_password" class="validate" name="mqtt_password" type="password">
+              <label for="mqtt_password">MQTT Password</label>
+            </div>
+          </div>
+          <div class="step-actions">
+            <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
+          </div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-title waves-effect">Done!</div>
+        <div class="step-content">
+          <p>
+            Hooray! 🎉🎉🎉 You've successfully created your first esphomeyaml configuration file.
+            When you click Submit, I will save this configuration file under
+            <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphomeyaml/&lt;NAME_OF_NODE&gt;.yaml</code> and
+            you will be able to edit this file with the
+            <a href="https://www.home-assistant.io/addons/configurator/" target="_blank">HASS Configuratior add-on</a>.
+          </p>
+          <h5>Next steps</h5>
+          <ul class="browser-default">
+            <li>
+              Flash the firmware. This can be done using the “UPLOAD” option in the dashboard. See
+              <a href="https://esphomelib.com/esphomeyaml/index.html#using-with" target="_blank">this</a>
+              for guides on how to flash different types of devices. Note that you need to restart this add-on
+              for newly plugged in serial devices to be detected.
+            </li>
+            <li>
+              See the <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml index</a>
+              for a list of supported sensors/devices.
+            </li>
+            <li>
+              Join the <a href="https://discord.gg/KhAMKrd" target="_blank">Discord server</a> and say hi. When I
+              have time, I would be happy to help with issues and discuss new features.
+            </li>
+            <li>
+              Star <a href="https://github.com/OttoWinter/esphomelib" target="_blank">esphomelib</a> and
+              <a href="https://github.com/OttoWinter/esphomeyaml" target="_blank">esphomeyaml</a> on GitHub and
+              report issues using the bug trackers there.
+            </li>
+          </ul>
+          <div class="step-actions">
+            <button class="waves-effect waves-dark btn indigo" type="submit">SUBMIT</button>
+          </div>
+        </div>
+      </li>
+    </ul>
+    </form>
+  </div>
+  <div class="modal-footer">
+    <a href="#!" class="modal-close waves-effect waves-green btn-flat">Abort</a>
+  </div>
+</div>
+
+<a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
+  <i class="material-icons">add</i>
+</a>
+
+<div class="tap-target pink lighten-1" data-target="setup-wizard-start">
+  <div class="tap-target-content">
+    <h5>Set up your first Node</h5>
+    <p>
+      Huh... It seems like you you don't have any esphomeyaml configuration files yet...
+      Fortunately, there's a setup wizard that will step you through setting up your first node 🎉
+    </p>
+  </div>
+</div>
+</main>
+
+<footer class="page-footer indigo darken-1">
+  <div class="container">
+
+  </div>
+  <div class="footer-copyright">
+    <div class="container">
+      © 2018 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
+      <a class="grey-text text-lighten-4 right" href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml {{ version }} Documentation</a>
+    </div>
+  </div>
+</footer>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    M.AutoInit(document.body);
+  });
+
+  const colorReplace = (input) => {
+    input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
+    input = input.replace(/\\033\[(?:1;)?31m/g, '<span class="e bold">');
+    input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
+    input = input.replace(/\\033\[(?:1;)?32m/g, '<span class="i bold">');
+    input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
+    input = input.replace(/\\033\[(?:1;)?33m/g, '<span class="w bold">');
+    input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
+    input = input.replace(/\\033\[(?:1;)?35m/g, '<span class="c bold">');
+    input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
+    input = input.replace(/\\033\[(?:1;)?36m/g, '<span class="d bold">');
+    input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
+    input = input.replace(/\\033\[(?:1;)?37m/g, '<span class="v bold">');
+    input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
+    input = input.replace(/\\033\[(?:1;)?38m/g, '<span class="vv bold">');
+    input = input.replace(/\\033\[0m/g, '</span>');
+
+    return input;
+  };
+
+  let configuration = "";
+  const ws_url = 'ws://' + window.location.hostname + ':' + window.location.port;
+
+  const logsModalElem = document.getElementById("modal-logs");
+  const logsPortSelect = logsModalElem.querySelector('select');
+  const logsPortDiv = logsModalElem.querySelector(".upload-port");
+  const logsPortSubmit = logsModalElem.querySelector('.upload-port-submit');
+  let logsStart = undefined;
+
+  logsPortSubmit.addEventListener('click', () => {
+    const inst = M.FormSelect.getInstance(logsPortSelect);
+    logsStart(inst.getSelectedValues()[0]);
+    inst.destroy();
+  });
+
+  document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(logsModalElem);
+      const log = logsModalElem.querySelector(".log");
+      log.innerHTML = "";
+
+      if (M.FormSelect.getInstance(logsPortSelect) !== undefined) {
+        M.FormSelect.getInstance(logsPortSelect).destroy();
+      }
+      modalInstance.open();
+
+      if (logsPortDiv.classList.contains('hide')) {
+        logsPortDiv.classList.remove('hide');
+      }
+
+      logsStart = (port) => {
+        logsPortDiv.classList.add('hide');
+        const logSocket = new WebSocket(ws_url + "/logs");
+        logSocket.addEventListener('message', (event) => {
+          const data = JSON.parse(event.data);
+          if (data.event === "line") {
+            const msg = data.data;
+            log.innerHTML += colorReplace(msg);
+          } else if (data.event === "exit") {
+            M.toast({html: `Program exited with code ${data.code}`});
+          }
+        });
+        logSocket.addEventListener('open', () => {
+          const msg = JSON.stringify({configuration: configuration, port: port});
+          logSocket.send(msg);
+        });
+        logSocket.addEventListener('close', () => {
+          M.toast({html: 'Terminated process.'});
+        });
+        modalInstance.options.onCloseStart = () => {
+          logSocket.close();
+        };
+      };
+
+      fetch('/serial-ports').then(res => res.json())
+        .then(response => {
+          if (response.length > 1) {
+            logsPortSelect.innerHTML = "";
+            for (let i = 0; i < response.length; i++) {
+              const val = response[i];
+              logsPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
+            }
+            M.FormSelect.init(logsPortSelect, {});
+          } else {
+            logsStart("OTA");
+          }
+        });
+    });
+  });
+
+  const uploadModalElem = document.getElementById("modal-upload");
+  const uploadPortSelect = uploadModalElem.querySelector('select');
+  const uploadPortDiv = uploadModalElem.querySelector(".upload-port");
+  const uploadPortSubmit = uploadModalElem.querySelector('.upload-port-submit');
+  let uploadStart = undefined;
+
+  uploadPortSubmit.addEventListener('click', () => {
+    const inst = M.FormSelect.getInstance(uploadPortSelect);
+    uploadStart(inst.getSelectedValues()[0]);
+    inst.destroy();
+  });
+
+  document.querySelectorAll(".action-upload").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(uploadModalElem);
+      const log = uploadModalElem.querySelector(".log");
+      log.innerHTML = "";
+
+      if (M.FormSelect.getInstance(uploadPortSelect) !== undefined) {
+        M.FormSelect.getInstance(uploadPortSelect).destroy();
+      }
+      modalInstance.open();
+
+      if (uploadPortDiv.classList.contains('hide')) {
+        uploadPortDiv.classList.remove('hide');
+      }
+
+      uploadStart = (port) => {
+        uploadPortDiv.classList.add('hide');
+        const logSocket = new WebSocket(ws_url + "/run");
+        logSocket.addEventListener('message', (event) => {
+          const data = JSON.parse(event.data);
+          if (data.event === "line") {
+            const msg = data.data;
+            log.innerHTML += colorReplace(msg);
+          } else if (data.event === "exit") {
+            M.toast({html: `Program exited with code ${data.code}`});
+          }
+        });
+        logSocket.addEventListener('open', () => {
+          const msg = JSON.stringify({configuration: configuration, port: port});
+          logSocket.send(msg);
+        });
+        logSocket.addEventListener('close', () => {
+          M.toast({html: 'Terminated process.'});
+        });
+        modalInstance.options.onCloseStart = () => {
+          logSocket.close();
+        };
+      };
+
+      fetch('/serial-ports').then(res => res.json())
+        .then(response => {
+          if (response.length > 1) {
+            uploadPortSelect.innerHTML = "";
+            for (let i = 0; i < response.length; i++) {
+              const val = response[i];
+              uploadPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
+            }
+            M.FormSelect.init(uploadPortSelect, {});
+          } else {
+            uploadStart("OTA");
+          }
+        });
+    });
+  });
+
+  const compileModalElem = document.getElementById("modal-compile");
+  const downloadButton = compileModalElem.querySelector('.download-binary');
+
+  document.querySelectorAll(".action-compile").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(compileModalElem);
+      const log = compileModalElem.querySelector(".log");
+      log.innerHTML = "";
+      downloadButton.classList.add('disabled');
+      modalInstance.open();
+
+      const logSocket = new WebSocket(ws_url + "/compile");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          M.toast({html: `Program exited with code ${data.code}`});
+          if (data.code === 0) {
+            downloadButton.classList.remove('disabled');
+          }
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        M.toast({html: 'Terminated process.'});
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
+  });
+
+  downloadButton.addEventListener('click', () => {
+    const link = document.createElement("a");
+    link.download = name;
+    link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
+    link.click();
+  });
+
+  const modalSetupElem = document.getElementById("modal-wizard");
+  const setupWizardStart = document.getElementById('setup-wizard-start');
+  const startWizard = () => {
+    const modalInstance = M.Modal.getInstance(modalSetupElem);
+    modalInstance.open();
+
+    modalInstance.options.onCloseStart = () => {
+
+    };
+
+    $('.stepper').activateStepper({
+      linearStepsNavigation: false,
+      autoFocusInput: true,
+      autoFormCreation: true,
+      showFeedbackLoader: true,
+      parallel: false
+    });
+  };
+  setupWizardStart.addEventListener('click', startWizard);
+</script>
+
+{% if len(files) == 0 %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const tapTargetElem = document.querySelector('.tap-target');
+    const tapTargetInstance = M.TapTarget.getInstance(tapTargetElem);
+    tapTargetInstance.options.onOpen = () => {
+      $('.tap-target-origin').on('click', () => {
+        startWizard();
+      });
+    };
+    tapTargetInstance.open();
+  });
+</script>
+{% end %}
+
+</body>
+</html>

@@ -39,7 +39,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
     return 0
 
 
-def show_logs(config, topic=None, username=None, password=None, client_id=None):
+def show_logs(config, topic=None, username=None, password=None, client_id=None, escape=False):
     if topic is not None:
         pass  # already have topic
     elif CONF_MQTT in config:
@@ -57,7 +57,10 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     def on_message(client, userdata, msg):
         time = datetime.now().time().strftime(u'[%H:%M:%S]')
-        print(time + msg.payload)
+        message = msg.payload.decode('utf-8')
+        if escape:
+            message = message.replace('\033', '\\033')
+        print(time + message)
 
     return initialize(config, [topic], on_message, username, password, client_id)
 
