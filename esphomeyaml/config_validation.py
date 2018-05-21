@@ -347,6 +347,18 @@ def hostname(value):
     return value
 
 
+def domainname(value):
+    value = string(value)
+    if not value.startswith('.'):
+        raise vol.Invalid("Domainname must start with .")
+    if value.startswith('..'):
+        raise vol.Invalid("Domainname must start with single .")
+    for c in value:
+        if not (c.isalnum() or c in '._-'):
+            raise vol.Invalid("Domainname can only have alphanumeric characters and _ or -")
+    return value
+
+
 def ssid(value):
     if value is None:
         raise vol.Invalid("SSID can not be None")

@@ -2,9 +2,9 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_GATEWAY, \
-    CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, \
-    ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
+    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_SSID, \
+    CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
 
 
@@ -42,6 +42,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Optional(CONF_MANUAL_IP): AP_MANUAL_IP_SCHEMA,
     }),
     vol.Optional(CONF_HOSTNAME): cv.hostname,
+    vol.Required(CONF_DOMAIN, default='.local'): cv.domainname,
 })
 
 # pylint: disable=invalid-name
