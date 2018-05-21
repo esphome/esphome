@@ -567,7 +567,6 @@ def setup_mqtt_component(obj, config):
                                  availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 
-
 # shlex's quote for Python 2.7
 _find_unsafe = re.compile(r'[^\w@%+=:,./-]').search
 
