@@ -163,13 +163,13 @@ def upload_program(config, args, port):
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
         return -1
 
-    DOMAIN = '.' + config[CONF_WIFI].get(CONF_DOMAIN, 'local')
+    domain = '.' + config[CONF_WIFI][CONF_DOMAIN]
     if CONF_MANUAL_IP in config[CONF_WIFI]:
         host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
     elif CONF_HOSTNAME in config[CONF_WIFI]:
-        host = config[CONF_WIFI][CONF_HOSTNAME] + DOMAIN
+        host = config[CONF_WIFI][CONF_HOSTNAME] + domain
     else:
-        host = config[CONF_ESPHOMEYAML][CONF_NAME] + DOMAIN
+        host = config[CONF_ESPHOMEYAML][CONF_NAME] + domain
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota
