@@ -20,6 +20,26 @@ fan_ns = esphomelib_ns.namespace('fan')
 FanState = fan_ns.FanState
 MQTTFanComponent = fan_ns.MQTTFanComponent
 MakeFan = Application.MakeFan
+TurnOnAction = fan_ns.TurnOnAction
+TurnOffAction = fan_ns.TurnOffAction
+ToggleAction = fan_ns.ToggleAction
+FanSpeed = fan_ns.FanSpeed
+FAN_SPEED_OFF = fan_ns.FAN_SPEED_OFF
+FAN_SPEED_LOW = fan_ns.FAN_SPEED_LOW
+FAN_SPEED_MEDIUM = fan_ns.FAN_SPEED_MEDIUM
+FAN_SPEED_HIGH = fan_ns.FAN_SPEED_HIGH
+
+
+FAN_SPEEDS = {
+    'OFF': FAN_SPEED_OFF,
+    'LOW': FAN_SPEED_LOW,
+    'MEDIUM': FAN_SPEED_MEDIUM,
+    'HIGH': FAN_SPEED_HIGH,
+}
+
+
+def validate_fan_speed(value):
+    return vol.All(vol.Upper, cv.one_of(FAN_SPEEDS))(value)
 
 
 def setup_fan_core_(fan_var, mqtt_var, config):

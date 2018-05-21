@@ -1,11 +1,12 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
+from esphomeyaml.components import cover, fan
 from esphomeyaml.const import CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, CONF_BLUE, \
     CONF_BRIGHTNESS, CONF_CONDITION_ID, CONF_DELAY, CONF_EFFECT, CONF_FLASH_LENGTH, CONF_GREEN, \
     CONF_ID, CONF_IF, CONF_LAMBDA, CONF_MAX, CONF_MIN, CONF_OR, CONF_PAYLOAD, CONF_QOS, \
     CONF_RANGE, CONF_RED, CONF_RETAIN, CONF_THEN, CONF_TOPIC, CONF_TRANSITION_LENGTH, \
-    CONF_TRIGGER_ID, CONF_WHITE
+    CONF_TRIGGER_ID, CONF_WHITE, CONF_OSCILLATING, CONF_SPEED
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, \
     bool_, esphomelib_ns, float_, get_variable, process_lambda, std_string, templatable, uint32, \
@@ -18,6 +19,12 @@ CONF_LIGHT_TURN_ON = 'light.turn_on'
 CONF_SWITCH_TOGGLE = 'switch.toggle'
 CONF_SWITCH_TURN_OFF = 'switch.turn_off'
 CONF_SWITCH_TURN_ON = 'switch.turn_on'
+CONF_COVER_OPEN = 'cover.open'
+CONF_COVER_CLOSE = 'cover.close'
+CONF_COVER_STOP = 'cover.stop'
+CONF_FAN_TOGGLE = 'fan.toggle'
+CONF_FAN_TURN_OFF = 'fan.turn_off'
+CONF_FAN_TURN_ON = 'fan.turn_on'
 
 ACTION_KEYS = [CONF_DELAY, CONF_MQTT_PUBLISH, CONF_LIGHT_TOGGLE, CONF_LIGHT_TURN_OFF,
                CONF_LIGHT_TURN_ON, CONF_SWITCH_TOGGLE, CONF_SWITCH_TURN_OFF, CONF_SWITCH_TURN_ON,
@@ -59,6 +66,35 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     }),
     vol.Optional(CONF_SWITCH_TURN_ON): vol.Schema({
         vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_OPEN): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_CLOSE): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_STOP): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_OPEN): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_CLOSE): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_COVER_STOP): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_FAN_TOGGLE): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_FAN_TURN_OFF): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+    }),
+    vol.Optional(CONF_FAN_TURN_ON): vol.Schema({
+        vol.Required(CONF_ID): cv.variable_id,
+        vol.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
+        vol.Optional(CONF_SPEED): cv.templatable(fan.validate_fan_speed),
     }),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 }, cv.has_at_exactly_one_key(*ACTION_KEYS))])
@@ -208,6 +244,41 @@ def build_action(config, arg_type):
         var = get_variable(conf[CONF_ID])
         rhs = var.make_turn_on_action(template_arg)
         return Pvariable(switch.TurnOnAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_COVER_OPEN in config:
+        conf = config[CONF_COVER_OPEN]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_open_action(template_arg)
+        return Pvariable(cover.OpenAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_COVER_CLOSE in config:
+        conf = config[CONF_SWITCH_TURN_OFF]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_close_action(template_arg)
+        return Pvariable(cover.CloseAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_COVER_STOP in config:
+        conf = config[CONF_SWITCH_TURN_ON]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_stop_action(template_arg)
+        return Pvariable(cover.StopAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_FAN_TOGGLE in config:
+        conf = config[CONF_FAN_TOGGLE]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_toggle_action(template_arg)
+        return Pvariable(fan.ToggleAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_FAN_TURN_OFF in config:
+        conf = config[CONF_FAN_TURN_OFF]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_turn_off_action(template_arg)
+        return Pvariable(fan.TurnOffAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+    elif CONF_FAN_TURN_ON in config:
+        conf = config[CONF_FAN_TURN_ON]
+        var = get_variable(conf[CONF_ID])
+        rhs = var.make_turn_on_action(template_arg)
+        action = Pvariable(fan.TurnOnAction.template(arg_type), config[CONF_ACTION_ID], rhs)
+        if CONF_OSCILLATING in config:
+            add(action.set_oscillating(templatable(conf[CONF_OSCILLATING], arg_type, bool_)))
+        if CONF_SPEED in config:
+            add(action.set_speed(templatable(conf[CONF_SPEED], arg_type, fan.FanSpeed)))
+        return action
     raise ESPHomeYAMLError(u"Unsupported action {}".format(config))
 
 

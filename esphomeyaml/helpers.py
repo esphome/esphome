@@ -413,6 +413,8 @@ def get_variable(id, type=None):
 
 
 def process_lambda(value, parameters, capture='=', return_type=None):
+    if value is None:
+        return None
     parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\.', value.value)
     for i in range(1, len(parts), 2):
         parts[i] = get_variable(parts[i])._

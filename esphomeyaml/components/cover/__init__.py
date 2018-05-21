@@ -17,6 +17,9 @@ MQTTCoverComponent = cover_ns.MQTTCoverComponent
 CoverState = cover_ns.CoverState
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
+OpenAction = cover_ns.OpenAction
+CloseAction = cover_ns.CloseAction
+StopAction = cover_ns.StopAction
 
 
 def setup_cover_core_(cover_var, mqtt_var, config):

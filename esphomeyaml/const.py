@@ -164,6 +164,7 @@ CONF_OSCILLATION_OUTPUT = 'oscillation_output'
 CONF_SPEED = 'speed'
 CONF_OSCILLATION_STATE_TOPIC = 'oscillation_state_topic'
 CONF_OSCILLATION_COMMAND_TOPIC = 'oscillation_command_topic'
+CONF_OSCILLATING = 'oscillating'
 CONF_SPEED_STATE_TOPIC = 'speed_state_topic'
 CONF_SPEED_COMMAND_TOPIC = 'speed_command_topic'
 CONF_LOW = 'low'
@@ -229,6 +230,7 @@ CONF_OPEN_ACTION = 'open_action'
 CONF_CLOSE_ACTION = 'close_action'
 CONF_STOP_ACTION = 'stop_action'
 CONF_DOMAIN = 'domain'
+CONF_OPTIMISTIC = 'optimistic'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',
