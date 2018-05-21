@@ -8,8 +8,8 @@ import sys
 
 from esphomeyaml import core, mqtt, wizard, writer, yaml_util, const
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_LOGGER, \
-    CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CONF_HOSTNAME, \
+    CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, add_task, \
     color, get_variable, indent, quote, statement, Expression
@@ -163,12 +163,13 @@ def upload_program(config, args, port):
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
         return -1
 
+    DOMAIN = '.' + config[CONF_WIFI].get(CONF_DOMAIN, 'local')
     if CONF_MANUAL_IP in config[CONF_WIFI]:
         host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
     elif CONF_HOSTNAME in config[CONF_WIFI]:
-        host = config[CONF_WIFI][CONF_HOSTNAME] + u'.local'
+        host = config[CONF_WIFI][CONF_HOSTNAME] + DOMAIN
     else:
-        host = config[CONF_ESPHOMEYAML][CONF_NAME] + u'.local'
+        host = config[CONF_ESPHOMEYAML][CONF_NAME] + DOMAIN
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota

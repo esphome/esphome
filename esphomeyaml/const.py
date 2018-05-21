@@ -228,6 +228,7 @@ CONF_TURN_OFF_ACTION = 'turn_off_action'
 CONF_OPEN_ACTION = 'open_action'
 CONF_CLOSE_ACTION = 'close_action'
 CONF_STOP_ACTION = 'stop_action'
+CONF_DOMAIN = 'domain'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',
