@@ -1,9 +1,9 @@
 from __future__ import print_function
 
 import codecs
-import os
 import json
 import logging
+import os
 import random
 import subprocess
 
@@ -19,8 +19,8 @@ try:
 except ImportError as err:
     pass
 
-from esphomeyaml import const
-from esphomeyaml.__main__ import get_serial_ports
+from esphomeyaml import const, core, __main__
+from esphomeyaml.__main__ import get_serial_ports, get_base_path, get_name
 from esphomeyaml.helpers import quote
 
 _LOGGER = logging.getLogger(__name__)
@@ -76,8 +76,9 @@ class EsphomeyamlLogsHandler(EsphomeyamlCommandWebSocket):
         super(EsphomeyamlLogsHandler, self).__init__(application, request, **kwargs)
 
     def build_command(self, message):
-        config_file = CONFIG_DIR + '/' + message
-        return ["esphomeyaml", config_file, "logs", '--escape', '--serial-port', 'OTA']
+        js = json.loads(message)
+        config_file = CONFIG_DIR + '/' + js['configuration']
+        return ["esphomeyaml", config_file, "logs", '--serial-port', js["port"], '--escape']
 
 
 class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
@@ -86,8 +87,19 @@ class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
 
     def build_command(self, message):
         js = json.loads(message)
-        config_file = CONFIG_DIR + '/' + js['configuration']
-        return ["esphomeyaml", config_file, "run", '--upload-port', js["port"], '--escape']
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "run", '--upload-port', js["port"],
+                '--escape', '--use-esptoolpy']
+
+
+class EsphomeyamlCompileHandler(EsphomeyamlCommandWebSocket):
+    def __init__(self, application, request, **kwargs):
+        super(EsphomeyamlCompileHandler, self).__init__(application, request, **kwargs)
+
+    def build_command(self, message):
+        js = json.loads(message)
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "compile"]
 
 
 class SerialPortRequestHandler(tornado.web.RequestHandler):
@@ -107,7 +119,7 @@ class WizardRequestHandler(tornado.web.RequestHandler):
     def post(self):
         from esphomeyaml import wizard
 
-        kwargs = {k:''.join(v) for k,v in self.request.arguments.iteritems()}
+        kwargs = {k: ''.join(v) for k, v in self.request.arguments.iteritems()}
         config = wizard.wizard_file(**kwargs)
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
         with codecs.open(destination, 'w') as f_handle:
@@ -116,10 +128,31 @@ class WizardRequestHandler(tornado.web.RequestHandler):
         self.redirect('/')
 
 
+class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
+    def get(self):
+        configuration = self.get_argument('configuration')
+        config_file = os.path.join(CONFIG_DIR, configuration)
+        core.CONFIG_PATH = config_file
+        config = __main__.read_config(core.CONFIG_PATH)
+        name = get_name(config)
+        path = os.path.join(get_base_path(config), '.pioenvs', name, 'firmware.bin')
+        self.set_header('Content-Type', 'application/octet-stream')
+        self.set_header("Content-Disposition", 'attachment; filename="{}.bin"'.format(name))
+        with open(path, 'rb') as f:
+            while 1:
+                data = f.read(16384)  # or some other nice-sized chunk
+                if not data:
+                    break
+                self.write(data)
+        self.finish()
+
+
 class MainRequestHandler(tornado.web.RequestHandler):
     def get(self):
         files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml')]
-        self.render("templates/index.html", files=files, version=const.__version__)
+        full_path_files = [os.path.join(CONFIG_DIR, f) for f in files]
+        self.render("templates/index.html", files=files, full_path_files=full_path_files,
+                    version=const.__version__)
 
 
 def make_app():
@@ -128,15 +161,19 @@ def make_app():
         (r"/", MainRequestHandler),
         (r"/logs", EsphomeyamlLogsHandler),
         (r"/run", EsphomeyamlRunHandler),
+        (r"/compile", EsphomeyamlCompileHandler),
+        (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ])
+    ], debug=True)
 
 
 def start_web_server(args):
     global CONFIG_DIR
     CONFIG_DIR = args.configuration
+    if not os.path.exists(CONFIG_DIR):
+        os.makedirs(CONFIG_DIR)
 
     _LOGGER.info("Starting HassIO add-on web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)

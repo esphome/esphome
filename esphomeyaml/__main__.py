@@ -1,18 +1,19 @@
 from __future__ import print_function
 
 import argparse
+from datetime import datetime
 import logging
 import os
 import random
 import sys
 
-from esphomeyaml import core, mqtt, wizard, writer, yaml_util, const
+from esphomeyaml import const, core, mqtt, wizard, writer, yaml_util
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CONF_HOSTNAME, \
-    CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI
+    CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import AssignmentExpression, RawStatement, _EXPRESSIONS, add, add_task, \
-    color, get_variable, indent, quote, statement, Expression
+from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
+    add_task, color, get_variable, indent, quote, statement
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -66,7 +67,7 @@ def choose_serial_port(config):
     return result[opt][0]
 
 
-def run_platformio(*cmd):
+def run_platformio(*cmd, **kwargs):
     def mock_exit(return_code):
         raise SystemExit(return_code)
 
@@ -75,10 +76,13 @@ def run_platformio(*cmd):
     full_cmd = u' '.join(quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
     try:
-        import platformio.__main__
+        main = kwargs.get('main')
+        if main is None:
+            import platformio.__main__
+            main = platformio.__main__.main
         sys.argv = list(cmd)
         sys.exit = mock_exit
-        return platformio.__main__.main()
+        return main() or 0
     except KeyboardInterrupt:
         return 1
     except SystemExit as err:
@@ -91,13 +95,19 @@ def run_platformio(*cmd):
         sys.exit = orig_exit
 
 
-def run_miniterm(config, port):
-    from serial.tools import miniterm
+def run_miniterm(config, port, escape=False):
+    import serial
     baud_rate = config.get(CONF_LOGGER, {}).get(CONF_BAUD_RATE, 115200)
-    sys.argv = ['miniterm', '--raw', '--exit-char', '3']
-    miniterm.main(
-        default_port=port,
-        default_baudrate=baud_rate)
+    _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
+
+    with serial.Serial(port, baudrate=baud_rate) as ser:
+        while True:
+            line = ser.readline()
+            time = datetime.now().time().strftime('[%H:%M:%S]')
+            message = time + line.decode('unicode-escape').replace('\r', '').replace('\n', '')
+            if escape:
+                message = message.replace('\033', '\\033').encode('ascii', 'replace')
+            print(message)
 
 
 def write_cpp(config):
@@ -162,9 +172,21 @@ def get_upload_host(config):
     return host
 
 
+def upload_using_esptool(config, port):
+    import esptool
+
+    name = get_name(config)
+    path = os.path.join(get_base_path(config), '.pioenvs', name, 'firmware.bin')
+    return run_platformio('esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+                          '--chip', 'esp8266', '--port', port, 'write_flash', '0x0',
+                          path, main=esptool._main)
+
+
 def upload_program(config, args, port):
     _LOGGER.info("Uploading binary...")
     if port != 'OTA':
+        if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
+            return upload_using_esptool(config, port)
         return run_platformio('platformio', 'run', '-d', get_base_path(config),
                               '-t', 'upload', '--upload-port', port)
 
@@ -190,7 +212,7 @@ def upload_program(config, args, port):
 
 def show_logs(config, args, port, escape=False):
     if port != 'OTA':
-        run_miniterm(config, port)
+        run_miniterm(config, port, escape=escape)
         return 0
     return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id,
                           escape=escape)
@@ -329,6 +351,9 @@ def parse_args(argv):
     parser_upload.add_argument('--upload-port', help="Manually specify the upload port to use. "
                                                      "For example /dev/cu.SLAB_USBtoUART.")
     parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
+    parser_upload.add_argument('--use-esptoolpy',
+                               help="Use esptool.py for HassIO (only for ESP8266)",
+                               action='store_true')
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
                                                      'and show all MQTT logs.')
@@ -353,6 +378,8 @@ def parse_args(argv):
     parser_run.add_argument('--password', help='Manually set the MQTT password for logs.')
     parser_run.add_argument('--client-id', help='Manually set the client id for logs.')
     parser_run.add_argument('--escape', help="Escape ANSI color codes for HassIO",
+                            action='store_true')
+    parser_run.add_argument('--use-esptoolpy', help="Use esptool.py for HassIO (only for ESP8266)",
                             action='store_true')
 
     parser_clean = subparsers.add_parser('clean-mqtt', help="Helper to clear an MQTT topic from "
@@ -407,6 +434,8 @@ def main():
         return run_esphomeyaml(sys.argv)
     except ESPHomeYAMLError as e:
         _LOGGER.error(e)
+        return 1
+    except KeyboardInterrupt:
         return 1
 
 

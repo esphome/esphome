@@ -72,6 +72,16 @@
       color: #DDD;
     }
 
+    .inlinecode {
+      box-sizing: border-box;
+      padding: 0.2em 0.4em;
+      margin: 0;
+      font-size: 85%;
+      background-color: rgba(27,31,35,0.05);
+      border-radius: 3px;
+      font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+    }
+
     .log.bold {
       font-weight: bold;
     }
@@ -112,20 +122,11 @@
     .modal {
       width: 90%;
       max-height: 85%;
-    }
-
-    .log-container {
-      position: absolute;
-      bottom: 0;
-      width: calc(100% - 48px);
+      height: 80% !important;
     }
 
     .log {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      left: 0;
-      overflow-y: auto;
+
     }
 
     .page-footer {
@@ -155,6 +156,10 @@
     ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .step.done::before, ul.stepper.horizontal .step.active .step-title::before, ul.stepper.horizontal .step.done .step-title::before {
       background-color: #3f51b5 !important;
     }
+
+    .select-port-container {
+      margin-top: 19px;
+    }
   </style>
 </head>
 <body>
@@ -171,7 +176,7 @@
 
 <main>
 <div class="container">
-  {% for file in files %}
+  {% for file, full_path in zip(files, full_path_files) %}
   <div class="row">
     <div class="col s8 offset-s2 m10 offset-m1 l12">
       <div class="card horizontal">
@@ -180,10 +185,14 @@
         </div>
         <div class="card-stacked">
           <div class="card-content">
-            <span class="card-title">{{ file }}</span>
+            <span class="card-title">{{ escape(file) }}</span>
+            <p>
+              Full path: <code class="inlinecode">{{ escape(full_path) }}</code>
+            </p>
           </div>
           <div class="card-action">
             <a href="#" class="action-upload" data-node="{{ file }}">Upload</a>
+            <a href="#" class="action-compile" data-node="{{ file }}">Compile</a>
             <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
           </div>
         </div>
@@ -196,23 +205,14 @@
 <div id="modal-logs" class="modal modal-fixed-footer">
   <div class="modal-content">
     <h4>Show Logs</h4>
-    <div class="log-container">
-      <pre class="log"></pre>
-    </div>
-  </div>
-  <div class="modal-footer">
-    <a class="modal-close waves-effect waves-green btn-flat">Close</a>
-  </div>
-</div>
-
-<div id="modal-run" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Compile And Upload</h4>
     <div class="upload-port row">
+      <div class="col s12">
+        <h5>Found multiple serial ports, please choose one:</h5>
+      </div>
       <div class="input-field col s8">
         <select></select>
       </div>
-      <div class="col s4">
+      <div class="col s4 select-port-container">
         <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
           <i class="material-icons right">send</i>
         </button>
@@ -223,6 +223,44 @@
     </div>
   </div>
   <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat">Close</a>
+  </div>
+</div>
+
+<div id="modal-upload" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Compile And Upload</h4>
+    <div class="upload-port row">
+      <div class="col s12">
+        <h5>Found multiple upload options, please choose one:</h5>
+      </div>
+      <div class="input-field col s8">
+        <select></select>
+      </div>
+      <div class="col s4 select-port-container">
+        <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
+          <i class="material-icons right">send</i>
+        </button>
+      </div>
+    </div>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
+  </div>
+</div>
+
+<div id="modal-compile" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Compile</h4>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
     <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
   </div>
 </div>
@@ -259,7 +297,7 @@
             <p>
               First, I need to know what this node should be called. Choose this name wisely, changing this
               later makes Over-The-Air Update attempts difficult.
-              It may only contain the characters <code class="inlinecode">a-z</code>, <code class="inlinecode">A-Z</code>,
+              It may only contain the characters <code class="inlinecode">a-z</code>,
               <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>
             </p>
             <div class="input-field col s12">
@@ -268,7 +306,7 @@
             </div>
           </div>
           <div class="step-actions">
-            <button class="waves-effect waves-dark btn indigo next-step" id="step-1-continue">CONTINUE</button>
+            <button class="waves-effect waves-dark btn indigo next-step"">CONTINUE</button>
           </div>
         </div>
       </li>
@@ -278,7 +316,8 @@
           <div class="row">
             <p>
               Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
-              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices).
+              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices). Note that the ESP32 is currently
+              unsupported if HassIO is running on a Raspberry Pi.
             </p>
             <div class="input-field col s12">
               <select id="esp_type" name="platform" required>
@@ -347,8 +386,10 @@
             </p>
             <p>
               When you're done with that, please enter your MQTT broker here. For example
-              <code class="inlinecode">hassio.local</code>. Please also specify the MQTT username and password
-              you wish esphomelib to use (leave them empty if you're not using any authentication).
+              <code class="inlinecode">192.168.1.100</code> (Note
+              <code class="inlinecode">hassio.local</code> often doesn't work, please use a static IP).
+              Please also specify the MQTT username and password you wish esphomelib to use
+              (leave them empty if you're not using any authentication).
             </p>
             <div class="input-field col s12">
               <input id="mqtt_broker" class="validate" type="text" name="broker" required>
@@ -383,7 +424,8 @@
             <li>
               Flash the firmware. This can be done using the “UPLOAD” option in the dashboard. See
               <a href="https://esphomelib.com/esphomeyaml/index.html#using-with" target="_blank">this</a>
-              for guides on how to flash different types of devices.
+              for guides on how to flash different types of devices. Note that you need to restart this add-on
+              for newly plugged in serial devices to be detected.
             </li>
             <li>
               See the <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml index</a>
@@ -468,68 +510,44 @@
   let configuration = "";
   const ws_url = 'ws://' + window.location.hostname + ':' + window.location.port;
 
-  document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
-    console.log(showLogs);
-    showLogs.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const elem = document.getElementById("modal-logs");
-      const instance = M.Modal.getInstance(elem);
-      const log = elem.querySelector(".log");
-      log.innerHTML = "";
+  const logsModalElem = document.getElementById("modal-logs");
+  const logsPortSelect = logsModalElem.querySelector('select');
+  const logsPortDiv = logsModalElem.querySelector(".upload-port");
+  const logsPortSubmit = logsModalElem.querySelector('.upload-port-submit');
+  let logsStart = undefined;
 
-      instance.open();
-
-      const logSocket = new WebSocket(ws_url + "/logs");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        }
-      });
-      logSocket.addEventListener('open', (event) => {
-        logSocket.send(configuration);
-      });
-      logSocket.addEventListener('close', () => {
-        M.toast({html: 'Terminated process.'});
-      });
-
-      instance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
+  logsPortSubmit.addEventListener('click', () => {
+    const inst = M.FormSelect.getInstance(logsPortSelect);
+    logsStart(inst.getSelectedValues()[0]);
+    inst.destroy();
   });
 
-  const modalRunElem = document.getElementById("modal-run");
-  const submitButton = modalRunElem.querySelector('.upload-port-submit');
-  let startRun = undefined;
-  const select = modalRunElem.querySelector('select');
-  const uploadPort = modalRunElem.querySelector(".upload-port");
-
-  document.querySelectorAll(".action-upload").forEach((actionUpload) => {
-    actionUpload.addEventListener('click', (e) => {
+  document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
       configuration = e.target.getAttribute('data-node');
-
-      const modal_instance = M.Modal.getInstance(modalRunElem);
-      if (M.FormSelect.getInstance(select) === undefined) {
-        M.FormSelect.getInstance(select).destroy();
-      }
-      const log = modalRunElem.querySelector(".log");
+      const modalInstance = M.Modal.getInstance(logsModalElem);
+      const log = logsModalElem.querySelector(".log");
       log.innerHTML = "";
 
-      if (uploadPort.classList.contains('hide')) {
-        uploadPort.classList.remove('hide');
+      if (M.FormSelect.getInstance(logsPortSelect) !== undefined) {
+        M.FormSelect.getInstance(logsPortSelect).destroy();
+      }
+      modalInstance.open();
+
+      if (logsPortDiv.classList.contains('hide')) {
+        logsPortDiv.classList.remove('hide');
       }
 
-      modal_instance.open();
-
-      startRun = (port) => {
-        const logSocket = new WebSocket(ws_url + "/run");
+      logsStart = (port) => {
+        logsPortDiv.classList.add('hide');
+        const logSocket = new WebSocket(ws_url + "/logs");
         logSocket.addEventListener('message', (event) => {
           const data = JSON.parse(event.data);
           if (data.event === "line") {
             const msg = data.data;
             log.innerHTML += colorReplace(msg);
+          } else if (data.event === "exit") {
+            M.toast({html: `Program exited with code ${data.code}`});
           }
         });
         logSocket.addEventListener('open', () => {
@@ -539,7 +557,7 @@
         logSocket.addEventListener('close', () => {
           M.toast({html: 'Terminated process.'});
         });
-        modal_instance.options.onCloseStart = () => {
+        modalInstance.options.onCloseStart = () => {
           logSocket.close();
         };
       };
@@ -547,26 +565,130 @@
       fetch('/serial-ports').then(res => res.json())
         .then(response => {
           if (response.length > 1) {
-            select.innerHTML = "";
+            logsPortSelect.innerHTML = "";
             for (let i = 0; i < response.length; i++) {
               const val = response[i];
-              select.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
+              logsPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
             }
-            M.FormSelect.init(select, {});
+            M.FormSelect.init(logsPortSelect, {});
           } else {
-            uploadPort.classList.add('hide');
-            startRun("OTA");
+            logsStart("OTA");
           }
         });
     });
   });
 
-  submitButton.addEventListener('click', () => {
-    const inst = M.FormSelect.getInstance(select);
-    console.log(inst.getSelectedValues());
-    startRun(inst.getSelectedValues()[0]);
+  const uploadModalElem = document.getElementById("modal-upload");
+  const uploadPortSelect = uploadModalElem.querySelector('select');
+  const uploadPortDiv = uploadModalElem.querySelector(".upload-port");
+  const uploadPortSubmit = uploadModalElem.querySelector('.upload-port-submit');
+  let uploadStart = undefined;
+
+  uploadPortSubmit.addEventListener('click', () => {
+    const inst = M.FormSelect.getInstance(uploadPortSelect);
+    uploadStart(inst.getSelectedValues()[0]);
     inst.destroy();
-    uploadPort.classList.add('hide');
+  });
+
+  document.querySelectorAll(".action-upload").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(uploadModalElem);
+      const log = uploadModalElem.querySelector(".log");
+      log.innerHTML = "";
+
+      if (M.FormSelect.getInstance(uploadPortSelect) !== undefined) {
+        M.FormSelect.getInstance(uploadPortSelect).destroy();
+      }
+      modalInstance.open();
+
+      if (uploadPortDiv.classList.contains('hide')) {
+        uploadPortDiv.classList.remove('hide');
+      }
+
+      uploadStart = (port) => {
+        uploadPortDiv.classList.add('hide');
+        const logSocket = new WebSocket(ws_url + "/run");
+        logSocket.addEventListener('message', (event) => {
+          const data = JSON.parse(event.data);
+          if (data.event === "line") {
+            const msg = data.data;
+            log.innerHTML += colorReplace(msg);
+          } else if (data.event === "exit") {
+            M.toast({html: `Program exited with code ${data.code}`});
+          }
+        });
+        logSocket.addEventListener('open', () => {
+          const msg = JSON.stringify({configuration: configuration, port: port});
+          logSocket.send(msg);
+        });
+        logSocket.addEventListener('close', () => {
+          M.toast({html: 'Terminated process.'});
+        });
+        modalInstance.options.onCloseStart = () => {
+          logSocket.close();
+        };
+      };
+
+      fetch('/serial-ports').then(res => res.json())
+        .then(response => {
+          if (response.length > 1) {
+            uploadPortSelect.innerHTML = "";
+            for (let i = 0; i < response.length; i++) {
+              const val = response[i];
+              uploadPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
+            }
+            M.FormSelect.init(uploadPortSelect, {});
+          } else {
+            uploadStart("OTA");
+          }
+        });
+    });
+  });
+
+  const compileModalElem = document.getElementById("modal-compile");
+  const downloadButton = compileModalElem.querySelector('.download-binary');
+
+  document.querySelectorAll(".action-compile").forEach((showLogs) => {
+    showLogs.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(compileModalElem);
+      const log = compileModalElem.querySelector(".log");
+      log.innerHTML = "";
+      downloadButton.classList.add('disabled');
+      modalInstance.open();
+
+      const logSocket = new WebSocket(ws_url + "/compile");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          M.toast({html: `Program exited with code ${data.code}`});
+          if (data.code === 0) {
+            downloadButton.classList.remove('disabled');
+          }
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        M.toast({html: 'Terminated process.'});
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
+  });
+
+  downloadButton.addEventListener('click', () => {
+    const link = document.createElement("a");
+    link.download = name;
+    link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
+    link.click();
   });
 
   const modalSetupElem = document.getElementById("modal-wizard");
@@ -585,14 +707,6 @@
       autoFormCreation: true,
       showFeedbackLoader: true,
       parallel: false
-    });
-
-    document.getElementById('#step-1-continue').addEventListener('click', () => {
-      console.log("NEXT STEP");
-      $('.stepper').nextStep();
-    });
-    $('#step-1-continue').on('click', () => {
-
     });
   };
   setupWizardStart.addEventListener('click', startWizard);

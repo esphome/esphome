@@ -26,7 +26,7 @@ zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
 
-ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_'
+ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
