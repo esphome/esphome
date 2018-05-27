@@ -28,7 +28,8 @@ CONF_FAN_TURN_ON = 'fan.turn_on'
 
 ACTION_KEYS = [CONF_DELAY, CONF_MQTT_PUBLISH, CONF_LIGHT_TOGGLE, CONF_LIGHT_TURN_OFF,
                CONF_LIGHT_TURN_ON, CONF_SWITCH_TOGGLE, CONF_SWITCH_TURN_OFF, CONF_SWITCH_TURN_ON,
-               CONF_LAMBDA]
+               CONF_LAMBDA, CONF_COVER_OPEN, CONF_COVER_CLOSE, CONF_COVER_STOP, CONF_FAN_TOGGLE,
+               CONF_FAN_TURN_OFF, CONF_FAN_TURN_ON]
 
 ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     cv.GenerateID('action', CONF_ACTION_ID): cv.register_variable_id,
@@ -250,12 +251,12 @@ def build_action(config, arg_type):
         rhs = var.make_open_action(template_arg)
         return Pvariable(cover.OpenAction.template(arg_type), config[CONF_ACTION_ID], rhs)
     elif CONF_COVER_CLOSE in config:
-        conf = config[CONF_SWITCH_TURN_OFF]
+        conf = config[CONF_COVER_CLOSE]
         var = get_variable(conf[CONF_ID])
         rhs = var.make_close_action(template_arg)
         return Pvariable(cover.CloseAction.template(arg_type), config[CONF_ACTION_ID], rhs)
     elif CONF_COVER_STOP in config:
-        conf = config[CONF_SWITCH_TURN_ON]
+        conf = config[CONF_COVER_STOP]
         var = get_variable(conf[CONF_ID])
         rhs = var.make_stop_action(template_arg)
         return Pvariable(cover.StopAction.template(arg_type), config[CONF_ACTION_ID], rhs)
