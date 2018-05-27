@@ -314,16 +314,16 @@ def command_version(args):
     return 0
 
 
-def command_hassio(args):
-    from esphomeyaml.hassio import hassio
+def command_dashboard(args):
+    from esphomeyaml.dashboard import dashboard
 
-    return hassio.start_web_server(args)
+    return dashboard.start_web_server(args)
 
 
 PRE_CONFIG_ACTIONS = {
     'wizard': command_wizard,
     'version': command_version,
-    'hassio': command_hassio
+    'dashboard': command_dashboard
 }
 
 POST_CONFIG_ACTIONS = {
@@ -353,7 +353,7 @@ def parse_args(argv):
                                                      "For example /dev/cu.SLAB_USBtoUART.")
     parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
     parser_upload.add_argument('--use-esptoolpy',
-                               help="Use esptool.py for HassIO (only for ESP8266)",
+                               help="Use esptool.py for the uploading (only for ESP8266)",
                                action='store_true')
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
@@ -364,7 +364,7 @@ def parse_args(argv):
     parser_logs.add_argument('--client-id', help='Manually set the client id.')
     parser_logs.add_argument('--serial-port', help="Manually specify a serial port to use"
                                                    "For example /dev/cu.SLAB_USBtoUART.")
-    parser_logs.add_argument('--escape', help="Escape ANSI color codes for HassIO",
+    parser_logs.add_argument('--escape', help="Escape ANSI color codes for running in dashboard",
                              action='store_true')
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
@@ -378,9 +378,10 @@ def parse_args(argv):
     parser_run.add_argument('--username', help='Manually set the MQTT username for logs.')
     parser_run.add_argument('--password', help='Manually set the MQTT password for logs.')
     parser_run.add_argument('--client-id', help='Manually set the client id for logs.')
-    parser_run.add_argument('--escape', help="Escape ANSI color codes for HassIO",
+    parser_run.add_argument('--escape', help="Escape ANSI color codes for running in dashboard",
                             action='store_true')
-    parser_run.add_argument('--use-esptoolpy', help="Use esptool.py for HassIO (only for ESP8266)",
+    parser_run.add_argument('--use-esptoolpy',
+                            help="Use esptool.py for the uploading (only for ESP8266)",
                             action='store_true')
 
     parser_clean = subparsers.add_parser('clean-mqtt', help="Helper to clear an MQTT topic from "
@@ -397,9 +398,10 @@ def parse_args(argv):
 
     subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
 
-    hassio = subparsers.add_parser('hassio', help="Create a simple webserver for a HassIO add-on.")
-    hassio.add_argument("--port", help="The HTTP port to open connections on.", type=int,
-                        default=6052)
+    dashboard = subparsers.add_parser('dashboard',
+                                      help="Create a simple webserver for a dashboard.")
+    dashboard.add_argument("--port", help="The HTTP port to open connections on.", type=int,
+                           default=6052)
 
     return parser.parse_args(argv[1:])
 

@@ -4,9 +4,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import cover, fan
 from esphomeyaml.const import CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, CONF_BLUE, \
     CONF_BRIGHTNESS, CONF_CONDITION_ID, CONF_DELAY, CONF_EFFECT, CONF_FLASH_LENGTH, CONF_GREEN, \
-    CONF_ID, CONF_IF, CONF_LAMBDA, CONF_MAX, CONF_MIN, CONF_OR, CONF_PAYLOAD, CONF_QOS, \
-    CONF_RANGE, CONF_RED, CONF_RETAIN, CONF_THEN, CONF_TOPIC, CONF_TRANSITION_LENGTH, \
-    CONF_TRIGGER_ID, CONF_WHITE, CONF_OSCILLATING, CONF_SPEED
+    CONF_ID, CONF_IF, CONF_LAMBDA, CONF_OR, CONF_OSCILLATING, CONF_PAYLOAD, \
+    CONF_QOS, CONF_RANGE, CONF_RED, CONF_RETAIN, CONF_SPEED, CONF_THEN, CONF_TOPIC, \
+    CONF_TRANSITION_LENGTH, CONF_TRIGGER_ID, CONF_WHITE, CONF_ABOVE, CONF_BELOW
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, \
     bool_, esphomelib_ns, float_, get_variable, process_lambda, std_string, templatable, uint32, \
@@ -51,11 +51,11 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
         vol.Required(CONF_ID): cv.variable_id,
         vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
         vol.Optional(CONF_FLASH_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
-        vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.zero_to_one_float),
-        vol.Optional(CONF_RED): cv.templatable(cv.zero_to_one_float),
-        vol.Optional(CONF_GREEN): cv.templatable(cv.zero_to_one_float),
-        vol.Optional(CONF_BLUE): cv.templatable(cv.zero_to_one_float),
-        vol.Optional(CONF_WHITE): cv.templatable(cv.zero_to_one_float),
+        vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+        vol.Optional(CONF_RED): cv.templatable(cv.percentage),
+        vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
+        vol.Optional(CONF_BLUE): cv.templatable(cv.percentage),
+        vol.Optional(CONF_WHITE): cv.templatable(cv.percentage),
         vol.Optional(CONF_EFFECT): cv.templatable(cv.string),
     }),
     vol.Optional(CONF_SWITCH_TOGGLE): vol.Schema({
@@ -116,9 +116,9 @@ CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_AND): validate_recursive_condition,
     vol.Optional(CONF_OR): validate_recursive_condition,
     vol.Optional(CONF_RANGE): vol.All(vol.Schema({
-        vol.Optional(CONF_MIN): vol.Coerce(float),
-        vol.Optional(CONF_MAX): vol.Coerce(float),
-    }), cv.has_at_least_one_key(CONF_MIN, CONF_MAX)),
+        vol.Optional(CONF_ABOVE): vol.Coerce(float),
+        vol.Optional(CONF_BELOW): vol.Coerce(float),
+    }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 }), cv.has_at_exactly_one_key(*CONDITION_KEYS)])
 
@@ -149,10 +149,10 @@ def build_condition(config, arg_type):
         conf = config[CONF_RANGE]
         rhs = RangeCondition.new(template_arg)
         condition = Pvariable(RangeCondition.template(template_arg), config[CONF_CONDITION_ID], rhs)
-        if CONF_MIN in conf:
-            condition.set_min(templatable(conf[CONF_MIN], arg_type, float_))
-        if CONF_MAX in conf:
-            condition.set_max(templatable(conf[CONF_MAX], arg_type, float_))
+        if CONF_ABOVE in conf:
+            condition.set_min(templatable(conf[CONF_ABOVE], arg_type, float_))
+        if CONF_BELOW in conf:
+            condition.set_max(templatable(conf[CONF_BELOW], arg_type, float_))
         return condition
     raise ESPHomeYAMLError(u"Unsupported condition {}".format(config))
 

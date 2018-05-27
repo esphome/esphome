@@ -1,4 +1,4 @@
 include README.md
-include esphomeyaml/hassio/templates/index.html
-include esphomeyaml/hassio/static/materialize-stepper.min.css
-include esphomeyaml/hassio/static/materialize-stepper.min.js
+include esphomeyaml/dashboard/templates/index.html
+include esphomeyaml/dashboard/static/materialize-stepper.min.css
+include esphomeyaml/dashboard/static/materialize-stepper.min.js

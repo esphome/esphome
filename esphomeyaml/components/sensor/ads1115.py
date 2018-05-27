@@ -36,14 +36,18 @@ def validate_gain(value):
     elif not isinstance(value, (str, unicode)):
         raise vol.Invalid('invalid gain "{}"'.format(value))
 
-    if value not in GAIN:
-        raise vol.Invalid("Invalid gain, options are {}".format(', '.join(GAIN.keys())))
-    return value
+    return cv.one_of(*GAIN)(value)
+
+
+def validate_mux(value):
+    value = cv.string(value).upper()
+    value = value.replace(' ', '_')
+    return cv.one_of(*MUX)(value)
 
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('ads1115_sensor'): cv.register_variable_id,
-    vol.Required(CONF_MULTIPLEXER): vol.All(vol.Upper, cv.one_of(*MUX)),
+    vol.Required(CONF_MULTIPLEXER): validate_mux,
     vol.Required(CONF_GAIN): validate_gain,
     vol.Optional(CONF_ADS1115_ID): cv.variable_id,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,

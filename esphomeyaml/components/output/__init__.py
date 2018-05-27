@@ -14,7 +14,7 @@ BINARY_OUTPUT_SCHEMA = cv.REQUIRED_ID_SCHEMA.extend({
 })
 
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
-    vol.Optional(CONF_MAX_POWER): cv.zero_to_one_float,
+    vol.Optional(CONF_MAX_POWER): cv.percentage,
 })
 
 output_ns = esphomelib_ns.namespace('output')

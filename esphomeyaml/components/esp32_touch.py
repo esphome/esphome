@@ -18,7 +18,7 @@ def validate_voltage(values):
         value = cv.string(value)
         if not value.endswith('V'):
             value += 'V'
-        return cv.one_of(values)(value)
+        return cv.one_of(*values)(value)
     return validator
 
 

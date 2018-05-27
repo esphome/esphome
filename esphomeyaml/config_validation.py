@@ -461,6 +461,12 @@ hex_uint32_t = vol.All(hex_int, vol.Range(min=0, max=4294967295))
 i2c_address = hex_uint8_t
 
 
+def percentage(value):
+    if isinstance(value, (str, unicode)) and value.endswith('%'):
+        value = float(value[:-1].rstrip()) / 100.0
+    return zero_to_one_float(value)
+
+
 def invalid(message):
     def validator(value):
         raise vol.Invalid(message)

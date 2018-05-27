@@ -140,7 +140,7 @@ class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
 
 class MainRequestHandler(tornado.web.RequestHandler):
     def get(self):
-        files = [f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml')]
+        files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml')])
         full_path_files = [os.path.join(CONFIG_DIR, f) for f in files]
         self.render("templates/index.html", files=files, full_path_files=full_path_files,
                     version=const.__version__)
@@ -157,7 +157,7 @@ def make_app():
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ], debug=True)
+    ], debug=False)
 
 
 def start_web_server(args):
@@ -166,7 +166,7 @@ def start_web_server(args):
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
 
-    _LOGGER.info("Starting HassIO add-on web server on port %s and configuration dir %s...",
+    _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)
     app = make_app()
     app.listen(args.port)

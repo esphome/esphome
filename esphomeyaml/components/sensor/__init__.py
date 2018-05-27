@@ -2,10 +2,10 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
-from esphomeyaml.const import CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_DEBOUNCE, CONF_DELTA, \
-    CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_NAN, \
-    CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_LAMBDA, CONF_MAX, CONF_MIN, \
-    CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
+from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
+    CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
+    CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_LAMBDA, \
+    CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE,\
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
     CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, esphomelib_ns, float_, \
@@ -59,9 +59,9 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_ON_RAW_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
     vol.Optional(CONF_ON_VALUE_RANGE): vol.All(cv.ensure_list, [vol.All(
         automation.AUTOMATION_SCHEMA.extend({
-            vol.Optional(CONF_MIN): vol.Coerce(float),
-            vol.Optional(CONF_MAX): vol.Coerce(float),
-        }), cv.has_at_least_one_key(CONF_MIN, CONF_MAX))]),
+            vol.Optional(CONF_ABOVE): vol.Coerce(float),
+            vol.Optional(CONF_BELOW): vol.Coerce(float),
+        }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))]),
 })
 
 # pylint: disable=invalid-name
@@ -144,10 +144,10 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         rhs = sensor_var.make_value_range_trigger()
         trigger = Pvariable(ValueRangeTrigger, conf[CONF_TRIGGER_ID], rhs)
-        if CONF_MIN in conf:
-            trigger.set_min(templatable(conf[CONF_MIN], float_, float_))
-        if CONF_MAX in conf:
-            trigger.set_max(templatable(conf[CONF_MAX], float_, float_))
+        if CONF_ABOVE in conf:
+            trigger.set_min(templatable(conf[CONF_ABOVE], float_, float_))
+        if CONF_BELOW in conf:
+            trigger.set_max(templatable(conf[CONF_BELOW], float_, float_))
         automation.build_automation(trigger, float_, conf)
 
     if CONF_EXPIRE_AFTER in config:

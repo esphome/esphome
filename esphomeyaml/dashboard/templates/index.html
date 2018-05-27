@@ -547,7 +547,11 @@
             const msg = data.data;
             log.innerHTML += colorReplace(msg);
           } else if (data.event === "exit") {
-            M.toast({html: `Program exited with code ${data.code}`});
+            if (data.code === 0) {
+              M.toast({html: "Program exited successfully!"});
+            } else {
+              M.toast({html: `Program failed with code ${data.code}`});
+            }
           }
         });
         logSocket.addEventListener('open', () => {
@@ -615,7 +619,11 @@
             const msg = data.data;
             log.innerHTML += colorReplace(msg);
           } else if (data.event === "exit") {
-            M.toast({html: `Program exited with code ${data.code}`});
+            if (data.code === 0) {
+              M.toast({html: "Program exited successfully!"});
+            } else {
+              M.toast({html: `Program failed with code ${data.code}`});
+            }
           }
         });
         logSocket.addEventListener('open', () => {
@@ -665,9 +673,11 @@
           const msg = data.data;
           log.innerHTML += colorReplace(msg);
         } else if (data.event === "exit") {
-          M.toast({html: `Program exited with code ${data.code}`});
           if (data.code === 0) {
+            M.toast({html: "Program exited successfully!"});
             downloadButton.classList.remove('disabled');
+          } else {
+            M.toast({html: `Program failed with code ${data.code}`});
           }
         }
       });

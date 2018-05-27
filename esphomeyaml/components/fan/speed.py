@@ -14,9 +14,9 @@ PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_SPEED_COMMAND_TOPIC): cv.subscribe_topic,
     vol.Optional(CONF_OSCILLATION_OUTPUT): cv.variable_id,
     vol.Optional(CONF_SPEED): vol.Schema({
-        vol.Required(CONF_LOW): cv.zero_to_one_float,
-        vol.Required(CONF_MEDIUM): cv.zero_to_one_float,
-        vol.Required(CONF_HIGH): cv.zero_to_one_float,
+        vol.Required(CONF_LOW): cv.percentage,
+        vol.Required(CONF_MEDIUM): cv.percentage,
+        vol.Required(CONF_HIGH): cv.percentage,
     }),
 }).extend(fan.FAN_SCHEMA.schema)
 
