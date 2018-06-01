@@ -134,11 +134,20 @@ def int_(value):
 
 
 hex_int = vol.Coerce(hex_int_)
-match_cpp_var_ = vol.Match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', msg=u"Must be a valid C++ variable name")
 
 
 def variable_id(value):
-    value = match_cpp_var_(value)
+    value = string(value)
+    if not value:
+        raise vol.Invalid("ID must not be empty")
+    if value[0].isdigit():
+        raise vol.Invalid("First character in ID cannot be a digit.")
+    if '-' in value:
+        raise vol.Invalid("Dashes are not supported in IDs, please use underscores instead.")
+    for char in value:
+        if char != '_' and not char.isalnum():
+            raise vol.Invalid(u"IDs must only consist of upper/lowercase characters and numbers."
+                              u"The character '{}' cannot be used".format(char))
     if value in RESERVED_IDS:
         raise vol.Invalid(u"ID {} is reserved internally and cannot be used".format(value))
     return value

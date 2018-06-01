@@ -7,7 +7,8 @@ VOLUME /config
 WORKDIR /usr/src/app
 
 COPY requirements.txt /usr/src/app/
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir tornado esptool
 
 COPY docker/platformio.ini /usr/src/app/
 RUN platformio settings set enable_telemetry No && \

@@ -222,14 +222,18 @@ def load_config(path):
     if CONF_ESPHOMEYAML not in config:
         raise ESPHomeYAMLError(u"No esphomeyaml section in config")
     core_conf = config[CONF_ESPHOMEYAML]
-    esp_platform = unicode(core_conf.get(CONF_PLATFORM, u""))
+    if CONF_PLATFORM not in core_conf:
+        raise ESPHomeYAMLError("esphomeyaml.platform not specified.")
+    esp_platform = unicode(core_conf[CONF_PLATFORM])
     esp_platform = esp_platform.upper()
     if '8266' in esp_platform:
         esp_platform = ESP_PLATFORM_ESP8266
     if '32' in esp_platform:
         esp_platform = ESP_PLATFORM_ESP32
     core.ESP_PLATFORM = esp_platform
-    core.BOARD = unicode(core_conf.get(CONF_BOARD, u""))
+    if CONF_BOARD not in core_conf:
+        raise ESPHomeYAMLError("esphomeyaml.board not specified.")
+    core.BOARD = unicode(core_conf[CONF_BOARD])
     core.SIMPLIFY = cv.boolean(core_conf.get(CONF_SIMPLIFY, True))
 
     try:

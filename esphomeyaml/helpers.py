@@ -408,7 +408,9 @@ def get_variable(id, type=None):
         return None
     result = get_result()
     if result is None:
-        raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type {}".format(id, type))
+        if type is None:
+            raise ESPHomeYAMLError(u"Couldn't find ID '{}'".format(id))
+        raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type '{}'".format(id, type))
     return result
 
 

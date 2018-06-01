@@ -140,7 +140,8 @@ class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
 
 class MainRequestHandler(tornado.web.RequestHandler):
     def get(self):
-        files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml')])
+        files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml') and
+                        not f.startswith('.')])
         full_path_files = [os.path.join(CONFIG_DIR, f) for f in files]
         self.render("templates/index.html", files=files, full_path_files=full_path_files,
                     version=const.__version__)

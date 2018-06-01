@@ -20,10 +20,12 @@ MakeTemplateCover = Application.MakeTemplateCover
 
 
 def to_code(config):
-    template_ = process_lambda(config.get(CONF_LAMBDA), [])
-    rhs = App.make_template_cover(config[CONF_NAME], template_)
+    rhs = App.make_template_cover(config[CONF_NAME])
     make = variable(MakeTemplateCover, config[CONF_MAKE_ID], rhs)
 
+    if CONF_LAMBDA in config:
+        template_ = process_lambda(config[CONF_LAMBDA], [])
+        add(make.Ptemplate.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
         actions = automation.build_actions(config[CONF_OPEN_ACTION], NoArg)
         add(make.Ptemplate_.add_open_actions(actions))

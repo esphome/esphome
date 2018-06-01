@@ -20,7 +20,7 @@ def validate_frequency_bit_depth(obj):
 
 
 PLATFORM_SCHEMA = vol.All(output.PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_PIN): vol.All(pins.output_pin, vol.Range(min=0, max=33)),
+    vol.Required(CONF_PIN): pins.output_pin,
     vol.Optional(CONF_FREQUENCY): cv.frequency,
     vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int), vol.Range(min=1, max=15)),
     vol.Optional(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))

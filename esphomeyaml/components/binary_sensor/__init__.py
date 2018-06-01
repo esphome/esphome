@@ -62,7 +62,7 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
         automation.build_automation(trigger, NoArg, conf)
 
     for conf in config.get(CONF_ON_CLICK, []):
-        rhs = binary_sensor_var.make_release_trigger(conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH])
+        rhs = binary_sensor_var.make_click_trigger(conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH])
         trigger = Pvariable(ClickTrigger, conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, NoArg, conf)
 

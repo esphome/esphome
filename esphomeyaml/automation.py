@@ -33,7 +33,7 @@ ACTION_KEYS = [CONF_DELAY, CONF_MQTT_PUBLISH, CONF_LIGHT_TOGGLE, CONF_LIGHT_TURN
 
 ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     cv.GenerateID('action', CONF_ACTION_ID): cv.register_variable_id,
-    vol.Optional(CONF_DELAY): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_DELAY): cv.templatable(cv.positive_time_period_milliseconds),
     vol.Optional(CONF_MQTT_PUBLISH): vol.Schema({
         vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
         vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
@@ -50,8 +50,10 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     }),
     vol.Optional(CONF_LIGHT_TURN_ON): vol.Schema({
         vol.Required(CONF_ID): cv.variable_id,
-        vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
-        vol.Optional(CONF_FLASH_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
+        vol.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
+            cv.templatable(cv.positive_time_period_milliseconds),
+        vol.Exclusive(CONF_FLASH_LENGTH, 'transformer'):
+            cv.templatable(cv.positive_time_period_milliseconds),
         vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
         vol.Optional(CONF_RED): cv.templatable(cv.percentage),
         vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
