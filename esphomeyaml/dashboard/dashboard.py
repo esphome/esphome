@@ -7,6 +7,8 @@ import os
 import random
 import subprocess
 
+_LOGGER = logging.getLogger(__name__)
+
 try:
     import tornado
     import tornado.gen
@@ -17,14 +19,15 @@ try:
     import tornado.websocket
     import tornado.concurrent
 except ImportError as err:
-    pass
+    _LOGGER.error("Attempted to load dashboard, but tornado is not installed! "
+                  "Please run \"pip2 install tornado esptool\" in your terminal.")
 
 from esphomeyaml import const, core, __main__
 from esphomeyaml.__main__ import get_serial_ports, get_base_path, get_name
 from esphomeyaml.helpers import quote
 
-_LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
+
 
 # pylint: disable=abstract-method, arguments-differ
 class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
