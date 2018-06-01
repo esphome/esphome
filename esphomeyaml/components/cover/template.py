@@ -25,7 +25,7 @@ def to_code(config):
 
     if CONF_LAMBDA in config:
         template_ = process_lambda(config[CONF_LAMBDA], [])
-        add(make.Ptemplate.set_state_lambda(template_))
+        add(make.Ptemplate_.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
         actions = automation.build_actions(config[CONF_OPEN_ACTION], NoArg)
         add(make.Ptemplate_.add_open_actions(actions))
