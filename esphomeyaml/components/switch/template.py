@@ -13,7 +13,7 @@ PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
     vol.Optional(CONF_TURN_OFF_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_TURN_ON_ACTION): automation.ACTIONS_SCHEMA,
-}).extend(switch.SWITCH_SCHEMA.schema), cv.has_at_exactly_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}).extend(switch.SWITCH_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 MakeTemplateSwitch = Application.MakeTemplateSwitch
 

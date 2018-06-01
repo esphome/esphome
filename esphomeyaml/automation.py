@@ -100,7 +100,7 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
         vol.Optional(CONF_SPEED): cv.templatable(fan.validate_fan_speed),
     }),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
-}, cv.has_at_exactly_one_key(*ACTION_KEYS))])
+}, cv.has_exactly_one_key(*ACTION_KEYS))])
 
 # pylint: disable=invalid-name
 DelayAction = esphomelib_ns.DelayAction
@@ -123,7 +123,7 @@ CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
         vol.Optional(CONF_BELOW): vol.Coerce(float),
     }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
-}), cv.has_at_exactly_one_key(*CONDITION_KEYS)])
+}), cv.has_exactly_one_key(*CONDITION_KEYS)])
 
 # pylint: disable=invalid-name
 AndCondition = esphomelib_ns.AndCondition

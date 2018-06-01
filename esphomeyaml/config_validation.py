@@ -194,7 +194,7 @@ def has_at_least_one_key(*keys):
     return validate
 
 
-def has_at_exactly_one_key(*keys):
+def has_exactly_one_key(*keys):
     def validate(obj):
         if not isinstance(obj, dict):
             raise vol.Invalid('expected dictionary')

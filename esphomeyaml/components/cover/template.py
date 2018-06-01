@@ -14,7 +14,7 @@ PLATFORM_SCHEMA = vol.All(cover.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_OPEN_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_CLOSE_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_STOP_ACTION): automation.ACTIONS_SCHEMA,
-}).extend(cover.COVER_SCHEMA.schema), cv.has_at_exactly_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}).extend(cover.COVER_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 MakeTemplateCover = Application.MakeTemplateCover
 

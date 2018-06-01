@@ -44,7 +44,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DEBOUNCE): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_OR): validate_recursive_filter,
-}, cv.has_at_exactly_one_key(*FILTER_KEYS))])
+}, cv.has_exactly_one_key(*FILTER_KEYS))])
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID('mqtt_sensor', CONF_MQTT_ID): cv.register_variable_id,
