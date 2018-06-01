@@ -1,3 +1,4 @@
+# pylint: disable=wrong-import-position
 from __future__ import print_function
 
 import codecs
