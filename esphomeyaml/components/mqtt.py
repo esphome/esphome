@@ -6,11 +6,12 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LOG_TOPIC, \
-    CONF_MQTT, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, \
+    CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, \
     CONF_SSL_FINGERPRINTS, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
     CONF_WILL_MESSAGE
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, StructInitializer, \
-    TemplateArguments, add, esphomelib_ns, optional, std_string, RawExpression
+from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
+    StructInitializer, \
+    TemplateArguments, add, esphomelib_ns, optional, std_string
 
 
 def validate_message_just_topic(value):
@@ -54,7 +55,7 @@ def validate_fingerprint(value):
 
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(CONF_MQTT): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
     vol.Required(CONF_BROKER): validate_broker,
     vol.Optional(CONF_PORT, default=1883): cv.port,
     vol.Optional(CONF_USERNAME, default=''): cv.string,
@@ -71,6 +72,7 @@ CONFIG_SCHEMA = vol.Schema({
                                                  cv.ensure_list, [validate_fingerprint]),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
     vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.publish_topic,
         vol.Optional(CONF_QOS, 0): cv.mqtt_qos,
     })])
@@ -93,7 +95,7 @@ def exp_mqtt_message(config):
 def to_code(config):
     rhs = App.init_mqtt(config[CONF_BROKER], config[CONF_PORT],
                         config[CONF_USERNAME], config[CONF_PASSWORD])
-    mqtt = Pvariable(MQTTClientComponent, config[CONF_ID], rhs)
+    mqtt = Pvariable(config[CONF_ID], rhs)
     if not config.get(CONF_DISCOVERY, True):
         add(mqtt.disable_discovery())
     if CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
@@ -131,8 +133,9 @@ def to_code(config):
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
-        trigger = Pvariable(MQTTMessageTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, std_string, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, std_string, conf):
+            yield
 
 
 def required_build_flags(config):

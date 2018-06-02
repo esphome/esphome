@@ -22,14 +22,14 @@ def validate_adc_pin(value):
     return pins.analog_pin(value)
 
 
+MakeADCSensor = Application.MakeADCSensor
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('adc', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeADCSensor),
     vol.Required(CONF_PIN): validate_adc_pin,
     vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
-
-MakeADCSensor = Application.MakeADCSensor
 
 
 def to_code(config):
@@ -38,11 +38,12 @@ def to_code(config):
         pin = 0
     rhs = App.make_adc_sensor(config[CONF_NAME], pin,
                               config.get(CONF_UPDATE_INTERVAL))
-    make = variable(MakeADCSensor, config[CONF_MAKE_ID], rhs)
+    make = variable(config[CONF_MAKE_ID], rhs)
     adc = make.Padc
     if CONF_ATTENUATION in config:
         add(adc.set_attenuation(ATTENUATION_MODES[config[CONF_ATTENUATION]]))
-    sensor.setup_sensor(make.Padc, make.Pmqtt, config)
+    for _ in sensor.setup_sensor(make.Padc, make.Pmqtt, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_ADC_SENSOR'

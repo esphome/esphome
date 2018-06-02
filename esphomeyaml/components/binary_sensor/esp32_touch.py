@@ -11,6 +11,8 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 DEPENDENCIES = ['esp32_touch']
 
+CONF_ESP32_TOUCH_ID = 'esp32_touch_id'
+
 TOUCH_PADS = {
     4: global_ns.TOUCH_PAD_NUM0,
     0: global_ns.TOUCH_PAD_NUM1,
@@ -35,14 +37,18 @@ def validate_touch_pad(value):
 PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PIN): validate_touch_pad,
     vol.Required(CONF_THRESHOLD): cv.uint16_t,
+    cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_variable_id(ESP32TouchComponent),
 }).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
 
 
 def to_code(config):
-    hub = get_variable(None, type=ESP32TouchComponent)
+    hub = None
+    for hub in get_variable(config[CONF_ESP32_TOUCH_ID]):
+        yield
     touch_pad = TOUCH_PADS[config[CONF_PIN]]
     rhs = hub.make_touch_pad(config[CONF_NAME], touch_pad, config[CONF_THRESHOLD])
-    binary_sensor.register_binary_sensor(rhs, config)
+    for _ in binary_sensor.register_binary_sensor(rhs, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_ESP32_TOUCH_BINARY_SENSOR'

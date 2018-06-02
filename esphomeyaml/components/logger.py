@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_LEVEL, CONF_LOGGER, CONF_LOGS, \
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_LEVEL, CONF_LOGS, \
     CONF_TX_BUFFER_SIZE
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, global_ns
@@ -31,8 +31,10 @@ def validate_local_no_higher_than_global(value):
     return value
 
 
+LogComponent = esphomelib_ns.LogComponent
+
 CONFIG_SCHEMA = vol.All(vol.Schema({
-    cv.GenerateID(CONF_LOGGER): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(LogComponent),
     vol.Optional(CONF_BAUD_RATE): cv.positive_int,
     vol.Optional(CONF_TX_BUFFER_SIZE): cv.positive_int,
     vol.Optional(CONF_LEVEL): is_log_level,
@@ -41,12 +43,10 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     })
 }), validate_local_no_higher_than_global)
 
-LogComponent = esphomelib_ns.LogComponent
-
 
 def to_code(config):
     rhs = App.init_log(config.get(CONF_BAUD_RATE))
-    log = Pvariable(LogComponent, config[CONF_ID], rhs)
+    log = Pvariable(config[CONF_ID], rhs)
     if CONF_TX_BUFFER_SIZE in config:
         add(log.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
     if CONF_LEVEL in config:

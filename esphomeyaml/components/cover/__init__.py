@@ -6,11 +6,6 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('cover'): cv.register_variable_id,
-    cv.GenerateID('mqtt_cover', CONF_MQTT_ID): cv.register_variable_id,
-})
-
 cover_ns = esphomelib_ns.namespace('cover')
 Cover = cover_ns.Cover
 MQTTCoverComponent = cover_ns.MQTTCoverComponent
@@ -21,15 +16,19 @@ OpenAction = cover_ns.OpenAction
 CloseAction = cover_ns.CloseAction
 StopAction = cover_ns.StopAction
 
+COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(Cover),
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTCoverComponent),
+})
+
 
 def setup_cover_core_(cover_var, mqtt_var, config):
     setup_mqtt_component(mqtt_var, config)
 
 
 def setup_cover(cover_obj, mqtt_obj, config):
-    cover_var = Pvariable(Cover, config[CONF_ID], cover_obj, has_side_effects=False)
-    mqtt_var = Pvariable(MQTTCoverComponent, config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
+    cover_var = Pvariable(config[CONF_ID], cover_obj, has_side_effects=False)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
     setup_cover_core_(cover_var, mqtt_var, config)
 
 

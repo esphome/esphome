@@ -9,13 +9,6 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('fan'): cv.register_variable_id,
-    cv.GenerateID('mqtt_fan', CONF_MQTT_ID): cv.register_variable_id,
-    vol.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.publish_topic,
-    vol.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.subscribe_topic,
-})
-
 fan_ns = esphomelib_ns.namespace('fan')
 FanState = fan_ns.FanState
 MQTTFanComponent = fan_ns.MQTTFanComponent
@@ -28,6 +21,13 @@ FAN_SPEED_OFF = fan_ns.FAN_SPEED_OFF
 FAN_SPEED_LOW = fan_ns.FAN_SPEED_LOW
 FAN_SPEED_MEDIUM = fan_ns.FAN_SPEED_MEDIUM
 FAN_SPEED_HIGH = fan_ns.FAN_SPEED_HIGH
+
+FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(FanState),
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTFanComponent),
+    vol.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.publish_topic,
+    vol.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.subscribe_topic,
+})
 
 
 FAN_SPEEDS = {
@@ -55,8 +55,8 @@ def setup_fan_core_(fan_var, mqtt_var, config):
 
 
 def setup_fan(fan_obj, mqtt_obj, config):
-    fan_var = Pvariable(FanState, config[CONF_ID], fan_obj, has_side_effects=False)
-    mqtt_var = Pvariable(MQTTFanComponent, config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
+    fan_var = Pvariable(config[CONF_ID], fan_obj, has_side_effects=False)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
     setup_fan_core_(fan_var, mqtt_var, config)
 
 

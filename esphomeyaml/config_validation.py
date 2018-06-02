@@ -12,9 +12,8 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import HexInt, IPAddress, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, Lambda
-from esphomeyaml.helpers import ensure_unique_string
+from esphomeyaml.core import HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
+    TimePeriodMilliseconds, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -136,7 +135,7 @@ def int_(value):
 hex_int = vol.Coerce(hex_int_)
 
 
-def variable_id(value):
+def variable_id_str_(value):
     value = string(value)
     if not value:
         raise vol.Invalid("ID must not be empty")
@@ -153,11 +152,32 @@ def variable_id(value):
     return value
 
 
+def use_variable_id(type):
+    def validator(value):
+        if value is None:
+            return core.ID(None, is_declaration=False, type=type)
+
+        return core.ID(variable_id_str_(value), is_declaration=False, type=type)
+
+    return validator
+
+
+def declare_variable_id(type):
+    def validator(value):
+        if value is None:
+            return core.ID(None, is_declaration=True, type=type)
+
+        return core.ID(variable_id_str_(value), is_declaration=True, type=type)
+
+    return validator
+
+
 def templatable(other_validators):
     def validator(value):
         if isinstance(value, Lambda):
             return value
         return other_validators(value)
+
     return validator
 
 
@@ -223,7 +243,6 @@ time_period_dict = vol.All(
     has_at_least_one_key('days', 'hours', 'minutes',
                          'seconds', 'milliseconds', 'microseconds'),
     lambda value: TimePeriod(**value))
-
 
 TIME_PERIOD_EXPLICIT_MESSAGE = ("The old way of being able to write time values without a "
                                 "time unit (like \"1000\" for 1000 milliseconds) has been "
@@ -321,7 +340,6 @@ positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seco
 positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
                                         vol.Range(min=TimePeriod(), min_included=False))
-
 
 METRIC_SUFFIXES = {
     'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
@@ -479,6 +497,7 @@ def percentage(value):
 def invalid(message):
     def validator(value):
         raise vol.Invalid(message)
+
     return validator
 
 
@@ -493,6 +512,7 @@ def one_of(*values):
         if value not in values:
             raise vol.Invalid(u"Unknown value '{}', must be one of {}".format(value, options))
         return value
+
     return validator
 
 
@@ -505,26 +525,10 @@ def lambda_(value):
 REGISTERED_IDS = set()
 
 
-def register_variable_id(value):
-    s = variable_id(value)
-    if s in REGISTERED_IDS:
-        raise vol.Invalid("This ID has already been used")
-    REGISTERED_IDS.add(s)
-    return s
-
-
 class GenerateID(vol.Optional):
-    def __init__(self, basename, key=CONF_ID):
-        self._basename = basename
-        super(GenerateID, self).__init__(key, default=self.default_variable_id)
+    def __init__(self, key=CONF_ID):
+        super(GenerateID, self).__init__(key, default=lambda: None)
 
-    def default_variable_id(self):
-        return ensure_unique_string(self._basename, REGISTERED_IDS)
-
-
-REQUIRED_ID_SCHEMA = vol.Schema({
-    vol.Required(CONF_ID): register_variable_id,
-})
 
 PLATFORM_SCHEMA = vol.Schema({
     vol.Required(CONF_PLATFORM): valid,

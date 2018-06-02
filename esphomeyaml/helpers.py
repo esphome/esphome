@@ -1,16 +1,17 @@
 from __future__ import print_function
 
+import inspect
 import logging
 import re
-from collections import OrderedDict, deque
+from collections import OrderedDict
 
 from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
     CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
-from esphomeyaml.core import ESPHomeYAMLError, HexInt, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, Lambda
+from esphomeyaml.core import ESPHomeYAMLError, HexInt, Lambda, TimePeriodMicroseconds, \
+    TimePeriodMilliseconds, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -356,81 +357,108 @@ def statement(expression):
     return ExpressionStatement(expression)
 
 
-def register_variable(type, id, obj):
-    _VARIABLES[id] = obj, type
+def register_variable(id, obj):
+    _LOGGER.debug("Registered variable %s of type %s", id.id, id.type)
+    _VARIABLES[id] = obj
 
 
 # pylint: disable=redefined-builtin, invalid-name
-def variable(type, id, rhs):
+def variable(id, rhs, type=None):
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'.')
-    assignment = AssignmentExpression(type, '', id, rhs, obj)
+    id.type = type or id.type
+    assignment = AssignmentExpression(id.type, '', id, rhs, obj)
     add(assignment)
-    register_variable(type, id, obj)
+    register_variable(id, obj)
     obj.requires.append(assignment)
     return obj
 
 
-def Pvariable(type, id, rhs, has_side_effects=True):
+def Pvariable(id, rhs, has_side_effects=True, type=None):
     rhs = safe_exp(rhs)
     if not has_side_effects and hasattr(rhs, '_has_side_effects'):
         # pylint: disable=attribute-defined-outside-init, protected-access
         rhs._has_side_effects = False
     obj = MockObj(id, u'->', has_side_effects=has_side_effects)
-    assignment = AssignmentExpression(type, '*', id, rhs, obj)
+    id.type = type or id.type
+    assignment = AssignmentExpression(id.type, '*', id, rhs, obj)
     add(assignment)
-    register_variable(type, id, obj)
+    register_variable(id, obj)
     obj.requires.append(assignment)
     return obj
 
 
-_QUEUE = deque()
+_TASKS = []
 _VARIABLES = {}
 _EXPRESSIONS = []
 
 
-def get_variable(id, type=None):
-    def get_result():
-        if id is not None:
-            if id in _VARIABLES:
-                return _VARIABLES[id][0]
-        elif type is not None:
-            return next((x[0] for x in _VARIABLES.itervalues() if x[1] == type), None)
-        return None
-
-    while _QUEUE:
-        result = get_result()
-        if result is not None:
-            return result
-        func, config = _QUEUE.popleft()
-        func(config)
-    if id is None and type is None:
-        return None
-    result = get_result()
-    if result is None:
-        if type is None:
-            raise ESPHomeYAMLError(u"Couldn't find ID '{}'".format(id))
-        raise ESPHomeYAMLError(u"Couldn't find ID '{}' with type '{}'".format(id, type))
-    return result
+def get_variable(id):
+    while True:
+        if id in _VARIABLES:
+            yield _VARIABLES[id]
+            return
+        _LOGGER.debug("Waiting for variable %s", id)
+        yield None
 
 
 def process_lambda(value, parameters, capture='=', return_type=None):
     if value is None:
-        return None
-    parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\.', value.value)
+        yield
+        return
+    parts = value.parts[:]
     for i in range(1, len(parts), 2):
-        parts[i] = get_variable(parts[i])._
-    return LambdaExpression(parts, parameters, capture, return_type)
+        var = None
+        for var in get_variable(parts[i]):
+            yield
+        parts[i] = var._
+    yield LambdaExpression(parts, parameters, capture, return_type)
+    return
 
 
 def templatable(value, input_type, output_type):
     if isinstance(value, Lambda):
-        return process_lambda(value, [(input_type, 'x')], return_type=output_type)
-    return value
+        lambda_ = None
+        for lambda_ in process_lambda(value, [(input_type, 'x')], return_type=output_type):
+            yield None
+        yield lambda_
+    else:
+        yield value
 
 
-def add_task(func, config):
-    _QUEUE.append((func, config))
+def add_task(func, config, domain):
+    if inspect.isgeneratorfunction(func):
+        def func_():
+            yield
+            for _ in func(config):
+                yield
+    else:
+        def func_():
+            yield
+            func(config)
+    _TASKS.append((func_(), domain))
+
+
+def run_tasks():
+    global _TASKS
+
+    new_tasks = []
+    for task, domain in _TASKS:
+        try:
+            task.next()
+            new_tasks.append((task, domain))
+        except StopIteration:
+            pass
+    _TASKS = new_tasks
+
+
+def flush_tasks():
+    for _ in range(1000000):
+        run_tasks()
+        if not _TASKS:
+            break
+    else:
+        raise ESPHomeYAMLError("Circular dependency detected!")
 
 
 def add(expression, require=True):
@@ -528,32 +556,43 @@ def get_gpio_pin_number(conf):
 
 def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
     if conf is None:
-        return None
+        return
     number = conf[CONF_NUMBER]
     inverted = conf.get(CONF_INVERTED)
     if CONF_PCF8574 in conf:
-        hub = get_variable(conf[CONF_PCF8574], 'io::PCF8574Component')
+        hub = None
+        for hub in get_variable(conf[CONF_PCF8574]):
+            yield None
         if default_mode == u'INPUT':
             mode = conf.get(CONF_MODE, u'INPUT')
-            return hub.make_input_pin(number,
-                                      RawExpression('PCF8574_' + mode),
-                                      inverted)
+            yield hub.make_input_pin(number,
+                                     RawExpression('PCF8574_' + mode),
+                                     inverted)
+            return
         elif default_mode == u'OUTPUT':
-            return hub.make_output_pin(number, inverted)
+            yield hub.make_output_pin(number, inverted)
+            return
         else:
             raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
     if len(conf) == 1:
-        return IntLiteral(number)
+        yield IntLiteral(number)
+        return
     mode = RawExpression(conf.get(CONF_MODE, default_mode))
-    return mock_obj(number, mode, inverted)
+    yield mock_obj(number, mode, inverted)
 
 
 def gpio_output_pin_expression(conf):
-    return generic_gpio_pin_expression_(conf, GPIOOutputPin, 'OUTPUT')
+    exp = None
+    for exp in generic_gpio_pin_expression_(conf, GPIOOutputPin, 'OUTPUT'):
+        yield None
+    yield exp
 
 
 def gpio_input_pin_expression(conf):
-    return generic_gpio_pin_expression_(conf, GPIOInputPin, 'INPUT')
+    exp = None
+    for exp in generic_gpio_pin_expression_(conf, GPIOInputPin, 'INPUT'):
+        yield None
+    yield exp
 
 
 def setup_mqtt_component(obj, config):

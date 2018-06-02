@@ -16,6 +16,7 @@ disable=
   duplicate-code,
   invalid-name,
   cyclic-import,
+  redefined-builtin,
 
 
 additional-builtins=

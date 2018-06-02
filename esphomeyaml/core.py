@@ -1,4 +1,5 @@
 import math
+import re
 from collections import OrderedDict
 
 
@@ -174,9 +175,57 @@ class TimePeriodSeconds(TimePeriod):
 class Lambda(object):
     def __init__(self, value):
         self.value = value
+        self.parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\.', value)
+        self.requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 2)]
 
     def __str__(self):
+        return self.value
+
+    def __repr__(self):
         return u'Lambda<{}>'.format(self.value)
+
+
+def ensure_unique_string(preferred_string, current_strings):
+    test_string = preferred_string
+    current_strings_set = set(current_strings)
+
+    tries = 1
+
+    while test_string in current_strings_set:
+        tries += 1
+        test_string = u"{}_{}".format(preferred_string, tries)
+
+    return test_string
+
+
+class ID(object):
+    def __init__(self, id, is_declaration=False, type=None):
+        self.id = id
+        self.is_manual = id is not None
+        self.is_declaration = is_declaration
+        self.type = type
+
+    def resolve(self, registered_ids):
+        if self.id is None:
+            base = str(self.type).replace('::', '_').lower()
+            name = ''.join(c for c in base if c.isalnum() or c == '_')
+            self.id = ensure_unique_string(name, registered_ids)
+        return self.id
+
+    def __str__(self):
+        return self.id
+
+    def __repr__(self):
+        return u'ID<{} declaration={}, type={}, manual={}>'.format(
+            self.id, self.is_declaration, self.type, self.is_manual)
+
+    def __eq__(self, other):
+        if not isinstance(other, ID):
+            raise ValueError("other must be ID")
+        return self.id == other.id
+
+    def __hash__(self):
+        return hash(self.id)
 
 
 CONFIG_PATH = None

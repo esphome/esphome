@@ -4,6 +4,7 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
+from esphomeyaml.components import pcf8574
 from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 
@@ -202,7 +203,7 @@ def shorthand_input_pin(value):
 
 
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_PCF8574): cv.variable_id,
+    vol.Required(CONF_PCF8574): cv.use_variable_id(pcf8574.PCF8574Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
     vol.Optional(CONF_MODE): vol.All(vol.Upper, "OUTPUT"),
     vol.Optional(CONF_INVERTED, default=False): cv.boolean,

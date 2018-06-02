@@ -3,6 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import light
+from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, \
     CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER
@@ -29,8 +30,10 @@ RGB_ORDERS = [
     'BGR',
 ]
 
+MakeFastLEDLight = Application.MakeFastLEDLight
+
 PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('fast_led_spi_light', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
     vol.Required(CONF_CHIPSET): vol.All(vol.Upper, cv.one_of(*CHIPSETS)),
     vol.Required(CONF_DATA_PIN): pins.output_pin,
@@ -42,15 +45,13 @@ PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
 
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_POWER_SUPPLY): cv.variable_id,
+    vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
 }).extend(light.LIGHT_SCHEMA.schema)
-
-MakeFastLEDLight = Application.MakeFastLEDLight
 
 
 def to_code(config):
     rhs = App.make_fast_led_light(config[CONF_NAME])
-    make = variable(MakeFastLEDLight, config[CONF_MAKE_ID], rhs)
+    make = variable(config[CONF_MAKE_ID], rhs)
     fast_led = make.Pfast_led
 
     rgb_order = None
@@ -66,7 +67,9 @@ def to_code(config):
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CONF_POWER_SUPPLY in config:
-        power_supply = get_variable(config[CONF_POWER_SUPPLY])
+        power_supply = None
+        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
+            yield
         add(fast_led.set_power_supply(power_supply))
 
         light.setup_light(make.Pstate, make.Pmqtt, config)

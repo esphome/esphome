@@ -8,7 +8,10 @@ import os
 import random
 import subprocess
 
-_LOGGER = logging.getLogger(__name__)
+from esphomeyaml.core import ESPHomeYAMLError
+from esphomeyaml import const, core, __main__
+from esphomeyaml.__main__ import get_serial_ports, get_base_path, get_name
+from esphomeyaml.helpers import quote
 
 try:
     import tornado
@@ -20,13 +23,9 @@ try:
     import tornado.websocket
     import tornado.concurrent
 except ImportError as err:
-    _LOGGER.error("Attempted to load dashboard, but tornado is not installed! "
-                  "Please run \"pip2 install tornado esptool\" in your terminal.")
+    tornado = None
 
-from esphomeyaml import const, core, __main__
-from esphomeyaml.__main__ import get_serial_ports, get_base_path, get_name
-from esphomeyaml.helpers import quote
-
+_LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
 
 
@@ -167,6 +166,11 @@ def make_app():
 
 def start_web_server(args):
     global CONFIG_DIR
+
+    if tornado is None:
+        raise ESPHomeYAMLError("Attempted to load dashboard, but tornado is not installed! "
+                               "Please run \"pip2 install tornado esptool\" in your terminal.")
+
     CONFIG_DIR = args.configuration
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)

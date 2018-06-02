@@ -29,8 +29,10 @@ BME280_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     vol.Optional(CONF_OVERSAMPLING): vol.All(vol.Upper, cv.one_of(*OVERSAMPLING_OPTIONS)),
 })
 
+MakeBME280Sensor = Application.MakeBME280Sensor
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('bme280', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBME280Sensor),
     vol.Optional(CONF_ADDRESS, default=0x77): cv.i2c_address,
     vol.Required(CONF_TEMPERATURE): BME280_OVERSAMPLING_SENSOR_SCHEMA,
     vol.Required(CONF_PRESSURE): BME280_OVERSAMPLING_SENSOR_SCHEMA,
@@ -39,8 +41,6 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
-MakeBME280Sensor = Application.MakeBME280Sensor
-
 
 def to_code(config):
     rhs = App.make_bme280_sensor(config[CONF_TEMPERATURE][CONF_NAME],
@@ -48,7 +48,7 @@ def to_code(config):
                                  config[CONF_HUMIDITY][CONF_NAME],
                                  config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
-    make = variable(MakeBME280Sensor, config[CONF_MAKE_ID], rhs)
+    make = variable(config[CONF_MAKE_ID], rhs)
     bme280 = make.Pbme280
     if CONF_OVERSAMPLING in config[CONF_TEMPERATURE]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_TEMPERATURE][CONF_OVERSAMPLING]]
@@ -63,12 +63,15 @@ def to_code(config):
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
         add(bme280.set_iir_filter(constant))
 
-    sensor.setup_sensor(bme280.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(bme280.Pget_pressure_sensor(), make.Pmqtt_pressure,
-                        config[CONF_PRESSURE])
-    sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
-                        config[CONF_HUMIDITY])
+    for _ in sensor.setup_sensor(bme280.Pget_temperature_sensor(), make.Pmqtt_temperature,
+                                 config[CONF_TEMPERATURE]):
+        yield
+    for _ in sensor.setup_sensor(bme280.Pget_pressure_sensor(), make.Pmqtt_pressure,
+                                 config[CONF_PRESSURE]):
+        yield
+    for _ in sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
+                                 config[CONF_HUMIDITY]):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_BME280'

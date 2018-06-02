@@ -93,6 +93,50 @@ class Config(OrderedDict):
         self.errors.append((message, domain, config))
 
 
+def iter_ids(config, prefix=None, parent=None):
+    prefix = prefix or []
+    parent = parent or {}
+    if isinstance(config, core.ID):
+        yield config, prefix, parent
+    elif isinstance(config, core.Lambda):
+        for id in config.requires_ids:
+            yield id, prefix, parent
+    elif isinstance(config, list):
+        for i, item in enumerate(config):
+            for result in iter_ids(item, prefix + [str(i)], config):
+                yield result
+    elif isinstance(config, dict):
+        for key, value in config.iteritems():
+            for result in iter_ids(value, prefix + [str(key)], config):
+                yield result
+
+
+def do_id_pass(result):
+    declare_ids = []
+    searching_ids = []
+    for id, prefix, config in iter_ids(result):
+        if id.is_declaration:
+            if id.id is not None and any(v[0].id == id.id for v in declare_ids):
+                result.add_error("ID {} redefined!".format(id.id), '.'.join(prefix), config)
+                continue
+            declare_ids.append((id, prefix, config))
+        else:
+            searching_ids.append((id, prefix, config))
+    # Resolve default ids after manual IDs
+    for id, _, _ in declare_ids:
+        id.resolve([v[0].id for v in declare_ids])
+
+    # Check searched IDs
+    for id, prefix, config in searching_ids:
+        if id.id is not None and not any(v[0].id == id.id for v in declare_ids):
+            result.add_error("Couldn't find ID {}".format(id.id), '.'.join(prefix), config)
+        if id.id is None and id.type is not None:
+            id.id = next((v[0].id for v in declare_ids if v[0].type == id.type), None)
+            if id.id is None:
+                result.add_error("Couldn't resolve ID for type {}".format(id.type),
+                                 '.'.join(prefix), config)
+
+
 def validate_config(config):
     global _ALL_COMPONENTS
 
@@ -185,6 +229,8 @@ def validate_config(config):
                     continue
                 platforms.append(p_validated)
         result[domain] = platforms
+
+    do_id_pass(result)
     return result
 
 
@@ -237,8 +283,10 @@ def load_config(path):
 
     try:
         result = validate_config(config)
+    except ESPHomeYAMLError:
+        raise
     except Exception:
-        print(u"Unexpected exception while reading configuration:")
+        _LOGGER.error(u"Unexpected exception while reading configuration:")
         raise
 
     return result
@@ -279,18 +327,18 @@ def dump_dict(layer, indent_count=3, listi=False, **kwargs):
 
 
 def read_config(path):
-    _LOGGER.debug("Reading configuration...")
+    _LOGGER.info("Reading configuration...")
     try:
         res = load_config(path)
     except ESPHomeYAMLError as err:
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
     excepts = {}
-    for err in res.errors:
-        domain = err[1] or u"General Error"
-        excepts.setdefault(domain, []).append(err[0])
-        if err[2] is not None:
-            excepts[domain].append(err[2])
+    for message, domain, config in res.errors:
+        domain = domain or u"General Error"
+        excepts.setdefault(domain, []).append(message)
+        if config is not None:
+            excepts[domain].append(config)
 
     if excepts:
         print(color('bold_white', u"Failed config"))

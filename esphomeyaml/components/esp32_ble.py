@@ -6,17 +6,17 @@ from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
+ESP32BLETracker = esphomelib_ns.ESP32BLETracker
+
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID('esp32_ble'): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
     vol.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_milliseconds,
 })
-
-ESP32BLETracker = esphomelib_ns.ESP32BLETracker
 
 
 def to_code(config):
     rhs = App.make_esp32_ble_tracker()
-    ble = Pvariable(ESP32BLETracker, config[CONF_ID], rhs)
+    ble = Pvariable(config[CONF_ID], rhs)
     if CONF_SCAN_INTERVAL in config:
         add(ble.set_scan_interval(config[CONF_SCAN_INTERVAL]))
 

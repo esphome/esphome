@@ -27,18 +27,24 @@ BinarySensor = binary_sensor_ns.BinarySensor
 MQTTBinarySensorComponent = binary_sensor_ns.MQTTBinarySensorComponent
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('mqtt_binary_sensor', CONF_MQTT_ID): cv.register_variable_id,
-    cv.GenerateID('binary_sensor'): cv.register_variable_id,
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
+    cv.GenerateID(): cv.declare_variable_id(BinarySensor),
     vol.Optional(CONF_INVERTED): cv.boolean,
     vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
-    vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
-    vol.Optional(CONF_ON_RELEASE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
+    vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
+    })]),
+    vol.Optional(CONF_ON_RELEASE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ReleaseTrigger),
+    })]),
     vol.Optional(CONF_ON_CLICK): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ClickTrigger),
         vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     })]),
     vol.Optional(CONF_ON_DOUBLE_CLICK):
         vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(DoubleClickTrigger),
             vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
             vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
         })]),
@@ -53,43 +59,47 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
 
     for conf in config.get(CONF_ON_PRESS, []):
         rhs = binary_sensor_var.make_press_trigger()
-        trigger = Pvariable(PressTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, NoArg, conf):
+            yield
 
     for conf in config.get(CONF_ON_RELEASE, []):
         rhs = binary_sensor_var.make_release_trigger()
-        trigger = Pvariable(ReleaseTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, NoArg, conf):
+            yield
 
     for conf in config.get(CONF_ON_CLICK, []):
         rhs = binary_sensor_var.make_click_trigger(conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH])
-        trigger = Pvariable(ClickTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, NoArg, conf):
+            yield
 
     for conf in config.get(CONF_ON_DOUBLE_CLICK, []):
         rhs = binary_sensor_var.make_double_click_trigger(conf[CONF_MIN_LENGTH],
                                                           conf[CONF_MAX_LENGTH])
-        trigger = Pvariable(DoubleClickTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, NoArg, conf):
+            yield
 
     setup_mqtt_component(mqtt_var, config)
 
 
 def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
-    binary_sensor_var = Pvariable(BinarySensor, config[CONF_ID], binary_sensor_obj,
+    binary_sensor_var = Pvariable(config[CONF_ID], binary_sensor_obj,
                                   has_side_effects=False)
-    mqtt_var = Pvariable(MQTTBinarySensorComponent, config[CONF_MQTT_ID], mqtt_obj,
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
                          has_side_effects=False)
-    setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config)
+    for _ in setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
+        yield
 
 
 def register_binary_sensor(var, config):
-    binary_sensor_var = Pvariable(BinarySensor, config[CONF_ID], var,
-                                  has_side_effects=True)
+    binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_binary_sensor(binary_sensor_var)
-    mqtt_var = Pvariable(MQTTBinarySensorComponent, config[CONF_MQTT_ID], rhs,
-                         has_side_effects=True)
-    setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
+    for _ in setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'

@@ -9,19 +9,19 @@ from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns
 
 _LOGGER = logging.getLogger(__name__)
 
+WebServer = esphomelib_ns.WebServer
+
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID('web_server'): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(WebServer),
     vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_CSS_URL): vol.Url,
     vol.Optional(CONF_JS_URL): vol.Url,
 })
 
-WebServer = esphomelib_ns.WebServer
-
 
 def to_code(config):
     rhs = App.init_web_server(config.get(CONF_PORT))
-    web_server = Pvariable(WebServer, config[CONF_ID], rhs)
+    web_server = Pvariable(config[CONF_ID], rhs)
     if CONF_CSS_URL in config:
         add(web_server.set_css_url(config[CONF_CSS_URL]))
     if CONF_JS_URL in config:

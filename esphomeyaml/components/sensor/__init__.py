@@ -46,24 +46,6 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_OR): validate_recursive_filter,
 }, cv.has_exactly_one_key(*FILTER_KEYS))])
 
-SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('mqtt_sensor', CONF_MQTT_ID): cv.register_variable_id,
-    cv.GenerateID('sensor'): cv.register_variable_id,
-    vol.Required(CONF_NAME): cv.string,
-    vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
-    vol.Optional(CONF_ICON): cv.icon,
-    vol.Optional(CONF_ACCURACY_DECIMALS): vol.Coerce(int),
-    vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
-    vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
-    vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
-    vol.Optional(CONF_ON_RAW_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA]),
-    vol.Optional(CONF_ON_VALUE_RANGE): vol.All(cv.ensure_list, [vol.All(
-        automation.AUTOMATION_SCHEMA.extend({
-            vol.Optional(CONF_ABOVE): vol.Coerce(float),
-            vol.Optional(CONF_BELOW): vol.Coerce(float),
-        }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))]),
-})
-
 # pylint: disable=invalid-name
 sensor_ns = esphomelib_ns.namespace('sensor')
 Sensor = sensor_ns.Sensor
@@ -86,41 +68,72 @@ SensorValueTrigger = sensor_ns.SensorValueTrigger
 RawSensorValueTrigger = sensor_ns.RawSensorValueTrigger
 ValueRangeTrigger = sensor_ns.ValueRangeTrigger
 
+SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),
+    cv.GenerateID(): cv.declare_variable_id(Sensor),
+    vol.Required(CONF_NAME): cv.string,
+    vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+    vol.Optional(CONF_ICON): cv.icon,
+    vol.Optional(CONF_ACCURACY_DECIMALS): vol.Coerce(int),
+    vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
+    vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
+    vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorValueTrigger),
+    })]),
+    vol.Optional(CONF_ON_RAW_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(RawSensorValueTrigger),
+    })]),
+    vol.Optional(CONF_ON_VALUE_RANGE): vol.All(cv.ensure_list, [vol.All(
+        automation.AUTOMATION_SCHEMA.extend({
+            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
+            vol.Optional(CONF_ABOVE): vol.Coerce(float),
+            vol.Optional(CONF_BELOW): vol.Coerce(float),
+        }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))]),
+})
+
 
 def setup_filter(config):
     if CONF_OFFSET in config:
-        return OffsetFilter.new(config[CONF_OFFSET])
-    if CONF_MULTIPLY in config:
-        return MultiplyFilter.new(config[CONF_MULTIPLY])
-    if CONF_FILTER_OUT in config:
-        return FilterOutValueFilter.new(config[CONF_FILTER_OUT])
-    if CONF_FILTER_NAN in config:
-        return FilterOutNANFilter()
-    if CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
+        yield OffsetFilter.new(config[CONF_OFFSET])
+    elif CONF_MULTIPLY in config:
+        yield MultiplyFilter.new(config[CONF_MULTIPLY])
+    elif CONF_FILTER_OUT in config:
+        yield FilterOutValueFilter.new(config[CONF_FILTER_OUT])
+    elif CONF_FILTER_NAN in config:
+        yield FilterOutNANFilter()
+    elif CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
         conf = config[CONF_SLIDING_WINDOW_MOVING_AVERAGE]
-        return SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY])
-    if CONF_EXPONENTIAL_MOVING_AVERAGE in config:
+        yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY])
+    elif CONF_EXPONENTIAL_MOVING_AVERAGE in config:
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
-        return ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
-    if CONF_LAMBDA in config:
-        return LambdaFilter.new(process_lambda(config[CONF_LAMBDA], [(float_, 'x')]))
-    if CONF_THROTTLE in config:
-        return ThrottleFilter.new(config[CONF_THROTTLE])
-    if CONF_DELTA in config:
-        return DeltaFilter.new(config[CONF_DELTA])
-    if CONF_OR in config:
-        return OrFilter.new(setup_filters(config[CONF_OR]))
-    if CONF_HEARTBEAT in config:
-        return App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
-    if CONF_DEBOUNCE in config:
-        return App.register_component(DebounceFilter.new(config[CONF_DEBOUNCE]))
-    if CONF_UNIQUE in config:
-        return UniqueFilter.new()
-    raise ValueError(u"Filter unsupported: {}".format(config))
+        yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
+    elif CONF_LAMBDA in config:
+        lambda_ = None
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')]):
+            yield None
+        yield LambdaFilter.new(lambda_)
+    elif CONF_THROTTLE in config:
+        yield ThrottleFilter.new(config[CONF_THROTTLE])
+    elif CONF_DELTA in config:
+        yield DeltaFilter.new(config[CONF_DELTA])
+    elif CONF_OR in config:
+        yield OrFilter.new(setup_filters(config[CONF_OR]))
+    elif CONF_HEARTBEAT in config:
+        yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
+    elif CONF_DEBOUNCE in config:
+        yield App.register_component(DebounceFilter.new(config[CONF_DEBOUNCE]))
+    elif CONF_UNIQUE in config:
+        yield UniqueFilter.new()
 
 
 def setup_filters(config):
-    return ArrayInitializer(*[setup_filter(x) for x in config])
+    filters = []
+    for conf in config:
+        filter = None
+        for filter in setup_filter(conf):
+            yield
+        filters.append(filter)
+    yield ArrayInitializer(*filters)
 
 
 def setup_sensor_core_(sensor_var, mqtt_var, config):
@@ -131,24 +144,36 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
     if CONF_ACCURACY_DECIMALS in config:
         add(sensor_var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     if CONF_FILTERS in config:
-        add(sensor_var.set_filters(setup_filters(config[CONF_FILTERS])))
+        filters = None
+        for filters in setup_filters(config[CONF_FILTERS]):
+            yield
+        add(sensor_var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
         rhs = sensor_var.make_value_trigger()
-        trigger = Pvariable(SensorValueTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, float_, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, float_, conf):
+            yield
     for conf in config.get(CONF_ON_RAW_VALUE, []):
         rhs = sensor_var.make_raw_value_trigger()
-        trigger = Pvariable(RawSensorValueTrigger, conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, float_, conf)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        for _ in automation.build_automation(trigger, float_, conf):
+            yield
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         rhs = sensor_var.make_value_range_trigger()
-        trigger = Pvariable(ValueRangeTrigger, conf[CONF_TRIGGER_ID], rhs)
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_ABOVE in conf:
-            trigger.set_min(templatable(conf[CONF_ABOVE], float_, float_))
+            template_ = None
+            for template_ in templatable(conf[CONF_ABOVE], float_, float_):
+                yield
+            trigger.set_min(template_)
         if CONF_BELOW in conf:
-            trigger.set_max(templatable(conf[CONF_BELOW], float_, float_))
-        automation.build_automation(trigger, float_, conf)
+            template_ = None
+            for template_ in templatable(conf[CONF_BELOW], float_, float_):
+                yield
+            trigger.set_max(template_)
+        for _ in automation.build_automation(trigger, float_, conf):
+            yield
 
     if CONF_EXPIRE_AFTER in config:
         if config[CONF_EXPIRE_AFTER] is None:
@@ -159,18 +184,18 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
 
 
 def setup_sensor(sensor_obj, mqtt_obj, config):
-    sensor_var = Pvariable(Sensor, config[CONF_ID], sensor_obj, has_side_effects=False)
-    mqtt_var = Pvariable(MQTTSensorComponent, config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
-    setup_sensor_core_(sensor_var, mqtt_var, config)
+    sensor_var = Pvariable(config[CONF_ID], sensor_obj, has_side_effects=False)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
+    for _ in setup_sensor_core_(sensor_var, mqtt_var, config):
+        yield
 
 
 def register_sensor(var, config):
-    sensor_var = Pvariable(Sensor, config[CONF_ID], var, has_side_effects=True)
+    sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_sensor(sensor_var)
-    mqtt_var = Pvariable(MQTTSensorComponent, config[CONF_MQTT_ID], rhs,
-                         has_side_effects=True)
-    setup_sensor_core_(sensor_var, mqtt_var, config)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
+    for _ in setup_sensor_core_(sensor_var, mqtt_var, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'

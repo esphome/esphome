@@ -30,8 +30,13 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     vol.Inclusive(CONF_DNS2, 'dns'): cv.ipv4,
 })
 
+# pylint: disable=invalid-name
+IPAddress = global_ns.IPAddress
+ManualIP = esphomelib_ns.ManualIP
+WiFiComponent = esphomelib_ns.WiFiComponent
+
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID('wifi'): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
     vol.Optional(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): validate_password,
     vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
@@ -44,11 +49,6 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Required(CONF_DOMAIN, default='.local'): cv.domainname,
 })
-
-# pylint: disable=invalid-name
-IPAddress = global_ns.IPAddress
-ManualIP = esphomelib_ns.ManualIP
-WiFiComponent = esphomelib_ns.WiFiComponent
 
 
 def safe_ip(ip):
@@ -75,7 +75,7 @@ def to_code(config):
         rhs = App.init_wifi(config[CONF_SSID], config.get(CONF_PASSWORD))
     else:
         rhs = App.init_wifi()
-    wifi = Pvariable(WiFiComponent, config[CONF_ID], rhs)
+    wifi = Pvariable(config[CONF_ID], rhs)
 
     if sta and CONF_MANUAL_IP in config:
         add(wifi.set_sta_manual_ip(manual_ip(config[CONF_MANUAL_IP])))

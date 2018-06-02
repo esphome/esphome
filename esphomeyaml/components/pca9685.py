@@ -13,7 +13,7 @@ PHASE_BALANCER_MESSAGE = ("The phase_balancer option has been removed in version
                           "esphomelib will now automatically choose a suitable phase balancer.")
 
 PCA9685_SCHEMA = vol.Schema({
-    cv.GenerateID('pca9685'): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(PCA9685OutputComponent),
     vol.Required(CONF_FREQUENCY): vol.All(cv.frequency,
                                           vol.Range(min=23.84, max=1525.88)),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [PCA9685_SCHEMA])
 def to_code(config):
     for conf in config:
         rhs = App.make_pca9685_component(conf.get(CONF_FREQUENCY))
-        pca9685 = Pvariable(PCA9685OutputComponent, conf[CONF_ID], rhs)
+        pca9685 = Pvariable(conf[CONF_ID], rhs)
         if CONF_ADDRESS in conf:
             add(pca9685.set_address(HexIntLiteral(conf[CONF_ADDRESS])))
 

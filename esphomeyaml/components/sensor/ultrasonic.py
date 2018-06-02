@@ -8,8 +8,10 @@ from esphomeyaml.const import CONF_ECHO_PIN, CONF_MAKE_ID, CONF_NAME, CONF_TIMEO
 from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, \
     gpio_output_pin_expression, variable
 
+MakeUltrasonicSensor = Application.MakeUltrasonicSensor
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('ultrasonic', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeUltrasonicSensor),
     vol.Required(CONF_TRIGGER_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
     vol.Required(CONF_ECHO_PIN): pins.GPIO_INTERNAL_INPUT_PIN_SCHEMA,
     vol.Exclusive(CONF_TIMEOUT_METER, 'timeout'): cv.positive_float,
@@ -17,21 +19,24 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
 
-MakeUltrasonicSensor = Application.MakeUltrasonicSensor
-
 
 def to_code(config):
-    trigger = gpio_output_pin_expression(config[CONF_TRIGGER_PIN])
-    echo = gpio_input_pin_expression(config[CONF_ECHO_PIN])
+    trigger = None
+    for trigger in gpio_output_pin_expression(config[CONF_TRIGGER_PIN]):
+        yield
+    echo = None
+    for trigger in gpio_input_pin_expression(config[CONF_ECHO_PIN]):
+        yield
     rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
-    make = variable(MakeUltrasonicSensor, config[CONF_MAKE_ID], rhs)
+    make = variable(config[CONF_MAKE_ID], rhs)
     ultrasonic = make.Pultrasonic
     if CONF_TIMEOUT_TIME in config:
         add(ultrasonic.set_timeout_us(config[CONF_TIMEOUT_TIME]))
     elif CONF_TIMEOUT_METER in config:
         add(ultrasonic.set_timeout_m(config[CONF_TIMEOUT_METER]))
-    sensor.setup_sensor(ultrasonic, make.Pmqtt, config)
+    for _ in sensor.setup_sensor(ultrasonic, make.Pmqtt, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_ULTRASONIC_SENSOR'

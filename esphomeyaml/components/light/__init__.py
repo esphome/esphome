@@ -7,11 +7,6 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('light'): cv.register_variable_id,
-    cv.GenerateID('mqtt_light', CONF_MQTT_ID): cv.register_variable_id,
-})
-
 light_ns = esphomelib_ns.namespace('light')
 LightState = light_ns.LightState
 MQTTJSONLightComponent = light_ns.MQTTJSONLightComponent
@@ -19,6 +14,11 @@ ToggleAction = light_ns.ToggleAction
 TurnOffAction = light_ns.TurnOffAction
 TurnOnAction = light_ns.TurnOnAction
 MakeLight = Application.MakeLight
+
+LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(LightState),
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTJSONLightComponent),
+})
 
 
 def setup_light_core_(light_var, mqtt_var, config):
@@ -31,9 +31,8 @@ def setup_light_core_(light_var, mqtt_var, config):
 
 
 def setup_light(light_obj, mqtt_obj, config):
-    light_var = Pvariable(LightState, config[CONF_ID], light_obj, has_side_effects=False)
-    mqtt_var = Pvariable(MQTTJSONLightComponent, config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
+    light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
     setup_light_core_(light_var, mqtt_var, config)
 
 

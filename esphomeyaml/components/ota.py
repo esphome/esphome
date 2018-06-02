@@ -12,20 +12,20 @@ from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns
 
 _LOGGER = logging.getLogger(__name__)
 
+OTAComponent = esphomelib_ns.OTAComponent
+
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(CONF_OTA): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(OTAComponent),
     vol.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
     # TODO Num attempts + wait time
     vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_PASSWORD): cv.string,
 })
 
-OTAComponent = esphomelib_ns.OTAComponent
-
 
 def to_code(config):
     rhs = App.init_ota()
-    ota = Pvariable(OTAComponent, config[CONF_ID], rhs)
+    ota = Pvariable(config[CONF_ID], rhs)
     if CONF_PASSWORD in config:
         hash_ = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
         add(ota.set_auth_password_hash(hash_))

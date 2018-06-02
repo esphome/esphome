@@ -8,6 +8,7 @@ from collections import OrderedDict
 
 import yaml
 
+from esphomeyaml import core
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
 
 _LOGGER = logging.getLogger(__name__)
@@ -279,6 +280,10 @@ def represent_lambda(_, data):
     return node
 
 
+def represent_id(_, data):
+    return yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=data.id)
+
+
 yaml.SafeDumper.add_representer(
     OrderedDict,
     lambda dumper, value:
@@ -297,3 +302,4 @@ yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
 yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
 yaml.SafeDumper.add_multi_representer(TimePeriod, represent_time_period)
 yaml.SafeDumper.add_multi_representer(Lambda, represent_lambda)
+yaml.SafeDumper.add_multi_representer(core.ID, represent_id)

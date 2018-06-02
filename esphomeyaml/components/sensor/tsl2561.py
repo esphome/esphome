@@ -28,8 +28,10 @@ def validate_integration_time(value):
     return value
 
 
+MakeTSL2561Sensor = Application.MakeTSL2561Sensor
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('tsl2561_sensor', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTSL2561Sensor),
     vol.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
     vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
     vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*GAINS)),
@@ -37,13 +39,11 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
 
-MakeTSL2561Sensor = Application.MakeTSL2561Sensor
-
 
 def to_code(config):
     rhs = App.make_tsl2561_sensor(config[CONF_NAME], config[CONF_ADDRESS],
                                   config.get(CONF_UPDATE_INTERVAL))
-    make_tsl = variable(MakeTSL2561Sensor, config[CONF_MAKE_ID], rhs)
+    make_tsl = variable(config[CONF_MAKE_ID], rhs)
     tsl2561 = make_tsl.Ptsl2561
     if CONF_INTEGRATION_TIME in config:
         add(tsl2561.set_integration_time(INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
@@ -51,7 +51,8 @@ def to_code(config):
         add(tsl2561.set_gain(GAINS[config[CONF_GAIN]]))
     if CONF_IS_CS_PACKAGE in config:
         add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
-    sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config)
+    for _ in sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_TSL2561'

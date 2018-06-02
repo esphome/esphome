@@ -17,7 +17,6 @@ WAIT_TIME_MESSAGE = "The wait_time_us option has been renamed to wait_time in or
                     "ambiguity. "
 
 PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('ir_transmitter_switch'): cv.register_variable_id,
     vol.Exclusive(CONF_NEC, 'code'): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint16_t,
@@ -44,7 +43,7 @@ PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
 
         vol.Optional('wait_time_us'): cv.invalid(WAIT_TIME_MESSAGE),
     })),
-    vol.Optional(CONF_IR_TRANSMITTER_ID): cv.variable_id,
+    cv.GenerateID(CONF_IR_TRANSMITTER_ID): cv.use_variable_id(IRTransmitterComponent),
     vol.Optional(CONF_INVERTED): cv.invalid("IR Transmitters do not support inverted mode!"),
 }).extend(switch.SWITCH_SCHEMA.schema), cv.has_at_least_one_key(*IR_KEYS))
 
@@ -94,7 +93,9 @@ def exp_send_data(config):
 
 
 def to_code(config):
-    ir = get_variable(config.get(CONF_IR_TRANSMITTER_ID), IRTransmitterComponent)
+    ir = None
+    for ir in get_variable(config[CONF_IR_TRANSMITTER_ID]):
+        yield
     send_data = exp_send_data(config)
     rhs = App.register_component(ir.create_transmitter(config[CONF_NAME], send_data))
     switch.register_switch(rhs, config)

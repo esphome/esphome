@@ -8,29 +8,31 @@ from esphomeyaml.helpers import App, HexIntLiteral, add, variable, Application
 
 DEPENDENCIES = ['i2c']
 
+MakeBMP085Sensor = Application.MakeBMP085Sensor
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('bmp085_sensor', CONF_MAKE_ID): cv.register_variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBMP085Sensor),
     vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
     vol.Required(CONF_PRESSURE): sensor.SENSOR_SCHEMA,
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
-MakeBMP085Sensor = Application.MakeBMP085Sensor
-
 
 def to_code(config):
     rhs = App.make_bmp085_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_PRESSURE][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
-    bmp = variable(MakeBMP085Sensor, config[CONF_MAKE_ID], rhs)
+    bmp = variable(config[CONF_MAKE_ID], rhs)
     if CONF_ADDRESS in config:
         add(bmp.Pbmp.set_address(HexIntLiteral(config[CONF_ADDRESS])))
 
-    sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), bmp.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
-                        config[CONF_PRESSURE])
+    for _ in sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), bmp.Pmqtt_temperature,
+                                 config[CONF_TEMPERATURE]):
+        yield
+    for _ in sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
+                                 config[CONF_PRESSURE]):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_BMP085_SENSOR'

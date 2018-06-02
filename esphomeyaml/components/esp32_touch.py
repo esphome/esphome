@@ -42,7 +42,6 @@ VOLTAGE_ATTENUATION = {
 }
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID('esp32_ble'): cv.register_variable_id,
     vol.Optional(CONF_SETUP_MODE): cv.boolean,
     vol.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_SLEEP_DURATION):
@@ -59,7 +58,7 @@ ESP32TouchComponent = binary_sensor.binary_sensor_ns.ESP32TouchComponent
 
 def to_code(config):
     rhs = App.make_esp32_touch_component()
-    touch = Pvariable(ESP32TouchComponent, config[CONF_ID], rhs)
+    touch = Pvariable(config[CONF_ID], rhs)
     if CONF_SETUP_MODE in config:
         add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
     if CONF_IIR_FILTER in config:

@@ -8,11 +8,11 @@ from esphomeyaml.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CO
 from esphomeyaml.helpers import App, add, get_variable, variable
 
 PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('speed_fan', CONF_MAKE_ID): cv.register_variable_id,
-    vol.Required(CONF_OUTPUT): cv.variable_id,
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(fan.MakeFan),
+    vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
     vol.Optional(CONF_SPEED_STATE_TOPIC): cv.publish_topic,
     vol.Optional(CONF_SPEED_COMMAND_TOPIC): cv.subscribe_topic,
-    vol.Optional(CONF_OSCILLATION_OUTPUT): cv.variable_id,
+    vol.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(None),
     vol.Optional(CONF_SPEED): vol.Schema({
         vol.Required(CONF_LOW): cv.percentage,
         vol.Required(CONF_MEDIUM): cv.percentage,
@@ -22,9 +22,11 @@ PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    output = get_variable(config[CONF_OUTPUT])
+    output = None
+    for output in get_variable(config[CONF_OUTPUT]):
+        yield
     rhs = App.make_fan(config[CONF_NAME])
-    fan_struct = variable(fan.MakeFan, config[CONF_MAKE_ID], rhs)
+    fan_struct = variable(config[CONF_MAKE_ID], rhs)
     if CONF_SPEED in config:
         speeds = config[CONF_SPEED]
         add(fan_struct.Poutput.set_speed(output, 0.0,
@@ -35,7 +37,9 @@ def to_code(config):
         add(fan_struct.Poutput.set_speed(output))
 
     if CONF_OSCILLATION_OUTPUT in config:
-        oscillation_output = get_variable(config[CONF_OSCILLATION_OUTPUT])
+        oscillation_output = None
+        for oscillation_output in get_variable(config[CONF_OSCILLATION_OUTPUT]):
+            yield
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
     fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)

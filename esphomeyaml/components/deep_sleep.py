@@ -14,8 +14,10 @@ def validate_pin_number(value):
     return value
 
 
+DeepSleepComponent = esphomelib_ns.DeepSleepComponent
+
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID('deep_sleep'): cv.register_variable_id,
+    cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.GPIO_INTERNAL_INPUT_PIN_SCHEMA,
                                            validate_pin_number),
@@ -23,16 +25,16 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 })
 
-DeepSleepComponent = esphomelib_ns.DeepSleepComponent
-
 
 def to_code(config):
     rhs = App.make_deep_sleep_component()
-    deep_sleep = Pvariable(DeepSleepComponent, config[CONF_ID], rhs)
+    deep_sleep = Pvariable(config[CONF_ID], rhs)
     if CONF_SLEEP_DURATION in config:
         add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = gpio_input_pin_expression(config[CONF_WAKEUP_PIN])
+        pin = None
+        for pin in gpio_input_pin_expression(config[CONF_WAKEUP_PIN]):
+            yield
         add(deep_sleep.set_wakeup_pin(pin))
     if CONF_RUN_CYCLES in config:
         add(deep_sleep.set_run_cycles(config[CONF_RUN_CYCLES]))

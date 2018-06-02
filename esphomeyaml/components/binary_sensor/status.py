@@ -5,17 +5,18 @@ from esphomeyaml.helpers import App, Application, variable
 
 DEPENDENCIES = ['mqtt']
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('status_binary_sensor', CONF_MAKE_ID): cv.register_variable_id,
-}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
-
 MakeStatusBinarySensor = Application.MakeStatusBinarySensor
+
+PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeStatusBinarySensor),
+}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
 
 
 def to_code(config):
     rhs = App.make_status_binary_sensor(config[CONF_NAME])
-    status = variable(MakeStatusBinarySensor, config[CONF_MAKE_ID], rhs)
-    binary_sensor.setup_binary_sensor(status.Pstatus, status.Pmqtt, config)
+    status = variable(config[CONF_MAKE_ID], rhs)
+    for _ in binary_sensor.setup_binary_sensor(status.Pstatus, status.Pmqtt, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_STATUS_BINARY_SENSOR'

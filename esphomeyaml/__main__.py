@@ -1,11 +1,11 @@
 from __future__ import print_function
 
 import argparse
-from datetime import datetime
 import logging
 import os
 import random
 import sys
+from datetime import datetime
 
 from esphomeyaml import const, core, mqtt, wizard, writer, yaml_util
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
@@ -13,7 +13,7 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CON
     CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
-    add_task, color, get_variable, indent, quote, statement
+    add_task, color, flush_tasks, indent, quote, statement
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,26 +113,21 @@ def run_miniterm(config, port, escape=False):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    add_task(core_to_code, config[CONF_ESPHOMEYAML])
+    add_task(core_to_code, config[CONF_ESPHOMEYAML], 'esphomeyaml')
     for domain in PRE_INITIALIZE:
         if domain == CONF_ESPHOMEYAML:
             continue
         if domain in config:
-            add_task(get_component(domain).to_code, config[domain])
-
-    # Clear queue
-    get_variable(None)
-    add(RawStatement(''))
+            add_task(get_component(domain).to_code, config[domain], domain)
 
     for domain, component, conf in iter_components(config):
         if domain in PRE_INITIALIZE:
             continue
         if not hasattr(component, 'to_code'):
             continue
-        add_task(component.to_code, conf)
+        add_task(component.to_code, conf, domain)
 
-    # Clear queue
-    get_variable(None)
+    flush_tasks()
     add(RawStatement(''))
     add(RawStatement(''))
 
@@ -157,9 +152,12 @@ def write_cpp(config):
     return 0
 
 
-def compile_program(config):
+def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    return run_platformio('platformio', 'run', '-d', get_base_path(config))
+    command = ['platformio', 'run', '-d', get_base_path(config)]
+    if args.verbose:
+        command.append('-v')
+    return run_platformio(*command)
 
 
 def get_upload_host(config):
@@ -188,8 +186,11 @@ def upload_program(config, args, port):
     if port != 'OTA':
         if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
             return upload_using_esptool(config, port)
-        return run_platformio('platformio', 'run', '-d', get_base_path(config),
-                              '-t', 'upload', '--upload-port', port)
+        command = ['platformio', 'run', '-d', get_base_path(config),
+                   '-t', 'upload', '--upload-port', port]
+        if args.verbose:
+            command.append('-v')
+        return run_platformio(*command)
 
     if 'ota' not in config:
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
@@ -223,8 +224,9 @@ def clean_mqtt(config, args):
     return mqtt.clear_topic(config, args.topic, args.username, args.password, args.client_id)
 
 
-def setup_log():
-    logging.basicConfig(level=logging.INFO)
+def setup_log(debug=False):
+    log_level = logging.DEBUG if debug else logging.INFO
+    logging.basicConfig(level=log_level)
     fmt = "%(levelname)s [%(name)s] %(message)s"
     colorfmt = "%(log_color)s{}%(reset)s".format(fmt)
     datefmt = '%H:%M:%S'
@@ -253,7 +255,28 @@ def command_wizard(args):
     return wizard.wizard(args.configuration)
 
 
+def strip_default_ids(config):
+    value = config
+    if isinstance(config, list):
+        value = type(config)()
+        for x in config:
+            if isinstance(x, core.ID) and not x.is_manual:
+                continue
+            value.append(strip_default_ids(x))
+        return value
+    elif isinstance(config, dict):
+        value = type(config)()
+        for k, v in config.iteritems():
+            if isinstance(v, core.ID) and not v.is_manual:
+                continue
+            value[k] = strip_default_ids(v)
+        return value
+    return value
+
+
 def command_config(args, config):
+    if not args.verbose:
+        config = strip_default_ids(config)
     print(yaml_util.dump(config))
     return 0
 
@@ -262,7 +285,7 @@ def command_compile(args, config):
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
-    exit_code = compile_program(config)
+    exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully compiled program.")
@@ -287,7 +310,7 @@ def command_run(args, config):
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
-    exit_code = compile_program(config)
+    exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully compiled program.")
@@ -339,6 +362,8 @@ POST_CONFIG_ACTIONS = {
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphomeyaml')
+    parser.add_argument('-v', '--verbose', help="Enable verbose esphomeyaml logs.",
+                        action='store_true')
     parser.add_argument('configuration', help='Your YAML configuration file.')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -407,8 +432,8 @@ def parse_args(argv):
 
 
 def run_esphomeyaml(argv):
-    setup_log()
     args = parse_args(argv)
+    setup_log(args.verbose)
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)

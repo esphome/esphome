@@ -46,21 +46,23 @@ def validate_mux(value):
 
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID('ads1115_sensor'): cv.register_variable_id,
     vol.Required(CONF_MULTIPLEXER): validate_mux,
     vol.Required(CONF_GAIN): validate_gain,
-    vol.Optional(CONF_ADS1115_ID): cv.variable_id,
+    cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
 
 
 def to_code(config):
-    hub = get_variable(config.get(CONF_ADS1115_ID), ADS1115Component)
+    hub = None
+    for hub in get_variable(config[CONF_ADS1115_ID]):
+        yield
 
     mux = MUX[config[CONF_MULTIPLEXER]]
     gain = GAIN[config[CONF_GAIN]]
     rhs = hub.get_sensor(config[CONF_NAME], mux, gain, config.get(CONF_UPDATE_INTERVAL))
-    sensor.register_sensor(rhs, config)
+    for _ in sensor.register_sensor(rhs, config):
+        yield
 
 
 BUILD_FLAGS = '-DUSE_ADS1115_SENSOR'

@@ -8,19 +8,19 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID('switch_'): cv.register_variable_id,
-    cv.GenerateID('mqtt_switch', CONF_MQTT_ID): cv.register_variable_id,
-    vol.Optional(CONF_ICON): cv.icon,
-    vol.Optional(CONF_INVERTED): cv.boolean,
-})
-
 switch_ns = esphomelib_ns.namespace('switch_')
 Switch = switch_ns.Switch
 MQTTSwitchComponent = switch_ns.MQTTSwitchComponent
 ToggleAction = switch_ns.ToggleAction
 TurnOffAction = switch_ns.TurnOffAction
 TurnOnAction = switch_ns.TurnOnAction
+
+SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(Switch),
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
+    vol.Optional(CONF_ICON): cv.icon,
+    vol.Optional(CONF_INVERTED): cv.boolean,
+})
 
 
 def setup_switch_core_(switch_var, mqtt_var, config):
@@ -33,17 +33,15 @@ def setup_switch_core_(switch_var, mqtt_var, config):
 
 
 def setup_switch(switch_obj, mqtt_obj, config):
-    switch_var = Pvariable(Switch, config[CONF_ID], switch_obj, has_side_effects=False)
-    mqtt_var = Pvariable(MQTTSwitchComponent, config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
+    switch_var = Pvariable(config[CONF_ID], switch_obj, has_side_effects=False)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
     setup_switch_core_(switch_var, mqtt_var, config)
 
 
 def register_switch(var, config):
-    switch_var = Pvariable(Switch, config[CONF_ID], var, has_side_effects=True)
+    switch_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_switch(switch_var)
-    mqtt_var = Pvariable(MQTTSwitchComponent, config[CONF_MQTT_ID], rhs,
-                         has_side_effects=True)
+    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
     setup_switch_core_(switch_var, mqtt_var, config)
 
 
