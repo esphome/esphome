@@ -1,0 +1,91 @@
+esphomeyaml:
+  name: <NAME_OF_NODE>
+  platform: ESP8266
+  board: esp01_1m
+  board_flash_mode: dout
+
+wifi:
+  ssid: <YOUR_SSID>
+  password: <YOUR_PASSWORD>
+
+mqtt:
+  broker: <YOUR_MQTT_BROKER>
+  username: <YOUR_USERNAME>
+  password: <YOUR_PASSWORD>
+
+logger:
+
+ota:
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Sonoff 4CH Button 1"
+    on_press:
+      then:
+        switch.toggle:
+          id: relay_1
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Sonoff 4CH Button 2"
+    on_press:
+      then:
+        switch.toggle:
+          id: relay_2
+  - platform: gpio
+    pin:
+      number: GPIO10
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Sonoff 4CH Button 3"
+    on_press:
+      then:
+        switch.toggle:
+          id: relay_3
+  - platform: gpio
+    pin:
+      number: GPIO14
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Sonoff 4CH Button 4"
+    on_press:
+      then:
+        switch.toggle:
+          id: relay_4
+  - platform: status
+    name: "Sonoff 4CH Status"
+
+switch:
+  - platform: gpio
+    name: "Sonoff 4CH Relay 1"
+    pin: GPIO12
+    id: relay_1
+  - platform: gpio
+    name: "Sonoff 4CH Relay 2"
+    pin: GPIO5
+    id: relay_2
+  - platform: gpio
+    name: "Sonoff 4CH Relay 3"
+    pin: GPIO4
+    id: relay_3
+  - platform: gpio
+    name: "Sonoff 4CH Relay 4"
+    pin: GPIO15
+    id: relay_4
+
+output:
+  - platform: esp8266_pwm
+    id: blue_led
+    pin: GPIO13
+    inverted: True
+
+light:
+  - platform: monochromatic
+    name: "Sonoff 4CH Blue LED"
+    output: blue_led
