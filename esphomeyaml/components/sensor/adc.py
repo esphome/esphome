@@ -14,9 +14,17 @@ ATTENUATION_MODES = {
     '11db': global_ns.ADC_11db,
 }
 
+
+def validate_adc_pin(value):
+    vcc = str(value).upper()
+    if vcc == 'VCC':
+        return cv.only_on_esp8266(vcc)
+    return pins.analog_pin(value)
+
+
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID('adc', CONF_MAKE_ID): cv.register_variable_id,
-    vol.Required(CONF_PIN): pins.analog_pin,
+    vol.Required(CONF_PIN): validate_adc_pin,
     vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
@@ -25,7 +33,10 @@ MakeADCSensor = Application.MakeADCSensor
 
 
 def to_code(config):
-    rhs = App.make_adc_sensor(config[CONF_NAME], config[CONF_PIN],
+    pin = config[CONF_PIN]
+    if pin == 'VCC':
+        pin = 0
+    rhs = App.make_adc_sensor(config[CONF_NAME], pin,
                               config.get(CONF_UPDATE_INTERVAL))
     make = variable(MakeADCSensor, config[CONF_MAKE_ID], rhs)
     adc = make.Padc
@@ -35,3 +46,9 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_ADC_SENSOR'
+
+
+def required_build_flags(config):
+    if config[CONF_PIN] == 'VCC':
+        return '-DUSE_ADC_SENSOR_VCC'
+    return None
