@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_HUMIDITY, CONF_MAKE_ID, CONF_NAME, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, variable, Application
+from esphomeyaml.helpers import App, Application, variable
 
 DEPENDENCIES = ['i2c']
 
@@ -23,12 +23,10 @@ def to_code(config):
                                  config[CONF_HUMIDITY][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
     htu21d = variable(config[CONF_MAKE_ID], rhs)
-    for _ in sensor.setup_sensor(htu21d.Phtu21d.Pget_temperature_sensor(), htu21d.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(htu21d.Phtu21d.Pget_humidity_sensor(), htu21d.Pmqtt_humidity,
-                                 config[CONF_HUMIDITY]):
-        yield
+    sensor.setup_sensor(htu21d.Phtu21d.Pget_temperature_sensor(), htu21d.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(htu21d.Phtu21d.Pget_humidity_sensor(), htu21d.Pmqtt_humidity,
+                        config[CONF_HUMIDITY])
 
 
 BUILD_FLAGS = '-DUSE_HTU21D_SENSOR'

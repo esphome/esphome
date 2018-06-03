@@ -5,7 +5,8 @@ from esphomeyaml import automation
 from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INVERTED, CONF_MAX_LENGTH, \
     CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, CONF_ON_PRESS, \
     CONF_ON_RELEASE, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, esphomelib_ns, setup_mqtt_component
+from esphomeyaml.helpers import App, NoArg, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
+    add_job
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -60,27 +61,23 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
     for conf in config.get(CONF_ON_PRESS, []):
         rhs = binary_sensor_var.make_press_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for _ in automation.build_automation(trigger, NoArg, conf):
-            yield
+        automation.build_automation(trigger, NoArg, conf)
 
     for conf in config.get(CONF_ON_RELEASE, []):
         rhs = binary_sensor_var.make_release_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for _ in automation.build_automation(trigger, NoArg, conf):
-            yield
+        automation.build_automation(trigger, NoArg, conf)
 
     for conf in config.get(CONF_ON_CLICK, []):
         rhs = binary_sensor_var.make_click_trigger(conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for _ in automation.build_automation(trigger, NoArg, conf):
-            yield
+        automation.build_automation(trigger, NoArg, conf)
 
     for conf in config.get(CONF_ON_DOUBLE_CLICK, []):
         rhs = binary_sensor_var.make_double_click_trigger(conf[CONF_MIN_LENGTH],
                                                           conf[CONF_MAX_LENGTH])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for _ in automation.build_automation(trigger, NoArg, conf):
-            yield
+        automation.build_automation(trigger, NoArg, conf)
 
     setup_mqtt_component(mqtt_var, config)
 
@@ -90,16 +87,14 @@ def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
                                   has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
                          has_side_effects=False)
-    for _ in setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
-        yield
+    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 def register_binary_sensor(var, config):
     binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_binary_sensor(binary_sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    for _ in setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
-        yield
+    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'

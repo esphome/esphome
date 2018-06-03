@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, HexIntLiteral, add, variable, Application
+from esphomeyaml.helpers import App, Application, HexIntLiteral, add, variable
 
 DEPENDENCIES = ['i2c']
 
@@ -27,12 +27,10 @@ def to_code(config):
     if CONF_ADDRESS in config:
         add(bmp.Pbmp.set_address(HexIntLiteral(config[CONF_ADDRESS])))
 
-    for _ in sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), bmp.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
-                                 config[CONF_PRESSURE]):
-        yield
+    sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), bmp.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
+                        config[CONF_PRESSURE])
 
 
 BUILD_FLAGS = '-DUSE_BMP085_SENSOR'

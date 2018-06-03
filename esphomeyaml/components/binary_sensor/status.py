@@ -15,8 +15,7 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
 def to_code(config):
     rhs = App.make_status_binary_sensor(config[CONF_NAME])
     status = variable(config[CONF_MAKE_ID], rhs)
-    for _ in binary_sensor.setup_binary_sensor(status.Pstatus, status.Pmqtt, config):
-        yield
+    binary_sensor.setup_binary_sensor(status.Pstatus, status.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_STATUS_BINARY_SENSOR'

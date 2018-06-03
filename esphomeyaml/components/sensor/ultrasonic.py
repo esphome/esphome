@@ -35,8 +35,7 @@ def to_code(config):
         add(ultrasonic.set_timeout_us(config[CONF_TIMEOUT_TIME]))
     elif CONF_TIMEOUT_METER in config:
         add(ultrasonic.set_timeout_m(config[CONF_TIMEOUT_METER]))
-    for _ in sensor.setup_sensor(ultrasonic, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(ultrasonic, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_ULTRASONIC_SENSOR'

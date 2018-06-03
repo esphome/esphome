@@ -134,8 +134,7 @@ def to_code(config):
     for conf in config.get(CONF_ON_MESSAGE, []):
         rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for _ in automation.build_automation(trigger, std_string, conf):
-            yield
+        automation.build_automation(trigger, std_string, conf)
 
 
 def required_build_flags(config):

@@ -42,8 +42,7 @@ def to_code(config):
         yield
     addr = [HexInt(i) for i in config[CONF_MAC_ADDRESS].parts]
     rhs = hub.make_device(config[CONF_NAME], ArrayInitializer(*addr, multiline=False))
-    for _ in binary_sensor.register_binary_sensor(rhs, config):
-        yield
+    binary_sensor.register_binary_sensor(rhs, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_BLE_TRACKER'

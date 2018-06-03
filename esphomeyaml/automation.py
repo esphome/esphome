@@ -11,7 +11,7 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMAT
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, \
     bool_, esphomelib_ns, float_, get_variable, process_lambda, std_string, templatable, uint32, \
-    uint8
+    uint8, add_job
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
 CONF_LIGHT_TOGGLE = 'light.toggle'
@@ -390,7 +390,7 @@ def build_actions(config, arg_type):
     yield ArrayInitializer(*actions)
 
 
-def build_automation(trigger, arg_type, config):
+def build_automation_(trigger, arg_type, config):
     rhs = App.make_automation(trigger)
     type = Automation.template(arg_type)
     obj = Pvariable(config[CONF_AUTOMATION_ID], rhs, type=type)
@@ -403,3 +403,7 @@ def build_automation(trigger, arg_type, config):
     for actions in build_actions(config[CONF_THEN], arg_type):
         yield
     add(obj.add_actions(actions))
+
+
+def build_automation(trigger, arg_type, config):
+    add_job(build_automation_, trigger, arg_type, config)

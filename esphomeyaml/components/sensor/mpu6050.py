@@ -41,38 +41,31 @@ def to_code(config):
     if CONF_ACCEL_X in config:
         conf = config[CONF_ACCEL_X]
         rhs = mpu.Pmake_accel_x_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_ACCEL_Y in config:
         conf = config[CONF_ACCEL_Y]
         rhs = mpu.Pmake_accel_y_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_ACCEL_Z in config:
         conf = config[CONF_ACCEL_Z]
         rhs = mpu.Pmake_accel_z_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_GYRO_X in config:
         conf = config[CONF_GYRO_X]
         rhs = mpu.Pmake_gyro_x_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_GYRO_Y in config:
         conf = config[CONF_GYRO_Y]
         rhs = mpu.Pmake_gyro_y_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_GYRO_Z in config:
         conf = config[CONF_GYRO_Z]
         rhs = mpu.Pmake_gyro_z_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
         rhs = mpu.Pmake_temperature_sensor(conf[CONF_NAME])
-        for _ in sensor.register_sensor(rhs, conf):
-            yield
+        sensor.register_sensor(rhs, conf)
 
 
 BUILD_FLAGS = '-DUSE_MPU6050'

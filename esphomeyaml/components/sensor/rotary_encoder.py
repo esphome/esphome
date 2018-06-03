@@ -45,8 +45,7 @@ def to_code(config):
     if CONF_RESOLUTION in config:
         resolution = RESOLUTIONS[config[CONF_RESOLUTION]]
         add(encoder.set_resolution(resolution))
-    for _ in sensor.setup_sensor(encoder, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(encoder, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_ROTARY_ENCODER_SENSOR'

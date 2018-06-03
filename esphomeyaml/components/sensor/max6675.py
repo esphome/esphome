@@ -32,8 +32,7 @@ def to_code(config):
     rhs = App.make_max6675_sensor(config[CONF_NAME], pin_cs, pin_clock, pin_miso,
                                   config.get(CONF_UPDATE_INTERVAL))
     make = variable(config[CONF_MAKE_ID], rhs)
-    for _ in sensor.setup_sensor(make.Pmax6675, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(make.Pmax6675, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_MAX6675_SENSOR'

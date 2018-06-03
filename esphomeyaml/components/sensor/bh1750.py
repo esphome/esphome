@@ -31,8 +31,7 @@ def to_code(config):
     bh1750 = make_bh1750.Pbh1750
     if CONF_RESOLUTION in config:
         add(bh1750.set_resolution(BH1750_RESOLUTIONS[config[CONF_RESOLUTION]]))
-    for _ in sensor.setup_sensor(bh1750, make_bh1750.Pmqtt, config):
-        yield
+    sensor.setup_sensor(bh1750, make_bh1750.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_BH1750'

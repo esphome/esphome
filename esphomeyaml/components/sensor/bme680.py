@@ -70,18 +70,14 @@ def to_code(config):
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
         add(bme680.set_iir_filter(constant))
 
-    for _ in sensor.setup_sensor(bme680.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(bme680.Pget_pressure_sensor(), make.Pmqtt_pressure,
-                                 config[CONF_PRESSURE]):
-        yield
-    for _ in sensor.setup_sensor(bme680.Pget_humidity_sensor(), make.Pmqtt_humidity,
-                                 config[CONF_HUMIDITY]):
-        yield
-    for _ in sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), make.Pmqtt_gas_resistance,
-                                 config[CONF_GAS_RESISTANCE]):
-        yield
+    sensor.setup_sensor(bme680.Pget_temperature_sensor(), make.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bme680.Pget_pressure_sensor(), make.Pmqtt_pressure,
+                        config[CONF_PRESSURE])
+    sensor.setup_sensor(bme680.Pget_humidity_sensor(), make.Pmqtt_humidity,
+                        config[CONF_HUMIDITY])
+    sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), make.Pmqtt_gas_resistance,
+                        config[CONF_GAS_RESISTANCE])
 
 
 BUILD_FLAGS = '-DUSE_BME680'

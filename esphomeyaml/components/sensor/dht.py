@@ -39,12 +39,10 @@ def to_code(config):
         constant = DHT_MODELS[config[CONF_MODEL]]
         add(dht.Pdht.set_dht_model(constant))
 
-    for _ in sensor.setup_sensor(dht.Pdht.Pget_temperature_sensor(),
-                                 dht.Pmqtt_temperature, config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(dht.Pdht.Pget_humidity_sensor(),
-                                 dht.Pmqtt_humidity, config[CONF_HUMIDITY]):
-        yield
+    sensor.setup_sensor(dht.Pdht.Pget_temperature_sensor(),
+                        dht.Pmqtt_temperature, config[CONF_TEMPERATURE])
+    sensor.setup_sensor(dht.Pdht.Pget_humidity_sensor(),
+                        dht.Pmqtt_humidity, config[CONF_HUMIDITY])
 
 
 BUILD_FLAGS = '-DUSE_DHT_SENSOR'

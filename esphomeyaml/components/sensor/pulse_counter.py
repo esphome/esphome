@@ -57,8 +57,7 @@ def to_code(config):
         add(pcnt.set_edge_mode(rising_edge, falling_edge))
     if CONF_INTERNAL_FILTER in config:
         add(pcnt.set_filter(config[CONF_INTERNAL_FILTER]))
-    for _ in sensor.setup_sensor(make.Ppcnt, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(make.Ppcnt, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_PULSE_COUNTER_SENSOR'

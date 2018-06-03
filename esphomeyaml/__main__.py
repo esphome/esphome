@@ -13,7 +13,7 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CON
     CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
-    add_task, color, flush_tasks, indent, quote, statement
+    add_job, color, flush_tasks, indent, quote, statement
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,24 +113,20 @@ def run_miniterm(config, port, escape=False):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    add_task(core_to_code, config[CONF_ESPHOMEYAML], 'esphomeyaml')
+    add_job(core_to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
     for domain in PRE_INITIALIZE:
-        if domain == CONF_ESPHOMEYAML:
+        if domain == CONF_ESPHOMEYAML or domain not in config:
             continue
-        if domain in config:
-            add_task(get_component(domain).to_code, config[domain], domain)
+        add_job(get_component(domain).to_code, config[domain], domain=domain)
 
     for domain, component, conf in iter_components(config):
-        if domain in PRE_INITIALIZE:
+        if domain in PRE_INITIALIZE or not hasattr(component, 'to_code'):
             continue
-        if not hasattr(component, 'to_code'):
-            continue
-        add_task(component.to_code, conf, domain)
+        add_job(component.to_code, conf, domain=domain)
 
     flush_tasks()
     add(RawStatement(''))
     add(RawStatement(''))
-
     all_code = []
     for exp in _EXPRESSIONS:
         if core.SIMPLIFY:

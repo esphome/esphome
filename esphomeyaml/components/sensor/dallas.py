@@ -30,8 +30,7 @@ def to_code(config):
     else:
         rhs = hub.Pget_sensor_by_index(config[CONF_NAME], config[CONF_INDEX],
                                        update_interval, config.get(CONF_RESOLUTION))
-    for _ in sensor.register_sensor(rhs, config):
-        yield
+    sensor.register_sensor(rhs, config)
 
 
 BUILD_FLAGS = '-DUSE_DALLAS_SENSOR'

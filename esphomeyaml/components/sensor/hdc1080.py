@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_HUMIDITY, CONF_MAKE_ID, CONF_NAME, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, variable, Application
+from esphomeyaml.helpers import App, Application, variable
 
 DEPENDENCIES = ['i2c']
 
@@ -24,13 +24,11 @@ def to_code(config):
                                   config.get(CONF_UPDATE_INTERVAL))
     hdc1080 = variable(config[CONF_MAKE_ID], rhs)
 
-    for _ in sensor.setup_sensor(hdc1080.Phdc1080.Pget_temperature_sensor(),
-                                 hdc1080.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(hdc1080.Phdc1080.Pget_humidity_sensor(), hdc1080.Pmqtt_humidity,
-                                 config[CONF_HUMIDITY]):
-        yield
+    sensor.setup_sensor(hdc1080.Phdc1080.Pget_temperature_sensor(),
+                        hdc1080.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(hdc1080.Phdc1080.Pget_humidity_sensor(), hdc1080.Pmqtt_humidity,
+                        config[CONF_HUMIDITY])
 
 
 BUILD_FLAGS = '-DUSE_HDC1080_SENSOR'

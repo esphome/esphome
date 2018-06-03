@@ -51,8 +51,7 @@ def to_code(config):
         add(tsl2561.set_gain(GAINS[config[CONF_GAIN]]))
     if CONF_IS_CS_PACKAGE in config:
         add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
-    for _ in sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config):
-        yield
+    sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_TSL2561'

@@ -19,8 +19,7 @@ def to_code(config):
         yield
     rhs = App.make_template_binary_sensor(config[CONF_NAME], template_)
     make = variable(config[CONF_MAKE_ID], rhs)
-    for _ in binary_sensor.setup_binary_sensor(make.Ptemplate_, make.Pmqtt, config):
-        yield
+    binary_sensor.setup_binary_sensor(make.Ptemplate_, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_BINARY_SENSOR'

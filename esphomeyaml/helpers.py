@@ -3,7 +3,7 @@ from __future__ import print_function
 import inspect
 import logging
 import re
-from collections import OrderedDict
+from collections import OrderedDict, deque
 
 from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
@@ -388,7 +388,7 @@ def Pvariable(id, rhs, has_side_effects=True, type=None):
     return obj
 
 
-_TASKS = []
+_TASKS = deque()
 _VARIABLES = {}
 _EXPRESSIONS = []
 
@@ -426,39 +426,35 @@ def templatable(value, input_type, output_type):
         yield value
 
 
-def add_task(func, config, domain):
+def add_job(func, *args, **kwargs):
+    domain = kwargs.get('domain')
     if inspect.isgeneratorfunction(func):
         def func_():
             yield
-            for _ in func(config):
+            for _ in func(*args):
                 yield
     else:
         def func_():
             yield
-            func(config)
-    _TASKS.append((func_(), domain))
-
-
-def run_tasks():
-    global _TASKS
-
-    new_tasks = []
-    for task, domain in _TASKS:
-        try:
-            task.next()
-            new_tasks.append((task, domain))
-        except StopIteration:
-            pass
-    _TASKS = new_tasks
+            func(*args)
+    gen = func_()
+    _TASKS.append((gen, domain))
+    return gen
 
 
 def flush_tasks():
-    for _ in range(1000000):
-        run_tasks()
-        if not _TASKS:
-            break
-    else:
-        raise ESPHomeYAMLError("Circular dependency detected!")
+    i = 0
+    while _TASKS:
+        i += 1
+        if i > 1000000:
+            raise ESPHomeYAMLError("Circular dependency detected!")
+
+        task, domain = _TASKS.popleft()
+        try:
+            task.next()
+            _TASKS.append((task, domain))
+        except StopIteration:
+            pass
 
 
 def add(expression, require=True):

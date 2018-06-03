@@ -63,15 +63,12 @@ def to_code(config):
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
         add(bme280.set_iir_filter(constant))
 
-    for _ in sensor.setup_sensor(bme280.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(bme280.Pget_pressure_sensor(), make.Pmqtt_pressure,
-                                 config[CONF_PRESSURE]):
-        yield
-    for _ in sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
-                                 config[CONF_HUMIDITY]):
-        yield
+    sensor.setup_sensor(bme280.Pget_temperature_sensor(), make.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bme280.Pget_pressure_sensor(), make.Pmqtt_pressure,
+                        config[CONF_PRESSURE])
+    sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
+                        config[CONF_HUMIDITY])
 
 
 BUILD_FLAGS = '-DUSE_BME280'

@@ -20,8 +20,7 @@ def to_code(config):
         yield
     rhs = App.make_gpio_binary_sensor(config[CONF_NAME], pin)
     gpio = variable(config[CONF_MAKE_ID], rhs)
-    for _ in binary_sensor.setup_binary_sensor(gpio.Pgpio, gpio.Pmqtt, config):
-        yield
+    binary_sensor.setup_binary_sensor(gpio.Pgpio, gpio.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_GPIO_BINARY_SENSOR'

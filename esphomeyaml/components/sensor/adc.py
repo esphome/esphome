@@ -42,8 +42,7 @@ def to_code(config):
     adc = make.Padc
     if CONF_ATTENUATION in config:
         add(adc.set_attenuation(ATTENUATION_MODES[config[CONF_ATTENUATION]]))
-    for _ in sensor.setup_sensor(make.Padc, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(make.Padc, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_ADC_SENSOR'

@@ -61,8 +61,7 @@ def to_code(config):
     mux = MUX[config[CONF_MULTIPLEXER]]
     gain = GAIN[config[CONF_GAIN]]
     rhs = hub.get_sensor(config[CONF_NAME], mux, gain, config.get(CONF_UPDATE_INTERVAL))
-    for _ in sensor.register_sensor(rhs, config):
-        yield
+    sensor.register_sensor(rhs, config)
 
 
 BUILD_FLAGS = '-DUSE_ADS1115_SENSOR'

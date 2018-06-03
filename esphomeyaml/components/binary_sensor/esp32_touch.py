@@ -47,8 +47,7 @@ def to_code(config):
         yield
     touch_pad = TOUCH_PADS[config[CONF_PIN]]
     rhs = hub.make_touch_pad(config[CONF_NAME], touch_pad, config[CONF_THRESHOLD])
-    for _ in binary_sensor.register_binary_sensor(rhs, config):
-        yield
+    binary_sensor.register_binary_sensor(rhs, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_TOUCH_BINARY_SENSOR'

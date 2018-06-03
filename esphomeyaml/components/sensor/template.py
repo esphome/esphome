@@ -21,8 +21,7 @@ def to_code(config):
     rhs = App.make_template_sensor(config[CONF_NAME], template_,
                                    config.get(CONF_UPDATE_INTERVAL))
     make = variable(config[CONF_MAKE_ID], rhs)
-    for _ in sensor.setup_sensor(make.Ptemplate_, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(make.Ptemplate_, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SENSOR'

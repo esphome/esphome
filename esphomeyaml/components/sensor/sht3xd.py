@@ -35,12 +35,10 @@ def to_code(config):
     if CONF_ACCURACY in config:
         add(sht3xd.Psht3xd.set_accuracy(SHT_ACCURACIES[config[CONF_ACCURACY]]))
 
-    for _ in sensor.setup_sensor(sht3xd.Psht3xd.Pget_temperature_sensor(), sht3xd.Pmqtt_temperature,
-                                 config[CONF_TEMPERATURE]):
-        yield
-    for _ in sensor.setup_sensor(sht3xd.Psht3xd.Pget_humidity_sensor(), sht3xd.Pmqtt_humidity,
-                                 config[CONF_HUMIDITY]):
-        yield
+    sensor.setup_sensor(sht3xd.Psht3xd.Pget_temperature_sensor(), sht3xd.Pmqtt_temperature,
+                        config[CONF_TEMPERATURE])
+    sensor.setup_sensor(sht3xd.Psht3xd.Pget_humidity_sensor(), sht3xd.Pmqtt_humidity,
+                        config[CONF_HUMIDITY])
 
 
 BUILD_FLAGS = '-DUSE_SHT3XD'

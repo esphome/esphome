@@ -18,8 +18,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 def to_code(config):
     rhs = App.make_esp32_hall_sensor(config[CONF_NAME], config.get(CONF_UPDATE_INTERVAL))
     make = variable(config[CONF_MAKE_ID], rhs)
-    for _ in sensor.setup_sensor(make.Phall, make.Pmqtt, config):
-        yield
+    sensor.setup_sensor(make.Phall, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_HALL_SENSOR'
