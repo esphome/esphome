@@ -450,10 +450,12 @@ def flush_tasks():
             raise ESPHomeYAMLError("Circular dependency detected!")
 
         task, domain = _TASKS.popleft()
+        _LOGGER.debug("Executing task for domain=%s", domain)
         try:
             task.next()
             _TASKS.append((task, domain))
         except StopIteration:
+            _LOGGER.debug(" -> %s finished", domain)
             pass
 
 
@@ -461,6 +463,7 @@ def add(expression, require=True):
     if require and isinstance(expression, Expression):
         expression.require()
     _EXPRESSIONS.append(expression)
+    _LOGGER.debug("Adding: %s", statement(expression))
     return expression
 
 

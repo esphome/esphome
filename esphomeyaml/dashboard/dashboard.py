@@ -102,11 +102,14 @@ class SerialPortRequestHandler(tornado.web.RequestHandler):
         data = []
         for port, desc in ports:
             if port == '/dev/ttyAMA0':
-                # ignore RPi built-in serial port
-                continue
+                desc = 'UART pins on GPIO header'
+            split_desc = desc.split(' - ')
+            if len(split_desc) == 2 and split_desc[0] == split_desc[1]:
+                # Some serial ports repeat their values
+                desc = split_desc[0]
             data.append({'port': port, 'desc': desc})
-        data.append({'port': 'OTA', 'desc': 'Over-The-Air Upload/Logs'})
-        self.write(json.dumps(data))
+        data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
+        self.write(json.dumps(sorted(data, reverse=True)))
 
 
 class WizardRequestHandler(tornado.web.RequestHandler):
@@ -119,7 +122,7 @@ class WizardRequestHandler(tornado.web.RequestHandler):
         with codecs.open(destination, 'w') as f_handle:
             f_handle.write(config)
 
-        self.redirect('/')
+        self.redirect('/?begin=True')
 
 
 class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
@@ -143,14 +146,15 @@ class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
 
 class MainRequestHandler(tornado.web.RequestHandler):
     def get(self):
+        begin = bool(self.get_argument('begin', False))
         files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml') and
                         not f.startswith('.')])
         full_path_files = [os.path.join(CONFIG_DIR, f) for f in files]
         self.render("templates/index.html", files=files, full_path_files=full_path_files,
-                    version=const.__version__)
+                    version=const.__version__, begin=begin)
 
 
-def make_app():
+def make_app(debug=False):
     static_path = os.path.join(os.path.dirname(__file__), 'static')
     return tornado.web.Application([
         (r"/", MainRequestHandler),
@@ -161,7 +165,7 @@ def make_app():
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ], debug=False)
+    ], debug=debug)
 
 
 def start_web_server(args):
@@ -177,7 +181,7 @@ def start_web_server(args):
 
     _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)
-    app = make_app()
+    app = make_app(args.verbose)
     app.listen(args.port)
     try:
         tornado.ioloop.IOLoop.current().start()

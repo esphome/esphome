@@ -121,9 +121,9 @@
     }
 
     .modal {
-      width: 90%;
-      max-height: 85%;
-      height: 80% !important;
+      width: 95%;
+      max-height: 90%;
+      height: 85% !important;
     }
 
     .page-footer {
@@ -155,7 +155,9 @@
     }
 
     .select-port-container {
-      margin-top: 19px;
+      margin-top: 8px;
+      margin-right: 24px;
+      width: 350px;
     }
   </style>
 </head>
@@ -165,8 +167,22 @@
 <nav>
   <div class="nav-wrapper indigo">
     <a href="#" class="brand-logo left">esphomeyaml Dashboard</a>
+    <div class="select-port-container right" id="select-port-target">
+      <select></select>
+    </div>
   </div>
 </nav>
+
+<div class="tap-target pink lighten-1 select-port" data-target="select-port-target">
+  <div class="tap-target-content">
+    <h5>Select Upload Port</h5>
+    <p>
+      Here you can select where esphomeyaml will attempt to show logs and upload firmwares to.
+      By default, this is "OTA", or Over-The-Air. Note that you might have to restart the HassIO add-on
+      for new serial ports to be detected.
+    </p>
+  </div>
+</div>
 
 <div class="ribbon"></div>
 </header>
@@ -201,64 +217,38 @@
 
 <div id="modal-logs" class="modal modal-fixed-footer">
   <div class="modal-content">
-    <h4>Show Logs</h4>
-    <div class="upload-port row">
-      <div class="col s12">
-        <h5>Found multiple serial ports, please choose one:</h5>
-      </div>
-      <div class="input-field col s8">
-        <select></select>
-      </div>
-      <div class="col s4 select-port-container">
-        <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
-          <i class="material-icons right">send</i>
-        </button>
-      </div>
-    </div>
+    <h4>Show Logs <code class="inlinecode filename"></code></h4>
     <div class="log-container">
       <pre class="log"></pre>
     </div>
   </div>
   <div class="modal-footer">
-    <a class="modal-close waves-effect waves-green btn-flat">Close</a>
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Close</a>
   </div>
 </div>
 
 <div id="modal-upload" class="modal modal-fixed-footer">
   <div class="modal-content">
-    <h4>Compile And Upload</h4>
-    <div class="upload-port row">
-      <div class="col s12">
-        <h5>Found multiple upload options, please choose one:</h5>
-      </div>
-      <div class="input-field col s8">
-        <select></select>
-      </div>
-      <div class="col s4 select-port-container">
-        <button class="btn waves-effect waves-light upload-port-submit" type="submit" name="action">Select
-          <i class="material-icons right">send</i>
-        </button>
-      </div>
-    </div>
+    <h4>Compile And Upload <code class="inlinecode filename"></code></h4>
     <div class="log-container">
       <pre class="log"></pre>
     </div>
   </div>
   <div class="modal-footer">
-    <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
 
 <div id="modal-compile" class="modal modal-fixed-footer">
   <div class="modal-content">
-    <h4>Compile</h4>
+    <h4>Compile <code class="inlinecode filename"></code></h4>
     <div class="log-container">
       <pre class="log"></pre>
     </div>
   </div>
   <div class="modal-footer">
     <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
-    <a class="modal-close waves-effect waves-green btn-flat">Stop</a>
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
 
@@ -303,7 +293,7 @@
             </div>
           </div>
           <div class="step-actions">
-            <button class="waves-effect waves-dark btn indigo next-step"">CONTINUE</button>
+            <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
           </div>
         </div>
       </li>
@@ -455,7 +445,7 @@
   <i class="material-icons">add</i>
 </a>
 
-<div class="tap-target pink lighten-1" data-target="setup-wizard-start">
+<div class="tap-target pink lighten-1 setup-wizard" data-target="setup-wizard-start">
   <div class="tap-target-content">
     <h5>Set up your first Node</h5>
     <p>
@@ -505,19 +495,67 @@
   };
 
   let configuration = "";
-  const ws_url = 'ws://' + window.location.hostname + ':' + window.location.port;
+  let wsProtocol = "ws:";
+  if (window.location.protocol === "https:") {
+    wsProtocol = 'wss:';
+  }
+  const wsUrl = wsProtocol + '//' + window.location.hostname + ':' + window.location.port;
+
+  const portSelect = document.querySelector('.nav-wrapper select');
+  let ports = [];
+
+  const fetchSerialPorts = (begin=false) => {
+    fetch('/serial-ports').then(res => res.json())
+      .then(response => {
+        if (ports.length === response.length) {
+          let allEqual = true;
+          for (let i = 0; i < response.length; i++) {
+            if (ports[i].port !== response[i].port) {
+              allEqual = false;
+              break;
+            }
+          }
+          if (allEqual)
+            return;
+        }
+
+        ports = response;
+
+        const inst = M.FormSelect.getInstance(portSelect);
+        if (inst !== undefined) {
+          inst.destroy();
+        }
+
+        portSelect.innerHTML = "";
+        const prevSelected = getUploadPort();
+        for (let i = 0; i < response.length; i++) {
+          const val = response[i];
+          if (val.port === prevSelected) {
+            portSelect.innerHTML += `<option value="${val.port}" selected>${val.port} (${val.desc})</option>`;
+          } else {
+            portSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
+          }
+        }
+
+        M.FormSelect.init(portSelect, {});
+        if (!begin)
+          M.toast({html: "Discovered new serial port."});
+      });
+  };
+
+  const getUploadPort = () => {
+    const inst = M.FormSelect.getInstance(portSelect);
+    if (inst === undefined) {
+      return "OTA";
+    }
+
+    inst._setSelectedStates();
+    return inst.getSelectedValues()[0];
+  };
+  setInterval(fetchSerialPorts, 2500);
+  fetchSerialPorts(true);
 
   const logsModalElem = document.getElementById("modal-logs");
-  const logsPortSelect = logsModalElem.querySelector('select');
-  const logsPortDiv = logsModalElem.querySelector(".upload-port");
-  const logsPortSubmit = logsModalElem.querySelector('.upload-port-submit');
-  let logsStart = undefined;
-
-  logsPortSubmit.addEventListener('click', () => {
-    const inst = M.FormSelect.getInstance(logsPortSelect);
-    logsStart(inst.getSelectedValues()[0]);
-    inst.destroy();
-  });
 
   document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
     showLogs.addEventListener('click', (e) => {
@@ -525,145 +563,15 @@
       const modalInstance = M.Modal.getInstance(logsModalElem);
       const log = logsModalElem.querySelector(".log");
       log.innerHTML = "";
-
-      if (M.FormSelect.getInstance(logsPortSelect) !== undefined) {
-        M.FormSelect.getInstance(logsPortSelect).destroy();
-      }
+      const stopLogsButton = logsModalElem.querySelector(".stop-logs");
+      let stopped = false;
+      stopLogsButton.innerHTML = "Stop";
       modalInstance.open();
 
-      if (logsPortDiv.classList.contains('hide')) {
-        logsPortDiv.classList.remove('hide');
-      }
+      const filenameField = logsModalElem.querySelector('.filename');
+      filenameField.innerHTML = configuration;
 
-      logsStart = (port) => {
-        logsPortDiv.classList.add('hide');
-        const logSocket = new WebSocket(ws_url + "/logs");
-        logSocket.addEventListener('message', (event) => {
-          const data = JSON.parse(event.data);
-          if (data.event === "line") {
-            const msg = data.data;
-            log.innerHTML += colorReplace(msg);
-          } else if (data.event === "exit") {
-            if (data.code === 0) {
-              M.toast({html: "Program exited successfully!"});
-            } else {
-              M.toast({html: `Program failed with code ${data.code}`});
-            }
-          }
-        });
-        logSocket.addEventListener('open', () => {
-          const msg = JSON.stringify({configuration: configuration, port: port});
-          logSocket.send(msg);
-        });
-        logSocket.addEventListener('close', () => {
-          M.toast({html: 'Terminated process.'});
-        });
-        modalInstance.options.onCloseStart = () => {
-          logSocket.close();
-        };
-      };
-
-      fetch('/serial-ports').then(res => res.json())
-        .then(response => {
-          if (response.length > 1) {
-            logsPortSelect.innerHTML = "";
-            for (let i = 0; i < response.length; i++) {
-              const val = response[i];
-              logsPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
-            }
-            M.FormSelect.init(logsPortSelect, {});
-          } else {
-            logsStart("OTA");
-          }
-        });
-    });
-  });
-
-  const uploadModalElem = document.getElementById("modal-upload");
-  const uploadPortSelect = uploadModalElem.querySelector('select');
-  const uploadPortDiv = uploadModalElem.querySelector(".upload-port");
-  const uploadPortSubmit = uploadModalElem.querySelector('.upload-port-submit');
-  let uploadStart = undefined;
-
-  uploadPortSubmit.addEventListener('click', () => {
-    const inst = M.FormSelect.getInstance(uploadPortSelect);
-    uploadStart(inst.getSelectedValues()[0]);
-    inst.destroy();
-  });
-
-  document.querySelectorAll(".action-upload").forEach((showLogs) => {
-    showLogs.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(uploadModalElem);
-      const log = uploadModalElem.querySelector(".log");
-      log.innerHTML = "";
-
-      if (M.FormSelect.getInstance(uploadPortSelect) !== undefined) {
-        M.FormSelect.getInstance(uploadPortSelect).destroy();
-      }
-      modalInstance.open();
-
-      if (uploadPortDiv.classList.contains('hide')) {
-        uploadPortDiv.classList.remove('hide');
-      }
-
-      uploadStart = (port) => {
-        uploadPortDiv.classList.add('hide');
-        const logSocket = new WebSocket(ws_url + "/run");
-        logSocket.addEventListener('message', (event) => {
-          const data = JSON.parse(event.data);
-          if (data.event === "line") {
-            const msg = data.data;
-            log.innerHTML += colorReplace(msg);
-          } else if (data.event === "exit") {
-            if (data.code === 0) {
-              M.toast({html: "Program exited successfully!"});
-            } else {
-              M.toast({html: `Program failed with code ${data.code}`});
-            }
-          }
-        });
-        logSocket.addEventListener('open', () => {
-          const msg = JSON.stringify({configuration: configuration, port: port});
-          logSocket.send(msg);
-        });
-        logSocket.addEventListener('close', () => {
-          M.toast({html: 'Terminated process.'});
-        });
-        modalInstance.options.onCloseStart = () => {
-          logSocket.close();
-        };
-      };
-
-      fetch('/serial-ports').then(res => res.json())
-        .then(response => {
-          if (response.length > 1) {
-            uploadPortSelect.innerHTML = "";
-            for (let i = 0; i < response.length; i++) {
-              const val = response[i];
-              uploadPortSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
-            }
-            M.FormSelect.init(uploadPortSelect, {});
-          } else {
-            uploadStart("OTA");
-          }
-        });
-    });
-  });
-
-  const compileModalElem = document.getElementById("modal-compile");
-  const downloadButton = compileModalElem.querySelector('.download-binary');
-
-  document.querySelectorAll(".action-compile").forEach((showLogs) => {
-    showLogs.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(compileModalElem);
-      const log = compileModalElem.querySelector(".log");
-      log.innerHTML = "";
-      downloadButton.classList.add('disabled');
-      modalInstance.open();
-
-      const logSocket = new WebSocket(ws_url + "/compile");
+      const logSocket = new WebSocket(wsUrl + "/logs");
       logSocket.addEventListener('message', (event) => {
         const data = JSON.parse(event.data);
         if (data.event === "line") {
@@ -671,19 +579,23 @@
           log.innerHTML += colorReplace(msg);
         } else if (data.event === "exit") {
           if (data.code === 0) {
-            M.toast({html: "Program exited successfully!"});
-            downloadButton.classList.remove('disabled');
+            M.toast({html: "Program exited successfully."});
           } else {
             M.toast({html: `Program failed with code ${data.code}`});
           }
+
+          stopLogsButton.innerHTML = "Close";
+          stopped = true;
         }
       });
       logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
+        const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
         logSocket.send(msg);
       });
       logSocket.addEventListener('close', () => {
-        M.toast({html: 'Terminated process.'});
+        if (!stopped) {
+          M.toast({html: 'Terminated process.'});
+        }
       });
       modalInstance.options.onCloseStart = () => {
         logSocket.close();
@@ -691,6 +603,105 @@
     });
   });
 
+  const uploadModalElem = document.getElementById("modal-upload");
+
+  document.querySelectorAll(".action-upload").forEach((upload) => {
+    upload.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(uploadModalElem);
+      const log = uploadModalElem.querySelector(".log");
+      log.innerHTML = "";
+      const stopLogsButton = uploadModalElem.querySelector(".stop-logs");
+      let stopped = false;
+      stopLogsButton.innerHTML = "Stop";
+      modalInstance.open();
+
+      const filenameField = uploadModalElem.querySelector('.filename');
+      filenameField.innerHTML = configuration;
+
+      const logSocket = new WebSocket(wsUrl + "/run");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          if (data.code === 0) {
+            M.toast({html: "Program exited successfully."});
+          } else {
+            M.toast({html: `Program failed with code ${data.code}`});
+          }
+
+          stopLogsButton.innerHTML = "Close";
+          stopped = true;
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        if (!stopped) {
+          M.toast({html: 'Terminated process.'});
+        }
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
+  });
+
+  const compileModalElem = document.getElementById("modal-compile");
+  const downloadButton = compileModalElem.querySelector('.download-binary');
+
+  document.querySelectorAll(".action-compile").forEach((upload) => {
+    upload.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(compileModalElem);
+      const log = compileModalElem.querySelector(".log");
+      log.innerHTML = "";
+      const stopLogsButton = compileModalElem.querySelector(".stop-logs");
+      let stopped = false;
+      stopLogsButton.innerHTML = "Stop";
+      downloadButton.classList.add('disabled');
+
+      modalInstance.open();
+
+      const filenameField = compileModalElem.querySelector('.filename');
+      filenameField.innerHTML = configuration;
+
+      const logSocket = new WebSocket(wsUrl + "/compile");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          if (data.code === 0) {
+            M.toast({html: "Program exited successfully."});
+            downloadButton.classList.remove('disabled');
+          } else {
+            M.toast({html: `Program failed with code ${data.code}`});
+          }
+
+          stopLogsButton.innerHTML = "Close";
+          stopped = true;
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        if (!stopped) {
+          M.toast({html: 'Terminated process.'});
+        }
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
+  });
   downloadButton.addEventListener('click', () => {
     const link = document.createElement("a");
     link.download = name;
@@ -722,7 +733,7 @@
 {% if len(files) == 0 %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const tapTargetElem = document.querySelector('.tap-target');
+    const tapTargetElem = document.querySelector('.tap-target.setup-wizard');
     const tapTargetInstance = M.TapTarget.getInstance(tapTargetElem);
     tapTargetInstance.options.onOpen = () => {
       $('.tap-target-origin').on('click', () => {
@@ -730,6 +741,24 @@
       });
     };
     tapTargetInstance.open();
+  });
+</script>
+{% end %}
+
+{% if begin %}
+<script>
+  window.history.replaceState({}, document.title, "/");
+  document.addEventListener('DOMContentLoaded', () => {
+    const tapTargetElem = document.querySelector('.tap-target.select-port');
+    const tapTargetInstance = M.TapTarget.getInstance(tapTargetElem);
+    tapTargetInstance.open();
+
+    tapTargetInstance.contentEl.style["top"] = "300px";
+    tapTargetInstance.contentEl.style["padding"] = "250px";
+    tapTargetInstance.waveEl.style["top"] = "250px";
+    tapTargetInstance.waveEl.style["left"] = "250px";
+    tapTargetInstance.waveEl.style["width"] = "300px";
+    tapTargetInstance.waveEl.style["height"] = "300px";
   });
 </script>
 {% end %}
