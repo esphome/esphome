@@ -207,6 +207,7 @@
             <a href="#" class="action-upload" data-node="{{ file }}">Upload</a>
             <a href="#" class="action-compile" data-node="{{ file }}">Compile</a>
             <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
+            <a href="#" class="action-validate" data-node="{{ file }}">Validate</a>
           </div>
         </div>
       </div>
@@ -252,6 +253,18 @@
   </div>
 </div>
 
+<div id="modal-validate" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Validate <code class="inlinecode filename"></code></h4>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+  </div>
+</div>
+
 <div id="modal-wizard" class="modal">
   <div class="modal-content">
     <form action="/wizard.html" method="POST">
@@ -268,7 +281,7 @@
               their successors (the <a href="https://www.espressif.com/en/products/hardware/esp32/overview" target="_blank">ESP32s</a>)
               are great low-cost microcontrollers that can communicate with the outside world using WiFi.
               They're found in many devices such as the popular Sonoff/iTead, but also exist as development boards
-              such as the <a href="http://nodemcu.com/index_en.html" target="_blank">NodeMCU</a>.
+              such as the <a href="https://esphomelib.com/esphomeyaml/devices/nodemcu_esp8266.html" target="_blank">NodeMCU</a>.
             <p>
             </p>
               <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml</a>,
@@ -303,8 +316,7 @@
           <div class="row">
             <p>
               Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
-              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices). Note that the ESP32 is currently
-              unsupported if HassIO is running on a Raspberry Pi.
+              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices).
             </p>
             <div class="input-field col s12">
               <select id="esp_type" name="platform" required>
@@ -348,8 +360,8 @@
             </div>
             <p>
               Esphomelib automatically sets up an Over-The-Air update server on the node
-              so that you only need to flash a firmware once. Optionally, you can set a password for this
-              upload process here.
+              so that you only need to flash a firmware via USB once.
+              Optionally, you can set a password for this upload process here:
             </p>
             <div class="input-field col s12">
               <input id="ota_password" class="validate" name="ota_password" type="password">
@@ -374,7 +386,7 @@
             <p>
               When you're done with that, please enter your MQTT broker here. For example
               <code class="inlinecode">192.168.1.100</code> (Note
-              <code class="inlinecode">hassio.local</code> often doesn't work, please use a static IP).
+              <code class="inlinecode">hassio.local</code> doesn't always work, please use a static IP).
               Please also specify the MQTT username and password you wish esphomelib to use
               (leave them empty if you're not using any authentication).
             </p>
@@ -410,22 +422,29 @@
           <ul class="browser-default">
             <li>
               Flash the firmware. This can be done using the “UPLOAD” option in the dashboard. See
-              <a href="https://esphomelib.com/esphomeyaml/index.html#using-with" target="_blank">this</a>
+              <a href="https://esphomelib.com/esphomeyaml/index.html#devices" target="_blank">this</a>
               for guides on how to flash different types of devices. Note that you need to restart this add-on
               for newly plugged in serial devices to be detected.
+            </li>
+            <li>
+              With the current configuration, your node will only connect to WiFi and MQTT. To make it actually <i>do</i>
+              stuff, follow
+              <a href="https://esphomelib.com/esphomeyaml/guides/getting_started_hassio.html#adding-some-basic-features">
+                the rest of the getting started guide
+              </a>.
             </li>
             <li>
               See the <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml index</a>
               for a list of supported sensors/devices.
             </li>
             <li>
-              Join the <a href="https://discord.gg/KhAMKrd" target="_blank">Discord server</a> and say hi. When I
+              Join the <a href="https://discord.gg/KhAMKrd" target="_blank">Discord server</a> and say hi! When I
               have time, I would be happy to help with issues and discuss new features.
             </li>
             <li>
               Star <a href="https://github.com/OttoWinter/esphomelib" target="_blank">esphomelib</a> and
-              <a href="https://github.com/OttoWinter/esphomeyaml" target="_blank">esphomeyaml</a> on GitHub and
-              report issues using the bug trackers there.
+              <a href="https://github.com/OttoWinter/esphomeyaml" target="_blank">esphomeyaml</a> on GitHub
+              if you find this software awesome and report issues using the bug trackers there.
             </li>
           </ul>
           <div class="step-actions">
@@ -638,6 +657,60 @@
       });
       logSocket.addEventListener('open', () => {
         const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        if (!stopped) {
+          M.toast({html: 'Terminated process.'});
+        }
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
+  });
+
+  const validateModalElem = document.getElementById("modal-validate");
+
+  document.querySelectorAll(".action-validate").forEach((upload) => {
+    upload.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(validateModalElem);
+      const log = validateModalElem.querySelector(".log");
+      log.innerHTML = "";
+      const stopLogsButton = validateModalElem.querySelector(".stop-logs");
+      let stopped = false;
+      stopLogsButton.innerHTML = "Stop";
+      modalInstance.open();
+
+      const filenameField = validateModalElem.querySelector('.filename');
+      filenameField.innerHTML = configuration;
+
+      const logSocket = new WebSocket(wsUrl + "/validate");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          if (data.code === 0) {
+            M.toast({
+              html: `<code class="inlinecode">${configuration}</code> is valid 👍`,
+              displayLength: 5000,
+            });
+          } else {
+            M.toast({
+              html: `<code class="inlinecode">${configuration}</code> is invalid 😕`,
+              displayLength: 5000,
+            });
+          }
+
+          stopLogsButton.innerHTML = "Close";
+          stopped = true;
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration});
         logSocket.send(msg);
       });
       logSocket.addEventListener('close', () => {

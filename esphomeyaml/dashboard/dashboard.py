@@ -96,6 +96,13 @@ class EsphomeyamlCompileHandler(EsphomeyamlCommandWebSocket):
         return ["esphomeyaml", config_file, "compile"]
 
 
+class EsphomeyamlValidateHandler(EsphomeyamlCommandWebSocket):
+    def build_command(self, message):
+        js = json.loads(message)
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "config"]
+
+
 class SerialPortRequestHandler(tornado.web.RequestHandler):
     def get(self):
         ports = get_serial_ports()
@@ -161,6 +168,7 @@ def make_app(debug=False):
         (r"/logs", EsphomeyamlLogsHandler),
         (r"/run", EsphomeyamlRunHandler),
         (r"/compile", EsphomeyamlCompileHandler),
+        (r"/validate", EsphomeyamlValidateHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
