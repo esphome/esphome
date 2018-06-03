@@ -56,8 +56,10 @@ def alphanumeric(value):
 
 def valid_name(value):
     value = string_strict(value)
-    if not all(c in ALLOWED_NAME_CHARS for c in value):
-        raise vol.Invalid(u"Valid characters for name are {}".format(ALLOWED_NAME_CHARS))
+    for c in value:
+        if c not in ALLOWED_NAME_CHARS:
+            raise vol.Invalid(u"'{}' is an invalid character for names. Valid characters are: {}"
+                              u"".format(c, ALLOWED_NAME_CHARS))
     return value
 
 

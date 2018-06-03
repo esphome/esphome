@@ -1,0 +1,50 @@
+esphomeyaml:
+  name: <NAME_OF_NODE>
+  platform: ESP8266
+  board: esp01_1m
+  board_flash_mode: dout
+
+wifi:
+  ssid: <YOUR_SSID>
+  password: <YOUR_PASSWORD>
+
+mqtt:
+  broker: <YOUR_MQTT_BROKER>
+  username: <YOUR_USERNAME>
+  password: <YOUR_PASSWORD>
+
+logger:
+
+ota:
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "Sonoff S20 Button"
+    on_press:
+      then:
+        - switch.toggle:
+            id: relay
+  - platform: status
+    name: "Sonoff S20 Status"
+
+
+switch:
+  - platform: gpio
+    name: "Sonoff S20 Relay"
+    pin: GPIO12
+    id: relay
+
+output:
+  - platform: esp8266_pwm
+    id: s20_green_led
+    pin: GPIO13
+    inverted: True
+
+light:
+  - platform: monochromatic
+    name: "Sonoff S20 Green LED"
+    output: s20_green_led
