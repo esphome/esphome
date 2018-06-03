@@ -1,8 +1,8 @@
 {
-  "name": "esphomeyaml",
-  "version": "1.6.0",
-  "slug": "esphomeyaml",
-  "description": "esphomeyaml HassIO add-on for intelligently managing all your ESP8266/ESP32 devices.",
+  "name": "esphomeyaml-edge",
+  "version": "dev",
+  "slug": "esphomeyaml-edge",
+  "description": "Development build of the esphomeyaml HassIO add-on.",
   "url": "https://esphomelib.com/esphomeyaml/index.html",
   "startup": "application",
   "webui": "http://[HOST]:[PORT:6052]",
@@ -11,6 +11,12 @@
     "6052/tcp": 6052,
     "6053/tcp": 6053
   },
+  "arch": [
+    "aarch64",
+    "amd64",
+    "armhf",
+    "i386"
+  ],
   "auto_uart": true,
   "map": [
     "config:rw"
@@ -19,6 +25,5 @@
   "environment": {
     "ESPHOMEYAML_OTA_HOST_PORT": "6053"
   },
-  "schema": {},
-  "image": "ottowinter/esphomeyaml-hassio-{arch}"
+  "schema": {}
 }

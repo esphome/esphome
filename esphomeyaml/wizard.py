@@ -306,5 +306,5 @@ def wizard(path):
     print(color('bold_white', "  discovery: True"))
     print()
     print("  > Then follow the rest of the getting started guide:")
-    print("  > https://esphomelib.com/esphomeyaml/getting-started.html")
+    print("  > https://esphomelib.com/esphomeyaml/guides/getting_started_command_line.html")
     return 0

@@ -27,6 +27,8 @@ REQUIRES = [
     'pyyaml>=3.12',
     'paho-mqtt>=1.3.1',
     'colorlog>=3.1.2',
+    'tornado>=5.0.0',
+    'esptool>=2.3.1',
 ]
 
 CLASSIFIERS = [

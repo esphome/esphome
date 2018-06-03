@@ -4,7 +4,6 @@ FROM ${BUILD_FROM}
 
 # Re-declare BUILD_FROM to fix weird docker issue
 ARG BUILD_FROM
-ARG BUILD_VERSION
 
 # On amd64 and alike, using ubuntu as the base is better as building
 # for the ESP32 only works with glibc (and ubuntu). However, on armhf
@@ -39,8 +38,6 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
 
 # Install latest esphomeyaml from git
 RUN pip install --no-cache-dir \
-      esphomeyaml==${BUILD_VERSION} \
-      tornado \
-      esptool
+      git+git://github.com/OttoWinter/esphomeyaml.git
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]

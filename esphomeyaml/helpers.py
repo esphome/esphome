@@ -407,11 +407,11 @@ def process_lambda(value, parameters, capture='=', return_type=None):
         yield
         return
     parts = value.parts[:]
-    for i in range(1, len(parts), 2):
+    for i, id in enumerate(value.requires_ids):
         var = None
-        for var in get_variable(parts[i]):
+        for var in get_variable(id):
             yield
-        parts[i] = var._
+        parts[i*2 + 1] = var._
     yield LambdaExpression(parts, parameters, capture, return_type)
     return
 
