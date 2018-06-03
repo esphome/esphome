@@ -31,16 +31,14 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
 # * On alpine, only install ESP8266 toolchain
 COPY platformio.ini /pio/platformio.ini
 RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
-      platformio run -e espressif32 -e espressif8266 -d /pio; \
+      platformio run -e espressif32 -e espressif8266 -d /pio; exit 0; \
     else \
       echo \"\$(head -8 /pio/platformio.ini)\" >/pio/platformio.ini; \
-      platformio run -e espressif8266 -d /pio; \
-    fi"; rm -rf /pio
+      platformio run -e espressif8266 -d /pio; exit 0; \
+    fi"
 
 # Install latest esphomeyaml from git
 RUN pip install --no-cache-dir \
-      esphomeyaml==${BUILD_VERSION} \
-      tornado \
-      esptool
+      esphomeyaml==${BUILD_VERSION}
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]
