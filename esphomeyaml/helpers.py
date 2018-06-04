@@ -456,7 +456,6 @@ def flush_tasks():
             _TASKS.append((task, domain))
         except StopIteration:
             _LOGGER.debug(" -> %s finished", domain)
-            pass
 
 
 def add(expression, require=True):
