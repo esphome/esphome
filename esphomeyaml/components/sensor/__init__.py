@@ -100,7 +100,7 @@ def setup_filter(config):
     elif CONF_FILTER_OUT in config:
         yield FilterOutValueFilter.new(config[CONF_FILTER_OUT])
     elif CONF_FILTER_NAN in config:
-        yield FilterOutNANFilter()
+        yield FilterOutNANFilter.new()
     elif CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
         conf = config[CONF_SLIDING_WINDOW_MOVING_AVERAGE]
         yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY])
