@@ -102,12 +102,15 @@ def run_miniterm(config, port, escape=False):
 
     with serial.Serial(port, baudrate=baud_rate) as ser:
         while True:
-            line = ser.readline()
+            line = ser.readline().replace('\r', '').replace('\n', '')
             time = datetime.now().time().strftime('[%H:%M:%S]')
-            message = time + line.decode('unicode-escape').replace('\r', '').replace('\n', '')
+            message = time + line
             if escape:
-                message = message.replace('\033', '\\033').encode('ascii', 'replace')
-            print(message)
+                message = message.replace('\033', '\\033')
+            try:
+                print(message)
+            except UnicodeEncodeError:
+                print(message.encode('ascii', 'backslashreplace'))
 
 
 def write_cpp(config):

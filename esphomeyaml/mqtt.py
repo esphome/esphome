@@ -57,10 +57,13 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None, 
 
     def on_message(client, userdata, msg):
         time = datetime.now().time().strftime(u'[%H:%M:%S]')
-        message = msg.payload.decode('utf-8')
+        message = time + msg.payload
         if escape:
             message = message.replace('\033', '\\033')
-        print(time + message)
+        try:
+            print(message)
+        except UnicodeEncodeError:
+            print(message.encode('ascii', 'backslashreplace'))
 
     return initialize(config, [topic], on_message, username, password, client_id)
 
