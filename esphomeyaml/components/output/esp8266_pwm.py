@@ -11,7 +11,7 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
 
 
 def valid_pwm_pin(value):
-    if value[CONF_NUMBER] >= 16:
+    if value[CONF_NUMBER] > 16:
         raise ESPHomeYAMLError(u"ESP8266: Only pins 0-16 support PWM.")
     return value
 
