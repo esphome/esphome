@@ -16,11 +16,21 @@ def validate_pin_number(value):
 
 DeepSleepComponent = esphomelib_ns.DeepSleepComponent
 
+WAKEUP_PIN_MODES = {
+    'IGNORE': esphomelib_ns.WAKEUP_PIN_MODE_IGNORE,
+    'KEEP_AWAKE': esphomelib_ns.WAKEUP_PIN_MODE_KEEP_AWAKE,
+    'INVERT_WAKEUP': esphomelib_ns.WAKEUP_PIN_MODE_INVERT_WAKEUP,
+}
+
+CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
+
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.GPIO_INTERNAL_INPUT_PIN_SCHEMA,
                                            validate_pin_number),
+    vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32, vol.Upper,
+                                                cv.one_of(*WAKEUP_PIN_MODES)),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 })
@@ -36,6 +46,8 @@ def to_code(config):
         for pin in gpio_input_pin_expression(config[CONF_WAKEUP_PIN]):
             yield
         add(deep_sleep.set_wakeup_pin(pin))
+    if CONF_WAKEUP_PIN_MODE in config:
+        add(deep_sleep.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
     if CONF_RUN_CYCLES in config:
         add(deep_sleep.set_run_cycles(config[CONF_RUN_CYCLES]))
     if CONF_RUN_DURATION in config:
