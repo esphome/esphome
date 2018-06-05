@@ -48,8 +48,9 @@ def load_yaml(fname):
         with codecs.open(fname, encoding='utf-8') as conf_file:
             return yaml.load(conf_file, Loader=SafeLineLoader) or OrderedDict()
     except yaml.YAMLError as exc:
-        _LOGGER.error(exc)
         raise ESPHomeYAMLError(exc)
+    except IOError as exc:
+        raise ESPHomeYAMLError(u"Error accessing file {}: {}".format(fname, exc))
     except UnicodeDecodeError as exc:
         _LOGGER.error(u"Unable to read file %s: %s", fname, exc)
         raise ESPHomeYAMLError(exc)
