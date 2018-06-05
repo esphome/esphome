@@ -571,7 +571,7 @@
     inst._setSelectedStates();
     return inst.getSelectedValues()[0];
   };
-  setInterval(fetchSerialPorts, 2500);
+  setInterval(fetchSerialPorts, 5000);
   fetchSerialPorts(true);
 
   const logsModalElem = document.getElementById("modal-logs");
