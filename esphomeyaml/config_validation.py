@@ -547,7 +547,7 @@ MQTT_COMPONENT_SCHEMA = vol.Schema({
     vol.Optional(CONF_RETAIN): boolean,
     vol.Optional(CONF_DISCOVERY): boolean,
     vol.Optional(CONF_STATE_TOPIC): publish_topic,
-    vol.Optional(CONF_AVAILABILITY): MQTT_COMPONENT_AVAILABILITY_SCHEMA,
+    vol.Optional(CONF_AVAILABILITY): vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA),
 })
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({

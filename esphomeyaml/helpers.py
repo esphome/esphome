@@ -604,8 +604,11 @@ def setup_mqtt_component(obj, config):
         add(obj.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
-        add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
-                                 availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+        if not availability:
+            add(obj.disable_availability())
+        else:
+            add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
+                                     availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 
 # shlex's quote for Python 2.7
