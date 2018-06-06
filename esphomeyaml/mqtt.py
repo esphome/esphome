@@ -10,7 +10,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
     CONF_LOG_TOPIC, \
     CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
-    CONF_USERNAME
+    CONF_USERNAME, CONF_TOPIC
 from esphomeyaml.helpers import color
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +45,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None, 
     elif CONF_MQTT in config:
         conf = config[CONF_MQTT]
         if CONF_LOG_TOPIC in conf:
-            topic = config[CONF_MQTT][CONF_LOG_TOPIC]
+            topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
         elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
             topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + u'/debug'
         else:
