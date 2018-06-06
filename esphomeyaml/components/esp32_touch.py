@@ -41,7 +41,10 @@ VOLTAGE_ATTENUATION = {
     '0V': global_ns.TOUCH_HVOLT_ATTEN_0V,
 }
 
+ESP32TouchComponent = binary_sensor.binary_sensor_ns.ESP32TouchComponent
+
 CONFIG_SCHEMA = vol.Schema({
+    cv.GenerateID(): cv.declare_variable_id(ESP32TouchComponent),
     vol.Optional(CONF_SETUP_MODE): cv.boolean,
     vol.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_SLEEP_DURATION):
@@ -52,8 +55,6 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_HIGH_VOLTAGE_REFERENCE): validate_voltage(HIGH_VOLTAGE_REFERENCE),
     vol.Optional(CONF_VOLTAGE_ATTENUATION): validate_voltage(VOLTAGE_ATTENUATION),
 })
-
-ESP32TouchComponent = binary_sensor.binary_sensor_ns.ESP32TouchComponent
 
 
 def to_code(config):
