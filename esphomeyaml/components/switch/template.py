@@ -5,7 +5,8 @@ from esphomeyaml import automation
 from esphomeyaml.components import switch
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_TURN_OFF_ACTION, \
     CONF_TURN_ON_ACTION, CONF_OPTIMISTIC
-from esphomeyaml.helpers import App, Application, process_lambda, variable, NoArg, add
+from esphomeyaml.helpers import App, Application, process_lambda, variable, NoArg, add, bool_, \
+    optional
 
 MakeTemplateSwitch = Application.MakeTemplateSwitch
 
@@ -24,7 +25,8 @@ def to_code(config):
 
     if CONF_LAMBDA in config:
         template_ = None
-        for template_ in process_lambda(config[CONF_LAMBDA], []):
+        for template_ in process_lambda(config[CONF_LAMBDA], [],
+                                        return_type=optional.template(bool_)):
             yield
         add(make.Ptemplate_.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:

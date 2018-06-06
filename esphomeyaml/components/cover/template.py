@@ -5,7 +5,7 @@ from esphomeyaml import automation
 from esphomeyaml.components import cover
 from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, \
     CONF_OPEN_ACTION, CONF_STOP_ACTION, CONF_OPTIMISTIC
-from esphomeyaml.helpers import App, Application, NoArg, add, process_lambda, variable
+from esphomeyaml.helpers import App, Application, NoArg, add, process_lambda, variable, optional
 
 MakeTemplateCover = Application.MakeTemplateCover
 
@@ -25,7 +25,8 @@ def to_code(config):
 
     if CONF_LAMBDA in config:
         template_ = None
-        for template_ in process_lambda(config[CONF_LAMBDA], []):
+        for template_ in process_lambda(config[CONF_LAMBDA], [],
+                                        return_type=optional.template(cover.CoverState)):
             yield
         add(make.Ptemplate_.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:

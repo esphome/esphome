@@ -15,7 +15,7 @@ def validate_frequency_bit_depth(obj):
     bit_depth = obj.get(CONF_BIT_DEPTH, 12)
     max_freq = APB_CLOCK_FREQ / (2**bit_depth)
     if frequency > max_freq:
-        raise vol.Invalid('Maximum frequency for bit depth {} is {}'.format(bit_depth, max_freq))
+        raise vol.Invalid('Maximum frequency for bit depth {} is {}Hz'.format(bit_depth, max_freq))
     return obj
 
 
