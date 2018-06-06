@@ -12,7 +12,7 @@ CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),
     vol.Required(CONF_SDA, default='SDA'): pins.input_output_pin,
     vol.Required(CONF_SCL, default='SCL'): pins.input_output_pin,
-    vol.Optional(CONF_FREQUENCY): cv.positive_int,
+    vol.Optional(CONF_FREQUENCY): vol.All(cv.frequency, vol.Range(min=0, min_included=False)),
     vol.Optional(CONF_RECEIVE_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_SCAN): cv.boolean,
 })
