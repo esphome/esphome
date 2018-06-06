@@ -25,7 +25,7 @@ def to_code(config):
     for trigger in gpio_output_pin_expression(config[CONF_TRIGGER_PIN]):
         yield
     echo = None
-    for trigger in gpio_input_pin_expression(config[CONF_ECHO_PIN]):
+    for echo in gpio_input_pin_expression(config[CONF_ECHO_PIN]):
         yield
     rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
