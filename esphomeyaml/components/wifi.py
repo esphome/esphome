@@ -47,7 +47,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Optional(CONF_MANUAL_IP): AP_MANUAL_IP_SCHEMA,
     }),
     vol.Optional(CONF_HOSTNAME): cv.hostname,
-    vol.Required(CONF_DOMAIN, default='.local'): cv.domainname,
+    vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
 })
 
 
