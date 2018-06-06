@@ -117,7 +117,10 @@ def setup_filter(config):
     elif CONF_DELTA in config:
         yield DeltaFilter.new(config[CONF_DELTA])
     elif CONF_OR in config:
-        yield OrFilter.new(setup_filters(config[CONF_OR]))
+        filters = None
+        for filters in setup_filters(config[CONF_OR]):
+            yield None
+        yield OrFilter.new(filters)
     elif CONF_HEARTBEAT in config:
         yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
     elif CONF_DEBOUNCE in config:
@@ -131,7 +134,7 @@ def setup_filters(config):
     for conf in config:
         filter = None
         for filter in setup_filter(conf):
-            yield
+            yield None
         filters.append(filter)
     yield ArrayInitializer(*filters)
 
