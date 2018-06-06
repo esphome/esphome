@@ -208,6 +208,8 @@ def upload_program(config, args, port):
     espota_args = ['espota.py', '--debug', '--progress', '-i', host,
                    '-p', str(ota.get_port(config)), '-f', bin_file,
                    '-a', ota.get_auth(config), '-P', str(host_port)]
+    if args.verbose:
+        espota_args.append('-d')
     return espota.main(espota_args)
 
 
