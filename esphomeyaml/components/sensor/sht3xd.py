@@ -29,6 +29,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 def to_code(config):
     rhs = App.make_sht3xd_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_HUMIDITY][CONF_NAME],
+                                 config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
     sht3xd = variable(config[CONF_MAKE_ID], rhs)
 
