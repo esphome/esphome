@@ -387,7 +387,7 @@ def build_actions(config, arg_type):
         for action in build_action(conf, arg_type):
             yield None
         actions.append(action)
-    yield ArrayInitializer(*actions)
+    yield ArrayInitializer(*actions, multiline=False)
 
 
 def build_automation_(trigger, arg_type, config):
