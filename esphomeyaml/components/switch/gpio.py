@@ -10,7 +10,7 @@ MakeGPIOSwitch = Application.MakeGPIOSwitch
 
 PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeGPIOSwitch),
-    vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
+    vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
 }).extend(switch.SWITCH_SCHEMA.schema)
 
 

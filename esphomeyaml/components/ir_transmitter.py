@@ -10,7 +10,7 @@ IRTransmitterComponent = switch.switch_ns.namespace('IRTransmitterComponent')
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(IRTransmitterComponent),
-    vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
+    vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(vol.Coerce(int),
                                                      vol.Range(min=1, max=100)),
 })])

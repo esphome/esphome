@@ -483,7 +483,7 @@ class MockObj(Expression):
             obj.requires.append(self)
             return obj
         next_op = u'.'
-        if attr.startswith(u'P') and self.op != '::':
+        if attr.startswith(u'P') and self.op not in ['::', '']:
             attr = attr[1:]
             next_op = u'->'
         if attr.startswith(u'_'):

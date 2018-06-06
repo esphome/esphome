@@ -27,7 +27,7 @@ CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.GPIO_INTERNAL_INPUT_PIN_SCHEMA,
+    vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                            validate_pin_number),
     vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32, vol.Upper,
                                                 cv.one_of(*WAKEUP_PIN_MODES)),

@@ -213,10 +213,30 @@ PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
     vol.Optional(CONF_MODE): vol.All(vol.Upper, vol.Any("INPUT", "INPUT_PULLUP")),
 })
 
-GPIO_INTERNAL_OUTPUT_PIN_SCHEMA = vol.Any(shorthand_output_pin, GPIO_FULL_OUTPUT_PIN_SCHEMA)
 
-GPIO_OUTPUT_PIN_SCHEMA = vol.Any(PCF8574_OUTPUT_PIN_SCHEMA, GPIO_INTERNAL_OUTPUT_PIN_SCHEMA)
+def internal_gpio_output_pin_schema(value):
+    if isinstance(value, dict):
+        return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
+    return shorthand_output_pin(value)
 
-GPIO_INTERNAL_INPUT_PIN_SCHEMA = vol.Any(shorthand_input_pin, GPIO_FULL_INPUT_PIN_SCHEMA)
 
-GPIO_INPUT_PIN_SCHEMA = vol.Any(PCF8574_INPUT_PIN_SCHEMA, GPIO_INTERNAL_INPUT_PIN_SCHEMA)
+def gpio_output_pin_schema(value):
+    if isinstance(value, dict):
+        if CONF_PCF8574 in value:
+            return PCF8574_OUTPUT_PIN_SCHEMA(value)
+        return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
+    return shorthand_output_pin(value)
+
+
+def internal_gpio_input_pin_schema(value):
+    if isinstance(value, dict):
+        return GPIO_FULL_INPUT_PIN_SCHEMA(value)
+    return shorthand_input_pin(value)
+
+
+def gpio_input_pin_schema(value):
+    if isinstance(value, dict):
+        if CONF_PCF8574 in value:
+            return PCF8574_INPUT_PIN_SCHEMA(value)
+        return GPIO_FULL_INPUT_PIN_SCHEMA(value)
+    return shorthand_input_pin(value)

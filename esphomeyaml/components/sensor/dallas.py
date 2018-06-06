@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.components.dallas import DallasComponent
 from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAME, \
-    CONF_RESOLUTION, CONF_UPDATE_INTERVAL
+    CONF_RESOLUTION
 from esphomeyaml.helpers import HexIntLiteral, get_variable
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
@@ -19,17 +19,12 @@ def to_code(config):
     hub = None
     for hub in get_variable(config[CONF_DALLAS_ID]):
         yield
-    update_interval = config.get(CONF_UPDATE_INTERVAL)
-    if CONF_RESOLUTION in config and update_interval is None:
-        update_interval = 10000
-
     if CONF_ADDRESS in config:
         address = HexIntLiteral(config[CONF_ADDRESS])
-        rhs = hub.Pget_sensor_by_address(config[CONF_NAME], address, update_interval,
-                                         config.get(CONF_RESOLUTION))
+        rhs = hub.Pget_sensor_by_address(config[CONF_NAME], address, config.get(CONF_RESOLUTION))
     else:
         rhs = hub.Pget_sensor_by_index(config[CONF_NAME], config[CONF_INDEX],
-                                       update_interval, config.get(CONF_RESOLUTION))
+                                       config.get(CONF_RESOLUTION))
     sensor.register_sensor(rhs, config)
 
 

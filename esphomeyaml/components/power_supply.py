@@ -9,7 +9,7 @@ PowerSupplyComponent = esphomelib_ns.PowerSupplyComponent
 
 POWER_SUPPLY_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(PowerSupplyComponent),
-    vol.Required(CONF_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
+    vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_ENABLE_TIME): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_KEEP_ON_TIME): cv.positive_time_period_milliseconds,
 })

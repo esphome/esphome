@@ -5,7 +5,7 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_HUMIDITY, CONF_MAKE_ID, CONF_MODEL, CONF_NAME, CONF_PIN, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, add, gpio_output_pin_expression, variable
-from esphomeyaml.pins import GPIO_OUTPUT_PIN_SCHEMA
+from esphomeyaml.pins import gpio_output_pin_schema
 
 DHT_MODELS = {
     'AUTO_DETECT': sensor.sensor_ns.DHT_MODEL_AUTO_DETECT,
@@ -19,7 +19,7 @@ MakeDHTSensor = Application.MakeDHTSensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeDHTSensor),
-    vol.Required(CONF_PIN): GPIO_OUTPUT_PIN_SCHEMA,
+    vol.Required(CONF_PIN): gpio_output_pin_schema,
     vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
     vol.Required(CONF_HUMIDITY): sensor.SENSOR_SCHEMA,
     vol.Optional(CONF_MODEL): vol.All(vol.Upper, cv.one_of(*DHT_MODELS)),

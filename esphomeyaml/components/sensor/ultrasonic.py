@@ -12,8 +12,8 @@ MakeUltrasonicSensor = Application.MakeUltrasonicSensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeUltrasonicSensor),
-    vol.Required(CONF_TRIGGER_PIN): pins.GPIO_OUTPUT_PIN_SCHEMA,
-    vol.Required(CONF_ECHO_PIN): pins.GPIO_INTERNAL_INPUT_PIN_SCHEMA,
+    vol.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
+    vol.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
     vol.Exclusive(CONF_TIMEOUT_METER, 'timeout'): cv.positive_float,
     vol.Exclusive(CONF_TIMEOUT_TIME, 'timeout'): cv.positive_time_period_microseconds,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,

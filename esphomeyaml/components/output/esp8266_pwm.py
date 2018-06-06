@@ -20,7 +20,7 @@ ESP8266PWMOutput = output.output_ns.ESP8266PWMOutput
 
 PLATFORM_SCHEMA = output.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(ESP8266PWMOutput),
-    vol.Required(CONF_PIN): vol.All(pins.GPIO_INTERNAL_OUTPUT_PIN_SCHEMA, valid_pwm_pin),
+    vol.Required(CONF_PIN): vol.All(pins.internal_gpio_output_pin_schema, valid_pwm_pin),
 }).extend(output.FLOAT_OUTPUT_SCHEMA.schema)
 
 

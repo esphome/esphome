@@ -12,9 +12,9 @@ MakeMAX6675Sensor = Application.MakeMAX6675Sensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeMAX6675Sensor),
-    vol.Required(CONF_PIN_CS): pins.GPIO_OUTPUT_PIN_SCHEMA,
-    vol.Required(CONF_PIN_CLOCK): pins.GPIO_OUTPUT_PIN_SCHEMA,
-    vol.Optional(CONF_PIN_MISO): pins.GPIO_INPUT_PIN_SCHEMA,
+    vol.Required(CONF_PIN_CS): pins.gpio_output_pin_schema,
+    vol.Required(CONF_PIN_CLOCK): pins.gpio_output_pin_schema,
+    vol.Required(CONF_PIN_MISO): pins.gpio_input_pin_schema,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(sensor.SENSOR_SCHEMA.schema)
 

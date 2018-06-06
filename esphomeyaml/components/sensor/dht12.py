@@ -24,9 +24,9 @@ def to_code(config):
                                 config.get(CONF_UPDATE_INTERVAL))
     dht = variable(config[CONF_MAKE_ID], rhs)
 
-    sensor.setup_sensor(dht.Pdht.Pget_temperature_sensor(), dht.Pmqtt_temperature,
+    sensor.setup_sensor(dht.Pdht12.Pget_temperature_sensor(), dht.Pmqtt_temperature,
                         config[CONF_TEMPERATURE])
-    sensor.setup_sensor(dht.Pdht.Pget_humidity_sensor(), dht.Pmqtt_humidity,
+    sensor.setup_sensor(dht.Pdht12.Pget_humidity_sensor(), dht.Pmqtt_humidity,
                         config[CONF_HUMIDITY])
 
 
