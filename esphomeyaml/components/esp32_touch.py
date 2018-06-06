@@ -65,7 +65,7 @@ def to_code(config):
     if CONF_IIR_FILTER in config:
         add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
     if CONF_SLEEP_DURATION in config:
-        sleep_duration = int(config[CONF_SLEEP_DURATION].total_microseconds * 6.6667)
+        sleep_duration = int(config[CONF_SLEEP_DURATION].total_microseconds * 0.15)
         add(touch.set_sleep_duration(sleep_duration))
     if CONF_MEASUREMENT_DURATION in config:
         measurement_duration = int(config[CONF_MEASUREMENT_DURATION].total_microseconds * 0.125)
