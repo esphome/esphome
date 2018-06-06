@@ -16,7 +16,7 @@ from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression,
 
 def validate_message_just_topic(value):
     value = cv.publish_topic(value)
-    return {CONF_TOPIC: value}
+    return MQTT_MESSAGE_BASE({CONF_TOPIC: value})
 
 
 MQTT_MESSAGE_BASE = vol.Schema({
@@ -74,7 +74,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.publish_topic,
-        vol.Optional(CONF_QOS, 0): cv.mqtt_qos,
+        vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     })])
 })
 
@@ -106,13 +106,13 @@ def to_code(config):
         add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
     if CONF_BIRTH_MESSAGE in config:
         birth_message = config[CONF_BIRTH_MESSAGE]
-        if birth_message is None:
+        if not birth_message:
             add(mqtt.disable_birth_message())
         else:
             add(mqtt.set_birth_message(exp_mqtt_message(birth_message)))
     if CONF_WILL_MESSAGE in config:
         will_message = config[CONF_WILL_MESSAGE]
-        if will_message is None:
+        if not will_message:
             add(mqtt.disable_last_will())
         else:
             add(mqtt.set_last_will(exp_mqtt_message(will_message)))
@@ -120,10 +120,10 @@ def to_code(config):
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
     if CONF_LOG_TOPIC in config:
         log_topic = config[CONF_LOG_TOPIC]
-        if log_topic is None:
+        if not log_topic:
             add(mqtt.disable_log_message())
         else:
-            add(mqtt.set_log_topic(exp_mqtt_message(log_topic)))
+            add(mqtt.set_log_message_template(exp_mqtt_message(log_topic)))
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
