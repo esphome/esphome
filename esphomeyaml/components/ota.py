@@ -29,6 +29,8 @@ def to_code(config):
     if CONF_PASSWORD in config:
         hash_ = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
         add(ota.set_auth_password_hash(hash_))
+    if CONF_PORT in config:
+        add(ota.set_port(config[CONF_PORT]))
     if config[CONF_SAFE_MODE]:
         add(ota.start_safe_mode())
 
