@@ -205,7 +205,7 @@ def build_action(config, arg_type):
         yield Pvariable(config[CONF_ACTION_ID], rhs, type=type)
     elif CONF_MQTT_PUBLISH in config:
         conf = config[CONF_MQTT_PUBLISH]
-        rhs = App.Pget_mqtt_client().Pmake_publish_action()
+        rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
         type = mqtt.MQTTPublishAction.template(template_arg)
         action = Pvariable(config[CONF_ACTION_ID], rhs, type=type)
         template_ = None
