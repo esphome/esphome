@@ -14,8 +14,8 @@ WebServer = esphomelib_ns.WebServer
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(WebServer),
     vol.Optional(CONF_PORT): cv.port,
-    vol.Optional(CONF_CSS_URL): vol.Url,
-    vol.Optional(CONF_JS_URL): vol.Url,
+    vol.Optional(CONF_CSS_URL): cv.string,
+    vol.Optional(CONF_JS_URL): cv.string,
 })
 
 
