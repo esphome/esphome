@@ -175,7 +175,7 @@ def validate_config(config):
         dependencies = getattr(component, 'DEPENDENCIES', [])
         for dependency in dependencies:
             if dependency not in _ALL_COMPONENTS:
-                result.add_error(u"Component {} requires {}".format(domain, dependency))
+                result.add_error(u"Component {} requires component {}".format(domain, dependency))
                 success = False
         if not success:
             continue
@@ -209,8 +209,8 @@ def validate_config(config):
             dependencies = getattr(platform, 'DEPENDENCIES', [])
             for dependency in dependencies:
                 if dependency not in _ALL_COMPONENTS:
-                    result.add_error(u"Platform {}.{} requires {}".format(domain, p_name,
-                                                                          dependency))
+                    result.add_error(u"Platform {}.{} requires component {}".format(domain, p_name,
+                                                                                    dependency))
                     success = False
             if not success:
                 continue

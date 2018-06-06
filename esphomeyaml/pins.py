@@ -205,12 +205,12 @@ def shorthand_input_pin(value):
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
     vol.Required(CONF_PCF8574): cv.use_variable_id(pcf8574.PCF8574Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
-    vol.Optional(CONF_MODE): vol.All(vol.Upper, "OUTPUT"),
+    vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("OUTPUT")),
     vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): vol.All(vol.Upper, vol.Any("INPUT", "INPUT_PULLUP")),
+    vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("INPUT", "INPUT_PULLUP")),
 })
 
 
