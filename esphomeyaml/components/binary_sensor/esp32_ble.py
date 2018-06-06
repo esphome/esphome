@@ -38,7 +38,7 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
 
 def to_code(config):
     hub = None
-    for hub in get_variable(CONF_ESP32_BLE_ID):
+    for hub in get_variable(config[CONF_ESP32_BLE_ID]):
         yield
     addr = [HexInt(i) for i in config[CONF_MAC_ADDRESS].parts]
     rhs = hub.make_device(config[CONF_NAME], ArrayInitializer(*addr, multiline=False))
