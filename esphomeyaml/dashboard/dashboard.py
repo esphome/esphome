@@ -236,7 +236,7 @@ def start_web_server(args):
             PASSWORD = js.get('password') or PASSWORD
 
     if PASSWORD:
-        PASSWORD = hmac.new(PASSWORD).digest()
+        PASSWORD = hmac.new(str(PASSWORD)).digest()
         # Use the digest of the password as our cookie secret. This makes sure the cookie
         # isn't too short. It, of course, enables local hash brute forcing (because the cookie
         # secret can be brute forced without making requests). But the hashing algorithm used
