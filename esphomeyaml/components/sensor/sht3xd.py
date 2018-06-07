@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ACCURACY, CONF_ADDRESS, CONF_HUMIDITY, CONF_MAKE_ID, CONF_NAME, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, variable
 
 DEPENDENCIES = ['i2c']
 
