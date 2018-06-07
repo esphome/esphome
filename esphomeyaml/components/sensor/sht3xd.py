@@ -8,12 +8,6 @@ from esphomeyaml.helpers import App, Application, add, variable
 
 DEPENDENCIES = ['i2c']
 
-SHT_ACCURACIES = {
-    'LOW': sensor.sensor_ns.SHT3XD_ACCURACY_LOW,
-    'MEDIUM': sensor.sensor_ns.SHT3XD_ACCURACY_MEDIUM,
-    'HIGH': sensor.sensor_ns.SHT3XD_ACCURACY_HIGH,
-}
-
 MakeSHT3XDSensor = Application.MakeSHT3XDSensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
@@ -21,8 +15,10 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
     vol.Required(CONF_HUMIDITY): sensor.SENSOR_SCHEMA,
     vol.Optional(CONF_ADDRESS, default=0x44): cv.i2c_address,
-    vol.Optional(CONF_ACCURACY): vol.All(vol.Upper, cv.one_of(*SHT_ACCURACIES)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+
+    vol.Optional(CONF_ACCURACY): cv.invalid("The accuracy option has been removed and now "
+                                            "defaults to HIGH."),
 })
 
 
@@ -32,9 +28,6 @@ def to_code(config):
                                  config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
     sht3xd = variable(config[CONF_MAKE_ID], rhs)
-
-    if CONF_ACCURACY in config:
-        add(sht3xd.Psht3xd.set_accuracy(SHT_ACCURACIES[config[CONF_ACCURACY]]))
 
     sensor.setup_sensor(sht3xd.Psht3xd.Pget_temperature_sensor(), sht3xd.Pmqtt_temperature,
                         config[CONF_TEMPERATURE])
