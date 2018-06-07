@@ -182,7 +182,10 @@ def upload_using_esptool(config, port):
 
 def upload_program(config, args, port):
     _LOGGER.info("Uploading binary...")
-    if port != 'OTA':
+
+    # if upload is to a serial port use platformio, otherwise assume ota
+    serial_port = port.startswith('/') or port.startswith('COM')
+    if port != 'OTA' and serial_port:
         if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
             return upload_using_esptool(config, port)
         command = ['platformio', 'run', '-d', get_base_path(config),
@@ -195,7 +198,12 @@ def upload_program(config, args, port):
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
         return -1
 
-    host = get_upload_host(config)
+    # If hostname/ip is explicitly provided as upload-port argument, use this instead of zeroconf
+    # hostname. This is to support use cases where zeroconf (hostname.local) does not work.
+    if port != 'OTA':
+        host = port
+    else:
+        host = get_upload_host(config)
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota
@@ -395,7 +403,7 @@ def parse_args(argv):
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
                                                    'upload it, and start MQTT logs.')
-    parser_run.add_argument('--upload-port', help="Manually specify the upload port to use. "
+    parser_run.add_argument('--upload-port', help="Manually specify the upload port/ip to use. "
                                                   "For example /dev/cu.SLAB_USBtoUART.")
     parser_run.add_argument('--host-port', help="Specify the host port to use for OTA", type=int)
     parser_run.add_argument('--no-logs', help='Disable starting MQTT logs.',
