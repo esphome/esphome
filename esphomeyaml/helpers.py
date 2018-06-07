@@ -534,6 +534,7 @@ std_string = std_ns.string
 uint8 = global_ns.namespace('uint8_t')
 uint16 = global_ns.namespace('uint16_t')
 uint32 = global_ns.namespace('uint32_t')
+const_char_p = global_ns.namespace('const char *')
 NAN = global_ns.namespace('NAN')
 esphomelib_ns = global_ns  # using namespace esphomelib;
 NoArg = esphomelib_ns.NoArg

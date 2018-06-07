@@ -8,19 +8,21 @@ import voluptuous as vol
 from voluptuous.humanize import humanize_error
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml import core, yaml_util
+from esphomeyaml import core, yaml_util, automation
 from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
-    CONF_LIBRARY_URI, \
-    CONF_NAME, CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, ESP_PLATFORMS, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_LIBRARY_URI, CONF_NAME, CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, \
+    ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ON_BOOT, CONF_TRIGGER_ID, \
+    CONF_PRIORITY, CONF_ON_SHUTDOWN
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, add, color
+from esphomeyaml.helpers import App, add, color, esphomelib_ns, Pvariable, NoArg, const_char_p
 
 _LOGGER = logging.getLogger(__name__)
 
 DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.6.2'
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
+StartupTrigger = esphomelib_ns.StartupTrigger
+ShutdownTrigger = esphomelib_ns.ShutdownTrigger
 
 CORE_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
@@ -30,6 +32,13 @@ CORE_SCHEMA = vol.Schema({
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
     vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
     vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
+    vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
+        vol.Optional(CONF_PRIORITY): vol.Coerce(float),
+    })]),
+    vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
+    })]),
 })
 
 REQUIRED_COMPONENTS = [
@@ -42,6 +51,15 @@ _ALL_COMPONENTS = []
 
 def core_to_code(config):
     add(App.set_name(config[CONF_NAME]))
+
+    for conf in config.get(CONF_ON_BOOT, []):
+        rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, NoArg, conf)
+
+    for conf in config.get(CONF_ON_SHUTDOWN, []):
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
+        automation.build_automation(trigger, const_char_p, conf)
 
 
 def get_component(domain):

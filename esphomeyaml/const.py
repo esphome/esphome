@@ -231,6 +231,9 @@ CONF_CLOSE_ACTION = 'close_action'
 CONF_STOP_ACTION = 'stop_action'
 CONF_DOMAIN = 'domain'
 CONF_OPTIMISTIC = 'optimistic'
+CONF_ON_BOOT = 'on_boot'
+CONF_ON_SHUTDOWN = 'on_shutdown'
+CONF_PRIORITY = 'priority'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',
