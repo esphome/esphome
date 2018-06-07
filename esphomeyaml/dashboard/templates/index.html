@@ -524,7 +524,7 @@
   let ports = [];
 
   const fetchSerialPorts = (begin=false) => {
-    fetch('/serial-ports').then(res => res.json())
+    fetch('/serial-ports', {credentials: "same-origin"}).then(res => res.json())
       .then(response => {
         if (ports.length === response.length) {
           let allEqual = true;

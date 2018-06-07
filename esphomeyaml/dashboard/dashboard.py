@@ -2,6 +2,7 @@
 from __future__ import print_function
 
 import codecs
+import hmac
 import json
 import logging
 import os
@@ -27,6 +28,13 @@ except ImportError as err:
 
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
+PASSWORD = ''
+
+
+# pylint: disable=abstract-method
+class BaseHandler(tornado.web.RequestHandler):
+    def is_authenticated(self):
+        return not PASSWORD or self.get_secure_cookie('authenticated') == 'yes'
 
 
 # pylint: disable=abstract-method, arguments-differ
@@ -37,6 +45,8 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
         self.closed = False
 
     def on_message(self, message):
+        if PASSWORD and self.get_secure_cookie('authenticated') != 'yes':
+            return
         if self.proc is not None:
             return
         command = self.build_command(message)
@@ -103,8 +113,11 @@ class EsphomeyamlValidateHandler(EsphomeyamlCommandWebSocket):
         return ["esphomeyaml", config_file, "config"]
 
 
-class SerialPortRequestHandler(tornado.web.RequestHandler):
+class SerialPortRequestHandler(BaseHandler):
     def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
         ports = get_serial_ports()
         data = []
         for port, desc in ports:
@@ -119,10 +132,13 @@ class SerialPortRequestHandler(tornado.web.RequestHandler):
         self.write(json.dumps(sorted(data, reverse=True)))
 
 
-class WizardRequestHandler(tornado.web.RequestHandler):
+class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphomeyaml import wizard
 
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
         kwargs = {k: ''.join(v) for k, v in self.request.arguments.iteritems()}
         config = wizard.wizard_file(**kwargs)
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
@@ -132,8 +148,12 @@ class WizardRequestHandler(tornado.web.RequestHandler):
         self.redirect('/?begin=True')
 
 
-class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
+class DownloadBinaryRequestHandler(BaseHandler):
     def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+
         configuration = self.get_argument('configuration')
         config_file = os.path.join(CONFIG_DIR, configuration)
         core.CONFIG_PATH = config_file
@@ -151,8 +171,12 @@ class DownloadBinaryRequestHandler(tornado.web.RequestHandler):
         self.finish()
 
 
-class MainRequestHandler(tornado.web.RequestHandler):
+class MainRequestHandler(BaseHandler):
     def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+
         begin = bool(self.get_argument('begin', False))
         files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml') and
                         not f.startswith('.')])
@@ -161,10 +185,26 @@ class MainRequestHandler(tornado.web.RequestHandler):
                     version=const.__version__, begin=begin)
 
 
+class LoginHandler(BaseHandler):
+    def get(self):
+        self.write('<html><body><form action="/login" method="post">'
+                   'Password: <input type="password" name="password">'
+                   '<input type="submit" value="Sign in">'
+                   '</form></body></html>')
+
+    def post(self):
+        password = str(self.get_argument("password", ''))
+        password = hmac.new(password).digest()
+        if hmac.compare_digest(PASSWORD, password):
+            self.set_secure_cookie("authenticated", "yes")
+        self.redirect("/")
+
+
 def make_app(debug=False):
     static_path = os.path.join(os.path.dirname(__file__), 'static')
     return tornado.web.Application([
         (r"/", MainRequestHandler),
+        (r"/login", LoginHandler),
         (r"/logs", EsphomeyamlLogsHandler),
         (r"/run", EsphomeyamlRunHandler),
         (r"/compile", EsphomeyamlCompileHandler),
@@ -173,11 +213,12 @@ def make_app(debug=False):
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ], debug=debug)
+    ], debug=debug, cookie_secret=PASSWORD)
 
 
 def start_web_server(args):
     global CONFIG_DIR
+    global PASSWORD
 
     if tornado is None:
         raise ESPHomeYAMLError("Attempted to load dashboard, but tornado is not installed! "
@@ -186,6 +227,21 @@ def start_web_server(args):
     CONFIG_DIR = args.configuration
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
+
+    # HassIO options storage
+    PASSWORD = args.password
+    if os.path.isfile('/data/options.json'):
+        with open('/data/options.json') as f:
+            js = json.load(f)
+            PASSWORD = js.get('password') or PASSWORD
+
+    if PASSWORD:
+        PASSWORD = hmac.new(PASSWORD).digest()
+        # Use the digest of the password as our cookie secret. This makes sure the cookie
+        # isn't too short. It, of course, enables local hash brute forcing (because the cookie
+        # secret can be brute forced without making requests). But the hashing algorithm used
+        # by tornado is apparently strong enough to make brute forcing even a short string pretty
+        # hard.
 
     _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)

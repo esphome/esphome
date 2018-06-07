@@ -21,9 +21,13 @@
   "map": [
     "config:rw"
   ],
-  "options": {},
+  "options": {
+    "password": ""
+  },
+  "schema": {
+    "password": "str?"
+  },
   "environment": {
     "ESPHOMEYAML_OTA_HOST_PORT": "6053"
   },
-  "schema": {}
 }
