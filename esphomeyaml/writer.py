@@ -120,7 +120,7 @@ def get_ini_content(config):
     content = INI_CONTENT_FORMAT.format(**options)
     if CONF_BOARD_FLASH_MODE in config[CONF_ESPHOMEYAML]:
         flash_mode = config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
-        content += "board_flash_mode = {}\n".format(flash_mode)
+        content += "board_build.flash_mode = {}\n".format(flash_mode)
     return content
 
 
