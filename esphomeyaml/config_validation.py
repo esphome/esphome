@@ -246,13 +246,6 @@ time_period_dict = vol.All(
                          'seconds', 'milliseconds', 'microseconds'),
     lambda value: TimePeriod(**value))
 
-TIME_PERIOD_EXPLICIT_MESSAGE = ("The old way of being able to write time values without a "
-                                "time unit (like \"1000\" for 1000 milliseconds) has been "
-                                "removed in 1.5.0 as it was ambiguous in some places. Please "
-                                "now explicitly specify the time unit (like \"1000ms\"). See "
-                                "https://esphomelib.com/esphomeyaml/configuration-types.html#time "
-                                "for more information.")
-
 
 def time_period_str_colon(value):
     """Validate and transform time offset with format HH:MM[:SS]."""
@@ -283,13 +276,6 @@ def time_period_str_unit(value):
         value = str(value)
     elif not isinstance(value, (str, unicode)):
         raise vol.Invalid("Expected string for time period with unit.")
-
-    try:
-        float(value)
-    except ValueError:
-        pass
-    else:
-        raise vol.Invalid(TIME_PERIOD_EXPLICIT_MESSAGE)
 
     unit_to_kwarg = {
         'us': 'microseconds',
