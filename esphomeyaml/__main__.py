@@ -222,7 +222,8 @@ def upload_program(config, args, port):
 
 
 def show_logs(config, args, port, escape=False):
-    if port != 'OTA':
+    serial_port = port.startswith('/') or port.startswith('COM')
+    if port != 'OTA' and serial_port:
         run_miniterm(config, port, escape=escape)
         return 0
     return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id,
