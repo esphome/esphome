@@ -82,6 +82,7 @@ def get_build_flags(config, key):
 
 
 def get_ini_content(config):
+    version_specific_settings = determine_platformio_version_settings()
     platform = config[CONF_ESPHOMEYAML][CONF_PLATFORM]
     if platform in PLATFORM_TO_PLATFORMIO:
         platform = PLATFORM_TO_PLATFORMIO[platform]
@@ -119,8 +120,9 @@ def get_ini_content(config):
 
     content = INI_CONTENT_FORMAT.format(**options)
     if CONF_BOARD_FLASH_MODE in config[CONF_ESPHOMEYAML]:
+        flash_mode_key = version_specific_settings['flash_mode_key']
         flash_mode = config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
-        content += "board_flash_mode = {}\n".format(flash_mode)
+        content += "{} = {}\n".format(flash_mode_key, flash_mode)
     return content
 
 
@@ -194,3 +196,16 @@ def write_cpp(code_s, path):
         return
     with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
         f_handle.write(full_file)
+
+
+def determine_platformio_version_settings():
+    import platformio
+
+    settings = {}
+
+    if platformio.VERSION < (3, 5, 3):
+        settings['flash_mode_key'] = 'board_flash_mode'
+    else:
+        settings['flash_mode_key'] = 'board_build.flash_mode'
+
+    return settings
