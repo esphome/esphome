@@ -11,7 +11,7 @@ from esphomeyaml import const, core, mqtt, wizard, writer, yaml_util
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CONF_HOSTNAME, \
     CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, ESP_PLATFORM_ESP8266, \
-    CONF_NETWORKS
+    CONF_NETWORKS, CONF_BUILD_PATH
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
     add_job, color, flush_tasks, indent, quote, statement
@@ -26,7 +26,8 @@ def get_name(config):
 
 
 def get_base_path(config):
-    return os.path.join(os.path.dirname(core.CONFIG_PATH), get_name(config))
+    build_path = config[CONF_ESPHOMEYAML].get(CONF_BUILD_PATH, get_name(config))
+    return os.path.join(os.path.dirname(core.CONFIG_PATH), build_path)
 
 
 def get_serial_ports():

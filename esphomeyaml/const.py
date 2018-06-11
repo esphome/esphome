@@ -240,6 +240,7 @@ CONF_FILTER = 'filter'
 CONF_IDLE = 'idle'
 CONF_NETWORKS = 'networks'
 CONF_INTERNAL = 'internal'
+CONF_BUILD_PATH = 'build_path'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',
