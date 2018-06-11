@@ -10,13 +10,13 @@ from esphomeyaml.helpers import App, Application, gpio_input_pin_expression, \
 
 MakeMAX6675Sensor = Application.MakeMAX6675Sensor
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeMAX6675Sensor),
     vol.Required(CONF_PIN_CS): pins.gpio_output_pin_schema,
     vol.Required(CONF_PIN_CLOCK): pins.gpio_output_pin_schema,
     vol.Required(CONF_PIN_MISO): pins.gpio_input_pin_schema,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

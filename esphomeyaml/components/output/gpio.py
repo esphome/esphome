@@ -8,10 +8,10 @@ from esphomeyaml.helpers import App, Pvariable, gpio_output_pin_expression
 
 GPIOBinaryOutputComponent = output.output_ns.GPIOBinaryOutputComponent
 
-PLATFORM_SCHEMA = output.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = output.BINARY_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(GPIOBinaryOutputComponent),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
-}).extend(output.BINARY_OUTPUT_SCHEMA.schema)
+})
 
 
 def to_code(config):

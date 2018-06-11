@@ -34,11 +34,11 @@ def validate_touch_pad(value):
     return value
 
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PIN): validate_touch_pad,
     vol.Required(CONF_THRESHOLD): cv.uint16_t,
     cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_variable_id(ESP32TouchComponent),
-}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

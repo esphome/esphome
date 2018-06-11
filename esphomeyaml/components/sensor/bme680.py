@@ -38,10 +38,10 @@ MakeBME680Sensor = Application.MakeBME680Sensor
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBME680Sensor),
     vol.Optional(CONF_ADDRESS, default=0x76): cv.i2c_address,
-    vol.Required(CONF_TEMPERATURE): BME680_OVERSAMPLING_SENSOR_SCHEMA,
-    vol.Required(CONF_PRESSURE): BME680_OVERSAMPLING_SENSOR_SCHEMA,
-    vol.Required(CONF_HUMIDITY): BME680_OVERSAMPLING_SENSOR_SCHEMA,
-    vol.Required(CONF_GAS_RESISTANCE): sensor.SENSOR_SCHEMA,
+    vol.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
+    vol.Required(CONF_PRESSURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
+    vol.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
+    vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
     # TODO: Heater
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,

@@ -12,8 +12,8 @@ MakeSHT3XDSensor = Application.MakeSHT3XDSensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeSHT3XDSensor),
-    vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
-    vol.Required(CONF_HUMIDITY): sensor.SENSOR_SCHEMA,
+    vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_ADDRESS, default=0x44): cv.i2c_address,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 

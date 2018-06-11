@@ -7,9 +7,9 @@ DEPENDENCIES = ['mqtt']
 
 MakeStatusBinarySensor = Application.MakeStatusBinarySensor
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeStatusBinarySensor),
-}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

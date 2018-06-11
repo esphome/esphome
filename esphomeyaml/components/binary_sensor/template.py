@@ -7,10 +7,10 @@ from esphomeyaml.helpers import App, Application, process_lambda, variable, opti
 
 MakeTemplateBinarySensor = Application.MakeTemplateBinarySensor
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateBinarySensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
-}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

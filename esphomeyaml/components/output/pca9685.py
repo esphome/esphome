@@ -10,12 +10,12 @@ DEPENDENCIES = ['pca9685']
 
 Channel = PCA9685OutputComponent.Channel
 
-PLATFORM_SCHEMA = output.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(Channel),
     vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int),
                                         vol.Range(min=0, max=15)),
     cv.GenerateID(CONF_PCA9685_ID): cv.use_variable_id(PCA9685OutputComponent),
-}).extend(output.FLOAT_OUTPUT_SCHEMA.schema)
+})
 
 
 def to_code(config):

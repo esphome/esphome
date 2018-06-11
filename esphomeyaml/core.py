@@ -32,6 +32,12 @@ class MACAddress(object):
     def __str__(self):
         return ':'.join('{:02X}'.format(part) for part in self.parts)
 
+    def as_hex(self):
+        import esphomeyaml.helpers
+
+        num = ''.join('{:02X}'.format(part) for part in self.parts)
+        return esphomeyaml.helpers.RawExpression('0x{}ULL'.format(num))
+
 
 def is_approximately_integer(value):
     if isinstance(value, (int, long)):

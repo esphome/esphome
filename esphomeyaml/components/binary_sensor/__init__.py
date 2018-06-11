@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INVERTED, CONF_MAX_LENGTH, \
     CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, CONF_ON_PRESS, \
-    CONF_ON_RELEASE, CONF_TRIGGER_ID
+    CONF_ON_RELEASE, CONF_TRIGGER_ID, CONF_INTERNAL
 from esphomeyaml.helpers import App, NoArg, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
     add_job
 
@@ -51,8 +51,12 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
         })]),
 })
 
+BINARY_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA.schema)
+
 
 def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
+    if CONF_INTERNAL in config:
+        add(binary_sensor_var.set_internal(CONF_INTERNAL))
     if CONF_DEVICE_CLASS in config:
         add(binary_sensor_var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_INVERTED in config:

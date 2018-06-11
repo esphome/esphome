@@ -12,8 +12,8 @@ MakeHTU21DSensor = Application.MakeHTU21DSensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeHTU21DSensor),
-    vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
-    vol.Required(CONF_HUMIDITY): sensor.SENSOR_SCHEMA,
+    vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 

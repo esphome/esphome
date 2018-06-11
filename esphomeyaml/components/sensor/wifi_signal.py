@@ -7,10 +7,10 @@ from esphomeyaml.helpers import App, Application, variable
 
 MakeWiFiSignalSensor = Application.MakeWiFiSignalSensor
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeWiFiSignalSensor),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

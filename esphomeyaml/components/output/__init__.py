@@ -14,9 +14,13 @@ BINARY_OUTPUT_SCHEMA = vol.Schema({
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
+BINARY_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_OUTPUT_SCHEMA.schema)
+
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
     vol.Optional(CONF_MAX_POWER): cv.percentage,
 })
+
+FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
 
 output_ns = esphomelib_ns.namespace('output')
 

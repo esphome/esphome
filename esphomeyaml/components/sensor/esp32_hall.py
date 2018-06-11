@@ -9,10 +9,10 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 MakeESP32HallSensor = Application.MakeESP32HallSensor
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeESP32HallSensor),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

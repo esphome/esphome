@@ -7,7 +7,7 @@ from esphomeyaml.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CO
     CONF_SPEED_STATE_TOPIC
 from esphomeyaml.helpers import App, add, get_variable, variable
 
-PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(fan.MakeFan),
     vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
     vol.Optional(CONF_SPEED_STATE_TOPIC): cv.publish_topic,
@@ -18,7 +18,7 @@ PLATFORM_SCHEMA = fan.PLATFORM_SCHEMA.extend({
         vol.Required(CONF_MEDIUM): cv.percentage,
         vol.Required(CONF_HIGH): cv.percentage,
     }),
-}).extend(fan.FAN_SCHEMA.schema)
+}))
 
 
 def to_code(config):

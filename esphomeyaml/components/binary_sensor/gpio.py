@@ -8,10 +8,10 @@ from esphomeyaml.helpers import App, gpio_input_pin_expression, variable, Applic
 
 MakeGPIOBinarySensor = Application.MakeGPIOBinarySensor
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeGPIOBinarySensor),
     vol.Required(CONF_PIN): pins.gpio_input_pin_schema
-}).extend(binary_sensor.BINARY_SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

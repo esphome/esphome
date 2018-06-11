@@ -21,13 +21,13 @@ def validate_frequency_bit_depth(obj):
 
 LEDCOutputComponent = output.output_ns.LEDCOutputComponent
 
-PLATFORM_SCHEMA = vol.All(output.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.All(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(LEDCOutputComponent),
     vol.Required(CONF_PIN): pins.output_pin,
     vol.Optional(CONF_FREQUENCY): cv.frequency,
     vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int), vol.Range(min=1, max=15)),
     vol.Optional(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))
-}).extend(output.FLOAT_OUTPUT_SCHEMA.schema), validate_frequency_bit_depth)
+}), validate_frequency_bit_depth)
 
 
 def to_code(config):

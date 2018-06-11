@@ -16,12 +16,12 @@ BH1750_RESOLUTIONS = {
 
 MakeBH1750Sensor = Application.MakeBH1750Sensor
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBH1750Sensor),
     vol.Optional(CONF_ADDRESS, default=0x23): cv.i2c_address,
     vol.Optional(CONF_RESOLUTION): vol.All(cv.positive_float, cv.one_of(*BH1750_RESOLUTIONS)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

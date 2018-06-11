@@ -45,12 +45,12 @@ def validate_mux(value):
     return cv.one_of(*MUX)(value)
 
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MULTIPLEXER): validate_mux,
     vol.Required(CONF_GAIN): validate_gain,
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

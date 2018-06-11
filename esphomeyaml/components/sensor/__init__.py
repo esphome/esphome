@@ -5,9 +5,10 @@ from esphomeyaml import automation
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
     CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_LAMBDA, \
-    CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE,\
+    CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
-    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, \
+    CONF_INTERNAL
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, esphomelib_ns, float_, \
     process_lambda, setup_mqtt_component, templatable, add_job
 
@@ -91,6 +92,8 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
         }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))]),
 })
 
+SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SENSOR_SCHEMA.schema)
+
 
 def setup_filter(config):
     if CONF_OFFSET in config:
@@ -140,6 +143,8 @@ def setup_filters(config):
 
 
 def setup_sensor_core_(sensor_var, mqtt_var, config):
+    if CONF_INTERNAL in config:
+        add(sensor_var.set_internal(config[CONF_INTERNAL]))
     if CONF_UNIT_OF_MEASUREMENT in config:
         add(sensor_var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:

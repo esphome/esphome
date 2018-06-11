@@ -7,11 +7,11 @@ from esphomeyaml.helpers import App, process_lambda, variable, Application, floa
 
 MakeTemplateSensor = Application.MakeTemplateSensor
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateSensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-}).extend(sensor.SENSOR_SCHEMA.schema)
+}))
 
 
 def to_code(config):

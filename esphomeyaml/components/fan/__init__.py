@@ -2,7 +2,7 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_OSCILLATION_COMMAND_TOPIC, \
-    CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC
+    CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL
 from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
@@ -29,6 +29,8 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.subscribe_topic,
 })
 
+FAN_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FAN_SCHEMA.schema)
+
 
 FAN_SPEEDS = {
     'OFF': FAN_SPEED_OFF,
@@ -43,6 +45,9 @@ def validate_fan_speed(value):
 
 
 def setup_fan_core_(fan_var, mqtt_var, config):
+    if CONF_INTERNAL in config:
+        add(fan_var.set_internal(config[CONF_INTERNAL]))
+
     if CONF_OSCILLATION_STATE_TOPIC in config:
         add(mqtt_var.set_custom_oscillation_state_topic(config[CONF_OSCILLATION_STATE_TOPIC]))
     if CONF_OSCILLATION_COMMAND_TOPIC in config:

@@ -7,10 +7,10 @@ from esphomeyaml.helpers import App, Application, get_variable, variable
 
 MakeSimpleSwitch = Application.MakeSimpleSwitch
 
-PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeSimpleSwitch),
     vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
-}).extend(switch.SWITCH_SCHEMA.schema)
+}))
 
 
 def to_code(config):

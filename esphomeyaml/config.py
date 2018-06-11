@@ -220,7 +220,7 @@ def validate_config(config):
                 continue
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_error(u"Platform not found: {}.{}")
+                result.add_error(u"Platform not found: {}.{}".format(domain, p_name))
                 continue
 
             success = True

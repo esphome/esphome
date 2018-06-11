@@ -1,6 +1,6 @@
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_MQTT_ID
-from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component
+from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_INTERNAL
+from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -21,8 +21,12 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTCoverComponent),
 })
 
+COVER_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(COVER_SCHEMA.schema)
+
 
 def setup_cover_core_(cover_var, mqtt_var, config):
+    if CONF_INTERNAL in config:
+        add(cover_var.set_internal(config[CONF_INTERNAL]))
     setup_mqtt_component(mqtt_var, config)
 
 

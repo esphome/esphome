@@ -12,8 +12,8 @@ MakeDHT12Sensor = Application.MakeDHT12Sensor
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeDHT12Sensor),
-    vol.Required(CONF_TEMPERATURE): sensor.SENSOR_SCHEMA,
-    vol.Required(CONF_HUMIDITY): sensor.SENSOR_SCHEMA,
+    vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 

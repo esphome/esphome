@@ -5,10 +5,10 @@ from esphomeyaml.components import light
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
 from esphomeyaml.helpers import App, get_variable, variable
 
-PLATFORM_SCHEMA = light.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
     vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
-}).extend(light.LIGHT_SCHEMA.schema)
+}))
 
 
 def to_code(config):

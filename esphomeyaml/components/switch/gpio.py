@@ -8,10 +8,10 @@ from esphomeyaml.helpers import App, Application, gpio_output_pin_expression, va
 
 MakeGPIOSwitch = Application.MakeGPIOSwitch
 
-PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeGPIOSwitch),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
-}).extend(switch.SWITCH_SCHEMA.schema)
+}))
 
 
 def to_code(config):

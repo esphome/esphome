@@ -55,7 +55,7 @@ def validate(value):
 
 MakeFastLEDLight = Application.MakeFastLEDLight
 
-PLATFORM_SCHEMA = vol.All(light.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
     vol.Required(CONF_CHIPSET): vol.All(vol.Upper, cv.one_of(*TYPES)),
@@ -68,7 +68,7 @@ PLATFORM_SCHEMA = vol.All(light.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-}).extend(light.LIGHT_SCHEMA.schema), validate)
+}), validate)
 
 
 def to_code(config):

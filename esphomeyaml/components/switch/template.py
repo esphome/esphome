@@ -10,13 +10,13 @@ from esphomeyaml.helpers import App, Application, process_lambda, variable, NoAr
 
 MakeTemplateSwitch = Application.MakeTemplateSwitch
 
-PLATFORM_SCHEMA = vol.All(switch.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateSwitch),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
     vol.Optional(CONF_TURN_OFF_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_TURN_ON_ACTION): automation.ACTIONS_SCHEMA,
-}).extend(switch.SWITCH_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 
 def to_code(config):

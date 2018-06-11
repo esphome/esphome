@@ -7,10 +7,10 @@ from esphomeyaml.helpers import App, Application, variable
 
 MakeRestartSwitch = Application.MakeRestartSwitch
 
-PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeRestartSwitch),
     vol.Optional(CONF_INVERTED): cv.invalid("Restart switches do not support inverted mode!"),
-}).extend(switch.SWITCH_SCHEMA.schema)
+}))
 
 
 def to_code(config):

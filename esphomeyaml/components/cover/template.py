@@ -9,14 +9,14 @@ from esphomeyaml.helpers import App, Application, NoArg, add, process_lambda, va
 
 MakeTemplateCover = Application.MakeTemplateCover
 
-PLATFORM_SCHEMA = vol.All(cover.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateCover),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
     vol.Optional(CONF_OPEN_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_CLOSE_ACTION): automation.ACTIONS_SCHEMA,
     vol.Optional(CONF_STOP_ACTION): automation.ACTIONS_SCHEMA,
-}).extend(cover.COVER_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 
 def to_code(config):

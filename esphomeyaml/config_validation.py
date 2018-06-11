@@ -11,7 +11,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_INTERNAL
 from esphomeyaml.core import HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -325,9 +325,28 @@ time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_d
 positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
 positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds_)
 positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds_)
+time_period_microseconds = vol.All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
                                         vol.Range(min=TimePeriod(), min_included=False))
+
+
+def mac_address(value):
+    value = string_strict(value)
+    parts = value.split(':')
+    if len(parts) != 6:
+        raise vol.Invalid("MAC Address must consist of 6 : (colon) separated parts")
+    parts_int = []
+    if any(len(part) != 2 for part in parts):
+        raise vol.Invalid("MAC Address must be format XX:XX:XX:XX:XX:XX")
+    for part in parts:
+        try:
+            parts_int.append(int(part, 16))
+        except ValueError:
+            raise vol.Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
+
+    return core.MACAddress(*parts_int)
+
 
 METRIC_SUFFIXES = {
     'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
@@ -350,6 +369,23 @@ def frequency(value):
 
     multiplier = METRIC_SUFFIXES[match.group(2)]
     return mantissa * multiplier
+
+
+def validate_bytes(value):
+    value = string(value)
+    match = re.match(r"^([0-9]+)\s*(\w*?)(?:byte|B|b)?s?$", value)
+
+    if match is None:
+        raise vol.Invalid(u"Expected number of bytes with unit, got {}".format(value))
+
+    mantissa = int(match.group(1))
+    if match.group(2) not in METRIC_SUFFIXES:
+        raise vol.Invalid(u"Invalid metric suffix {}".format(match.group(2)))
+    multiplier = METRIC_SUFFIXES[match.group(2)]
+    if multiplier < 1:
+        raise vol.Invalid(u"Only suffixes with positive exponents are supported. "
+                          u"Got {}".format(match.group(2)))
+    return int(mantissa * multiplier)
 
 
 def hostname(value):
@@ -482,6 +518,12 @@ def percentage(value):
     return zero_to_one_float(value)
 
 
+def percentage_int(value):
+    if isinstance(value, (str, unicode)) and value.endswith('%'):
+        value = int(value[:-1].rstrip())
+    return value
+
+
 def invalid(message):
     def validator(value):
         raise vol.Invalid(message)
@@ -518,6 +560,23 @@ class GenerateID(vol.Optional):
         super(GenerateID, self).__init__(key, default=lambda: None)
 
 
+def nameable(*schemas):
+    def validator(config):
+        config = vol.All(*schemas)(config)
+        if CONF_NAME not in config and CONF_ID not in config:
+            raise vol.Invalid("At least one of 'id:' or 'name:' is required!")
+        if CONF_NAME not in config:
+            id = config[CONF_ID]
+            if not id.is_manual:
+                raise vol.Invalid("At least one of 'id:' or 'name:' is required!")
+            config[CONF_NAME] = id.id
+            config[CONF_INTERNAL] = True
+            return config
+        return config
+
+    return validator
+
+
 PLATFORM_SCHEMA = vol.Schema({
     vol.Required(CONF_PLATFORM): valid,
 })
@@ -529,11 +588,12 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = vol.Schema({
 })
 
 MQTT_COMPONENT_SCHEMA = vol.Schema({
-    vol.Required(CONF_NAME): string,
+    vol.Optional(CONF_NAME): string,
     vol.Optional(CONF_RETAIN): boolean,
     vol.Optional(CONF_DISCOVERY): boolean,
     vol.Optional(CONF_STATE_TOPIC): publish_topic,
     vol.Optional(CONF_AVAILABILITY): vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA),
+    vol.Optional(CONF_INTERNAL): boolean,
 })
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
