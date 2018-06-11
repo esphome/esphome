@@ -55,13 +55,12 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
 })
 
 
-def validate_multi_wifi(config):
+def validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise vol.Invalid("Cannot have WiFi password without SSID!")
-    if CONF_SSID in config and CONF_NETWORKS in config:
-        raise vol.Invalid("For multi-wifi mode (with 'networks:'), please specify all "
-                          "networks within the 'networks:' key!")
-
+    if CONF_SSID not in config and CONF_AP not in config:
+        raise vol.Invalid("Please specify at least an SSID or an Access Point "
+                          "to create.")
     return config
 
 
@@ -79,7 +78,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
-}), validate_multi_wifi)
+}), validate)
 
 
 def safe_ip(ip):
@@ -112,14 +111,11 @@ def wifi_network(config):
 
 
 def to_code(config):
-    if CONF_SSID in config:
-        rhs = App.init_wifi(config[CONF_SSID], config.get(CONF_PASSWORD))
-    else:
-        rhs = App.init_wifi()
+    rhs = App.init_wifi()
     wifi = Pvariable(config[CONF_ID], rhs)
 
-    if CONF_MANUAL_IP in config:
-        add(wifi.set_sta_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
+    if CONF_SSID in config:
+        add(wifi.set_sta(wifi_network(config)))
 
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP])))
