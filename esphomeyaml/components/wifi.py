@@ -39,23 +39,20 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     vol.Inclusive(CONF_DNS2, 'dns'): cv.ipv4,
 })
 
-CONF_BSSID = 'bssid'
-
 WIFI_NETWORK_BASE = vol.Schema({
-    vol.Optional(CONF_SSID): cv.ssid,
+    vol.Required(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): validate_password,
-    vol.Optional(CONF_BSSID): cv.mac_address,
     vol.Optional(CONF_CHANNEL): validate_channel,
     vol.Optional(CONF_MANUAL_IP): AP_MANUAL_IP_SCHEMA,
 })
 
-WIFI_NETWORK_AP = vol.All(WIFI_NETWORK_BASE.extend({
+WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
     vol.Optional(CONF_MANUAL_IP): AP_MANUAL_IP_SCHEMA,
-}), cv.has_at_least_one_key(CONF_SSID, CONF_BSSID))
+})
 
-WIFI_NETWORK_STA = vol.All(WIFI_NETWORK_BASE.extend({
+WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
     vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
-}), cv.has_at_least_one_key(CONF_SSID, CONF_BSSID))
+})
 
 
 def validate_multi_wifi(config):
@@ -78,13 +75,10 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
     vol.Optional(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): validate_password,
-    vol.Optional(CONF_NETWORKS): vol.All(cv.ensure_list, [WIFI_NETWORK_STA]),
+    vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
-
-    vol.Optional(CONF_MANUAL_IP): cv.invalid("Manual IPs can only be specified in the 'networks:' "
-                                             "section of the WiFi configuration since 1.7.0"),
 }), validate_multi_wifi)
 
 
@@ -112,7 +106,6 @@ def wifi_network(config):
         WiFiAp,
         ('ssid', config.get(CONF_SSID, "")),
         ('password', config.get(CONF_PASSWORD, "")),
-        ('bssid', config.get(CONF_BSSID, core.MACAddress(0, 0, 0, 0, 0, 0)).as_hex()),
         ('channel', config.get(CONF_CHANNEL, -1)),
         ('manual_ip', manual_ip(config.get(CONF_MANUAL_IP))),
     )
@@ -125,8 +118,8 @@ def to_code(config):
         rhs = App.init_wifi()
     wifi = Pvariable(config[CONF_ID], rhs)
 
-    for network in config.get(CONF_NETWORKS, []):
-        add(wifi.add_sta(wifi_network(network)))
+    if CONF_MANUAL_IP in config:
+        add(wifi.set_sta_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP])))

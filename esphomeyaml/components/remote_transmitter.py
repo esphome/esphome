@@ -12,7 +12,7 @@ RemoteTransmitterComponent = remote_ns.RemoteTransmitterComponent
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitterComponent),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(vol.Coerce(int),
+    vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(cv.percentage_int,
                                                      vol.Range(min=1, max=100)),
 })])
 
