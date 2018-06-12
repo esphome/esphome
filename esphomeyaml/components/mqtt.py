@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LOG_TOPIC, \
     CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, \
     CONF_SSL_FINGERPRINTS, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
-    CONF_WILL_MESSAGE
+    CONF_WILL_MESSAGE, CONF_REBOOT_TIMEOUT
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, \
     TemplateArguments, add, esphomelib_ns, optional, std_string
@@ -71,6 +71,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
                                                  cv.ensure_list, [validate_fingerprint]),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
+    vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.publish_topic,
@@ -130,6 +131,8 @@ def to_code(config):
             add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
     if CONF_KEEPALIVE in config:
         add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
+    if CONF_REBOOT_TIMEOUT in config:
+        add(mqtt.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])

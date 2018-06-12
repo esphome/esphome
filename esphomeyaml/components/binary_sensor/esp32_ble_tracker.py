@@ -2,13 +2,13 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
-from esphomeyaml.components.esp32_ble import ESP32BLETracker
+from esphomeyaml.components.esp32_ble_tracker import ESP32BLETracker
 from esphomeyaml.const import CONF_MAC_ADDRESS, CONF_NAME, ESP_PLATFORM_ESP32
 from esphomeyaml.core import HexInt
 from esphomeyaml.helpers import ArrayInitializer, get_variable
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-DEPENDENCIES = ['esp32_ble']
+DEPENDENCIES = ['esp32_ble_tracker']
 
 CONF_ESP32_BLE_ID = 'esp32_ble_id'
 

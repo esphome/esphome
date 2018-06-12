@@ -3,8 +3,8 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
-    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, CONF_PASSWORD, CONF_SSID, \
-    CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
+    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_REBOOT_TIMEOUT, \
+    CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
 
 
@@ -78,6 +78,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
+    vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
 }), validate)
 
 
@@ -122,6 +123,9 @@ def to_code(config):
 
     if CONF_HOSTNAME in config:
         add(wifi.set_hostname(config[CONF_HOSTNAME]))
+
+    if CONF_REBOOT_TIMEOUT in config:
+        add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
 
 def lib_deps(config):

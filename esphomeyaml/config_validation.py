@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import logging
 import re
+import uuid as uuid_
 
 import voluptuous as vol
 
@@ -346,6 +347,10 @@ def mac_address(value):
             raise vol.Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
 
     return core.MACAddress(*parts_int)
+
+
+def uuid(value):
+    return vol.Coerce(uuid_.UUID)(value)
 
 
 METRIC_SUFFIXES = {

@@ -2,11 +2,12 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
-from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INVERTED, CONF_MAX_LENGTH, \
-    CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, CONF_ON_PRESS, \
-    CONF_ON_RELEASE, CONF_TRIGGER_ID, CONF_INTERNAL
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
-    add_job
+from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INTERNAL, CONF_INVERTED, \
+    CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, \
+    CONF_ON_PRESS, CONF_ON_RELEASE, CONF_TRIGGER_ID, CONF_FILTERS, CONF_INVERT, CONF_DELAYED_ON, \
+    CONF_DELAYED_OFF, CONF_LAMBDA
+from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
+    setup_mqtt_component, bool_, process_lambda, ArrayInitializer
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -25,13 +26,27 @@ ReleaseTrigger = binary_sensor_ns.ReleaseTrigger
 ClickTrigger = binary_sensor_ns.ClickTrigger
 DoubleClickTrigger = binary_sensor_ns.DoubleClickTrigger
 BinarySensor = binary_sensor_ns.BinarySensor
+InvertFilter = binary_sensor_ns.InvertFilter
+LambdaFilter = binary_sensor_ns.LambdaFilter
+DelayedOnFilter = binary_sensor_ns.DelayedOnFilter
+DelayedOffFilter = binary_sensor_ns.DelayedOffFilter
 MQTTBinarySensorComponent = binary_sensor_ns.MQTTBinarySensorComponent
+
+FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA]
+
+FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
+    vol.Optional(CONF_INVERT): None,
+    vol.Optional(CONF_DELAYED_ON): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_DELAYED_OFF): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_LAMBDA): cv.lambda_,
+}, cv.has_exactly_one_key(*FILTER_KEYS))])
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
     cv.GenerateID(): cv.declare_variable_id(BinarySensor),
-    vol.Optional(CONF_INVERTED): cv.boolean,
+
     vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
+    vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
     vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
     })]),
@@ -49,9 +64,39 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
             vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
             vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
         })]),
+
+    vol.Optional(CONF_INVERTED): cv.invalid(
+        "The inverted binary_sensor property has been replaced by the "
+        "new 'invert' binary  sensor filter. Please see "
+        "https://esphomelib.com/esphomeyaml/components/binary_sensor/index.html."
+    ),
 })
 
 BINARY_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA.schema)
+
+
+def setup_filter(config):
+    if CONF_INVERT in config:
+        yield InvertFilter.new()
+    elif CONF_DELAYED_OFF in config:
+        yield App.register_component(DelayedOffFilter.new(config[CONF_DELAYED_OFF]))
+    elif CONF_DELAYED_ON in config:
+        yield App.register_component(DelayedOnFilter.new(config[CONF_DELAYED_ON]))
+    elif CONF_LAMBDA in config:
+        lambda_ = None
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')]):
+            yield None
+        yield LambdaFilter.new(lambda_)
+
+
+def setup_filters(config):
+    filters = []
+    for conf in config:
+        filter = None
+        for filter in setup_filter(conf):
+            yield None
+        filters.append(filter)
+    yield ArrayInitializer(*filters)
 
 
 def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
@@ -61,6 +106,11 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
         add(binary_sensor_var.set_device_class(config[CONF_DEVICE_CLASS]))
     if CONF_INVERTED in config:
         add(binary_sensor_var.set_inverted(config[CONF_INVERTED]))
+    if CONF_FILTERS in config:
+        filters = None
+        for filters in setup_filters(config[CONF_FILTERS]):
+            yield
+        add(binary_sensor_var.add_filters(filters))
 
     for conf in config.get(CONF_ON_PRESS, []):
         rhs = binary_sensor_var.make_press_trigger()

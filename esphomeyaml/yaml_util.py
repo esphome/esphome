@@ -4,6 +4,7 @@ import codecs
 import fnmatch
 import logging
 import os
+import uuid
 from collections import OrderedDict
 
 import yaml
@@ -285,6 +286,10 @@ def represent_id(_, data):
     return yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=data.id)
 
 
+def represent_uuid(_, data):
+    return yaml.ScalarNode(tag=u'tag:yaml.org,2002:str', value=str(data))
+
+
 yaml.SafeDumper.add_representer(
     OrderedDict,
     lambda dumper, value:
@@ -304,3 +309,4 @@ yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
 yaml.SafeDumper.add_multi_representer(TimePeriod, represent_time_period)
 yaml.SafeDumper.add_multi_representer(Lambda, represent_lambda)
 yaml.SafeDumper.add_multi_representer(core.ID, represent_id)
+yaml.SafeDumper.add_multi_representer(uuid.UUID, represent_uuid)

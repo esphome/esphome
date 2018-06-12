@@ -241,6 +241,12 @@ CONF_IDLE = 'idle'
 CONF_NETWORKS = 'networks'
 CONF_INTERNAL = 'internal'
 CONF_BUILD_PATH = 'build_path'
+CONF_REBOOT_TIMEOUT = 'reboot_timeout'
+CONF_INVERT = 'invert'
+CONF_DELAYED_ON = 'delayed_on'
+CONF_DELAYED_OFF = 'delayed_off'
+CONF_UUID = 'uuid'
+CONF_TYPE = 'type'
 
 ESP32_BOARDS = [
     'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',

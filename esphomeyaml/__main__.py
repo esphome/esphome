@@ -9,9 +9,9 @@ from datetime import datetime
 
 from esphomeyaml import const, core, mqtt, wizard, writer, yaml_util
 from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, CONF_HOSTNAME, \
-    CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, ESP_PLATFORM_ESP8266, \
-    CONF_NETWORKS, CONF_BUILD_PATH
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF_ESPHOMEYAML, \
+    CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, \
+    ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
     add_job, color, flush_tasks, indent, quote, statement
@@ -143,9 +143,7 @@ def write_cpp(config):
                 exp = exp.rhs
         all_code.append(unicode(statement(exp)))
 
-    platformio_ini_s = writer.get_ini_content(config)
-    ini_path = os.path.join(get_base_path(config), 'platformio.ini')
-    writer.write_platformio_ini(platformio_ini_s, ini_path)
+    writer.write_platformio_project(config, get_base_path(config))
 
     code_s = indent('\n'.join(line.rstrip() for line in all_code))
     cpp_path = os.path.join(get_base_path(config), 'src', 'main.cpp')
@@ -162,9 +160,8 @@ def compile_program(args, config):
 
 
 def get_upload_host(config):
-    has_networks = bool(config[CONF_WIFI].get(CONF_NETWORKS))
-    if has_networks and CONF_MANUAL_IP in config[CONF_WIFI][CONF_NETWORKS][0]:
-        host = str(config[CONF_WIFI][CONF_NETWORKS][0][CONF_MANUAL_IP][CONF_STATIC_IP])
+    if CONF_MANUAL_IP in config[CONF_WIFI]:
+        host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
     elif CONF_HOSTNAME in config[CONF_WIFI]:
         host = config[CONF_WIFI][CONF_HOSTNAME] + config[CONF_WIFI][CONF_DOMAIN]
     else:
