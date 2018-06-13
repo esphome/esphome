@@ -106,3 +106,4 @@ venv.bak/
 config/
 examples/
 Dockerfile
+.git/

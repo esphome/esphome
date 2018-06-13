@@ -1,0 +1,19 @@
+# Dockerfile for amd64 version of HassIO add-on
+FROM ubuntu:bionic
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python \
+        python-pip \
+        python-setuptools \
+        git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*rm -rf /var/lib/apt/lists/* /tmp/* && \
+    pip install --no-cache-dir --no-binary :all: platformio && \
+    platformio settings set enable_telemetry No
+
+COPY docker/platformio.ini /pio/platformio.ini
+RUN platformio run -d /pio; rm -rf /pio
+
+COPY . .
+RUN pip install --no-cache-dir --no-binary :all: -e .
+
+CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]
