@@ -18,7 +18,7 @@ from esphomeyaml.helpers import App, add, color, esphomelib_ns, Pvariable, NoArg
 
 _LOGGER = logging.getLogger(__name__)
 
-DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.6.2'
+DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.7.0'
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
 StartupTrigger = esphomelib_ns.StartupTrigger
