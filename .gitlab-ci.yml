@@ -76,10 +76,10 @@ build:armhf:
   variables:
     ADDON_ARCH: armhf
 
-build:aarch64:
-   <<: *build
-   variables:
-     ADDON_ARCH: aarch64
+#build:aarch64:
+#   <<: *build
+#   variables:
+#     ADDON_ARCH: aarch64
 
 build:i386:
   <<: *build
@@ -101,14 +101,14 @@ deploy:armhf:
   except:
     - /^(?!master).+@/
 
-deploy:aarch64:
-  <<: *deploy
-  variables:
-    ADDON_ARCH: aarch64
-  only:
-    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
-  except:
-    - /^(?!master).+@/
+#deploy:aarch64:
+#  <<: *deploy
+#  variables:
+#    ADDON_ARCH: aarch64
+#  only:
+#    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
+#  except:
+#    - /^(?!master).+@/
 
 deploy:i386:
   <<: *deploy

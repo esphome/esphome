@@ -3,9 +3,9 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.remote_receiver import RemoteReceiverComponent, remote_ns
-from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_COMMAND, CONF_DATA, \
+from esphomeyaml.const import CONF_ADDRESS, CONF_COMMAND, CONF_DATA, \
     CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_RAW, CONF_SONY
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, get_variable
+from esphomeyaml.helpers import ArrayInitializer, Pvariable, get_variable
 
 DEPENDENCIES = ['remote_receiver']
 
@@ -38,10 +38,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RAW): vol.Schema({
-        vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
-        vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
-    }),
+    vol.Optional(CONF_RAW): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
     cv.GenerateID(CONF_REMOTE_RECEIVER_ID): cv.use_variable_id(RemoteReceiverComponent),
     cv.GenerateID(CONF_RECEIVER_ID): cv.declare_variable_id(RemoteReceiver),
 }), cv.has_exactly_one_key(*IR_KEYS))
@@ -61,9 +58,8 @@ def receiver_base(config):
         conf = config[CONF_SONY]
         return SonyReceiver.new(config[CONF_NAME], conf[CONF_DATA], conf[CONF_NBITS])
     elif CONF_RAW in config:
-        conf = config[CONF_RAW]
-        data = ArrayInitializer(*conf[CONF_DATA])
-        return RawReceiver.new(data, conf[CONF_CARRIER_FREQUENCY])
+        data = ArrayInitializer(*config[CONF_RAW], multiline=False)
+        return RawReceiver.new(config[CONF_NAME], data)
     else:
         raise ValueError("Unknown receiver type {}".format(config))
 
@@ -72,7 +68,7 @@ def to_code(config):
     remote = None
     for remote in get_variable(config[CONF_REMOTE_RECEIVER_ID]):
         yield
-    rhs = App.register_component(receiver_base(config))
+    rhs = receiver_base(config)
     receiver = Pvariable(config[CONF_RECEIVER_ID], rhs)
 
     binary_sensor.register_binary_sensor(remote.add_decoder(receiver), config)
