@@ -4,13 +4,12 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
-    CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_LAMBDA, \
-    CONF_MQTT_ID, CONF_MULTIPLY, CONF_NAME, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
+    CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, \
+    CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
-    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, \
-    CONF_INTERNAL
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, esphomelib_ns, float_, \
-    process_lambda, setup_mqtt_component, templatable, add_job
+    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, add_job, esphomelib_ns, \
+    float_, process_lambda, setup_mqtt_component, templatable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
