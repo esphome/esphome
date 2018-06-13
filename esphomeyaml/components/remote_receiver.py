@@ -18,11 +18,21 @@ DUMPERS = {
     'sony': remote_ns.SonyDumper,
 }
 
+
+def validate_dumpers_all(value):
+    if not isinstance(value, (str, unicode)):
+        raise vol.Invalid("Not valid dumpers")
+    if value.upper() == "ALL":
+        return list(DUMPERS)
+    raise vol.Invalid("Not valid dumpers")
+
+
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiverComponent),
     vol.Required(CONF_PIN): pins.gpio_input_pin_schema,
-    vol.Optional(CONF_DUMP, default=[]): vol.All(cv.ensure_list,
-                                                 [vol.All(vol.Lower, cv.one_of(*DUMPERS))]),
+    vol.Optional(CONF_DUMP, default=[]):
+        vol.Any(validate_dumpers_all,
+                vol.All(cv.ensure_list, [vol.All(vol.Lower, cv.one_of(*DUMPERS))])),
     vol.Optional(CONF_TOLERANCE): vol.All(cv.percentage_int, vol.Range(min=0)),
     vol.Optional(CONF_BUFFER_SIZE): cv.validate_bytes,
     vol.Optional(CONF_FILTER): cv.positive_time_period_microseconds,

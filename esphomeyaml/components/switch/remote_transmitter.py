@@ -22,6 +22,8 @@ PanasonicTransmitter = remote_ns.PanasonicTransmitter
 RawTransmitter = remote_ns.RawTransmitter
 SonyTransmitter = remote_ns.SonyTransmitter
 
+validate_raw_data = [vol.Any(vol.Coerce(int), cv.time_period_microseconds)]
+
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
@@ -39,10 +41,10 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RAW): vol.Schema({
-        vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+    vol.Optional(CONF_RAW): vol.Any(validate_raw_data, vol.Schema({
+        vol.Required(CONF_DATA): validate_raw_data,
         vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
-    }),
+    })),
     vol.Optional(CONF_REPEAT): vol.Any(cv.positive_not_null_int, vol.Schema({
         vol.Required(CONF_TIMES): cv.positive_not_null_int,
         vol.Required(CONF_WAIT_TIME): cv.positive_time_period_microseconds,
@@ -69,8 +71,14 @@ def transmitter_base(config):
         return SonyTransmitter.new(config[CONF_NAME], conf[CONF_DATA], conf[CONF_NBITS])
     elif CONF_RAW in config:
         conf = config[CONF_RAW]
-        data = ArrayInitializer(*conf[CONF_DATA])
-        return RawTransmitter.new(data, conf[CONF_CARRIER_FREQUENCY])
+        if isinstance(conf, dict):
+            data = conf[CONF_DATA]
+            carrier_frequency = conf.get(CONF_CARRIER_FREQUENCY)
+        else:
+            data = conf
+            carrier_frequency = None
+        return RawTransmitter.new(config[CONF_NAME], ArrayInitializer(*data, multiline=False),
+                                  carrier_frequency)
     else:
         raise ValueError("Unknown transmitter type {}".format(config))
 

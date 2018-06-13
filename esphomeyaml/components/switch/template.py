@@ -14,8 +14,8 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateSwitch),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
-    vol.Optional(CONF_TURN_OFF_ACTION): automation.ACTIONS_SCHEMA,
-    vol.Optional(CONF_TURN_ON_ACTION): automation.ACTIONS_SCHEMA,
+    vol.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(),
+    vol.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(),
 }), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 
@@ -30,15 +30,11 @@ def to_code(config):
             yield
         add(make.Ptemplate_.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:
-        actions = None
-        for actions in automation.build_actions(config[CONF_TURN_OFF_ACTION], NoArg):
-            yield
-        add(make.Ptemplate_.add_turn_off_actions(actions))
+        automation.build_automation(make.Ptemplate_.get_turn_off_trigger(), NoArg,
+                                    config[CONF_TURN_OFF_ACTION])
     if CONF_TURN_ON_ACTION in config:
-        actions = None
-        for actions in automation.build_actions(config[CONF_TURN_ON_ACTION], NoArg):
-            yield
-        add(make.Ptemplate_.add_turn_on_actions(actions))
+        automation.build_automation(make.Ptemplate_.get_turn_on_trigger(), NoArg,
+                                    config[CONF_TURN_ON_ACTION])
     if CONF_OPTIMISTIC in config:
         add(make.Ptemplate_.set_optimistic(config[CONF_OPTIMISTIC]))
 

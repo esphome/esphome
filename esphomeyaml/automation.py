@@ -132,6 +132,22 @@ OrCondition = esphomelib_ns.OrCondition
 RangeCondition = esphomelib_ns.RangeCondition
 LambdaCondition = esphomelib_ns.LambdaCondition
 
+
+def validate_automation(extra_schema=None):
+    schema = AUTOMATION_SCHEMA.extend(extra_schema or {})
+
+    def validator(value):
+        if isinstance(value, list):
+            return schema({CONF_THEN: value})
+        elif isinstance(value, dict):
+            if CONF_THEN in value:
+                return schema(value)
+            return schema({CONF_THEN: value})
+        return schema(value)
+
+    return validator
+
+
 AUTOMATION_SCHEMA = vol.Schema({
     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(None),
     cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(None),
@@ -391,18 +407,19 @@ def build_actions(config, arg_type):
 
 
 def build_automation_(trigger, arg_type, config):
-    rhs = App.make_automation(trigger)
+    rhs = App.make_automation(TemplateArguments(arg_type), trigger)
     type = Automation.template(arg_type)
     obj = Pvariable(config[CONF_AUTOMATION_ID], rhs, type=type)
     if CONF_IF in config:
         conditions = None
         for conditions in build_conditions(config[CONF_IF], arg_type):
-            yield
+            yield None
         add(obj.add_conditions(conditions))
     actions = None
     for actions in build_actions(config[CONF_THEN], arg_type):
-        yield
+        yield None
     add(obj.add_actions(actions))
+    yield obj
 
 
 def build_automation(trigger, arg_type, config):

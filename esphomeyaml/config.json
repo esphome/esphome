@@ -11,11 +11,6 @@
     "6052/tcp": 6052,
     "6053/tcp": 6053
   },
-  "arch": [
-    "amd64",
-    "armhf",
-    "i386"
-  ],
   "auto_uart": true,
   "map": [
     "config:rw"

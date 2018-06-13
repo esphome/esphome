@@ -72,20 +72,19 @@ ValueRangeTrigger = sensor_ns.ValueRangeTrigger
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),
     cv.GenerateID(): cv.declare_variable_id(Sensor),
-    vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ACCURACY_DECIMALS): vol.Coerce(int),
     vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
-    vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorValueTrigger),
     })]),
-    vol.Optional(CONF_ON_RAW_VALUE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_RAW_VALUE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(RawSensorValueTrigger),
     })]),
     vol.Optional(CONF_ON_VALUE_RANGE): vol.All(cv.ensure_list, [vol.All(
-        automation.AUTOMATION_SCHEMA.extend({
+        automation.validate_automation({
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
             vol.Optional(CONF_ABOVE): vol.Coerce(float),
             vol.Optional(CONF_BELOW): vol.Coerce(float),

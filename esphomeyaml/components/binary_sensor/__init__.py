@@ -47,19 +47,19 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 
     vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
-    vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_PRESS): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
     })]),
-    vol.Optional(CONF_ON_RELEASE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_RELEASE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ReleaseTrigger),
     })]),
-    vol.Optional(CONF_ON_CLICK): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_CLICK): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ClickTrigger),
         vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     })]),
     vol.Optional(CONF_ON_DOUBLE_CLICK):
-        vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+        vol.All(cv.ensure_list, [automation.validate_automation({
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(DoubleClickTrigger),
             vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
             vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,

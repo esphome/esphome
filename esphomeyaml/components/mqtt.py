@@ -72,7 +72,7 @@ CONFIG_SCHEMA = vol.Schema({
                                                  cv.ensure_list, [validate_fingerprint]),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.publish_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,

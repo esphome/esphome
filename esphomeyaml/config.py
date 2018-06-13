@@ -32,11 +32,11 @@ CORE_SCHEMA = vol.Schema({
     vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
     vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
     vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
-    vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
         vol.Optional(CONF_PRIORITY): vol.Coerce(float),
     })]),
-    vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.AUTOMATION_SCHEMA.extend({
+    vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
     })]),
 })
