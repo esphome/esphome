@@ -15,14 +15,10 @@
   "map": [
     "config:rw"
   ],
+  "options": {},
   "environment": {
     "ESPHOMEYAML_OTA_HOST_PORT": "6053"
   },
-  "options": {
-    "password": ""
-  },
-  "schema": {
-    "password": "str?"
-  },
+  "schema": {},
   "image": "ottowinter/esphomeyaml-hassio-{arch}"
 }
