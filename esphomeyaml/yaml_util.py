@@ -8,6 +8,7 @@ import uuid
 from collections import OrderedDict
 
 import yaml
+import yaml.constructor
 
 from esphomeyaml import core
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
@@ -63,14 +64,83 @@ def dump(dict_):
         dict_, default_flow_style=False, allow_unicode=True)
 
 
+def custom_construct_pairs(loader, node):
+    pairs = []
+    for kv in node.value:
+        if isinstance(kv, yaml.ScalarNode):
+            obj = loader.construct_object(kv)
+            if not isinstance(obj, dict):
+                raise ESPHomeYAMLError(
+                    "Expected mapping for anchored include tag, got {}".format(type(obj)))
+            for key, value in obj.iteritems():
+                pairs.append((key, value))
+        else:
+            key_node, value_node = kv
+            key = loader.construct_object(key_node)
+            value = loader.construct_object(value_node)
+            pairs.append((key, value))
+
+    return pairs
+
+
+def custom_flatten_mapping(loader, node):
+    pre_merge = []
+    post_merge = []
+    index = 0
+    while index < len(node.value):
+        if isinstance(node.value[index], yaml.ScalarNode):
+            index += 1
+            continue
+
+        key_node, value_node = node.value[index]
+        if key_node.tag == u'tag:yaml.org,2002:merge':
+            del node.value[index]
+
+            if isinstance(value_node, yaml.MappingNode):
+                custom_flatten_mapping(loader, value_node)
+                node.value = node.value[:index] + value_node.value + node.value[index:]
+            elif isinstance(value_node, yaml.SequenceNode):
+                submerge = []
+                for subnode in value_node.value:
+                    if not isinstance(subnode, yaml.MappingNode):
+                        raise yaml.constructor.ConstructorError(
+                            "while constructing a mapping", node.start_mark,
+                            "expected a mapping for merging, but found %{}".format(subnode.id),
+                            subnode.start_mark)
+                    custom_flatten_mapping(loader, subnode)
+                    submerge.append(subnode.value)
+                # submerge.reverse()
+                node.value = node.value[:index] + submerge + node.value[index:]
+            elif isinstance(value_node, yaml.ScalarNode):
+                node.value = node.value[:index] + [value_node] + node.value[index:]
+                # post_merge.append(value_node)
+            else:
+                raise yaml.constructor.ConstructorError(
+                    "while constructing a mapping", node.start_mark,
+                    "expected a mapping or list of mappings for merging, "
+                    "but found {}".format(value_node.id), value_node.start_mark)
+        elif key_node.tag == u'tag:yaml.org,2002:value':
+            key_node.tag = u'tag:yaml.org,2002:str'
+            index += 1
+        else:
+            index += 1
+    if pre_merge:
+        node.value = pre_merge + node.value
+    if post_merge:
+        node.value = node.value + post_merge
+
+
 def _ordered_dict(loader, node):
     """Load YAML mappings into an ordered dictionary to preserve key order."""
-    loader.flatten_mapping(node)
-    nodes = loader.construct_pairs(node)
+    custom_flatten_mapping(loader, node)
+    nodes = custom_construct_pairs(loader, node)
 
     seen = {}
-    for (key, _), (child_node, _) in zip(nodes, node.value):
-        line = child_node.start_mark.line
+    for (key, _), nv in zip(nodes, node.value):
+        if isinstance(nv, yaml.ScalarNode):
+            line = nv.start_mark.line
+        else:
+            line = nv[0].start_mark.line
 
         try:
             hash(key)

@@ -4,10 +4,10 @@ from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.const import CONF_ID, CONF_PIN
 from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, gpio_output_pin_expression
 
-StatusLED = esphomelib_ns.StatusLED
+StatusLEDComponent = esphomelib_ns.StatusLEDComponent
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(): cv.declare_variable_id(StatusLED),
+    cv.GenerateID(): cv.declare_variable_id(StatusLEDComponent),
     vol.Optional(CONF_PIN): pins.gpio_output_pin_schema,
 })
 

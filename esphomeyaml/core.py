@@ -219,6 +219,8 @@ class ID(object):
         return self.id
 
     def __str__(self):
+        if self.id is None:
+            return ''
         return self.id
 
     def __repr__(self):

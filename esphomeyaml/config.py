@@ -12,7 +12,7 @@ from esphomeyaml import core, yaml_util, automation
 from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
     CONF_LIBRARY_URI, CONF_NAME, CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, \
     ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ON_BOOT, CONF_TRIGGER_ID, \
-    CONF_PRIORITY, CONF_ON_SHUTDOWN
+    CONF_PRIORITY, CONF_ON_SHUTDOWN, CONF_BUILD_PATH
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, add, color, esphomelib_ns, Pvariable, NoArg, const_char_p
 
@@ -39,6 +39,7 @@ CORE_SCHEMA = vol.Schema({
     vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
     })]),
+    vol.Optional(CONF_BUILD_PATH): cv.string,
 })
 
 REQUIRED_COMPONENTS = [
@@ -175,25 +176,28 @@ def validate_config(config):
         _comp_error(ex, CONF_ESPHOMEYAML, config)
 
     for domain, conf in config.iteritems():
-        if domain == CONF_ESPHOMEYAML:
+        domain = str(domain)
+        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
             continue
         if conf is None:
             conf = {}
         component = get_component(domain)
         if component is None:
-            result.add_error(u"Component not found: {}".format(domain))
+            result.add_error(u"Component not found: {}".format(domain), domain, conf)
             continue
 
         esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
         if core.ESP_PLATFORM not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, core.ESP_PLATFORM))
+            result.add_error(u"Component {} doesn't support {}.".format(domain, core.ESP_PLATFORM),
+                             domain, conf)
             continue
 
         success = True
         dependencies = getattr(component, 'DEPENDENCIES', [])
         for dependency in dependencies:
             if dependency not in _ALL_COMPONENTS:
-                result.add_error(u"Component {} requires component {}".format(domain, dependency))
+                result.add_error(u"Component {} requires component {}".format(domain, dependency),
+                                 domain, conf)
                 success = False
         if not success:
             continue
@@ -212,23 +216,25 @@ def validate_config(config):
         platforms = []
         for p_config in conf:
             if not isinstance(p_config, dict):
-                result.add_error(u"Platform schemas must have 'platform:' key")
+                result.add_error(u"Platform schemas must have 'platform:' key", )
                 continue
             p_name = p_config.get(u'platform')
             if p_name is None:
                 result.add_error(u"No platform specified for {}".format(domain))
                 continue
+            p_domain = u'{}.{}'.format(domain, p_name)
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_error(u"Platform not found: {}.{}".format(domain, p_name))
+                result.add_error(u"Platform not found: {}".format(p_domain), p_domain, p_config)
                 continue
 
             success = True
             dependencies = getattr(platform, 'DEPENDENCIES', [])
             for dependency in dependencies:
                 if dependency not in _ALL_COMPONENTS:
-                    result.add_error(u"Platform {}.{} requires component {}".format(domain, p_name,
-                                                                                    dependency))
+                    result.add_error(
+                        u"Platform {} requires component {}".format(p_domain, dependency),
+                        p_domain, p_config)
                     success = False
             if not success:
                 continue
@@ -236,14 +242,15 @@ def validate_config(config):
             esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
             if core.ESP_PLATFORM not in esp_platforms:
                 result.add_error(
-                    u"Platform {}.{} doesn't support {}.".format(domain, p_name, core.ESP_PLATFORM))
+                    u"Platform {} doesn't support {}.".format(p_domain, core.ESP_PLATFORM),
+                    p_domain, p_config)
                 continue
 
             if hasattr(platform, u'PLATFORM_SCHEMA'):
                 try:
                     p_validated = platform.PLATFORM_SCHEMA(p_config)
                 except vol.Invalid as ex:
-                    _comp_error(ex, u'{}.{}'.format(domain, p_name), p_config)
+                    _comp_error(ex, p_domain, p_config)
                     continue
                 platforms.append(p_validated)
         result[domain] = platforms
@@ -365,4 +372,4 @@ def read_config(path):
             dump_dict(config, reset='red')
             print(color('reset'))
         return None
-    return dict(**res)
+    return OrderedDict(res)

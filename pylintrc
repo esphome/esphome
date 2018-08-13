@@ -17,6 +17,7 @@ disable=
   invalid-name,
   cyclic-import,
   redefined-builtin,
+  undefined-loop-variable,
 
 
 additional-builtins=

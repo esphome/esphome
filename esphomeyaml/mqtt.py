@@ -76,9 +76,13 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
     _LOGGER.info(u"Clearing messages from %s", topic)
 
     def on_message(client, userdata, msg):
-        if not msg.payload:
+        if not msg.payload or not msg.retain:
             return
-        print(u"Clearing topic {}".format(msg.topic))
+        try:
+            print(u"Clearing topic {}".format(msg.topic))
+        except UnicodeDecodeError:
+            print(u"Skipping non-UTF-8 topic (prohibited by MQTT standard)")
+            return
         client.publish(msg.topic, None, retain=True)
 
     return initialize(config, [topic], on_message, username, password, client_id)

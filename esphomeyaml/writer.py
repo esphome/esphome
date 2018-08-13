@@ -179,10 +179,11 @@ def write_platformio_ini(content, path):
 def write_platformio_project(config, path):
     platformio_ini = os.path.join(path, 'platformio.ini')
     content = get_ini_content(config)
-    if 'esp32_ble_beacon' in config:
+    if 'esp32_ble_beacon' in config or 'esp32_ble_tracker' in config:
         content += 'board_build.partitions = partitions.csv\n'
         partitions_csv = os.path.join(path, 'partitions.csv')
         if not os.path.isfile(partitions_csv):
+            mkdir_p(path)
             with open(partitions_csv, "w") as f:
                 f.write("nvs,      data, nvs,     0x009000, 0x005000,\n")
                 f.write("otadata,  data, ota,     0x00e000, 0x002000,\n")

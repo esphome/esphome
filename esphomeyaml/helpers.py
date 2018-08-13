@@ -525,6 +525,17 @@ class MockObj(Expression):
     def has_side_effects(self):
         return self._has_side_effects
 
+    def __getitem__(self, item):
+        next_op = u'.'
+        if isinstance(item, str) and item.startswith(u'P'):
+            item = item[1:]
+            next_op = u'->'
+        obj = MockObj(u'{}[{}]'.format(self.base, item), next_op)
+        obj.requires.append(self)
+        if isinstance(item, Expression):
+            obj.requires.append(item)
+        return obj
+
 
 global_ns = MockObj('', '')
 float_ = global_ns.namespace('float')

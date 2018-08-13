@@ -16,6 +16,7 @@ DUMPERS = {
     'panasonic': remote_ns.PanasonicDumper,
     'raw': remote_ns.RawDumper,
     'sony': remote_ns.SonyDumper,
+    'rc_switch': remote_ns.RCSwitchDumper,
 }
 
 
@@ -23,7 +24,7 @@ def validate_dumpers_all(value):
     if not isinstance(value, (str, unicode)):
         raise vol.Invalid("Not valid dumpers")
     if value.upper() == "ALL":
-        return list(DUMPERS)
+        return list(sorted(list(DUMPERS)))
     raise vol.Invalid("Not valid dumpers")
 
 

@@ -360,20 +360,29 @@ METRIC_SUFFIXES = {
 }
 
 
-def frequency(value):
-    value = string(value)
-    match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)(?:Hz|HZ|hz)?$", value)
+def float_with_unit(quantity, regex_suffix):
+    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + "$")
 
-    if match is None:
-        raise vol.Invalid(u"Expected frequency with unit, "
-                          u"got {}".format(value))
+    def validator(value):
+        match = pattern.match(string(value))
 
-    mantissa = float(match.group(1))
-    if match.group(2) not in METRIC_SUFFIXES:
-        raise vol.Invalid(u"Invalid frequency suffix {}".format(match.group(2)))
+        if match is None:
+            raise vol.Invalid(u"Expected {} with unit, got {}".format(quantity, value))
 
-    multiplier = METRIC_SUFFIXES[match.group(2)]
-    return mantissa * multiplier
+        mantissa = float(match.group(1))
+        if match.group(2) not in METRIC_SUFFIXES:
+            raise vol.Invalid(u"Invalid {} suffix {}".format(quantity, match.group(2)))
+
+        multiplier = METRIC_SUFFIXES[match.group(2)]
+        return mantissa * multiplier
+
+    return validator
+
+
+frequency = float_with_unit("frequency", r"(Hz|HZ|hz)?")
+resistance = float_with_unit("resistance", r"(Ω|Ω|ohm|Ohm|OHM)?")
+current = float_with_unit("current", r"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", r"(v|V|volt|Volts)?")
 
 
 def validate_bytes(value):

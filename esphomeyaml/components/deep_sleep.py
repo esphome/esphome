@@ -15,6 +15,8 @@ def validate_pin_number(value):
 
 
 DeepSleepComponent = esphomelib_ns.DeepSleepComponent
+EnterDeepSleepAction = esphomelib_ns.EnterDeepSleepAction
+PreventDeepSleepAction = esphomelib_ns.PreventDeepSleepAction
 
 WAKEUP_PIN_MODES = {
     'IGNORE': esphomelib_ns.WAKEUP_PIN_MODE_IGNORE,

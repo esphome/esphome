@@ -23,6 +23,8 @@ def to_code(config):
     rhs = App.make_template_cover(config[CONF_NAME])
     make = variable(config[CONF_MAKE_ID], rhs)
 
+    cover.setup_cover(make.Ptemplate_, make.Pmqtt, config)
+
     if CONF_LAMBDA in config:
         template_ = None
         for template_ in process_lambda(config[CONF_LAMBDA], [],
@@ -40,8 +42,6 @@ def to_code(config):
                                     config[CONF_STOP_ACTION])
     if CONF_OPTIMISTIC in config:
         add(make.Ptemplate_.set_optimistic(config[CONF_OPTIMISTIC]))
-
-    cover.setup_cover(make.Ptemplate_, make.Pmqtt, config)
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'

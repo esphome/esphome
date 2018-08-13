@@ -6,7 +6,7 @@ from esphomeyaml.components import light
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, \
-    CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER
+    CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER, CONF_EFFECTS
 from esphomeyaml.helpers import App, Application, RawExpression, TemplateArguments, add, \
     get_variable, variable
 
@@ -46,6 +46,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
+    vol.Optional(CONF_EFFECTS): light.validate_effects(light.FASTLED_EFFECTS),
 }))
 
 

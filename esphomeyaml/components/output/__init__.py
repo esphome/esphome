@@ -23,6 +23,9 @@ FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
 FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
 
 output_ns = esphomelib_ns.namespace('output')
+TurnOffAction = output_ns.TurnOffAction
+TurnOnAction = output_ns.TurnOnAction
+SetLevelAction = output_ns.SetLevelAction
 
 
 def setup_output_platform_(obj, config, skip_power_supply=False):

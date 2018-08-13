@@ -104,7 +104,12 @@ def run_miniterm(config, port, escape=False):
 
     with serial.Serial(port, baudrate=baud_rate) as ser:
         while True:
-            line = ser.readline().replace('\r', '').replace('\n', '')
+            try:
+                raw = ser.readline()
+            except serial.SerialException:
+                _LOGGER.error("Serial port closed!")
+                return
+            line = raw.replace('\r', '').replace('\n', '')
             time = datetime.now().time().strftime('[%H:%M:%S]')
             message = time + line
             if escape:

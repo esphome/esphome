@@ -66,7 +66,10 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
                 break
             if data.endswith('\r') and random.randrange(100) < 90:
                 continue
-            data = data.replace('\033', '\\033')
+            try:
+                data = data.replace('\033', '\\033')
+            except UnicodeDecodeError:
+                data = data.encode('ascii', 'backslashreplace')
             self.write_message({'event': 'line', 'data': data})
 
     def proc_on_exit(self, returncode):
