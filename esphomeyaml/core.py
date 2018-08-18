@@ -10,6 +10,8 @@ class ESPHomeYAMLError(Exception):
 
 class HexInt(long):
     def __str__(self):
+        if 0 <= self <= 255:
+            return "0x{:02X}".format(self)
         return "0x{:X}".format(self)
 
 
@@ -181,8 +183,8 @@ class TimePeriodSeconds(TimePeriod):
 class Lambda(object):
     def __init__(self, value):
         self.value = value
-        self.parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)\.', value)
-        self.requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 2)]
+        self.parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)', value)
+        self.requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 3)]
 
     def __str__(self):
         return self.value

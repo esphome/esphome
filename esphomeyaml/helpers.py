@@ -226,7 +226,7 @@ class LambdaExpression(Expression):
         self.return_type = return_type
         if return_type is not None:
             self.requires.append(return_type)
-        for i in range(1, len(parts), 2):
+        for i in range(1, len(parts), 3):
             self.requires.append(parts[i])
 
     def __str__(self):
@@ -411,7 +411,11 @@ def process_lambda(value, parameters, capture='=', return_type=None):
         var = None
         for var in get_variable(id):
             yield
-        parts[i*2 + 1] = var._
+        if parts[i * 3 + 2] == '.':
+            parts[i * 3 + 1] = var._
+        else:
+            parts[i * 3 + 1] = var
+        parts[i * 3 + 2] = ''
     yield LambdaExpression(parts, parameters, capture, return_type)
     return
 
@@ -521,6 +525,13 @@ class MockObj(Expression):
         obj = MockObj(u'{}{}{}'.format(self.base, self.op, name), u'::')
         obj.requires.append(self)
         return obj
+
+    def operator(self, name):
+        if name == 'ref':
+            obj = MockObj(u'{} &'.format(self.base), u'')
+            obj.requires.append(self)
+            return obj
+        raise NotImplementedError()
 
     def has_side_effects(self):
         return self._has_side_effects

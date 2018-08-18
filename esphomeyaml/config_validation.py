@@ -102,7 +102,7 @@ def boolean(value):
 
 def ensure_list(value):
     """Wrap value in list if it is not one."""
-    if value is None:
+    if value is None or (isinstance(value, dict) and not value):
         return []
     if isinstance(value, list):
         return value
@@ -564,6 +564,24 @@ def lambda_(value):
     if isinstance(value, Lambda):
         return value
     return Lambda(string_strict(value))
+
+
+def dimensions(value):
+    if isinstance(value, list):
+        if len(value) != 2:
+            raise vol.Invalid(u"Dimensions must have a length of two, not {}".format(len(value)))
+        try:
+            width, height = int(value[0]), int(value[1])
+        except ValueError:
+            raise vol.Invalid(u"Width and height dimensions must be integers")
+        if width <= 0 or height <= 0:
+            raise vol.Invalid(u"Width and height must at least be 1")
+        return [width, height]
+    value = string(value)
+    match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
+    if not match:
+        raise vol.Invalid(u"Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed.")
+    return dimensions([match.group(1), match.group(2)])
 
 
 REGISTERED_IDS = set()
