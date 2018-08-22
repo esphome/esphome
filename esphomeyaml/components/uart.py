@@ -2,30 +2,25 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_RX, CONF_TX
-from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, gpio_input_pin_expression, \
-    gpio_output_pin_expression
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN
+from esphomeyaml.helpers import App, Pvariable, esphomelib_ns
 
 UARTComponent = esphomelib_ns.UARTComponent
 
-SPI_SCHEMA = vol.Schema({
+SPI_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(UARTComponent),
-    vol.Required(CONF_TX): pins.gpio_output_pin_schema,
-    vol.Required(CONF_RX): pins.gpio_input_pin_schema,
+    vol.Optional(CONF_TX_PIN): pins.output_pin,
+    vol.Optional(CONF_RX_PIN): pins.input_pin,
     vol.Required(CONF_BAUD_RATE): cv.positive_int,
-})
+}), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [SPI_SCHEMA])
 
 
 def to_code(config):
     for conf in config:
-        tx = None
-        for tx in gpio_output_pin_expression(conf[CONF_TX]):
-            yield
-        rx = None
-        for rx in gpio_input_pin_expression(conf[CONF_RX]):
-            yield
+        tx = conf.get(CONF_TX_PIN, -1)
+        rx = conf.get(CONF_RX_PIN, -1)
         rhs = App.init_uart(tx, rx, conf[CONF_BAUD_RATE])
         Pvariable(conf[CONF_ID], rhs)
 

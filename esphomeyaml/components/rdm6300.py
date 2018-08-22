@@ -10,7 +10,7 @@ DEPENDENCIES = ['uart']
 
 RDM6300Component = binary_sensor.binary_sensor_ns.RDM6300Component
 
-CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.ensure_list_not_empty, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RDM6300Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
 })])

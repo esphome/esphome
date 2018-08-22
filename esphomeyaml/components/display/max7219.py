@@ -21,7 +21,6 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
     vol.Optional(CONF_NUM_CHIPS): vol.All(cv.uint8_t, vol.Range(min=1)),
     vol.Optional(CONF_INTENSITY): vol.All(cv.uint8_t, vol.Range(min=0, max=15)),
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
 

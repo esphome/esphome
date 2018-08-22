@@ -3,7 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display
-from esphomeyaml.const import CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, CONF_LAMBDA, CONF_PINS, \
+from esphomeyaml.const import CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, CONF_LAMBDA, CONF_DATA_PINS, \
     CONF_RS_PIN, CONF_RW_PIN
 from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda
 
@@ -32,12 +32,10 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOLCDDisplay),
     vol.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
 
-    vol.Required(CONF_PINS): vol.All([pins.gpio_output_pin_schema], validate_pin_length),
+    vol.Required(CONF_DATA_PINS): vol.All([pins.gpio_output_pin_schema], validate_pin_length),
     vol.Required(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_RW_PIN): pins.gpio_output_pin_schema,
-
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
 
@@ -45,7 +43,7 @@ def to_code(config):
     rhs = App.make_gpio_lcd_display(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
     lcd = Pvariable(config[CONF_ID], rhs)
     pins_ = []
-    for conf in config[CONF_PINS]:
+    for conf in config[CONF_DATA_PINS]:
         for pin in gpio_output_pin_expression(conf):
             yield
         pins_.append(pin)

@@ -58,7 +58,7 @@ def validate_pillow_installed(value):
 
 def validate_truetype_file(value):
     value = cv.string(value)
-    path = os.path.join(core.CONFIG_PATH, value)
+    path = os.path.join(os.path.dirname(core.CONFIG_PATH), value)
     if not os.path.isfile(path):
         raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(path))
     if value.endswith('.zip'):  # for Google Fonts downloads
@@ -77,7 +77,7 @@ FONT_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Font),
     vol.Required(CONF_FILE): validate_truetype_file,
     vol.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
-    vol.Optional(CONF_SIZE, default=12): vol.All(cv.int_, vol.Range(min=1)),
+    vol.Optional(CONF_SIZE, default=20): vol.All(cv.int_, vol.Range(min=1)),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
 })
 
@@ -88,7 +88,7 @@ def to_code(config):
     from PIL import ImageFont
 
     for conf in config:
-        path = os.path.join(core.CONFIG_PATH, conf[CONF_FILE])
+        path = os.path.join(os.path.dirname(core.CONFIG_PATH), conf[CONF_FILE])
         try:
             font = ImageFont.truetype(path, conf[CONF_SIZE])
         except Exception as e:

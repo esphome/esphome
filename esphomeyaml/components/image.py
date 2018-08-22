@@ -31,7 +31,7 @@ def validate_pillow_installed(value):
 
 def validate_image_file(value):
     value = cv.string(value)
-    path = os.path.join(core.CONFIG_PATH, value)
+    path = os.path.join(os.path.dirname(core.CONFIG_PATH), value)
     if not os.path.isfile(path):
         raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(path))
     return value
@@ -53,7 +53,7 @@ def to_code(config):
     from PIL import Image
 
     for conf in config:
-        path = os.path.join(core.CONFIG_PATH, conf[CONF_FILE])
+        path = os.path.join(os.path.dirname(core.CONFIG_PATH), conf[CONF_FILE])
         try:
             image = Image.open(path)
         except Exception as e:
@@ -62,7 +62,7 @@ def to_code(config):
         if CONF_RESIZE in conf:
             image.thumbnail(conf[CONF_RESIZE])
 
-        image = image.convert('1')
+        image = image.convert('1', dither=Image.NONE)
         width, height = image.size
         if width > 500 or height > 500:
             _LOGGER.warning("The image you requested is very big. Please consider using the resize "

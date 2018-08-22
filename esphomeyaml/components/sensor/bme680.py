@@ -1,10 +1,11 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
+from esphomeyaml import core
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_GAS_RESISTANCE, CONF_HUMIDITY, CONF_IIR_FILTER, \
     CONF_MAKE_ID, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, \
-    CONF_UPDATE_INTERVAL
+    CONF_UPDATE_INTERVAL, CONF_HEATER, CONF_DURATION
 from esphomeyaml.helpers import App, Application, add, variable
 
 DEPENDENCIES = ['i2c']
@@ -43,7 +44,11 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
     vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
-    # TODO: Heater
+    vol.Optional(CONF_HEATER): vol.Any(None, vol.All(vol.Schema({
+        vol.Optional(CONF_TEMPERATURE, default=320): vol.All(vol.Coerce(int), vol.Range(200, 400)),
+        vol.Optional(CONF_DURATION, default='150ms'): vol.All(
+            cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))
+    }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
 })
 
@@ -69,6 +74,12 @@ def to_code(config):
     if CONF_IIR_FILTER in config:
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
         add(bme680.set_iir_filter(constant))
+    if CONF_HEATER in config:
+        conf = config[CONF_HEATER]
+        if not conf:
+            add(bme680.set_heater(0, 0))
+        else:
+            add(bme680.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
 
     sensor.setup_sensor(bme680.Pget_temperature_sensor(), make.Pmqtt_temperature,
                         config[CONF_TEMPERATURE])

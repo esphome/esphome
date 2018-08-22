@@ -109,6 +109,12 @@ def ensure_list(value):
     return [value]
 
 
+def ensure_list_not_empty(value):
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
 def ensure_dict(value):
     if value is None:
         return {}

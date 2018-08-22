@@ -14,8 +14,6 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PCF8574LCDDisplay),
     vol.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
-
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
 

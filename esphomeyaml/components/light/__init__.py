@@ -72,6 +72,7 @@ EFFECTS_SCHEMA = vol.Schema({
     vol.Optional(CONF_LAMBDA): vol.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
+        vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
     vol.Optional(CONF_RANDOM): vol.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(RandomLightEffect),
@@ -102,6 +103,7 @@ EFFECTS_SCHEMA = vol.Schema({
     vol.Optional(CONF_FASTLED_LAMBDA): vol.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
+        vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
     vol.Optional(CONF_FASTLED_RAINBOW): vol.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDRainbowLightEffect),
@@ -199,7 +201,7 @@ def build_effect(full_config):
         lambda_ = None
         for lambda_ in process_lambda(config[CONF_LAMBDA], []):
             yield None
-        yield LambdaLightEffect.new(config[CONF_NAME], lambda_)
+        yield LambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
     elif key == CONF_RANDOM:
         rhs = RandomLightEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
@@ -233,10 +235,10 @@ def build_effect(full_config):
         yield effect
     elif key == CONF_FASTLED_LAMBDA:
         lambda_ = None
-        args = [(RawExpression('FastLEDLightOutputComponent &'), 'fastled')]
+        args = [(RawExpression('FastLEDLightOutputComponent &'), 'it')]
         for lambda_ in process_lambda(config[CONF_LAMBDA], args):
             yield None
-        yield FastLEDLambdaLightEffect.new(config[CONF_NAME], lambda_)
+        yield FastLEDLambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
     elif key == CONF_FASTLED_RAINBOW:
         rhs = FastLEDRainbowLightEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)

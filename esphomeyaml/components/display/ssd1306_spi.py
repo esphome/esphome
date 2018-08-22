@@ -21,12 +21,14 @@ MODELS = {
     'SH1106_96X16': display.display_ns.SH1106_MODEL_96_16,
 }
 
+SSD1306_MODEL = vol.All(vol.Upper, vol.Replace(' ', '_'), cv.one_of(*MODELS))
+
 PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-    vol.Required(CONF_MODEL): cv.one_of(*MODELS),
+    vol.Required(CONF_MODEL): SSD1306_MODEL,
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_EXTERNAL_VCC): cv.boolean,
 })

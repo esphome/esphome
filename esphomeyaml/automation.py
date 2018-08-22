@@ -135,7 +135,7 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     }),
     vol.Optional(CONF_OUTPUT_SET_LEVEL): {
         vol.Required(CONF_ID): cv.use_variable_id(None),
-        vol.Required(CONF_LEVEL): cv.zero_to_one_float,
+        vol.Required(CONF_LEVEL): cv.percentage,
     },
     vol.Optional(CONF_DEEP_SLEEP_ENTER): maybe_simple_id({
         vol.Required(CONF_ID): cv.use_variable_id(deep_sleep.DeepSleepComponent),

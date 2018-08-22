@@ -8,7 +8,7 @@ from esphomeyaml.helpers import App, Pvariable
 SNTPComponent = time_.time_ns.SNTPComponent
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(SNTPComponent),
+    vol.Required(CONF_ID): cv.declare_variable_id(SNTPComponent),
     vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list, [cv.string], vol.Length(max=3)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 })

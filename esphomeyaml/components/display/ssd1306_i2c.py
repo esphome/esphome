@@ -13,7 +13,7 @@ I2CSSD1306 = display.display_ns.I2CSSD1306
 
 PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(I2CSSD1306),
-    vol.Required(CONF_MODEL): cv.one_of(*ssd1306_spi.MODELS),
+    vol.Required(CONF_MODEL): ssd1306_spi.SSD1306_MODEL,
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_EXTERNAL_VCC): cv.boolean,
     vol.Optional(CONF_ADDRESS): cv.i2c_address,

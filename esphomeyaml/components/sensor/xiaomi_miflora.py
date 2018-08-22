@@ -16,10 +16,10 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(XiaomiMiFloraDevice),
     cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_variable_id(ESP32BLETracker),
     vol.Required(CONF_MAC_ADDRESS): cv.mac_address,
-    vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Required(CONF_MOISTURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Required(CONF_ILLUMINANCE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Required(CONF_CONDUCTIVITY): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_MOISTURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_ILLUMINANCE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_CONDUCTIVITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_BATTERY_LEVEL): cv.nameable(sensor.SENSOR_SCHEMA),
 })
 
