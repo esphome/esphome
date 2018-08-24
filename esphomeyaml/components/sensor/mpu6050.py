@@ -30,7 +30,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GYRO_Y): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_GYRO_Z): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }), cv.has_at_least_one_key(CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z,
                             CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z))
 

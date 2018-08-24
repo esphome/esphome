@@ -15,7 +15,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
     vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Required(CONF_PRESSURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
 

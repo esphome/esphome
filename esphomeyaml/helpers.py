@@ -273,6 +273,12 @@ class IntLiteral(Literal):
         self.i = i
 
     def __str__(self):
+        if self.i > 4294967295:
+            return u'{}ULL'.format(self.i)
+        if self.i > 2147483647:
+            return u'{}UL'.format(self.i)
+        if self.i < -2147483648:
+            return u'{}LL'.format(self.i)
         return unicode(self.i)
 
 

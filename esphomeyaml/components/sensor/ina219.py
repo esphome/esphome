@@ -26,7 +26,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
                                                               vol.Range(min=0.0, max=32.0)),
     vol.Optional(CONF_MAX_VOLTAGE, default=32.0): vol.All(cv.voltage, vol.Range(min=0.0, max=32.0)),
     vol.Optional(CONF_MAX_CURRENT, default=3.2): vol.All(cv.current, vol.Range(min=0.0)),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }), cv.has_at_least_one_key(CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT,
                             CONF_POWER))
 

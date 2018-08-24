@@ -49,7 +49,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MULTIPLEXER): validate_mux,
     vol.Required(CONF_GAIN): validate_gain,
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))
 
 

@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMAT
     CONF_EFFECT, CONF_ELSE, CONF_FLASH_LENGTH, CONF_GREEN, CONF_ID, CONF_IF, CONF_LAMBDA, \
     CONF_LEVEL, CONF_OR, CONF_OSCILLATING, CONF_PAYLOAD, CONF_QOS, CONF_RANGE, CONF_RED, \
     CONF_RETAIN, CONF_SPEED, CONF_THEN, CONF_TOPIC, CONF_TRANSITION_LENGTH, CONF_TRIGGER_ID, \
-    CONF_WHITE
+    CONF_WHITE, CONF_COLOR_TEMPERATURE
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, add_job, \
     bool_, esphomelib_ns, float_, get_variable, process_lambda, std_string, templatable, uint32, \
@@ -87,6 +87,7 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
         vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
         vol.Optional(CONF_BLUE): cv.templatable(cv.percentage),
         vol.Optional(CONF_WHITE): cv.templatable(cv.percentage),
+        vol.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.positive_float),
         vol.Optional(CONF_EFFECT): cv.templatable(cv.string),
     }),
     vol.Optional(CONF_SWITCH_TOGGLE): maybe_simple_id({
@@ -256,13 +257,11 @@ def build_action(full_config, arg_type):
         rhs = App.register_component(DelayAction.new(template_arg))
         type = DelayAction.template(template_arg)
         action = Pvariable(action_id, rhs, type=type)
-        template_ = None
         for template_ in templatable(config, arg_type, uint32):
             yield
         add(action.set_delay(template_))
         yield action
     elif key == CONF_LAMBDA:
-        lambda_ = None
         for lambda_ in process_lambda(config, [(arg_type, 'x')]):
             yield None
         rhs = LambdaAction.new(template_arg, lambda_)
@@ -272,22 +271,18 @@ def build_action(full_config, arg_type):
         rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
         type = mqtt.MQTTPublishAction.template(template_arg)
         action = Pvariable(action_id, rhs, type=type)
-        template_ = None
         for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
             yield None
         add(action.set_topic(template_))
 
-        template_ = None
         for template_ in templatable(config[CONF_PAYLOAD], arg_type, std_string):
             yield None
         add(action.set_payload(template_))
         if CONF_QOS in config:
-            template_ = None
             for template_ in templatable(config[CONF_QOS], arg_type, uint8):
                 yield
             add(action.set_qos(template_))
         if CONF_RETAIN in config:
-            template_ = None
             for template_ in templatable(config[CONF_RETAIN], arg_type, bool_):
                 yield None
             add(action.set_retain(template_))
@@ -299,7 +294,6 @@ def build_action(full_config, arg_type):
         type = light.ToggleAction.template(template_arg)
         action = Pvariable(action_id, rhs, type=type)
         if CONF_TRANSITION_LENGTH in config:
-            template_ = None
             for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
                 yield None
             add(action.set_transition_length(template_))
@@ -311,7 +305,6 @@ def build_action(full_config, arg_type):
         type = light.TurnOffAction.template(template_arg)
         action = Pvariable(action_id, rhs, type=type)
         if CONF_TRANSITION_LENGTH in config:
-            template_ = None
             for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
                 yield None
             add(action.set_transition_length(template_))
@@ -323,42 +316,38 @@ def build_action(full_config, arg_type):
         type = light.TurnOnAction.template(template_arg)
         action = Pvariable(action_id, rhs, type=type)
         if CONF_TRANSITION_LENGTH in config:
-            template_ = None
             for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
                 yield None
             add(action.set_transition_length(template_))
         if CONF_FLASH_LENGTH in config:
-            template_ = None
             for template_ in templatable(config[CONF_FLASH_LENGTH], arg_type, uint32):
                 yield None
             add(action.set_flash_length(template_))
         if CONF_BRIGHTNESS in config:
-            template_ = None
             for template_ in templatable(config[CONF_BRIGHTNESS], arg_type, float_):
                 yield None
             add(action.set_brightness(template_))
         if CONF_RED in config:
-            template_ = None
             for template_ in templatable(config[CONF_RED], arg_type, float_):
                 yield None
             add(action.set_red(template_))
         if CONF_GREEN in config:
-            template_ = None
             for template_ in templatable(config[CONF_GREEN], arg_type, float_):
                 yield None
             add(action.set_green(template_))
         if CONF_BLUE in config:
-            template_ = None
             for template_ in templatable(config[CONF_BLUE], arg_type, float_):
                 yield None
             add(action.set_blue(template_))
         if CONF_WHITE in config:
-            template_ = None
             for template_ in templatable(config[CONF_WHITE], arg_type, float_):
                 yield None
             add(action.set_white(template_))
+        if CONF_COLOR_TEMPERATURE in config:
+            for template_ in templatable(config[CONF_COLOR_TEMPERATURE], arg_type, float_):
+                yield None
+            add(action.set_color_temperature(template_))
         if CONF_EFFECT in config:
-            template_ = None
             for template_ in templatable(config[CONF_EFFECT], arg_type, std_string):
                 yield None
             add(action.set_effect(template_))
@@ -418,12 +407,10 @@ def build_action(full_config, arg_type):
         type = fan.TurnOnAction.template(arg_type)
         action = Pvariable(action_id, rhs, type=type)
         if CONF_OSCILLATING in config:
-            template_ = None
             for template_ in templatable(config[CONF_OSCILLATING], arg_type, bool_):
                 yield None
             add(action.set_oscillating(template_))
         if CONF_SPEED in config:
-            template_ = None
             for template_ in templatable(config[CONF_SPEED], arg_type, fan.FanSpeed):
                 yield None
             add(action.set_speed(template_))
@@ -446,7 +433,6 @@ def build_action(full_config, arg_type):
         rhs = var.make_set_level_action(template_arg)
         type = output.SetLevelAction.template(arg_type)
         action = Pvariable(action_id, rhs, type=type)
-        template_ = None
         for template_ in templatable(config[CONF_LEVEL], arg_type, bool_):
             yield None
         add(action.set_level(template_))

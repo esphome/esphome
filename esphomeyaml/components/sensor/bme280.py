@@ -38,7 +38,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PRESSURE): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
     vol.Required(CONF_HUMIDITY): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
 

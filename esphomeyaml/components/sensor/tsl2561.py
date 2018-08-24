@@ -36,7 +36,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
     vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*GAINS)),
     vol.Optional(CONF_IS_CS_PACKAGE): cv.boolean,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))
 
 

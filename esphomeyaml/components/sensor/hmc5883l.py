@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     vol.Optional(CONF_RANGE): validate_range,
 }), cv.has_at_least_one_key(CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
                             CONF_HEADING))

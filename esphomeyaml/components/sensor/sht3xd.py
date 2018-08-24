@@ -15,7 +15,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_ADDRESS, default=0x44): cv.i2c_address,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 
     vol.Optional(CONF_ACCURACY): cv.invalid("The accuracy option has been removed and now "
                                             "defaults to HIGH."),

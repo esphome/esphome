@@ -15,7 +15,7 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(PN532Component),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })])
 
 

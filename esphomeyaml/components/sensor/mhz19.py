@@ -16,7 +16,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
     vol.Required(CONF_CO2): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
 

@@ -3,8 +3,8 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display
-from esphomeyaml.const import CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, CONF_LAMBDA, CONF_DATA_PINS, \
-    CONF_RS_PIN, CONF_RW_PIN
+from esphomeyaml.const import CONF_DATA_PINS, CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, \
+    CONF_LAMBDA, CONF_RS_PIN, CONF_RW_PIN
 from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda
 
 GPIOLCDDisplay = display.display_ns.GPIOLCDDisplay

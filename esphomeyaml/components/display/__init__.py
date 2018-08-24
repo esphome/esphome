@@ -33,7 +33,7 @@ def validate_rotation(value):
 
 
 BASIC_DISPLAY_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 })
 

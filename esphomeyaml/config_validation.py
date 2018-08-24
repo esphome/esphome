@@ -328,6 +328,12 @@ def time_period_in_seconds_(value):
     return TimePeriodSeconds(**value.as_dict())
 
 
+def update_interval(value):
+    if value == 'never':
+        return 4294967295  # uint32_t max
+    return positive_time_period_milliseconds(value)
+
+
 time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_dict)
 positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
 positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds_)

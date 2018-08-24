@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_COLOR_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_INTEGRATION_TIME): cv.one_of(*TCS34725_INTEGRATION_TIMES),
     vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*TCS34725_GAINS)),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }), cv.has_at_least_one_key(CONF_RED_CHANNEL, CONF_GREEN_CHANNEL, CONF_BLUE_CHANNEL,
                             CONF_CLEAR_CHANNEL, CONF_ILLUMINANCE, CONF_COLOR_TEMPERATURE))
 

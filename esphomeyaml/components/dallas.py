@@ -11,7 +11,7 @@ DallasComponent = sensor.sensor_ns.DallasComponent
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(DallasComponent),
     vol.Required(CONF_PIN): pins.input_output_pin,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })])
 
 

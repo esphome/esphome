@@ -49,7 +49,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
         vol.Optional(CONF_DURATION, default='150ms'): vol.All(
             cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))
     }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
 

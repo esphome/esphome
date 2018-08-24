@@ -34,7 +34,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_CHANNEL_1): INA3221_CHANNEL_SCHEMA,
     vol.Optional(CONF_CHANNEL_2): INA3221_CHANNEL_SCHEMA,
     vol.Optional(CONF_CHANNEL_3): INA3221_CHANNEL_SCHEMA,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
 
