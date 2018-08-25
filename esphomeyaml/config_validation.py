@@ -185,6 +185,8 @@ def templatable(other_validators):
     def validator(value):
         if isinstance(value, Lambda):
             return value
+        if isinstance(other_validators, dict):
+            return vol.Schema(other_validators)(value)
         return other_validators(value)
 
     return validator

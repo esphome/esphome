@@ -38,6 +38,7 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
 
 # Install latest esphomeyaml from git
 RUN pip install --no-cache-dir \
-      git+git://github.com/OttoWinter/esphomeyaml.git
+      git+git://github.com/OttoWinter/esphomeyaml.git && \
+    pip install pillow tzlocal
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]

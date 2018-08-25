@@ -9,7 +9,7 @@ from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL, CONF_CODE, \
     CONF_COMMAND, CONF_DATA, CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_LG, \
     CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, \
-    CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D,\
+    CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
     CONF_REPEAT, CONF_SONY, CONF_STATE, CONF_TIMES, \
     CONF_WAIT_TIME
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, get_variable
@@ -29,8 +29,6 @@ NECTransmitter = remote_ns.NECTransmitter
 PanasonicTransmitter = remote_ns.PanasonicTransmitter
 RawTransmitter = remote_ns.RawTransmitter
 SonyTransmitter = remote_ns.SonyTransmitter
-RCSwitchProtocol = remote_ns.RCSwitchProtocol
-rc_switch_protocols = remote_ns.rc_switch_protocols
 RCSwitchRawTransmitter = remote_ns.RCSwitchRawTransmitter
 RCSwitchTypeATransmitter = remote_ns.RCSwitchTypeATransmitter
 RCSwitchTypeBTransmitter = remote_ns.RCSwitchTypeBTransmitter

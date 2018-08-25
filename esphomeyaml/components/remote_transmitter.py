@@ -2,7 +2,6 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.components.switch.remote_transmitter import rc_switch_protocols, RCSwitchProtocol
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_DUTY_PERCENT, CONF_CHANNEL, CONF_CODE, \
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_ID, CONF_INVERTED, CONF_ONE, CONF_PIN, \
     CONF_PROTOCOL, CONF_PULSE_LENGTH, CONF_STATE, CONF_SYNC, CONF_ZERO
@@ -12,6 +11,8 @@ from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, gpio_output_
 remote_ns = esphomelib_ns.namespace('remote')
 
 RemoteTransmitterComponent = remote_ns.RemoteTransmitterComponent
+RCSwitchProtocol = remote_ns.RCSwitchProtocol
+rc_switch_protocols = remote_ns.rc_switch_protocols
 
 
 def validate_rc_switch_code(value):
