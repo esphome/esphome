@@ -15,7 +15,8 @@ RUN platformio settings set enable_telemetry No && \
     platformio run -e espressif32 -e espressif8266; exit 0
 
 COPY . .
-RUN pip install -e .
+RUN pip install -e . && \
+    pip install pillow tzlocal
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]

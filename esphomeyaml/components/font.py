@@ -46,7 +46,7 @@ def validate_pillow_installed(value):
     try:
         import PIL
     except ImportError:
-        raise vol.Invalid("Please install the pillow python package to use fonts. "
+        raise vol.Invalid("Please install the pillow python package to use this feature. "
                           "(pip2 install pillow)")
 
     if PIL.__version__[0] < '4':
@@ -103,7 +103,7 @@ def to_code(config):
             _, (offset_x, offset_y) = font.font.getsize(glyph)
             width, height = mask.size
             width8 = ((width + 7) // 8) * 8
-            glyph_data = [0 for _ in range(height * width8 // 8)]
+            glyph_data = [0 for _ in range(height * width8 // 8)]  # noqa: F812
             for y in range(height):
                 for x in range(width):
                     if not mask.getpixel((x, y)):

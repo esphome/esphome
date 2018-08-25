@@ -6,7 +6,7 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.components import display
+from esphomeyaml.components import display, font
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphomeyaml.core import HexInt
 from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add
@@ -16,17 +16,6 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ['display']
 
 Image_ = display.display_ns.Image
-
-
-def validate_pillow_installed(value):
-    try:
-        # pylint: disable=unused-variable
-        import PIL
-    except ImportError:
-        raise vol.Invalid("Please install the pillow python package to use images. "
-                          "(pip2 install pillow)")
-
-    return value
 
 
 def validate_image_file(value):
@@ -39,14 +28,14 @@ def validate_image_file(value):
 
 CONF_RAW_DATA_ID = 'raw_data_id'
 
-FONT_SCHEMA = vol.Schema({
+IMAGE_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Image_),
     vol.Required(CONF_FILE): validate_image_file,
     vol.Optional(CONF_RESIZE): cv.dimensions,
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
 })
 
-CONFIG_SCHEMA = vol.All(validate_pillow_installed, cv.ensure_list, [FONT_SCHEMA])
+CONFIG_SCHEMA = vol.All(font.validate_pillow_installed, cv.ensure_list, [IMAGE_SCHEMA])
 
 
 def to_code(config):

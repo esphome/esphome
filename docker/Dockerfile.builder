@@ -27,6 +27,6 @@ RUN apt-get update && apt-get install -y \
         binfmt-support \
     && rm -rf /var/lib/apt/lists/*
 
-COPY hassio-builder.sh /usr/bin/
+COPY docker/hassio-builder.sh /usr/bin/
 
 WORKDIR /data
