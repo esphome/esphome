@@ -1,6 +1,10 @@
 FROM python:2.7
 MAINTAINER Otto Winter <contact@otto-winter.com>
 
+RUN apt-get update && apt-get install -y \
+        python-pil \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV ESPHOMEYAML_OTA_HOST_PORT=6123
 EXPOSE 6123
 VOLUME /config
@@ -16,7 +20,7 @@ RUN platformio settings set enable_telemetry No && \
 
 COPY . .
 RUN pip install -e . && \
-    pip install pillow tzlocal
+    pip install tzlocal
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]

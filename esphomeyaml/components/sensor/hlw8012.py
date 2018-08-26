@@ -43,10 +43,10 @@ def to_code(config):
         conf = config[CONF_VOLTAGE]
         sensor.register_sensor(hlw.make_voltage_sensor(conf[CONF_NAME]), conf)
     if CONF_CURRENT in config:
-        conf = config[CONF_VOLTAGE]
+        conf = config[CONF_CURRENT]
         sensor.register_sensor(hlw.make_current_sensor(conf[CONF_NAME]), conf)
     if CONF_POWER in config:
-        conf = config[CONF_VOLTAGE]
+        conf = config[CONF_POWER]
         sensor.register_sensor(hlw.make_power_sensor(conf[CONF_NAME]), conf)
     if CONF_CURRENT_RESISTOR in config:
         add(hlw.set_current_resistor(config[CONF_CURRENT_RESISTOR]))

@@ -38,7 +38,7 @@ def to_code(config):
     make = variable(config[CONF_MAKE_ID], rhs)
 
     if CONF_GAIN in config:
-        add(make.Phx711.set_gain(GAINS[CONF_GAIN]))
+        add(make.Phx711.set_gain(GAINS[config[CONF_GAIN]]))
 
     sensor.setup_sensor(make.Phx711, make.Pmqtt, config)
 

@@ -33,7 +33,7 @@ def validate_range(value):
     value = cv.string(value)
     if value.endswith(u'µT') or value.endswith('uT'):
         value = value[:-2]
-    return cv.one_of(*HMC5883L_RANGES)(value)
+    return cv.one_of(*HMC5883L_RANGES)(int(value))
 
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({

@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python \
         python-pip \
         python-setuptools \
+        python-pil \
         git \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*rm -rf /var/lib/apt/lists/* /tmp/* && \
     pip install --no-cache-dir --no-binary :all: platformio && \
@@ -15,6 +16,6 @@ RUN platformio run -d /pio; rm -rf /pio
 
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \
-    pip install --no-cache-dir --no-binary :all: pillow tzlocal
+    pip install --no-cache-dir --no-binary :all: tzlocal
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]

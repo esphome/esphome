@@ -6,13 +6,13 @@ from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, RawExpressio
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
-ESP32BLETracker = esphomelib_ns.ESP32BLETracker
+ESP32BLEBeacon = esphomelib_ns.ESP32BLEBeacon
 
 CONF_MAJOR = 'major'
 CONF_MINOR = 'minor'
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
+    cv.GenerateID(): cv.declare_variable_id(ESP32BLEBeacon),
     vol.Required(CONF_TYPE): vol.All(vol.Upper, cv.one_of('IBEACON')),
     vol.Required(CONF_UUID): cv.uuid,
     vol.Optional(CONF_MAJOR): cv.uint16_t,

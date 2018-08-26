@@ -48,10 +48,34 @@ def _tz_dst_str(dt):
 def detect_tz():
     try:
         import tzlocal
+        import pytz
     except ImportError:
         raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
                           "detect the timezone please install tzlocal (pip2 install tzlocal)")
-    tz = tzlocal.get_localzone()
+    try:
+        tz = tzlocal.get_localzone()
+    except pytz.exceptions.UnknownTimeZoneError:
+        _LOGGER.warning("Could not auto-detect timezone. Using UTC...")
+        return 'UTC'
+
+    def _dst(dt, is_dst):
+        try:
+            return tz.dst(dt, is_dst=is_dst)
+        except TypeError:  # stupid pytz...
+            return tz.dst(dt)
+
+    def _tzname(dt, is_dst):
+        try:
+            return tz.tzname(dt, is_dst=is_dst)
+        except TypeError:  # stupid pytz...
+            return tz.tzname(dt)
+
+    def _utcoffset(dt, is_dst):
+        try:
+            return tz.utcoffset(dt, is_dst=is_dst)
+        except TypeError:  # stupid pytz...
+            return tz.utcoffset(dt)
+
     dst_begins = None
     dst_tzname = None
     dst_utcoffset = None
@@ -64,17 +88,17 @@ def detect_tz():
     dt = datetime.datetime(year=this_year, month=1, day=1)
     last_dst = None
     while dt.year == this_year:
-        current_dst = tz.dst(dt, is_dst=not last_dst)
+        current_dst = _dst(dt, not last_dst)
         is_dst = bool(current_dst)
         if is_dst != last_dst:
             if is_dst:
                 dst_begins = dt
-                dst_tzname = tz.tzname(dt, is_dst=True)
-                dst_utcoffset = tz.utcoffset(dt, is_dst=True)
+                dst_tzname = _tzname(dt, True)
+                dst_utcoffset = _utcoffset(dt, True)
             else:
                 dst_ends = dt + hour
-                norm_tzname = tz.tzname(dt, is_dst=False)
-                norm_utcoffset = tz.utcoffset(dt, is_dst=False)
+                norm_tzname = _tzname(dt, False)
+                norm_utcoffset = _utcoffset(dt, False)
             last_dst = is_dst
         dt += hour
 

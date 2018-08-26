@@ -107,3 +107,4 @@ config/
 examples/
 Dockerfile
 .git/
+tests/build/

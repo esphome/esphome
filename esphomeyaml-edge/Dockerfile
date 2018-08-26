@@ -16,10 +16,21 @@ ARG BUILD_FROM
 # * disable platformio telemetry on install
 RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
       apt-get update && apt-get install -y --no-install-recommends \
-        python python-pip python-setuptools git && \
+        python python-pip python-setuptools python-pil git && \
       rm -rf /var/lib/apt/lists/* /tmp/*; \
     else \
-       apk add --no-cache python2 py2-pip git openssh libc6-compat; \
+       apk add --no-cache \
+          python2 \
+          py2-pip \
+          git \
+          openssh \
+          libc6-compat \
+          jpeg-dev \
+          zlib-dev \
+          freetype-dev \
+          lcms2-dev \
+          openjpeg-dev \
+          tiff-dev; \
     fi" && \
     pip install --no-cache-dir platformio && \
     platformio settings set enable_telemetry No

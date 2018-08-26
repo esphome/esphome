@@ -104,3 +104,4 @@ venv.bak/
 .mypy_cache/
 
 config/
+tests/build/

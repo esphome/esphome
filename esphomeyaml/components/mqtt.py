@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LOG_TOPIC, \
     CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_RETAIN, \
     CONF_SSL_FINGERPRINTS, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
-    CONF_WILL_MESSAGE, CONF_REBOOT_TIMEOUT
+    CONF_WILL_MESSAGE, CONF_REBOOT_TIMEOUT, CONF_SHUTDOWN_MESSAGE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, \
     TemplateArguments, add, esphomelib_ns, optional, std_string
@@ -66,6 +66,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
     vol.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
     vol.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
+    vol.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
     vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
     vol.Optional(CONF_LOG_TOPIC): MQTT_MESSAGE_TEMPLATE_SCHEMA,
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
@@ -117,6 +118,12 @@ def to_code(config):
             add(mqtt.disable_last_will())
         else:
             add(mqtt.set_last_will(exp_mqtt_message(will_message)))
+    if CONF_SHUTDOWN_MESSAGE in config:
+        shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
+        if not shutdown_message:
+            add(mqtt.disable_shutdown_message())
+        else:
+            add(mqtt.set_shutdown_message(exp_mqtt_message(shutdown_message)))
     if CONF_CLIENT_ID in config:
         add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
     if CONF_LOG_TOPIC in config:
