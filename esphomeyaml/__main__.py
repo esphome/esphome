@@ -295,6 +295,9 @@ def command_compile(args, config):
     exit_code = write_cpp(config)
     if exit_code != 0:
         return exit_code
+    if args.only_generate:
+        _LOGGER.info(u"Successfully generated source code.")
+        return 0;
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
@@ -381,6 +384,9 @@ def parse_args(argv):
     subparsers.add_parser('config', help='Validate the configuration and spit it out.')
 
     parser_compile = subparsers.add_parser('compile', help='Read the configuration and compile a program.')
+    parser_compile.add_argument('--only-generate',
+                               help="Only generate source code, do not compile.",
+                               action='store_true')
 
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
                                                          'and upload the latest binary.')
