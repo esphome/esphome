@@ -380,7 +380,7 @@ def parse_args(argv):
     subparsers.required = True
     subparsers.add_parser('config', help='Validate the configuration and spit it out.')
 
-    subparsers.add_parser('compile', help='Read the configuration and compile a program.')
+    parser_compile = subparsers.add_parser('compile', help='Read the configuration and compile a program.')
 
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
                                                          'and upload the latest binary.')
