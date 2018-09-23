@@ -2,14 +2,17 @@ from __future__ import print_function
 
 import codecs
 import errno
+import json
 import os
 
 from esphomeyaml import core
 from esphomeyaml.config import iter_components
-from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
-    CONF_LIBRARY_URI, \
-    CONF_NAME, CONF_PLATFORM, CONF_USE_BUILD_FLAGS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
+    CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_USE_CUSTOM_CODE, \
+    ESP_PLATFORM_ESP32, ARDUINO_VERSION_ESP32_DEV
 from esphomeyaml.core import ESPHomeYAMLError
+from esphomeyaml.core_config import VERSION_REGEX
+from esphomeyaml.helpers import relative_path
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
 CPP_AUTO_GENERATE_END = u'// =========== AUTO GENERATED CODE END ============'
@@ -59,11 +62,6 @@ build_flags =
     ${{common.build_flags}}
 """
 
-PLATFORM_TO_PLATFORMIO = {
-    ESP_PLATFORM_ESP32: 'espressif32',
-    ESP_PLATFORM_ESP8266: 'espressif8266'
-}
-
 
 def get_build_flags(config, key):
     build_flags = set()
@@ -81,19 +79,16 @@ def get_build_flags(config, key):
     return build_flags
 
 
-def get_ini_content(config):
+def get_ini_content(config, path):
     version_specific_settings = determine_platformio_version_settings()
-    platform = config[CONF_ESPHOMEYAML][CONF_PLATFORM]
-    if platform in PLATFORM_TO_PLATFORMIO:
-        platform = PLATFORM_TO_PLATFORMIO[platform]
     options = {
         u'env': config[CONF_ESPHOMEYAML][CONF_NAME],
-        u'platform': platform,
+        u'platform': config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
         u'board': config[CONF_ESPHOMEYAML][CONF_BOARD],
         u'build_flags': u'',
     }
     build_flags = set()
-    if config[CONF_ESPHOMEYAML][CONF_USE_BUILD_FLAGS]:
+    if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
         build_flags |= get_build_flags(config, 'build_flags')
         build_flags |= get_build_flags(config, 'BUILD_FLAGS')
         build_flags.add(u"-DESPHOMEYAML_USE")
@@ -106,13 +101,48 @@ def get_ini_content(config):
         options[u'build_flags'] = u'\n    '.join(build_flags)
 
     lib_deps = set()
-    lib_deps.add(config[CONF_ESPHOMEYAML][CONF_LIBRARY_URI])
+
+    lib_version = config[CONF_ESPHOMEYAML][CONF_ESPHOMELIB_VERSION]
+    lib_path = os.path.join(path, 'lib')
+    dst_path = os.path.join(lib_path, 'esphomelib')
+    if isinstance(lib_version, (str, unicode)):
+        lib_deps.add(lib_version)
+        if os.path.islink(dst_path):
+            os.unlink(dst_path)
+    else:
+        src_path = relative_path(lib_version[CONF_LOCAL])
+        do_write = True
+        if os.path.islink(dst_path):
+            old_path = os.path.join(os.readlink(dst_path), lib_path)
+            if old_path != lib_path:
+                os.unlink(dst_path)
+            else:
+                do_write = False
+        if do_write:
+            mkdir_p(lib_path)
+            os.symlink(src_path, dst_path)
+
+        # Manually add lib_deps because platformio seems to ignore them inside libs/
+        library_json_path = os.path.join(src_path, 'library.json')
+        with codecs.open(library_json_path, 'r', encoding='utf-8') as f_handle:
+            library_json_text = f_handle.read()
+
+        library_json = json.loads(library_json_text)
+        for dep in library_json.get('dependencies', []):
+            if 'version' in dep and VERSION_REGEX.match(dep['version']) is not None:
+                lib_deps.add(dep['name'] + '@' + dep['version'])
+            else:
+                lib_deps.add(dep['version'])
+
     lib_deps |= get_build_flags(config, 'LIB_DEPS')
     lib_deps |= get_build_flags(config, 'lib_deps')
     if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
         lib_deps |= {
             'Preferences',  # Preferences helper
         }
+        # Manual fix for AsyncTCP
+        if config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
+            lib_deps.add('https://github.com/me-no-dev/AsyncTCP.git#idf-update')
     # avoid changing build flags order
     lib_deps = sorted(x for x in lib_deps if x)
     if lib_deps:
@@ -178,7 +208,7 @@ def write_platformio_ini(content, path):
 
 def write_platformio_project(config, path):
     platformio_ini = os.path.join(path, 'platformio.ini')
-    content = get_ini_content(config)
+    content = get_ini_content(config, path)
     if 'esp32_ble_beacon' in config or 'esp32_ble_tracker' in config:
         content += 'board_build.partitions = partitions.csv\n'
         partitions_csv = os.path.join(path, 'partitions.csv')

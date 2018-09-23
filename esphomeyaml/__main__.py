@@ -7,11 +7,11 @@ import random
 import sys
 from datetime import datetime
 
-from esphomeyaml import const, core, mqtt, wizard, writer, yaml_util
-from esphomeyaml.config import core_to_code, get_component, iter_components, read_config
+from esphomeyaml import const, core, core_config, mqtt, wizard, writer, yaml_util
+from esphomeyaml.config import get_component, iter_components, read_config
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF_ESPHOMEYAML, \
-    CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_WIFI, \
-    ESP_PLATFORM_ESP8266
+    CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
+    CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
     add_job, color, flush_tasks, indent, quote, statement
@@ -123,7 +123,7 @@ def run_miniterm(config, port, escape=False):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    add_job(core_to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
+    add_job(core_config.to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
     for domain in PRE_INITIALIZE:
         if domain == CONF_ESPHOMEYAML or domain not in config:
             continue
@@ -139,7 +139,7 @@ def write_cpp(config):
     add(RawStatement(''))
     all_code = []
     for exp in _EXPRESSIONS:
-        if core.SIMPLIFY:
+        if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
             if isinstance(exp, Expression) and not exp.required:
                 continue
             if isinstance(exp, AssignmentExpression) and not exp.obj.required:
@@ -302,7 +302,7 @@ def command_compile(args, config):
         return exit_code
     if args.only_generate:
         _LOGGER.info(u"Successfully generated source code.")
-        return 0;
+        return 0
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
@@ -388,10 +388,11 @@ def parse_args(argv):
     subparsers.required = True
     subparsers.add_parser('config', help='Validate the configuration and spit it out.')
 
-    parser_compile = subparsers.add_parser('compile', help='Read the configuration and compile a program.')
+    parser_compile = subparsers.add_parser('compile',
+                                           help='Read the configuration and compile a program.')
     parser_compile.add_argument('--only-generate',
-                               help="Only generate source code, do not compile.",
-                               action='store_true')
+                                help="Only generate source code, do not compile.",
+                                action='store_true')
 
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
                                                          'and upload the latest binary.')

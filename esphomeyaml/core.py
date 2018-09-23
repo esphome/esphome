@@ -239,7 +239,6 @@ class ID(object):
 
 
 CONFIG_PATH = None
-SIMPLIFY = True
 ESP_PLATFORM = ''
 BOARD = ''
 RAW_CONFIG = None

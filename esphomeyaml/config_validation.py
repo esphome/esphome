@@ -3,12 +3,13 @@
 from __future__ import print_function
 
 import logging
+import os
 import re
 import uuid as uuid_
 
 import voluptuous as vol
 
-from esphomeyaml import core
+from esphomeyaml import core, helpers
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
@@ -235,6 +236,19 @@ def has_exactly_one_key(*keys):
             raise vol.Invalid("Cannot specify more than one of {}.".format(', '.join(keys)))
         if number < 1:
             raise vol.Invalid('Must contain exactly one of {}.'.format(', '.join(keys)))
+        return obj
+
+    return validate
+
+
+def has_at_most_one_key(*keys):
+    def validate(obj):
+        if not isinstance(obj, dict):
+            raise vol.Invalid('expected dictionary')
+
+        number = sum(k in keys for k in obj)
+        if number > 1:
+            raise vol.Invalid("Cannot specify more than one of {}.".format(', '.join(keys)))
         return obj
 
     return validate
@@ -596,6 +610,28 @@ def dimensions(value):
     if not match:
         raise vol.Invalid(u"Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed.")
     return dimensions([match.group(1), match.group(2)])
+
+
+def directory(value):
+    value = string(value)
+    path = helpers.relative_path(value)
+    if not os.path.exists(path):
+        raise vol.Invalid(u"Could not find directory '{}'. Please make sure it exists.".format(
+            path))
+    if not os.path.isdir(path):
+        raise vol.Invalid(u"Path '{}' is not a directory.".format(path))
+    return value
+
+
+def file_(value):
+    value = string(value)
+    path = helpers.relative_path(value)
+    if not os.path.exists(path):
+        raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(
+            path))
+    if not os.path.isfile(path):
+        raise vol.Invalid(u"Path '{}' is not a file.".format(path))
+    return value
 
 
 REGISTERED_IDS = set()

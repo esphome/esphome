@@ -1,6 +1,5 @@
 # coding=utf-8
 import logging
-import os.path
 
 import voluptuous as vol
 
@@ -9,7 +8,8 @@ from esphomeyaml import core
 from esphomeyaml.components import display, font
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add
+from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add, \
+    relative_path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,20 +17,11 @@ DEPENDENCIES = ['display']
 
 Image_ = display.display_ns.Image
 
-
-def validate_image_file(value):
-    value = cv.string(value)
-    path = os.path.join(os.path.dirname(core.CONFIG_PATH), value)
-    if not os.path.isfile(path):
-        raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(path))
-    return value
-
-
 CONF_RAW_DATA_ID = 'raw_data_id'
 
 IMAGE_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Image_),
-    vol.Required(CONF_FILE): validate_image_file,
+    vol.Required(CONF_FILE): cv.file_,
     vol.Optional(CONF_RESIZE): cv.dimensions,
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
 })
@@ -42,7 +33,7 @@ def to_code(config):
     from PIL import Image
 
     for conf in config:
-        path = os.path.join(os.path.dirname(core.CONFIG_PATH), conf[CONF_FILE])
+        path = relative_path(conf[CONF_FILE])
         try:
             image = Image.open(path)
         except Exception as e:

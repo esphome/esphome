@@ -1,6 +1,4 @@
 # coding=utf-8
-import os.path
-
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
@@ -8,7 +6,8 @@ from esphomeyaml import core
 from esphomeyaml.components import display
 from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add
+from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add, \
+    relative_path
 
 DEPENDENCIES = ['display']
 
@@ -57,17 +56,13 @@ def validate_pillow_installed(value):
 
 
 def validate_truetype_file(value):
-    value = cv.string(value)
-    path = os.path.join(os.path.dirname(core.CONFIG_PATH), value)
-    if not os.path.isfile(path):
-        raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(path))
     if value.endswith('.zip'):  # for Google Fonts downloads
         raise vol.Invalid(u"Please unzip the font archive '{}' first and then use the .ttf files "
                           u"inside.".format(value))
     if not value.endswith('.ttf'):
         raise vol.Invalid(u"Only truetype (.ttf) files are supported. Please make sure you're "
                           u"using the correct format or rename the extension to .ttf")
-    return value
+    return cv.file_(value)
 
 
 DEFAULT_GLYPHS = u' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
@@ -88,7 +83,7 @@ def to_code(config):
     from PIL import ImageFont
 
     for conf in config:
-        path = os.path.join(os.path.dirname(core.CONFIG_PATH), conf[CONF_FILE])
+        path = relative_path(conf[CONF_FILE])
         try:
             font = ImageFont.truetype(path, conf[CONF_SIZE])
         except Exception as e:

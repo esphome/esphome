@@ -5,6 +5,7 @@ MINOR_VERSION = 7
 PATCH_VERSION = '0'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
+ESPHOMELIB_VERSION = '1.7.0'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
@@ -16,9 +17,14 @@ CONF_ESPHOMEYAML = 'esphomeyaml'
 CONF_NAME = 'name'
 CONF_PLATFORM = 'platform'
 CONF_BOARD = 'board'
-CONF_SIMPLIFY = 'simplify'
-CONF_USE_BUILD_FLAGS = 'use_build_flags'
-CONF_LIBRARY_URI = 'library_uri'
+CONF_ESPHOMELIB_VERSION = 'esphomelib_version'
+CONF_USE_CUSTOM_CODE = 'use_custom_code'
+CONF_ARDUINO_VERSION = 'arduino_version'
+CONF_LOCAL = 'local'
+CONF_REPOSITORY = 'repository'
+CONF_COMMIT = 'commit'
+CONF_TAG = 'tag'
+CONF_BRANCH = 'branch'
 CONF_LOGGER = 'logger'
 CONF_WIFI = 'wifi'
 CONF_SSID = 'ssid'
@@ -323,27 +329,17 @@ CONF_COLD_WHITE = 'cold_white'
 CONF_WARM_WHITE = 'warm_white'
 CONF_COLD_WHITE_COLOR_TEMPERATURE = 'cold_white_color_temperature'
 CONF_WARM_WHITE_COLOR_TEMPERATURE = 'warm_white_color_temperature'
-
-ESP32_BOARDS = [
-    'featheresp32', 'node32s', 'espea32', 'firebeetle32', 'esp32doit-devkit-v1',
-    'pocket_32', 'espectro32', 'esp32vn-iot-uno', 'esp320', 'esp-wrover-kit',
-    'esp32dev', 'heltec_wifi_kit32', 'heltec_wifi_lora_32', 'hornbill32dev',
-    'hornbill32minima', 'intorobot', 'm5stack-core-esp32', 'mhetesp32devkit',
-    'mhetesp32minikit', 'nano32', 'microduino-core-esp32', 'nodemcu-32s',
-    'quantum', 'esp32-evb', 'esp32-gateway', 'onehorse32dev', 'esp32thing',
-    'espino32', 'lolin32', 'wemosbat', 'widora-air', 'nina_w10',
-]
-
-ESP8266_BOARDS = [
-    'gen4iod', 'huzzah', 'oak', 'espduino', 'espectro', 'espresso_lite_v1',
-    'espresso_lite_v2', 'espino', 'esp01', 'esp01_1m', 'esp07', 'esp12e', 'esp8285',
-    'esp_wroom_02', 'phoenix_v1', 'phoenix_v2', 'wifinfo', 'heltex_wifi_kit_8',
-    'nodemcu', 'nodemcuv2', 'modwifi', 'wio_node', 'sparkfunBlynk', 'thing',
-    'thingdev', 'esp210', 'espinotee', 'd1', 'd1_mini', 'd1_mini_lite', 'd1_mini_pro',
-]
-ESP_BOARDS_FOR_PLATFORM = {
-    ESP_PLATFORM_ESP32: ESP32_BOARDS,
-    ESP_PLATFORM_ESP8266: ESP8266_BOARDS
-}
+CONF_ON_LOOP = 'on_loop'
+CONF_ON_TIME = 'on_time'
+CONF_SECONDS = 'seconds'
+CONF_MINUTES = 'minutes'
+CONF_HOURS = 'hours'
+CONF_DAYS_OF_MONTH = 'days_of_month'
+CONF_MONTHS = 'months'
+CONF_DAYS_OF_WEEK = 'days_of_week'
+CONF_CRON = 'cron'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
+ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
+ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8266.git#feature' \
+                              '/stage'

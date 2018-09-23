@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import inspect
 import logging
+import os
 import re
 from collections import OrderedDict, deque
 
@@ -85,8 +86,6 @@ class AssignmentExpression(Expression):
 
     def __str__(self):
         type_ = self.type
-        if core.SIMPLIFY:
-            type_ = u'auto'
         return u"{} {}{} = {}".format(type_, self.modifier, self.name, self.rhs)
 
     def has_side_effects(self):
@@ -662,3 +661,7 @@ def color(the_color, message='', reset=None):
     if not message:
         return parse_colors(the_color)
     return parse_colors(the_color) + message + escape_codes[reset or 'reset']
+
+
+def relative_path(path):
+    return os.path.join(os.path.dirname(core.CONFIG_PATH), os.path.expanduser(path))

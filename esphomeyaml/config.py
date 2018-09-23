@@ -7,60 +7,18 @@ from collections import OrderedDict
 import voluptuous as vol
 from voluptuous.humanize import humanize_error
 
-import esphomeyaml.config_validation as cv
-from esphomeyaml import core, yaml_util, automation
-from esphomeyaml.const import CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_ESPHOMEYAML, \
-    CONF_LIBRARY_URI, CONF_NAME, CONF_PLATFORM, CONF_SIMPLIFY, CONF_USE_BUILD_FLAGS, CONF_WIFI, \
-    ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ON_BOOT, CONF_TRIGGER_ID, \
-    CONF_PRIORITY, CONF_ON_SHUTDOWN, CONF_BUILD_PATH
+from esphomeyaml import core, yaml_util, core_config
+from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, add, color, esphomelib_ns, Pvariable, NoArg, const_char_p
+from esphomeyaml.helpers import color
 
 _LOGGER = logging.getLogger(__name__)
-
-DEFAULT_LIBRARY_URI = u'https://github.com/OttoWinter/esphomelib.git#v1.7.0'
-
-BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = esphomelib_ns.StartupTrigger
-ShutdownTrigger = esphomelib_ns.ShutdownTrigger
-
-CORE_SCHEMA = vol.Schema({
-    vol.Required(CONF_NAME): cv.valid_name,
-    vol.Required(CONF_PLATFORM): cv.string,
-    vol.Required(CONF_BOARD): cv.string,
-    vol.Optional(CONF_LIBRARY_URI, default=DEFAULT_LIBRARY_URI): cv.string,
-    vol.Optional(CONF_SIMPLIFY, default=True): cv.boolean,
-    vol.Optional(CONF_USE_BUILD_FLAGS, default=True): cv.boolean,
-    vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
-    vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
-        vol.Optional(CONF_PRIORITY): vol.Coerce(float),
-    })]),
-    vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
-    })]),
-    vol.Optional(CONF_BUILD_PATH): cv.string,
-})
 
 REQUIRED_COMPONENTS = [
     CONF_ESPHOMEYAML, CONF_WIFI
 ]
-
 _COMPONENT_CACHE = {}
 _ALL_COMPONENTS = []
-
-
-def core_to_code(config):
-    add(App.set_name(config[CONF_NAME]))
-
-    for conf in config.get(CONF_ON_BOOT, []):
-        rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
-
-    for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
-        automation.build_automation(trigger, const_char_p, conf)
 
 
 def get_component(domain):
@@ -171,9 +129,9 @@ def validate_config(config):
         result.add_error(_format_config_error(ex, domain, config), domain, config)
 
     try:
-        result[CONF_ESPHOMEYAML] = CORE_SCHEMA(config[CONF_ESPHOMEYAML])
+        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(config[CONF_ESPHOMEYAML])
     except vol.Invalid as ex:
-        _comp_error(ex, CONF_ESPHOMEYAML, config)
+        _comp_error(ex, CONF_ESPHOMEYAML, config[CONF_ESPHOMEYAML])
 
     for domain, conf in config.iteritems():
         domain = str(domain)
@@ -288,23 +246,7 @@ def load_config(path):
     except OSError:
         raise ESPHomeYAMLError(u"Could not read configuration file at {}".format(path))
     core.RAW_CONFIG = config
-
-    if CONF_ESPHOMEYAML not in config:
-        raise ESPHomeYAMLError(u"No esphomeyaml section in config")
-    core_conf = config[CONF_ESPHOMEYAML]
-    if CONF_PLATFORM not in core_conf:
-        raise ESPHomeYAMLError("esphomeyaml.platform not specified.")
-    esp_platform = unicode(core_conf[CONF_PLATFORM])
-    esp_platform = esp_platform.upper()
-    if '8266' in esp_platform:
-        esp_platform = ESP_PLATFORM_ESP8266
-    if '32' in esp_platform:
-        esp_platform = ESP_PLATFORM_ESP32
-    core.ESP_PLATFORM = esp_platform
-    if CONF_BOARD not in core_conf:
-        raise ESPHomeYAMLError("esphomeyaml.board not specified.")
-    core.BOARD = unicode(core_conf[CONF_BOARD])
-    core.SIMPLIFY = cv.boolean(core_conf.get(CONF_SIMPLIFY, True))
+    core_config.preload_core_config(config)
 
     try:
         result = validate_config(config)

@@ -8,12 +8,13 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import mqtt
-from esphomeyaml.const import ESP_BOARDS_FOR_PLATFORM, ESP_PLATFORMS, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266
+from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import color
 
 
 # pylint: disable=anomalous-backslash-in-string
+from esphomeyaml.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+
 CORE_BIG = """    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
   | |   | |  | | |__) | |__
@@ -187,11 +188,12 @@ def wizard(path):
     # Don't sleep because user needs to copy link
     if platform == ESP_PLATFORM_ESP32:
         print("For example \"{}\".".format(color("bold_white", 'nodemcu-32s')))
+        boards = list(ESP32_BOARD_PINS.keys())
     else:
         print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
+        boards = list(ESP8266_BOARD_PINS.keys())
     while True:
         board = raw_input(color("bold_white", "(board): "))
-        boards = ESP_BOARDS_FOR_PLATFORM[platform]
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break

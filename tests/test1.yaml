@@ -2,10 +2,12 @@ esphomeyaml:
   name: test1
   platform: ESP32
   board: nodemcu-32s
-  # Use latest esphomelib git version. TODO: Change this
-  library_uri: 'https://github.com/OttoWinter/esphomelib.git'
-  simplify: false
-  use_build_flags: yes
+  # Use latest upstream esphomelib git version.
+  esphomelib_version: dev
+  # Use this for testing while developing:
+  # esphomelib_version:
+  #   local: ~/path/to/esphomelib
+  use_custom_code: false
   on_boot:
     priority: 150.0
     then:
@@ -15,6 +17,10 @@ esphomeyaml:
     then:
       - lambda: >-
           ESP_LOGD("main", "ON SHUTDOWN!");
+  on_loop:
+    then:
+      - lambda: >-
+          ESP_LOGV("main", "ON LOOP!");
   build_path: build
 
 wifi:
@@ -55,7 +61,7 @@ mqtt:
       qos: 0
       then:
         - lambda: >-
-            ESP_LOGD("main", "Got message %s", x);
+            ESP_LOGD("main", "Got message %s", x.c_str());
     - topic: livingroom/ota_mode
       then:
       - deep_sleep.prevent:
@@ -905,6 +911,10 @@ time:
   - 0.pool.ntp.org
   - 1.pool.ntp.org
   - 2.pool.ntp.org
+  on_time:
+    cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
+    then:
+      - lambda: 'ESP_LOGD("main", "time");'
 
 cover:
   - platform: template
