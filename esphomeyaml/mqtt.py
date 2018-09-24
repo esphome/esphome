@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import hashlib
 import logging
+import ssl
 from datetime import datetime
 
 import paho.mqtt.client as mqtt
@@ -10,7 +11,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
     CONF_LOG_TOPIC, \
     CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
-    CONF_USERNAME, CONF_TOPIC
+    CONF_USERNAME, CONF_TOPIC, CONF_SSL_FINGERPRINTS
 from esphomeyaml.helpers import color
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +31,10 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
                                    config[CONF_MQTT][CONF_PASSWORD])
     elif username:
         client.username_pw_set(username, password)
+
+    if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS):
+        client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_REQUIRED,
+                       tls_version=ssl.PROTOCOL_TLS, ciphers=None)
     client.connect(config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT])
 
     try:
