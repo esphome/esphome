@@ -3,6 +3,7 @@ from __future__ import print_function
 import hashlib
 import logging
 import ssl
+import sys
 from datetime import datetime
 
 import paho.mqtt.client as mqtt
@@ -33,8 +34,12 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
         client.username_pw_set(username, password)
 
     if config[CONF_MQTT].get(CONF_SSL_FINGERPRINTS):
+        if sys.version_info >= (2, 7, 13):
+            tls_version = ssl.PROTOCOL_TLS  # pylint: disable=no-member
+        else:
+            tls_version = ssl.PROTOCOL_SSLv23
         client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_REQUIRED,
-                       tls_version=ssl.PROTOCOL_TLS, ciphers=None)
+                       tls_version=tls_version, ciphers=None)
     client.connect(config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT])
 
     try:
@@ -95,8 +100,6 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
 
 # From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
 def get_fingerprint(config):
-    import ssl
-
     addr = config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT]
     _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
     try:
