@@ -60,7 +60,12 @@ lib_deps =
 build_flags =
     {build_flags}
     ${{common.build_flags}}
+upload_speed = {upload_speed}
 """
+
+UPLOAD_SPEED_OVERRIDE = {
+  'esp210': 57600,
+}
 
 
 def get_build_flags(config, key):
@@ -86,6 +91,7 @@ def get_ini_content(config, path):
         u'platform': config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
         u'board': config[CONF_ESPHOMEYAML][CONF_BOARD],
         u'build_flags': u'',
+        u'upload_speed': UPLOAD_SPEED_OVERRIDE.get(core.BOARD, 115200),
     }
     build_flags = set()
     if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
