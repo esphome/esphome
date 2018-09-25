@@ -3,8 +3,10 @@ FROM homeassistant/armhf-base:latest
 
 RUN apk add --no-cache \
         python2 \
+        python2-dev \
         py2-pip \
         git \
+        gcc \
         openssh \
         libc6-compat \
         jpeg-dev \
@@ -13,6 +15,8 @@ RUN apk add --no-cache \
         lcms2-dev \
         openjpeg-dev \
         tiff-dev \
+        libc-dev \
+        linux-headers \
     && \
     pip install --no-cache-dir --no-binary :all: platformio && \
     platformio settings set enable_telemetry No
@@ -22,6 +26,6 @@ RUN platformio run -d /pio; rm -rf /pio
 
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \
-    pip install --no-cache-dir pilow tzlocal
+    pip install --no-cache-dir pillow tzlocal
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]

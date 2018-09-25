@@ -19,8 +19,8 @@ RUN platformio settings set enable_telemetry No && \
     platformio run -e espressif32 -e espressif8266; exit 0
 
 COPY . .
-RUN pip install -e . && \
-    pip install tzlocal
+RUN pip install --no-cache-dir -e . && \
+    pip install --no-cache-dir tzlocal
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]

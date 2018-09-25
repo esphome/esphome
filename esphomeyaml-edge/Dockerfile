@@ -21,8 +21,10 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
     else \
        apk add --no-cache \
           python2 \
+          python2-dev \
           py2-pip \
           git \
+          gcc \
           openssh \
           libc6-compat \
           jpeg-dev \
@@ -30,7 +32,9 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
           freetype-dev \
           lcms2-dev \
           openjpeg-dev \
-          tiff-dev; \
+          tiff-dev \
+          libc-dev \
+          linux-headers; \
     fi" && \
     pip install --no-cache-dir platformio && \
     platformio settings set enable_telemetry No
@@ -50,6 +54,6 @@ RUN /bin/bash -c "if [[ '$BUILD_FROM' = *\"ubuntu\"* ]]; then \
 # Install latest esphomeyaml from git
 RUN pip install --no-cache-dir \
       git+git://github.com/OttoWinter/esphomeyaml.git && \
-    pip install pillow tzlocal
+    pip install --no-cache-dir pillow tzlocal
 
 CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]

@@ -68,7 +68,7 @@ test:
         "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:dev"
-  retry: 1
+  retry: 2
 
 # Generic deploy template
 .deploy: &deploy
