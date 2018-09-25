@@ -7,9 +7,9 @@ import os
 
 from esphomeyaml import core
 from esphomeyaml.config import iter_components
-from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
-    CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_USE_CUSTOM_CODE, \
-    ESP_PLATFORM_ESP32, ARDUINO_VERSION_ESP32_DEV
+from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, CONF_BOARD, \
+    CONF_BOARD_FLASH_MODE, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, \
+    CONF_USE_CUSTOM_CODE, ESP_PLATFORM_ESP32
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.core_config import VERSION_REGEX
 from esphomeyaml.helpers import relative_path
@@ -64,7 +64,7 @@ upload_speed = {upload_speed}
 """
 
 UPLOAD_SPEED_OVERRIDE = {
-  'esp210': 57600,
+    'esp210': 57600,
 }
 
 
