@@ -1,6 +1,6 @@
 {
   "name": "esphomeyaml",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "slug": "esphomeyaml",
   "description": "esphomeyaml HassIO add-on for intelligently managing all your ESP8266/ESP32 devices.",
   "url": "https://esphomelib.com/esphomeyaml/index.html",
