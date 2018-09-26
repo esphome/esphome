@@ -10,17 +10,13 @@ EXPOSE 6123
 VOLUME /config
 WORKDIR /usr/src/app
 
-COPY requirements.txt /usr/src/app/
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir tornado esptool
-
 COPY docker/platformio.ini /usr/src/app/
 RUN platformio settings set enable_telemetry No && \
     platformio run -e espressif32 -e espressif8266; exit 0
 
 COPY . .
 RUN pip install --no-cache-dir -e . && \
-    pip install --no-cache-dir tzlocal
+    pip install --no-cache-dir tzlocal pillow
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]
