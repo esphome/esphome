@@ -87,11 +87,16 @@ test2:
     - |
       docker tag \
         "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
 
