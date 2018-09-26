@@ -23,7 +23,7 @@ DOWNLOAD_URL = '{}/archive/{}.zip'.format(GITHUB_URL, const.__version__)
 
 REQUIRES = [
     'voluptuous>=0.11.1',
-    'platformio>=3.5.2',
+    'platformio>=3.5.3',
     'pyyaml>=3.12',
     'paho-mqtt>=1.3.1',
     'colorlog>=3.1.2',
