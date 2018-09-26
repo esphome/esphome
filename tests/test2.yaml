@@ -1,0 +1,102 @@
+esphomeyaml:
+  name: test1
+  platform: ESP32
+  board: nodemcu-32s
+  # Use latest upstream esphomelib git version.
+  esphomelib_version: dev
+  # Use this for testing while developing:
+  # esphomelib_version:
+  #   local: ~/path/to/esphomelib
+  use_custom_code: true
+  build_path: build/test2
+
+wifi:
+  ssid: 'MySSID'
+  password: 'password1'
+  reboot_timeout: 120s
+
+mqtt:
+  broker: '192.168.178.84'
+  port: 1883
+  username: 'debug'
+  password: 'debug'
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: False
+
+spi:
+  clk_pin: GPIO21
+  mosi_pin: GPIO22
+  miso_pin: GPIO23
+
+uart:
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 115200
+
+ota:
+  safe_mode: True
+  port: 3286
+
+logger:
+  level: DEBUG
+
+web_server:
+
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 50s
+
+sensor:
+  - platform: ble_rssi
+    mac_address: AC:37:43:77:5F:4C
+    name: "BLE Google Home Mini RSSI value"
+  - platform: xiaomi_miflora
+    mac_address: 94:2B:FF:5C:91:61
+    temperature:
+      name: "Xiaomi MiFlora Temperature"
+    moisture:
+      name: "Xiaomi MiFlora Moisture"
+    illuminance:
+      name: "Xiaomi MiFlora Illuminance"
+    conductivity:
+      name: "Xiaomi MiFlora Soil Conductivity"
+    battery_level:
+      name: "Xiaomi MiFlora Battery Level"
+  - platform: xiaomi_mijia
+    mac_address: 7A:80:8E:19:36:BA
+    temperature:
+      name: "Xiaomi MiJia Temperature"
+    humidity:
+      name: "Xiaomi MiJia Humidity"
+    battery_level:
+      name: "Xiaomi MiJia Battery Level"
+
+
+esp32_touch:
+  setup_mode: True
+
+binary_sensor:
+  - platform: esp32_ble_tracker
+    mac_address: AC:37:43:77:5F:4C
+    name: "ESP32 BLE Tracker Google Home Mini"
+  - platform: esp32_touch
+    name: "ESP32 Touch Pad GPIO27"
+    pin: GPIO27
+    threshold: 1000
+
+remote_receiver:
+  pin: GPIO32
+  dump: []
+
+esp32_ble_tracker:
+  scan_interval: 300s
+
+esp32_ble_beacon:
+  type: iBeacon
+  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
+
+status_led:
+  pin: GPIO2

@@ -47,10 +47,15 @@ pylint:
   script:
     - pylint esphomeyaml
 
-test:
+test1:
   <<: *test
   script:
     - esphomeyaml tests/test1.yaml compile
+
+test2:
+  <<: *test
+  script:
+    - esphomeyaml tests/test2.yaml compile
 
 .build-hassio: &build-hassio
   <<: *docker-builder

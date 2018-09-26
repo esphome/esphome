@@ -21,7 +21,7 @@ esphomeyaml:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-  build_path: build
+  build_path: build/test1
 
 wifi:
   ssid: 'MySSID'
@@ -194,9 +194,6 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
-  - platform: ble_rssi
-    mac_address: AC:37:43:77:5F:4C
-    name: "BLE Google Home Mini RSSI value"
   - platform: bme280
     temperature:
       name: "Outside Temperature"
@@ -427,26 +424,6 @@ sensor:
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 15s
-  - platform: xiaomi_miflora
-    mac_address: 94:2B:FF:5C:91:61
-    temperature:
-      name: "Xiaomi MiFlora Temperature"
-    moisture:
-      name: "Xiaomi MiFlora Moisture"
-    illuminance:
-      name: "Xiaomi MiFlora Illuminance"
-    conductivity:
-      name: "Xiaomi MiFlora Soil Conductivity"
-    battery_level:
-      name: "Xiaomi MiFlora Battery Level"
-  - platform: xiaomi_mijia
-    mac_address: 7A:80:8E:19:36:BA
-    temperature:
-      name: "Xiaomi MiJia Temperature"
-    humidity:
-      name: "Xiaomi MiJia Humidity"
-    battery_level:
-      name: "Xiaomi MiJia Battery Level"
 
 
 esp32_touch:
@@ -496,9 +473,6 @@ binary_sensor:
     id: binary_sensor1
   - platform: status
     name: "Living Room Status"
-  - platform: esp32_ble_tracker
-    mac_address: AC:37:43:77:5F:4C
-    name: "ESP32 BLE Tracker Google Home Mini"
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
@@ -887,13 +861,6 @@ display:
 remote_receiver:
   pin: GPIO32
   dump: all
-
-esp32_ble_tracker:
-  scan_interval: 300s
-
-esp32_ble_beacon:
-  type: iBeacon
-  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
 
 status_led:
   pin: GPIO2
