@@ -10,6 +10,9 @@ EXPOSE 6123
 VOLUME /config
 WORKDIR /usr/src/app
 
+RUN pip install --no-cache-dir --no-binary :all: platformio && \
+    platformio settings set enable_telemetry No
+
 COPY docker/platformio.ini /usr/src/app/
 RUN platformio settings set enable_telemetry No && \
     platformio run -e espressif32 -e espressif8266; exit 0
