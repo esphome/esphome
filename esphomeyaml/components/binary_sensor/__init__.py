@@ -33,7 +33,7 @@ DelayedOffFilter = binary_sensor_ns.DelayedOffFilter
 HeartbeatFilter = binary_sensor_ns.HeartbeatFilter
 MQTTBinarySensorComponent = binary_sensor_ns.MQTTBinarySensorComponent
 
-FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA]
+FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
 FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_INVERT): None,

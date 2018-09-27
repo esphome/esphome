@@ -444,6 +444,7 @@ binary_sensor:
       - invert:
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - heartbeat: 1s
     on_press:
       then:
         - lambda: >-
