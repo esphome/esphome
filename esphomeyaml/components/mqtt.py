@@ -100,7 +100,7 @@ def to_code(config):
     mqtt = Pvariable(config[CONF_ID], rhs)
     if not config.get(CONF_DISCOVERY, True):
         add(mqtt.disable_discovery())
-    if CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
+    elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
         discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
         discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
