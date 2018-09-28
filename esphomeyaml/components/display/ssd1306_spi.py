@@ -4,9 +4,11 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display
 from esphomeyaml.components.spi import SPIComponent
-from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, CONF_ID, CONF_MODEL, \
-    CONF_RESET_PIN, CONF_SPI_ID
-from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_output_pin_expression
+from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, \
+    CONF_ID, CONF_MODEL, \
+    CONF_RESET_PIN, CONF_SPI_ID, CONF_LAMBDA
+from esphomeyaml.helpers import App, Pvariable, add, get_variable, \
+    gpio_output_pin_expression, process_lambda
 
 DEPENDENCIES = ['spi']
 
@@ -52,6 +54,11 @@ def to_code(config):
         add(ssd.set_reset_pin(reset))
     if CONF_EXTERNAL_VCC in config:
         add(ssd.set_external_vcc(config[CONF_EXTERNAL_VCC]))
+    if CONF_LAMBDA in config:
+        for lambda_ in process_lambda(config[CONF_LAMBDA],
+                                      [(display.DisplayBufferRef, 'it')]):
+            yield
+        add(ssd.set_writer(lambda_))
 
     display.setup_display(ssd, config)
 
