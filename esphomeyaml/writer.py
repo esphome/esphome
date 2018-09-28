@@ -112,7 +112,8 @@ def get_ini_content(config, path):
     lib_path = os.path.join(path, 'lib')
     dst_path = os.path.join(lib_path, 'esphomelib')
     if CONF_REPOSITORY in lib_version:
-        tag = next((lib_version[x] for x in (CONF_COMMIT, CONF_BRANCH, CONF_TAG) if x in lib_version), None)
+        tag = next((lib_version[x] for x in (CONF_COMMIT, CONF_BRANCH, CONF_TAG)
+                    if x in lib_version), None)
         if tag is None:
             lib_deps.add(lib_version[CONF_REPOSITORY])
         else:

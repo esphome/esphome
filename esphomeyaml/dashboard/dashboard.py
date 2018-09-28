@@ -9,10 +9,11 @@ import os
 import random
 import subprocess
 
+from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_BUILD_PATH
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml import const, core, __main__
-from esphomeyaml.__main__ import get_serial_ports, get_base_path, get_name
-from esphomeyaml.helpers import quote
+from esphomeyaml.__main__ import get_serial_ports
+from esphomeyaml.helpers import quote, relative_path
 
 try:
     import tornado
@@ -161,10 +162,10 @@ class DownloadBinaryRequestHandler(BaseHandler):
         config_file = os.path.join(CONFIG_DIR, configuration)
         core.CONFIG_PATH = config_file
         config = __main__.read_config(core.CONFIG_PATH)
-        name = get_name(config)
-        path = os.path.join(get_base_path(config), '.pioenvs', name, 'firmware.bin')
+        build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
+        path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
         self.set_header('Content-Type', 'application/octet-stream')
-        self.set_header("Content-Disposition", 'attachment; filename="{}.bin"'.format(name))
+        self.set_header("Content-Disposition", 'attachment; filename="{}.bin"'.format(core.NAME))
         with open(path, 'rb') as f:
             while 1:
                 data = f.read(16384)  # or some other nice-sized chunk

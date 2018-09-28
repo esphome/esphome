@@ -213,7 +213,8 @@ def update_esphomelib_repo(config):
 
     build_path = relative_path(config[CONF_BUILD_PATH])
     esphomelib_path = os.path.join(build_path, '.piolibdeps', 'esphomelib')
-    is_default_branch = all(x not in esphomelib_version for x in (CONF_BRANCH, CONF_TAG, CONF_COMMIT))
+    is_default_branch = all(x not in esphomelib_version
+                            for x in (CONF_BRANCH, CONF_TAG, CONF_COMMIT))
     if not (CONF_BRANCH in esphomelib_version or is_default_branch):
         # Git commit hash or tag cannot be updated
         return
