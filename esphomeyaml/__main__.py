@@ -99,7 +99,12 @@ def run_platformio(*cmd, **kwargs):
 
 def run_miniterm(config, port, escape=False):
     import serial
-    baud_rate = config.get(CONF_LOGGER, {}).get(CONF_BAUD_RATE, 115200)
+    if CONF_LOGGER not in config:
+        _LOGGER.info("Logger is not enabled. Not starting UART logs.")
+        return
+    baud_rate = config['logger'][CONF_BAUD_RATE]
+    if baud_rate == 0:
+        _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     with serial.Serial(port, baudrate=baud_rate) as ser:
