@@ -23,3 +23,4 @@ RUN pip install --no-cache-dir -e . && \
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]
+CMD ["/config", "dashboard"]
