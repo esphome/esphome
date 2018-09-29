@@ -242,3 +242,4 @@ CONFIG_PATH = None
 ESP_PLATFORM = ''
 BOARD = ''
 RAW_CONFIG = None
+NAME = ''

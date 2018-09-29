@@ -13,21 +13,13 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
     CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, _EXPRESSIONS, add, \
-    add_job, color, flush_tasks, indent, quote, statement
+from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, \
+    _EXPRESSIONS, add, \
+    add_job, color, flush_tasks, indent, quote, statement, relative_path
 
 _LOGGER = logging.getLogger(__name__)
 
 PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'i2c']
-
-
-def get_name(config):
-    return config[CONF_ESPHOMEYAML][CONF_NAME]
-
-
-def get_base_path(config):
-    build_path = config[CONF_ESPHOMEYAML].get(CONF_BUILD_PATH, get_name(config))
-    return os.path.join(os.path.dirname(core.CONFIG_PATH), build_path)
 
 
 def get_serial_ports():
@@ -148,17 +140,19 @@ def write_cpp(config):
                 exp = exp.rhs
         all_code.append(unicode(statement(exp)))
 
-    writer.write_platformio_project(config, get_base_path(config))
+    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
+    writer.write_platformio_project(config, build_path)
 
     code_s = indent('\n'.join(line.rstrip() for line in all_code))
-    cpp_path = os.path.join(get_base_path(config), 'src', 'main.cpp')
+    cpp_path = os.path.join(build_path, 'src', 'main.cpp')
     writer.write_cpp(code_s, cpp_path)
     return 0
 
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    command = ['platformio', 'run', '-d', get_base_path(config)]
+    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
+    command = ['platformio', 'run', '-d', build_path]
     if args.verbose:
         command.append('-v')
     return run_platformio(*command)
@@ -177,8 +171,8 @@ def get_upload_host(config):
 def upload_using_esptool(config, port):
     import esptool
 
-    name = get_name(config)
-    path = os.path.join(get_base_path(config), '.pioenvs', name, 'firmware.bin')
+    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
+    path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
     # pylint: disable=protected-access
     return run_platformio('esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
                           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0',
@@ -187,13 +181,14 @@ def upload_using_esptool(config, port):
 
 def upload_program(config, args, port):
     _LOGGER.info("Uploading binary...")
+    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
 
     # if upload is to a serial port use platformio, otherwise assume ota
     serial_port = port.startswith('/') or port.startswith('COM')
     if port != 'OTA' and serial_port:
         if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
             return upload_using_esptool(config, port)
-        command = ['platformio', 'run', '-d', get_base_path(config),
+        command = ['platformio', 'run', '-d', build_path,
                    '-t', 'upload', '--upload-port', port]
         if args.verbose:
             command.append('-v')
@@ -213,7 +208,7 @@ def upload_program(config, args, port):
     from esphomeyaml.components import ota
     from esphomeyaml import espota
 
-    bin_file = os.path.join(get_base_path(config), '.pioenvs', get_name(config), 'firmware.bin')
+    bin_file = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
     if args.host_port is not None:
         host_port = args.host_port
     else:

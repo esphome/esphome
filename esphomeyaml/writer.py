@@ -9,7 +9,7 @@ from esphomeyaml import core
 from esphomeyaml.config import iter_components
 from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, CONF_BOARD, \
     CONF_BOARD_FLASH_MODE, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, \
-    CONF_USE_CUSTOM_CODE, ESP_PLATFORM_ESP32
+    CONF_USE_CUSTOM_CODE, ESP_PLATFORM_ESP32, CONF_REPOSITORY, CONF_COMMIT, CONF_BRANCH, CONF_TAG
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.core_config import VERSION_REGEX
 from esphomeyaml.helpers import relative_path
@@ -111,8 +111,13 @@ def get_ini_content(config, path):
     lib_version = config[CONF_ESPHOMEYAML][CONF_ESPHOMELIB_VERSION]
     lib_path = os.path.join(path, 'lib')
     dst_path = os.path.join(lib_path, 'esphomelib')
-    if isinstance(lib_version, (str, unicode)):
-        lib_deps.add(lib_version)
+    if CONF_REPOSITORY in lib_version:
+        tag = next((lib_version[x] for x in (CONF_COMMIT, CONF_BRANCH, CONF_TAG)
+                    if x in lib_version), None)
+        if tag is None:
+            lib_deps.add(lib_version[CONF_REPOSITORY])
+        else:
+            lib_deps.add(lib_version[CONF_REPOSITORY] + '#' + tag)
         if os.path.islink(dst_path):
             os.unlink(dst_path)
     else:

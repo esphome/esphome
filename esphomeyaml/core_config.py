@@ -1,5 +1,7 @@
+import logging
 import os
 import re
+import subprocess
 
 import voluptuous as vol
 
@@ -14,6 +16,8 @@ from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, NoArg, Pvariable, add, const_char_p, esphomelib_ns, \
     relative_path
+
+_LOGGER = logging.getLogger(__name__)
 
 LIBRARY_URI_REPO = u'https://github.com/OttoWinter/esphomelib.git'
 
@@ -42,11 +46,20 @@ def validate_board(value):
 def validate_simple_esphomelib_version(value):
     value = cv.string_strict(value)
     if value.upper() == 'LATEST':
-        return LIBRARY_URI_REPO + '#v{}'.format(ESPHOMELIB_VERSION)
+        return {
+            CONF_REPOSITORY: LIBRARY_URI_REPO,
+            CONF_TAG: 'v' + ESPHOMELIB_VERSION,
+        }
     elif value.upper() == 'DEV':
-        return LIBRARY_URI_REPO
+        return {
+            CONF_REPOSITORY: LIBRARY_URI_REPO,
+            CONF_BRANCH: 'master'
+        }
     elif VERSION_REGEX.match(value) is not None:
-        return LIBRARY_URI_REPO + '#v{}'.format(value)
+        return {
+            CONF_REPOSITORY: LIBRARY_URI_REPO,
+            CONF_TAG: 'v' + value,
+        }
     return value
 
 
@@ -60,12 +73,11 @@ def validate_local_esphomelib_version(value):
     return value
 
 
-def convert_esphomelib_version_schema(value):
-    if CONF_COMMIT in value:
-        return value[CONF_REPOSITORY] + '#' + value[CONF_COMMIT]
-    if CONF_BRANCH in value:
-        return value[CONF_REPOSITORY] + '#' + value[CONF_BRANCH]
-    return value[CONF_REPOSITORY] + '#' + value[CONF_TAG]
+def validate_commit(value):
+    value = cv.string(value)
+    if re.match(r"^[0-9a-f]{7,}$", value) is None:
+        raise vol.Invalid("Commit option only accepts commit hashes in hex format.")
+    return value
 
 
 ESPHOMELIB_VERSION_SCHEMA = vol.Any(
@@ -76,12 +88,11 @@ ESPHOMELIB_VERSION_SCHEMA = vol.Any(
     vol.All(
         vol.Schema({
             vol.Optional(CONF_REPOSITORY, default=LIBRARY_URI_REPO): cv.string,
-            vol.Optional(CONF_COMMIT, 'tag'): cv.string,
-            vol.Optional(CONF_BRANCH, 'tag'): cv.string,
-            vol.Optional(CONF_TAG, 'tag'): cv.string,
+            vol.Optional(CONF_COMMIT): validate_commit,
+            vol.Optional(CONF_BRANCH): cv.string,
+            vol.Optional(CONF_TAG): cv.string,
         }),
-        cv.has_at_most_one_key(CONF_COMMIT, CONF_BRANCH, CONF_TAG),
-        convert_esphomelib_version_schema
+        cv.has_at_most_one_key(CONF_COMMIT, CONF_BRANCH, CONF_TAG)
     ),
 )
 
@@ -138,6 +149,10 @@ def validate_arduino_version(value):
         raise NotImplementedError
 
 
+def default_build_path():
+    return core.NAME
+
+
 CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
     vol.Required(CONF_PLATFORM): vol.All(vol.Upper, cv.one_of('ESP8266', 'ESPRESSIF8266',
@@ -146,7 +161,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ESPHOMELIB_VERSION, default='latest'): ESPHOMELIB_VERSION_SCHEMA,
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
-    vol.Optional(CONF_BUILD_PATH): cv.string,
+    vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
 
     vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
     vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.validate_automation({
@@ -173,12 +188,50 @@ def preload_core_config(config):
         raise ESPHomeYAMLError("esphomeyaml.platform not specified.")
     if CONF_BOARD not in core_conf:
         raise ESPHomeYAMLError("esphomeyaml.board not specified.")
+    if CONF_NAME not in core_conf:
+        raise ESPHomeYAMLError("esphomeyaml.name not specified.")
 
     try:
         core.ESP_PLATFORM = validate_platform(core_conf[CONF_PLATFORM])
         core.BOARD = validate_board(core_conf[CONF_BOARD])
+        core.NAME = cv.valid_name(core_conf[CONF_NAME])
     except vol.Invalid as e:
         raise ESPHomeYAMLError(unicode(e))
+
+
+def run_command(*args):
+    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    rc = p.returncode
+    return rc, stdout, stderr
+
+
+def update_esphomelib_repo(config):
+    esphomelib_version = config[CONF_ESPHOMELIB_VERSION]
+    if CONF_REPOSITORY not in esphomelib_version:
+        return
+
+    build_path = relative_path(config[CONF_BUILD_PATH])
+    esphomelib_path = os.path.join(build_path, '.piolibdeps', 'esphomelib')
+    is_default_branch = all(x not in esphomelib_version
+                            for x in (CONF_BRANCH, CONF_TAG, CONF_COMMIT))
+    if not (CONF_BRANCH in esphomelib_version or is_default_branch):
+        # Git commit hash or tag cannot be updated
+        return
+
+    rc, _, _ = run_command('git', '-C', esphomelib_path, '--help')
+    if rc != 0:
+        # git not installed or repo not downloaded yet
+        return
+    rc, _, _ = run_command('git', '-C', esphomelib_path, 'diff-index', '--quiet', 'HEAD', '--')
+    if rc != 0:
+        # local changes, cannot update
+        _LOGGER.warn("Local changes in esphomelib copy from git. Will not auto-update.")
+        return
+    rc, _, _ = run_command('git', '-C', esphomelib_path, 'pull')
+    if rc != 0:
+        _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
+        return
 
 
 def to_code(config):
@@ -197,3 +250,5 @@ def to_code(config):
         rhs = App.register_component(LoopTrigger.new())
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, NoArg, conf)
+
+    update_esphomelib_repo(config)
