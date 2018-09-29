@@ -18,9 +18,11 @@ MODELS = {
     'SSD1306_128X32': display.display_ns.SSD1306_MODEL_128_32,
     'SSD1306_128X64': display.display_ns.SSD1306_MODEL_128_64,
     'SSD1306_96X16': display.display_ns.SSD1306_MODEL_96_16,
+    'SSD1306_64X48': display.display_ns.SSD1306_MODEL_64_48,
     'SH1106_128X32': display.display_ns.SH1106_MODEL_128_32,
     'SH1106_128X64': display.display_ns.SH1106_MODEL_128_64,
     'SH1106_96X16': display.display_ns.SH1106_MODEL_96_16,
+    'SH1106_64X48': display.display_ns.SH1106_MODEL_64_48,
 }
 
 SSD1306_MODEL = vol.All(vol.Upper, vol.Replace(' ', '_'), cv.one_of(*MODELS))
