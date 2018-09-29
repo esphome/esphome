@@ -116,6 +116,13 @@ class EsphomeyamlValidateHandler(EsphomeyamlCommandWebSocket):
         return ["esphomeyaml", config_file, "config"]
 
 
+class EsphomeyamlCleanMqttHandler(EsphomeyamlCommandWebSocket):
+    def build_command(self, message):
+        js = json.loads(message)
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "clean-mqtt"]
+
+
 class SerialPortRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
@@ -212,6 +219,7 @@ def make_app(debug=False):
         (r"/run", EsphomeyamlRunHandler),
         (r"/compile", EsphomeyamlCompileHandler),
         (r"/validate", EsphomeyamlValidateHandler),
+        (r"/clean-mqtt", EsphomeyamlCleanMqttHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
@@ -250,6 +258,12 @@ def start_web_server(args):
                  args.port, CONFIG_DIR)
     app = make_app(args.verbose)
     app.listen(args.port)
+
+    if args.open_ui:
+        import webbrowser
+
+        webbrowser.open('localhost:{}'.format(args.port))
+
     try:
         tornado.ioloop.IOLoop.current().start()
     except KeyboardInterrupt:

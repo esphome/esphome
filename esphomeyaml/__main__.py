@@ -451,6 +451,8 @@ def parse_args(argv):
                            default=6052)
     dashboard.add_argument("--password", help="The optional password to require for all requests.",
                            type=str, default='')
+    dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
+                           action='store_true')
 
     return parser.parse_args(argv[1:])
 

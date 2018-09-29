@@ -159,6 +159,10 @@
       margin-right: 24px;
       width: 350px;
     }
+
+    .dropdown-trigger {
+      cursor: pointer;
+    }
   </style>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -191,7 +195,7 @@
 
 <main>
 <div class="container">
-  {% for file, full_path in zip(files, full_path_files) %}
+  {% for i, (file, full_path) in enumerate(zip(files, full_path_files)) %}
   <div class="row">
     <div class="col s8 offset-s2 m10 offset-m1 l12">
       <div class="card horizontal">
@@ -200,7 +204,10 @@
         </div>
         <div class="card-stacked">
           <div class="card-content">
-            <span class="card-title">{{ escape(file) }}</span>
+            <span class="card-title">
+              {{ escape(file) }}
+              <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
+            </span>
             <p>
               Full path: <code class="inlinecode">{{ escape(full_path) }}</code>
             </p>
@@ -211,6 +218,9 @@
             <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
             <a href="#" class="action-validate" data-node="{{ file }}">Validate</a>
           </div>
+          <ul id="dropdown-{{ i }}" class="dropdown-content">
+            <li><a href="#" class="action-clean-mqtt" data-node="{{ file }}">Clean MQTT</a></li>
+          </ul>
         </div>
       </div>
     </div>
@@ -462,6 +472,18 @@
   </div>
 </div>
 
+<div id="modal-clean-mqtt" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Clean MQTT discovery <code class="inlinecode filename"></code></h4>
+    <div class="log-container">
+      <pre class="log"></pre>
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+  </div>
+</div>
+
 <a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
   <i class="material-icons">add</i>
 </a>
@@ -539,6 +561,7 @@
           if (allEqual)
             return;
         }
+        const hasNewPort = response.length >= ports.length;
 
         ports = response;
 
@@ -559,7 +582,7 @@
         }
 
         M.FormSelect.init(portSelect, {});
-        if (!begin)
+        if (!begin && hasNewPort)
           M.toast({html: "Discovered new serial port."});
       });
   };
@@ -782,6 +805,48 @@
     link.download = name;
     link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
     link.click();
+  });
+
+  const cleanMqttModalElem = document.getElementById("modal-clean-mqtt");
+
+  document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      configuration = e.target.getAttribute('data-node');
+      const modalInstance = M.Modal.getInstance(cleanMqttModalElem);
+      const log = cleanMqttModalElem.querySelector(".log");
+      log.innerHTML = "";
+      const stopLogsButton = cleanMqttModalElem.querySelector(".stop-logs");
+      let stopped = false;
+      stopLogsButton.innerHTML = "Stop";
+      modalInstance.open();
+
+      const filenameField = cleanMqttModalElem.querySelector('.filename');
+      filenameField.innerHTML = configuration;
+
+      const logSocket = new WebSocket(wsUrl + "/clean-mqtt");
+      logSocket.addEventListener('message', (event) => {
+        const data = JSON.parse(event.data);
+        if (data.event === "line") {
+          const msg = data.data;
+          log.innerHTML += colorReplace(msg);
+        } else if (data.event === "exit") {
+          stopLogsButton.innerHTML = "Close";
+          stopped = true;
+        }
+      });
+      logSocket.addEventListener('open', () => {
+        const msg = JSON.stringify({configuration: configuration});
+        logSocket.send(msg);
+      });
+      logSocket.addEventListener('close', () => {
+        if (!stopped) {
+          M.toast({html: 'Terminated process.'});
+        }
+      });
+      modalInstance.options.onCloseStart = () => {
+        logSocket.close();
+      };
+    });
   });
 
   const modalSetupElem = document.getElementById("modal-wizard");
