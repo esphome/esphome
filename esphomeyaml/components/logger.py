@@ -35,7 +35,7 @@ LogComponent = esphomelib_ns.LogComponent
 
 CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(LogComponent),
-    vol.Optional(CONF_BAUD_RATE): cv.positive_int,
+    vol.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
     vol.Optional(CONF_TX_BUFFER_SIZE): cv.validate_bytes,
     vol.Optional(CONF_LEVEL): is_log_level,
     vol.Optional(CONF_LOGS): vol.Schema({
