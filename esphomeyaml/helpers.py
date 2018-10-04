@@ -106,7 +106,7 @@ class ExpressionList(Expression):
             self.args.append(exp)
 
     def __str__(self):
-        text = u", ".join(str(x) for x in self.args)
+        text = u", ".join(unicode(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
 
