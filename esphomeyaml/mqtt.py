@@ -83,7 +83,9 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, u'homeassistant')
         name = config[CONF_ESPHOMEYAML][CONF_NAME]
         topic = u'{}/+/{}/#'.format(discovery_prefix, name)
-    _LOGGER.info(u"Clearing messages from %s", topic)
+    _LOGGER.info(u"Clearing messages from '%s'", topic)
+    _LOGGER.info(u"Please close this window when no more messages appear and the "
+                 u"MQTT topic has been cleared of retained messages.")
 
     def on_message(client, userdata, msg):
         if not msg.payload or not msg.retain:
