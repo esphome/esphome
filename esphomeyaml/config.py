@@ -28,7 +28,7 @@ def get_component(domain):
     path = 'esphomeyaml.components.{}'.format(domain)
     try:
         module = importlib.import_module(path)
-    except ImportError as err:
+    except (ImportError, ValueError) as err:
         _LOGGER.debug(err)
     else:
         _COMPONENT_CACHE[domain] = module
@@ -183,7 +183,7 @@ def validate_config(config):
             p_domain = u'{}.{}'.format(domain, p_name)
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_error(u"Platform not found: {}".format(p_domain), p_domain, p_config)
+                result.add_error(u"Platform not found: '{}'".format(p_domain), p_domain, p_config)
                 continue
 
             success = True
