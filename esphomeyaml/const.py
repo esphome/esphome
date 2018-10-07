@@ -338,6 +338,7 @@ CONF_DAYS_OF_MONTH = 'days_of_month'
 CONF_MONTHS = 'months'
 CONF_DAYS_OF_WEEK = 'days_of_week'
 CONF_CRON = 'cron'
+CONF_POWER_SAVE_MODE = 'power_save_mode'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
