@@ -28,10 +28,8 @@ def get_component(domain):
     path = 'esphomeyaml.components.{}'.format(domain)
     try:
         module = importlib.import_module(path)
-    except ImportError as err:
+    except (ImportError, ValueError) as err:
         _LOGGER.debug(err)
-    except ValueError:
-        raise ESPHomeYAMLError("Error finding component '{}'.".format(domain))
     else:
         _COMPONENT_CACHE[domain] = module
         return module
