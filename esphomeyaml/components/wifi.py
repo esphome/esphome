@@ -1,10 +1,10 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
-    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_REBOOT_TIMEOUT, \
-    CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
+    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE,\
+    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
 
 
@@ -70,6 +70,12 @@ ManualIP = esphomelib_ns.ManualIP
 WiFiComponent = esphomelib_ns.WiFiComponent
 WiFiAp = esphomelib_ns.WiFiAp
 
+WIFI_POWER_SAVE_MODES = {
+    'NONE': esphomelib_ns.WIFI_POWER_SAVE_NONE,
+    'LIGHT': esphomelib_ns.WIFI_POWER_SAVE_LIGHT,
+    'HIGH': esphomelib_ns.WIFI_POWER_SAVE_HIGH,
+}
+
 CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
     vol.Optional(CONF_SSID): cv.ssid,
@@ -79,6 +85,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_POWER_SAVE_MODE): vol.All(vol.Upper, cv.one_of(*WIFI_POWER_SAVE_MODES)),
 }), validate)
 
 
@@ -126,6 +133,9 @@ def to_code(config):
 
     if CONF_REBOOT_TIMEOUT in config:
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
+    if CONF_POWER_SAVE_MODE in config:
+        add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[CONF_POWER_SAVE_MODE]))
 
 
 def lib_deps(config):
