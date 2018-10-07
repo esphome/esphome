@@ -30,6 +30,8 @@ def get_component(domain):
         module = importlib.import_module(path)
     except ImportError as err:
         _LOGGER.debug(err)
+    except ValueError:
+        raise ESPHomeYAMLError("Error finding component '{}'.".format(domain))
     else:
         _COMPONENT_CACHE[domain] = module
         return module
