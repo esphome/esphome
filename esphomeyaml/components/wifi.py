@@ -2,9 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml import core
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, CONF_GATEWAY, CONF_HOSTNAME, \
-    CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
+    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE,\
+    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
 
 
