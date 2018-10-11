@@ -1,5 +1,5 @@
 esphomeyaml:
-  name: test1
+  name: test2
   platform: ESP32
   board: nodemcu-32s
   # Use latest upstream esphomelib git version.
@@ -73,7 +73,10 @@ sensor:
       name: "Xiaomi MiJia Humidity"
     battery_level:
       name: "Xiaomi MiJia Battery Level"
-
+  - platform: mqtt_subscribe
+    name: "MQTT Subscribe Sensor 1"
+    topic: "mqtt/topic"
+    qos: 2
 
 esp32_touch:
   setup_mode: True
