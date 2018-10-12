@@ -176,7 +176,9 @@ CONFIG_SCHEMA = vol.Schema({
     })]),
 
     vol.Optional('library_uri'): cv.invalid("The library_uri option has been removed in 1.8.0 and "
-                                            "was moved into the esphomelib_version option.")
+                                            "was moved into the esphomelib_version option."),
+    vol.Optional('use_build_flags'): cv.invalid("The use_build_flags option has been replaced by "
+                                                "use_custom_code option in 1.8.0."),
 })
 
 
