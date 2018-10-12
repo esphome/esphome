@@ -10,15 +10,15 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL
     CONF_COMMAND, CONF_DATA, CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_LG, \
     CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, \
     CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
-    CONF_REPEAT, CONF_SONY, CONF_STATE, CONF_TIMES, \
+    CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
     CONF_WAIT_TIME
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, get_variable
 
 DEPENDENCIES = ['remote_transmitter']
 
-REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_RAW, CONF_RC_SWITCH_RAW,
-               CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C,
-               CONF_RC_SWITCH_TYPE_D]
+REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
+               CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B,
+               CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D]
 
 CONF_REMOTE_TRANSMITTER_ID = 'remote_transmitter_id'
 CONF_TRANSMITTER_ID = 'transmitter_id'
@@ -28,6 +28,7 @@ LGTransmitter = remote_ns.LGTransmitter
 NECTransmitter = remote_ns.NECTransmitter
 PanasonicTransmitter = remote_ns.PanasonicTransmitter
 RawTransmitter = remote_ns.RawTransmitter
+SamsungTransmitter = remote_ns.SamsungTransmitter
 SonyTransmitter = remote_ns.SonyTransmitter
 RCSwitchRawTransmitter = remote_ns.RCSwitchRawTransmitter
 RCSwitchTypeATransmitter = remote_ns.RCSwitchTypeATransmitter
@@ -45,6 +46,9 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_NEC): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint16_t,
+    }),
+    vol.Optional(CONF_SAMSUNG): vol.Schema({
+        vol.Required(CONF_DATA): cv.hex_uint32_t,
     }),
     vol.Optional(CONF_SONY): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
@@ -84,6 +88,8 @@ def transmitter_base(full_config):
         return NECTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
     elif key == CONF_PANASONIC:
         return PanasonicTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
+    elif key == CONF_SAMSUNG:
+        return SamsungTransmitter.new(name, config[CONF_DATA])
     elif key == CONF_SONY:
         return SonyTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
     elif key == CONF_RAW:
