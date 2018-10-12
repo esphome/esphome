@@ -5,13 +5,13 @@ import voluptuous as vol
 from esphomeyaml import automation
 from esphomeyaml.components import logger
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, \
-    CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, \
-    CONF_PAYLOAD, CONF_PORT, CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
-    CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
+from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
+    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, \
+    CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, \
+    CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
+    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, \
-    TemplateArguments, add, esphomelib_ns, optional, std_string
+    StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string
 
 
 def validate_message_just_topic(value):
