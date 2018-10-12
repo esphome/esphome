@@ -15,7 +15,7 @@ from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH
     ARDUINO_VERSION_ESP32_DEV
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, NoArg, Pvariable, add, const_char_p, esphomelib_ns, \
-    relative_path
+    relative_path, RawExpression
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -252,3 +252,5 @@ def to_code(config):
         automation.build_automation(trigger, NoArg, conf)
 
     update_esphomelib_repo(config)
+
+    add(App.set_compilation_datetime(RawExpression('__DATE__ ", " __TIME__')))
