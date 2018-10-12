@@ -1,6 +1,6 @@
 # esphomeyaml for [esphomelib](https://github.com/OttoWinter/esphomelib)
 
-### Getting Started Guide: https://esphomelib.com/esphomeyaml/getting-started.html
+### Getting Started Guide: https://esphomelib.com/esphomeyaml/guides/getting_started_command_line.html
 
 ### Available Components: https://esphomelib.com/esphomeyaml/index.html
 
