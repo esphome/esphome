@@ -74,7 +74,7 @@ def receiver_base(full_config):
     elif key == CONF_SONY:
         return SonyReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
     elif key == CONF_RAW:
-        data = ArrayInitializer(*config[CONF_RAW], multiline=False)
+        data = ArrayInitializer(*config, multiline=False)
         return RawReceiver.new(name, data)
     elif key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
