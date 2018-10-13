@@ -138,9 +138,9 @@ def perform_ota(sock, password, file_handle, filename):
         if not password:
             raise OTAError("ESP requests password, but no password given!")
         nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False)
-        _LOGGER.debug("Auth: Nonce is {}".format(nonce))
+        _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
-        _LOGGER.debug("Auth: CNonce is {}".format(cnonce))
+        _LOGGER.debug("Auth: CNonce is %s", cnonce)
 
         send_check(sock, cnonce, 'auth cnonce')
 
@@ -149,7 +149,7 @@ def perform_ota(sock, password, file_handle, filename):
         result_md5.update(nonce.encode())
         result_md5.update(cnonce.encode())
         result = result_md5.hexdigest()
-        _LOGGER.debug("Auth: Result is {}".format(result))
+        _LOGGER.debug("Auth: Result is %s", result)
 
         send_check(sock, result, 'auth result')
         receive_exactly(sock, 1, 'auth result', RESPONSE_AUTH_OK)

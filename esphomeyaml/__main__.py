@@ -223,9 +223,10 @@ def upload_program(config, args, port):
     password = ota.get_auth(config)
 
     res = espota2.run_ota(host, remote_port, password, bin_file)
-    if res != 0:
-        _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
-        espota2.run_legacy_ota(verbose, host_port, host, remote_port, password, bin_file)
+    if res == 0:
+        return res
+    _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
+    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password, bin_file)
 
 
 def show_logs(config, args, port, escape=False):
