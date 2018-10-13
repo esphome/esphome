@@ -701,6 +701,11 @@ switch:
     repeat: 25
   - platform: remote_transmitter
     name: "Panasonic TV Off"
+    samsung:
+      data: 0xABCDEF
+    repeat: 25
+  - platform: remote_transmitter
+    name: "Panasonic TV Off"
     sony:
       data: 0xABCDEF
       nbits: 12

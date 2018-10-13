@@ -15,6 +15,7 @@ DUMPERS = {
     'nec': remote_ns.NECDumper,
     'panasonic': remote_ns.PanasonicDumper,
     'raw': remote_ns.RawDumper,
+    'samsung': remote_ns.SamsungDumper,
     'sony': remote_ns.SonyDumper,
     'rc_switch': remote_ns.RCSwitchDumper,
 }
