@@ -1,10 +1,9 @@
-import hashlib
 import logging
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_OTA, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
@@ -27,8 +26,7 @@ def to_code(config):
     rhs = App.init_ota()
     ota = Pvariable(config[CONF_ID], rhs)
     if CONF_PASSWORD in config:
-        hash_ = hashlib.md5(config[CONF_PASSWORD].encode()).hexdigest()
-        add(ota.set_auth_password_hash(hash_))
+        add(ota.set_auth_password(config[CONF_PASSWORD]))
     if CONF_PORT in config:
         add(ota.set_port(config[CONF_PORT]))
     if config[CONF_SAFE_MODE]:
@@ -50,6 +48,7 @@ def get_auth(config):
 
 
 BUILD_FLAGS = '-DUSE_OTA'
+REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 
 
 def lib_deps(config):
