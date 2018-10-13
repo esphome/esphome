@@ -13,12 +13,12 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 # pylint: disable=invalid-name
 text_sensor_ns = esphomelib_ns.namespace('text_sensor')
 TextSensor = text_sensor_ns.TextSensor
-MQTTSensorComponent = text_sensor_ns.MQTTSensorComponent
+MQTTTextSensor = text_sensor_ns.MQTTTextSensor
 
 TextSensorValueTrigger = text_sensor_ns.TextSensorValueTrigger
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),
+    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
     cv.GenerateID(): cv.declare_variable_id(TextSensor),
     vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     vol.Optional(CONF_ICON): cv.icon,
