@@ -35,6 +35,7 @@ wifi:
   hostname: myverylonghostname
   domain: .local
   reboot_timeout: 120s
+  power_save_mode: none
 
 mqtt:
   broker: '192.168.178.84'
