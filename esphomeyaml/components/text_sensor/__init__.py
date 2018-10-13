@@ -4,7 +4,8 @@ from esphomeyaml import automation
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_ON_VALUE, \
     CONF_TRIGGER_ID, CONF_UNIT_OF_MEASUREMENT
-from esphomeyaml.helpers import App, Pvariable, add, add_job, esphomelib_ns, setup_mqtt_component
+from esphomeyaml.helpers import App, Pvariable, add, add_job, esphomelib_ns, setup_mqtt_component, \
+    std_string
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -20,7 +21,6 @@ TextSensorValueTrigger = text_sensor_ns.TextSensorValueTrigger
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
     cv.GenerateID(): cv.declare_variable_id(TextSensor),
-    vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorValueTrigger),
@@ -33,10 +33,14 @@ TEXT_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(TEXT_SENSOR_SCHEMA.schema)
 def setup_text_sensor_core_(text_sensor_var, mqtt_var, config):
     if CONF_INTERNAL in config:
         add(text_sensor_var.set_internal(config[CONF_INTERNAL]))
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        add(text_sensor_var.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
     if CONF_ICON in config:
         add(text_sensor_var.set_icon(config[CONF_ICON]))
+
+    for conf in config.get(CONF_ON_VALUE, []):
+        rhs = text_sensor_var.make_value_trigger()
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, std_string, conf)
+
     setup_mqtt_component(mqtt_var, config)
 
 
