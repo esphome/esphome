@@ -135,7 +135,7 @@ def to_code(config):
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     if CONF_POWER_SAVE_MODE in config:
-        add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[CONF_POWER_SAVE_MODE]))
+        add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[config[CONF_POWER_SAVE_MODE]]))
 
 
 def lib_deps(config):
