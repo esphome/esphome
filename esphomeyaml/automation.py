@@ -2,13 +2,13 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.components import cover, deep_sleep, fan, output
+from esphomeyaml.components import cover, deep_sleep, fan, output, http_client
 from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, \
     CONF_BELOW, CONF_BLUE, CONF_BRIGHTNESS, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, \
     CONF_EFFECT, CONF_ELSE, CONF_FLASH_LENGTH, CONF_GREEN, CONF_ID, CONF_IF, CONF_LAMBDA, \
     CONF_LEVEL, CONF_OR, CONF_OSCILLATING, CONF_PAYLOAD, CONF_QOS, CONF_RANGE, CONF_RED, \
     CONF_RETAIN, CONF_SPEED, CONF_THEN, CONF_TOPIC, CONF_TRANSITION_LENGTH, CONF_TRIGGER_ID, \
-    CONF_WHITE, CONF_COLOR_TEMPERATURE
+    CONF_WHITE, CONF_COLOR_TEMPERATURE, CONF_URL, CONF_METHOD, CONF_HEADERS
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, add_job, \
     bool_, esphomelib_ns, float_, get_variable, process_lambda, std_string, templatable, uint32, \
@@ -32,6 +32,7 @@ CONF_OUTPUT_TURN_OFF = 'output.turn_off'
 CONF_OUTPUT_SET_LEVEL = 'output.set_level'
 CONF_DEEP_SLEEP_ENTER = 'deep_sleep.enter'
 CONF_DEEP_SLEEP_PREVENT = 'deep_sleep.prevent'
+CONF_HTTP_CLIENT_SEND = 'http_client.send'
 
 
 def maybe_simple_id(*validators):
@@ -57,7 +58,8 @@ ACTION_KEYS = [CONF_DELAY, CONF_MQTT_PUBLISH, CONF_LIGHT_TOGGLE, CONF_LIGHT_TURN
                CONF_LIGHT_TURN_ON, CONF_SWITCH_TOGGLE, CONF_SWITCH_TURN_OFF, CONF_SWITCH_TURN_ON,
                CONF_LAMBDA, CONF_COVER_OPEN, CONF_COVER_CLOSE, CONF_COVER_STOP, CONF_FAN_TOGGLE,
                CONF_FAN_TURN_OFF, CONF_FAN_TURN_ON, CONF_OUTPUT_TURN_ON, CONF_OUTPUT_TURN_OFF,
-               CONF_OUTPUT_SET_LEVEL, CONF_IF, CONF_DEEP_SLEEP_ENTER, CONF_DEEP_SLEEP_PREVENT]
+               CONF_OUTPUT_SET_LEVEL, CONF_IF, CONF_DEEP_SLEEP_ENTER, CONF_DEEP_SLEEP_PREVENT,
+               CONF_HTTP_CLIENT_SEND]
 
 ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     cv.GenerateID(CONF_ACTION_ID): cv.declare_variable_id(None),
@@ -143,6 +145,15 @@ ACTIONS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     }),
     vol.Optional(CONF_DEEP_SLEEP_PREVENT): maybe_simple_id({
         vol.Required(CONF_ID): cv.use_variable_id(deep_sleep.DeepSleepComponent),
+    }),
+    vol.Optional(CONF_HTTP_CLIENT_SEND): vol.Schema({
+        cv.GenerateID(): cv.use_variable_id(http_client.HTTPClientComponent),
+        vol.Required(CONF_URL): cv.templatable(http_client.validate_url),
+        vol.Optional(CONF_METHOD): vol.All(vol.Upper, cv.one_of(*http_client.HTTP_METHODS)),
+        vol.Optional(CONF_PAYLOAD): cv.templatable(cv.string),
+        vol.Optional(CONF_HEADERS): vol.Schema({
+            cv.string: cv.string
+        }),
     }),
     vol.Optional(CONF_IF): vol.All({
         vol.Required(CONF_CONDITION): validate_recursive_condition,
@@ -464,6 +475,26 @@ def build_action(full_config, arg_type):
         rhs = var.make_prevent_deep_sleep_action(template_arg)
         type = deep_sleep.PreventDeepSleepAction.template(arg_type)
         yield Pvariable(action_id, rhs, type=type)
+    elif key == CONF_HTTP_CLIENT_SEND:
+        for var in get_variable(config[CONF_ID]):
+            yield None
+        method = http_client.HTTP_METHODS[config[CONF_METHOD]]
+        rhs = var.make_http_request_action(template_arg, method)
+        type = http_client.HTTPRequestAction.template(arg_type)
+        action = Pvariable(action_id, rhs, type=type)
+        for template_ in templatable(config[CONF_URL], arg_type, std_string):
+            yield None
+        add(action.set_url(template_))
+        if CONF_PAYLOAD in config:
+            for template_ in templatable(config[CONF_PAYLOAD], arg_type, std_string):
+                yield None
+            add(action.set_payload(template_))
+        if CONF_HEADERS in config:
+            headers = []
+            for key, value in config[CONF_HEADERS].iteritems():
+                headers.append(http_client.HTTPClientHeader(key, value))
+            add(action.set_headers(ArrayInitializer(*headers)))
+        yield action
     else:
         raise ESPHomeYAMLError(u"Unsupported action {}".format(config))
 

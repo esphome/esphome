@@ -100,3 +100,16 @@ esp32_ble_beacon:
 
 status_led:
   pin: GPIO2
+
+http_client:
+
+switch:
+- platform: template
+  name: "HTTP Switch"
+  optimistic: True
+  turn_on_action:
+    - http_client.send:
+        url: example.com
+        method: get
+        headers:
+          'Hello': World
