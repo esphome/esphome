@@ -47,7 +47,9 @@ mqtt:
   discovery_retain: False
   discovery_prefix: discovery
   topic_prefix: helloworld
-  log_topic: helloworld/hi
+  log_topic:
+    topic: helloworld/hi
+    level: INFO
   birth_message:
   will_message:
   shutdown_message:
