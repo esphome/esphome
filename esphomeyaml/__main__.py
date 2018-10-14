@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 import random
-import shutil
 import sys
 from datetime import datetime
 
