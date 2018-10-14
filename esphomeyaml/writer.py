@@ -3,7 +3,9 @@ from __future__ import print_function
 import codecs
 import errno
 import json
+import logging
 import os
+import shutil
 
 from esphomeyaml import core
 from esphomeyaml.config import iter_components
@@ -13,6 +15,8 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, C
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.core_config import VERSION_REGEX
 from esphomeyaml.helpers import relative_path
+
+_LOGGER = logging.getLogger(__name__)
 
 CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
 CPP_AUTO_GENERATE_END = u'// =========== AUTO GENERATED CODE END ============'
@@ -111,17 +115,19 @@ def get_ini_content(config, path):
     lib_version = config[CONF_ESPHOMEYAML][CONF_ESPHOMELIB_VERSION]
     lib_path = os.path.join(path, 'lib')
     dst_path = os.path.join(lib_path, 'esphomelib')
+    this_version = None
     if CONF_REPOSITORY in lib_version:
         tag = next((lib_version[x] for x in (CONF_COMMIT, CONF_BRANCH, CONF_TAG)
                     if x in lib_version), None)
-        if tag is None:
-            lib_deps.add(lib_version[CONF_REPOSITORY])
-        else:
-            lib_deps.add(lib_version[CONF_REPOSITORY] + '#' + tag)
+        this_version = lib_version[CONF_REPOSITORY]
+        if tag is not None:
+            this_version += '#' + tag
+        lib_deps.add(this_version)
         if os.path.islink(dst_path):
             os.unlink(dst_path)
-    else:
-        src_path = relative_path(lib_version[CONF_LOCAL])
+    elif CONF_LOCAL in lib_version:
+        this_version = lib_version[CONF_LOCAL]
+        src_path = relative_path(this_version)
         do_write = True
         if os.path.islink(dst_path):
             old_path = os.path.join(os.readlink(dst_path), lib_path)
@@ -144,6 +150,25 @@ def get_ini_content(config, path):
                 lib_deps.add(dep['name'] + '@' + dep['version'])
             else:
                 lib_deps.add(dep['version'])
+    else:
+        this_version = lib_version
+        lib_deps.add(lib_version)
+
+    version_file = os.path.join(path, '.esphomelib_version')
+    version = None
+    if os.path.isfile(version_file):
+        with open(version_file, 'r') as ver_f:
+            version = ver_f.read()
+
+    if version != this_version:
+        _LOGGER.info("Esphomelib version change detected. Cleaning build files...")
+        try:
+            clean_build(path)
+        except OSError as err:
+            _LOGGER.warn("Error deleting build files (%s)! Ignoring...", err)
+
+        with open(version_file, 'w') as ver_f:
+            ver_f.write(this_version)
 
     lib_deps |= get_build_flags(config, 'LIB_DEPS')
     lib_deps |= get_build_flags(config, 'lib_deps')
@@ -207,7 +232,6 @@ def write_platformio_ini(content, path):
         content_format = find_begin_end(text, INI_AUTO_GENERATE_BEGIN, INI_AUTO_GENERATE_END)
     else:
         prev_file = None
-        mkdir_p(os.path.dirname(path))
         content_format = INI_BASE_FORMAT
     full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + \
         content + INI_AUTO_GENERATE_END + content_format[1]
@@ -218,6 +242,7 @@ def write_platformio_ini(content, path):
 
 
 def write_platformio_project(config, path):
+    mkdir_p(path)
     platformio_ini = os.path.join(path, 'platformio.ini')
     content = get_ini_content(config, path)
     if 'esp32_ble_beacon' in config or 'esp32_ble_tracker' in config:
@@ -268,3 +293,11 @@ def determine_platformio_version_settings():
         settings['flash_mode_key'] = 'board_build.flash_mode'
 
     return settings
+
+
+def clean_build(build_path):
+    for directory in ('.piolibdeps', '.pioenvs'):
+        dir_path = os.path.join(build_path, directory)
+        if os.path.isdir(dir_path):
+            _LOGGER.info("Deleting %s", dir_path)
+            shutil.rmtree(dir_path)

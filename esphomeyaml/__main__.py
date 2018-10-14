@@ -355,6 +355,17 @@ def command_version(args):
     return 0
 
 
+def command_clean(args, config):
+    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
+    try:
+        writer.clean_build(build_path)
+    except OSError as err:
+        _LOGGER.error("Error deleting build files: %s", err)
+        return 1
+    _LOGGER.info("Done!")
+    return 0
+
+
 def command_dashboard(args):
     from esphomeyaml.dashboard import dashboard
 
@@ -375,6 +386,7 @@ POST_CONFIG_ACTIONS = {
     'run': command_run,
     'clean-mqtt': command_clean_mqtt,
     'mqtt-fingerprint': command_mqtt_fingerprint,
+    'clean': command_clean,
 }
 
 
@@ -444,6 +456,8 @@ def parse_args(argv):
     subparsers.add_parser('mqtt-fingerprint', help="Get the SSL fingerprint from a MQTT broker.")
 
     subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
+
+    subparsers.add_parser('clean', help="Delete all temporary build files.")
 
     dashboard = subparsers.add_parser('dashboard',
                                       help="Create a simple webserver for a dashboard.")

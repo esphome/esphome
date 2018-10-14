@@ -124,6 +124,13 @@ class EsphomeyamlCleanMqttHandler(EsphomeyamlCommandWebSocket):
         return ["esphomeyaml", config_file, "clean-mqtt"]
 
 
+class EsphomeyamlCleanHandler(EsphomeyamlCommandWebSocket):
+    def build_command(self, message):
+        js = json.loads(message)
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "clean"]
+
+
 class SerialPortRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
@@ -221,6 +228,7 @@ def make_app(debug=False):
         (r"/compile", EsphomeyamlCompileHandler),
         (r"/validate", EsphomeyamlValidateHandler),
         (r"/clean-mqtt", EsphomeyamlCleanMqttHandler),
+        (r"/clean", EsphomeyamlCleanHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
