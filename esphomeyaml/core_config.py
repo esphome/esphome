@@ -60,7 +60,7 @@ def validate_simple_esphomelib_version(value):
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + value,
         }
-    return value
+    raise vol.Invalid("Only simple esphomelib versions!")
 
 
 def validate_local_esphomelib_version(value):

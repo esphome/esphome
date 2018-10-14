@@ -185,7 +185,6 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, port):
-    _LOGGER.info("Uploading binary...")
     build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
 
     # if upload is to a serial port use platformio, otherwise assume ota
@@ -211,19 +210,23 @@ def upload_program(config, args, port):
         host = get_upload_host(config)
 
     from esphomeyaml.components import ota
-    from esphomeyaml import espota
+    from esphomeyaml import espota2
 
     bin_file = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
     if args.host_port is not None:
         host_port = args.host_port
     else:
         host_port = int(os.getenv('ESPHOMEYAML_OTA_HOST_PORT', random.randint(10000, 60000)))
-    espota_args = ['espota.py', '--debug', '--progress', '-i', host,
-                   '-p', str(ota.get_port(config)), '-f', bin_file,
-                   '-a', ota.get_auth(config), '-P', str(host_port)]
-    if args.verbose:
-        espota_args.append('-d')
-    return espota.main(espota_args)
+
+    verbose = args.verbose
+    remote_port = ota.get_port(config)
+    password = ota.get_auth(config)
+
+    res = espota2.run_ota(host, remote_port, password, bin_file)
+    if res == 0:
+        return res
+    _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
+    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password, bin_file)
 
 
 def show_logs(config, args, port, escape=False):
