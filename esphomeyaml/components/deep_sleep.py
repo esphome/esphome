@@ -1,9 +1,11 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
+from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
     CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns
+from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns, \
+    TemplateArguments, get_variable
 
 
 def validate_pin_number(value):
@@ -57,3 +59,35 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_DEEP_SLEEP'
+
+
+CONF_DEEP_SLEEP_ENTER = 'deep_sleep.enter'
+DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+})
+
+
+@ACTION_REGISTRY.register(CONF_DEEP_SLEEP_ENTER, DEEP_SLEEP_ENTER_ACTION_SCHEMA)
+def deep_sleep_enter_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_enter_deep_sleep_action(template_arg)
+    type = EnterDeepSleepAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_DEEP_SLEEP_PREVENT = 'deep_sleep.prevent'
+DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+})
+
+
+@ACTION_REGISTRY.register(CONF_DEEP_SLEEP_PREVENT, DEEP_SLEEP_PREVENT_ACTION_SCHEMA)
+def deep_sleep_prevent_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_prevent_deep_sleep_action(template_arg)
+    type = PreventDeepSleepAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)

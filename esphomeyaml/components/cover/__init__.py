@@ -1,6 +1,10 @@
+import voluptuous as vol
+
+from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_INTERNAL
-from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add
+from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add, \
+    TemplateArguments, get_variable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -37,3 +41,50 @@ def setup_cover(cover_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_COVER'
+
+CONF_COVER_OPEN = 'cover.open'
+COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_COVER_OPEN, COVER_OPEN_ACTION_SCHEMA)
+def cover_open_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_open_action(template_arg)
+    type = OpenAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_COVER_CLOSE = 'cover.close'
+COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_COVER_CLOSE, COVER_CLOSE_ACTION_SCHEMA)
+def cover_close_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_close_action(template_arg)
+    type = CloseAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_COVER_STOP = 'cover.stop'
+COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_COVER_STOP, COVER_STOP_ACTION_SCHEMA)
+def cover_stop_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_stop_action(template_arg)
+    type = StopAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
