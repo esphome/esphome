@@ -10,7 +10,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
-    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
+    CONF_MCP23017, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, Lambda, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -585,15 +585,21 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
         return
     number = conf[CONF_NUMBER]
     inverted = conf.get(CONF_INVERTED)
-    if CONF_PCF8574 in conf:
+    if any (mux in conf for mux in [CONF_PCF8574, CONF_MCP23017]):
         hub = None
-        for hub in get_variable(conf[CONF_PCF8574]):
+        for hub in get_variable(conf[mux]):
             yield None
         if default_mode == u'INPUT':
             mode = conf.get(CONF_MODE, u'INPUT')
-            yield hub.make_input_pin(number,
+            if mux == CONF_PCF8574:
+                yield hub.make_input_pin(number,
                                      RawExpression('PCF8574_' + mode),
                                      inverted)
+             elif mux == CONF_MCP23017:
+                 yield hub.make_input_pin(number,
+                                      RawExpression('MCP23017_' + mode),
+                                      inverted)
+
             return
         elif default_mode == u'OUTPUT':
             yield hub.make_output_pin(number, inverted)
