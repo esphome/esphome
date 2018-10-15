@@ -595,8 +595,8 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
                 yield hub.make_input_pin(number,
                                      RawExpression('PCF8574_' + mode),
                                      inverted)
-             elif mux == CONF_MCP23017:
-                 yield hub.make_input_pin(number,
+            elif mux == CONF_MCP23017:
+                yield hub.make_input_pin(number,
                                       RawExpression('MCP23017_' + mode),
                                       inverted)
 
