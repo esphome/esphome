@@ -113,6 +113,21 @@ class TimePeriod(object):
             out['days'] = self.days
         return out
 
+    def __str__(self):
+        if self.microseconds is not None:
+            return '{} us'.format(self.total_microseconds)
+        if self.milliseconds is not None:
+            return '{} ms'.format(self.total_milliseconds)
+        if self.seconds is not None:
+            return '{} s'.format(self.total_seconds)
+        if self.minutes is not None:
+            return '{} min'.format(self.total_minutes)
+        if self.hours is not None:
+            return '{} h'.format(self.total_hours)
+        if self.days is not None:
+            return '{} d'.format(self.total_days)
+        return '0'
+
     @property
     def total_microseconds(self):
         return self.total_milliseconds * 1000 + (self.microseconds or 0)
