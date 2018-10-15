@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_MCP23017
+from esphomeyaml.const import CONF_ADDRESS, CONF_ID
 from esphomeyaml.helpers import App, Pvariable, esphomelib_ns
 
 DEPENDENCIES = ['i2c']

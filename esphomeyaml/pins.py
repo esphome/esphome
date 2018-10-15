@@ -297,6 +297,7 @@ PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
     vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("INPUT", "INPUT_PULLUP")),
 })
 
+
 MCP23017_OUTPUT_PIN_SCHEMA = vol.Schema({
     vol.Required(CONF_MCP23017): cv.use_variable_id(mcp23017.MCP23017Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
@@ -307,6 +308,7 @@ MCP23017_OUTPUT_PIN_SCHEMA = vol.Schema({
 MCP23017_INPUT_PIN_SCHEMA = MCP23017_OUTPUT_PIN_SCHEMA.extend({
     vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("INPUT", "INPUT_PULLUP")),
 })
+
 
 def internal_gpio_output_pin_schema(value):
     if isinstance(value, dict):

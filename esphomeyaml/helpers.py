@@ -585,7 +585,7 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
         return
     number = conf[CONF_NUMBER]
     inverted = conf.get(CONF_INVERTED)
-    if any (mux in conf for mux in [CONF_PCF8574, CONF_MCP23017]):
+    if any(mux in conf for mux in [CONF_PCF8574, CONF_MCP23017]):
         hub = None
         for hub in get_variable(conf[mux]):
             yield None
