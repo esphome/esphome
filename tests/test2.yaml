@@ -116,3 +116,7 @@ text_sensor:
     name: "MQTT Subscribe Text"
     topic: "the/topic"
     qos: 2
+  - platform: template
+    name: "Template Text Sensor"
+    lambda: |-
+      return "Hello World";
