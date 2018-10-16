@@ -585,27 +585,28 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
         return
     number = conf[CONF_NUMBER]
     inverted = conf.get(CONF_INVERTED)
-    if any(mux in conf for mux in [CONF_PCF8574, CONF_MCP23017]):
-        hub = None
-        for hub in get_variable(conf[mux]):
-            yield None
-        if default_mode == u'INPUT':
-            mode = conf.get(CONF_MODE, u'INPUT')
-            if mux == CONF_PCF8574:
-               yield hub.make_input_pin(number,
-                                         RawExpression('PCF8574_' + mode),
-                                         inverted)
-            elif mux == CONF_MCP23017:
-               yield hub.make_input_pin(number,
-                                         RawExpression('MCP23017_' + mode),
-                                         inverted)
+    for mux in [CONF_PCF8574, CONF_MCP23017]:
+        if mux in conf:
+            hub = None
+            for hub in get_variable(conf[mux]):
+                yield None
+            if default_mode == u'INPUT':
+                mode = conf.get(CONF_MODE, u'INPUT')
+                if mux == CONF_PCF8574:
+                    yield hub.make_input_pin(number,
+                                             RawExpression('PCF8574_' + mode),
+                                             inverted)
+                elif mux == CONF_MCP23017:
+                    yield hub.make_input_pin(number,
+                                             RawExpression('MCP23017_' + mode),
+                                             inverted)
 
-            return
-        elif default_mode == u'OUTPUT':
-            yield hub.make_output_pin(number, inverted)
-            return
-        else:
-            raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
+                return
+            elif default_mode == u'OUTPUT':
+                yield hub.make_output_pin(number, inverted)
+                return
+            else:
+                raise ESPHomeYAMLError(u"Unknown default mode {}".format(default_mode))
     if len(conf) == 1:
         yield IntLiteral(number)
         return
