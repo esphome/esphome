@@ -690,6 +690,7 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
+    power_on_value: True
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
