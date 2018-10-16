@@ -11,8 +11,9 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, \
     CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, StructInitializer, \
-    TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, uint8, bool_
+from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
+    StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
+    uint8, bool_
 
 
 def validate_message_just_topic(value):
