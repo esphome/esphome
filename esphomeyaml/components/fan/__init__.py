@@ -1,9 +1,12 @@
 import voluptuous as vol
 
+from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_OSCILLATION_COMMAND_TOPIC, \
-    CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL
-from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component
+    CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL, \
+    CONF_SPEED, CONF_OSCILLATING
+from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
+    TemplateArguments, get_variable, templatable, bool_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -66,3 +69,62 @@ def setup_fan(fan_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_FAN'
+
+
+CONF_FAN_TOGGLE = 'fan.toggle'
+FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_FAN_TOGGLE, FAN_TOGGLE_ACTION_SCHEMA)
+def fan_toggle_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_toggle_action(template_arg)
+    type = ToggleAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_FAN_TURN_OFF = 'fan.turn_off'
+FAN_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_FAN_TURN_OFF, FAN_TURN_OFF_ACTION_SCHEMA)
+def fan_turn_off_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_off_action(template_arg)
+    type = TurnOffAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_FAN_TURN_ON = 'fan.turn_on'
+FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
+    vol.Optional(CONF_SPEED): cv.templatable(validate_fan_speed),
+})
+
+
+@ACTION_REGISTRY.register(CONF_FAN_TURN_ON, FAN_TURN_ON_ACTION_SCHEMA)
+def fan_turn_on_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_on_action(template_arg)
+    type = TurnOnAction.template(arg_type)
+    action = Pvariable(action_id, rhs, type=type)
+    if CONF_OSCILLATING in config:
+        for template_ in templatable(config[CONF_OSCILLATING], arg_type, bool_):
+            yield None
+        add(action.set_oscillating(template_))
+    if CONF_SPEED in config:
+        for template_ in templatable(config[CONF_SPEED], arg_type, FanSpeed):
+            yield None
+        add(action.set_speed(template_))
+    yield action

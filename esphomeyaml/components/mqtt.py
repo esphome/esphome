@@ -2,6 +2,7 @@ import re
 
 import voluptuous as vol
 
+from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml import automation
 from esphomeyaml.components import logger
 import esphomeyaml.config_validation as cv
@@ -11,7 +12,8 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string
+    StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
+    uint8, bool_
 
 
 def validate_message_just_topic(value):
@@ -157,6 +159,39 @@ def to_code(config):
         rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, std_string, conf)
+
+
+CONF_MQTT_PUBLISH = 'mqtt.publish'
+MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
+    vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
+    vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
+    vol.Optional(CONF_QOS): cv.templatable(cv.mqtt_qos),
+    vol.Optional(CONF_RETAIN): cv.templatable(cv.boolean),
+})
+
+
+@ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
+def mqtt_publish_action_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
+    type = MQTTPublishAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
+        yield None
+    add(action.set_topic(template_))
+
+    for template_ in templatable(config[CONF_PAYLOAD], arg_type, std_string):
+        yield None
+    add(action.set_payload(template_))
+    if CONF_QOS in config:
+        for template_ in templatable(config[CONF_QOS], arg_type, uint8):
+            yield
+        add(action.set_qos(template_))
+    if CONF_RETAIN in config:
+        for template_ in templatable(config[CONF_RETAIN], arg_type, bool_):
+            yield None
+        add(action.set_retain(template_))
+    yield action
 
 
 def required_build_flags(config):

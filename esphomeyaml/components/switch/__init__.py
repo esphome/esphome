@@ -1,8 +1,10 @@
 import voluptuous as vol
 
+from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, setup_mqtt_component
+from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
+    TemplateArguments, get_variable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -50,3 +52,51 @@ def register_switch(var, config):
 
 
 BUILD_FLAGS = '-DUSE_SWITCH'
+
+
+CONF_SWITCH_TOGGLE = 'switch.toggle'
+SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_SWITCH_TOGGLE, SWITCH_TOGGLE_ACTION_SCHEMA)
+def switch_toggle_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_toggle_action(template_arg)
+    type = ToggleAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_SWITCH_TURN_OFF = 'switch.turn_off'
+SWITCH_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_SWITCH_TURN_OFF, SWITCH_TURN_OFF_ACTION_SCHEMA)
+def switch_turn_off_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_off_action(template_arg)
+    type = TurnOffAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_SWITCH_TURN_ON = 'switch.turn_on'
+SWITCH_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_SWITCH_TURN_ON, SWITCH_TURN_ON_ACTION_SCHEMA)
+def switch_turn_on_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_on_action(template_arg)
+    type = TurnOnAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)

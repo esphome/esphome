@@ -1,14 +1,16 @@
 import voluptuous as vol
 
+from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
-    CONF_GAMMA_CORRECT, \
-    CONF_GREEN, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, \
-    CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, \
-    CONF_WHITE, CONF_WIDTH
+    CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, \
+    CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, \
+    CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, CONF_FLASH_LENGTH, CONF_COLOR_TEMPERATURE, \
+    CONF_EFFECT
 from esphomeyaml.helpers import Application, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, add, add_job, esphomelib_ns, process_lambda, setup_mqtt_component
+    StructInitializer, add, add_job, esphomelib_ns, process_lambda, setup_mqtt_component, \
+    get_variable, TemplateArguments, templatable, uint32, float_, std_string
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -338,3 +340,111 @@ def setup_light(light_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'
+
+
+CONF_LIGHT_TOGGLE = 'light.toggle'
+LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
+})
+
+
+@ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
+def light_toggle_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_toggle_action(template_arg)
+    type = ToggleAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    if CONF_TRANSITION_LENGTH in config:
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+            yield None
+        add(action.set_transition_length(template_))
+    yield action
+
+
+CONF_LIGHT_TURN_OFF = 'light.turn_off'
+LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
+})
+
+
+@ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
+def light_turn_off_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_off_action(template_arg)
+    type = TurnOffAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    if CONF_TRANSITION_LENGTH in config:
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+            yield None
+        add(action.set_transition_length(template_))
+    yield action
+
+
+CONF_LIGHT_TURN_ON = 'light.turn_on'
+LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
+        cv.templatable(cv.positive_time_period_milliseconds),
+    vol.Exclusive(CONF_FLASH_LENGTH, 'transformer'):
+        cv.templatable(cv.positive_time_period_milliseconds),
+    vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
+    vol.Optional(CONF_RED): cv.templatable(cv.percentage),
+    vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
+    vol.Optional(CONF_BLUE): cv.templatable(cv.percentage),
+    vol.Optional(CONF_WHITE): cv.templatable(cv.percentage),
+    vol.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.positive_float),
+    vol.Optional(CONF_EFFECT): cv.templatable(cv.string),
+})
+
+
+@ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
+def light_turn_on_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_on_action(template_arg)
+    type = TurnOnAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    if CONF_TRANSITION_LENGTH in config:
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+            yield None
+        add(action.set_transition_length(template_))
+    if CONF_FLASH_LENGTH in config:
+        for template_ in templatable(config[CONF_FLASH_LENGTH], arg_type, uint32):
+            yield None
+        add(action.set_flash_length(template_))
+    if CONF_BRIGHTNESS in config:
+        for template_ in templatable(config[CONF_BRIGHTNESS], arg_type, float_):
+            yield None
+        add(action.set_brightness(template_))
+    if CONF_RED in config:
+        for template_ in templatable(config[CONF_RED], arg_type, float_):
+            yield None
+        add(action.set_red(template_))
+    if CONF_GREEN in config:
+        for template_ in templatable(config[CONF_GREEN], arg_type, float_):
+            yield None
+        add(action.set_green(template_))
+    if CONF_BLUE in config:
+        for template_ in templatable(config[CONF_BLUE], arg_type, float_):
+            yield None
+        add(action.set_blue(template_))
+    if CONF_WHITE in config:
+        for template_ in templatable(config[CONF_WHITE], arg_type, float_):
+            yield None
+        add(action.set_white(template_))
+    if CONF_COLOR_TEMPERATURE in config:
+        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], arg_type, float_):
+            yield None
+        add(action.set_color_temperature(template_))
+    if CONF_EFFECT in config:
+        for template_ in templatable(config[CONF_EFFECT], arg_type, std_string):
+            yield None
+        add(action.set_effect(template_))
+    yield action

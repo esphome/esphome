@@ -128,11 +128,7 @@ def validate_config(config):
     def _comp_error(ex, domain, config):
         result.add_error(_format_config_error(ex, domain, config), domain, config)
 
-    try:
-        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(config[CONF_ESPHOMEYAML])
-    except vol.Invalid as ex:
-        _comp_error(ex, CONF_ESPHOMEYAML, config[CONF_ESPHOMEYAML])
-
+    # Step 1: Load everything
     for domain, conf in config.iteritems():
         domain = str(domain)
         if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
@@ -142,6 +138,39 @@ def validate_config(config):
         component = get_component(domain)
         if component is None:
             result.add_error(u"Component not found: {}".format(domain), domain, conf)
+            continue
+
+        if not hasattr(component, 'PLATFORM_SCHEMA'):
+            continue
+
+        for p_config in conf:
+            if not isinstance(p_config, dict):
+                result.add_error(u"Platform schemas must have 'platform:' key", )
+                continue
+            p_name = p_config.get(u'platform')
+            if p_name is None:
+                result.add_error(u"No platform specified for {}".format(domain))
+                continue
+            p_domain = u'{}.{}'.format(domain, p_name)
+            platform = get_platform(domain, p_name)
+            if platform is None:
+                result.add_error(u"Platform not found: '{}'".format(p_domain), p_domain, p_config)
+                continue
+
+    # Step 2: Validate configuration
+    try:
+        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(config[CONF_ESPHOMEYAML])
+    except vol.Invalid as ex:
+        _comp_error(ex, CONF_ESPHOMEYAML, config[CONF_ESPHOMEYAML])
+
+    for domain, conf in config.iteritems():
+        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
+            continue
+        if conf is None:
+            conf = {}
+        domain = str(domain)
+        component = get_component(domain)
+        if component is None:
             continue
 
         esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
@@ -174,16 +203,13 @@ def validate_config(config):
         platforms = []
         for p_config in conf:
             if not isinstance(p_config, dict):
-                result.add_error(u"Platform schemas must have 'platform:' key", )
                 continue
             p_name = p_config.get(u'platform')
             if p_name is None:
-                result.add_error(u"No platform specified for {}".format(domain))
                 continue
             p_domain = u'{}.{}'.format(domain, p_name)
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_error(u"Platform not found: '{}'".format(p_domain), p_domain, p_config)
                 continue
 
             success = True
