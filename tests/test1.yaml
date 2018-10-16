@@ -524,6 +524,7 @@ output:
     id: gpio_26
     power_supply: atx_power_supply
     inverted: False
+    power_on_value: True
   - platform: ledc
     pin: 19
     id: gpio_19
@@ -690,6 +691,7 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
+    power_on_value: True
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
