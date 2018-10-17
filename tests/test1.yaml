@@ -878,6 +878,12 @@ status_led:
 pn532:
   cs_pin: GPIO23
   update_interval: 1s
+  on_tag:
+    - lambda: |-
+        ESP_LOGD("main", "Found tag %s", x.c_str());
+    - mqtt.publish:
+        topic: the/topic
+        payload: !lambda 'return x;'
 
 rdm6300:
 
