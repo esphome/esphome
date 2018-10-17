@@ -111,7 +111,7 @@ text_sensor:
     id: version_sensor
     on_value:
       lambda: |-
-        ESP_LOGD("main", "The value is %s=%s", it.c_str(), id(version_sensor).value.c_str());
+        ESP_LOGD("main", "The value is %s=%s", x.c_str(), id(version_sensor).value.c_str());
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
@@ -119,4 +119,4 @@ text_sensor:
   - platform: template
     name: "Template Text Sensor"
     lambda: |-
-      return "Hello World";
+      return {"Hello World"};
