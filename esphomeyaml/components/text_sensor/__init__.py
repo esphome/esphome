@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml import automation
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_ON_VALUE, \
-    CONF_TRIGGER_ID, CONF_UNIT_OF_MEASUREMENT
+    CONF_TRIGGER_ID
 from esphomeyaml.helpers import App, Pvariable, add, add_job, esphomelib_ns, setup_mqtt_component, \
     std_string
 
