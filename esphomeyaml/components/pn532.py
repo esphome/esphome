@@ -36,7 +36,7 @@ def to_code(config):
         pn532 = Pvariable(conf[CONF_ID], rhs)
 
         for conf_ in conf.get(CONF_ON_TAG, []):
-            trigger = Pvariable(conf[CONF_TRIGGER_ID], pn532.make_trigger())
+            trigger = Pvariable(conf_[CONF_TRIGGER_ID], pn532.make_trigger())
             automation.build_automation(trigger, std_string, conf_)
 
 
