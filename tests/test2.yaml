@@ -77,6 +77,13 @@ sensor:
     name: "MQTT Subscribe Sensor 1"
     topic: "mqtt/topic"
     qos: 2
+  - platform: cse7766
+    voltage:
+      name: "CSE7766 Voltage"
+    current:
+      name: "CSE7766 Current"
+    power:
+      name: "CSE776 Power"
 
 esp32_touch:
   setup_mode: True
