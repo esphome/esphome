@@ -880,7 +880,7 @@ pn532:
   update_interval: 1s
   on_tag:
     - lambda: |-
-        ESP_LOGD(TAG, "Found tag %s", x.c_str());
+        ESP_LOGD("main", "Found tag %s", x.c_str());
     - mqtt.publish:
         topic: the/topic
         payload: !lambda 'return x;'
