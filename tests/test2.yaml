@@ -110,3 +110,20 @@ esp32_ble_beacon:
 
 status_led:
   pin: GPIO2
+
+text_sensor:
+  - platform: version
+    name: "Esphomelib Version"
+    icon: mdi:icon
+    id: version_sensor
+    on_value:
+      lambda: |-
+        ESP_LOGD("main", "The value is %s=%s", x.c_str(), id(version_sensor).value.c_str());
+  - platform: mqtt_subscribe
+    name: "MQTT Subscribe Text"
+    topic: "the/topic"
+    qos: 2
+  - platform: template
+    name: "Template Text Sensor"
+    lambda: |-
+      return {"Hello World"};
