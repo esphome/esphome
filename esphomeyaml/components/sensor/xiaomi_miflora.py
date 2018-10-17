@@ -10,10 +10,10 @@ from esphomeyaml.helpers import Pvariable, esphomelib_ns, get_variable
 
 DEPENDENCIES = ['esp32_ble_tracker']
 
-XiaomiMiFloraDevice = esphomelib_ns.XiaomiMiFloraDevice
+XiaomiDevice = esphomelib_ns.XiaomiDevice
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(XiaomiMiFloraDevice),
+    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(XiaomiDevice),
     cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_variable_id(ESP32BLETracker),
     vol.Required(CONF_MAC_ADDRESS): cv.mac_address,
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
@@ -28,7 +28,7 @@ def to_code(config):
     hub = None
     for hub in get_variable(config[CONF_ESP32_BLE_ID]):
         yield
-    rhs = hub.make_miflora_sensor(make_address_array(config[CONF_MAC_ADDRESS]))
+    rhs = hub.make_xiaomi_device(make_address_array(config[CONF_MAC_ADDRESS]))
     dev = Pvariable(config[CONF_MAKE_ID], rhs)
     if CONF_TEMPERATURE in config:
         conf = config[CONF_TEMPERATURE]
