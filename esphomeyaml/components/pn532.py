@@ -35,9 +35,9 @@ def to_code(config):
         rhs = App.make_pn532_component(spi, cs, conf.get(CONF_UPDATE_INTERVAL))
         pn532 = Pvariable(conf[CONF_ID], rhs)
 
-        for conf in conf.get(CONF_ON_TAG, []):
+        for conf_ in conf.get(CONF_ON_TAG, []):
             trigger = Pvariable(conf[CONF_TRIGGER_ID], pn532.make_trigger())
-            automation.build_automation(trigger, std_string, conf)
+            automation.build_automation(trigger, std_string, conf_)
 
 
 BUILD_FLAGS = '-DUSE_PN532'
