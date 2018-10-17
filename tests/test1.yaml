@@ -73,6 +73,24 @@ mqtt:
       then:
       - deep_sleep.enter:
           id: deep_sleep_1
+  on_json_message:
+    topic: the/topic
+    then:
+      - lambda: |-
+          int data = x["my_data"];
+          ESP_LOGD("main", "The data is: %d", data);
+      - light.turn_on:
+          id: living_room_lights
+          transition_length: !lambda |-
+            int length = 1000;
+            if (x.containsKey("length"))
+              length = x["length"];
+            return length;
+          effect: !lambda |-
+            const char *effect = "None";
+            if (x.containsKey("effect"))
+              effect = x["effect"];
+            return effect;
 
 i2c:
   sda: 21
@@ -599,6 +617,7 @@ light:
               state = 0;
   - platform: rgb
     name: "Living Room Lights"
+    id: living_room_lights
     red: pca_0
     green: pca_1
     blue: pca_2

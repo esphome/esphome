@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 class Registry(dict):
     def register(self, name):
         def decorator(fun):
@@ -14,3 +16,16 @@ class ServiceRegistry(dict):
             return fun
 
         return decorator
+
+
+def safe_print(message=""):
+    try:
+        print(message)
+        return
+    except UnicodeEncodeError:
+        pass
+
+    try:
+        print(message.encode('ascii', 'backslashreplace'))
+    except UnicodeEncodeError:
+        print("Cannot print line because of invalid locale!")

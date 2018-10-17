@@ -536,6 +536,10 @@ class MockObj(Expression):
             obj = MockObj(u'{} &'.format(self.base), u'')
             obj.requires.append(self)
             return obj
+        if name == "const":
+            obj = MockObj(u'const {}'.format(self.base), u'')
+            obj.requires.append(self)
+            return obj
         raise NotImplementedError()
 
     def has_side_effects(self):
@@ -568,6 +572,10 @@ NoArg = esphomelib_ns.NoArg
 App = esphomelib_ns.App
 Application = esphomelib_ns.namespace('Application')
 optional = esphomelib_ns.optional
+arduino_json_ns = global_ns.namespace('ArduinoJson')
+JsonObject = arduino_json_ns.JsonObject
+JsonObjectRef = JsonObject.operator('ref')
+JsonObjectConstRef = JsonObjectRef.operator('const')
 
 GPIOPin = esphomelib_ns.GPIOPin
 GPIOOutputPin = esphomelib_ns.GPIOOutputPin

@@ -11,6 +11,7 @@ from esphomeyaml import core, yaml_util, core_config
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import color
+from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -306,17 +307,17 @@ def dump_dict(layer, indent_count=3, listi=False, **kwargs):
     if isinstance(layer, dict):
         for key, value in sorted(layer.items(), key=sort_dict_key):
             if isinstance(value, (dict, list)):
-                print(indent_str, key + ':', line_info(value, **kwargs))
+                safe_print(u"{} {}: {}".format(indent_str, key, line_info(value, **kwargs)))
                 dump_dict(value, indent_count + 2)
             else:
-                print(indent_str, key + ':', value)
+                safe_print(u"{} {}: {}".format(indent_str, key, value))
             indent_str = indent_count * ' '
     if isinstance(layer, (list, tuple)):
         for i in layer:
             if isinstance(i, dict):
                 dump_dict(i, indent_count + 2, True)
             else:
-                print(' ', indent_str, i)
+                safe_print(u" {} {}".format(indent_str, i))
 
 
 def read_config(path):
@@ -334,10 +335,11 @@ def read_config(path):
             excepts[domain].append(config)
 
     if excepts:
-        print(color('bold_white', u"Failed config"))
+        safe_print(color('bold_white', u"Failed config"))
         for domain, config in excepts.iteritems():
-            print(' ', color('bold_red', domain + ':'), color('red', '', reset='red'))
+            safe_print(u' {} {}'.format(color('bold_red', domain + u':'),
+                                        color('red', '', reset='red')))
             dump_dict(config, reset='red')
-            print(color('reset'))
+            safe_print(color('reset'))
         return None
     return OrderedDict(res)

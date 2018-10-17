@@ -14,6 +14,7 @@ from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYA
     CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
     CONF_USERNAME, CONF_TOPIC, CONF_SSL_FINGERPRINTS
 from esphomeyaml.helpers import color
+from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,10 +71,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None, 
         message = time + msg.payload
         if escape:
             message = message.replace('\033', '\\033')
-        try:
-            print(message)
-        except UnicodeEncodeError:
-            print(message.encode('ascii', 'backslashreplace'))
+        safe_print(message)
 
     return initialize(config, [topic], on_message, username, password, client_id)
 
@@ -113,6 +111,7 @@ def get_fingerprint(config):
 
     sha1 = hashlib.sha1(cert_der).hexdigest()
 
-    print(u"SHA1 Fingerprint: " + color('cyan', sha1))
-    print(u"Copy above string into mqtt.ssl_fingerprints section of {}".format(core.CONFIG_PATH))
+    safe_print(u"SHA1 Fingerprint: " + color('cyan', sha1))
+    safe_print(u"Copy the string above into mqtt.ssl_fingerprints section of {}"
+               u"".format(core.CONFIG_PATH))
     return 0
