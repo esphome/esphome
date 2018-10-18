@@ -193,6 +193,10 @@ sensor:
     on_raw_value:
       - lambda: >-
           ESP_LOGD("main", "Got raw value %f", x);
+      - logger.log:
+          level: DEBUG
+          format: "Got raw value %f"
+          args: ['x']
       - mqtt.publish:
           topic: some/topic
           payload: Hello

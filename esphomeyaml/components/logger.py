@@ -1,10 +1,12 @@
 import voluptuous as vol
 
+from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_LEVEL, CONF_LOGS, \
-    CONF_TX_BUFFER_SIZE
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, global_ns
+from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
+    CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
+from esphomeyaml.core import ESPHomeYAMLError, Lambda
+from esphomeyaml.helpers import App, Pvariable, TemplateArguments, add, esphomelib_ns, global_ns, \
+    process_lambda, RawExpression, statement
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -14,6 +16,15 @@ LOG_LEVELS = {
     'DEBUG': global_ns.ESPHOMELIB_LOG_LEVEL_DEBUG,
     'VERBOSE': global_ns.ESPHOMELIB_LOG_LEVEL_VERBOSE,
     'VERY_VERBOSE': global_ns.ESPHOMELIB_LOG_LEVEL_VERY_VERBOSE,
+}
+
+LOG_LEVEL_TO_ESP_LOG = {
+    'ERROR': global_ns.ESP_LOGE,
+    'WARN': global_ns.ESP_LOGW,
+    'INFO': global_ns.ESP_LOGI,
+    'DEBUG': global_ns.ESP_LOGD,
+    'VERBOSE': global_ns.ESP_LOGV,
+    'VERY_VERBOSE': global_ns.ESP_LOGVV,
 }
 
 LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
@@ -59,3 +70,27 @@ def required_build_flags(config):
     if CONF_LEVEL in config:
         return u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]]))
     return None
+
+
+CONF_LOGGER_LOG = 'logger.log'
+LOGGER_LOG_ACTION_SCHEMA = vol.Schema({
+    vol.Required(CONF_FORMAT): cv.string,
+    vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
+    vol.Optional(CONF_LEVEL, default="DEBUG"): vol.All(vol.Upper, cv.one_of(*LOG_LEVEL_TO_ESP_LOG)),
+    vol.Optional(CONF_TAG, default="main"): cv.string,
+})
+
+
+@ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
+def logger_log_action_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
+    args = [RawExpression(unicode(x)) for x in config[CONF_ARGS]]
+
+    text = unicode(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
+
+    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')]):
+        yield None
+    rhs = LambdaAction.new(template_arg, lambda_)
+    type = LambdaAction.template(template_arg)
+    yield Pvariable(action_id, rhs, type=type)
