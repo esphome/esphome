@@ -72,8 +72,16 @@ def required_build_flags(config):
     return None
 
 
+def maybe_simple_message(schema):
+    def validator(value):
+        if isinstance(value, dict):
+            return schema(value)
+        return schema({CONF_FORMAT: value})
+    return validator
+
+
 CONF_LOGGER_LOG = 'logger.log'
-LOGGER_LOG_ACTION_SCHEMA = vol.Schema({
+LOGGER_LOG_ACTION_SCHEMA = maybe_simple_message({
     vol.Required(CONF_FORMAT): cv.string,
     vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
     vol.Optional(CONF_LEVEL, default="DEBUG"): vol.All(vol.Upper, cv.one_of(*LOG_LEVEL_TO_ESP_LOG)),
