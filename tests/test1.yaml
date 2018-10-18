@@ -197,6 +197,7 @@ sensor:
           level: DEBUG
           format: "Got raw value %f"
           args: ['x']
+      - logger.log: "Got raw value NAN"
       - mqtt.publish:
           topic: some/topic
           payload: Hello

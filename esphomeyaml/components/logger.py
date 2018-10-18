@@ -1,3 +1,5 @@
+import re
+
 import voluptuous as vol
 
 from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
@@ -75,18 +77,39 @@ def required_build_flags(config):
 def maybe_simple_message(schema):
     def validator(value):
         if isinstance(value, dict):
-            return schema(value)
-        return schema({CONF_FORMAT: value})
+            return vol.Schema(schema)(value)
+        return vol.Schema(schema)({CONF_FORMAT: value})
     return validator
 
 
+def validate_printf(value):
+    # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
+    cfmt = u"""\
+    (                                  # start of capture group 1
+    %                                  # literal "%"
+    (?:                                # first option
+    (?:[-+0 #]{0,5})                   # optional flags
+    (?:\d+|\*)?                        # width
+    (?:\.(?:\d+|\*))?                  # precision
+    (?:h|l|ll|w|I|I32|I64)?            # size
+    [cCdiouxXeEfgGaAnpsSZ]             # type
+    ) |                                # OR
+    %%)                                # literal "%%"
+    """
+    matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
+    if len(matches) != len(value[CONF_ARGS]):
+        raise vol.Invalid(u"Found {} printf-patterns ({}), but {} args were given!"
+                          u"".format(len(matches), u', '.join(matches), len(value[CONF_ARGS])))
+    return value
+
+
 CONF_LOGGER_LOG = 'logger.log'
-LOGGER_LOG_ACTION_SCHEMA = maybe_simple_message({
+LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
     vol.Required(CONF_FORMAT): cv.string,
     vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
     vol.Optional(CONF_LEVEL, default="DEBUG"): vol.All(vol.Upper, cv.one_of(*LOG_LEVEL_TO_ESP_LOG)),
     vol.Optional(CONF_TAG, default="main"): cv.string,
-})
+}), validate_printf)
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
