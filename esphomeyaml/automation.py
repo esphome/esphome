@@ -77,17 +77,33 @@ RangeCondition = esphomelib_ns.RangeCondition
 LambdaCondition = esphomelib_ns.LambdaCondition
 
 
-def validate_automation(extra_schema=None):
+def validate_automation(extra_schema=None, extra_validators=None, single=False):
     schema = AUTOMATION_SCHEMA.extend(extra_schema or {})
 
-    def validator(value):
+    def validator_(value):
         if isinstance(value, list):
-            return schema({CONF_THEN: value})
+            try:
+                # First try as a sequence of actions
+                return [schema({CONF_THEN: value})]
+            except vol.Invalid:
+                # Next try as a sequence of automations
+                return vol.Schema([schema])(value)
         elif isinstance(value, dict):
             if CONF_THEN in value:
-                return schema(value)
-            return schema({CONF_THEN: value})
-        return schema(value)
+                return [schema(value)]
+            return [schema({CONF_THEN: value})]
+        # This should only happen with invalid configs, but let's have a nice error message.
+        return [schema(value)]
+
+    def validator(value):
+        value = validator_(value)
+        if extra_validators is not None:
+            value = vol.Schema([extra_validators])(value)
+        if single:
+            if len(value) != 1:
+                raise vol.Invalid("Cannot have more than 1 automation for templates")
+            return value[0]
+        return value
 
     return validator
 

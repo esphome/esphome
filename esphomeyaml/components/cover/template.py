@@ -13,9 +13,9 @@ PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateCover),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
-    vol.Optional(CONF_OPEN_ACTION): automation.validate_automation(),
-    vol.Optional(CONF_CLOSE_ACTION): automation.validate_automation(),
-    vol.Optional(CONF_STOP_ACTION): automation.validate_automation(),
+    vol.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
+    vol.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
+    vol.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
 }), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 

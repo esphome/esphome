@@ -2,8 +2,8 @@ import re
 
 import voluptuous as vol
 
-from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml import automation
+from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import logger
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
@@ -79,16 +79,16 @@ CONFIG_SCHEMA = vol.Schema({
                                                  cv.ensure_list, [validate_fingerprint]),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.validate_automation({
+    vol.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.subscribe_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-    })]),
-    vol.Optional(CONF_ON_JSON_MESSAGE): vol.All(cv.ensure_list, [automation.validate_automation({
+    }),
+    vol.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
         vol.Required(CONF_TOPIC): cv.subscribe_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-    })]),
+    }),
 })
 
 

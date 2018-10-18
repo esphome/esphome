@@ -235,7 +235,7 @@ def validate_cron_keys(value):
 
 TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_TIMEZONE, default=detect_tz): cv.string,
-    vol.Optional(CONF_ON_TIME): vol.All(cv.ensure_list, [vol.All(automation.validate_automation({
+    vol.Optional(CONF_ON_TIME): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),
         vol.Optional(CONF_SECONDS): validate_cron_seconds,
         vol.Optional(CONF_MINUTES): validate_cron_minutes,
@@ -244,7 +244,7 @@ TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.Optional(CONF_MONTHS): validate_cron_months,
         vol.Optional(CONF_DAYS_OF_WEEK): validate_cron_days_of_week,
         vol.Optional(CONF_CRON): validate_cron_raw,
-    }), validate_cron_keys)]),
+    }, validate_cron_keys),
 })
 
 
