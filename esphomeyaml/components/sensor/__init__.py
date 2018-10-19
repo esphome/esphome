@@ -64,8 +64,8 @@ HeartbeatFilter = sensor_ns.HeartbeatFilter
 DebounceFilter = sensor_ns.DebounceFilter
 UniqueFilter = sensor_ns.UniqueFilter
 
-SensorValueTrigger = sensor_ns.SensorValueTrigger
-RawSensorValueTrigger = sensor_ns.RawSensorValueTrigger
+SensorStateTrigger = sensor_ns.SensorStateTrigger
+SensorRawStateTrigger = sensor_ns.SensorRawStateTrigger
 ValueRangeTrigger = sensor_ns.ValueRangeTrigger
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
@@ -77,10 +77,10 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
     vol.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorValueTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorStateTrigger),
     }),
     vol.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(RawSensorValueTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorRawStateTrigger),
     }),
     vol.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
@@ -155,11 +155,11 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
         add(sensor_var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        rhs = sensor_var.make_value_trigger()
+        rhs = sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, float_, conf)
     for conf in config.get(CONF_ON_RAW_VALUE, []):
-        rhs = sensor_var.make_raw_value_trigger()
+        rhs = sensor_var.make_raw_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, float_, conf)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
