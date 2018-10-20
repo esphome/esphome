@@ -440,15 +440,15 @@ def hostname(value):
     return value
 
 
-def domainname(value):
+def domain_name(value):
     value = string(value)
     if not value.startswith('.'):
-        raise vol.Invalid("Domainname must start with .")
+        raise vol.Invalid("Domain name must start with .")
     if value.startswith('..'):
-        raise vol.Invalid("Domainname must start with single .")
+        raise vol.Invalid("Domain name must start with single .")
     for c in value:
         if not (c.isalnum() or c in '._-'):
-            raise vol.Invalid("Domainname can only have alphanumeric characters and _ or -")
+            raise vol.Invalid("Domain name can only have alphanumeric characters and _ or -")
     return value
 
 

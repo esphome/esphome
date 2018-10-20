@@ -461,7 +461,7 @@ def parse_args(argv):
     subparsers.add_parser('clean', help="Delete all temporary build files.")
 
     dashboard = subparsers.add_parser('dashboard',
-                                      help="Create a simple webserver for a dashboard.")
+                                      help="Create a simple web server for a dashboard.")
     dashboard.add_argument("--port", help="The HTTP port to open connections on.", type=int,
                            default=6052)
     dashboard.add_argument("--password", help="The optional password to require for all requests.",
