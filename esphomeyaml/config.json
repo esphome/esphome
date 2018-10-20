@@ -15,6 +15,11 @@
   "map": [
     "config:rw"
   ],
+  "arch": [
+    "amd64",
+    "armhf",
+    "i386"
+  ],
   "environment": {
     "ESPHOMEYAML_OTA_HOST_PORT": "6053"
   },
