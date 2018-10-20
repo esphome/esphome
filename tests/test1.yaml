@@ -649,6 +649,7 @@ light:
     rgb_order: BRG
     max_refresh_rate: 20ms
     power_supply: atx_power_supply
+    color_correct: [75%, 100%, 50%]
     name: "FastLED WS2811 Light"
     effects:
     - fastled_color_wipe:
