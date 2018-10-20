@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+
 class Registry(dict):
     def register(self, name):
         def decorator(fun):
