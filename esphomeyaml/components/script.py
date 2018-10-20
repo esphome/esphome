@@ -9,9 +9,9 @@ from esphomeyaml.helpers import NoArg, Pvariable, TemplateArguments, esphomelib_
 Script = esphomelib_ns.Script
 ScriptExecuteAction = esphomelib_ns.ScriptExecuteAction
 
-CONFIG_SCHEMA = vol.All(cv.ensure_list, [automation.validate_automation({
+CONFIG_SCHEMA = automation.validate_automation({
     vol.Required(CONF_ID): cv.declare_variable_id(Script),
-})])
+})
 
 
 def to_code(config):
