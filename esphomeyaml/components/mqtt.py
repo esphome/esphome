@@ -10,10 +10,10 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, \
     CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, \
     CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
-    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
+    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_ON_JSON_MESSAGE
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
-    uint8, bool_
+    uint8, bool_, JsonObjectRef, process_lambda, JsonObjectConstRef
 
 
 def validate_message_just_topic(value):
@@ -37,7 +37,9 @@ mqtt_ns = esphomelib_ns.namespace('mqtt')
 MQTTMessage = mqtt_ns.MQTTMessage
 MQTTClientComponent = mqtt_ns.MQTTClientComponent
 MQTTPublishAction = mqtt_ns.MQTTPublishAction
+MQTTPublishJsonAction = mqtt_ns.MQTTPublishJsonAction
 MQTTMessageTrigger = mqtt_ns.MQTTMessageTrigger
+MQTTJsonMessageTrigger = mqtt_ns.MQTTJsonMessageTrigger
 
 
 def validate_broker(value):
@@ -79,9 +81,14 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_ON_MESSAGE): vol.All(cv.ensure_list, [automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
-        vol.Required(CONF_TOPIC): cv.publish_topic,
+        vol.Required(CONF_TOPIC): cv.subscribe_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-    })])
+    })]),
+    vol.Optional(CONF_ON_JSON_MESSAGE): vol.All(cv.ensure_list, [automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
+        vol.Required(CONF_TOPIC): cv.subscribe_topic,
+        vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    })]),
 })
 
 
@@ -160,6 +167,11 @@ def to_code(config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, std_string, conf)
 
+    for conf in config.get(CONF_ON_JSON_MESSAGE, []):
+        rhs = mqtt.make_json_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, JsonObjectConstRef, conf)
+
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
 MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
@@ -191,6 +203,35 @@ def mqtt_publish_action_to_code(config, action_id, arg_type):
         for template_ in templatable(config[CONF_RETAIN], arg_type, bool_):
             yield None
         add(action.set_retain(template_))
+    yield action
+
+
+CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
+MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
+    vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
+    vol.Required(CONF_PAYLOAD): cv.lambda_,
+    vol.Optional(CONF_QOS): cv.mqtt_qos,
+    vol.Optional(CONF_RETAIN): cv.boolean,
+})
+
+
+@ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
+def mqtt_publish_json_action_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    rhs = App.Pget_mqtt_client().Pmake_publish_json_action(template_arg)
+    type = MQTTPublishJsonAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
+        yield None
+    add(action.set_topic(template_))
+
+    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')]):
+        yield None
+    add(action.set_payload(lambda_))
+    if CONF_QOS in config:
+        add(action.set_qos(config[CONF_QOS]))
+    if CONF_RETAIN in config:
+        add(action.set_retain(config[CONF_RETAIN]))
     yield action
 
 

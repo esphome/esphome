@@ -76,7 +76,14 @@ sensor:
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Sensor 1"
     topic: "mqtt/topic"
+    id: the_sensor
     qos: 2
+    on_value:
+    - mqtt.publish_json:
+        topic: the/topic
+        payload: |-
+          root["key"] = id(the_sensor).value;
+          root["greeting"] = "Hello World";
   - platform: cse7766
     voltage:
       name: "CSE7766 Voltage"

@@ -16,6 +16,7 @@ from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, \
     _EXPRESSIONS, add, \
     add_job, color, flush_tasks, indent, quote, statement, relative_path
+from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,11 +40,11 @@ def choose_serial_port(config):
 
     if not result:
         return 'OTA'
-    print(u"Found multiple serial port options, please choose one:")
+    safe_print(u"Found multiple serial port options, please choose one:")
     for i, (res, desc) in enumerate(result):
-        print(u"  [{}] {} ({})".format(i, res, desc))
-    print(u"  [{}] Over The Air ({})".format(len(result), get_upload_host(config)))
-    print()
+        safe_print(u"  [{}] {} ({})".format(i, res, desc))
+    safe_print(u"  [{}] Over The Air ({})".format(len(result), get_upload_host(config)))
+    safe_print()
     while True:
         opt = raw_input('(number): ')
         if opt in result:
@@ -55,7 +56,7 @@ def choose_serial_port(config):
                 raise ValueError
             break
         except ValueError:
-            print(color('red', u"Invalid option: '{}'".format(opt)))
+            safe_print(color('red', u"Invalid option: '{}'".format(opt)))
     if opt == len(result):
         return 'OTA'
     return result[opt][0]
@@ -111,10 +112,7 @@ def run_miniterm(config, port, escape=False):
             message = time + line
             if escape:
                 message = message.replace('\033', '\\033')
-            try:
-                print(message)
-            except UnicodeEncodeError:
-                print(message.encode('ascii', 'backslashreplace'))
+            safe_print(message)
 
 
 def write_cpp(config):
@@ -295,7 +293,7 @@ def strip_default_ids(config):
 def command_config(args, config):
     if not args.verbose:
         config = strip_default_ids(config)
-    print(yaml_util.dump(config))
+    safe_print(yaml_util.dump(config))
     return 0
 
 
@@ -354,7 +352,7 @@ def command_mqtt_fingerprint(args, config):
 
 
 def command_version(args):
-    print(u"Version: {}".format(const.__version__))
+    safe_print(u"Version: {}".format(const.__version__))
     return 0
 
 
@@ -496,7 +494,7 @@ def run_esphomeyaml(argv):
         except ESPHomeYAMLError as e:
             _LOGGER.error(e)
             return 1
-    print(u"Unknown command {}".format(args.command))
+    safe_print(u"Unknown command {}".format(args.command))
     return 1
 
 
