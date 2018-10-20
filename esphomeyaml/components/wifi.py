@@ -83,7 +83,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
     vol.Optional(CONF_HOSTNAME): cv.hostname,
-    vol.Optional(CONF_DOMAIN, default='.local'): cv.domainname,
+    vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SAVE_MODE): vol.All(vol.Upper, cv.one_of(*WIFI_POWER_SAVE_MODES)),
 }), validate)
