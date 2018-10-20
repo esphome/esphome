@@ -342,6 +342,7 @@ CONF_CRON = 'cron'
 CONF_POWER_SAVE_MODE = 'power_save_mode'
 CONF_POWER_ON_VALUE = 'power_on_value'
 CONF_ON_TAG = 'on_tag'
+CONF_COLOR_CORRECT = 'color_correct'
 CONF_ON_JSON_MESSAGE = 'on_json_message'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
