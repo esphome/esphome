@@ -115,7 +115,7 @@ test2:
     - |
       docker tag \
         "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:beta"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - |
       docker tag \
         "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
@@ -123,10 +123,10 @@ test2:
     - |
       docker tag \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
-        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:beta"
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:beta"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
-    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:beta"
+    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
   only:
   - /^v\d+\.\d+\.\d+b\d+$/
   except:
@@ -208,15 +208,15 @@ deploy-beta:amd64:
 
 .deploy-pypi: &deploy-pypi
   stage: deploy
-    before_script:
-    - pip install -e .
-    - pip install twine
-    script:
-    - python setup.py sdist
-    - twine upload dist/*
-    tags:
-    - python2.7
-    - esphomeyaml-test
+  before_script:
+  - pip install -e .
+  - pip install twine
+  script:
+  - python setup.py sdist
+  - twine upload dist/*
+  tags:
+  - python2.7
+  - esphomeyaml-test
 
 deploy-release:pypi:
   <<: *deploy-pypi
