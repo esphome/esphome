@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMAT
     CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, add_job, \
-    esphomelib_ns, float_, process_lambda, templatable, uint32
+    esphomelib_ns, float_, process_lambda, templatable, uint32, get_variable
 from esphomeyaml.util import ServiceRegistry
 
 
@@ -57,6 +57,7 @@ ACTION_REGISTRY = ServiceRegistry()
 DelayAction = esphomelib_ns.DelayAction
 LambdaAction = esphomelib_ns.LambdaAction
 IfAction = esphomelib_ns.IfAction
+UpdateComponentAction = esphomelib_ns.UpdateComponentAction
 Automation = esphomelib_ns.Automation
 
 CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [cv.templatable({
@@ -197,6 +198,22 @@ def lambda_action_to_code(config, action_id, arg_type):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_COMPONENT_UPDATE = 'component.update'
+COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None),
+})
+
+
+@ACTION_REGISTRY.register(CONF_COMPONENT_UPDATE, COMPONENT_UPDATE_ACTION_SCHEMA)
+def component_update_action_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = UpdateComponentAction.new(var)
+    type = UpdateComponentAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 

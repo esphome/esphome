@@ -124,8 +124,9 @@ text_sensor:
     icon: mdi:icon
     id: version_sensor
     on_value:
-      lambda: |-
-        ESP_LOGD("main", "The value is %s=%s", x.c_str(), id(version_sensor).value.c_str());
+      - lambda: |-
+          ESP_LOGD("main", "The value is %s=%s", x.c_str(), id(version_sensor).value.c_str());
+      - script.execute: my_script
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
@@ -134,3 +135,8 @@ text_sensor:
     name: "Template Text Sensor"
     lambda: |-
       return {"Hello World"};
+
+script:
+  - id: my_script
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
