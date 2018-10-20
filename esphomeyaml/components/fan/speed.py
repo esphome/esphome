@@ -29,7 +29,7 @@ def to_code(config):
     fan_struct = variable(config[CONF_MAKE_ID], rhs)
     if CONF_SPEED in config:
         speeds = config[CONF_SPEED]
-        add(fan_struct.Poutput.set_speed(output, 0.0,
+        add(fan_struct.Poutput.set_speed(output,
                                          speeds[CONF_LOW],
                                          speeds[CONF_MEDIUM],
                                          speeds[CONF_HIGH]))

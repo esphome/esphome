@@ -16,14 +16,14 @@ text_sensor_ns = esphomelib_ns.namespace('text_sensor')
 TextSensor = text_sensor_ns.TextSensor
 MQTTTextSensor = text_sensor_ns.MQTTTextSensor
 
-TextSensorValueTrigger = text_sensor_ns.TextSensorValueTrigger
+TextSensorStateTrigger = text_sensor_ns.TextSensorStateTrigger
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
     cv.GenerateID(): cv.declare_variable_id(TextSensor),
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorValueTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorStateTrigger),
     }),
 })
 
@@ -37,7 +37,7 @@ def setup_text_sensor_core_(text_sensor_var, mqtt_var, config):
         add(text_sensor_var.set_icon(config[CONF_ICON]))
 
     for conf in config.get(CONF_ON_VALUE, []):
-        rhs = text_sensor_var.make_value_trigger()
+        rhs = text_sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, std_string, conf)
 

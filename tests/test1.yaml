@@ -181,9 +181,9 @@ sensor:
       then:
         - lambda: >-
             ESP_LOGD("main", "Got value %f", x);
-            id(my_sensor).push_new_value(42.0);
-            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).value);
-            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).value);
+            id(my_sensor).publish_state(42.0);
+            ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
+            ESP_LOGI("main", "Raw Value of my sensor: %f", id(my_sensor).state);
     on_value_range:
       above: 5
       below: 10
@@ -419,7 +419,7 @@ sensor:
   - platform: template
     name: "Template Sensor"
     lambda: >-
-      if (id(ultrasonic_sensor1).value > 1) {
+      if (id(ultrasonic_sensor1).state > 1) {
         return 42.0;
       } else {
         return {};
@@ -506,12 +506,12 @@ binary_sensor:
   - platform: template
     name: "Garage Door Open"
     lambda: >-
-      if (isnan(id(my_sensor).value)) {
+      if (isnan(id(my_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
         // in that case, return {} to indicate that we don't know.
         return {};
-      } else if (id(my_sensor).value > 30) {
+      } else if (id(my_sensor).state > 30) {
         // Garage Door is open.
         return true;
       } else {
@@ -805,17 +805,17 @@ switch:
     name: "Template Switch"
     id: my_switch
     lambda: |-
-      if (id(binary_sensor1).value) {
+      if (id(binary_sensor1).state) {
         return true;
       } else {
         return {};
       }
       id(my_switch).publish_state(false);
       id(my_switch).publish_state(true);
-      if (id(my_switch).value) {
+      if (id(my_switch).state) {
         // Switch is ON, do something here
-        id(my_switch).write_state(false);
-        id(my_switch).write_state(true);
+        id(my_switch).turn_off();
+        id(my_switch).turn_on();
       } else {
         // Switch is OFF, do something else here
       }
@@ -923,7 +923,7 @@ cover:
   - platform: template
     name: "Template Cover"
     lambda: >-
-      if (id(binary_sensor1).value) {
+      if (id(binary_sensor1).state) {
         return cover::COVER_OPEN;
       } else {
         return {};

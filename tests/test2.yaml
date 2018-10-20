@@ -151,7 +151,7 @@ text_sensor:
     id: version_sensor
     on_value:
       - lambda: |-
-          ESP_LOGD("main", "The value is %s=%s", x.c_str(), id(version_sensor).value.c_str());
+          ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
