@@ -86,9 +86,12 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             try:
                 # First try as a sequence of actions
                 return [schema({CONF_THEN: value})]
-            except vol.Invalid:
+            except vol.Invalid as err:
                 # Next try as a sequence of automations
-                return vol.Schema([schema])(value)
+                try:
+                    return vol.Schema([schema])(value)
+                except vol.Invalid as err2:
+                    raise vol.MultipleInvalid([err, err2])
         elif isinstance(value, dict):
             if CONF_THEN in value:
                 return [schema(value)]
