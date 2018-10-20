@@ -208,15 +208,15 @@ deploy-beta:amd64:
 
 .deploy-pypi: &deploy-pypi
   stage: deploy
-    before_script:
-    - pip install -e .
-    - pip install twine
-    script:
-    - python setup.py sdist
-    - twine upload dist/*
-    tags:
-    - python2.7
-    - esphomeyaml-test
+  before_script:
+  - pip install -e .
+  - pip install twine
+  script:
+  - python setup.py sdist
+  - twine upload dist/*
+  tags:
+  - python2.7
+  - esphomeyaml-test
 
 deploy-release:pypi:
   <<: *deploy-pypi
