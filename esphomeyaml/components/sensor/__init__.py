@@ -169,12 +169,12 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
             template_ = None
             for template_ in templatable(conf[CONF_ABOVE], float_, float_):
                 yield
-            trigger.set_min(template_)
+            add(trigger.set_min(template_))
         if CONF_BELOW in conf:
             template_ = None
             for template_ in templatable(conf[CONF_BELOW], float_, float_):
                 yield
-            trigger.set_max(template_)
+            add(trigger.set_max(template_))
         automation.build_automation(trigger, float_, conf)
 
     if CONF_EXPIRE_AFTER in config:
