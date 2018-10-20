@@ -1,11 +1,11 @@
 """Constants used by esphomeyaml."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 9
-PATCH_VERSION = '0b1'
+MINOR_VERSION = 10
+PATCH_VERSION = '0-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
-ESPHOMELIB_VERSION = '1.9.0b1'
+ESPHOMELIB_VERSION = 'dev'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
