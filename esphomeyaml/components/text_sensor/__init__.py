@@ -22,9 +22,9 @@ TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
     cv.GenerateID(): cv.declare_variable_id(TextSensor),
     vol.Optional(CONF_ICON): cv.icon,
-    vol.Optional(CONF_ON_VALUE): vol.All(cv.ensure_list, [automation.validate_automation({
+    vol.Optional(CONF_ON_VALUE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorValueTrigger),
-    })]),
+    }),
 })
 
 TEXT_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(TEXT_SENSOR_SCHEMA.schema)

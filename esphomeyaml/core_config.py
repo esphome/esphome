@@ -5,17 +5,17 @@ import subprocess
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import automation, core, pins
-from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
-    CONF_BRANCH, CONF_BUILD_PATH, CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
-    CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, \
-    ESPHOMELIB_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, ARDUINO_VERSION_ESP8266_DEV, \
-    ARDUINO_VERSION_ESP32_DEV
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
+    CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_BUILD_PATH, \
+    CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, \
+    CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, \
+    CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, ESPHOMELIB_VERSION, ESP_PLATFORM_ESP32, \
+    ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, const_char_p, esphomelib_ns, \
-    relative_path, RawExpression
+from esphomeyaml.helpers import App, NoArg, Pvariable, RawExpression, add, const_char_p, \
+    esphomelib_ns, relative_path
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -164,16 +164,16 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
 
     vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
-    vol.Optional(CONF_ON_BOOT): vol.All(cv.ensure_list, [automation.validate_automation({
+    vol.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
         vol.Optional(CONF_PRIORITY): vol.Coerce(float),
-    })]),
-    vol.Optional(CONF_ON_SHUTDOWN): vol.All(cv.ensure_list, [automation.validate_automation({
+    }),
+    vol.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
-    })]),
-    vol.Optional(CONF_ON_LOOP): vol.All(cv.ensure_list, [automation.validate_automation({
+    }),
+    vol.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
-    })]),
+    }),
 
     vol.Optional('library_uri'): cv.invalid("The library_uri option has been removed in 1.8.0 and "
                                             "was moved into the esphomelib_version option."),

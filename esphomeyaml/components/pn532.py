@@ -18,9 +18,9 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-    vol.Optional(CONF_ON_TAG): vol.All(cv.ensure_list, [automation.validate_automation({
+    vol.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PN532Trigger),
-    })]),
+    }),
 })])
 
 

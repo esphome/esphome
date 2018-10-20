@@ -232,11 +232,12 @@ class LambdaExpression(Expression):
         cpp = u'[{}]({})'.format(self.capture, self.parameters)
         if self.return_type is not None:
             cpp += u' -> {}'.format(self.return_type)
-        cpp += u' {\n'
-        for part in self.parts:
-            cpp += unicode(part)
-        cpp += u'\n}'
+        cpp += u' {{\n{}\n}}'.format(self.content)
         return indent_all_but_first_and_last(cpp)
+
+    @property
+    def content(self):
+        return u''.join(unicode(part) for part in self.parts)
 
 
 class Literal(Expression):
@@ -422,7 +423,6 @@ def process_lambda(value, parameters, capture='=', return_type=None):
             parts[i * 3 + 1] = var
         parts[i * 3 + 2] = ''
     yield LambdaExpression(parts, parameters, capture, return_type)
-    return
 
 
 def templatable(value, input_type, output_type):
