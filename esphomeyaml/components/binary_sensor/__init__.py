@@ -6,7 +6,7 @@ from esphomeyaml import automation
 from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INTERNAL, CONF_INVERTED, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, \
     CONF_ON_PRESS, CONF_ON_RELEASE, CONF_TRIGGER_ID, CONF_FILTERS, CONF_INVERT, CONF_DELAYED_ON, \
-    CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT, CONF_NAME
+    CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT
 from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
     setup_mqtt_component, bool_, process_lambda, ArrayInitializer
 
