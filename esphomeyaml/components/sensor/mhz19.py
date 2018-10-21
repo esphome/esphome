@@ -36,3 +36,11 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_MHZ19'
+
+
+def to_hass_config(data, config):
+    ret = []
+    for key in (CONF_CO2, CONF_TEMPERATURE):
+        if key in config:
+            ret.append(sensor.core_to_hass_config(data, config[key]))
+    return ret

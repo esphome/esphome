@@ -45,3 +45,12 @@ def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         conf = config[CONF_BATTERY_LEVEL]
         sensor.register_sensor(dev.Pmake_battery_level_sensor(conf[CONF_NAME]), conf)
+
+
+def to_hass_config(data, config):
+    ret = []
+    for key in (CONF_TEMPERATURE, CONF_MOISTURE, CONF_ILLUMINANCE, CONF_CONDUCTIVITY,
+                CONF_BATTERY_LEVEL):
+        if key in config:
+            ret.append(sensor.core_to_hass_config(data, config[key]))
+    return ret

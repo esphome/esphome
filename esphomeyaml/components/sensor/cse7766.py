@@ -40,3 +40,11 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_CSE7766'
+
+
+def to_hass_config(data, config):
+    ret = []
+    for key in (CONF_VOLTAGE, CONF_CURRENT, CONF_POWER):
+        if key in config:
+            ret.append(sensor.core_to_hass_config(data, config[key]))
+    return ret

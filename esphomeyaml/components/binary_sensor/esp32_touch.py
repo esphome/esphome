@@ -51,3 +51,7 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_ESP32_TOUCH_BINARY_SENSOR'
+
+
+def to_hass_config(data, config):
+    return binary_sensor.core_to_hass_config(data, config)

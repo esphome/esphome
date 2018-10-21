@@ -1,11 +1,12 @@
 import voluptuous as vol
 
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_DEVICE_CLASS, CONF_ID, CONF_INTERNAL, CONF_INVERTED, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, CONF_ON_DOUBLE_CLICK, \
     CONF_ON_PRESS, CONF_ON_RELEASE, CONF_TRIGGER_ID, CONF_FILTERS, CONF_INVERT, CONF_DELAYED_ON, \
-    CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT
+    CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT, CONF_NAME
 from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
     setup_mqtt_component, bool_, process_lambda, ArrayInitializer
 
@@ -152,6 +153,16 @@ def register_binary_sensor(var, config):
     rhs = App.register_binary_sensor(binary_sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
     add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'binary_sensor', config,
+                                 include_state=True, include_command=False)
+    if ret is None:
+        return None
+    if CONF_DEVICE_CLASS in config:
+        ret['device_class'] = config[CONF_DEVICE_CLASS]
+    return ret
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'

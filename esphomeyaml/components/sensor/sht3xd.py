@@ -36,3 +36,8 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_SHT3XD'
+
+
+def to_hass_config(data, config):
+    return [sensor.core_to_hass_config(data, config[CONF_TEMPERATURE]),
+            sensor.core_to_hass_config(data, config[CONF_HUMIDITY])]

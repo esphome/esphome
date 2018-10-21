@@ -1,6 +1,7 @@
 import voluptuous as vol
 
 from esphomeyaml import automation
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_ON_VALUE, \
     CONF_TRIGGER_ID
@@ -58,3 +59,12 @@ def register_text_sensor(var, config):
 
 
 BUILD_FLAGS = '-DUSE_TEXT_SENSOR'
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'sensor', config, include_state=True, include_command=False)
+    if ret is None:
+        return None
+    if CONF_ICON in config:
+        ret['icon'] = config[CONF_ICON]
+    return ret

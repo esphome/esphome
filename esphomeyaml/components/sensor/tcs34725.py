@@ -78,3 +78,12 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TCS34725'
+
+
+def to_hass_config(data, config):
+    ret = []
+    for key in (CONF_RED_CHANNEL, CONF_GREEN_CHANNEL, CONF_BLUE_CHANNEL, CONF_CLEAR_CHANNEL,
+                CONF_ILLUMINANCE, CONF_COLOR_TEMPERATURE):
+        if key in config:
+            ret.append(sensor.core_to_hass_config(data, config[key]))
+    return ret

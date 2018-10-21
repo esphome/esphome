@@ -27,3 +27,7 @@ def to_code(config):
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
     fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)
+
+
+def to_hass_config(data, config):
+    return fan.core_to_hass_config(data, config)

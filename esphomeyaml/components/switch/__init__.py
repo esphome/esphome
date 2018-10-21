@@ -1,8 +1,10 @@
 import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL
+from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
+    CONF_OPTIMISTIC
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
     TemplateArguments, get_variable
 
@@ -100,3 +102,14 @@ def switch_turn_on_to_code(config, action_id, arg_type):
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(arg_type)
     yield Pvariable(action_id, rhs, type=type)
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'switch', config, include_state=True, include_command=True)
+    if ret is None:
+        return None
+    if CONF_ICON in config:
+        ret['icon'] = config[CONF_ICON]
+    if CONF_OPTIMISTIC in config:
+        ret['optimistic'] = config[CONF_OPTIMISTIC]
+    return ret
