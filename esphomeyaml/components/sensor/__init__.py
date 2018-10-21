@@ -7,7 +7,8 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CO
     CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, \
     CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
-    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, \
+    CONF_SEND_FIRST_AT
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, add_job, esphomelib_ns, \
     float_, process_lambda, setup_mqtt_component, templatable
 
@@ -20,6 +21,15 @@ def validate_recursive_filter(value):
     return FILTERS_SCHEMA(value)
 
 
+def validate_first_at_less_than_send_every(value):
+    send_first_at = value.get(CONF_SEND_FIRST_AT)
+    send_every = value[CONF_SEND_EVERY]
+    if send_first_at is not None and send_first_at > send_every:
+        raise vol.Invalid("send_first_at must be smaller than or equal to send_every! {} <= {}"
+                          "".format(send_first_at, send_every))
+    return value
+
+
 FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT, CONF_FILTER_NAN,
                CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_LAMBDA,
                CONF_THROTTLE, CONF_DELTA, CONF_UNIQUE, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR]
@@ -29,10 +39,11 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_MULTIPLY): vol.Coerce(float),
     vol.Optional(CONF_FILTER_OUT): vol.Coerce(float),
     vol.Optional(CONF_FILTER_NAN): None,
-    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.Schema({
+    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
         vol.Required(CONF_WINDOW_SIZE): cv.positive_not_null_int,
         vol.Required(CONF_SEND_EVERY): cv.positive_not_null_int,
-    }),
+        vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
+    }), validate_first_at_less_than_send_every),
     vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): vol.Schema({
         vol.Required(CONF_ALPHA): cv.positive_float,
         vol.Required(CONF_SEND_EVERY): cv.positive_not_null_int,
@@ -103,7 +114,8 @@ def setup_filter(config):
         yield FilterOutNANFilter.new()
     elif CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
         conf = config[CONF_SLIDING_WINDOW_MOVING_AVERAGE]
-        yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY])
+        yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY],
+                                                   conf.get(CONF_SEND_FIRST_AT))
     elif CONF_EXPONENTIAL_MOVING_AVERAGE in config:
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
         yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
