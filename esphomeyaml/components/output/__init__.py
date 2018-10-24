@@ -85,7 +85,7 @@ def output_turn_off_to_code(config, action_id, arg_type):
 CONF_OUTPUT_SET_LEVEL = 'output.set_level'
 OUTPUT_SET_LEVEL_ACTION = vol.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(None),
-    vol.Required(CONF_LEVEL): cv.percentage,
+    vol.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 })
 
 
