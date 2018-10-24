@@ -5,7 +5,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
 from esphomeyaml.helpers import add, esphomelib_ns, get_variable, TemplateArguments, Pvariable, \
-    templatable, bool_
+    templatable, bool_, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -97,7 +97,7 @@ def output_set_level_to_code(config, action_id, arg_type):
     rhs = var.make_set_level_action(template_arg)
     type = SetLevelAction.template(arg_type)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], arg_type, bool_):
+    for template_ in templatable(config[CONF_LEVEL], arg_type, float_):
         yield None
     add(action.set_level(template_))
     yield action

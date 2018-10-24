@@ -797,6 +797,12 @@ switch:
     optimistic: True
     turn_on_action:
     - switch.turn_on: living_room_lights_on
+    - output.set_level:
+        id: gpio_19
+        level: 50%
+    - output.set_level:
+        id: gpio_19
+        level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
   - platform: restart
@@ -831,6 +837,19 @@ switch:
   - platform: uart
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: template
+    optimistic: true
+    name: Stepper Switch
+    turn_on_action:
+    - stepper.set_target:
+        id: my_stepper
+        target: !lambda |-
+          static int32_t i = 0;
+          i += 1000;
+          if (i > 5000) {
+            i = -5000;
+          }
+          return i;
 
 fan:
   - platform: binary
@@ -941,3 +960,13 @@ pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
     pcf8575: False
+
+stepper:
+- platform: a4988
+  id: my_stepper
+  step_pin: GPIO23
+  dir_pin: GPIO24
+  sleep_pin: GPIO25
+  max_speed: 250 steps/s
+  acceleration: 100 steps/s^2
+  deceleration: 200 steps/s^2
