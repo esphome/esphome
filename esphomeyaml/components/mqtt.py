@@ -306,4 +306,3 @@ class GenerateHassConfigData(object):
                 CONF_PAYLOAD_AVAILABLE: birth_message[CONF_PAYLOAD],
                 CONF_PAYLOAD_NOT_AVAILABLE: will_message[CONF_PAYLOAD],
             }
-
