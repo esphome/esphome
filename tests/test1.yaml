@@ -536,6 +536,12 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: sonoff_rf_bridge
+    name: Sonoff RF Bridge Binary Sensor
+    sync: 100
+    low: 100
+    high: 100
+    data: "01101110110101000010101010101011"
 
 pca9685:
   frequency: 500
@@ -831,6 +837,12 @@ switch:
   - platform: uart
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
+  - platform: sonoff_rf_bridge
+    name: Sonoff RF Bridge Switch
+    sync: 100
+    low: 100
+    high: 100
+    data: "01101110110101000010101010101011"
 
 fan:
   - platform: binary
@@ -941,3 +953,5 @@ pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
     pcf8575: False
+
+sonoff_rf_bridge:
