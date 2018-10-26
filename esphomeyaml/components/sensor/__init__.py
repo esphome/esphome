@@ -21,7 +21,7 @@ def validate_recursive_filter(value):
     return FILTERS_SCHEMA(value)
 
 
-def validate_first_at_less_than_send_every(value):
+def validate_send_first_at(value):
     send_first_at = value.get(CONF_SEND_FIRST_AT)
     send_every = value[CONF_SEND_EVERY]
     if send_first_at is not None and send_first_at > send_every:
@@ -43,7 +43,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
         vol.Required(CONF_WINDOW_SIZE): cv.positive_not_null_int,
         vol.Required(CONF_SEND_EVERY): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
-    }), validate_first_at_less_than_send_every),
+    }), validate_send_first_at),
     vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): vol.Schema({
         vol.Required(CONF_ALPHA): cv.positive_float,
         vol.Required(CONF_SEND_EVERY): cv.positive_not_null_int,
