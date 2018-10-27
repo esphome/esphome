@@ -1,3 +1,5 @@
+import copy
+
 import voluptuous as vol
 
 from esphomeyaml import core
@@ -28,8 +30,9 @@ def validate_recursive_condition(value):
 
 
 def validate_recursive_action(value):
-    value = cv.ensure_list(value)
+    value = cv.ensure_list(value)[:]
     for i, item in enumerate(value):
+        item = copy.deepcopy(item)
         if not isinstance(item, dict):
             raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item))
         key = next((x for x in item if x != CONF_ACTION_ID), None)
