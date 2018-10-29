@@ -5,7 +5,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
 from esphomeyaml.helpers import add, esphomelib_ns, get_variable, TemplateArguments, Pvariable, \
-    templatable, float_
+    templatable, float_, add_job
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -43,8 +43,7 @@ def setup_output_platform_(obj, config, skip_power_supply=False):
 
 
 def setup_output_platform(obj, config, skip_power_supply=False):
-    for _ in setup_output_platform_(obj, config, skip_power_supply):
-        yield
+    add_job(setup_output_platform_, obj, config, skip_power_supply)
 
 
 BUILD_FLAGS = '-DUSE_OUTPUT'
