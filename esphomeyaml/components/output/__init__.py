@@ -50,34 +50,34 @@ BUILD_FLAGS = '-DUSE_OUTPUT'
 
 
 CONF_OUTPUT_TURN_ON = 'output.turn_on'
-OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
+OUTPUT_TURN_ON_ACTION = maybe_simple_id({
     vol.Required(CONF_ID): cv.use_variable_id(None),
 })
 
 
-@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_OFF_ACTION)
+@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_ON_ACTION)
 def output_turn_on_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(arg_type)
-    yield Pvariable(action_id, rhs, type=type)
-
-
-CONF_OUTPUT_TURN_OFF = 'output.turn_off'
-OUTPUT_TURN_ON_ACTION = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None)
-})
-
-
-@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_ON_ACTION)
-def output_turn_off_to_code(config, action_id, arg_type):
     template_arg = TemplateArguments(arg_type)
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(arg_type)
+    yield Pvariable(action_id, rhs, type=type)
+
+
+CONF_OUTPUT_TURN_OFF = 'output.turn_off'
+OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(None)
+})
+
+
+@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_OFF_ACTION)
+def output_turn_off_to_code(config, action_id, arg_type):
+    template_arg = TemplateArguments(arg_type)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_turn_off_action(template_arg)
+    type = TurnOffAction.template(arg_type)
     yield Pvariable(action_id, rhs, type=type)
 
 
