@@ -1,11 +1,11 @@
 """Constants used by esphomeyaml."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 9
-PATCH_VERSION = '0b1'
+MINOR_VERSION = 10
+PATCH_VERSION = '0-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
-ESPHOMELIB_VERSION = '1.9.0b1'
+ESPHOMELIB_VERSION = 'dev'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
@@ -350,6 +350,15 @@ CONF_ARGS = 'args'
 CONF_FORMAT = 'format'
 CONF_COLOR_CORRECT = 'color_correct'
 CONF_ON_JSON_MESSAGE = 'on_json_message'
+CONF_ACCELERATION = 'acceleration'
+CONF_DECELERATION = 'deceleration'
+CONF_MAX_SPEED = 'max_speed'
+CONF_TARGET = 'target'
+CONF_POSITION = 'position'
+CONF_STEP_PIN = 'step_pin'
+CONF_DIR_PIN = 'dir_pin'
+CONF_SLEEP_PIN = 'sleep_pin'
+CONF_SEND_FIRST_AT = 'send_first_at'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

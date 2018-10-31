@@ -46,6 +46,8 @@ def validate_board(value):
 def validate_simple_esphomelib_version(value):
     value = cv.string_strict(value)
     if value.upper() == 'LATEST':
+        if ESPHOMELIB_VERSION == 'dev':
+            return validate_simple_esphomelib_version('dev')
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + ESPHOMELIB_VERSION,
@@ -53,7 +55,7 @@ def validate_simple_esphomelib_version(value):
     elif value.upper() == 'DEV':
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
-            CONF_BRANCH: 'master'
+            CONF_BRANCH: 'dev'
         }
     elif VERSION_REGEX.match(value) is not None:
         return {
