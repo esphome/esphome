@@ -1,6 +1,6 @@
 {
   "name": "esphomeyaml-beta",
-  "version": "1.9.0b2",
+  "version": "1.9.0b3",
   "slug": "esphomeyaml-beta",
   "description": "Beta version of esphomeyaml HassIO add-on.",
   "url": "https://beta.esphomelib.com/esphomeyaml/index.html",
