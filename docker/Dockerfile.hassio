@@ -16,12 +16,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     platformio settings set check_platforms_interval 1000000
 
 COPY docker/platformio.ini /pio/platformio.ini
-ARG ESPHOMELIB_VERSION=""
-RUN platformio run -d /pio; rm -rf /pio && \
-    /bin/bash -c "if [ ! -z '$ESPHOMELIB_VERSION']; then \
-        platformio lib -g install '${ESPHOMELIB_VERSION}'; \
-    fi"
+RUN platformio run -d /pio; rm -rf /pio
 
+ARG ESPHOMELIB_VERSION="dev"
+RUN platformio lib -g install "https://github.com/OttoWinter/esphomelib.git#${ESPHOMELIB_VERSION}"
 
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \
