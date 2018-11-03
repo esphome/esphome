@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import re
 
 import voluptuous as vol
@@ -10,7 +11,10 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
     CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, \
     CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, \
     CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
-    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_ON_JSON_MESSAGE
+    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_ON_JSON_MESSAGE, \
+    CONF_STATE_TOPIC, CONF_MQTT, CONF_ESPHOMEYAML, CONF_NAME, CONF_AVAILABILITY, \
+    CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_INTERNAL
+from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
     uint8, bool_, JsonObjectRef, process_lambda, JsonObjectConstRef
@@ -239,3 +243,66 @@ def required_build_flags(config):
     if CONF_SSL_FINGERPRINTS in config:
         return '-DASYNC_TCP_SSL_ENABLED=1'
     return None
+
+
+def get_default_topic_for(data, component_type, name, suffix):
+    whitelist = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
+    sanitized_name = ''.join(x for x in name.lower().replace(' ', '_') if x in whitelist)
+    return '{}/{}/{}/{}'.format(data.topic_prefix, component_type,
+                                sanitized_name, suffix)
+
+
+def build_hass_config(data, component_type, config, include_state=True, include_command=True,
+                      platform='mqtt'):
+    if config.get(CONF_INTERNAL, False):
+        return None
+    ret = OrderedDict()
+    ret['platform'] = platform
+    ret['name'] = config[CONF_NAME]
+    if include_state:
+        default = get_default_topic_for(data, component_type, config[CONF_NAME], 'state')
+        ret['state_topic'] = config.get(CONF_STATE_TOPIC, default)
+    if include_command:
+        default = get_default_topic_for(data, component_type, config[CONF_NAME], 'command')
+        ret['command_topic'] = config.get(CONF_STATE_TOPIC, default)
+    avail = config.get(CONF_AVAILABILITY, data.availability)
+    if avail:
+        ret['availability_topic'] = avail[CONF_TOPIC]
+        payload_available = avail[CONF_PAYLOAD_AVAILABLE]
+        if payload_available != 'online':
+            ret['payload_available'] = payload_available
+        payload_not_available = avail[CONF_PAYLOAD_NOT_AVAILABLE]
+        if payload_not_available != 'offline':
+            ret['payload_not_available'] = payload_not_available
+    return ret
+
+
+class GenerateHassConfigData(object):
+    def __init__(self, config):
+        if 'mqtt' not in config:
+            raise ESPHomeYAMLError("Cannot generate Home Assistant MQTT config if MQTT is not "
+                                   "used!")
+        mqtt = config[CONF_MQTT]
+        self.topic_prefix = mqtt.get(CONF_TOPIC_PREFIX, config[CONF_ESPHOMEYAML][CONF_NAME])
+        birth_message = mqtt.get(CONF_BIRTH_MESSAGE)
+        if CONF_BIRTH_MESSAGE not in mqtt:
+            birth_message = {
+                CONF_TOPIC: self.topic_prefix + '/status',
+                CONF_PAYLOAD: 'online',
+            }
+        will_message = mqtt.get(CONF_WILL_MESSAGE)
+        if CONF_WILL_MESSAGE not in mqtt:
+            will_message = {
+                CONF_TOPIC: self.topic_prefix + '/status',
+                CONF_PAYLOAD: 'offline'
+            }
+        if not birth_message or not will_message:
+            self.availability = None
+        elif birth_message[CONF_TOPIC] != will_message[CONF_TOPIC]:
+            self.availability = None
+        else:
+            self.availability = {
+                CONF_TOPIC: birth_message[CONF_TOPIC],
+                CONF_PAYLOAD_AVAILABLE: birth_message[CONF_PAYLOAD],
+                CONF_PAYLOAD_NOT_AVAILABLE: will_message[CONF_PAYLOAD],
+            }

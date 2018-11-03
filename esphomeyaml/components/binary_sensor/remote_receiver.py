@@ -119,3 +119,7 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_REMOTE_RECEIVER'
+
+
+def to_hass_config(data, config):
+    return binary_sensor.core_to_hass_config(data, config)

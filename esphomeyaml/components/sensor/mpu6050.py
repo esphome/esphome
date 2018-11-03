@@ -69,3 +69,12 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_MPU6050'
+
+
+def to_hass_config(data, config):
+    ret = []
+    for key in (CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z, CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z,
+                CONF_TEMPERATURE):
+        if key in config:
+            ret.append(sensor.core_to_hass_config(data, config[key]))
+    return ret

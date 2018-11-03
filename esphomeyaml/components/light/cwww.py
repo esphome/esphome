@@ -32,3 +32,8 @@ def to_code(config):
                               cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+
+
+def to_hass_config(data, config):
+    return light.core_to_hass_config(data, config, brightness=True, rgb=False, color_temp=True,
+                                     white_value=False)

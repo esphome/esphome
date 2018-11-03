@@ -1,8 +1,11 @@
-ARG BUILD_FROM=python:2.7
+# Dockerfile for HassIO add-on
+ARG BUILD_FROM=homeassistant/amd64-base-ubuntu:latest
 FROM ${BUILD_FROM}
-MAINTAINER Otto Winter <contact@otto-winter.com>
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python \
+        python-pip \
+        python-setuptools \
         python-pil \
         git \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
@@ -12,11 +15,6 @@ RUN apt-get update && apt-get install -y \
     platformio settings set check_platformio_interval 1000000 && \
     platformio settings set check_platforms_interval 1000000
 
-ENV ESPHOMEYAML_OTA_HOST_PORT=6123
-EXPOSE 6123
-VOLUME /config
-WORKDIR /usr/src/app
-
 COPY docker/platformio.ini /pio/platformio.ini
 ARG ESPHOMELIB_VERSION=""
 RUN platformio run -d /pio; rm -rf /pio && \
@@ -24,10 +22,23 @@ RUN platformio run -d /pio; rm -rf /pio && \
         platformio lib -g install '${ESPHOMELIB_VERSION}'; \
     fi"
 
+
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \
     pip install --no-cache-dir --no-binary :all: tzlocal
 
-WORKDIR /config
-ENTRYPOINT ["esphomeyaml"]
-CMD ["/config", "dashboard"]
+CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]
+
+# Build arugments
+ARG ADDON_ARCH
+ARG ADDON_VERSION
+
+# Labels
+LABEL \
+    io.hass.name="esphomeyaml" \
+    io.hass.description="esphomeyaml HassIO add-on for intelligently managing all your ESP8266/ESP32 devices." \
+    io.hass.arch="${ADDON_ARCH}" \
+    io.hass.type="addon" \
+    io.hass.version="${ADDON_VERSION}" \
+    io.hass.url="https://esphomelib.com/esphomeyaml/index.html" \
+    maintainer="Otto Winter <contact@otto-winter.com>"

@@ -13,7 +13,8 @@ from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_BUILD_PATH
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml import const, core, __main__
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.helpers import quote, relative_path
+from esphomeyaml.helpers import relative_path
+from esphomeyaml.util import shlex_quote
 
 try:
     import tornado
@@ -51,7 +52,7 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
         if self.proc is not None:
             return
         command = self.build_command(message)
-        _LOGGER.debug(u"WebSocket opened for command %s", [quote(x) for x in command])
+        _LOGGER.debug(u"WebSocket opened for command %s", [shlex_quote(x) for x in command])
         self.proc = tornado.process.Subprocess(command,
                                                stdout=tornado.process.Subprocess.STREAM,
                                                stderr=subprocess.STDOUT)
@@ -129,6 +130,13 @@ class EsphomeyamlCleanHandler(EsphomeyamlCommandWebSocket):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
         return ["esphomeyaml", config_file, "clean"]
+
+
+class EsphomeyamlHassConfigHandler(EsphomeyamlCommandWebSocket):
+    def build_command(self, message):
+        js = json.loads(message)
+        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+        return ["esphomeyaml", config_file, "hass-config"]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -229,6 +237,7 @@ def make_app(debug=False):
         (r"/validate", EsphomeyamlValidateHandler),
         (r"/clean-mqtt", EsphomeyamlCleanMqttHandler),
         (r"/clean", EsphomeyamlCleanHandler),
+        (r"/hass-config", EsphomeyamlHassConfigHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
