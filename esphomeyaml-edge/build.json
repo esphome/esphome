@@ -1,10 +1,10 @@
 {
     "squash": false,
     "build_from": {
-        "aarch64": "arm64v8/ubuntu:bionic",
-        "amd64": "ubuntu:bionic",
-        "armhf": "homeassistant/armhf-base:latest",
-        "i386": "i386/ubuntu:bionic"
+        "aarch64": "homeassistant/aarch64-base-ubuntu:latest",
+        "amd64": "homeassistant/amd64-base-ubuntu:latest",
+        "armhf": "homeassistant/armhf-base-ubuntu:latest",
+        "i386": "homeassistant/i386-base-ubuntu:latest"
     },
     "args": {}
 }
