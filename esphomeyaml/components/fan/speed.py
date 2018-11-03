@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import fan
+from esphomeyaml.components import fan, mqtt
 from esphomeyaml.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CONF_NAME, \
     CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, \
     CONF_SPEED_STATE_TOPIC
@@ -43,3 +43,14 @@ def to_code(config):
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
     fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)
+
+
+def to_hass_config(data, config):
+    ret = fan.core_to_hass_config(data, config)
+    if ret is None:
+        return None
+    default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'speed/state')
+    ret['speed_state_topic'] = config.get(CONF_SPEED_STATE_TOPIC, default)
+    default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'speed/command')
+    ret['speed_command__topic'] = config.get(CONF_SPEED_COMMAND_TOPIC, default)
+    return ret

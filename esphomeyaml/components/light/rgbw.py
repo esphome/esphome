@@ -34,3 +34,8 @@ def to_code(config):
     rhs = App.make_rgbw_light(config[CONF_NAME], red, green, blue, white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+
+
+def to_hass_config(data, config):
+    return light.core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=False,
+                                     white_value=True)

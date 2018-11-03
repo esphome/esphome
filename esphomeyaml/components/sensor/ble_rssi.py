@@ -21,3 +21,7 @@ def to_code(config):
         yield
     rhs = hub.make_rssi_sensor(config[CONF_NAME], make_address_array(config[CONF_MAC_ADDRESS]))
     sensor.register_sensor(rhs, config)
+
+
+def to_hass_config(data, config):
+    return sensor.core_to_hass_config(data, config)

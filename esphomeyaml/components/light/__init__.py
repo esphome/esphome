@@ -1,6 +1,7 @@
 import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
@@ -448,3 +449,24 @@ def light_turn_on_to_code(config, action_id, arg_type):
             yield None
         add(action.set_effect(template_))
     yield action
+
+
+def core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=True,
+                        white_value=True):
+    ret = mqtt.build_hass_config(data, 'light', config, include_state=True, include_command=True,
+                                 platform='mqtt_json')
+    if ret is None:
+        return None
+    if brightness:
+        ret['brightness'] = True
+    if rgb:
+        ret['rgb'] = True
+    if color_temp:
+        ret['color_temp'] = True
+    if white_value:
+        ret['white_value'] = True
+    for effect in config.get(CONF_EFFECTS, []):
+        ret["effect"] = True
+        effects = ret.setdefault("effect_list", [])
+        effects.append(next(x for x in effect.values())[CONF_NAME])
+    return ret

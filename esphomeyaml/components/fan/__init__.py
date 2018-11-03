@@ -1,10 +1,11 @@
 import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_OSCILLATION_COMMAND_TOPIC, \
     CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL, \
-    CONF_SPEED, CONF_OSCILLATING
+    CONF_SPEED, CONF_OSCILLATING, CONF_OSCILLATION_OUTPUT, CONF_NAME
 from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
     TemplateArguments, get_variable, templatable, bool_
 
@@ -128,3 +129,15 @@ def fan_turn_on_to_code(config, action_id, arg_type):
             yield None
         add(action.set_speed(template_))
     yield action
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'fan', config, include_state=True, include_command=True)
+    if ret is None:
+        return None
+    if CONF_OSCILLATION_OUTPUT in config:
+        default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'oscillation/state')
+        ret['oscillation_state_topic'] = config.get(CONF_OSCILLATION_STATE_TOPIC, default)
+        default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'oscillation/command')
+        ret['oscillation_command__topic'] = config.get(CONF_OSCILLATION_COMMAND_TOPIC, default)
+    return ret

@@ -1,6 +1,7 @@
 import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_INTERNAL
 from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add, \
@@ -88,3 +89,10 @@ def cover_stop_to_code(config, action_id, arg_type):
     rhs = var.make_stop_action(template_arg)
     type = StopAction.template(arg_type)
     yield Pvariable(action_id, rhs, type=type)
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'cover', config, include_state=True, include_command=True)
+    if ret is None:
+        return None
+    return ret

@@ -27,17 +27,24 @@ OTA_VERSION_1_0 = 1
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 _LOGGER = logging.getLogger(__name__)
+LAST_PROGRESS = -1
 
 
 def update_progress(progress):
+    global LAST_PROGRESS
+
     bar_length = 60
     status = ""
     if progress >= 1:
         progress = 1
         status = "Done...\r\n"
+    new_progress = int(progress * 100)
+    if new_progress == LAST_PROGRESS:
+        return
+    LAST_PROGRESS = new_progress
     block = int(round(bar_length * progress))
     text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
-                                                int(progress * 100), status)
+                                                new_progress, status)
     sys.stderr.write(text)
     sys.stderr.flush()
 

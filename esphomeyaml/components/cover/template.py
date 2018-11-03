@@ -45,3 +45,12 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'
+
+
+def to_hass_config(data, config):
+    ret = cover.core_to_hass_config(data, config)
+    if ret is None:
+        return None
+    if CONF_OPTIMISTIC in config:
+        ret['optimistic'] = config[CONF_OPTIMISTIC]
+    return ret

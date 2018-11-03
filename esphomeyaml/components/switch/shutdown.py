@@ -20,3 +20,7 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_SHUTDOWN_SWITCH'
+
+
+def to_hass_config(data, config):
+    return switch.core_to_hass_config(data, config)

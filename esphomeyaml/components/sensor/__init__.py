@@ -1,5 +1,6 @@
 import voluptuous as vol
 
+from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
@@ -211,3 +212,18 @@ def register_sensor(var, config):
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'
+
+
+def core_to_hass_config(data, config):
+    ret = mqtt.build_hass_config(data, 'sensor', config, include_state=True, include_command=False)
+    if ret is None:
+        return None
+    if CONF_UNIT_OF_MEASUREMENT in config:
+        ret['unit_of_measurement'] = config[CONF_UNIT_OF_MEASUREMENT]
+    if CONF_EXPIRE_AFTER in config:
+        expire = config[CONF_EXPIRE_AFTER]
+        if expire is not None:
+            ret['expire_after'] = expire.total_seconds
+    if CONF_ICON in config:
+        ret['icon'] = config[CONF_ICON]
+    return ret

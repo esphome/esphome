@@ -52,3 +52,7 @@ def required_build_flags(config):
     if config[CONF_PIN] == 'VCC':
         return '-DUSE_ADC_SENSOR_VCC'
     return None
+
+
+def to_hass_config(data, config):
+    return sensor.core_to_hass_config(data, config)
