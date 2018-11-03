@@ -7,16 +7,15 @@ import random
 import sys
 from datetime import datetime
 
-from esphomeyaml import const, core, core_config, mqtt, wizard, writer, yaml_util
+from esphomeyaml import const, core, core_config, mqtt, wizard, writer, yaml_util, platformio_api
 from esphomeyaml.config import get_component, iter_components, read_config
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
     CONF_WIFI, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, \
-    _EXPRESSIONS, add, \
-    add_job, color, flush_tasks, indent, quote, statement, relative_path
-from esphomeyaml.util import safe_print
+    _EXPRESSIONS, add, add_job, color, flush_tasks, indent, statement, relative_path
+from esphomeyaml.util import safe_print, run_external_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -62,34 +61,6 @@ def choose_serial_port(config):
     return result[opt][0]
 
 
-def run_platformio(*cmd, **kwargs):
-    def mock_exit(return_code):
-        raise SystemExit(return_code)
-
-    orig_argv = sys.argv
-    orig_exit = sys.exit  # mock sys.exit
-    full_cmd = u' '.join(quote(x) for x in cmd)
-    _LOGGER.info(u"Running:  %s", full_cmd)
-    try:
-        func = kwargs.get('main')
-        if func is None:
-            import platformio.__main__
-            func = platformio.__main__.main
-        sys.argv = list(cmd)
-        sys.exit = mock_exit
-        return func() or 0
-    except KeyboardInterrupt:
-        return 1
-    except SystemExit as err:
-        return err.args[0]
-    except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.error(u"Running platformio failed: %s", err)
-        _LOGGER.error(u"Please try running %s locally.", full_cmd)
-    finally:
-        sys.argv = orig_argv
-        sys.exit = orig_exit
-
-
 def run_miniterm(config, port, escape=False):
     import serial
     if CONF_LOGGER not in config:
@@ -100,6 +71,7 @@ def run_miniterm(config, port, escape=False):
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
+    backtrace_state = False
     with serial.Serial(port, baudrate=baud_rate) as ser:
         while True:
             try:
@@ -113,6 +85,9 @@ def run_miniterm(config, port, escape=False):
             if escape:
                 message = message.replace('\033', '\\033')
             safe_print(message)
+
+            backtrace_state = platformio_api.process_stacktrace(
+                config, line, backtrace_state=backtrace_state)
 
 
 def write_cpp(config):
@@ -154,11 +129,7 @@ def write_cpp(config):
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    command = ['platformio', 'run', '-d', build_path]
-    if args.verbose:
-        command.append('-v')
-    return run_platformio(*command)
+    return platformio_api.run_compile(config, args.verbose)
 
 
 def get_upload_host(config):
@@ -176,10 +147,10 @@ def upload_using_esptool(config, port):
 
     build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
     path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
+    cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
     # pylint: disable=protected-access
-    return run_platformio('esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
-                          '--chip', 'esp8266', '--port', port, 'write_flash', '0x0',
-                          path, main=esptool._main)
+    return run_external_command(esptool._main, *cmd)
 
 
 def upload_program(config, args, port):
@@ -190,11 +161,7 @@ def upload_program(config, args, port):
     if port != 'OTA' and serial_port:
         if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
             return upload_using_esptool(config, port)
-        command = ['platformio', 'run', '-d', build_path,
-                   '-t', 'upload', '--upload-port', port]
-        if args.verbose:
-            command.append('-v')
-        return run_platformio(*command)
+        return platformio_api.run_upload(config, args.verbose, port)
 
     if 'ota' not in config:
         _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
@@ -243,7 +210,7 @@ def clean_mqtt(config, args):
 def setup_log(debug=False):
     log_level = logging.DEBUG if debug else logging.INFO
     logging.basicConfig(level=log_level)
-    fmt = "%(levelname)s [%(name)s] %(message)s"
+    fmt = "%(levelname)s %(message)s"
     colorfmt = "%(log_color)s{}%(reset)s".format(fmt)
     datefmt = '%H:%M:%S'
 
