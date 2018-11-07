@@ -50,6 +50,8 @@ def to_code(config):
         sensor.register_sensor(hlw.make_power_sensor(conf[CONF_NAME]), conf)
     if CONF_CURRENT_RESISTOR in config:
         add(hlw.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
+    if CONF_VOLTAGE_DIVIDER in config:
+        add(hlw.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
     if CONF_CHANGE_MODE_EVERY in config:
         add(hlw.set_change_mode_every(config[CONF_CHANGE_MODE_EVERY]))
 
