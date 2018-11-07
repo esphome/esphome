@@ -359,6 +359,7 @@ CONF_STEP_PIN = 'step_pin'
 CONF_DIR_PIN = 'dir_pin'
 CONF_SLEEP_PIN = 'sleep_pin'
 CONF_SEND_FIRST_AT = 'send_first_at'
+CONF_TIME_ID = 'time_id'
 CONF_RESTORE_STATE = 'restore_state'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
