@@ -4,6 +4,8 @@ import random
 import socket
 import sys
 
+from esphomeyaml.core import ESPHomeYAMLError
+
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
 
@@ -49,7 +51,7 @@ def update_progress(progress):
     sys.stderr.flush()
 
 
-class OTAError(Exception):
+class OTAError(ESPHomeYAMLError):
     pass
 
 
@@ -202,12 +204,52 @@ def perform_ota(sock, password, file_handle, filename):
     _LOGGER.info("OTA successful")
 
 
-def run_ota(remote_host, remote_port, password, filename):
-    _LOGGER.info("Connecting to %s:%s...", remote_host, remote_port)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(5.0)
+def is_ip_address(host):
+    parts = host.split('.')
+    if len(parts) != 4:
+        return False
     try:
-        sock.connect((remote_host, remote_port))
+        for p in parts:
+            int(p)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_ip_address(host):
+    if is_ip_address(host):
+        return host
+
+    _LOGGER.info("Resolving IP Address of %s", host)
+    hosts = [host]
+    if host.endswith('.local'):
+        hosts.append(host[:-6])
+
+    errors = []
+    for x in hosts:
+        try:
+            ip = socket.gethostbyname(x)
+            break
+        except socket.error as err:
+            errors.append(err)
+    else:
+        _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
+                      host)
+
+        _LOGGER.error("(If this error persists, please set a static IP address: "
+                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips")
+        raise OTAError("Errors: {}".format(', '.join(str(x) for x in errors)))
+
+    _LOGGER.info(" -> %s", ip)
+    return ip
+
+
+def run_ota(remote_host, remote_port, password, filename):
+    ip = resolve_ip_address(remote_host)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(10.0)
+    try:
+        sock.connect((ip, remote_port))
     except socket.error as err:
         sock.close()
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
