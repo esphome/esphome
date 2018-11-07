@@ -364,6 +364,9 @@ CONF_TIME_ID = 'time_id'
 CONF_RESTORE_STATE = 'restore_state'
 CONF_TIMING = 'timing'
 CONF_INVALID_COOLDOWN = 'invalid_cooldown'
+CONF_MY9231_ID = 'my9231_id'
+CONF_NUM_CHANNELS = 'num_channels'
+CONF_UPDATE_ON_BOOT = 'update_on_boot'
 
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'

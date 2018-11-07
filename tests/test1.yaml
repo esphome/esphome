@@ -571,6 +571,13 @@ pca9685:
   frequency: 500
   address: 0x0
 
+my9231:
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  num_channels: 6
+  num_chips: 2
+  bit_depth: 16
+
 output:
   - platform: gpio
     pin: GPIO26
@@ -615,6 +622,24 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: my9231
+    id: my_0
+    channel: 0
+  - platform: my9231
+    id: my_1
+    channel: 1
+  - platform: my9231
+    id: my_2
+    channel: 2
+  - platform: my9231
+    id: my_3
+    channel: 3
+  - platform: my9231
+    id: my_4
+    channel: 4
+  - platform: my9231
+    id: my_5
+    channel: 5
 
 light:
   - platform: binary
