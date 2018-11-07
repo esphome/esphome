@@ -9,8 +9,10 @@ from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression
     gpio_output_pin_expression, variable
 
 MakeUltrasonicSensor = Application.MakeUltrasonicSensor
+UltrasonicSensorComponent = sensor.sensor_ns.UltrasonicSensorComponent
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeUltrasonicSensor),
     vol.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,

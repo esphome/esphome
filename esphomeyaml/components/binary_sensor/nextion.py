@@ -4,13 +4,16 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.display.nextion import Nextion
 from esphomeyaml.const import CONF_COMPONENT_ID, CONF_NAME, CONF_PAGE_ID
-from esphomeyaml.helpers import get_variable
+from esphomeyaml.helpers import get_variable, esphomelib_ns
 
 DEPENDENCIES = ['display']
 
 CONF_NEXTION_ID = 'nextion_id'
 
+NextionTouchComponent = esphomelib_ns.NextionTouchComponent
+
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(NextionTouchComponent),
     vol.Required(CONF_PAGE_ID): cv.uint8_t,
     vol.Required(CONF_COMPONENT_ID): cv.uint8_t,
     cv.GenerateID(CONF_NEXTION_ID): cv.use_variable_id(Nextion)

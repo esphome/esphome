@@ -6,9 +6,11 @@ from esphomeyaml.helpers import App, Application, variable
 DEPENDENCIES = ['mqtt']
 
 MakeStatusBinarySensor = Application.MakeStatusBinarySensor
+StatusBinarySensor = binary_sensor.binary_sensor_ns.StatusBinarySensor
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeStatusBinarySensor),
+    cv.GenerateID(): cv.declare_variable_id(StatusBinarySensor),
 }))
 
 

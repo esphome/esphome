@@ -103,6 +103,7 @@ def get_ini_content(config, path):
         build_flags |= get_build_flags(config, 'BUILD_FLAGS')
         build_flags.add(u"-DESPHOMEYAML_USE")
         build_flags.add("-Wno-unused-variable")
+        build_flags.add("-Wno-unused-but-set-variable")
     build_flags |= get_build_flags(config, 'required_build_flags')
     build_flags |= get_build_flags(config, 'REQUIRED_BUILD_FLAGS')
 

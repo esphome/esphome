@@ -17,8 +17,10 @@ CONF_PIN_B = 'pin_b'
 CONF_PIN_RESET = 'pin_reset'
 
 MakeRotaryEncoderSensor = Application.MakeRotaryEncoderSensor
+RotaryEncoderSensor = sensor.sensor_ns.RotaryEncoderSensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(RotaryEncoderSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeRotaryEncoderSensor),
     vol.Required(CONF_PIN_A): pins.internal_gpio_input_pin_schema,
     vol.Required(CONF_PIN_B): pins.internal_gpio_input_pin_schema,

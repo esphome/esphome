@@ -7,8 +7,10 @@ from esphomeyaml.helpers import App, Application, add, optional, process_lambda,
     variable
 
 MakeTemplateTextSensor = Application.MakeTemplateTextSensor
+TemplateTextSensor = text_sensor.text_sensor_ns.TemplateTextSensor
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateTextSensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,

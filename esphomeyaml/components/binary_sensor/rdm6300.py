@@ -9,7 +9,10 @@ DEPENDENCIES = ['rdm6300']
 
 CONF_RDM6300_ID = 'rdm6300_id'
 
+RDM6300BinarySensor = binary_sensor.binary_sensor_ns.RDM6300BinarySensor
+
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(RDM6300BinarySensor),
     vol.Required(CONF_UID): cv.uint32_t,
     cv.GenerateID(CONF_RDM6300_ID): cv.use_variable_id(rdm6300.RDM6300Component)
 }))

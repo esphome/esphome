@@ -1,13 +1,15 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME
-from esphomeyaml.helpers import App, Application, process_lambda, variable, optional, bool_, add
+from esphomeyaml.helpers import App, Application, add, bool_, optional, process_lambda, variable
 
 MakeTemplateBinarySensor = Application.MakeTemplateBinarySensor
+TemplateBinarySensor = binary_sensor.binary_sensor_ns.TemplateBinarySensor
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateBinarySensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
 }))

@@ -10,6 +10,7 @@ from esphomeyaml.helpers import App, Application, ArrayInitializer, get_variable
 DEPENDENCIES = ['uart']
 
 MakeUARTSwitch = Application.MakeUARTSwitch
+UARTSwitch = switch.switch_ns.UARTSwitch
 
 
 def validate_data(value):
@@ -23,6 +24,7 @@ def validate_data(value):
 
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(UARTSwitch),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeUARTSwitch),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
     vol.Required(CONF_DATA): validate_data,
