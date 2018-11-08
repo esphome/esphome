@@ -6,8 +6,10 @@ from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, variable
 
 MakeWiFiSignalSensor = Application.MakeWiFiSignalSensor
+WiFiSignalSensor = sensor.sensor_ns.WiFiSignalSensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(WiFiSignalSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeWiFiSignalSensor),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))

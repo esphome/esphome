@@ -36,6 +36,7 @@ RCSwitchTypeCReceiver = remote_ns.RCSwitchTypeCReceiver
 RCSwitchTypeDReceiver = remote_ns.RCSwitchTypeDReceiver
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): vol.All(vol.Coerce(int), cv.one_of(28, 32)),

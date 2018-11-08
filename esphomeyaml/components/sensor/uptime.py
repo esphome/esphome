@@ -6,8 +6,10 @@ from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, variable
 
 MakeUptimeSensor = Application.MakeUptimeSensor
+UptimeSensor = sensor.sensor_ns.UptimeSensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(UptimeSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeUptimeSensor),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))

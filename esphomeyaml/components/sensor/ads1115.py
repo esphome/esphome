@@ -45,7 +45,10 @@ def validate_mux(value):
     return cv.one_of(*MUX)(value)
 
 
+ADS1115Sensor = sensor.sensor_ns.ADS1115Sensor
+
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),
     vol.Required(CONF_MULTIPLEXER): validate_mux,
     vol.Required(CONF_GAIN): validate_gain,
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),

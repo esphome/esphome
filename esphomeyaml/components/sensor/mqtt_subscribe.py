@@ -8,8 +8,10 @@ from esphomeyaml.helpers import App, Application, add, variable
 DEPENDENCIES = ['mqtt']
 
 MakeMQTTSubscribeSensor = Application.MakeMQTTSubscribeSensor
+MQTTSubscribeSensor = sensor.sensor_ns.MQTTSubscribeSensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(MQTTSubscribeSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeMQTTSubscribeSensor),
     vol.Required(CONF_TOPIC): cv.subscribe_topic,
     vol.Optional(CONF_QOS): cv.mqtt_qos,
