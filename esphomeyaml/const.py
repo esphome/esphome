@@ -359,6 +359,7 @@ CONF_STEP_PIN = 'step_pin'
 CONF_DIR_PIN = 'dir_pin'
 CONF_SLEEP_PIN = 'sleep_pin'
 CONF_SEND_FIRST_AT = 'send_first_at'
+CONF_RESTORE_STATE = 'restore_state'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

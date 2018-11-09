@@ -806,6 +806,7 @@ switch:
         level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
+    restore_state: False
   - platform: restart
     name: "Living Room Restart"
   - platform: shutdown
@@ -832,6 +833,7 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    restore_state: True
   - platform: uart
     name: "UART String Output"
     data: 'DataToSend'

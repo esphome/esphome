@@ -4,18 +4,21 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.components import switch
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_TURN_OFF_ACTION, \
-    CONF_TURN_ON_ACTION, CONF_OPTIMISTIC
+    CONF_TURN_ON_ACTION, CONF_OPTIMISTIC, CONF_RESTORE_STATE
 from esphomeyaml.helpers import App, Application, process_lambda, variable, NoArg, add, bool_, \
     optional
 
 MakeTemplateSwitch = Application.MakeTemplateSwitch
+TemplateSwitch = switch.switch_ns.TemplateSwitch
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateSwitch),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
     vol.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
+    vol.Optional(CONF_RESTORE_STATE): cv.boolean,
 }), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
 
 
@@ -39,6 +42,9 @@ def to_code(config):
                                     config[CONF_TURN_ON_ACTION])
     if CONF_OPTIMISTIC in config:
         add(make.Ptemplate_.set_optimistic(config[CONF_OPTIMISTIC]))
+
+    if CONF_RESTORE_STATE in config:
+        add(make.Ptemplate_.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SWITCH'
