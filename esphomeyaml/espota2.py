@@ -200,6 +200,7 @@ def perform_ota(sock, password, file_handle, filename):
 
     receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, 'Update end', RESPONSE_UPDATE_END_OK)
+    send_check(sock, RESPONSE_OK, 'end acknowledgement')
 
     _LOGGER.info("OTA successful")
 
