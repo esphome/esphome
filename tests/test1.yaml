@@ -498,6 +498,31 @@ binary_sensor:
       - then:
          - lambda: >-
              ESP_LOGD("main", "Double Clicked");
+    on_multi_click:
+    - timing:
+      - ON for at most 1s
+      - OFF for at most 1s
+      - ON for at most 1s
+      - OFF for at least 0.2s
+      then:
+      - logger.log:
+          format: "Multi Clicked TWO"
+          level: warn
+    - timing:
+      - OFF for 1s to 2s
+      - ON for 1s to 2s
+      - OFF for at least 0.5s
+      then:
+      - logger.log:
+          format: "Multi Clicked LONG SINGLE"
+          level: warn
+    - timing:
+      - ON for at most 1s
+      - OFF for at least 0.5s
+      then:
+      - logger.log:
+          format: "Multi Clicked SINGLE"
+          level: warn
     id: binary_sensor1
   - platform: status
     name: "Living Room Status"
