@@ -9,7 +9,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
-    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
+    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, CONF_SETUP_PRIORITY
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, Lambda, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -645,6 +645,10 @@ def setup_mqtt_component(obj, config):
         else:
             add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+
+def setup_component(obj, config):
+    if CONF_SETUP_PRIORITY in config:
+        add(obj.set_setup_priority(config[CONF_SETUP_PRIORITY]))
 
 
 def color(the_color, message='', reset=None):

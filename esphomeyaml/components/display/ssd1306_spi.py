@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, \
     CONF_ID, CONF_MODEL, \
     CONF_RESET_PIN, CONF_SPI_ID, CONF_LAMBDA
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, \
-    gpio_output_pin_expression, process_lambda
+    gpio_output_pin_expression, process_lambda, setup_component
 
 DEPENDENCIES = ['spi']
 
@@ -35,7 +35,7 @@ PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MODEL): SSD1306_MODEL,
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_EXTERNAL_VCC): cv.boolean,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -63,6 +63,7 @@ def to_code(config):
         add(ssd.set_writer(lambda_))
 
     display.setup_display(ssd, config)
+    setup_component(ssd, config)
 
 
 BUILD_FLAGS = '-DUSE_SSD1306'

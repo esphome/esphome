@@ -5,7 +5,7 @@ from esphomeyaml.components import light
 from esphomeyaml.const import CONF_BLUE, CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_MAKE_ID, \
     CONF_NAME, CONF_RED, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE
-from esphomeyaml.helpers import App, get_variable, variable
+from esphomeyaml.helpers import App, get_variable, variable, setup_component
 
 
 def validate_color_temperature(value):
@@ -41,7 +41,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.RGB_EFFECTS),
-}), validate_cold_white_colder)
+}).extend(cv.COMPONENT_SCHEMA.schema), validate_cold_white_colder)
 
 
 def to_code(config):
@@ -60,6 +60,7 @@ def to_code(config):
                                red, green, blue, cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+    setup_component(light_struct.Pstate, config)
 
 
 def to_hass_config(data, config):

@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, \
     CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER, CONF_EFFECTS, CONF_COLOR_CORRECT
 from esphomeyaml.helpers import App, Application, RawExpression, TemplateArguments, add, \
-    get_variable, variable
+    get_variable, variable, setup_component
 
 CHIPSETS = [
     'LPD8806',
@@ -48,7 +48,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.FASTLED_EFFECTS),
-}))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -79,6 +79,7 @@ def to_code(config):
         add(fast_led.set_correction(r, g, b))
 
     light.setup_light(make.Pstate, make.Pmqtt, config)
+    setup_component(fast_led, config)
 
 
 BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'

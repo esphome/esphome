@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_GAIN, CONF_INTEGRATION_TIME, CONF_MAKE_ID, \
     CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -39,7 +39,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*GAINS)),
     vol.Optional(CONF_IS_CS_PACKAGE): cv.boolean,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -53,7 +53,9 @@ def to_code(config):
         add(tsl2561.set_gain(GAINS[config[CONF_GAIN]]))
     if CONF_IS_CS_PACKAGE in config:
         add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
+
     sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config)
+    setup_component(tsl2561, config)
 
 
 BUILD_FLAGS = '-DUSE_TSL2561'

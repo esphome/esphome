@@ -6,7 +6,7 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_CURRENT, CONF_ID, CONF_MAX_CURRENT, \
     CONF_MAX_VOLTAGE, CONF_NAME, CONF_POWER, CONF_UPDATE_INTERVAL, CONF_BUS_VOLTAGE, \
     CONF_SHUNT_VOLTAGE, CONF_SHUNT_RESISTANCE
-from esphomeyaml.helpers import App, Pvariable
+from esphomeyaml.helpers import App, Pvariable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -14,6 +14,9 @@ INA219Component = sensor.sensor_ns.INA219Component
 INA219VoltageSensor = sensor.sensor_ns.INA219VoltageSensor
 INA219CurrentSensor = sensor.sensor_ns.INA219CurrentSensor
 INA219PowerSensor = sensor.sensor_ns.INA219PowerSensor
+
+SENSOR_KEYS = [CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT,
+               CONF_POWER]
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(INA219Component),
@@ -27,8 +30,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_VOLTAGE, default=32.0): vol.All(cv.voltage, vol.Range(min=0.0, max=32.0)),
     vol.Optional(CONF_MAX_CURRENT, default=3.2): vol.All(cv.current, vol.Range(min=0.0)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}), cv.has_at_least_one_key(CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT,
-                            CONF_POWER))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
 def to_code(config):
@@ -48,6 +50,7 @@ def to_code(config):
     if CONF_POWER in config:
         conf = config[CONF_POWER]
         sensor.register_sensor(ina.Pmake_power_sensor(conf[CONF_NAME]), conf)
+    setup_component(ina, config)
 
 
 BUILD_FLAGS = '-DUSE_INA219'

@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_MAKE_ID, CONF_NAME, CONF_RESOLUTION, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -23,7 +23,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_ADDRESS, default=0x23): cv.i2c_address,
     vol.Optional(CONF_RESOLUTION): vol.All(cv.positive_float, cv.one_of(*BH1750_RESOLUTIONS)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -34,6 +34,7 @@ def to_code(config):
     if CONF_RESOLUTION in config:
         add(bh1750.set_resolution(BH1750_RESOLUTIONS[config[CONF_RESOLUTION]]))
     sensor.setup_sensor(bh1750, make_bh1750.Pmqtt, config)
+    setup_component(bh1750, config)
 
 
 BUILD_FLAGS = '-DUSE_BH1750'

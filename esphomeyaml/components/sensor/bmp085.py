@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, HexIntLiteral, add, variable
+from esphomeyaml.helpers import App, Application, HexIntLiteral, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -16,7 +16,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PRESSURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -31,6 +31,7 @@ def to_code(config):
                         config[CONF_TEMPERATURE])
     sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
                         config[CONF_PRESSURE])
+    setup_component(bmp.Pbmp, config)
 
 
 BUILD_FLAGS = '-DUSE_BMP085_SENSOR'

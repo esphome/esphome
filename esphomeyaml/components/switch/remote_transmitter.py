@@ -128,7 +128,6 @@ def transmitter_base(full_config):
 
 
 def to_code(config):
-    remote = None
     for remote in get_variable(config[CONF_REMOTE_TRANSMITTER_ID]):
         yield
     rhs = transmitter_base(config)

@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_HUMIDITY, CONF_IIR_FILTER, CONF_MAKE_ID, \
     CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -39,7 +39,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HUMIDITY): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -69,6 +69,7 @@ def to_code(config):
                         config[CONF_PRESSURE])
     sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
                         config[CONF_HUMIDITY])
+    setup_component(bme280, config)
 
 
 BUILD_FLAGS = '-DUSE_BME280'

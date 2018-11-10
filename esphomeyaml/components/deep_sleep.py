@@ -5,7 +5,7 @@ from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
     CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
 from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns, \
-    TemplateArguments, get_variable
+    TemplateArguments, get_variable, setup_component
 
 
 def validate_pin_number(value):
@@ -37,7 +37,7 @@ CONFIG_SCHEMA = vol.Schema({
                                                 cv.one_of(*WAKEUP_PIN_MODES)),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -46,7 +46,6 @@ def to_code(config):
     if CONF_SLEEP_DURATION in config:
         add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = None
         for pin in gpio_input_pin_expression(config[CONF_WAKEUP_PIN]):
             yield
         add(deep_sleep.set_wakeup_pin(pin))
@@ -56,6 +55,8 @@ def to_code(config):
         add(deep_sleep.set_run_cycles(config[CONF_RUN_CYCLES]))
     if CONF_RUN_DURATION in config:
         add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
+
+    setup_component(deep_sleep, config)
 
 
 BUILD_FLAGS = '-DUSE_DEEP_SLEEP'

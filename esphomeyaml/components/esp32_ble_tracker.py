@@ -3,7 +3,8 @@ import voluptuous as vol
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, ArrayInitializer
+from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, ArrayInitializer, \
+    setup_component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -13,7 +14,7 @@ ESP32BLETracker = esphomelib_ns.ESP32BLETracker
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
     vol.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_milliseconds,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def make_address_array(address):
@@ -26,6 +27,8 @@ def to_code(config):
     ble = Pvariable(config[CONF_ID], rhs)
     if CONF_SCAN_INTERVAL in config:
         add(ble.set_scan_interval(config[CONF_SCAN_INTERVAL]))
+
+    setup_component(ble, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_BLE_TRACKER'

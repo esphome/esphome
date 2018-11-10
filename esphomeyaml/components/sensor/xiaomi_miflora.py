@@ -6,7 +6,7 @@ from esphomeyaml.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESP32BLE
     make_address_array
 from esphomeyaml.const import CONF_BATTERY_LEVEL, CONF_CONDUCTIVITY, CONF_ILLUMINANCE, \
     CONF_MAC_ADDRESS, CONF_MAKE_ID, CONF_MOISTURE, CONF_NAME, CONF_TEMPERATURE
-from esphomeyaml.helpers import Pvariable, esphomelib_ns, get_variable
+from esphomeyaml.helpers import Pvariable, esphomelib_ns, get_variable, setup_component
 
 DEPENDENCIES = ['esp32_ble_tracker']
 
@@ -25,7 +25,6 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_ESP32_BLE_ID]):
         yield
     rhs = hub.make_xiaomi_device(make_address_array(config[CONF_MAC_ADDRESS]))

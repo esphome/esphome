@@ -5,7 +5,7 @@ from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CURRENT, CONF_ID, CONF_NAME, CONF_POWER, CONF_UART_ID, \
     CONF_VOLTAGE
-from esphomeyaml.helpers import App, Pvariable, get_variable
+from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component
 
 DEPENDENCIES = ['uart']
 
@@ -18,7 +18,8 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA),
-}), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT, CONF_POWER))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT,
+                                                               CONF_POWER))
 
 
 def to_code(config):
@@ -37,6 +38,7 @@ def to_code(config):
     if CONF_POWER in config:
         conf = config[CONF_POWER]
         sensor.register_sensor(cse.make_power_sensor(conf[CONF_NAME]), conf)
+    setup_component(cse, config)
 
 
 BUILD_FLAGS = '-DUSE_CSE7766'

@@ -18,7 +18,7 @@ PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_MEDIUM): cv.percentage,
         vol.Required(CONF_HIGH): cv.percentage,
     }),
-}))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):

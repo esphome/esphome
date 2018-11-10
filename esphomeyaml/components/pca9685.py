@@ -3,7 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
 from esphomeyaml.const import CONF_ADDRESS, CONF_FREQUENCY, CONF_ID, CONF_PHASE_BALANCER
-from esphomeyaml.helpers import App, HexIntLiteral, Pvariable, add
+from esphomeyaml.helpers import App, HexIntLiteral, Pvariable, add, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -19,7 +19,7 @@ PCA9685_SCHEMA = vol.Schema({
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
 
     vol.Optional(CONF_PHASE_BALANCER): cv.invalid(PHASE_BALANCER_MESSAGE),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [PCA9685_SCHEMA])
 
@@ -30,6 +30,7 @@ def to_code(config):
         pca9685 = Pvariable(conf[CONF_ID], rhs)
         if CONF_ADDRESS in conf:
             add(pca9685.set_address(HexIntLiteral(conf[CONF_ADDRESS])))
+        setup_component(pca9685, conf)
 
 
 BUILD_FLAGS = '-DUSE_PCA9685_OUTPUT'

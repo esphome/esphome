@@ -5,7 +5,7 @@ from esphomeyaml.components import sensor
 from esphomeyaml.components.uart import UARTComponent
 from esphomeyaml.const import CONF_CO2, CONF_MAKE_ID, CONF_NAME, CONF_TEMPERATURE, CONF_UART_ID, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, get_variable, variable
+from esphomeyaml.helpers import App, Application, get_variable, variable, setup_component
 
 DEPENDENCIES = ['uart']
 
@@ -17,7 +17,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CO2): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -33,6 +33,8 @@ def to_code(config):
     if CONF_TEMPERATURE in config:
         sensor.register_sensor(mhz19.Pmake_temperature_sensor(config[CONF_TEMPERATURE][CONF_NAME]),
                                config[CONF_TEMPERATURE])
+
+    setup_component(mhz19, config)
 
 
 BUILD_FLAGS = '-DUSE_MHZ19'

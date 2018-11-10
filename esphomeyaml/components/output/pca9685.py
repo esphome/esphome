@@ -23,7 +23,6 @@ def to_code(config):
     if CONF_POWER_SUPPLY in config:
         for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
             yield
-    pca9685 = None
     for pca9685 in get_variable(config[CONF_PCA9685_ID]):
         yield
     rhs = pca9685.create_channel(config[CONF_CHANNEL], power_supply)

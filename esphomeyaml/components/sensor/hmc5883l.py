@@ -4,7 +4,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_RANGE
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, Pvariable, add, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -36,6 +36,9 @@ def validate_range(value):
     return cv.one_of(*HMC5883L_RANGES)(int(value))
 
 
+SENSOR_KEYS = [CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
+               CONF_HEADING]
+
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
@@ -45,8 +48,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     vol.Optional(CONF_RANGE): validate_range,
-}), cv.has_at_least_one_key(CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
-                            CONF_HEADING))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
 def to_code(config):
@@ -68,6 +70,7 @@ def to_code(config):
     if CONF_HEADING in config:
         conf = config[CONF_HEADING]
         sensor.register_sensor(hmc.Pmake_heading_sensor(conf[CONF_NAME]), conf)
+    setup_component(hmc, config)
 
 
 BUILD_FLAGS = '-DUSE_HMC5883L'

@@ -7,8 +7,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
 from esphomeyaml.core import ESPHomeYAMLError, Lambda
-from esphomeyaml.helpers import App, Pvariable, TemplateArguments, add, esphomelib_ns, global_ns, \
-    process_lambda, RawExpression, statement
+from esphomeyaml.helpers import App, Pvariable, RawExpression, TemplateArguments, add, \
+    esphomelib_ns, global_ns, process_lambda, statement
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -79,6 +79,7 @@ def maybe_simple_message(schema):
         if isinstance(value, dict):
             return vol.Schema(schema)(value)
         return vol.Schema(schema)({CONF_FORMAT: value})
+
     return validator
 
 

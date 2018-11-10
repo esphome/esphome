@@ -2,7 +2,8 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32, CONF_UUID, CONF_TYPE
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, RawExpression, ArrayInitializer
+from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, RawExpression, ArrayInitializer, \
+    setup_component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_MAJOR): cv.uint16_t,
     vol.Optional(CONF_MINOR): cv.uint16_t,
     vol.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_milliseconds,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -30,6 +31,8 @@ def to_code(config):
         add(ble.set_major(config[CONF_MAJOR]))
     if CONF_MINOR in config:
         add(ble.set_minor(config[CONF_MINOR]))
+
+    setup_component(ble, config)
 
 
 BUILD_FLAGS = '-DUSE_ESP32_BLE_BEACON'

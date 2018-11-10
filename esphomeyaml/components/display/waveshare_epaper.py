@@ -7,7 +7,7 @@ from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_BUSY_PIN, CONF_CS_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
     CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_input_pin_expression, \
-    gpio_output_pin_expression, process_lambda
+    gpio_output_pin_expression, process_lambda, setup_component
 
 DEPENDENCIES = ['spi']
 
@@ -42,7 +42,7 @@ PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     vol.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-}), validate_full_update_every_only_type_a)
+}).extend(cv.COMPONENT_SCHEMA.schema), validate_full_update_every_only_type_a)
 
 
 def to_code(config):
@@ -79,6 +79,7 @@ def to_code(config):
         add(epaper.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
 
     display.setup_display(epaper, config)
+    setup_component(epaper, config)
 
 
 BUILD_FLAGS = '-DUSE_WAVESHARE_EPAPER'

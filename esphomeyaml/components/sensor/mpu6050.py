@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Pvariable
+from esphomeyaml.helpers import App, Pvariable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -20,6 +20,9 @@ MPU6050AccelSensor = sensor.sensor_ns.MPU6050AccelSensor
 MPU6050GyroSensor = sensor.sensor_ns.MPU6050GyroSensor
 MPU6050TemperatureSensor = sensor.sensor_ns.MPU6050TemperatureSensor
 
+SENSOR_KEYS = [CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z,
+               CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z]
+
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(MPU6050Component),
     vol.Optional(CONF_ADDRESS, default=0x68): cv.i2c_address,
@@ -31,8 +34,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_GYRO_Z): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}), cv.has_at_least_one_key(CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z,
-                            CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
 def to_code(config):
@@ -66,6 +68,8 @@ def to_code(config):
         conf = config[CONF_TEMPERATURE]
         rhs = mpu.Pmake_temperature_sensor(conf[CONF_NAME])
         sensor.register_sensor(rhs, conf)
+
+    setup_component(mpu, config)
 
 
 BUILD_FLAGS = '-DUSE_MPU6050'

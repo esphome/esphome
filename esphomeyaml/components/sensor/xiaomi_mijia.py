@@ -23,7 +23,6 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_ESP32_BLE_ID]):
         yield
     rhs = hub.make_xiaomi_device(make_address_array(config[CONF_MAC_ADDRESS]))

@@ -5,7 +5,7 @@ from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable
+from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component
 
 DEPENDENCIES = ['uart']
 
@@ -49,7 +49,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_FORMALDEHYDE): cv.nameable(sensor.SENSOR_SCHEMA),
-}), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
 
 
 def to_code(config):
@@ -82,6 +82,8 @@ def to_code(config):
     if CONF_FORMALDEHYDE in config:
         conf = config[CONF_FORMALDEHYDE]
         sensor.register_sensor(pms.make_formaldehyde_sensor(conf[CONF_NAME]), conf)
+
+    setup_component(pms, config)
 
 
 BUILD_FLAGS = '-DUSE_PMSX003'

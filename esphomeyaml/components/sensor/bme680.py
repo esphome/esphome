@@ -6,7 +6,7 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_GAS_RESISTANCE, CONF_HUMIDITY, CONF_IIR_FILTER, \
     CONF_MAKE_ID, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL, CONF_HEATER, CONF_DURATION
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -50,7 +50,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
             cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))
     }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -89,6 +89,7 @@ def to_code(config):
                         config[CONF_HUMIDITY])
     sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), make.Pmqtt_gas_resistance,
                         config[CONF_GAS_RESISTANCE])
+    setup_component(bme680, config)
 
 
 BUILD_FLAGS = '-DUSE_BME680'

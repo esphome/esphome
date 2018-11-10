@@ -7,7 +7,7 @@ from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_INTENSITY, CONF_LAMBDA, CONF_NUM_CHIPS, \
     CONF_SPI_ID
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_output_pin_expression, \
-    process_lambda
+    process_lambda, setup_component
 
 DEPENDENCIES = ['spi']
 
@@ -21,7 +21,7 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
     vol.Optional(CONF_NUM_CHIPS): vol.All(cv.uint8_t, vol.Range(min=1)),
     vol.Optional(CONF_INTENSITY): vol.All(cv.uint8_t, vol.Range(min=0, max=15)),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -43,6 +43,7 @@ def to_code(config):
         add(max7219.set_writer(lambda_))
 
     display.setup_display(max7219, config)
+    setup_component(max7219, config)
 
 
 BUILD_FLAGS = '-DUSE_MAX7219'

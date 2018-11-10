@@ -19,7 +19,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_DALLAS_ID]):
         yield
     if CONF_ADDRESS in config:

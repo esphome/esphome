@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ACCURACY, CONF_ADDRESS, CONF_HUMIDITY, CONF_MAKE_ID, CONF_NAME, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, variable
+from esphomeyaml.helpers import App, Application, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -16,10 +16,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
     vol.Optional(CONF_ADDRESS, default=0x44): cv.i2c_address,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-
-    vol.Optional(CONF_ACCURACY): cv.invalid("The accuracy option has been removed and now "
-                                            "defaults to HIGH."),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -27,12 +24,14 @@ def to_code(config):
                                  config[CONF_HUMIDITY][CONF_NAME],
                                  config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
-    sht3xd = variable(config[CONF_MAKE_ID], rhs)
+    make = variable(config[CONF_MAKE_ID], rhs)
+    sht3xd = make.Psht3xd
 
-    sensor.setup_sensor(sht3xd.Psht3xd.Pget_temperature_sensor(), sht3xd.Pmqtt_temperature,
+    sensor.setup_sensor(sht3xd.Pget_temperature_sensor(), make.Pmqtt_temperature,
                         config[CONF_TEMPERATURE])
-    sensor.setup_sensor(sht3xd.Psht3xd.Pget_humidity_sensor(), sht3xd.Pmqtt_humidity,
+    sensor.setup_sensor(sht3xd.Pget_humidity_sensor(), make.Pmqtt_humidity,
                         config[CONF_HUMIDITY])
+    setup_component(sht3xd, config)
 
 
 BUILD_FLAGS = '-DUSE_SHT3XD'
