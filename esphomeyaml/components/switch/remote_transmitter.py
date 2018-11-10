@@ -1,18 +1,18 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch
 from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_A_SCHEMA, RC_SWITCH_TYPE_B_SCHEMA, RC_SWITCH_TYPE_C_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, RemoteTransmitterComponent, binary_code, build_rc_switch_protocol, \
     remote_ns
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL, CONF_CODE, \
     CONF_COMMAND, CONF_DATA, CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_LG, \
     CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, \
     CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
     CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
     CONF_WAIT_TIME
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, get_variable
+from esphomeyaml.helpers import ArrayInitializer, Pvariable, add, get_variable
 
 DEPENDENCIES = ['remote_transmitter']
 
