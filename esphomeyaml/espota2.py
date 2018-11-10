@@ -3,6 +3,7 @@ import logging
 import random
 import socket
 import sys
+import time
 
 from esphomeyaml.core import ESPHomeYAMLError
 
@@ -75,9 +76,9 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
 
     try:
         check_error(data, expect)
-    except OTAError:
+    except OTAError as err:
         sock.close()
-        raise
+        raise OTAError("Error {}: {}".format(msg, err))
 
     while len(data) < amount:
         try:
@@ -201,6 +202,7 @@ def perform_ota(sock, password, file_handle, filename):
     receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, 'Update end', RESPONSE_UPDATE_END_OK)
     send_check(sock, RESPONSE_OK, 'end acknowledgement')
+    time.sleep(0.25)
 
     _LOGGER.info("OTA successful")
 
