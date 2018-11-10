@@ -1,18 +1,18 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import binary_sensor
-from esphomeyaml.components.uart import UARTComponent
+from esphomeyaml.components import binary_sensor, uart
 from esphomeyaml.const import CONF_ID, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component
+from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
 
 DEPENDENCIES = ['uart']
 
-RDM6300Component = binary_sensor.binary_sensor_ns.RDM6300Component
+RDM6300Component = binary_sensor.binary_sensor_ns.class_('RDM6300Component', Component,
+                                                         uart.UARTDevice)
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list_not_empty, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RDM6300Component),
-    cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
+    cv.GenerateID(CONF_UART_ID): cv.use_variable_id(uart.UARTComponent),
 }).extend(cv.COMPONENT_SCHEMA.schema)])
 
 

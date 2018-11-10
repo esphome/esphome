@@ -530,6 +530,20 @@ class MockObj(Expression):
         obj.requires.append(self)
         return obj
 
+    def class_(self, name, *parents):
+        obj = MockObjClass(u'{}::{}'.format(self.base, name), u'.', parents=parents)
+        obj.requires.append(self)
+        return obj
+
+    def struct(self, name):
+        return self.class_(name)
+
+    def enum(self, name, is_class=False):
+        if is_class:
+            return self.namespace(name)
+
+        return self
+
     def operator(self, name):
         if name == 'ref':
             obj = MockObj(u'{} &'.format(self.base), u'')
@@ -556,6 +570,34 @@ class MockObj(Expression):
         return obj
 
 
+class MockObjClass(MockObj):
+    def __init__(self, *args, **kwargs):
+        parens = kwargs.pop('parents')
+        MockObj.__init__(self, *args, **kwargs)
+        self._parents = []
+        for paren in parens:
+            if not isinstance(paren, MockObjClass):
+                raise ValueError
+            self._parents.append(paren)
+            self._parents += paren._parents
+
+    def inherits_from(self, other):
+        if self == other:
+            return True
+        for parent in self._parents:
+            if parent == other:
+                return True
+        return False
+
+    def template(self, args):
+        if not isinstance(args, TemplateArguments):
+            args = TemplateArguments(args)
+        obj = MockObjClass(u'{}{}'.format(self.base, args), parents=self._parents)
+        obj.requires.append(self)
+        obj.requires.append(args)
+        return obj
+
+
 global_ns = MockObj('', '')
 float_ = global_ns.namespace('float')
 bool_ = global_ns.namespace('bool')
@@ -570,16 +612,24 @@ NAN = global_ns.namespace('NAN')
 esphomelib_ns = global_ns  # using namespace esphomelib;
 NoArg = esphomelib_ns.NoArg
 App = esphomelib_ns.App
-Application = esphomelib_ns.namespace('Application')
-optional = esphomelib_ns.optional
+io_ns = esphomelib_ns.namespace('io')
+Nameable = esphomelib_ns.class_('Nameable')
+Trigger = esphomelib_ns.class_('Trigger')
+Action = esphomelib_ns.class_('Action')
+Component = esphomelib_ns.class_('Component')
+PollingComponent = esphomelib_ns.class_('PollingComponent', Component)
+Application = esphomelib_ns.class_('Application')
+optional = esphomelib_ns.class_('optional')
 arduino_json_ns = global_ns.namespace('ArduinoJson')
-JsonObject = arduino_json_ns.JsonObject
+JsonObject = arduino_json_ns.class_('JsonObject')
 JsonObjectRef = JsonObject.operator('ref')
 JsonObjectConstRef = JsonObjectRef.operator('const')
+Controller = esphomelib_ns.class_('Controller')
+StoringController = esphomelib_ns.class_('StoringController', Controller)
 
-GPIOPin = esphomelib_ns.GPIOPin
-GPIOOutputPin = esphomelib_ns.GPIOOutputPin
-GPIOInputPin = esphomelib_ns.GPIOInputPin
+GPIOPin = esphomelib_ns.class_('GPIOPin')
+GPIOOutputPin = esphomelib_ns.class_('GPIOOutputPin', GPIOPin)
+GPIOInputPin = esphomelib_ns.class_('GPIOInputPin', GPIOPin)
 
 
 def get_gpio_pin_number(conf):
@@ -645,6 +695,7 @@ def setup_mqtt_component(obj, config):
         else:
             add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+
 
 def setup_component(obj, config):
     if CONF_SETUP_PRIORITY in config:

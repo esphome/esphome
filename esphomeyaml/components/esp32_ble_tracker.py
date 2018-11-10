@@ -1,15 +1,21 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
+from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32
 from esphomeyaml.core import HexInt
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, ArrayInitializer, \
-    setup_component
+    setup_component, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 CONF_ESP32_BLE_ID = 'esp32_ble_id'
-ESP32BLETracker = esphomelib_ns.ESP32BLETracker
+ESP32BLETracker = esphomelib_ns.class_('ESP32BLETracker', Component)
+XiaomiSensor = esphomelib_ns.class_('XiaomiSensor', sensor.Sensor)
+XiaomiDevice = esphomelib_ns.class_('XiaomiDevice')
+XIAOMI_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(XiaomiSensor)
+})
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),

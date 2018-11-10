@@ -1,13 +1,13 @@
 import voluptuous as vol
 
-from esphomeyaml.components import sensor
+from esphomeyaml.components import sensor, i2c
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID
-from esphomeyaml.helpers import App, Pvariable, setup_component
+from esphomeyaml.helpers import App, Pvariable, setup_component, Component
 
 DEPENDENCIES = ['i2c']
 
-ADS1115Component = sensor.sensor_ns.ADS1115Component
+ADS1115Component = sensor.sensor_ns.class_('ADS1115Component', Component, i2c.I2CDevice)
 
 ADS1115_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Component),

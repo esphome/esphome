@@ -7,17 +7,20 @@ from esphomeyaml.const import CONF_GAIN, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_IN
 from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, variable, \
     setup_component
 
-MakeHX711Sensor = Application.MakeHX711Sensor
+MakeHX711Sensor = Application.struct('MakeHX711Sensor')
+HX711Sensor = sensor.sensor_ns.class_('HX711Sensor', sensor.PollingSensorComponent)
 
 CONF_DOUT_PIN = 'dout_pin'
 
+HX711Gain = sensor.sensor_ns.enum('HX711Gain')
 GAINS = {
-    128: sensor.sensor_ns.HX711_GAIN_128,
-    32: sensor.sensor_ns.HX711_GAIN_32,
-    64: sensor.sensor_ns.HX711_GAIN_64,
+    128: HX711Gain.HX711_GAIN_128,
+    32: HX711Gain.HX711_GAIN_32,
+    64: HX711Gain.HX711_GAIN_64,
 }
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(HX711Sensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeHX711Sensor),
     vol.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
     vol.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
@@ -27,10 +30,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    dout_pin = None
     for dout_pin in gpio_input_pin_expression(config[CONF_DOUT_PIN]):
         yield
-    sck_pin = None
     for sck_pin in gpio_input_pin_expression(config[CONF_CLK_PIN]):
         yield
 

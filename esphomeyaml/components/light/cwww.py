@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import light
+from esphomeyaml.components import light, output
 from esphomeyaml.components.light.rgbww import validate_cold_white_colder, \
     validate_color_temperature
 from esphomeyaml.const import CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
@@ -11,8 +11,8 @@ from esphomeyaml.helpers import App, get_variable, variable, setup_component
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
-    vol.Required(CONF_COLD_WHITE): cv.use_variable_id(None),
-    vol.Required(CONF_WARM_WHITE): cv.use_variable_id(None),
+    vol.Required(CONF_COLD_WHITE): cv.use_variable_id(output.FloatOutput),
+    vol.Required(CONF_WARM_WHITE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
     vol.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
 

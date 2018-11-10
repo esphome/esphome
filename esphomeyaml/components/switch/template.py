@@ -6,10 +6,10 @@ from esphomeyaml.components import switch
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_TURN_OFF_ACTION, \
     CONF_TURN_ON_ACTION, CONF_OPTIMISTIC, CONF_RESTORE_STATE
 from esphomeyaml.helpers import App, Application, process_lambda, variable, NoArg, add, bool_, \
-    optional, setup_component
+    optional, setup_component, Component
 
-MakeTemplateSwitch = Application.MakeTemplateSwitch
-TemplateSwitch = switch.switch_ns.TemplateSwitch
+MakeTemplateSwitch = Application.struct('MakeTemplateSwitch')
+TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),

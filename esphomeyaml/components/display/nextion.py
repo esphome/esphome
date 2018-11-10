@@ -1,12 +1,13 @@
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import display
+from esphomeyaml.components import display, uart
 from esphomeyaml.components.uart import UARTComponent
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, add, get_variable, process_lambda, setup_component
+from esphomeyaml.helpers import App, Pvariable, add, get_variable, process_lambda, setup_component, \
+    PollingComponent
 
 DEPENDENCIES = ['uart']
 
-Nextion = display.display_ns.Nextion
+Nextion = display.display_ns.class_('Nextion', PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
 
 PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({

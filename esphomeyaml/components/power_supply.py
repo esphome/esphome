@@ -4,9 +4,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_ENABLE_TIME, CONF_ID, CONF_KEEP_ON_TIME, CONF_PIN
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, gpio_output_pin_expression, \
-    setup_component
+    setup_component, Component
 
-PowerSupplyComponent = esphomelib_ns.PowerSupplyComponent
+PowerSupplyComponent = esphomelib_ns.class_('PowerSupplyComponent', Component)
 
 POWER_SUPPLY_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(PowerSupplyComponent),

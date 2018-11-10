@@ -4,9 +4,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ID, CONF_PIN, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Pvariable, setup_component
+from esphomeyaml.helpers import App, Pvariable, setup_component, PollingComponent
 
-DallasComponent = sensor.sensor_ns.DallasComponent
+DallasComponent = sensor.sensor_ns.class_('DallasComponent', PollingComponent)
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(DallasComponent),

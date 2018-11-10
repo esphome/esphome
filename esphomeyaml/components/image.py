@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ['display']
 
-Image_ = display.display_ns.Image
+Image_ = display.display_ns.class_('Image')
 
 CONF_RAW_DATA_ID = 'raw_data_id'
 

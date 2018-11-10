@@ -5,7 +5,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, gpio_output_pin_expression, setup_component
+from esphomeyaml.helpers import App, Pvariable, gpio_output_pin_expression, setup_component, \
+    Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
 
@@ -16,7 +17,7 @@ def valid_pwm_pin(value):
     return value
 
 
-ESP8266PWMOutput = output.output_ns.ESP8266PWMOutput
+ESP8266PWMOutput = output.output_ns.class_('ESP8266PWMOutput', output.FloatOutput, Component)
 
 PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(ESP8266PWMOutput),

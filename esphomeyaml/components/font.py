@@ -11,8 +11,8 @@ from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawEx
 
 DEPENDENCIES = ['display']
 
-Font = display.display_ns.Font
-Glyph = display.display_ns.Glyph
+Font = display.display_ns.class_('Font')
+Glyph = display.display_ns.class_('Glyph')
 
 
 def validate_glyphs(value):

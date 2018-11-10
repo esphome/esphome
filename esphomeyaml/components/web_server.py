@@ -5,11 +5,10 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import core
 from esphomeyaml.const import CONF_PORT, CONF_JS_URL, CONF_CSS_URL, CONF_ID, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component
+from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component, Component, \
+    StoringController
 
-_LOGGER = logging.getLogger(__name__)
-
-WebServer = esphomelib_ns.WebServer
+WebServer = esphomelib_ns.class_('WebServer', Component, StoringController)
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(WebServer),

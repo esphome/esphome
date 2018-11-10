@@ -1,13 +1,14 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import output
+from esphomeyaml.components import output, i2c
 from esphomeyaml.const import CONF_ADDRESS, CONF_FREQUENCY, CONF_ID, CONF_PHASE_BALANCER
-from esphomeyaml.helpers import App, HexIntLiteral, Pvariable, add, setup_component
+from esphomeyaml.helpers import App, HexIntLiteral, Pvariable, add, setup_component, Component
 
 DEPENDENCIES = ['i2c']
 
-PCA9685OutputComponent = output.output_ns.namespace('PCA9685OutputComponent')
+PCA9685OutputComponent = output.output_ns.class_('PCA9685OutputComponent',
+                                                 Component, i2c.I2CDevice)
 
 PHASE_BALANCER_MESSAGE = ("The phase_balancer option has been removed in version 1.5.0. "
                           "esphomelib will now automatically choose a suitable phase balancer.")

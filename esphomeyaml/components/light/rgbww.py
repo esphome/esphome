@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import light
+from esphomeyaml.components import light, output
 from esphomeyaml.const import CONF_BLUE, CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_MAKE_ID, \
     CONF_NAME, CONF_RED, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE
@@ -30,11 +30,11 @@ def validate_cold_white_colder(value):
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
-    vol.Required(CONF_RED): cv.use_variable_id(None),
-    vol.Required(CONF_GREEN): cv.use_variable_id(None),
-    vol.Required(CONF_BLUE): cv.use_variable_id(None),
-    vol.Required(CONF_COLD_WHITE): cv.use_variable_id(None),
-    vol.Required(CONF_WARM_WHITE): cv.use_variable_id(None),
+    vol.Required(CONF_RED): cv.use_variable_id(output.FloatOutput),
+    vol.Required(CONF_GREEN): cv.use_variable_id(output.FloatOutput),
+    vol.Required(CONF_BLUE): cv.use_variable_id(output.FloatOutput),
+    vol.Required(CONF_COLD_WHITE): cv.use_variable_id(output.FloatOutput),
+    vol.Required(CONF_WARM_WHITE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
     vol.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
 

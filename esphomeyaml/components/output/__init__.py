@@ -5,7 +5,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
 from esphomeyaml.helpers import add, esphomelib_ns, get_variable, TemplateArguments, Pvariable, \
-    templatable, float_, add_job
+    templatable, float_, add_job, Action
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -25,9 +25,13 @@ FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
 FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
 
 output_ns = esphomelib_ns.namespace('output')
-TurnOffAction = output_ns.TurnOffAction
-TurnOnAction = output_ns.TurnOnAction
-SetLevelAction = output_ns.SetLevelAction
+BinaryOutput = output_ns.class_('BinaryOutput')
+FloatOutput = output_ns.class_('FloatOutput', BinaryOutput)
+
+# Actions
+TurnOffAction = output_ns.class_('TurnOffAction', Action)
+TurnOnAction = output_ns.class_('TurnOnAction', Action)
+SetLevelAction = output_ns.class_('SetLevelAction', Action)
 
 
 def setup_output_platform_(obj, config, skip_power_supply=False):
@@ -51,7 +55,7 @@ BUILD_FLAGS = '-DUSE_OUTPUT'
 
 CONF_OUTPUT_TURN_ON = 'output.turn_on'
 OUTPUT_TURN_ON_ACTION = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
 })
 
 
@@ -67,7 +71,7 @@ def output_turn_on_to_code(config, action_id, arg_type):
 
 CONF_OUTPUT_TURN_OFF = 'output.turn_off'
 OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None)
+    vol.Required(CONF_ID): cv.use_variable_id(BinaryOutput)
 })
 
 
@@ -83,7 +87,7 @@ def output_turn_off_to_code(config, action_id, arg_type):
 
 CONF_OUTPUT_SET_LEVEL = 'output.set_level'
 OUTPUT_SET_LEVEL_ACTION = vol.Schema({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(FloatOutput),
     vol.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 })
 

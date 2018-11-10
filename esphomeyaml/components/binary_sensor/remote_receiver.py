@@ -22,18 +22,18 @@ REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_SAMSUNG, CONF_
 CONF_REMOTE_RECEIVER_ID = 'remote_receiver_id'
 CONF_RECEIVER_ID = 'receiver_id'
 
-RemoteReceiver = remote_ns.RemoteReceiver
-LGReceiver = remote_ns.LGReceiver
-NECReceiver = remote_ns.NECReceiver
-PanasonicReceiver = remote_ns.PanasonicReceiver
-RawReceiver = remote_ns.RawReceiver
-SamsungReceiver = remote_ns.SamsungReceiver
-SonyReceiver = remote_ns.SonyReceiver
-RCSwitchRawReceiver = remote_ns.RCSwitchRawReceiver
-RCSwitchTypeAReceiver = remote_ns.RCSwitchTypeAReceiver
-RCSwitchTypeBReceiver = remote_ns.RCSwitchTypeBReceiver
-RCSwitchTypeCReceiver = remote_ns.RCSwitchTypeCReceiver
-RCSwitchTypeDReceiver = remote_ns.RCSwitchTypeDReceiver
+RemoteReceiver = remote_ns.class_('RemoteReceiver', binary_sensor.BinarySensor)
+LGReceiver = remote_ns.class_('LGReceiver', RemoteReceiver)
+NECReceiver = remote_ns.class_('NECReceiver', RemoteReceiver)
+PanasonicReceiver = remote_ns.class_('PanasonicReceiver', RemoteReceiver)
+RawReceiver = remote_ns.class_('RawReceiver', RemoteReceiver)
+SamsungReceiver = remote_ns.class_('SamsungReceiver', RemoteReceiver)
+SonyReceiver = remote_ns.class_('SonyReceiver', RemoteReceiver)
+RCSwitchRawReceiver = remote_ns.class_('RCSwitchRawReceiver', RemoteReceiver)
+RCSwitchTypeAReceiver = remote_ns.class_('RCSwitchTypeAReceiver', RCSwitchRawReceiver)
+RCSwitchTypeBReceiver = remote_ns.class_('RCSwitchTypeBReceiver', RCSwitchRawReceiver)
+RCSwitchTypeCReceiver = remote_ns.class_('RCSwitchTypeCReceiver', RCSwitchRawReceiver)
+RCSwitchTypeDReceiver = remote_ns.class_('RCSwitchTypeDReceiver', RCSwitchRawReceiver)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
@@ -110,7 +110,6 @@ def receiver_base(full_config):
 
 
 def to_code(config):
-    remote = None
     for remote in get_variable(config[CONF_REMOTE_RECEIVER_ID]):
         yield
     rhs = receiver_base(config)

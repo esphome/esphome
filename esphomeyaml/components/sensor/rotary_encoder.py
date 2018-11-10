@@ -5,20 +5,21 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_RESOLUTION
 from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, variable, \
-    setup_component
+    setup_component, Component
 
+RotaryEncoderResolution = sensor.sensor_ns.enum('RotaryEncoderResolution')
 RESOLUTIONS = {
-    '1': sensor.sensor_ns.ROTARY_ENCODER_1_PULSE_PER_CYCLE,
-    '2': sensor.sensor_ns.ROTARY_ENCODER_2_PULSES_PER_CYCLE,
-    '4': sensor.sensor_ns.ROTARY_ENCODER_4_PULSES_PER_CYCLE,
+    '1': RotaryEncoderResolution.ROTARY_ENCODER_1_PULSE_PER_CYCLE,
+    '2': RotaryEncoderResolution.ROTARY_ENCODER_2_PULSES_PER_CYCLE,
+    '4': RotaryEncoderResolution.ROTARY_ENCODER_4_PULSES_PER_CYCLE,
 }
 
 CONF_PIN_A = 'pin_a'
 CONF_PIN_B = 'pin_b'
 CONF_PIN_RESET = 'pin_reset'
 
-MakeRotaryEncoderSensor = Application.MakeRotaryEncoderSensor
-RotaryEncoderSensor = sensor.sensor_ns.RotaryEncoderSensor
+MakeRotaryEncoderSensor = Application.struct('MakeRotaryEncoderSensor')
+RotaryEncoderSensor = sensor.sensor_ns.class_('RotaryEncoderSensor', sensor.Sensor, Component)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RotaryEncoderSensor),

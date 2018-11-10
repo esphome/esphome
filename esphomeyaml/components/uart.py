@@ -3,9 +3,10 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN
-from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, setup_component
+from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, setup_component, Component
 
-UARTComponent = esphomelib_ns.UARTComponent
+UARTComponent = esphomelib_ns.class_('UARTComponent', Component)
+UARTDevice = esphomelib_ns.class_('UARTDevice')
 
 UART_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(UARTComponent),

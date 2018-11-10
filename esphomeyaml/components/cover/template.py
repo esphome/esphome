@@ -8,10 +8,12 @@ from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_LAMBDA, CONF_MAKE_ID, CONF
 from esphomeyaml.helpers import App, Application, NoArg, add, process_lambda, variable, optional, \
     setup_component
 
-MakeTemplateCover = Application.MakeTemplateCover
+MakeTemplateCover = Application.struct('MakeTemplateCover')
+TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
 
 PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateCover),
+    cv.GenerateID(): cv.declare_variable_id(TemplateCover),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
     vol.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
@@ -28,7 +30,6 @@ def to_code(config):
     setup_component(make.Ptemplate_, config)
 
     if CONF_LAMBDA in config:
-        template_ = None
         for template_ in process_lambda(config[CONF_LAMBDA], [],
                                         return_type=optional.template(cover.CoverState)):
             yield

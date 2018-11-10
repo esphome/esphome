@@ -4,10 +4,11 @@ from esphomeyaml.components import text_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, add, optional, process_lambda, std_string, \
-    variable, setup_component
+    variable, setup_component, PollingComponent
 
-MakeTemplateTextSensor = Application.MakeTemplateTextSensor
-TemplateTextSensor = text_sensor.text_sensor_ns.TemplateTextSensor
+MakeTemplateTextSensor = Application.struct('MakeTemplateTextSensor')
+TemplateTextSensor = text_sensor.text_sensor_ns.class_('TemplateTextSensor',
+                                                       text_sensor.TextSensor, PollingComponent)
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),

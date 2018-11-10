@@ -2,16 +2,16 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.components import display
+from esphomeyaml.components import display, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_INTENSITY, CONF_LAMBDA, CONF_NUM_CHIPS, \
     CONF_SPI_ID
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_output_pin_expression, \
-    process_lambda, setup_component
+    process_lambda, setup_component, PollingComponent
 
 DEPENDENCIES = ['spi']
 
-MAX7219Component = display.display_ns.MAX7219Component
+MAX7219Component = display.display_ns.class_('MAX7219Component', PollingComponent, spi.SPIDevice)
 MAX7219ComponentRef = MAX7219Component.operator('ref')
 
 PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({

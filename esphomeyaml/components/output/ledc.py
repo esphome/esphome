@@ -5,7 +5,7 @@ from esphomeyaml import pins
 from esphomeyaml.components import output
 from esphomeyaml.const import APB_CLOCK_FREQ, CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
     CONF_ID, CONF_PIN, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Pvariable, add, setup_component
+from esphomeyaml.helpers import App, Pvariable, add, setup_component, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -19,7 +19,7 @@ def validate_frequency_bit_depth(obj):
     return obj
 
 
-LEDCOutputComponent = output.output_ns.LEDCOutputComponent
+LEDCOutputComponent = output.output_ns.class_('LEDCOutputComponent', output.FloatOutput, Component)
 
 PLATFORM_SCHEMA = vol.All(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(LEDCOutputComponent),

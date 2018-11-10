@@ -5,8 +5,8 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, variable, setup_component
 
-MakeWiFiSignalSensor = Application.MakeWiFiSignalSensor
-WiFiSignalSensor = sensor.sensor_ns.WiFiSignalSensor
+MakeWiFiSignalSensor = Application.struct('MakeWiFiSignalSensor')
+WiFiSignalSensor = sensor.sensor_ns.class_('WiFiSignalSensor', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(WiFiSignalSensor),

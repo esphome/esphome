@@ -3,9 +3,9 @@ import voluptuous as vol
 from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.const import CONF_ID, CONF_PIN
 from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, gpio_output_pin_expression, \
-    setup_component
+    setup_component, Component
 
-StatusLEDComponent = esphomelib_ns.StatusLEDComponent
+StatusLEDComponent = esphomelib_ns.class_('StatusLEDComponent', Component)
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(StatusLEDComponent),

@@ -5,20 +5,25 @@ from esphomeyaml import pins
 from esphomeyaml.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, \
     CONF_PIN, CONF_TOLERANCE
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, gpio_input_pin_expression, \
-    setup_component
+    setup_component, Component
 
 remote_ns = esphomelib_ns.namespace('remote')
 
-RemoteReceiverComponent = remote_ns.RemoteReceiverComponent
+RemoteControlComponentBase = remote_ns.class_('RemoteControlComponentBase')
+RemoteReceiverComponent = remote_ns.class_('RemoteReceiverComponent',
+                                           RemoteControlComponentBase,
+                                           Component)
+
+RemoteReceiveDumper = remote_ns.class_('RemoteReceiveDumper')
 
 DUMPERS = {
-    'lg': remote_ns.LGDumper,
-    'nec': remote_ns.NECDumper,
-    'panasonic': remote_ns.PanasonicDumper,
-    'raw': remote_ns.RawDumper,
-    'samsung': remote_ns.SamsungDumper,
-    'sony': remote_ns.SonyDumper,
-    'rc_switch': remote_ns.RCSwitchDumper,
+    'lg': remote_ns.class_('LGDumper', RemoteReceiveDumper),
+    'nec': remote_ns.class_('NECDumper', RemoteReceiveDumper),
+    'panasonic': remote_ns.class_('PanasonicDumper', RemoteReceiveDumper),
+    'raw': remote_ns.class_('RawDumper', RemoteReceiveDumper),
+    'samsung': remote_ns.class_('SamsungDumper', RemoteReceiveDumper),
+    'sony': remote_ns.class_('SonyDumper', RemoteReceiveDumper),
+    'rc_switch': remote_ns.class_('RCSwitchDumper', RemoteReceiveDumper),
 }
 
 

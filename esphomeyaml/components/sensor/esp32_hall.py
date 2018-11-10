@@ -7,8 +7,8 @@ from esphomeyaml.helpers import App, Application, variable, setup_component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
-MakeESP32HallSensor = Application.MakeESP32HallSensor
-ESP32HallSensor = sensor.sensor_ns.ESP32HallSensor
+MakeESP32HallSensor = Application.struct('MakeESP32HallSensor')
+ESP32HallSensor = sensor.sensor_ns.class_('ESP32HallSensor', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ESP32HallSensor),

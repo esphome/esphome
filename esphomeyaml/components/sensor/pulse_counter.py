@@ -9,16 +9,20 @@ from esphomeyaml.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_INTERNAL_
 from esphomeyaml.helpers import App, Application, add, variable, gpio_input_pin_expression, \
     setup_component
 
+PulseCounterCountMode = sensor.sensor_ns.enum('PulseCounterCountMode')
 COUNT_MODES = {
-    'DISABLE': sensor.sensor_ns.PULSE_COUNTER_DISABLE,
-    'INCREMENT': sensor.sensor_ns.PULSE_COUNTER_INCREMENT,
-    'DECREMENT': sensor.sensor_ns.PULSE_COUNTER_DECREMENT,
+    'DISABLE': PulseCounterCountMode.PULSE_COUNTER_DISABLE,
+    'INCREMENT': PulseCounterCountMode.PULSE_COUNTER_INCREMENT,
+    'DECREMENT': PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
 }
 
 COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(*COUNT_MODES))
 
-MakePulseCounterSensor = Application.MakePulseCounterSensor
-PulseCounterSensorComponent = sensor.sensor_ns.PulseCounterSensorComponent
+PulseCounterBase = sensor.sensor_ns.class_('PulseCounterBase')
+MakePulseCounterSensor = Application.struct('MakePulseCounterSensor')
+PulseCounterSensorComponent = sensor.sensor_ns.class_('PulseCounterSensorComponent',
+                                                      sensor.PollingSensorComponent,
+                                                      PulseCounterBase)
 
 
 def validate_internal_filter(value):

@@ -5,10 +5,10 @@ from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_PIN
 from esphomeyaml.helpers import App, Application, gpio_output_pin_expression, variable, \
-    setup_component
+    setup_component, Component
 
-MakeGPIOSwitch = Application.MakeGPIOSwitch
-GPIOSwitch = switch.switch_ns.GPIOSwitch
+MakeGPIOSwitch = Application.struct('MakeGPIOSwitch')
+GPIOSwitch = switch.switch_ns.class_('GPIOSwitch', switch.Switch, Component)
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),

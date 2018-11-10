@@ -7,16 +7,15 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_OTA, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns
+from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, Component
 
 _LOGGER = logging.getLogger(__name__)
 
-OTAComponent = esphomelib_ns.OTAComponent
+OTAComponent = esphomelib_ns.class_('OTAComponent', Component)
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(OTAComponent),
     vol.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-    # TODO Num attempts + wait time
     vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_PASSWORD): cv.string,
 })

@@ -2,25 +2,30 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.components import display
+from esphomeyaml.components import display, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_BUSY_PIN, CONF_CS_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
     CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_input_pin_expression, \
-    gpio_output_pin_expression, process_lambda, setup_component
+    gpio_output_pin_expression, process_lambda, setup_component, PollingComponent
 
 DEPENDENCIES = ['spi']
 
 WaveshareEPaperTypeA = display.display_ns.WaveshareEPaperTypeA
-WaveshareEPaper = display.display_ns.WaveshareEPaper
+WaveshareEPaper = display.display_ns.class_('WaveshareEPaper',
+                                            PollingComponent, spi.SPIDevice, display.DisplayBuffer)
+
+
+WaveshareEPaperTypeAModel = display.display_ns.enum('WaveshareEPaperTypeAModel')
+WaveshareEPaperTypeBModel = display.display_ns.enum('WaveshareEPaperTypeBModel')
 
 MODELS = {
-    '1.54in': ('a', display.display_ns.WAVESHARE_EPAPER_1_54_IN),
-    '2.13in': ('a', display.display_ns.WAVESHARE_EPAPER_2_13_IN),
-    '2.90in': ('a', display.display_ns.WAVESHARE_EPAPER_2_9_IN),
-    '2.70in': ('b', display.display_ns.WAVESHARE_EPAPER_2_7_IN),
-    '4.20in': ('b', display.display_ns.WAVESHARE_EPAPER_4_2_IN),
-    '7.50in': ('b', display.display_ns.WAVESHARE_EPAPER_7_5_IN),
+    '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
+    '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
+    '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
+    '2.70in': ('b', WaveshareEPaperTypeBModel.WAVESHARE_EPAPER_2_7_IN),
+    '4.20in': ('b', WaveshareEPaperTypeBModel.WAVESHARE_EPAPER_4_2_IN),
+    '7.50in': ('b', WaveshareEPaperTypeBModel.WAVESHARE_EPAPER_7_5_IN),
 }
 
 
@@ -34,7 +39,7 @@ def validate_full_update_every_only_type_a(value):
 
 
 PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(None),
+    cv.GenerateID(): cv.declare_variable_id(WaveshareEPaper),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,

@@ -8,8 +8,9 @@ from esphomeyaml.const import CONF_ECHO_PIN, CONF_MAKE_ID, CONF_NAME, CONF_TIMEO
 from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, \
     gpio_output_pin_expression, variable, setup_component
 
-MakeUltrasonicSensor = Application.MakeUltrasonicSensor
-UltrasonicSensorComponent = sensor.sensor_ns.UltrasonicSensorComponent
+MakeUltrasonicSensor = Application.struct('MakeUltrasonicSensor')
+UltrasonicSensorComponent = sensor.sensor_ns.class_('UltrasonicSensorComponent',
+                                                    sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),

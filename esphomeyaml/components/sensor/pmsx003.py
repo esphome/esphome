@@ -1,24 +1,26 @@
 import voluptuous as vol
 
-from esphomeyaml.components import sensor
+from esphomeyaml.components import sensor, uart
 from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component
+from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
 
 DEPENDENCIES = ['uart']
 
-PMSX003Component = sensor.sensor_ns.PMSX003Component
+PMSX003Component = sensor.sensor_ns.class_('PMSX003Component', uart.UARTDevice, Component)
+PMSX003Sensor = sensor.sensor_ns.class_('PMSX003Sensor', sensor.Sensor)
 
 CONF_PMSX003 = 'PMSX003'
 CONF_PMS5003T = 'PMS5003T'
 CONF_PMS5003ST = 'PMS5003ST'
 
+PMSX003Type = sensor.sensor_ns.enum('PMSX003Type')
 PMSX003_TYPES = {
-    CONF_PMSX003: sensor.sensor_ns.PMSX003_TYPE_X003,
-    CONF_PMS5003T: sensor.sensor_ns.PMSX003_TYPE_5003T,
-    CONF_PMS5003ST: sensor.sensor_ns.PMSX003_TYPE_5003ST,
+    CONF_PMSX003: PMSX003Type.PMSX003_TYPE_X003,
+    CONF_PMS5003T: PMSX003Type.PMSX003_TYPE_5003T,
+    CONF_PMS5003ST: PMSX003Type.PMSX003_TYPE_5003ST,
 }
 
 SENSORS_TO_TYPE = {
@@ -38,17 +40,22 @@ def validate_pmsx003_sensors(value):
     return value
 
 
+PMSX003_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(PMSX003Sensor),
+})
+
+
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
     vol.Required(CONF_TYPE): vol.All(vol.Upper, cv.one_of(*PMSX003_TYPES)),
 
-    vol.Optional(CONF_PM_1_0): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_2_5): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_10_0): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_FORMALDEHYDE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_PM_1_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_PM_2_5): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_PM_10_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_TEMPERATURE): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_HUMIDITY): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_FORMALDEHYDE): cv.nameable(PMSX003_SENSOR_SCHEMA),
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
 
 

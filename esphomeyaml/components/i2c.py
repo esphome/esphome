@@ -4,9 +4,10 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_FREQUENCY, CONF_SCL, CONF_SDA, CONF_SCAN, CONF_ID, \
     CONF_RECEIVE_TIMEOUT
-from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component
+from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component, Component
 
-I2CComponent = esphomelib_ns.I2CComponent
+I2CComponent = esphomelib_ns.class_('I2CComponent', Component)
+I2CDevice = pins.I2CDevice
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),

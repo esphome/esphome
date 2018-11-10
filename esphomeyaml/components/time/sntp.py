@@ -5,7 +5,7 @@ from esphomeyaml.components import time as time_
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SERVERS
 from esphomeyaml.helpers import App, Pvariable, add, setup_component
 
-SNTPComponent = time_.time_ns.SNTPComponent
+SNTPComponent = time_.time_ns.class_('SNTPComponent', time_.RealTimeClockComponent)
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SNTPComponent),

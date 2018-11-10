@@ -30,7 +30,7 @@ RGB_ORDERS = [
     'BGR',
 ]
 
-MakeFastLEDLight = Application.MakeFastLEDLight
+MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
@@ -69,7 +69,6 @@ def to_code(config):
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CONF_POWER_SUPPLY in config:
-        power_supply = None
         for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
             yield
         add(fast_led.set_power_supply(power_supply))

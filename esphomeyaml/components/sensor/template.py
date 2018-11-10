@@ -6,8 +6,8 @@ from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_
 from esphomeyaml.helpers import App, process_lambda, variable, Application, float_, optional, add, \
     setup_component
 
-MakeTemplateSensor = Application.MakeTemplateSensor
-TemplateSensor = sensor.sensor_ns.TemplateSensor
+MakeTemplateSensor = Application.struct('MakeTemplateSensor')
+TemplateSensor = sensor.sensor_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),

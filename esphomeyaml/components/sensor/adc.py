@@ -22,8 +22,8 @@ def validate_adc_pin(value):
     return pins.analog_pin(value)
 
 
-MakeADCSensor = Application.MakeADCSensor
-ADCSensorComponent = sensor.sensor_ns.ADCSensorComponent
+MakeADCSensor = Application.struct('MakeADCSensor')
+ADCSensorComponent = sensor.sensor_ns.class_('ADCSensorComponent', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensorComponent),

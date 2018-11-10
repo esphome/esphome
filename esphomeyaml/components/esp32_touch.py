@@ -6,7 +6,7 @@ from esphomeyaml.const import CONF_ID, CONF_SETUP_MODE, CONF_IIR_FILTER, \
     CONF_SLEEP_DURATION, CONF_MEASUREMENT_DURATION, CONF_LOW_VOLTAGE_REFERENCE, \
     CONF_HIGH_VOLTAGE_REFERENCE, CONF_VOLTAGE_ATTENUATION, ESP_PLATFORM_ESP32
 from esphomeyaml.core import TimePeriod
-from esphomeyaml.helpers import App, Pvariable, add, global_ns, setup_component
+from esphomeyaml.helpers import App, Pvariable, add, global_ns, setup_component, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -41,7 +41,7 @@ VOLTAGE_ATTENUATION = {
     '0V': global_ns.TOUCH_HVOLT_ATTEN_0V,
 }
 
-ESP32TouchComponent = binary_sensor.binary_sensor_ns.ESP32TouchComponent
+ESP32TouchComponent = binary_sensor.binary_sensor_ns.class_('ESP32TouchComponent', Component)
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32TouchComponent),

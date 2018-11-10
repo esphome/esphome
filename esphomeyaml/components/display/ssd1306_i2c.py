@@ -11,7 +11,7 @@ from esphomeyaml.helpers import App, Pvariable, add, \
 
 DEPENDENCIES = ['i2c']
 
-I2CSSD1306 = display.display_ns.I2CSSD1306
+I2CSSD1306 = display.display_ns.class_('I2CSSD1306', ssd1306_spi.SSD1306)
 
 PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(I2CSSD1306),

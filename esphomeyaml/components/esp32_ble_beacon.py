@@ -3,11 +3,11 @@ import voluptuous as vol
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32, CONF_UUID, CONF_TYPE
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, RawExpression, ArrayInitializer, \
-    setup_component
+    setup_component, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
-ESP32BLEBeacon = esphomelib_ns.ESP32BLEBeacon
+ESP32BLEBeacon = esphomelib_ns.class_('ESP32BLEBeacon', Component)
 
 CONF_MAJOR = 'major'
 CONF_MINOR = 'minor'

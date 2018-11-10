@@ -1,19 +1,18 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import fan
+from esphomeyaml.components import fan, output
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT
 from esphomeyaml.helpers import App, add, get_variable, variable, setup_component
 
 PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(fan.MakeFan),
-    vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
-    vol.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(None),
+    vol.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
+    vol.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
-    output = None
     for output in get_variable(config[CONF_OUTPUT]):
         yield
 
@@ -21,7 +20,6 @@ def to_code(config):
     fan_struct = variable(config[CONF_MAKE_ID], rhs)
     add(fan_struct.Poutput.set_binary(output))
     if CONF_OSCILLATION_OUTPUT in config:
-        oscillation_output = None
         for oscillation_output in get_variable(config[CONF_OSCILLATION_OUTPUT]):
             yield
         add(fan_struct.Poutput.set_oscillation(oscillation_output))

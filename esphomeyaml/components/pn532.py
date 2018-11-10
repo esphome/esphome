@@ -2,17 +2,18 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins, automation
-from esphomeyaml.components import binary_sensor
+from esphomeyaml.components import binary_sensor, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_SPI_ID, CONF_UPDATE_INTERVAL, \
     CONF_ON_TAG, CONF_TRIGGER_ID
 from esphomeyaml.helpers import App, Pvariable, get_variable, gpio_output_pin_expression, \
-    std_string, setup_component
+    std_string, setup_component, PollingComponent, Trigger
 
 DEPENDENCIES = ['spi']
 
-PN532Component = binary_sensor.binary_sensor_ns.PN532Component
-PN532Trigger = binary_sensor.binary_sensor_ns.PN532Trigger
+PN532Component = binary_sensor.binary_sensor_ns.class_('PN532Component', PollingComponent,
+                                                       spi.SPIDevice)
+PN532Trigger = binary_sensor.binary_sensor_ns.class_('PN532Trigger', Trigger.template(std_string))
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(PN532Component),

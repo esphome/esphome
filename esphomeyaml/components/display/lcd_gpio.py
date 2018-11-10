@@ -6,11 +6,11 @@ from esphomeyaml.components import display
 from esphomeyaml.const import CONF_DATA_PINS, CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, \
     CONF_LAMBDA, CONF_RS_PIN, CONF_RW_PIN
 from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda, \
-    setup_component
+    setup_component, PollingComponent
 
-GPIOLCDDisplay = display.display_ns.GPIOLCDDisplay
-LCDDisplay = display.display_ns.LCDDisplay
+LCDDisplay = display.display_ns.class_('LCDDisplay', PollingComponent)
 LCDDisplayRef = LCDDisplay.operator('ref')
+GPIOLCDDisplay = display.display_ns.class_('GPIOLCDDisplay', LCDDisplay)
 
 
 def validate_lcd_dimensions(value):

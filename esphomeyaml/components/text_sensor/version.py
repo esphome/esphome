@@ -1,10 +1,11 @@
 from esphomeyaml.components import text_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME
-from esphomeyaml.helpers import App, Application, variable, setup_component
+from esphomeyaml.helpers import App, Application, variable, setup_component, Component
 
-MakeVersionTextSensor = Application.MakeVersionTextSensor
-VersionTextSensor = text_sensor.text_sensor_ns.VersionTextSensor
+MakeVersionTextSensor = Application.struct('MakeVersionTextSensor')
+VersionTextSensor = text_sensor.text_sensor_ns.class_('VersionTextSensor',
+                                                      text_sensor.TextSensor, Component)
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(VersionTextSensor),

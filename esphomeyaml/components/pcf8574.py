@@ -1,16 +1,26 @@
 import voluptuous as vol
 
+from esphomeyaml import pins
+from esphomeyaml.components import i2c
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_PCF8575
-from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, setup_component
+from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, setup_component, Component, \
+    GPIOInputPin, GPIOOutputPin, io_ns
 
 DEPENDENCIES = ['i2c']
 
-io_ns = esphomelib_ns.namespace('io')
-PCF8574Component = io_ns.PCF8574Component
+PCF8574GPIOMode = io_ns.enum('PCF8574GPIOMode')
+PCF8675_GPIO_MODES = {
+    'INPUT': PCF8574GPIOMode.PCF8574_INPUT,
+    'INPUT_PULLUP': PCF8574GPIOMode.PCF8574_INPUT_PULLUP,
+    'OUTPUT': PCF8574GPIOMode.PCF8574_OUTPUT,
+}
+
+PCF8574GPIOInputPin = io_ns.class_('PCF8574GPIOInputPin', GPIOInputPin)
+PCF8574GPIOOutputPin = io_ns.class_('PCF8574GPIOOutputPin', GPIOOutputPin)
 
 PCF8574_SCHEMA = vol.Schema({
-    vol.Required(CONF_ID): cv.declare_variable_id(PCF8574Component),
+    vol.Required(CONF_ID): cv.declare_variable_id(pins.PCF8574Component),
     vol.Optional(CONF_ADDRESS, default=0x21): cv.i2c_address,
     vol.Optional(CONF_PCF8575, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA.schema)

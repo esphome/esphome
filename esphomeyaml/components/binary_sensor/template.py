@@ -4,10 +4,12 @@ from esphomeyaml.components import binary_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME
 from esphomeyaml.helpers import App, Application, add, bool_, optional, process_lambda, variable, \
-    setup_component
+    setup_component, Component
 
-MakeTemplateBinarySensor = Application.MakeTemplateBinarySensor
-TemplateBinarySensor = binary_sensor.binary_sensor_ns.TemplateBinarySensor
+MakeTemplateBinarySensor = Application.struct('MakeTemplateBinarySensor')
+TemplateBinarySensor = binary_sensor.binary_sensor_ns.class_('TemplateBinarySensor',
+                                                             binary_sensor.BinarySensor,
+                                                             Component)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),

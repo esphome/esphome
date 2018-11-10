@@ -5,10 +5,12 @@ from esphomeyaml import pins
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_PIN
 from esphomeyaml.helpers import App, gpio_input_pin_expression, variable, Application, \
-    setup_component
+    setup_component, Component
 
-MakeGPIOBinarySensor = Application.MakeGPIOBinarySensor
-GPIOBinarySensorComponent = binary_sensor.binary_sensor_ns.GPIOBinarySensorComponent
+MakeGPIOBinarySensor = Application.struct('MakeGPIOBinarySensor')
+GPIOBinarySensorComponent = binary_sensor.binary_sensor_ns.class_('GPIOBinarySensorComponent',
+                                                                  binary_sensor.BinarySensor,
+                                                                  Component)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOBinarySensorComponent),

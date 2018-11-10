@@ -4,9 +4,10 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN
 from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, gpio_input_pin_expression, \
-    gpio_output_pin_expression, add, setup_component
+    gpio_output_pin_expression, add, setup_component, Component
 
-SPIComponent = esphomelib_ns.SPIComponent
+SPIComponent = esphomelib_ns.class_('SPIComponent', Component)
+SPIDevice = esphomelib_ns.class_('SPIDevice')
 
 SPI_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(SPIComponent),
