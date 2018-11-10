@@ -131,7 +131,7 @@ def to_code(config):
     remote = None
     for remote in get_variable(config[CONF_REMOTE_TRANSMITTER_ID]):
         yield
-    rhs = App.register_component(transmitter_base(config))
+    rhs = transmitter_base(config)
     transmitter = Pvariable(config[CONF_TRANSMITTER_ID], rhs)
 
     if CONF_REPEAT in config:
