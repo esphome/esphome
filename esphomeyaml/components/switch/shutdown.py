@@ -6,8 +6,10 @@ from esphomeyaml.const import CONF_INVERTED, CONF_MAKE_ID, CONF_NAME
 from esphomeyaml.helpers import App, Application, variable
 
 MakeShutdownSwitch = Application.MakeShutdownSwitch
+ShutdownSwitch = switch.switch_ns.ShutdownSwitch
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(ShutdownSwitch),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeShutdownSwitch),
     vol.Optional(CONF_INVERTED): cv.invalid("Shutdown switches do not support inverted mode!"),
 }))

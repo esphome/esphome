@@ -8,8 +8,10 @@ from esphomeyaml.helpers import App, Application, variable
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 MakeESP32HallSensor = Application.MakeESP32HallSensor
+ESP32HallSensor = sensor.sensor_ns.ESP32HallSensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(ESP32HallSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeESP32HallSensor),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))

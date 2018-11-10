@@ -6,8 +6,10 @@ from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
 from esphomeyaml.helpers import App, Application, get_variable, variable
 
 MakeOutputSwitch = Application.MakeOutputSwitch
+OutputSwitch = switch.switch_ns.OutputSwitch
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(OutputSwitch),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeOutputSwitch),
     vol.Required(CONF_OUTPUT): cv.use_variable_id(None),
 }))

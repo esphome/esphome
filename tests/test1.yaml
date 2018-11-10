@@ -310,10 +310,14 @@ sensor:
       name: "HLW8012 Voltage"
     power:
       name: "HLW8012 Power"
+      id: hlw8012_power
     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
     change_mode_every: 16
+  - platform: total_daily_energy
+    power_id: hlw8012_power
+    name: "HLW8012 Total Daily Energy"
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -498,6 +502,31 @@ binary_sensor:
       - then:
          - lambda: >-
              ESP_LOGD("main", "Double Clicked");
+    on_multi_click:
+    - timing:
+      - ON for at most 1s
+      - OFF for at most 1s
+      - ON for at most 1s
+      - OFF for at least 0.2s
+      then:
+      - logger.log:
+          format: "Multi Clicked TWO"
+          level: warn
+    - timing:
+      - OFF for 1s to 2s
+      - ON for 1s to 2s
+      - OFF for at least 0.5s
+      then:
+      - logger.log:
+          format: "Multi Clicked LONG SINGLE"
+          level: warn
+    - timing:
+      - ON for at most 1s
+      - OFF for at least 0.5s
+      then:
+      - logger.log:
+          format: "Multi Clicked SINGLE"
+          level: warn
     id: binary_sensor1
   - platform: status
     name: "Living Room Status"
@@ -716,7 +745,6 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
-    power_on_value: True
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
@@ -806,6 +834,7 @@ switch:
         level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
+    restore_state: False
   - platform: restart
     name: "Living Room Restart"
   - platform: shutdown
@@ -832,6 +861,7 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    restore_state: True
   - platform: uart
     name: "UART String Output"
     data: 'DataToSend'

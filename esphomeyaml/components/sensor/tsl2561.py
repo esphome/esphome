@@ -29,8 +29,10 @@ def validate_integration_time(value):
 
 
 MakeTSL2561Sensor = Application.MakeTSL2561Sensor
+TSL2561Sensor = Application.TSL2561Sensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(TSL2561Sensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTSL2561Sensor),
     vol.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
     vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,

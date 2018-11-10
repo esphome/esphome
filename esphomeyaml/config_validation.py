@@ -296,7 +296,8 @@ def time_period_str_colon(value):
 def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
     if isinstance(value, int):
-        value = str(value)
+        raise vol.Invalid("Don't know what '{}' means as it has no time *unit*! Did you mean "
+                          "'{}s'?".format(value, value))
     elif not isinstance(value, (str, unicode)):
         raise vol.Invalid("Expected string for time period with unit.")
 
@@ -555,8 +556,14 @@ i2c_address = hex_uint8_t
 
 
 def percentage(value):
-    if isinstance(value, (str, unicode)) and value.endswith('%'):
+    has_percent_sign = isinstance(value, (str, unicode)) and value.endswith('%')
+    if has_percent_sign:
         value = float(value[:-1].rstrip()) / 100.0
+    if value > 1:
+        msg = "Percentage must not be higher than 100%."
+        if not has_percent_sign:
+            msg += " Please don't put to put a percent sign after the number!"
+        raise vol.Invalid(msg)
     return zero_to_one_float(value)
 
 

@@ -4,8 +4,10 @@ from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME
 from esphomeyaml.helpers import App, Application, variable
 
 MakeVersionTextSensor = Application.MakeVersionTextSensor
+VersionTextSensor = text_sensor.text_sensor_ns.VersionTextSensor
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(VersionTextSensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeVersionTextSensor),
 }))
 

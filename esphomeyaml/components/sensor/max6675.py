@@ -9,8 +9,10 @@ from esphomeyaml.const import CONF_CS_PIN, CONF_MAKE_ID, CONF_NAME, CONF_SPI_ID,
 from esphomeyaml.helpers import App, Application, get_variable, gpio_output_pin_expression, variable
 
 MakeMAX6675Sensor = Application.MakeMAX6675Sensor
+MAX6675Sensor = sensor.sensor_ns.MAX6675Sensor
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(MAX6675Sensor),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeMAX6675Sensor),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,

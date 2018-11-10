@@ -17,6 +17,7 @@ COUNT_MODES = {
 COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(*COUNT_MODES))
 
 MakePulseCounterSensor = Application.MakePulseCounterSensor
+PulseCounterSensorComponent = sensor.sensor_ns.PulseCounterSensorComponent
 
 
 def validate_internal_filter(value):
@@ -33,6 +34,7 @@ def validate_internal_filter(value):
 
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(PulseCounterSensorComponent),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakePulseCounterSensor),
     vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
     vol.Optional(CONF_COUNT_MODE): vol.Schema({

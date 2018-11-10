@@ -39,6 +39,7 @@ RCSwitchTypeDTransmitter = remote_ns.RCSwitchTypeDTransmitter
 validate_raw_data = [vol.Any(vol.Coerce(int), cv.time_period_microseconds)]
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(RemoteTransmitter),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): vol.All(vol.Coerce(int), cv.one_of(28, 32)),
@@ -130,7 +131,7 @@ def to_code(config):
     remote = None
     for remote in get_variable(config[CONF_REMOTE_TRANSMITTER_ID]):
         yield
-    rhs = App.register_component(transmitter_base(config))
+    rhs = transmitter_base(config)
     transmitter = Pvariable(config[CONF_TRANSMITTER_ID], rhs)
 
     if CONF_REPEAT in config:
