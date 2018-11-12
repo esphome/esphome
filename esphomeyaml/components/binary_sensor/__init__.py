@@ -41,7 +41,7 @@ DelayedOnFilter = binary_sensor_ns.class_('DelayedOnFilter', Filter, Component)
 DelayedOffFilter = binary_sensor_ns.class_('DelayedOffFilter', Filter, Component)
 HeartbeatFilter = binary_sensor_ns.class_('HeartbeatFilter', Filter, Component)
 InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
-LambdaFilter = binary_sensor_ns.class_('LambdaFilter')
+LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
 
 
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
