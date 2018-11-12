@@ -4,16 +4,17 @@ from esphomeyaml import pins
 from esphomeyaml.components import stepper
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression
+from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, setup_component, \
+    Component
 
-A4988 = stepper.stepper_ns.A4988
+A4988 = stepper.stepper_ns.class_('A4988', stepper.Stepper, Component)
 
 PLATFORM_SCHEMA = stepper.STEPPER_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(A4988),
     vol.Required(CONF_STEP_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_DIR_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_SLEEP_PIN): pins.gpio_output_pin_schema,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -30,6 +31,7 @@ def to_code(config):
         add(a4988.set_sleep_pin(sleep_pin))
 
     stepper.setup_stepper(a4988, config)
+    setup_component(a4988, config)
 
 
 BUILD_FLAGS = '-DUSE_A4988'

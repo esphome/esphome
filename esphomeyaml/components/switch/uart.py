@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import switch
+from esphomeyaml.components import switch, uart
 from esphomeyaml.components.uart import UARTComponent
 from esphomeyaml.const import CONF_DATA, CONF_INVERTED, CONF_MAKE_ID, CONF_NAME, CONF_UART_ID
 from esphomeyaml.core import HexInt
@@ -9,8 +9,8 @@ from esphomeyaml.helpers import App, Application, ArrayInitializer, get_variable
 
 DEPENDENCIES = ['uart']
 
-MakeUARTSwitch = Application.MakeUARTSwitch
-UARTSwitch = switch.switch_ns.UARTSwitch
+MakeUARTSwitch = Application.struct('MakeUARTSwitch')
+UARTSwitch = switch.switch_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevice)
 
 
 def validate_data(value):
@@ -33,13 +33,12 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    uart = None
-    for uart in get_variable(config[CONF_UART_ID]):
+    for uart_ in get_variable(config[CONF_UART_ID]):
         yield
     data = config[CONF_DATA]
     if isinstance(data, str):
         data = [HexInt(ord(x)) for x in data]
-    rhs = App.make_uart_switch(uart, config[CONF_NAME], ArrayInitializer(*data, multiline=False))
+    rhs = App.make_uart_switch(uart_, config[CONF_NAME], ArrayInitializer(*data, multiline=False))
     restart = variable(config[CONF_MAKE_ID], rhs)
     switch.setup_switch(restart.Puart, restart.Pmqtt, config)
 

@@ -4,9 +4,10 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.const import CONF_FREQUENCY, CONF_SCL, CONF_SDA, CONF_SCAN, CONF_ID, \
     CONF_RECEIVE_TIMEOUT
-from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns
+from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component, Component
 
-I2CComponent = esphomelib_ns.I2CComponent
+I2CComponent = esphomelib_ns.class_('I2CComponent', Component)
+I2CDevice = pins.I2CDevice
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_RECEIVE_TIMEOUT): cv.invalid("The receive_timeout option has been removed "
                                                    "because timeouts are already handled by the "
                                                    "low-level i2c interface.")
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -26,6 +27,8 @@ def to_code(config):
     i2c = Pvariable(config[CONF_ID], rhs)
     if CONF_FREQUENCY in config:
         add(i2c.set_frequency(config[CONF_FREQUENCY]))
+
+    setup_component(i2c, config)
 
 
 BUILD_FLAGS = '-DUSE_I2C'

@@ -5,11 +5,12 @@ from esphomeyaml import pins
 from esphomeyaml.components import display
 from esphomeyaml.const import CONF_DATA_PINS, CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, \
     CONF_LAMBDA, CONF_RS_PIN, CONF_RW_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda
+from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda, \
+    setup_component, PollingComponent
 
-GPIOLCDDisplay = display.display_ns.GPIOLCDDisplay
-LCDDisplay = display.display_ns.LCDDisplay
+LCDDisplay = display.display_ns.class_('LCDDisplay', PollingComponent)
 LCDDisplayRef = LCDDisplay.operator('ref')
+GPIOLCDDisplay = display.display_ns.class_('GPIOLCDDisplay', LCDDisplay)
 
 
 def validate_lcd_dimensions(value):
@@ -36,7 +37,7 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_RW_PIN): pins.gpio_output_pin_schema,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -67,6 +68,7 @@ def to_code(config):
         add(lcd.set_writer(lambda_))
 
     display.setup_display(lcd, config)
+    setup_component(lcd, config)
 
 
 BUILD_FLAGS = '-DUSE_LCD_DISPLAY'

@@ -5,7 +5,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE,\
     CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
-from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns
+from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns, \
+    Component
 
 
 def validate_password(value):
@@ -64,16 +65,16 @@ def validate(config):
     return config
 
 
-# pylint: disable=invalid-name
-IPAddress = global_ns.IPAddress
-ManualIP = esphomelib_ns.ManualIP
-WiFiComponent = esphomelib_ns.WiFiComponent
-WiFiAp = esphomelib_ns.WiFiAp
+IPAddress = global_ns.class_('IPAddress')
+ManualIP = esphomelib_ns.struct('ManualIP')
+WiFiComponent = esphomelib_ns.class_('WiFiComponent', Component)
+WiFiAp = esphomelib_ns.struct('WiFiAp')
 
+WiFiPowerSaveMode = esphomelib_ns.enum('WiFiPowerSaveMode')
 WIFI_POWER_SAVE_MODES = {
-    'NONE': esphomelib_ns.WIFI_POWER_SAVE_NONE,
-    'LIGHT': esphomelib_ns.WIFI_POWER_SAVE_LIGHT,
-    'HIGH': esphomelib_ns.WIFI_POWER_SAVE_HIGH,
+    'NONE': WiFiPowerSaveMode.WIFI_POWER_SAVE_NONE,
+    'LIGHT': WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
+    'HIGH': WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
 
 CONFIG_SCHEMA = vol.All(vol.Schema({

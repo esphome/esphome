@@ -1,20 +1,21 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import display
-from esphomeyaml.components.display.lcd_gpio import LCDDisplayRef, validate_lcd_dimensions
+from esphomeyaml.components import display, i2c
+from esphomeyaml.components.display.lcd_gpio import LCDDisplayRef, validate_lcd_dimensions, \
+    LCDDisplay
 from esphomeyaml.const import CONF_ADDRESS, CONF_DIMENSIONS, CONF_ID, CONF_LAMBDA
-from esphomeyaml.helpers import App, Pvariable, add, process_lambda
+from esphomeyaml.helpers import App, Pvariable, add, process_lambda, setup_component
 
 DEPENDENCIES = ['i2c']
 
-PCF8574LCDDisplay = display.display_ns.PCF8574LCDDisplay
+PCF8574LCDDisplay = display.display_ns.class_('PCF8574LCDDisplay', LCDDisplay, i2c.I2CDevice)
 
 PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PCF8574LCDDisplay),
     vol.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -30,6 +31,7 @@ def to_code(config):
         add(lcd.set_writer(lambda_))
 
     display.setup_display(lcd, config)
+    setup_component(lcd, config)
 
 
 BUILD_FLAGS = ['-DUSE_LCD_DISPLAY', '-DUSE_LCD_DISPLAY_PCF8574']

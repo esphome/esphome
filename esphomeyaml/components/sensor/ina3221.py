@@ -1,11 +1,11 @@
 # coding=utf-8
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_BUS_VOLTAGE, CONF_CURRENT, CONF_ID, CONF_NAME, \
     CONF_POWER, CONF_SHUNT_RESISTANCE, CONF_SHUNT_VOLTAGE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, PollingComponent, Pvariable, add, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -13,20 +13,31 @@ CONF_CHANNEL_1 = 'channel_1'
 CONF_CHANNEL_2 = 'channel_2'
 CONF_CHANNEL_3 = 'channel_3'
 
-INA3221Component = sensor.sensor_ns.INA3221Component
-INA3221VoltageSensor = sensor.sensor_ns.INA3221VoltageSensor
-INA3221CurrentSensor = sensor.sensor_ns.INA3221CurrentSensor
-INA3221PowerSensor = sensor.sensor_ns.INA3221PowerSensor
+INA3221Component = sensor.sensor_ns.class_('INA3221Component', PollingComponent, i2c.I2CDevice)
+INA3221VoltageSensor = sensor.sensor_ns.class_('INA3221VoltageSensor',
+                                               sensor.EmptyPollingParentSensor)
+INA3221CurrentSensor = sensor.sensor_ns.class_('INA3221CurrentSensor',
+                                               sensor.EmptyPollingParentSensor)
+INA3221PowerSensor = sensor.sensor_ns.class_('INA3221PowerSensor', sensor.EmptyPollingParentSensor)
+
+SENSOR_KEYS = [CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT, CONF_POWER]
 
 INA3221_CHANNEL_SCHEMA = vol.All(vol.Schema({
-    vol.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(INA3221VoltageSensor),
+    })),
+    vol.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(INA3221VoltageSensor),
+    })),
+    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(INA3221CurrentSensor),
+    })),
+    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(INA3221PowerSensor),
+    })),
     vol.Optional(CONF_SHUNT_RESISTANCE, default=0.1): vol.All(cv.resistance,
                                                               vol.Range(min=0.0, max=32.0)),
-}), cv.has_at_least_one_key(CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT,
-                            CONF_POWER))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(INA3221Component),
@@ -59,6 +70,8 @@ def to_code(config):
         if CONF_POWER in conf:
             c = conf[CONF_POWER]
             sensor.register_sensor(ina.Pmake_power_sensor(i, c[CONF_NAME]), c)
+
+    setup_component(ina, config)
 
 
 BUILD_FLAGS = '-DUSE_INA3221'

@@ -23,18 +23,18 @@ REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_
 CONF_REMOTE_TRANSMITTER_ID = 'remote_transmitter_id'
 CONF_TRANSMITTER_ID = 'transmitter_id'
 
-RemoteTransmitter = remote_ns.RemoteTransmitter
-LGTransmitter = remote_ns.LGTransmitter
-NECTransmitter = remote_ns.NECTransmitter
-PanasonicTransmitter = remote_ns.PanasonicTransmitter
-RawTransmitter = remote_ns.RawTransmitter
-SamsungTransmitter = remote_ns.SamsungTransmitter
-SonyTransmitter = remote_ns.SonyTransmitter
-RCSwitchRawTransmitter = remote_ns.RCSwitchRawTransmitter
-RCSwitchTypeATransmitter = remote_ns.RCSwitchTypeATransmitter
-RCSwitchTypeBTransmitter = remote_ns.RCSwitchTypeBTransmitter
-RCSwitchTypeCTransmitter = remote_ns.RCSwitchTypeCTransmitter
-RCSwitchTypeDTransmitter = remote_ns.RCSwitchTypeDTransmitter
+RemoteTransmitter = remote_ns.class_('RemoteTransmitter', switch.Switch)
+LGTransmitter = remote_ns.class_('LGTransmitter', RemoteTransmitter)
+NECTransmitter = remote_ns.class_('NECTransmitter', RemoteTransmitter)
+PanasonicTransmitter = remote_ns.class_('PanasonicTransmitter', RemoteTransmitter)
+RawTransmitter = remote_ns.class_('RawTransmitter', RemoteTransmitter)
+SamsungTransmitter = remote_ns.class_('SamsungTransmitter', RemoteTransmitter)
+SonyTransmitter = remote_ns.class_('SonyTransmitter', RemoteTransmitter)
+RCSwitchRawTransmitter = remote_ns.class_('RCSwitchRawTransmitter', RemoteTransmitter)
+RCSwitchTypeATransmitter = remote_ns.class_('RCSwitchTypeATransmitter', RCSwitchRawTransmitter)
+RCSwitchTypeBTransmitter = remote_ns.class_('RCSwitchTypeBTransmitter', RCSwitchRawTransmitter)
+RCSwitchTypeCTransmitter = remote_ns.class_('RCSwitchTypeCTransmitter', RCSwitchRawTransmitter)
+RCSwitchTypeDTransmitter = remote_ns.class_('RCSwitchTypeDTransmitter', RCSwitchRawTransmitter)
 
 validate_raw_data = [vol.Any(vol.Coerce(int), cv.time_period_microseconds)]
 
@@ -128,7 +128,6 @@ def transmitter_base(full_config):
 
 
 def to_code(config):
-    remote = None
     for remote in get_variable(config[CONF_REMOTE_TRANSMITTER_ID]):
         yield
     rhs = transmitter_base(config)

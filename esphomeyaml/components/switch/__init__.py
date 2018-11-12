@@ -6,21 +6,21 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
     CONF_OPTIMISTIC
 from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
-    TemplateArguments, get_variable
+    TemplateArguments, get_variable, Nameable, Action
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
 switch_ns = esphomelib_ns.namespace('switch_')
-Switch = switch_ns.Switch
-MQTTSwitchComponent = switch_ns.MQTTSwitchComponent
-ToggleAction = switch_ns.ToggleAction
-TurnOffAction = switch_ns.TurnOffAction
-TurnOnAction = switch_ns.TurnOnAction
+Switch = switch_ns.class_('Switch', Nameable)
+MQTTSwitchComponent = switch_ns.class_('MQTTSwitchComponent', mqtt.MQTTComponent)
+
+ToggleAction = switch_ns.class_('ToggleAction', Action)
+TurnOffAction = switch_ns.class_('TurnOffAction', Action)
+TurnOnAction = switch_ns.class_('TurnOnAction', Action)
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(Switch),
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_INVERTED): cv.boolean,
@@ -58,7 +58,7 @@ BUILD_FLAGS = '-DUSE_SWITCH'
 
 CONF_SWITCH_TOGGLE = 'switch.toggle'
 SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Switch),
 })
 
 
@@ -74,7 +74,7 @@ def switch_toggle_to_code(config, action_id, arg_type):
 
 CONF_SWITCH_TURN_OFF = 'switch.turn_off'
 SWITCH_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Switch),
 })
 
 
@@ -90,7 +90,7 @@ def switch_turn_off_to_code(config, action_id, arg_type):
 
 CONF_SWITCH_TURN_ON = 'switch.turn_on'
 SWITCH_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Switch),
 })
 
 

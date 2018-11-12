@@ -10,7 +10,8 @@ DEPENDENCIES = ['display']
 
 CONF_NEXTION_ID = 'nextion_id'
 
-NextionTouchComponent = display.display_ns.NextionTouchComponent
+NextionTouchComponent = display.display_ns.class_('NextionTouchComponent',
+                                                  binary_sensor.BinarySensor)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(NextionTouchComponent),

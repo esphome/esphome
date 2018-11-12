@@ -1,10 +1,10 @@
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Pvariable
+from esphomeyaml.helpers import App, PollingComponent, Pvariable, setup_component
 
 DEPENDENCIES = ['i2c']
 
@@ -15,24 +15,41 @@ CONF_GYRO_X = 'gyro_x'
 CONF_GYRO_Y = 'gyro_y'
 CONF_GYRO_Z = 'gyro_z'
 
-MPU6050Component = sensor.sensor_ns.MPU6050Component
-MPU6050AccelSensor = sensor.sensor_ns.MPU6050AccelSensor
-MPU6050GyroSensor = sensor.sensor_ns.MPU6050GyroSensor
-MPU6050TemperatureSensor = sensor.sensor_ns.MPU6050TemperatureSensor
+MPU6050Component = sensor.sensor_ns.class_('MPU6050Component', PollingComponent, i2c.I2CDevice)
+MPU6050AccelSensor = sensor.sensor_ns.class_('MPU6050AccelSensor', sensor.EmptyPollingParentSensor)
+MPU6050GyroSensor = sensor.sensor_ns.class_('MPU6050GyroSensor', sensor.EmptyPollingParentSensor)
+MPU6050TemperatureSensor = sensor.sensor_ns.class_('MPU6050TemperatureSensor',
+                                                   sensor.EmptyPollingParentSensor)
+
+SENSOR_KEYS = [CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z,
+               CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z]
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(MPU6050Component),
     vol.Optional(CONF_ADDRESS, default=0x68): cv.i2c_address,
-    vol.Optional(CONF_ACCEL_X): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_ACCEL_Y): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_ACCEL_Z): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_GYRO_X): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_GYRO_Y): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_GYRO_Z): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_ACCEL_X): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050AccelSensor),
+    })),
+    vol.Optional(CONF_ACCEL_Y): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050AccelSensor),
+    })),
+    vol.Optional(CONF_ACCEL_Z): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050AccelSensor),
+    })),
+    vol.Optional(CONF_GYRO_X): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050GyroSensor),
+    })),
+    vol.Optional(CONF_GYRO_Y): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050GyroSensor),
+    })),
+    vol.Optional(CONF_GYRO_Z): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050GyroSensor),
+    })),
+    vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(MPU6050TemperatureSensor),
+    })),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}), cv.has_at_least_one_key(CONF_ACCEL_X, CONF_ACCEL_Y, CONF_ACCEL_Z,
-                            CONF_GYRO_X, CONF_GYRO_Y, CONF_GYRO_Z))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
 def to_code(config):
@@ -66,6 +83,8 @@ def to_code(config):
         conf = config[CONF_TEMPERATURE]
         rhs = mpu.Pmake_temperature_sensor(conf[CONF_NAME])
         sensor.register_sensor(rhs, conf)
+
+    setup_component(mpu, config)
 
 
 BUILD_FLAGS = '-DUSE_MPU6050'

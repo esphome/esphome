@@ -27,7 +27,8 @@ def validate_uid(value):
     return value
 
 
-PN532BinarySensor = binary_sensor.binary_sensor_ns.PN532BinarySensor
+PN532BinarySensor = binary_sensor.binary_sensor_ns.class_('PN532BinarySensor',
+                                                          binary_sensor.BinarySensor)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PN532BinarySensor),
@@ -37,7 +38,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_PN532_ID]):
         yield
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]

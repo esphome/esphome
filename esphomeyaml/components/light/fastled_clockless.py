@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_CHIPSET, CONF_DEFAULT_TRANSITION_LENGTH, CONF
     CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, \
     CONF_RGB_ORDER, CONF_EFFECTS, CONF_COLOR_CORRECT
 from esphomeyaml.helpers import App, Application, RawExpression, TemplateArguments, add, \
-    get_variable, variable
+    get_variable, variable, setup_component
 
 TYPES = [
     'NEOPIXEL',
@@ -53,7 +53,7 @@ def validate(value):
     return value
 
 
-MakeFastLEDLight = Application.MakeFastLEDLight
+MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
@@ -70,7 +70,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.FASTLED_EFFECTS),
-}), validate)
+}).extend(cv.COMPONENT_SCHEMA.schema), validate)
 
 
 def to_code(config):
@@ -89,7 +89,6 @@ def to_code(config):
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CONF_POWER_SUPPLY in config:
-        power_supply = None
         for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
             yield
         add(fast_led.set_power_supply(power_supply))
@@ -99,6 +98,7 @@ def to_code(config):
         add(fast_led.set_correction(r, g, b))
 
     light.setup_light(make.Pstate, make.Pmqtt, config)
+    setup_component(fast_led, config)
 
 
 BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'

@@ -10,7 +10,7 @@ from voluptuous.humanize import humanize_error
 from esphomeyaml import core, yaml_util, core_config
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
 from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import color
+from esphomeyaml.helpers import color, MockObjClass
 from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,11 +106,29 @@ def do_id_pass(result):
 
     # Check searched IDs
     for id, prefix, config in searching_ids:
-        if id.id is not None and not any(v[0].id == id.id for v in declare_ids):
-            result.add_error("Couldn't find ID {}".format(id.id), '.'.join(prefix), config)
+        if id.id is not None:
+            # manually declared
+            match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
+            if match is None:
+                # No declared ID with this name
+                result.add_error("Couldn't find ID {}".format(id.id), '.'.join(prefix), config)
+                continue
+            if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
+                continue
+            if not match.type.inherits_from(id.type):
+                result.add_error("ID '{}' of type {} doesn't inherit from {}. Please double check "
+                                 "your ID is pointing to the correct value"
+                                 "".format(id.id, match.type, id.type))
+
         if id.id is None and id.type is not None:
-            id.id = next((v[0].id for v in declare_ids if v[0].type == id.type), None)
-            if id.id is None:
+            for v in declare_ids:
+                if v[0] is None or not isinstance(v[0].type, MockObjClass):
+                    continue
+                inherits = v[0].type.inherits_from(id.type)
+                if inherits:
+                    id.id = v[0].id
+                    break
+            else:
                 result.add_error("Couldn't resolve ID for type {}".format(id.type),
                                  '.'.join(prefix), config)
 

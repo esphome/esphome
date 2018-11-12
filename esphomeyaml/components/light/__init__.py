@@ -11,36 +11,48 @@ from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLOR
     CONF_EFFECT
 from esphomeyaml.helpers import Application, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, add, add_job, esphomelib_ns, process_lambda, setup_mqtt_component, \
-    get_variable, TemplateArguments, templatable, uint32, float_, std_string
+    get_variable, TemplateArguments, templatable, uint32, float_, std_string, Nameable, Component, \
+    Action
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
+# Base
 light_ns = esphomelib_ns.namespace('light')
-LightState = light_ns.LightState
-LightColorValues = light_ns.LightColorValues
-MQTTJSONLightComponent = light_ns.MQTTJSONLightComponent
-ToggleAction = light_ns.ToggleAction
-TurnOffAction = light_ns.TurnOffAction
-TurnOnAction = light_ns.TurnOnAction
-MakeLight = Application.MakeLight
-RandomLightEffect = light_ns.RandomLightEffect
-LambdaLightEffect = light_ns.LambdaLightEffect
-StrobeLightEffect = light_ns.StrobeLightEffect
-StrobeLightEffectColor = light_ns.StrobeLightEffectColor
-FlickerLightEffect = light_ns.FlickerLightEffect
-FastLEDLambdaLightEffect = light_ns.FastLEDLambdaLightEffect
-FastLEDRainbowLightEffect = light_ns.FastLEDRainbowLightEffect
-FastLEDColorWipeEffect = light_ns.FastLEDColorWipeEffect
-FastLEDColorWipeEffectColor = light_ns.FastLEDColorWipeEffectColor
-FastLEDScanEffect = light_ns.FastLEDScanEffect
-FastLEDScanEffectColor = light_ns.FastLEDScanEffectColor
-FastLEDTwinkleEffect = light_ns.FastLEDTwinkleEffect
-FastLEDRandomTwinkleEffect = light_ns.FastLEDRandomTwinkleEffect
-FastLEDFireworksEffect = light_ns.FastLEDFireworksEffect
-FastLEDFlickerEffect = light_ns.FastLEDFlickerEffect
-FastLEDLightOutputComponent = light_ns.FastLEDLightOutputComponent
+LightState = light_ns.class_('LightState', Nameable, Component)
+MakeLight = Application.struct('MakeLight')
+LightOutput = light_ns.class_('LightOutput')
+FastLEDLightOutputComponent = light_ns.class_('FastLEDLightOutputComponent', LightOutput)
+
+# Actions
+ToggleAction = light_ns.class_('ToggleAction', Action)
+TurnOffAction = light_ns.class_('TurnOffAction', Action)
+TurnOnAction = light_ns.class_('TurnOnAction', Action)
+
+LightColorValues = light_ns.class_('LightColorValues')
+
+
+MQTTJSONLightComponent = light_ns.class_('MQTTJSONLightComponent', mqtt.MQTTComponent)
+
+# Effects
+LightEffect = light_ns.class_('LightEffect')
+RandomLightEffect = light_ns.class_('RandomLightEffect', LightEffect)
+LambdaLightEffect = light_ns.class_('LambdaLightEffect', LightEffect)
+StrobeLightEffect = light_ns.class_('StrobeLightEffect', LightEffect)
+StrobeLightEffectColor = light_ns.class_('StrobeLightEffectColor', LightEffect)
+FlickerLightEffect = light_ns.class_('FlickerLightEffect', LightEffect)
+BaseFastLEDLightEffect = light_ns.class_('BaseFastLEDLightEffect', LightEffect)
+FastLEDLambdaLightEffect = light_ns.class_('FastLEDLambdaLightEffect', BaseFastLEDLightEffect)
+FastLEDRainbowLightEffect = light_ns.class_('FastLEDRainbowLightEffect', BaseFastLEDLightEffect)
+FastLEDColorWipeEffect = light_ns.class_('FastLEDColorWipeEffect', BaseFastLEDLightEffect)
+FastLEDColorWipeEffectColor = light_ns.class_('FastLEDColorWipeEffectColor', BaseFastLEDLightEffect)
+FastLEDScanEffect = light_ns.class_('FastLEDScanEffect', BaseFastLEDLightEffect)
+FastLEDScanEffectColor = light_ns.class_('FastLEDScanEffectColor', BaseFastLEDLightEffect)
+FastLEDTwinkleEffect = light_ns.class_('FastLEDTwinkleEffect', BaseFastLEDLightEffect)
+FastLEDRandomTwinkleEffect = light_ns.class_('FastLEDRandomTwinkleEffect', BaseFastLEDLightEffect)
+FastLEDFireworksEffect = light_ns.class_('FastLEDFireworksEffect', BaseFastLEDLightEffect)
+FastLEDFlickerEffect = light_ns.class_('FastLEDFlickerEffect', BaseFastLEDLightEffect)
 
 CONF_STROBE = 'strobe'
 CONF_FLICKER = 'flicker'
@@ -345,7 +357,7 @@ BUILD_FLAGS = '-DUSE_LIGHT'
 
 CONF_LIGHT_TOGGLE = 'light.toggle'
 LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(LightState),
     vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 })
 
@@ -367,7 +379,7 @@ def light_toggle_to_code(config, action_id, arg_type):
 
 CONF_LIGHT_TURN_OFF = 'light.turn_off'
 LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(LightState),
     vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 })
 
@@ -389,7 +401,7 @@ def light_turn_off_to_code(config, action_id, arg_type):
 
 CONF_LIGHT_TURN_ON = 'light.turn_on'
 LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(LightState),
     vol.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
         cv.templatable(cv.positive_time_period_milliseconds),
     vol.Exclusive(CONF_FLASH_LENGTH, 'transformer'):

@@ -2,11 +2,11 @@ import logging
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.components import pcf8574
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphomeyaml.helpers import Component, esphomelib_ns, io_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -285,8 +285,11 @@ def shorthand_input_pin(value):
     return {CONF_NUMBER: value}
 
 
+I2CDevice = esphomelib_ns.class_('I2CDevice')
+PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
+
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_PCF8574): cv.use_variable_id(pcf8574.PCF8574Component),
+    vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
     vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("OUTPUT")),
     vol.Optional(CONF_INVERTED, default=False): cv.boolean,

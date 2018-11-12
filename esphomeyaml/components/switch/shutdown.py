@@ -5,8 +5,8 @@ from esphomeyaml.components import switch
 from esphomeyaml.const import CONF_INVERTED, CONF_MAKE_ID, CONF_NAME
 from esphomeyaml.helpers import App, Application, variable
 
-MakeShutdownSwitch = Application.MakeShutdownSwitch
-ShutdownSwitch = switch.switch_ns.ShutdownSwitch
+MakeShutdownSwitch = Application.struct('MakeShutdownSwitch')
+ShutdownSwitch = switch.switch_ns.class_('ShutdownSwitch', switch.Switch)
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ShutdownSwitch),

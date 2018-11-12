@@ -4,42 +4,56 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_HUMIDITY, CONF_IIR_FILTER, CONF_MAKE_ID, \
     CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
+BME280Oversampling = sensor.sensor_ns.enum('BME280Oversampling')
 OVERSAMPLING_OPTIONS = {
-    'NONE': sensor.sensor_ns.BME280_OVERSAMPLING_NONE,
-    '1X': sensor.sensor_ns.BME280_OVERSAMPLING_1X,
-    '2X': sensor.sensor_ns.BME280_OVERSAMPLING_2X,
-    '4X': sensor.sensor_ns.BME280_OVERSAMPLING_4X,
-    '8X': sensor.sensor_ns.BME280_OVERSAMPLING_8X,
-    '16X': sensor.sensor_ns.BME280_OVERSAMPLING_16X,
+    'NONE': BME280Oversampling.BME280_OVERSAMPLING_NONE,
+    '1X': BME280Oversampling.BME280_OVERSAMPLING_1X,
+    '2X': BME280Oversampling.BME280_OVERSAMPLING_2X,
+    '4X': BME280Oversampling.BME280_OVERSAMPLING_4X,
+    '8X': BME280Oversampling.BME280_OVERSAMPLING_8X,
+    '16X': BME280Oversampling.BME280_OVERSAMPLING_16X,
 }
 
+BME280IIRFilter = sensor.sensor_ns.enum('BME280IIRFilter')
 IIR_FILTER_OPTIONS = {
-    'OFF': sensor.sensor_ns.BME280_IIR_FILTER_OFF,
-    '2X': sensor.sensor_ns.BME280_IIR_FILTER_2X,
-    '4X': sensor.sensor_ns.BME280_IIR_FILTER_4X,
-    '8X': sensor.sensor_ns.BME280_IIR_FILTER_8X,
-    '16X': sensor.sensor_ns.BME280_IIR_FILTER_16X,
+    'OFF': BME280IIRFilter.BME280_IIR_FILTER_OFF,
+    '2X': BME280IIRFilter.BME280_IIR_FILTER_2X,
+    '4X': BME280IIRFilter.BME280_IIR_FILTER_4X,
+    '8X': BME280IIRFilter.BME280_IIR_FILTER_8X,
+    '16X': BME280IIRFilter.BME280_IIR_FILTER_16X,
 }
 
 BME280_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     vol.Optional(CONF_OVERSAMPLING): vol.All(vol.Upper, cv.one_of(*OVERSAMPLING_OPTIONS)),
 })
 
-MakeBME280Sensor = Application.MakeBME280Sensor
+MakeBME280Sensor = Application.struct('MakeBME280Sensor')
+BME280TemperatureSensor = sensor.sensor_ns.class_('BME280TemperatureSensor',
+                                                  sensor.EmptyPollingParentSensor)
+BME280PressureSensor = sensor.sensor_ns.class_('BME280PressureSensor',
+                                               sensor.EmptyPollingParentSensor)
+BME280HumiditySensor = sensor.sensor_ns.class_('BME280HumiditySensor',
+                                               sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBME280Sensor),
     vol.Optional(CONF_ADDRESS, default=0x77): cv.i2c_address,
-    vol.Required(CONF_TEMPERATURE): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
-    vol.Required(CONF_PRESSURE): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
-    vol.Required(CONF_HUMIDITY): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA),
+    vol.Required(CONF_TEMPERATURE): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME280TemperatureSensor),
+    })),
+    vol.Required(CONF_PRESSURE): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME280PressureSensor),
+    })),
+    vol.Required(CONF_HUMIDITY): cv.nameable(BME280_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME280HumiditySensor),
+    })),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -69,6 +83,7 @@ def to_code(config):
                         config[CONF_PRESSURE])
     sensor.setup_sensor(bme280.Pget_humidity_sensor(), make.Pmqtt_humidity,
                         config[CONF_HUMIDITY])
+    setup_component(bme280, config)
 
 
 BUILD_FLAGS = '-DUSE_BME280'
