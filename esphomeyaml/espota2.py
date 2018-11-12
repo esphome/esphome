@@ -221,6 +221,7 @@ def is_ip_address(host):
 
 def resolve_ip_address(host):
     if is_ip_address(host):
+        _LOGGER.info("Connecting to %s", host)
         return host
 
     _LOGGER.info("Resolving IP Address of %s", host)
@@ -240,7 +241,7 @@ def resolve_ip_address(host):
                       host)
 
         _LOGGER.error("(If this error persists, please set a static IP address: "
-                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips")
+                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
         raise OTAError("Errors: {}".format(', '.join(str(x) for x in errors)))
 
     _LOGGER.info(" -> %s", ip)

@@ -44,7 +44,8 @@ def validate_recursive_action(value):
         item.setdefault(CONF_ACTION_ID, None)
         key2 = next((x for x in item if x != CONF_ACTION_ID and x != key), None)
         if key2 is not None:
-            raise vol.Invalid(u"Cannot have two actions in one item. Key {} overrides {}!"
+            raise vol.Invalid(u"Cannot have two actions in one item. Key '{}' overrides '{}'! "
+                              u"Did you forget to indent the action?"
                               u"".format(key, key2))
         validator = ACTION_REGISTRY[key][0]
         value[i] = {
@@ -94,6 +95,8 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 try:
                     return vol.Schema([schema])(value)
                 except vol.Invalid as err2:
+                    if 'Unable to find action' in str(err):
+                        raise err2
                     raise vol.MultipleInvalid([err, err2])
         elif isinstance(value, dict):
             if CONF_THEN in value:
