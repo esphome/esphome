@@ -407,15 +407,31 @@ def get_variable(id):
         yield None
 
 
+def get_variable_with_full_id(id):
+    while True:
+        for k, v in _VARIABLES.iteritems():
+            if k == id:
+                yield (k, v)
+                return
+        _LOGGER.debug("Waiting for variable %s", id)
+        yield None, None
+
+
 def process_lambda(value, parameters, capture='=', return_type=None):
+    from esphomeyaml.components.globals import GlobalVariableComponent
+
     if value is None:
         yield
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        var = None
-        for var in get_variable(id):
+        for full_id, var in get_variable_with_full_id(id):
             yield
+        if full_id is not None and isinstance(full_id.type, MockObjClass) and \
+                full_id.type.inherits_from(GlobalVariableComponent):
+            parts[i * 3 + 1] = var.value()
+            continue
+
         if parts[i * 3 + 2] == '.':
             parts[i * 3 + 1] = var._
         else:
@@ -592,7 +608,9 @@ class MockObjClass(MockObj):
     def template(self, args):
         if not isinstance(args, TemplateArguments):
             args = TemplateArguments(args)
-        obj = MockObjClass(u'{}{}'.format(self.base, args), parents=self._parents)
+        new_parents = self._parents[:]
+        new_parents.append(self)
+        obj = MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
         obj.requires.append(self)
         obj.requires.append(args)
         return obj

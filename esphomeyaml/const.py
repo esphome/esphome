@@ -365,6 +365,8 @@ CONF_TIME_ID = 'time_id'
 CONF_RESTORE_STATE = 'restore_state'
 CONF_TIMING = 'timing'
 CONF_INVALID_COOLDOWN = 'invalid_cooldown'
+CONF_INITIAL_VALUE = 'initial_value'
+CONF_RESTORE_VALUE = 'restore_value'
 
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
