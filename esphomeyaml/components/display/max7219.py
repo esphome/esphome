@@ -25,11 +25,11 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi in get_variable(config[CONF_SPI_ID]):
+    for spi_ in get_variable(config[CONF_SPI_ID]):
         yield
     for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
         yield
-    rhs = App.make_max7219(spi, cs)
+    rhs = App.make_max7219(spi_, cs)
     max7219 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_NUM_CHIPS in config:

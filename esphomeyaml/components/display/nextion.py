@@ -1,9 +1,10 @@
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import display, uart
 from esphomeyaml.components.uart import UARTComponent
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, add, get_variable, process_lambda, setup_component, \
-    PollingComponent
+from esphomeyaml.helpers import App, PollingComponent, Pvariable, add, get_variable, \
+    process_lambda, \
+    setup_component
 
 DEPENDENCIES = ['uart']
 
@@ -17,9 +18,9 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart in get_variable(config[CONF_UART_ID]):
+    for uart_ in get_variable(config[CONF_UART_ID]):
         yield
-    rhs = App.make_nextion(uart)
+    rhs = App.make_nextion(uart_)
     nextion = Pvariable(config[CONF_ID], rhs)
 
     if CONF_LAMBDA in config:

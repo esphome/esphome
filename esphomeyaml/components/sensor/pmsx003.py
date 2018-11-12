@@ -60,10 +60,10 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart in get_variable(config[CONF_UART_ID]):
+    for uart_ in get_variable(config[CONF_UART_ID]):
         yield
 
-    rhs = App.make_pmsx003(uart, PMSX003_TYPES[config[CONF_TYPE]])
+    rhs = App.make_pmsx003(uart_, PMSX003_TYPES[config[CONF_TYPE]])
     pms = Pvariable(config[CONF_ID], rhs)
 
     if CONF_PM_1_0 in config:

@@ -1,10 +1,10 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import light, output
-from esphomeyaml.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAKE_ID, \
-    CONF_NAME, CONF_OUTPUT, CONF_EFFECTS
-from esphomeyaml.helpers import App, get_variable, variable, setup_component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, \
+    CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
+from esphomeyaml.helpers import App, get_variable, setup_component, variable
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
@@ -16,9 +16,9 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for output in get_variable(config[CONF_OUTPUT]):
+    for output_ in get_variable(config[CONF_OUTPUT]):
         yield
-    rhs = App.make_monochromatic_light(config[CONF_NAME], output)
+    rhs = App.make_monochromatic_light(config[CONF_NAME], output_)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
     setup_component(light_struct.Pstate, config)

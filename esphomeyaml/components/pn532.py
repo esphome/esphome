@@ -28,11 +28,11 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
 
 def to_code(config):
     for conf in config:
-        for spi in get_variable(conf[CONF_SPI_ID]):
+        for spi_ in get_variable(conf[CONF_SPI_ID]):
             yield
         for cs in gpio_output_pin_expression(conf[CONF_CS_PIN]):
             yield
-        rhs = App.make_pn532_component(spi, cs, conf.get(CONF_UPDATE_INTERVAL))
+        rhs = App.make_pn532_component(spi_, cs, conf.get(CONF_UPDATE_INTERVAL))
         pn532 = Pvariable(conf[CONF_ID], rhs)
 
         for conf_ in conf.get(CONF_ON_TAG, []):

@@ -1,11 +1,12 @@
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor, i2c
-from esphomeyaml.const import CONF_ADDRESS, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
-    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL, CONF_ID
-from esphomeyaml.helpers import App, Application, add, variable, setup_component, PollingComponent, \
-    Pvariable
+from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
+    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
+from esphomeyaml.helpers import App, Application, PollingComponent, Pvariable, add, \
+    setup_component, \
+    variable
 
 DEPENDENCIES = ['i2c']
 

@@ -108,7 +108,7 @@ def do_id_pass(result):
     for id, prefix, config in searching_ids:
         if id.id is not None:
             # manually declared
-            match = next((v[0] for v in declare_ids if v[0].id == id.id ), None)
+            match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
             if match is None:
                 # No declared ID with this name
                 result.add_error("Couldn't find ID {}".format(id.id), '.'.join(prefix), config)

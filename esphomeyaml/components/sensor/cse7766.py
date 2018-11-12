@@ -35,10 +35,10 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart in get_variable(config[CONF_UART_ID]):
+    for uart_ in get_variable(config[CONF_UART_ID]):
         yield
 
-    rhs = App.make_cse7766(uart)
+    rhs = App.make_cse7766(uart_)
     cse = Pvariable(config[CONF_ID], rhs)
 
     if CONF_VOLTAGE in config:

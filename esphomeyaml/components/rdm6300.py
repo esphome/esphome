@@ -18,9 +18,9 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list_not_empty, [vol.Schema({
 
 def to_code(config):
     for conf in config:
-        for uart in get_variable(conf[CONF_UART_ID]):
+        for uart_ in get_variable(conf[CONF_UART_ID]):
             yield
-        rhs = App.make_rdm6300_component(uart)
+        rhs = App.make_rdm6300_component(uart_)
         var = Pvariable(conf[CONF_ID], rhs)
         setup_component(var, conf)
 

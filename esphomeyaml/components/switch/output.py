@@ -1,9 +1,9 @@
 import voluptuous as vol
 
+from esphomeyaml.components import output, switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import switch, output
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
-from esphomeyaml.helpers import App, Application, get_variable, variable, setup_component, Component
+from esphomeyaml.helpers import App, Application, Component, get_variable, setup_component, variable
 
 MakeOutputSwitch = Application.struct('MakeOutputSwitch')
 OutputSwitch = switch.switch_ns.class_('OutputSwitch', switch.Switch, Component)
@@ -16,12 +16,12 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for output in get_variable(config[CONF_OUTPUT]):
+    for output_ in get_variable(config[CONF_OUTPUT]):
         yield
-    rhs = App.make_output_switch(config[CONF_NAME], output)
+    rhs = App.make_output_switch(config[CONF_NAME], output_)
     make = variable(config[CONF_MAKE_ID], rhs)
     switch_ = make.Pswitch_
-    
+
     switch.setup_switch(switch_, make.Pmqtt, config)
     setup_component(switch, config)
 

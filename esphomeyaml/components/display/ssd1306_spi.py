@@ -41,14 +41,14 @@ PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi in get_variable(config[CONF_SPI_ID]):
+    for spi_ in get_variable(config[CONF_SPI_ID]):
         yield
     for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
         yield
     for dc in gpio_output_pin_expression(config[CONF_DC_PIN]):
         yield
 
-    rhs = App.make_spi_ssd1306(spi, cs, dc)
+    rhs = App.make_spi_ssd1306(spi_, cs, dc)
     ssd = Pvariable(config[CONF_ID], rhs)
     add(ssd.set_model(MODELS[config[CONF_MODEL]]))
 

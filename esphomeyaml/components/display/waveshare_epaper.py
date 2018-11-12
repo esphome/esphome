@@ -51,7 +51,7 @@ PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi in get_variable(config[CONF_SPI_ID]):
+    for spi_ in get_variable(config[CONF_SPI_ID]):
         yield
     for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
         yield
@@ -60,10 +60,10 @@ def to_code(config):
 
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
-        rhs = App.make_waveshare_epaper_type_a(spi, cs, dc, model)
+        rhs = App.make_waveshare_epaper_type_a(spi_, cs, dc, model)
         epaper = Pvariable(config[CONF_ID], rhs, type=WaveshareEPaperTypeA)
     elif model_type == 'b':
-        rhs = App.make_waveshare_epaper_type_b(spi, cs, dc, model)
+        rhs = App.make_waveshare_epaper_type_b(spi_, cs, dc, model)
         epaper = Pvariable(config[CONF_ID], rhs, type=WaveshareEPaper)
     else:
         raise NotImplementedError()

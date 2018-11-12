@@ -1,18 +1,18 @@
 import voluptuous as vol
 
+from esphomeyaml import automation
 from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
-from esphomeyaml import automation
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
     CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, \
     CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
-    CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
-    CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, \
-    CONF_SEND_FIRST_AT
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, add, add_job, esphomelib_ns, \
-    float_, process_lambda, setup_mqtt_component, templatable, Nameable, PollingComponent, Trigger, \
-    Component
+    CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
+    CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
+    CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+from esphomeyaml.helpers import App, ArrayInitializer, Component, Nameable, PollingComponent, \
+    Pvariable, Trigger, add, add_job, esphomelib_ns, float_, process_lambda, setup_mqtt_component, \
+    templatable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -73,7 +73,6 @@ SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', Trigger.template(flo
 SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger', Trigger.template(float_))
 ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', Trigger.template(float_))
 
-
 # Filters
 Filter = sensor_ns.class_('Filter')
 SlidingWindowMovingAverageFilter = sensor_ns.class_('SlidingWindowMovingAverageFilter', Filter)
@@ -89,7 +88,6 @@ HeartbeatFilter = sensor_ns.class_('HeartbeatFilter', Filter, Component)
 DeltaFilter = sensor_ns.class_('DeltaFilter', Filter)
 OrFilter = sensor_ns.class_('OrFilter', Filter)
 UniqueFilter = sensor_ns.class_('UniqueFilter', Filter)
-
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),

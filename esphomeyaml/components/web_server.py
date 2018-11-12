@@ -1,12 +1,10 @@
-import logging
-
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.const import CONF_PORT, CONF_JS_URL, CONF_CSS_URL, CONF_ID, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component, Component, \
-    StoringController
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT, ESP_PLATFORM_ESP32
+from esphomeyaml.helpers import App, Component, Pvariable, StoringController, add, esphomelib_ns, \
+    setup_component
 
 WebServer = esphomelib_ns.class_('WebServer', Component, StoringController)
 

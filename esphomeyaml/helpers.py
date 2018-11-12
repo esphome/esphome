@@ -595,6 +595,7 @@ class MockObjClass(MockObj):
             if not isinstance(paren, MockObjClass):
                 raise ValueError
             self._parents.append(paren)
+            # pylint: disable=protected-access
             self._parents += paren._parents
 
     def inherits_from(self, other):

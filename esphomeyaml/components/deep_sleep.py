@@ -1,11 +1,11 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
-    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN, CONF_ACTION_ID
-from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns, \
-    TemplateArguments, get_variable, setup_component, Component, Action
+    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
+from esphomeyaml.helpers import Action, App, Component, Pvariable, TemplateArguments, add, \
+    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component
 
 
 def validate_pin_number(value):
@@ -61,7 +61,6 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_DEEP_SLEEP'
-
 
 CONF_DEEP_SLEEP_ENTER = 'deep_sleep.enter'
 DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
