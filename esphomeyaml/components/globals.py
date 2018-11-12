@@ -9,8 +9,8 @@ GlobalVariableComponent = esphomelib_ns.class_('GlobalVariableComponent', Compon
 
 GLOBAL_VAR_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(GlobalVariableComponent),
-    vol.Required(CONF_TYPE): cv.string,
-    vol.Optional(CONF_INITIAL_VALUE): cv.string,
+    vol.Required(CONF_TYPE): cv.string_strict,
+    vol.Optional(CONF_INITIAL_VALUE): cv.string_strict,
     vol.Optional(CONF_RESTORE_VALUE): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 

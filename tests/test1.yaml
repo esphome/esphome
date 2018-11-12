@@ -1001,3 +1001,22 @@ stepper:
   max_speed: 250 steps/s
   acceleration: 100 steps/s^2
   deceleration: 200 steps/s^2
+
+
+globals:
+- id: glob_int
+  type: int
+  restore_value: yes
+  initial_value: '0'
+- id: glob_float
+  type: float
+  restore_value: yes
+  initial_value: '0.0f'
+- id: glob_bool
+  type: bool
+  restore_value: no
+  initial_value: 'true'
+- id: glob_string
+  type: std::string
+  restore_value: no
+  # initial_value: ""
