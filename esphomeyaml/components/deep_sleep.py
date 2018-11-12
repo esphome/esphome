@@ -1,11 +1,11 @@
 import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
     CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_input_pin_expression, esphomelib_ns, \
-    TemplateArguments, get_variable
+from esphomeyaml.helpers import Action, App, Component, Pvariable, TemplateArguments, add, \
+    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component
 
 
 def validate_pin_number(value):
@@ -16,14 +16,15 @@ def validate_pin_number(value):
     return value
 
 
-DeepSleepComponent = esphomelib_ns.DeepSleepComponent
-EnterDeepSleepAction = esphomelib_ns.EnterDeepSleepAction
-PreventDeepSleepAction = esphomelib_ns.PreventDeepSleepAction
+DeepSleepComponent = esphomelib_ns.class_('DeepSleepComponent', Component)
+EnterDeepSleepAction = esphomelib_ns.class_('EnterDeepSleepAction', Action)
+PreventDeepSleepAction = esphomelib_ns.class_('PreventDeepSleepAction', Action)
 
+WakeupPinMode = esphomelib_ns.enum('WakeupPinMode')
 WAKEUP_PIN_MODES = {
-    'IGNORE': esphomelib_ns.WAKEUP_PIN_MODE_IGNORE,
-    'KEEP_AWAKE': esphomelib_ns.WAKEUP_PIN_MODE_KEEP_AWAKE,
-    'INVERT_WAKEUP': esphomelib_ns.WAKEUP_PIN_MODE_INVERT_WAKEUP,
+    'IGNORE': WakeupPinMode.WAKEUP_PIN_MODE_IGNORE,
+    'KEEP_AWAKE': WakeupPinMode.WAKEUP_PIN_MODE_KEEP_AWAKE,
+    'INVERT_WAKEUP': WakeupPinMode.WAKEUP_PIN_MODE_INVERT_WAKEUP,
 }
 
 CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
@@ -37,7 +38,7 @@ CONFIG_SCHEMA = vol.Schema({
                                                 cv.one_of(*WAKEUP_PIN_MODES)),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -46,7 +47,6 @@ def to_code(config):
     if CONF_SLEEP_DURATION in config:
         add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
-        pin = None
         for pin in gpio_input_pin_expression(config[CONF_WAKEUP_PIN]):
             yield
         add(deep_sleep.set_wakeup_pin(pin))
@@ -57,9 +57,10 @@ def to_code(config):
     if CONF_RUN_DURATION in config:
         add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
 
+    setup_component(deep_sleep, config)
+
 
 BUILD_FLAGS = '-DUSE_DEEP_SLEEP'
-
 
 CONF_DEEP_SLEEP_ENTER = 'deep_sleep.enter'
 DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({

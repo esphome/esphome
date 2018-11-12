@@ -6,43 +6,61 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ADDRESS, CONF_GAS_RESISTANCE, CONF_HUMIDITY, CONF_IIR_FILTER, \
     CONF_MAKE_ID, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL, CONF_HEATER, CONF_DURATION
-from esphomeyaml.helpers import App, Application, add, variable
+from esphomeyaml.helpers import App, Application, add, variable, setup_component
 
 DEPENDENCIES = ['i2c']
 
+BME680Oversampling = sensor.sensor_ns.enum('BME680Oversampling')
 OVERSAMPLING_OPTIONS = {
-    'NONE': sensor.sensor_ns.BME680_OVERSAMPLING_NONE,
-    '1X': sensor.sensor_ns.BME680_OVERSAMPLING_1X,
-    '2X': sensor.sensor_ns.BME680_OVERSAMPLING_2X,
-    '4X': sensor.sensor_ns.BME680_OVERSAMPLING_4X,
-    '8X': sensor.sensor_ns.BME680_OVERSAMPLING_8X,
-    '16X': sensor.sensor_ns.BME680_OVERSAMPLING_16X,
+    'NONE': BME680Oversampling.BME680_OVERSAMPLING_NONE,
+    '1X': BME680Oversampling.BME680_OVERSAMPLING_1X,
+    '2X': BME680Oversampling.BME680_OVERSAMPLING_2X,
+    '4X': BME680Oversampling.BME680_OVERSAMPLING_4X,
+    '8X': BME680Oversampling.BME680_OVERSAMPLING_8X,
+    '16X': BME680Oversampling.BME680_OVERSAMPLING_16X,
 }
 
+BME680IIRFilter = sensor.sensor_ns.enum('BME680IIRFilter')
 IIR_FILTER_OPTIONS = {
-    'OFF': sensor.sensor_ns.BME680_IIR_FILTER_OFF,
-    '1X': sensor.sensor_ns.BME680_IIR_FILTER_1X,
-    '3X': sensor.sensor_ns.BME680_IIR_FILTER_3X,
-    '7X': sensor.sensor_ns.BME680_IIR_FILTER_7X,
-    '15X': sensor.sensor_ns.BME680_IIR_FILTER_15X,
-    '31X': sensor.sensor_ns.BME680_IIR_FILTER_31X,
-    '63X': sensor.sensor_ns.BME680_IIR_FILTER_63X,
-    '127X': sensor.sensor_ns.BME680_IIR_FILTER_127X,
+    'OFF': BME680IIRFilter.BME680_IIR_FILTER_OFF,
+    '1X': BME680IIRFilter.BME680_IIR_FILTER_1X,
+    '3X': BME680IIRFilter.BME680_IIR_FILTER_3X,
+    '7X': BME680IIRFilter.BME680_IIR_FILTER_7X,
+    '15X': BME680IIRFilter.BME680_IIR_FILTER_15X,
+    '31X': BME680IIRFilter.BME680_IIR_FILTER_31X,
+    '63X': BME680IIRFilter.BME680_IIR_FILTER_63X,
+    '127X': BME680IIRFilter.BME680_IIR_FILTER_127X,
 }
 
 BME680_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     vol.Optional(CONF_OVERSAMPLING): vol.All(vol.Upper, cv.one_of(*OVERSAMPLING_OPTIONS)),
 })
 
-MakeBME680Sensor = Application.MakeBME680Sensor
+MakeBME680Sensor = Application.struct('MakeBME680Sensor')
+BME680TemperatureSensor = sensor.sensor_ns.class_('BME680TemperatureSensor',
+                                                  sensor.EmptyPollingParentSensor)
+BME680PressureSensor = sensor.sensor_ns.class_('BME680PressureSensor',
+                                               sensor.EmptyPollingParentSensor)
+BME680HumiditySensor = sensor.sensor_ns.class_('BME680HumiditySensor',
+                                               sensor.EmptyPollingParentSensor)
+BME680GasResistanceSensor = sensor.sensor_ns.class_('BME680GasResistanceSensor',
+                                                    sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBME680Sensor),
     vol.Optional(CONF_ADDRESS, default=0x76): cv.i2c_address,
-    vol.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
-    vol.Required(CONF_PRESSURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
-    vol.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA),
-    vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME680TemperatureSensor),
+    })),
+    vol.Required(CONF_PRESSURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME680PressureSensor),
+    })),
+    vol.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME680HumiditySensor),
+    })),
+    vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(BME680GasResistanceSensor),
+    })),
     vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
     vol.Optional(CONF_HEATER): vol.Any(None, vol.All(vol.Schema({
         vol.Optional(CONF_TEMPERATURE, default=320): vol.All(vol.Coerce(int), vol.Range(200, 400)),
@@ -50,7 +68,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
             cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))
     }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -89,6 +107,7 @@ def to_code(config):
                         config[CONF_HUMIDITY])
     sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), make.Pmqtt_gas_resistance,
                         config[CONF_GAS_RESISTANCE])
+    setup_component(bme680, config)
 
 
 BUILD_FLAGS = '-DUSE_BME680'

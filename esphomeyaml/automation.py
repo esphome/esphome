@@ -10,7 +10,8 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMAT
     CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, add_job, \
-    esphomelib_ns, float_, process_lambda, templatable, uint32, get_variable
+    esphomelib_ns, float_, process_lambda, templatable, uint32, get_variable, PollingComponent, \
+    Action, Component, Trigger
 from esphomeyaml.util import ServiceRegistry
 
 
@@ -49,7 +50,7 @@ def validate_recursive_action(value):
                               u"".format(key, key2))
         validator = ACTION_REGISTRY[key][0]
         value[i] = {
-            CONF_ACTION_ID: cv.declare_variable_id(None)(item[CONF_ACTION_ID]),
+            CONF_ACTION_ID: cv.declare_variable_id(Action)(item[CONF_ACTION_ID]),
             key: validator(item[key])
         }
     return value
@@ -58,14 +59,20 @@ def validate_recursive_action(value):
 ACTION_REGISTRY = ServiceRegistry()
 
 # pylint: disable=invalid-name
-DelayAction = esphomelib_ns.DelayAction
-LambdaAction = esphomelib_ns.LambdaAction
-IfAction = esphomelib_ns.IfAction
-UpdateComponentAction = esphomelib_ns.UpdateComponentAction
-Automation = esphomelib_ns.Automation
+DelayAction = esphomelib_ns.class_('DelayAction', Action, Component)
+LambdaAction = esphomelib_ns.class_('LambdaAction', Action)
+IfAction = esphomelib_ns.class_('IfAction', Action)
+UpdateComponentAction = esphomelib_ns.class_('UpdateComponentAction', Action)
+Automation = esphomelib_ns.class_('Automation')
+
+Condition = esphomelib_ns.class_('Condition')
+AndCondition = esphomelib_ns.class_('AndCondition', Condition)
+OrCondition = esphomelib_ns.class_('OrCondition', Condition)
+RangeCondition = esphomelib_ns.class_('RangeCondition', Condition)
+LambdaCondition = esphomelib_ns.class_('LambdaCondition', Condition)
 
 CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [cv.templatable({
-    cv.GenerateID(CONF_CONDITION_ID): cv.declare_variable_id(None),
+    cv.GenerateID(CONF_CONDITION_ID): cv.declare_variable_id(Condition),
     vol.Optional(CONF_AND): validate_recursive_condition,
     vol.Optional(CONF_OR): validate_recursive_condition,
     vol.Optional(CONF_RANGE): vol.All(vol.Schema({
@@ -74,12 +81,6 @@ CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [cv.templatable({
     }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 })])
-
-# pylint: disable=invalid-name
-AndCondition = esphomelib_ns.AndCondition
-OrCondition = esphomelib_ns.OrCondition
-RangeCondition = esphomelib_ns.RangeCondition
-LambdaCondition = esphomelib_ns.LambdaCondition
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -119,8 +120,8 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 
 
 AUTOMATION_SCHEMA = vol.Schema({
-    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(None),
-    cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(None),
+    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
+    cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
     vol.Optional(CONF_IF): CONDITIONS_SCHEMA,
     vol.Required(CONF_THEN): validate_recursive_action,
 })
@@ -228,7 +229,7 @@ def lambda_action_to_code(config, action_id, arg_type):
 
 CONF_COMPONENT_UPDATE = 'component.update'
 COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(PollingComponent),
 })
 
 

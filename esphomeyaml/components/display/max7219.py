@@ -2,16 +2,16 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.components import display
+from esphomeyaml.components import display, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_INTENSITY, CONF_LAMBDA, CONF_NUM_CHIPS, \
     CONF_SPI_ID
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, gpio_output_pin_expression, \
-    process_lambda
+    process_lambda, setup_component, PollingComponent
 
 DEPENDENCIES = ['spi']
 
-MAX7219Component = display.display_ns.MAX7219Component
+MAX7219Component = display.display_ns.class_('MAX7219Component', PollingComponent, spi.SPIDevice)
 MAX7219ComponentRef = MAX7219Component.operator('ref')
 
 PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
@@ -21,15 +21,15 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
     vol.Optional(CONF_NUM_CHIPS): vol.All(cv.uint8_t, vol.Range(min=1)),
     vol.Optional(CONF_INTENSITY): vol.All(cv.uint8_t, vol.Range(min=0, max=15)),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
-    for spi in get_variable(config[CONF_SPI_ID]):
+    for spi_ in get_variable(config[CONF_SPI_ID]):
         yield
     for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
         yield
-    rhs = App.make_max7219(spi, cs)
+    rhs = App.make_max7219(spi_, cs)
     max7219 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_NUM_CHIPS in config:
@@ -43,6 +43,7 @@ def to_code(config):
         add(max7219.set_writer(lambda_))
 
     display.setup_display(max7219, config)
+    setup_component(max7219, config)
 
 
 BUILD_FLAGS = '-DUSE_MAX7219'

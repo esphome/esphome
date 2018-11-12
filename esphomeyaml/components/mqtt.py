@@ -17,7 +17,7 @@ from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, C
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
-    uint8, bool_, JsonObjectRef, process_lambda, JsonObjectConstRef
+    uint8, bool_, JsonObjectRef, process_lambda, JsonObjectConstRef, Component, Action, Trigger
 
 
 def validate_message_just_topic(value):
@@ -38,12 +38,14 @@ MQTT_MESSAGE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE.extend({
 }))
 
 mqtt_ns = esphomelib_ns.namespace('mqtt')
-MQTTMessage = mqtt_ns.MQTTMessage
-MQTTClientComponent = mqtt_ns.MQTTClientComponent
-MQTTPublishAction = mqtt_ns.MQTTPublishAction
-MQTTPublishJsonAction = mqtt_ns.MQTTPublishJsonAction
-MQTTMessageTrigger = mqtt_ns.MQTTMessageTrigger
-MQTTJsonMessageTrigger = mqtt_ns.MQTTJsonMessageTrigger
+MQTTMessage = mqtt_ns.struct('MQTTMessage')
+MQTTClientComponent = mqtt_ns.class_('MQTTClientComponent', Component)
+MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', Action)
+MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', Action)
+MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger', Trigger.template(std_string))
+MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
+                                        Trigger.template(JsonObjectConstRef))
+MQTTComponent = mqtt_ns.class_('MQTTComponent', Component)
 
 
 def validate_broker(value):

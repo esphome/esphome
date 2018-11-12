@@ -2,9 +2,9 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor
+from esphomeyaml.components import sensor, i2c
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_RANGE
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, Pvariable, add, setup_component, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
@@ -13,19 +13,23 @@ CONF_FIELD_STRENGTH_Y = 'field_strength_y'
 CONF_FIELD_STRENGTH_Z = 'field_strength_z'
 CONF_HEADING = 'heading'
 
-HMC5883LComponent = sensor.sensor_ns.HMC5883LComponent
-HMC5883LFieldStrengthSensor = sensor.sensor_ns.HMC5883LFieldStrengthSensor
-HMC5883LHeadingSensor = sensor.sensor_ns.HMC5883LHeadingSensor
+HMC5883LComponent = sensor.sensor_ns.class_('HMC5883LComponent', PollingComponent, i2c.I2CDevice)
+HMC5883LFieldStrengthSensor = sensor.sensor_ns.class_('HMC5883LFieldStrengthSensor',
+                                                      sensor.EmptyPollingParentSensor)
+HMC5883LHeadingSensor = sensor.sensor_ns.class_('HMC5883LHeadingSensor',
+                                                sensor.EmptyPollingParentSensor)
 
+
+HMC5883LRange = sensor.sensor_ns.enum('HMC5883LRange')
 HMC5883L_RANGES = {
-    88: sensor.sensor_ns.HMC5883L_RANGE_88_UT,
-    130: sensor.sensor_ns.HMC5883L_RANGE_130_UT,
-    190: sensor.sensor_ns.HMC5883L_RANGE_190_UT,
-    250: sensor.sensor_ns.HMC5883L_RANGE_250_UT,
-    400: sensor.sensor_ns.HMC5883L_RANGE_400_UT,
-    470: sensor.sensor_ns.HMC5883L_RANGE_470_UT,
-    560: sensor.sensor_ns.HMC5883L_RANGE_560_UT,
-    810: sensor.sensor_ns.HMC5883L_RANGE_810_UT,
+    88: HMC5883LRange.HMC5883L_RANGE_88_UT,
+    130: HMC5883LRange.HMC5883L_RANGE_130_UT,
+    190: HMC5883LRange.HMC5883L_RANGE_190_UT,
+    250: HMC5883LRange.HMC5883L_RANGE_250_UT,
+    400: HMC5883LRange.HMC5883L_RANGE_400_UT,
+    470: HMC5883LRange.HMC5883L_RANGE_470_UT,
+    560: HMC5883LRange.HMC5883L_RANGE_560_UT,
+    810: HMC5883LRange.HMC5883L_RANGE_810_UT,
 }
 
 
@@ -36,17 +40,27 @@ def validate_range(value):
     return cv.one_of(*HMC5883L_RANGES)(int(value))
 
 
+SENSOR_KEYS = [CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
+               CONF_HEADING]
+
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
-    vol.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
+    })),
+    vol.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
+    })),
+    vol.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
+    })),
+    vol.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HMC5883LHeadingSensor),
+    })),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     vol.Optional(CONF_RANGE): validate_range,
-}), cv.has_at_least_one_key(CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
-                            CONF_HEADING))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
 def to_code(config):
@@ -68,6 +82,7 @@ def to_code(config):
     if CONF_HEADING in config:
         conf = config[CONF_HEADING]
         sensor.register_sensor(hmc.Pmake_heading_sensor(conf[CONF_NAME]), conf)
+    setup_component(hmc, config)
 
 
 BUILD_FLAGS = '-DUSE_HMC5883L'

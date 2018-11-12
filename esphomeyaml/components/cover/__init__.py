@@ -5,21 +5,25 @@ from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_INTERNAL
 from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add, \
-    TemplateArguments, get_variable
+    TemplateArguments, get_variable, Action, Nameable
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
 cover_ns = esphomelib_ns.namespace('cover')
-Cover = cover_ns.Cover
-MQTTCoverComponent = cover_ns.MQTTCoverComponent
-CoverState = cover_ns.CoverState
+
+Cover = cover_ns.class_('Cover', Nameable)
+MQTTCoverComponent = cover_ns.class_('MQTTCoverComponent', mqtt.MQTTComponent)
+
+CoverState = cover_ns.class_('CoverState')
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
-OpenAction = cover_ns.OpenAction
-CloseAction = cover_ns.CloseAction
-StopAction = cover_ns.StopAction
+
+# Actions
+OpenAction = cover_ns.class_('OpenAction', Action)
+CloseAction = cover_ns.class_('CloseAction', Action)
+StopAction = cover_ns.class_('StopAction', Action)
 
 COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(Cover),
@@ -45,7 +49,7 @@ BUILD_FLAGS = '-DUSE_COVER'
 
 CONF_COVER_OPEN = 'cover.open'
 COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Cover),
 })
 
 
@@ -61,7 +65,7 @@ def cover_open_to_code(config, action_id, arg_type):
 
 CONF_COVER_CLOSE = 'cover.close'
 COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Cover),
 })
 
 
@@ -77,7 +81,7 @@ def cover_close_to_code(config, action_id, arg_type):
 
 CONF_COVER_STOP = 'cover.stop'
 COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(Cover),
 })
 
 

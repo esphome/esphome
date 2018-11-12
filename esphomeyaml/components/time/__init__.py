@@ -8,7 +8,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, ArrayInitializer
+from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
+    ArrayInitializer, Component, Trigger
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +18,9 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 time_ns = esphomelib_ns.namespace('time')
-CronTrigger = time_ns.CronTrigger
+RealTimeClockComponent = time_ns.class_('RealTimeClockComponent', Component)
+CronTrigger = time_ns.class_('CronTrigger', Trigger.template(NoArg), Component)
+EsphomelibTime = time_ns.struct('EsphomelibTime')
 
 
 def _tz_timedelta(td):

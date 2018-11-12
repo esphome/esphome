@@ -8,7 +8,7 @@ from esphomeyaml.helpers import Pvariable, get_variable
 
 DEPENDENCIES = ['pca9685']
 
-Channel = PCA9685OutputComponent.Channel
+Channel = PCA9685OutputComponent.class_('Channel', output.FloatOutput)
 
 PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(Channel),
@@ -23,7 +23,6 @@ def to_code(config):
     if CONF_POWER_SUPPLY in config:
         for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
             yield
-    pca9685 = None
     for pca9685 in get_variable(config[CONF_PCA9685_ID]):
         yield
     rhs = pca9685.create_channel(config[CONF_CHANNEL], power_supply)

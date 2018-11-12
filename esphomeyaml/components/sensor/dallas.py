@@ -7,7 +7,8 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAM
     CONF_RESOLUTION
 from esphomeyaml.helpers import HexIntLiteral, get_variable
 
-DallasTemperatureSensor = sensor.sensor_ns.DallasTemperatureSensor
+DallasTemperatureSensor = sensor.sensor_ns.class_('DallasTemperatureSensor',
+                                                  sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(DallasTemperatureSensor),
@@ -19,7 +20,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_DALLAS_ID]):
         yield
     if CONF_ADDRESS in config:

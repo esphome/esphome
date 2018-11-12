@@ -9,7 +9,8 @@ DEPENDENCIES = ['rdm6300']
 
 CONF_RDM6300_ID = 'rdm6300_id'
 
-RDM6300BinarySensor = binary_sensor.binary_sensor_ns.RDM6300BinarySensor
+RDM6300BinarySensor = binary_sensor.binary_sensor_ns.class_('RDM6300BinarySensor',
+                                                            binary_sensor.BinarySensor)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RDM6300BinarySensor),
@@ -19,7 +20,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_RDM6300_ID]):
         yield
     rhs = hub.make_card(config[CONF_NAME], config[CONF_UID])
