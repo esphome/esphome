@@ -7,9 +7,9 @@ from esphomeyaml.const import (CONF_DATA_PIN, CONF_CLOCK_PIN, CONF_NUM_CHANNELS,
                                CONF_NUM_CHIPS, CONF_BIT_DEPTH, CONF_ID,
                                CONF_UPDATE_ON_BOOT)
 from esphomeyaml.helpers import (gpio_output_pin_expression, App, Pvariable,
-                                 add, setup_component)
+                                 add, setup_component, Component)
 
-MY9231OutputComponent = output.output_ns.namespace('MY9231OutputComponent')
+MY9231OutputComponent = output.output_ns.class_('MY9231OutputComponent', Component)
 
 
 MY9231_SCHEMA = vol.Schema({

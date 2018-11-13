@@ -8,7 +8,7 @@ from esphomeyaml.helpers import Pvariable, get_variable, setup_component
 
 DEPENDENCIES = ['my9231']
 
-Channel = MY9231OutputComponent.Channel
+Channel = MY9231OutputComponent.class_('Channel', output.FloatOutput)
 
 PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(Channel),
