@@ -2,27 +2,29 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.components import display
+from esphomeyaml.components import display, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, \
     CONF_ID, CONF_MODEL, \
     CONF_RESET_PIN, CONF_SPI_ID, CONF_LAMBDA
 from esphomeyaml.helpers import App, Pvariable, add, get_variable, \
-    gpio_output_pin_expression, process_lambda
+    gpio_output_pin_expression, process_lambda, setup_component, PollingComponent
 
 DEPENDENCIES = ['spi']
 
-SPISSD1306 = display.display_ns.SPISSD1306
+SSD1306 = display.display_ns.class_('SSD1306', PollingComponent, display.DisplayBuffer)
+SPISSD1306 = display.display_ns.class_('SPISSD1306', SSD1306, spi.SPIDevice)
+SSD1306Model = display.display_ns.enum('SSD1306Model')
 
 MODELS = {
-    'SSD1306_128X32': display.display_ns.SSD1306_MODEL_128_32,
-    'SSD1306_128X64': display.display_ns.SSD1306_MODEL_128_64,
-    'SSD1306_96X16': display.display_ns.SSD1306_MODEL_96_16,
-    'SSD1306_64X48': display.display_ns.SSD1306_MODEL_64_48,
-    'SH1106_128X32': display.display_ns.SH1106_MODEL_128_32,
-    'SH1106_128X64': display.display_ns.SH1106_MODEL_128_64,
-    'SH1106_96X16': display.display_ns.SH1106_MODEL_96_16,
-    'SH1106_64X48': display.display_ns.SH1106_MODEL_64_48,
+    'SSD1306_128X32': SSD1306Model.SSD1306_MODEL_128_32,
+    'SSD1306_128X64': SSD1306Model.SSD1306_MODEL_128_64,
+    'SSD1306_96X16': SSD1306Model.SSD1306_MODEL_96_16,
+    'SSD1306_64X48': SSD1306Model.SSD1306_MODEL_64_48,
+    'SH1106_128X32': SSD1306Model.SH1106_MODEL_128_32,
+    'SH1106_128X64': SSD1306Model.SH1106_MODEL_128_64,
+    'SH1106_96X16': SSD1306Model.SH1106_MODEL_96_16,
+    'SH1106_64X48': SSD1306Model.SH1106_MODEL_64_48,
 }
 
 SSD1306_MODEL = vol.All(vol.Upper, vol.Replace(' ', '_'), cv.one_of(*MODELS))
@@ -35,18 +37,18 @@ PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MODEL): SSD1306_MODEL,
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_EXTERNAL_VCC): cv.boolean,
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
-    for spi in get_variable(config[CONF_SPI_ID]):
+    for spi_ in get_variable(config[CONF_SPI_ID]):
         yield
     for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
         yield
     for dc in gpio_output_pin_expression(config[CONF_DC_PIN]):
         yield
 
-    rhs = App.make_spi_ssd1306(spi, cs, dc)
+    rhs = App.make_spi_ssd1306(spi_, cs, dc)
     ssd = Pvariable(config[CONF_ID], rhs)
     add(ssd.set_model(MODELS[config[CONF_MODEL]]))
 
@@ -63,6 +65,7 @@ def to_code(config):
         add(ssd.set_writer(lambda_))
 
     display.setup_display(ssd, config)
+    setup_component(ssd, config)
 
 
 BUILD_FLAGS = '-DUSE_SSD1306'

@@ -10,7 +10,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 display_ns = esphomelib_ns.namespace('display')
-DisplayBuffer = display_ns.DisplayBuffer
+DisplayBuffer = display_ns.class_('DisplayBuffer')
 DisplayBufferRef = DisplayBuffer.operator('ref')
 
 DISPLAY_ROTATIONS = {

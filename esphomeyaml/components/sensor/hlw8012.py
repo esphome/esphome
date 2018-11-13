@@ -1,17 +1,18 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CF1_PIN, CONF_CF_PIN, CONF_CHANGE_MODE_EVERY, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_NAME, CONF_POWER, CONF_SEL_PIN, CONF_UPDATE_INTERVAL, \
     CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER
-from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression
+from esphomeyaml.helpers import App, PollingComponent, Pvariable, add, gpio_output_pin_expression, \
+    setup_component
 
-HLW8012Component = sensor.sensor_ns.HLW8012Component
-HLW8012VoltageSensor = sensor.sensor_ns.HLW8012VoltageSensor
-HLW8012CurrentSensor = sensor.sensor_ns.HLW8012CurrentSensor
-HLW8012PowerSensor = sensor.sensor_ns.HLW8012PowerSensor
+HLW8012Component = sensor.sensor_ns.class_('HLW8012Component', PollingComponent)
+HLW8012VoltageSensor = sensor.sensor_ns.class_('HLW8012VoltageSensor', sensor.EmptySensor)
+HLW8012CurrentSensor = sensor.sensor_ns.class_('HLW8012CurrentSensor', sensor.EmptySensor)
+HLW8012PowerSensor = sensor.sensor_ns.class_('HLW8012PowerSensor', sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HLW8012Component),
@@ -19,19 +20,25 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CF_PIN): pins.input_pin,
     vol.Required(CONF_CF1_PIN): pins.input_pin,
 
-    vol.Optional(CONF_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA),
-    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA),
+    vol.Optional(CONF_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HLW8012VoltageSensor),
+    })),
+    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HLW8012CurrentSensor),
+    })),
+    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(HLW8012PowerSensor),
+    })),
 
     vol.Optional(CONF_CURRENT_RESISTOR): cv.resistance,
     vol.Optional(CONF_VOLTAGE_DIVIDER): cv.positive_float,
     vol.Optional(CONF_CHANGE_MODE_EVERY): vol.All(cv.uint32_t, vol.Range(min=1)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT, CONF_POWER))
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT,
+                                                               CONF_POWER))
 
 
 def to_code(config):
-    sel = None
     for sel in gpio_output_pin_expression(config[CONF_SEL_PIN]):
         yield
 
@@ -54,6 +61,7 @@ def to_code(config):
         add(hlw.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
     if CONF_CHANGE_MODE_EVERY in config:
         add(hlw.set_change_mode_every(config[CONF_CHANGE_MODE_EVERY]))
+    setup_component(hlw, config)
 
 
 BUILD_FLAGS = '-DUSE_HLW8012'

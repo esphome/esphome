@@ -13,7 +13,7 @@ from esphomeyaml import core, helpers
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
     CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_INTERNAL
+    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_INTERNAL, CONF_SETUP_PRIORITY
 from esphomeyaml.core import HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -562,7 +562,7 @@ def percentage(value):
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:
-            msg += " Please don't put to put a percent sign after the number!"
+            msg += " Please put a percent sign after the number!"
         raise vol.Invalid(msg)
     return zero_to_one_float(value)
 
@@ -641,9 +641,6 @@ def file_(value):
     return value
 
 
-REGISTERED_IDS = set()
-
-
 class GenerateID(vol.Optional):
     def __init__(self, key=CONF_ID):
         super(GenerateID, self).__init__(key, default=lambda: None)
@@ -687,4 +684,8 @@ MQTT_COMPONENT_SCHEMA = vol.Schema({
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_COMMAND_TOPIC): subscribe_topic,
+})
+
+COMPONENT_SCHEMA = vol.Schema({
+    vol.Optional(CONF_SETUP_PRIORITY): vol.Coerce(float)
 })

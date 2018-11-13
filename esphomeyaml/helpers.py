@@ -9,7 +9,7 @@ from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, \
     CONF_INVERTED, \
     CONF_MODE, CONF_NUMBER, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PCF8574, \
-    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC
+    CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, CONF_SETUP_PRIORITY
 from esphomeyaml.core import ESPHomeYAMLError, HexInt, Lambda, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
@@ -407,15 +407,31 @@ def get_variable(id):
         yield None
 
 
+def get_variable_with_full_id(id):
+    while True:
+        for k, v in _VARIABLES.iteritems():
+            if k == id:
+                yield (k, v)
+                return
+        _LOGGER.debug("Waiting for variable %s", id)
+        yield None, None
+
+
 def process_lambda(value, parameters, capture='=', return_type=None):
+    from esphomeyaml.components.globals import GlobalVariableComponent
+
     if value is None:
         yield
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        var = None
-        for var in get_variable(id):
+        for full_id, var in get_variable_with_full_id(id):
             yield
+        if full_id is not None and isinstance(full_id.type, MockObjClass) and \
+                full_id.type.inherits_from(GlobalVariableComponent):
+            parts[i * 3 + 1] = var.value()
+            continue
+
         if parts[i * 3 + 2] == '.':
             parts[i * 3 + 1] = var._
         else:
@@ -530,6 +546,20 @@ class MockObj(Expression):
         obj.requires.append(self)
         return obj
 
+    def class_(self, name, *parents):
+        obj = MockObjClass(u'{}::{}'.format(self.base, name), u'.', parents=parents)
+        obj.requires.append(self)
+        return obj
+
+    def struct(self, name):
+        return self.class_(name)
+
+    def enum(self, name, is_class=False):
+        if is_class:
+            return self.namespace(name)
+
+        return self
+
     def operator(self, name):
         if name == 'ref':
             obj = MockObj(u'{} &'.format(self.base), u'')
@@ -556,6 +586,37 @@ class MockObj(Expression):
         return obj
 
 
+class MockObjClass(MockObj):
+    def __init__(self, *args, **kwargs):
+        parens = kwargs.pop('parents')
+        MockObj.__init__(self, *args, **kwargs)
+        self._parents = []
+        for paren in parens:
+            if not isinstance(paren, MockObjClass):
+                raise ValueError
+            self._parents.append(paren)
+            # pylint: disable=protected-access
+            self._parents += paren._parents
+
+    def inherits_from(self, other):
+        if self == other:
+            return True
+        for parent in self._parents:
+            if parent == other:
+                return True
+        return False
+
+    def template(self, args):
+        if not isinstance(args, TemplateArguments):
+            args = TemplateArguments(args)
+        new_parents = self._parents[:]
+        new_parents.append(self)
+        obj = MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
+        obj.requires.append(self)
+        obj.requires.append(args)
+        return obj
+
+
 global_ns = MockObj('', '')
 float_ = global_ns.namespace('float')
 bool_ = global_ns.namespace('bool')
@@ -570,16 +631,24 @@ NAN = global_ns.namespace('NAN')
 esphomelib_ns = global_ns  # using namespace esphomelib;
 NoArg = esphomelib_ns.NoArg
 App = esphomelib_ns.App
-Application = esphomelib_ns.namespace('Application')
-optional = esphomelib_ns.optional
+io_ns = esphomelib_ns.namespace('io')
+Nameable = esphomelib_ns.class_('Nameable')
+Trigger = esphomelib_ns.class_('Trigger')
+Action = esphomelib_ns.class_('Action')
+Component = esphomelib_ns.class_('Component')
+PollingComponent = esphomelib_ns.class_('PollingComponent', Component)
+Application = esphomelib_ns.class_('Application')
+optional = esphomelib_ns.class_('optional')
 arduino_json_ns = global_ns.namespace('ArduinoJson')
-JsonObject = arduino_json_ns.JsonObject
+JsonObject = arduino_json_ns.class_('JsonObject')
 JsonObjectRef = JsonObject.operator('ref')
 JsonObjectConstRef = JsonObjectRef.operator('const')
+Controller = esphomelib_ns.class_('Controller')
+StoringController = esphomelib_ns.class_('StoringController', Controller)
 
-GPIOPin = esphomelib_ns.GPIOPin
-GPIOOutputPin = esphomelib_ns.GPIOOutputPin
-GPIOInputPin = esphomelib_ns.GPIOInputPin
+GPIOPin = esphomelib_ns.class_('GPIOPin')
+GPIOOutputPin = esphomelib_ns.class_('GPIOOutputPin', GPIOPin)
+GPIOInputPin = esphomelib_ns.class_('GPIOInputPin', GPIOPin)
 
 
 def get_gpio_pin_number(conf):
@@ -645,6 +714,11 @@ def setup_mqtt_component(obj, config):
         else:
             add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+
+
+def setup_component(obj, config):
+    if CONF_SETUP_PRIORITY in config:
+        add(obj.set_setup_priority(config[CONF_SETUP_PRIORITY]))
 
 
 def color(the_color, message='', reset=None):

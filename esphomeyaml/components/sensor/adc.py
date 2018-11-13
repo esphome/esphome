@@ -5,7 +5,7 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ATTENUATION, CONF_MAKE_ID, CONF_NAME, CONF_PIN, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, global_ns, variable
+from esphomeyaml.helpers import App, Application, add, global_ns, variable, setup_component
 
 ATTENUATION_MODES = {
     '0db': global_ns.ADC_0db,
@@ -22,8 +22,8 @@ def validate_adc_pin(value):
     return pins.analog_pin(value)
 
 
-MakeADCSensor = Application.MakeADCSensor
-ADCSensorComponent = sensor.sensor_ns.ADCSensorComponent
+MakeADCSensor = Application.struct('MakeADCSensor')
+ADCSensorComponent = sensor.sensor_ns.class_('ADCSensorComponent', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensorComponent),
@@ -31,7 +31,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_PIN): validate_adc_pin,
     vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-}))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -44,7 +44,8 @@ def to_code(config):
     adc = make.Padc
     if CONF_ATTENUATION in config:
         add(adc.set_attenuation(ATTENUATION_MODES[config[CONF_ATTENUATION]]))
-    sensor.setup_sensor(make.Padc, make.Pmqtt, config)
+    sensor.setup_sensor(adc, make.Pmqtt, config)
+    setup_component(adc, config)
 
 
 BUILD_FLAGS = '-DUSE_ADC_SENSOR'

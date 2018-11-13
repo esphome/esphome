@@ -6,7 +6,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_ON_VALUE, \
     CONF_TRIGGER_ID
 from esphomeyaml.helpers import App, Pvariable, add, add_job, esphomelib_ns, setup_mqtt_component, \
-    std_string
+    std_string, Nameable, Trigger
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -14,14 +14,14 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 # pylint: disable=invalid-name
 text_sensor_ns = esphomelib_ns.namespace('text_sensor')
-TextSensor = text_sensor_ns.TextSensor
-MQTTTextSensor = text_sensor_ns.MQTTTextSensor
+TextSensor = text_sensor_ns.class_('TextSensor', Nameable)
+MQTTTextSensor = text_sensor_ns.class_('MQTTTextSensor', mqtt.MQTTComponent)
 
-TextSensorStateTrigger = text_sensor_ns.TextSensorStateTrigger
+TextSensorStateTrigger = text_sensor_ns.class_('TextSensorStateTrigger',
+                                               Trigger.template(std_string))
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
-    cv.GenerateID(): cv.declare_variable_id(TextSensor),
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ON_VALUE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorStateTrigger),

@@ -7,24 +7,27 @@ from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_OSCILLATION_COMMAND_TO
     CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL, \
     CONF_SPEED, CONF_OSCILLATING, CONF_OSCILLATION_OUTPUT, CONF_NAME
 from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
-    TemplateArguments, get_variable, templatable, bool_
+    TemplateArguments, get_variable, templatable, bool_, Action, Nameable, Component
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
 fan_ns = esphomelib_ns.namespace('fan')
-FanState = fan_ns.FanState
-MQTTFanComponent = fan_ns.MQTTFanComponent
-MakeFan = Application.MakeFan
-TurnOnAction = fan_ns.TurnOnAction
-TurnOffAction = fan_ns.TurnOffAction
-ToggleAction = fan_ns.ToggleAction
-FanSpeed = fan_ns.FanSpeed
-FAN_SPEED_OFF = fan_ns.FAN_SPEED_OFF
-FAN_SPEED_LOW = fan_ns.FAN_SPEED_LOW
-FAN_SPEED_MEDIUM = fan_ns.FAN_SPEED_MEDIUM
-FAN_SPEED_HIGH = fan_ns.FAN_SPEED_HIGH
+FanState = fan_ns.class_('FanState', Nameable, Component)
+MQTTFanComponent = fan_ns.class_('MQTTFanComponent', mqtt.MQTTComponent)
+MakeFan = Application.struct('MakeFan')
+
+# Actions
+TurnOnAction = fan_ns.class_('TurnOnAction', Action)
+TurnOffAction = fan_ns.class_('TurnOffAction', Action)
+ToggleAction = fan_ns.class_('ToggleAction', Action)
+
+FanSpeed = fan_ns.enum('FanSpeed')
+FAN_SPEED_OFF = FanSpeed.FAN_SPEED_OFF
+FAN_SPEED_LOW = FanSpeed.FAN_SPEED_LOW
+FAN_SPEED_MEDIUM = FanSpeed.FAN_SPEED_MEDIUM
+FAN_SPEED_HIGH = FanSpeed.FAN_SPEED_HIGH
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(FanState),
@@ -74,7 +77,7 @@ BUILD_FLAGS = '-DUSE_FAN'
 
 CONF_FAN_TOGGLE = 'fan.toggle'
 FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(FanState),
 })
 
 
@@ -90,7 +93,7 @@ def fan_toggle_to_code(config, action_id, arg_type):
 
 CONF_FAN_TURN_OFF = 'fan.turn_off'
 FAN_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(FanState),
 })
 
 
@@ -106,7 +109,7 @@ def fan_turn_off_to_code(config, action_id, arg_type):
 
 CONF_FAN_TURN_ON = 'fan.turn_on'
 FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(None),
+    vol.Required(CONF_ID): cv.use_variable_id(FanState),
     vol.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
     vol.Optional(CONF_SPEED): cv.templatable(validate_fan_speed),
 })

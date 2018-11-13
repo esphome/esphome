@@ -67,12 +67,10 @@ mqtt:
             ESP_LOGD("main", "Got message %s", x.c_str());
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.prevent:
-          id: deep_sleep_1
+      - deep_sleep.prevent: deep_sleep_1
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.enter:
-          id: deep_sleep_1
+      - deep_sleep.enter: deep_sleep_1
   on_json_message:
     topic: the/topic
     then:
@@ -97,6 +95,7 @@ i2c:
   scl: 22
   scan: True
   frequency: 100kHz
+  setup_priority: -100
 
 spi:
   clk_pin: GPIO21
@@ -157,6 +156,7 @@ sensor:
     icon: "mdi:water-percent"
     accuracy_decimals: 5
     expire_after: 120s
+    setup_priority: -100
     filters:
       - offset: 2.0
       - multiply: 1.2
@@ -1026,3 +1026,22 @@ stepper:
   max_speed: 250 steps/s
   acceleration: 100 steps/s^2
   deceleration: 200 steps/s^2
+
+
+globals:
+- id: glob_int
+  type: int
+  restore_value: yes
+  initial_value: '0'
+- id: glob_float
+  type: float
+  restore_value: yes
+  initial_value: '0.0f'
+- id: glob_bool
+  type: bool
+  restore_value: no
+  initial_value: 'true'
+- id: glob_string
+  type: std::string
+  restore_value: no
+  # initial_value: ""

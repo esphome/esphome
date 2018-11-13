@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_MAC_ADDRESS, CONF_NAME
 from esphomeyaml.helpers import esphomelib_ns, get_variable
 
 DEPENDENCIES = ['esp32_ble_tracker']
-ESP32BLEPresenceDevice = esphomelib_ns.ESP32BLEPresenceDevice
+ESP32BLEPresenceDevice = esphomelib_ns.class_('ESP32BLEPresenceDevice', binary_sensor.BinarySensor)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLEPresenceDevice),

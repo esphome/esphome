@@ -9,7 +9,8 @@ from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLA
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
     CONF_TIMING, CONF_TRIGGER_ID
 from esphomeyaml.helpers import App, ArrayInitializer, NoArg, Pvariable, StructInitializer, add, \
-    add_job, bool_, esphomelib_ns, process_lambda, setup_mqtt_component
+    add_job, bool_, esphomelib_ns, process_lambda, setup_mqtt_component, Nameable, Trigger, \
+    Component
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -23,19 +24,25 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 binary_sensor_ns = esphomelib_ns.namespace('binary_sensor')
-PressTrigger = binary_sensor_ns.PressTrigger
-ReleaseTrigger = binary_sensor_ns.ReleaseTrigger
-ClickTrigger = binary_sensor_ns.ClickTrigger
-DoubleClickTrigger = binary_sensor_ns.DoubleClickTrigger
-MultiClickTrigger = binary_sensor_ns.MultiClickTrigger
-MultiClickTriggerEvent = binary_sensor_ns.MultiClickTriggerEvent
-BinarySensor = binary_sensor_ns.BinarySensor
-InvertFilter = binary_sensor_ns.InvertFilter
-LambdaFilter = binary_sensor_ns.LambdaFilter
-DelayedOnFilter = binary_sensor_ns.DelayedOnFilter
-DelayedOffFilter = binary_sensor_ns.DelayedOffFilter
-HeartbeatFilter = binary_sensor_ns.HeartbeatFilter
-MQTTBinarySensorComponent = binary_sensor_ns.MQTTBinarySensorComponent
+BinarySensor = binary_sensor_ns.class_('BinarySensor', Nameable)
+MQTTBinarySensorComponent = binary_sensor_ns.class_('MQTTBinarySensorComponent', mqtt.MQTTComponent)
+
+# Triggers
+PressTrigger = binary_sensor_ns.class_('PressTrigger', Trigger.template(NoArg))
+ReleaseTrigger = binary_sensor_ns.class_('ReleaseTrigger', Trigger.template(NoArg))
+ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template(NoArg))
+DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template(NoArg))
+MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(NoArg), Component)
+MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
+
+# Filters
+Filter = binary_sensor_ns.class_('Filter')
+DelayedOnFilter = binary_sensor_ns.class_('DelayedOnFilter', Filter, Component)
+DelayedOffFilter = binary_sensor_ns.class_('DelayedOffFilter', Filter, Component)
+HeartbeatFilter = binary_sensor_ns.class_('HeartbeatFilter', Filter, Component)
+InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
+LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
+
 
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
@@ -142,7 +149,6 @@ def validate_multi_click_timing(value):
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
-    cv.GenerateID(): cv.declare_variable_id(BinarySensor),
 
     vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,

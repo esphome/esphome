@@ -6,10 +6,11 @@ from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ECHO_PIN, CONF_MAKE_ID, CONF_NAME, CONF_TIMEOUT_METER, \
     CONF_TIMEOUT_TIME, CONF_TRIGGER_PIN, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, \
-    gpio_output_pin_expression, variable
+    gpio_output_pin_expression, variable, setup_component
 
-MakeUltrasonicSensor = Application.MakeUltrasonicSensor
-UltrasonicSensorComponent = sensor.sensor_ns.UltrasonicSensorComponent
+MakeUltrasonicSensor = Application.struct('MakeUltrasonicSensor')
+UltrasonicSensorComponent = sensor.sensor_ns.class_('UltrasonicSensorComponent',
+                                                    sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),
@@ -23,21 +24,22 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    trigger = None
     for trigger in gpio_output_pin_expression(config[CONF_TRIGGER_PIN]):
         yield
-    echo = None
     for echo in gpio_input_pin_expression(config[CONF_ECHO_PIN]):
         yield
     rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
     make = variable(config[CONF_MAKE_ID], rhs)
     ultrasonic = make.Pultrasonic
+
     if CONF_TIMEOUT_TIME in config:
         add(ultrasonic.set_timeout_us(config[CONF_TIMEOUT_TIME]))
     elif CONF_TIMEOUT_METER in config:
         add(ultrasonic.set_timeout_m(config[CONF_TIMEOUT_METER]))
+
     sensor.setup_sensor(ultrasonic, make.Pmqtt, config)
+    setup_component(ultrasonic, config)
 
 
 BUILD_FLAGS = '-DUSE_ULTRASONIC_SENSOR'

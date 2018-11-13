@@ -9,24 +9,26 @@ from esphomeyaml.helpers import get_variable
 
 DEPENDENCIES = ['ads1115']
 
+ADS1115Multiplexer = sensor.sensor_ns.enum('ADS1115Multiplexer')
 MUX = {
-    'A0_A1': sensor.sensor_ns.ADS1115_MULTIPLEXER_P0_N1,
-    'A0_A3': sensor.sensor_ns.ADS1115_MULTIPLEXER_P0_N3,
-    'A1_A3': sensor.sensor_ns.ADS1115_MULTIPLEXER_P1_N3,
-    'A2_A3': sensor.sensor_ns.ADS1115_MULTIPLEXER_P2_N3,
-    'A0_GND': sensor.sensor_ns.ADS1115_MULTIPLEXER_P0_NG,
-    'A1_GND': sensor.sensor_ns.ADS1115_MULTIPLEXER_P1_NG,
-    'A2_GND': sensor.sensor_ns.ADS1115_MULTIPLEXER_P2_NG,
-    'A3_GND': sensor.sensor_ns.ADS1115_MULTIPLEXER_P3_NG,
+    'A0_A1': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_N1,
+    'A0_A3': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_N3,
+    'A1_A3': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P1_N3,
+    'A2_A3': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P2_N3,
+    'A0_GND': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P0_NG,
+    'A1_GND': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P1_NG,
+    'A2_GND': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P2_NG,
+    'A3_GND': ADS1115Multiplexer.ADS1115_MULTIPLEXER_P3_NG,
 }
 
+ADS1115Gain = sensor.sensor_ns.enum('ADS1115Gain')
 GAIN = {
-    '6.144': sensor.sensor_ns.ADS1115_GAIN_6P144,
-    '4.096': sensor.sensor_ns.ADS1115_GAIN_6P096,
-    '2.048': sensor.sensor_ns.ADS1115_GAIN_2P048,
-    '1.024': sensor.sensor_ns.ADS1115_GAIN_1P024,
-    '0.512': sensor.sensor_ns.ADS1115_GAIN_0P512,
-    '0.256': sensor.sensor_ns.ADS1115_GAIN_0P256,
+    '6.144': ADS1115Gain.ADS1115_GAIN_6P144,
+    '4.096': ADS1115Gain.ADS1115_GAIN_6P096,
+    '2.048': ADS1115Gain.ADS1115_GAIN_2P048,
+    '1.024': ADS1115Gain.ADS1115_GAIN_1P024,
+    '0.512': ADS1115Gain.ADS1115_GAIN_0P512,
+    '0.256': ADS1115Gain.ADS1115_GAIN_0P256,
 }
 
 
@@ -45,7 +47,7 @@ def validate_mux(value):
     return cv.one_of(*MUX)(value)
 
 
-ADS1115Sensor = sensor.sensor_ns.ADS1115Sensor
+ADS1115Sensor = sensor.sensor_ns.class_('ADS1115Sensor', sensor.EmptySensor)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),

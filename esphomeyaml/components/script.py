@@ -4,10 +4,11 @@ from esphomeyaml import automation
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID
-from esphomeyaml.helpers import NoArg, Pvariable, TemplateArguments, esphomelib_ns, get_variable
+from esphomeyaml.helpers import NoArg, Pvariable, TemplateArguments, esphomelib_ns, get_variable, \
+    Trigger, Action
 
-Script = esphomelib_ns.Script
-ScriptExecuteAction = esphomelib_ns.ScriptExecuteAction
+Script = esphomelib_ns.class_('Script', Trigger.template(NoArg))
+ScriptExecuteAction = esphomelib_ns.class_('ScriptExecuteAction', Action)
 
 CONFIG_SCHEMA = automation.validate_automation({
     vol.Required(CONF_ID): cv.declare_variable_id(Script),
