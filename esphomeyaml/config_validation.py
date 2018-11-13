@@ -562,7 +562,7 @@ def percentage(value):
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:
-            msg += " Please don't put to put a percent sign after the number!"
+            msg += " Please put a percent sign after the number!"
         raise vol.Invalid(msg)
     return zero_to_one_float(value)
 

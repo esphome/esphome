@@ -3,9 +3,10 @@ import voluptuous as vol
 from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
-    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
+    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN, CONF_MODE, CONF_PINS
 from esphomeyaml.helpers import Action, App, Component, Pvariable, TemplateArguments, add, \
-    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component
+    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component, global_ns, \
+    StructInitializer
 
 
 def validate_pin_number(value):
@@ -27,7 +28,15 @@ WAKEUP_PIN_MODES = {
     'INVERT_WAKEUP': WakeupPinMode.WAKEUP_PIN_MODE_INVERT_WAKEUP,
 }
 
+esp_sleep_ext1_wakeup_mode_t = global_ns.enum('esp_sleep_ext1_wakeup_mode_t')
+Ext1Wakeup = esphomelib_ns.struct('Ext1Wakeup')
+EXT1_WAKEUP_MODES = {
+    'ALL_LOW': esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ALL_LOW,
+    'ANY_HIGH': esp_sleep_ext1_wakeup_mode_t.ESP_EXT1_WAKEUP_ANY_HIGH,
+}
+
 CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
+CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
@@ -36,6 +45,11 @@ CONFIG_SCHEMA = vol.Schema({
                                            validate_pin_number),
     vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32, vol.Upper,
                                                 cv.one_of(*WAKEUP_PIN_MODES)),
+    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, vol.Schema({
+        vol.Required(CONF_PINS): vol.All(cv.ensure_list, [pins.shorthand_input_pin],
+                                         [validate_pin_number]),
+        vol.Required(CONF_MODE): vol.All(vol.Upper, cv.one_of(*EXT1_WAKEUP_MODES)),
+    })),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA.schema)
@@ -56,6 +70,18 @@ def to_code(config):
         add(deep_sleep.set_run_cycles(config[CONF_RUN_CYCLES]))
     if CONF_RUN_DURATION in config:
         add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
+
+    if CONF_ESP32_EXT1_WAKEUP in config:
+        conf = config[CONF_ESP32_EXT1_WAKEUP]
+        mask = 0
+        for pin in conf[CONF_PINS]:
+            mask |= 1 << pin[CONF_NUMBER]
+        struct = StructInitializer(
+            Ext1Wakeup,
+            ('mask', mask),
+            ('wakeup_mode', EXT1_WAKEUP_MODES[conf[CONF_MODE]])
+        )
+        add(deep_sleep.set_ext1_wakeup(struct))
 
     setup_component(deep_sleep, config)
 

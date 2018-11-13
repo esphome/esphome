@@ -16,6 +16,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266
 from esphomeyaml.core import ESPHomeYAMLError
 from esphomeyaml.helpers import App, NoArg, Pvariable, RawExpression, add, const_char_p, \
     esphomelib_ns, relative_path
+from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -232,10 +233,16 @@ def update_esphomelib_repo(config):
         # local changes, cannot update
         _LOGGER.warn("Local changes in esphomelib copy from git. Will not auto-update.")
         return
-    rc, _, _ = run_command('git', '-C', esphomelib_path, 'pull')
+    _LOGGER.info("Updating esphomelib copy from git (%s)", esphomelib_path)
+    rc, stdout, _ = run_command('git', '-c', 'color.ui=always', '-C', esphomelib_path,
+                                'pull', '--stat')
     if rc != 0:
         _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
         return
+    stdout = stdout.strip()
+    if 'Already up to date' in stdout:
+        return
+    safe_print(stdout)
 
 
 def to_code(config):
