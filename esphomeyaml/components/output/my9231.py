@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
 from esphomeyaml.components.my9231 import MY9231OutputComponent
 from esphomeyaml.const import CONF_CHANNEL, CONF_ID, CONF_MY9231_ID, CONF_POWER_SUPPLY
-from esphomeyaml.helpers import Pvariable, get_variable
+from esphomeyaml.helpers import Pvariable, get_variable, setup_component
 
 DEPENDENCIES = ['my9231']
 
@@ -15,7 +15,7 @@ PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int),
                                         vol.Range(min=0, max=65535)),
     cv.GenerateID(CONF_MY9231_ID): cv.use_variable_id(MY9231OutputComponent),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
@@ -29,6 +29,7 @@ def to_code(config):
     rhs = my9231.create_channel(config[CONF_CHANNEL], power_supply)
     out = Pvariable(config[CONF_ID], rhs)
     output.setup_output_platform(out, config, skip_power_supply=True)
+    setup_component(out, config)
 
 
 BUILD_FLAGS = '-DUSE_MY9231_OUTPUT'

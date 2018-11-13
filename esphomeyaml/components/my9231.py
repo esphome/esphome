@@ -7,7 +7,7 @@ from esphomeyaml.const import (CONF_DATA_PIN, CONF_CLOCK_PIN, CONF_NUM_CHANNELS,
                                CONF_NUM_CHIPS, CONF_BIT_DEPTH, CONF_ID,
                                CONF_UPDATE_ON_BOOT)
 from esphomeyaml.helpers import (gpio_output_pin_expression, App, Pvariable,
-                                 add)
+                                 add, setup_component)
 
 MY9231OutputComponent = output.output_ns.namespace('MY9231OutputComponent')
 
@@ -23,7 +23,7 @@ MY9231_SCHEMA = vol.Schema({
     vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int),
                                           cv.one_of(8, 12, 14, 16)),
     vol.Optional(CONF_UPDATE_ON_BOOT): vol.Coerce(bool),
-})
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 CONFIG_SCHEMA = vol.All(cv.ensure_list, [MY9231_SCHEMA])
 
@@ -46,6 +46,7 @@ def to_code(config):
             add(my9231.set_bit_depth(conf[CONF_BIT_DEPTH]))
         if CONF_UPDATE_ON_BOOT in conf:
             add(my9231.set_update(conf[CONF_UPDATE_ON_BOOT]))
+        setup_component(my9231, conf)
 
 
 BUILD_FLAGS = '-DUSE_MY9231_OUTPUT'
