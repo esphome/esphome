@@ -61,127 +61,260 @@ test2:
   <<: *docker-builder
   stage: build
   script:
+    - docker run --rm --privileged hassioaddons/qemu-user-static:latest
+    - BUILD_FROM=homeassistant/${ADDON_ARCH}-base-ubuntu:latest
+    - ADDON_VERSION="${CI_COMMIT_TAG#v}"
+    - ADDON_VERSION="${ADDON_VERSION:-${CI_COMMIT_SHA:0:7}}"
+    - ESPHOMELIB_VERSION="${ESPHOMELIB_VERSION:-dev}"
+    - echo "Build from ${BUILD_FROM}"
+    - echo "Add-on version ${ADDON_VERSION}"
+    - echo "Esphomelib version ${ESPHOMELIB_VERSION}"
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev"
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - |
-      hassio-builder.sh \
-           -t . \
-           -i ottowinter/esphomeyaml-hassio-${ADDON_ARCH} \
-           -d "$CI_REGISTRY" \
-           --${ADDON_ARCH}
+      docker build \
+        --build-arg "BUILD_FROM=${BUILD_FROM}" \
+        --build-arg "ADDON_ARCH=${ADDON_ARCH}" \
+        --build-arg "ADDON_VERSION=${ADDON_VERSION}" \
+        --build-arg "ESPHOMELIB_VERSION=${ESPHOMELIB_VERSION}" \
+        --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
+        --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        --file "docker/Dockerfile.hassio" \
+        .
     - |
-      docker tag \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
-    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
-    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:dev"
-  retry: 2
+      if [ "${DO_PUSH:-true}" = true ]; then
+        echo "Pushing to CI registry"
+        docker push ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}
+        docker push ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev
+      fi
 
 # Generic deploy template
-.deploy: &deploy
+.deploy-release: &deploy-release
   <<: *docker-builder
   stage: deploy
   script:
-    - version=${CI_COMMIT_TAG:1}
-    - echo "Publishing version ${version}"
+    - version="${CI_COMMIT_TAG#v}"
+    - echo "Publishing release version ${version}"
+    - docker pull "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
-    - docker pull "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
+
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - |
       docker tag \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+
+    - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+
+    - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - |
       docker tag \
-        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
-    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
-    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+
+    - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+  only:
+  - /^v\d+\.\d+\.\d+$/
+  except:
+  - /^(?!master).+@/
+
+.deploy-beta: &deploy-beta
+  <<: *docker-builder
+  stage: deploy
+  script:
+    - version="${CI_COMMIT_TAG#v}"
+    - echo "Publishing beta version ${version}"
+    - docker pull "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+
+    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+
+    - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+
+    - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - |
+      docker tag \
+        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+  only:
+  - /^v\d+\.\d+\.\d+b\d+$/
+  except:
+  - /^(?!rc).+@/
 
 # Build jobs
 build:normal:
   <<: *docker-builder
   stage: build
   script:
-    - docker build -t "${CI_REGISTRY}/ottowinter/esphomeyaml:dev" .
-    - |
-      docker tag \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml:dev" \
-        "${CI_REGISTRY}/ottowinter/esphomeyaml:${CI_COMMIT_SHA}"
-    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml:${CI_COMMIT_SHA}"
-    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml:dev"
+    - docker build -t "${CI_REGISTRY}/esphomeyaml:dev" .
 
-build:armhf:
+.build-hassio-edge: &build-hassio-edge
   <<: *build-hassio
-  variables:
-    ADDON_ARCH: armhf
-
-#build:aarch64:
-#   <<: *build
-#   variables:
-#     ADDON_ARCH: aarch64
-
-build:i386:
-  <<: *build-hassio
-  variables:
-    ADDON_ARCH: i386
-
-build:amd64:
-  <<: *build-hassio
-  variables:
-    ADDON_ARCH: amd64
-
-# Deploy jobs
-deploy:armhf:
-  <<: *deploy
-  variables:
-    ADDON_ARCH: armhf
-  only:
-    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
   except:
-    - /^(?!master).+@/
+    - /^v\d+\.\d+\.\d+$/
+    - /^v\d+\.\d+\.\d+b\d+$/
 
-#deploy:aarch64:
-#  <<: *deploy
+.build-hassio-release: &build-hassio-release
+  <<: *build-hassio
+  only:
+    - /^v\d+\.\d+\.\d+$/
+    - /^v\d+\.\d+\.\d+b\d+$/
+
+build:hassio-armhf-edge:
+  <<: *build-hassio-edge
+  variables:
+    ADDON_ARCH: armhf
+    DO_PUSH: "false"
+
+build:hassio-armhf:
+  <<: *build-hassio-release
+  variables:
+    ADDON_ARCH: armhf
+    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
+
+#build:hassio-aarch64-edge:
+#  <<: *build-hassio-edge
 #  variables:
 #    ADDON_ARCH: aarch64
-#  only:
-#    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
-#  except:
-#    - /^(?!master).+@/
+#    DO_PUSH: "false"
 
-deploy:i386:
-  <<: *deploy
+#build:hassio-aarch64:
+#  <<: *build-hassio-release
+#  variables:
+#    ADDON_ARCH: aarch64
+#    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
+
+build:hassio-i386-edge:
+  <<: *build-hassio-edge
   variables:
     ADDON_ARCH: i386
-  only:
-    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
-  except:
-    - /^(?!master).+@/
+    DO_PUSH: "false"
 
-deploy:amd64:
-  <<: *deploy
+build:hassio-i386:
+  <<: *build-hassio-release
+  variables:
+    ADDON_ARCH: i386
+    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
+
+build:hassio-amd64-edge:
+  <<: *build-hassio-edge
   variables:
     ADDON_ARCH: amd64
+    DO_PUSH: "false"
+
+build:hassio-amd64:
+  <<: *build-hassio-release
+  variables:
+    ADDON_ARCH: amd64
+    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
+
+# Deploy jobs
+deploy-release:armhf:
+  <<: *deploy-release
+  variables:
+    ADDON_ARCH: armhf
+
+deploy-beta:armhf:
+  <<: *deploy-beta
+  variables:
+    ADDON_ARCH: armhf
+
+#deploy-release:aarch64:
+#  <<: *deploy-release
+#  variables:
+#    ADDON_ARCH: aarch64
+#
+#deploy-beta:aarch64:
+#  <<: *deploy-beta
+#  variables:
+#    ADDON_ARCH: aarch64
+
+deploy-release:i386:
+  <<: *deploy-release
+  variables:
+    ADDON_ARCH: i386
+
+deploy-beta:i386:
+  <<: *deploy-beta
+  variables:
+    ADDON_ARCH: i386
+
+deploy-release:amd64:
+  <<: *deploy-release
+  variables:
+    ADDON_ARCH: amd64
+
+deploy-beta:amd64:
+  <<: *deploy-beta
+  variables:
+    ADDON_ARCH: amd64
+
+.deploy-pypi: &deploy-pypi
+  stage: deploy
+  before_script:
+  - pip install -e .
+  - pip install twine
+  script:
+  - python setup.py sdist
+  - twine upload dist/*
+  tags:
+  - python2.7
+  - esphomeyaml-test
+
+deploy-release:pypi:
+  <<: *deploy-pypi
   only:
-    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
+    - /^v\d+\.\d+\.\d+$/
   except:
     - /^(?!master).+@/
 
-deploy:pypi:
-  stage: deploy
-  before_script:
-    - pip install -e .
-    - pip install twine
-  script:
-    - python setup.py sdist
-    - twine upload dist/*
-  tags:
-    - python2.7
-    - esphomeyaml-test
+deploy-beta:pypi:
+  <<: *deploy-pypi
   only:
-    - /^v\d+\.\d+\.\d+(?:(?:(?:\+|\.)?[a-zA-Z0-9]+)*)?$/
+    - /^v\d+\.\d+\.\d+b\d+$/
   except:
-    - /^(?!master).+@/
+    - /^(?!rc).+@/

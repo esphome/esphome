@@ -1,11 +1,11 @@
 """Constants used by esphomeyaml."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 8
-PATCH_VERSION = '2'
+MINOR_VERSION = 9
+PATCH_VERSION = '0b6'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
-ESPHOMELIB_VERSION = '1.8.2'
+ESPHOMELIB_VERSION = '1.9.0b6'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
@@ -202,6 +202,7 @@ CONF_RECEIVE_TIMEOUT = 'receive_timeout'
 CONF_SCAN_INTERVAL = 'scan_interval'
 CONF_MAC_ADDRESS = 'mac_address'
 CONF_SETUP_MODE = 'setup_mode'
+CONF_SETUP_PRIORITY = 'setup_priority'
 CONF_IIR_FILTER = 'iir_filter'
 CONF_MEASUREMENT_DURATION = 'measurement_duration'
 CONF_LOW_VOLTAGE_REFERENCE = 'low_voltage_reference'
@@ -222,6 +223,7 @@ CONF_ON_PRESS = 'on_press'
 CONF_ON_RELEASE = 'on_release'
 CONF_ON_CLICK = 'on_click'
 CONF_ON_DOUBLE_CLICK = 'on_double_click'
+CONF_ON_MULTI_CLICK = 'on_multi_click'
 CONF_MIN_LENGTH = 'min_length'
 CONF_MAX_LENGTH = 'max_length'
 CONF_ON_VALUE = 'on_value'
@@ -350,6 +352,26 @@ CONF_ARGS = 'args'
 CONF_FORMAT = 'format'
 CONF_COLOR_CORRECT = 'color_correct'
 CONF_ON_JSON_MESSAGE = 'on_json_message'
+CONF_ACCELERATION = 'acceleration'
+CONF_DECELERATION = 'deceleration'
+CONF_MAX_SPEED = 'max_speed'
+CONF_TARGET = 'target'
+CONF_POSITION = 'position'
+CONF_STEP_PIN = 'step_pin'
+CONF_DIR_PIN = 'dir_pin'
+CONF_SLEEP_PIN = 'sleep_pin'
+CONF_SEND_FIRST_AT = 'send_first_at'
+CONF_TIME_ID = 'time_id'
+CONF_RESTORE_STATE = 'restore_state'
+CONF_TIMING = 'timing'
+CONF_INVALID_COOLDOWN = 'invalid_cooldown'
+CONF_MY9231_ID = 'my9231_id'
+CONF_NUM_CHANNELS = 'num_channels'
+CONF_UPDATE_ON_BOOT = 'update_on_boot'
+CONF_INITIAL_VALUE = 'initial_value'
+CONF_RESTORE_VALUE = 'restore_value'
+CONF_PINS = 'pins'
+
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

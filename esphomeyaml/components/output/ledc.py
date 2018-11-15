@@ -5,7 +5,7 @@ from esphomeyaml import pins
 from esphomeyaml.components import output
 from esphomeyaml.const import APB_CLOCK_FREQ, CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
     CONF_ID, CONF_PIN, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Pvariable, add
+from esphomeyaml.helpers import App, Pvariable, add, setup_component, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -19,7 +19,7 @@ def validate_frequency_bit_depth(obj):
     return obj
 
 
-LEDCOutputComponent = output.output_ns.LEDCOutputComponent
+LEDCOutputComponent = output.output_ns.class_('LEDCOutputComponent', output.FloatOutput, Component)
 
 PLATFORM_SCHEMA = vol.All(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_ID): cv.declare_variable_id(LEDCOutputComponent),
@@ -27,7 +27,7 @@ PLATFORM_SCHEMA = vol.All(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_FREQUENCY): cv.frequency,
     vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int), vol.Range(min=1, max=15)),
     vol.Optional(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))
-}), validate_frequency_bit_depth)
+}).extend(cv.COMPONENT_SCHEMA.schema), validate_frequency_bit_depth)
 
 
 def to_code(config):
@@ -39,6 +39,7 @@ def to_code(config):
     if CONF_CHANNEL in config:
         add(ledc.set_channel(config[CONF_CHANNEL]))
     output.setup_output_platform(ledc, config)
+    setup_component(ledc, config)
 
 
 BUILD_FLAGS = '-DUSE_LEDC_OUTPUT'

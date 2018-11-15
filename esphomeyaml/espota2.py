@@ -4,6 +4,8 @@ import random
 import socket
 import sys
 
+from esphomeyaml.core import ESPHomeYAMLError
+
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
 
@@ -27,22 +29,29 @@ OTA_VERSION_1_0 = 1
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 _LOGGER = logging.getLogger(__name__)
+LAST_PROGRESS = -1
 
 
 def update_progress(progress):
+    global LAST_PROGRESS
+
     bar_length = 60
     status = ""
     if progress >= 1:
         progress = 1
         status = "Done...\r\n"
+    new_progress = int(progress * 100)
+    if new_progress == LAST_PROGRESS:
+        return
+    LAST_PROGRESS = new_progress
     block = int(round(bar_length * progress))
     text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
-                                                int(progress * 100), status)
+                                                new_progress, status)
     sys.stderr.write(text)
     sys.stderr.flush()
 
 
-class OTAError(Exception):
+class OTAError(ESPHomeYAMLError):
     pass
 
 
@@ -66,9 +75,9 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
 
     try:
         check_error(data, expect)
-    except OTAError:
+    except OTAError as err:
         sock.close()
-        raise
+        raise OTAError("Error {}: {}".format(msg, err))
 
     while len(data) < amount:
         try:
@@ -85,7 +94,8 @@ def check_error(data, expect):
     if dat == RESPONSE_ERROR_MAGIC:
         raise OTAError("Error: Invalid magic byte")
     if dat == RESPONSE_ERROR_UPDATE_PREPARE:
-        raise OTAError("Error: Couldn't prepare flash memory for update. Is the binary too big?")
+        raise OTAError("Error: Couldn't prepare flash memory for update. Is the binary too big? "
+                       "Please try restarting the ESP.")
     if dat == RESPONSE_ERROR_AUTH_INVALID:
         raise OTAError("Error: Authentication invalid. Is the password correct?")
     if dat == RESPONSE_ERROR_WRITING_FLASH:
@@ -111,7 +121,7 @@ def send_check(sock, data, msg):
             data = ''.join([chr(x) for x in data])
         elif isinstance(data, int):
             data = chr(data)
-        sock.send(data)
+        sock.sendall(data)
     except socket.error as err:
         raise OTAError("Error sending {}: {}".format(msg, err))
 
@@ -123,6 +133,8 @@ def perform_ota(sock, password, file_handle, filename):
     file_handle.seek(0)
     _LOGGER.debug("MD5 of binary is %s", file_md5)
 
+    # Enable nodelay, we need it for phase 1
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     send_check(sock, MAGIC_BYTES, 'magic bytes')
 
     _, version = receive_exactly(sock, 2, 'version', RESPONSE_OK)
@@ -169,7 +181,12 @@ def perform_ota(sock, password, file_handle, filename):
     send_check(sock, file_md5, 'file checksum')
     receive_exactly(sock, 1, 'file checksum', RESPONSE_BIN_MD5_OK)
 
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+    # Disable nodelay for transfer
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 0)
+    # Limit send buffer (usually around 100kB) in order to have progress bar
+    # show the actual progress
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+
     offset = 0
     update_progress(0.0)
     while True:
@@ -186,21 +203,66 @@ def perform_ota(sock, password, file_handle, filename):
 
         update_progress(offset / float(file_size))
 
+    # Enable nodelay for last checks
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
     sys.stderr.write('\n')
     _LOGGER.info("Waiting for result...")
 
     receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
     receive_exactly(sock, 1, 'Update end', RESPONSE_UPDATE_END_OK)
+    send_check(sock, RESPONSE_OK, 'end acknowledgement')
 
     _LOGGER.info("OTA successful")
 
 
-def run_ota(remote_host, remote_port, password, filename):
-    _LOGGER.info("Connecting to %s:%s...", remote_host, remote_port)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(5.0)
+def is_ip_address(host):
+    parts = host.split('.')
+    if len(parts) != 4:
+        return False
     try:
-        sock.connect((remote_host, remote_port))
+        for p in parts:
+            int(p)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_ip_address(host):
+    if is_ip_address(host):
+        _LOGGER.info("Connecting to %s", host)
+        return host
+
+    _LOGGER.info("Resolving IP Address of %s", host)
+    hosts = [host]
+    if host.endswith('.local'):
+        hosts.append(host[:-6])
+
+    errors = []
+    for x in hosts:
+        try:
+            ip = socket.gethostbyname(x)
+            break
+        except socket.error as err:
+            errors.append(err)
+    else:
+        _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
+                      host)
+
+        _LOGGER.error("(If this error persists, please set a static IP address: "
+                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
+        raise OTAError("Errors: {}".format(', '.join(str(x) for x in errors)))
+
+    _LOGGER.info(" -> %s", ip)
+    return ip
+
+
+def run_ota(remote_host, remote_port, password, filename):
+    ip = resolve_ip_address(remote_host)
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(10.0)
+    try:
+        sock.connect((ip, remote_port))
     except socket.error as err:
         sock.close()
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)

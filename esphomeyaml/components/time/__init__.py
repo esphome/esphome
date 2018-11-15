@@ -8,7 +8,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns
+from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
+    ArrayInitializer, Component, Trigger
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -17,7 +18,9 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 time_ns = esphomelib_ns.namespace('time')
-CronTrigger = time_ns.CronTrigger
+RealTimeClockComponent = time_ns.class_('RealTimeClockComponent', Component)
+CronTrigger = time_ns.class_('CronTrigger', Trigger.template(NoArg), Component)
+EsphomelibTime = time_ns.struct('EsphomelibTime')
 
 
 def _tz_timedelta(td):
@@ -47,18 +50,8 @@ def _tz_dst_str(dt):
                                  _tz_timedelta(td))
 
 
-def detect_tz():
-    try:
-        import tzlocal
-        import pytz
-    except ImportError:
-        raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
-                          "detect the timezone please install tzlocal (pip2 install tzlocal)")
-    try:
-        tz = tzlocal.get_localzone()
-    except pytz.exceptions.UnknownTimeZoneError:
-        _LOGGER.warning("Could not auto-detect timezone. Using UTC...")
-        return 'UTC'
+def convert_tz(pytz_obj):
+    tz = pytz_obj
 
     def _dst(dt, is_dst):
         try:
@@ -107,16 +100,32 @@ def detect_tz():
     tzbase = '{}{}'.format(norm_tzname, _tz_timedelta(-1 * norm_utcoffset))
     if dst_begins is None:
         # No DST in this timezone
-        _LOGGER.info("Auto-detected timezone '%s' with UTC offset %s",
+        _LOGGER.info("Detected timezone '%s' with UTC offset %s",
                      norm_tzname, _tz_timedelta(norm_utcoffset))
         return tzbase
     tzext = '{}{},{},{}'.format(dst_tzname, _tz_timedelta(-1 * dst_utcoffset),
                                 _tz_dst_str(dst_begins), _tz_dst_str(dst_ends))
-    _LOGGER.info("Auto-detected timezone '%s' with UTC offset %s and daylight savings time from "
+    _LOGGER.info("Detected timezone '%s' with UTC offset %s and daylight savings time from "
                  "%s to %s",
                  norm_tzname, _tz_timedelta(norm_utcoffset), dst_begins.strftime("%x %X"),
                  dst_ends.strftime("%x %X"))
     return tzbase + tzext
+
+
+def detect_tz():
+    try:
+        import tzlocal
+        import pytz
+    except ImportError:
+        raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
+                          "detect the timezone please install tzlocal (pip2 install tzlocal)")
+    try:
+        tz = tzlocal.get_localzone()
+    except pytz.exceptions.UnknownTimeZoneError:
+        _LOGGER.warning("Could not auto-detect timezone. Using UTC...")
+        return 'UTC'
+
+    return convert_tz(tz)
 
 
 def _parse_cron_int(value, special_mapping, message):
@@ -233,8 +242,19 @@ def validate_cron_keys(value):
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
 
+def validate_tz(value):
+    value = cv.string_strict(value)
+
+    try:
+        import pytz
+
+        return convert_tz(pytz.timezone(value))
+    except Exception:  # pylint: disable=broad-except
+        return value
+
+
 TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_TIMEZONE, default=detect_tz): cv.string,
+    vol.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
     vol.Optional(CONF_ON_TIME): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),
         vol.Optional(CONF_SECONDS): validate_cron_seconds,
@@ -254,18 +274,25 @@ def setup_time_core_(time_var, config):
     for conf in config.get(CONF_ON_TIME, []):
         rhs = App.register_component(time_var.Pmake_cron_trigger())
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        for second in conf.get(CONF_SECONDS, [x for x in range(0, 61)]):
-            add(trigger.add_second(second))
-        for minute in conf.get(CONF_MINUTES, [x for x in range(0, 60)]):
-            add(trigger.add_minute(minute))
-        for hour in conf.get(CONF_HOURS, [x for x in range(0, 24)]):
-            add(trigger.add_hour(hour))
-        for day_of_month in conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)]):
-            add(trigger.add_day_of_month(day_of_month))
-        for month in conf.get(CONF_MONTHS, [x for x in range(1, 13)]):
-            add(trigger.add_month(month))
-        for day_of_week in conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)]):
-            add(trigger.add_day_of_week(day_of_week))
+
+        seconds = conf.get(CONF_SECONDS, [x for x in range(0, 61)])
+        add(trigger.add_seconds(ArrayInitializer(*seconds, multiline=False)))
+
+        minutes = conf.get(CONF_MINUTES, [x for x in range(0, 60)])
+        add(trigger.add_minutes(ArrayInitializer(*minutes, multiline=False)))
+
+        hours = conf.get(CONF_HOURS, [x for x in range(0, 24)])
+        add(trigger.add_hours(ArrayInitializer(*hours, multiline=False)))
+
+        days_of_month = conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)])
+        add(trigger.add_days_of_month(ArrayInitializer(*days_of_month, multiline=False)))
+
+        months = conf.get(CONF_MONTHS, [x for x in range(1, 13)])
+        add(trigger.add_months(ArrayInitializer(*months, multiline=False)))
+
+        days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
+        add(trigger.add_days_of_week(ArrayInitializer(*days_of_week, multiline=False)))
+
         automation.build_automation(trigger, NoArg, conf)
 
 

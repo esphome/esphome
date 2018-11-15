@@ -1,0 +1,42 @@
+# Dockerfile for HassIO add-on
+ARG BUILD_FROM=homeassistant/amd64-base-ubuntu:latest
+FROM ${BUILD_FROM}
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        python \
+        python-pip \
+        python-setuptools \
+        python-pil \
+        git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
+    pip install --no-cache-dir --no-binary :all: platformio && \
+    platformio settings set enable_telemetry No && \
+    platformio settings set check_libraries_interval 1000000 && \
+    platformio settings set check_platformio_interval 1000000 && \
+    platformio settings set check_platforms_interval 1000000
+
+COPY docker/platformio.ini /pio/platformio.ini
+RUN platformio run -d /pio; rm -rf /pio
+
+ARG ESPHOMELIB_VERSION="dev"
+RUN platformio lib -g install "https://github.com/OttoWinter/esphomelib.git#${ESPHOMELIB_VERSION}"
+
+COPY . .
+RUN pip install --no-cache-dir --no-binary :all: -e . && \
+    pip install --no-cache-dir --no-binary :all: tzlocal
+
+CMD ["esphomeyaml", "/config/esphomeyaml", "dashboard"]
+
+# Build arugments
+ARG ADDON_ARCH
+ARG ADDON_VERSION
+
+# Labels
+LABEL \
+    io.hass.name="esphomeyaml" \
+    io.hass.description="esphomeyaml HassIO add-on for intelligently managing all your ESP8266/ESP32 devices." \
+    io.hass.arch="${ADDON_ARCH}" \
+    io.hass.type="addon" \
+    io.hass.version="${ADDON_VERSION}" \
+    io.hass.url="https://esphomelib.com/esphomeyaml/index.html" \
+    maintainer="Otto Winter <contact@otto-winter.com>"
