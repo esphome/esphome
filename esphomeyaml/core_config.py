@@ -239,10 +239,7 @@ def update_esphomelib_repo(config):
     if rc != 0:
         _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
         return
-    stdout = stdout.strip()
-    if 'Already up to date' in stdout:
-        return
-    safe_print(stdout)
+    safe_print(stdout.strip())
 
 
 def to_code(config):
