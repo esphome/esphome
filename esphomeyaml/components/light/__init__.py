@@ -24,6 +24,7 @@ LightState = light_ns.class_('LightState', Nameable, Component)
 MakeLight = Application.struct('MakeLight')
 LightOutput = light_ns.class_('LightOutput')
 FastLEDLightOutputComponent = light_ns.class_('FastLEDLightOutputComponent', LightOutput)
+FastLEDLightOutputComponentRef = FastLEDLightOutputComponent.operator('ref')
 
 # Actions
 ToggleAction = light_ns.class_('ToggleAction', Action)
@@ -249,8 +250,7 @@ def build_effect(full_config):
             add(effect.set_intensity(config[CONF_INTENSITY]))
         yield effect
     elif key == CONF_FASTLED_LAMBDA:
-        lambda_ = None
-        args = [(RawExpression('FastLEDLightOutputComponent &'), 'it')]
+        args = [(FastLEDLightOutputComponentRef, 'it')]
         for lambda_ in process_lambda(config[CONF_LAMBDA], args):
             yield None
         yield FastLEDLambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
