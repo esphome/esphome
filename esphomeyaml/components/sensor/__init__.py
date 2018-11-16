@@ -62,6 +62,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
 # Base
 sensor_ns = esphomelib_ns.namespace('sensor')
 Sensor = sensor_ns.class_('Sensor', Nameable)
+SensorPtr = Sensor.operator('ptr')
 MQTTSensorComponent = sensor_ns.class_('MQTTSensorComponent', mqtt.MQTTComponent)
 
 PollingSensorComponent = sensor_ns.class_('PollingSensorComponent', PollingComponent, Sensor)

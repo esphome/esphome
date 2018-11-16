@@ -565,6 +565,10 @@ class MockObj(Expression):
             obj = MockObj(u'{} &'.format(self.base), u'')
             obj.requires.append(self)
             return obj
+        if name == 'ptr':
+            obj = MockObj(u'{} *'.format(self.base), u'')
+            obj.requires.append(self)
+            return obj
         if name == "const":
             obj = MockObj(u'const {}'.format(self.base), u'')
             obj.requires.append(self)
@@ -622,6 +626,7 @@ float_ = global_ns.namespace('float')
 bool_ = global_ns.namespace('bool')
 std_ns = global_ns.namespace('std')
 std_string = std_ns.string
+std_vector = std_ns.vector
 uint8 = global_ns.namespace('uint8_t')
 uint16 = global_ns.namespace('uint16_t')
 uint32 = global_ns.namespace('uint32_t')
