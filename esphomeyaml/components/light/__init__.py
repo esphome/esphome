@@ -10,7 +10,8 @@ from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLOR
     CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
 from esphomeyaml.helpers import Action, Application, ArrayInitializer, Component, Nameable, \
     Pvariable, StructInitializer, TemplateArguments, add, add_job, esphomelib_ns, float_, \
-    get_variable, process_lambda, setup_mqtt_component, std_string, templatable, uint32
+    get_variable, process_lambda, setup_mqtt_component, std_string, templatable, uint32, \
+    RawExpression
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
