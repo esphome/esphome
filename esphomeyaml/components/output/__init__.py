@@ -4,8 +4,9 @@ from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
-from esphomeyaml.helpers import add, esphomelib_ns, get_variable, TemplateArguments, Pvariable, \
-    templatable, float_, add_job, Action
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import add, get_variable, Pvariable, TemplateArguments, templatable
+from esphomeyaml.cpp_types import esphomelib_ns, Action, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -26,7 +27,9 @@ FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema
 
 output_ns = esphomelib_ns.namespace('output')
 BinaryOutput = output_ns.class_('BinaryOutput')
+BinaryOutputPtr = BinaryOutput.operator('ptr')
 FloatOutput = output_ns.class_('FloatOutput', BinaryOutput)
+FloatOutputPtr = FloatOutput.operator('ptr')
 
 # Actions
 TurnOffAction = output_ns.class_('TurnOffAction', Action)
@@ -47,7 +50,12 @@ def setup_output_platform_(obj, config, skip_power_supply=False):
 
 
 def setup_output_platform(obj, config, skip_power_supply=False):
-    add_job(setup_output_platform_, obj, config, skip_power_supply)
+    CORE.add_job(setup_output_platform_, obj, config, skip_power_supply)
+
+
+def register_output(var, config):
+    output_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
+    CORE.add_job(setup_output_platform_, output_var, config)
 
 
 BUILD_FLAGS = '-DUSE_OUTPUT'

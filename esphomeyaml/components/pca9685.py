@@ -1,9 +1,11 @@
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, output
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import output, i2c
 from esphomeyaml.const import CONF_ADDRESS, CONF_FREQUENCY, CONF_ID, CONF_PHASE_BALANCER
-from esphomeyaml.helpers import App, HexIntLiteral, Pvariable, add, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component
 
 DEPENDENCIES = ['i2c']
 
@@ -30,7 +32,7 @@ def to_code(config):
         rhs = App.make_pca9685_component(conf.get(CONF_FREQUENCY))
         pca9685 = Pvariable(conf[CONF_ID], rhs)
         if CONF_ADDRESS in conf:
-            add(pca9685.set_address(HexIntLiteral(conf[CONF_ADDRESS])))
+            add(pca9685.set_address(conf[CONF_ADDRESS]))
         setup_component(pca9685, conf)
 
 

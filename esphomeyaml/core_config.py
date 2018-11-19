@@ -1,22 +1,21 @@
+import codecs
 import logging
 import os
 import re
-import subprocess
 
 import voluptuous as vol
 
-from esphomeyaml import automation, core, pins
+from esphomeyaml import automation, pins
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_BUILD_PATH, \
     CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, \
     CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, \
     CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, ESPHOMELIB_VERSION, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, NoArg, Pvariable, RawExpression, add, const_char_p, \
-    esphomelib_ns, relative_path
-from esphomeyaml.util import safe_print
+    ESP_PLATFORM_ESP8266, CONF_EXTRA_LIBRARIES, CONF_INCLUDES
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
+from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,13 +26,13 @@ StartupTrigger = esphomelib_ns.StartupTrigger
 ShutdownTrigger = esphomelib_ns.ShutdownTrigger
 LoopTrigger = esphomelib_ns.LoopTrigger
 
-VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:-beta)?(?:-alpha)?$')
+VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
 
 
 def validate_board(value):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         board_pins = pins.ESP8266_BOARD_PINS
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    elif CORE.is_esp32:
         board_pins = pins.ESP32_BOARD_PINS
     else:
         raise NotImplementedError
@@ -68,7 +67,7 @@ def validate_simple_esphomelib_version(value):
 
 def validate_local_esphomelib_version(value):
     value = cv.directory(value)
-    path = relative_path(value)
+    path = CORE.relative_path(value)
     library_json = os.path.join(path, 'library.json')
     if not os.path.exists(library_json):
         raise vol.Invalid(u"Could not find '{}' file. '{}' does not seem to point to an "
@@ -132,7 +131,7 @@ PLATFORMIO_ESP32_LUT = {
 def validate_arduino_version(value):
     value = cv.string_strict(value)
     value_ = value.upper()
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
             raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                               "at this time. You can override this by manually using "
@@ -140,7 +139,7 @@ def validate_arduino_version(value):
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    elif CORE.is_esp32:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                               "at this time. You can override this by manually using "
@@ -148,12 +147,11 @@ def validate_arduino_version(value):
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value
-    else:
-        raise NotImplementedError
+    raise NotImplementedError
 
 
 def default_build_path():
-    return core.NAME
+    return CORE.name
 
 
 CONFIG_SCHEMA = vol.Schema({
@@ -177,6 +175,8 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
     }),
+    vol.Optional(CONF_INCLUDES): vol.All(cv.ensure_list, [cv.file_]),
+    vol.Optional(CONF_EXTRA_LIBRARIES): vol.All(cv.ensure_list, [cv.string_strict]),
 
     vol.Optional('library_uri'): cv.invalid("The library_uri option has been removed in 1.8.0 and "
                                             "was moved into the esphomelib_version option."),
@@ -187,59 +187,23 @@ CONFIG_SCHEMA = vol.Schema({
 
 def preload_core_config(config):
     if CONF_ESPHOMEYAML not in config:
-        raise ESPHomeYAMLError(u"No esphomeyaml section in config")
+        raise EsphomeyamlError(u"No esphomeyaml section in config")
     core_conf = config[CONF_ESPHOMEYAML]
     if CONF_PLATFORM not in core_conf:
-        raise ESPHomeYAMLError("esphomeyaml.platform not specified.")
+        raise EsphomeyamlError("esphomeyaml.platform not specified.")
     if CONF_BOARD not in core_conf:
-        raise ESPHomeYAMLError("esphomeyaml.board not specified.")
+        raise EsphomeyamlError("esphomeyaml.board not specified.")
     if CONF_NAME not in core_conf:
-        raise ESPHomeYAMLError("esphomeyaml.name not specified.")
+        raise EsphomeyamlError("esphomeyaml.name not specified.")
 
     try:
-        core.ESP_PLATFORM = validate_platform(core_conf[CONF_PLATFORM])
-        core.BOARD = validate_board(core_conf[CONF_BOARD])
-        core.NAME = cv.valid_name(core_conf[CONF_NAME])
+        CORE.esp_platform = validate_platform(core_conf[CONF_PLATFORM])
+        CORE.board = validate_board(core_conf[CONF_BOARD])
+        CORE.name = cv.valid_name(core_conf[CONF_NAME])
+        CORE.build_path = CORE.relative_path(
+            cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
     except vol.Invalid as e:
-        raise ESPHomeYAMLError(unicode(e))
-
-
-def run_command(*args):
-    p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = p.communicate()
-    rc = p.returncode
-    return rc, stdout, stderr
-
-
-def update_esphomelib_repo(config):
-    esphomelib_version = config[CONF_ESPHOMELIB_VERSION]
-    if CONF_REPOSITORY not in esphomelib_version:
-        return
-
-    build_path = relative_path(config[CONF_BUILD_PATH])
-    esphomelib_path = os.path.join(build_path, '.piolibdeps', 'esphomelib')
-    is_default_branch = all(x not in esphomelib_version
-                            for x in (CONF_BRANCH, CONF_TAG, CONF_COMMIT))
-    if not (CONF_BRANCH in esphomelib_version or is_default_branch):
-        # Git commit hash or tag cannot be updated
-        return
-
-    rc, _, _ = run_command('git', '-C', esphomelib_path, '--help')
-    if rc != 0:
-        # git not installed or repo not downloaded yet
-        return
-    rc, _, _ = run_command('git', '-C', esphomelib_path, 'diff-index', '--quiet', 'HEAD', '--')
-    if rc != 0:
-        # local changes, cannot update
-        _LOGGER.warn("Local changes in esphomelib copy from git. Will not auto-update.")
-        return
-    _LOGGER.info("Updating esphomelib copy from git (%s)", esphomelib_path)
-    rc, stdout, _ = run_command('git', '-c', 'color.ui=always', '-C', esphomelib_path,
-                                'pull', '--stat')
-    if rc != 0:
-        _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
-        return
-    safe_print(stdout.strip())
+        raise EsphomeyamlError(unicode(e))
 
 
 def to_code(config):
@@ -252,13 +216,23 @@ def to_code(config):
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
-        automation.build_automation(trigger, const_char_p, conf)
+        automation.build_automation(trigger, const_char_ptr, conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         rhs = App.register_component(LoopTrigger.new())
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, NoArg, conf)
 
-    update_esphomelib_repo(config)
-
     add(App.set_compilation_datetime(RawExpression('__DATE__ ", " __TIME__')))
+
+
+def lib_deps(config):
+    return set(config.get(CONF_EXTRA_LIBRARIES, []))
+
+
+def includes(config):
+    ret = []
+    for include in config.get(CONF_INCLUDES, []):
+        with codecs.open(CORE.relative_path(include), 'r', encoding='utf-8') as f_handle:
+            ret.append(f_handle.read())
+    return ret

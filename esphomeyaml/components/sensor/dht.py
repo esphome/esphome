@@ -1,12 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_HUMIDITY, CONF_MAKE_ID, CONF_MODEL, CONF_NAME, CONF_PIN, \
-    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL, CONF_ID
-from esphomeyaml.helpers import App, Application, add, gpio_output_pin_expression, variable, \
-    setup_component, PollingComponent, Pvariable
-from esphomeyaml.pins import gpio_output_pin_schema
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_HUMIDITY, CONF_ID, CONF_MAKE_ID, CONF_MODEL, CONF_NAME, \
+    CONF_PIN, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, add, variable
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application, PollingComponent
+from esphomeyaml.pins import gpio_input_pullup_pin_schema
 
 DHTModel = sensor.sensor_ns.enum('DHTModel')
 DHT_MODELS = {
@@ -27,7 +28,7 @@ DHTHumiditySensor = sensor.sensor_ns.class_('DHTHumiditySensor',
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeDHTSensor),
     cv.GenerateID(): cv.declare_variable_id(DHTComponent),
-    vol.Required(CONF_PIN): gpio_output_pin_schema,
+    vol.Required(CONF_PIN): gpio_input_pullup_pin_schema,
     vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(DHTTemperatureSensor),
     })),

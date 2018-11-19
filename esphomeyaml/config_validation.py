@@ -9,12 +9,12 @@ import uuid as uuid_
 
 import voluptuous as vol
 
-from esphomeyaml import core, helpers
+from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
-    CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_INTERNAL, CONF_SETUP_PRIORITY
-from esphomeyaml.core import HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
+    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, \
+    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
+    ESP_PLATFORM_ESP8266
+from esphomeyaml.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
@@ -198,7 +198,7 @@ def only_on(platforms):
         platforms = [platforms]
 
     def validator_(obj):
-        if core.ESP_PLATFORM not in platforms:
+        if CORE.esp_platform not in platforms:
             raise vol.Invalid(u"This feature is only available on {}".format(platforms))
         return obj
 
@@ -621,7 +621,7 @@ def dimensions(value):
 
 def directory(value):
     value = string(value)
-    path = helpers.relative_path(value)
+    path = CORE.relative_path(value)
     if not os.path.exists(path):
         raise vol.Invalid(u"Could not find directory '{}'. Please make sure it exists.".format(
             path))
@@ -632,7 +632,7 @@ def directory(value):
 
 def file_(value):
     value = string(value)
-    path = helpers.relative_path(value)
+    path = CORE.relative_path(value)
     if not os.path.exists(path):
         raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(
             path))

@@ -1,10 +1,11 @@
 import voluptuous as vol
 
-from esphomeyaml import core
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Component, Pvariable, StoringController, add, esphomelib_ns, \
-    setup_component
+from esphomeyaml.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import esphomelib_ns, StoringController, Component, App
 
 WebServer = esphomelib_ns.class_('WebServer', Component, StoringController)
 
@@ -31,6 +32,6 @@ BUILD_FLAGS = '-DUSE_WEB_SERVER'
 
 
 def lib_deps(config):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         return 'FS'
     return ''

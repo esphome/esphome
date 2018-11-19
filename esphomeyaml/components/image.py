@@ -3,13 +3,13 @@ import logging
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
 from esphomeyaml.components import display, font
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
-from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, ArrayInitializer, MockObj, Pvariable, RawExpression, add, \
-    relative_path
+from esphomeyaml.core import CORE, HexInt
+from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawExpression, add
+from esphomeyaml.cpp_types import App
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,11 +33,11 @@ def to_code(config):
     from PIL import Image
 
     for conf in config:
-        path = relative_path(conf[CONF_FILE])
+        path = CORE.relative_path(conf[CONF_FILE])
         try:
             image = Image.open(path)
         except Exception as e:
-            raise core.ESPHomeYAMLError(u"Could not load image file {}: {}".format(path, e))
+            raise core.EsphomeyamlError(u"Could not load image file {}: {}".format(path, e))
 
         if CONF_RESIZE in conf:
             image.thumbnail(conf[CONF_RESIZE])

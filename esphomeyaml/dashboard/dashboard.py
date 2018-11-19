@@ -1,19 +1,24 @@
 # pylint: disable=wrong-import-position
 from __future__ import print_function
 
-import codecs
+import collections
 import hmac
 import json
 import logging
+import multiprocessing
 import os
 import random
 import subprocess
+import threading
 
-from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_BUILD_PATH
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml import const, core, __main__
+from tornado.log import access_log
+from typing import Optional
+
+from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.helpers import relative_path
+from esphomeyaml.core import EsphomeyamlError
+from esphomeyaml.helpers import run_system_command
+from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import shlex_quote
 
 try:
@@ -52,7 +57,7 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
         if self.proc is not None:
             return
         command = self.build_command(message)
-        _LOGGER.debug(u"WebSocket opened for command %s", [shlex_quote(x) for x in command])
+        _LOGGER.info(u"Running command '%s'", ' '.join(shlex_quote(x) for x in command))
         self.proc = tornado.process.Subprocess(command,
                                                stdout=tornado.process.Subprocess.STREAM,
                                                stderr=subprocess.STDOUT)
@@ -166,11 +171,8 @@ class WizardRequestHandler(BaseHandler):
             self.redirect('/login')
             return
         kwargs = {k: ''.join(v) for k, v in self.request.arguments.iteritems()}
-        config = wizard.wizard_file(**kwargs)
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
-        with codecs.open(destination, 'w') as f_handle:
-            f_handle.write(config)
-
+        wizard.wizard_write(path=destination, **kwargs)
         self.redirect('/?begin=True')
 
 
@@ -181,13 +183,16 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         configuration = self.get_argument('configuration')
-        config_file = os.path.join(CONFIG_DIR, configuration)
-        core.CONFIG_PATH = config_file
-        config = __main__.read_config(core.CONFIG_PATH)
-        build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-        path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
+        storage_path = ext_storage_path(CONFIG_DIR, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error()
+            return
+
+        path = storage_json.firmware_bin_path
         self.set_header('Content-Type', 'application/octet-stream')
-        self.set_header("Content-Disposition", 'attachment; filename="{}.bin"'.format(core.NAME))
+        filename = '{}.bin'.format(storage_json.name)
+        self.set_header("Content-Disposition", 'attachment; filename="{}"'.format(filename))
         with open(path, 'rb') as f:
             while 1:
                 data = f.read(16384)  # or some other nice-sized chunk
@@ -197,6 +202,67 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
+def _list_yaml_files():
+    files = []
+    for file in os.listdir(CONFIG_DIR):
+        if not file.endswith('.yaml'):
+            continue
+        if file.startswith('.'):
+            continue
+        if file == 'secrets.yaml':
+            continue
+        files.append(file)
+    files.sort()
+    return files
+
+
+def _list_dashboard_entries():
+    files = _list_yaml_files()
+    return [DashboardEntry(file) for file in files]
+
+
+class DashboardEntry(object):
+    def __init__(self, filename):
+        self.filename = filename
+        self._storage = None
+        self._loaded_storage = False
+
+    @property
+    def full_path(self):  # type: () -> str
+        return os.path.join(CONFIG_DIR, self.filename)
+
+    @property
+    def storage(self):  # type: () -> Optional[StorageJSON]
+        if not self._loaded_storage:
+            self._storage = StorageJSON.load(ext_storage_path(CONFIG_DIR, self.filename))
+            self._loaded_storage = True
+        return self._storage
+
+    @property
+    def address(self):
+        if self.storage is None:
+            return None
+        return self.storage.address
+
+    @property
+    def name(self):
+        if self.storage is None:
+            return self.filename[:-len('.yaml')]
+        return self.storage.name
+
+    @property
+    def esp_platform(self):
+        if self.storage is None:
+            return None
+        return self.storage.esp_platform
+
+    @property
+    def board(self):
+        if self.storage is None:
+            return None
+        return self.storage.board
+
+
 class MainRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
@@ -204,11 +270,76 @@ class MainRequestHandler(BaseHandler):
             return
 
         begin = bool(self.get_argument('begin', False))
-        files = sorted([f for f in os.listdir(CONFIG_DIR) if f.endswith('.yaml') and
-                        not f.startswith('.')])
-        full_path_files = [os.path.join(CONFIG_DIR, f) for f in files]
-        self.render("templates/index.html", files=files, full_path_files=full_path_files,
-                    version=const.__version__, begin=begin)
+        entries = _list_dashboard_entries()
+        version = const.__version__
+        docs_link = 'https://beta.esphomelib.com/esphomeyaml/' if 'b' in version else \
+            'https://esphomelib.com/esphomeyaml/'
+
+        self.render("templates/index.html", entries=entries,
+                    version=version, begin=begin, docs_link=docs_link)
+
+
+def _ping_func(filename, address):
+    if os.name == 'nt':
+        command = ['ping', '-n', '1', address]
+    else:
+        command = ['ping', '-c', '1', address]
+    rc, _, _ = run_system_command(*command)
+    return filename, rc == 0
+
+
+class PingThread(threading.Thread):
+    def run(self):
+        pool = multiprocessing.Pool(processes=8)
+
+        while not STOP_EVENT.is_set():
+            # Only do pings if somebody has the dashboard open
+            PING_REQUEST.wait()
+            PING_REQUEST.clear()
+
+            def callback(ret):
+                PING_RESULT[ret[0]] = ret[1]
+
+            entries = _list_dashboard_entries()
+            queue = collections.deque()
+            for entry in entries:
+                if entry.address is None:
+                    PING_RESULT[entry.filename] = None
+                    continue
+
+                result = pool.apply_async(_ping_func, (entry.filename, entry.address),
+                                          callback=callback)
+                queue.append(result)
+
+            while queue:
+                item = queue[0]
+                if item.ready():
+                    queue.popleft()
+                    continue
+
+                try:
+                    item.get(0.1)
+                except multiprocessing.TimeoutError:
+                    pass
+
+                if STOP_EVENT.is_set():
+                    pool.terminate()
+                    return
+
+
+class PingRequestHandler(BaseHandler):
+    def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+
+        PING_REQUEST.set()
+        self.write(json.dumps(PING_RESULT))
+
+
+PING_RESULT = {}  # type: dict
+STOP_EVENT = threading.Event()
+PING_REQUEST = threading.Event()
 
 
 class LoginHandler(BaseHandler):
@@ -227,8 +358,25 @@ class LoginHandler(BaseHandler):
 
 
 def make_app(debug=False):
+    def log_function(handler):
+        if handler.get_status() < 400:
+            log_method = access_log.info
+
+            if isinstance(handler, SerialPortRequestHandler) and not debug:
+                return
+            if isinstance(handler, PingRequestHandler) and not debug:
+                return
+        elif handler.get_status() < 500:
+            log_method = access_log.warning
+        else:
+            log_method = access_log.error
+
+        request_time = 1000.0 * handler.request.request_time()
+        log_method("%d %s %.2fms", handler.get_status(),
+                   handler._request_summary(), request_time)
+
     static_path = os.path.join(os.path.dirname(__file__), 'static')
-    return tornado.web.Application([
+    app = tornado.web.Application([
         (r"/", MainRequestHandler),
         (r"/login", LoginHandler),
         (r"/logs", EsphomeyamlLogsHandler),
@@ -240,9 +388,11 @@ def make_app(debug=False):
         (r"/hass-config", EsphomeyamlHassConfigHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
+        (r"/ping", PingRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ], debug=debug, cookie_secret=PASSWORD)
+    ], debug=debug, cookie_secret=PASSWORD, log_function=log_function)
+    return app
 
 
 def start_web_server(args):
@@ -250,7 +400,7 @@ def start_web_server(args):
     global PASSWORD
 
     if tornado is None:
-        raise ESPHomeYAMLError("Attempted to load dashboard, but tornado is not installed! "
+        raise EsphomeyamlError("Attempted to load dashboard, but tornado is not installed! "
                                "Please run \"pip2 install tornado esptool\" in your terminal.")
 
     CONFIG_DIR = args.configuration
@@ -282,7 +432,12 @@ def start_web_server(args):
 
         webbrowser.open('localhost:{}'.format(args.port))
 
+    ping_thread = PingThread()
+    ping_thread.start()
     try:
         tornado.ioloop.IOLoop.current().start()
     except KeyboardInterrupt:
         _LOGGER.info("Shutting down...")
+        STOP_EVENT.set()
+        PING_REQUEST.set()
+        ping_thread.join()

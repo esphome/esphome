@@ -6,8 +6,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CF1_PIN, CONF_CF_PIN, CONF_CHANGE_MODE_EVERY, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_NAME, CONF_POWER, CONF_SEL_PIN, CONF_UPDATE_INTERVAL, \
     CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER
-from esphomeyaml.helpers import App, PollingComponent, Pvariable, add, gpio_output_pin_expression, \
-    setup_component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import PollingComponent, App
 
 HLW8012Component = sensor.sensor_ns.class_('HLW8012Component', PollingComponent)
 HLW8012VoltageSensor = sensor.sensor_ns.class_('HLW8012VoltageSensor', sensor.EmptySensor)

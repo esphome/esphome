@@ -1,16 +1,15 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import output
-from esphomeyaml.const import (CONF_DATA_PIN, CONF_CLOCK_PIN, CONF_NUM_CHANNELS,
-                               CONF_NUM_CHIPS, CONF_BIT_DEPTH, CONF_ID,
-                               CONF_UPDATE_ON_BOOT)
-from esphomeyaml.helpers import (gpio_output_pin_expression, App, Pvariable,
-                                 add, setup_component, Component)
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import (CONF_BIT_DEPTH, CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID,
+                               CONF_NUM_CHANNELS, CONF_NUM_CHIPS, CONF_UPDATE_ON_BOOT)
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component
 
 MY9231OutputComponent = output.output_ns.class_('MY9231OutputComponent', Component)
-
 
 MY9231_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(MY9231OutputComponent),
@@ -30,10 +29,8 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [MY9231_SCHEMA])
 
 def to_code(config):
     for conf in config:
-        di = None
         for di in gpio_output_pin_expression(conf[CONF_DATA_PIN]):
             yield
-        dcki = None
         for dcki in gpio_output_pin_expression(conf[CONF_CLOCK_PIN]):
             yield
         rhs = App.make_my9231_component(di, dcki)

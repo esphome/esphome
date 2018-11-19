@@ -2,8 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, CONF_TYPE, CONF_UUID, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, ArrayInitializer, Component, Pvariable, RawExpression, add, \
-    esphomelib_ns, setup_component
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, RawExpression, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 

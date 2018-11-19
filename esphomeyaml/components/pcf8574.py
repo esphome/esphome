@@ -3,7 +3,9 @@ import voluptuous as vol
 from esphomeyaml import pins
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_PCF8575
-from esphomeyaml.helpers import App, GPIOInputPin, GPIOOutputPin, Pvariable, io_ns, setup_component
+from esphomeyaml.cpp_generator import Pvariable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, GPIOInputPin, GPIOOutputPin, io_ns
 
 DEPENDENCIES = ['i2c']
 

@@ -1,9 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor, uart
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, get_variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component
 
 DEPENDENCIES = ['uart']
 

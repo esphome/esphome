@@ -8,8 +8,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
 from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
-    ArrayInitializer, Component, Trigger
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import add, Pvariable, ArrayInitializer
+from esphomeyaml.cpp_types import esphomelib_ns, Component, NoArg, Trigger, App
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -297,7 +298,7 @@ def setup_time_core_(time_var, config):
 
 
 def setup_time(time_var, config):
-    add_job(setup_time_core_, time_var, config)
+    CORE.add_job(setup_time_core_, time_var, config)
 
 
 BUILD_FLAGS = '-DUSE_TIME'

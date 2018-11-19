@@ -372,7 +372,12 @@ CONF_INITIAL_VALUE = 'initial_value'
 CONF_RESTORE_VALUE = 'restore_value'
 CONF_PINS = 'pins'
 CONF_SENSORS = 'sensors'
-
+CONF_BINARY_SENSORS = 'binary_sensors'
+CONF_OUTPUTS = 'outputs'
+CONF_SWITCHES = 'switches'
+CONF_TEXT_SENSORS = 'text_sensors'
+CONF_INCLUDES = 'includes'
+CONF_EXTRA_LIBRARIES = 'extra_libraries'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

@@ -11,7 +11,7 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAN
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE
-from esphomeyaml.helpers import ArrayInitializer, Pvariable, get_variable
+from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable
 
 DEPENDENCIES = ['remote_receiver']
 

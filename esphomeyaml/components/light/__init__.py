@@ -2,6 +2,7 @@ import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
@@ -9,10 +10,11 @@ from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLOR
     CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, \
     CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, CONF_FLASH_LENGTH, CONF_COLOR_TEMPERATURE, \
     CONF_EFFECT
-from esphomeyaml.helpers import Application, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, add, add_job, esphomelib_ns, process_lambda, setup_mqtt_component, \
-    get_variable, TemplateArguments, templatable, uint32, float_, std_string, Nameable, Component, \
-    Action
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import process_lambda, Pvariable, add, StructInitializer, \
+    ArrayInitializer, TemplateArguments, get_variable, templatable
+from esphomeyaml.cpp_types import esphomelib_ns, Application, Component, Nameable, Action, uint32, \
+    float_, std_string
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -349,7 +351,7 @@ def setup_light_core_(light_var, mqtt_var, config):
 def setup_light(light_obj, mqtt_obj, config):
     light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    add_job(setup_light_core_, light_var, mqtt_var, config)
+    CORE.add_job(setup_light_core_, light_var, mqtt_var, config)
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'

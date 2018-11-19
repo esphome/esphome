@@ -1,11 +1,12 @@
 import voluptuous as vol
 
 from esphomeyaml import pins
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_PIN
-from esphomeyaml.helpers import App, Pvariable, gpio_output_pin_expression, setup_component, \
-    Component
+from esphomeyaml.cpp_generator import Pvariable
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component
 
 GPIOBinaryOutputComponent = output.output_ns.class_('GPIOBinaryOutputComponent',
                                                     output.BinaryOutput, Component)

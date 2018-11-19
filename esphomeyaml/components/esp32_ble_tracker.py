@@ -4,8 +4,9 @@ from esphomeyaml import config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, ArrayInitializer, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 

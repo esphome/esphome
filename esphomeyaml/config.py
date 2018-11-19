@@ -1,16 +1,16 @@
 from __future__ import print_function
 
+from collections import OrderedDict
 import importlib
 import logging
-from collections import OrderedDict
 
 import voluptuous as vol
 from voluptuous.humanize import humanize_error
 
-from esphomeyaml import core, yaml_util, core_config
+from esphomeyaml import core, core_config, yaml_util
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import color, MockObjClass
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.helpers import color
 from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +50,7 @@ def is_platform_component(component):
 def iter_components(config):
     for domain, conf in config.iteritems():
         if domain == CONF_ESPHOMEYAML:
+            yield CONF_ESPHOMEYAML, core_config, conf
             continue
         component = get_component(domain)
         yield domain, component, conf
@@ -90,6 +91,8 @@ def iter_ids(config, prefix=None, parent=None):
 
 
 def do_id_pass(result):
+    from esphomeyaml.cpp_generator import MockObjClass
+
     declare_ids = []
     searching_ids = []
     for id, prefix, config in iter_ids(result):
@@ -138,7 +141,7 @@ def validate_config(config):
 
     for req in REQUIRED_COMPONENTS:
         if req not in config:
-            raise ESPHomeYAMLError("Component {} is required for esphomeyaml.".format(req))
+            raise EsphomeyamlError("Component {} is required for esphomeyaml.".format(req))
 
     _ALL_COMPONENTS = list(config.keys())
 
@@ -193,8 +196,8 @@ def validate_config(config):
             continue
 
         esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
-        if core.ESP_PLATFORM not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, core.ESP_PLATFORM),
+        if CORE.esp_platform not in esp_platforms:
+            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
                              domain, conf)
             continue
 
@@ -243,9 +246,9 @@ def validate_config(config):
                 continue
 
             esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
-            if core.ESP_PLATFORM not in esp_platforms:
+            if CORE.esp_platform not in esp_platforms:
                 result.add_error(
-                    u"Platform {} doesn't support {}.".format(p_domain, core.ESP_PLATFORM),
+                    u"Platform {} doesn't support {}.".format(p_domain, CORE.esp_platform),
                     p_domain, p_config)
                 continue
 
@@ -285,17 +288,17 @@ def _format_config_error(ex, domain, config):
     return message
 
 
-def load_config(path):
+def load_config():
     try:
-        config = yaml_util.load_yaml(path)
+        config = yaml_util.load_yaml(CORE.config_path)
     except OSError:
-        raise ESPHomeYAMLError(u"Could not read configuration file at {}".format(path))
-    core.RAW_CONFIG = config
+        raise EsphomeyamlError(u"Could not read configuration file at {}".format(CORE.config_path))
+    CORE.raw_config = config
     core_config.preload_core_config(config)
 
     try:
         result = validate_config(config)
-    except ESPHomeYAMLError:
+    except EsphomeyamlError:
         raise
     except Exception:
         _LOGGER.error(u"Unexpected exception while reading configuration:")
@@ -338,11 +341,11 @@ def dump_dict(layer, indent_count=3, listi=False, **kwargs):
                 safe_print(u" {} {}".format(indent_str, i))
 
 
-def read_config(path):
+def read_config():
     _LOGGER.info("Reading configuration...")
     try:
-        res = load_config(path)
-    except ESPHomeYAMLError as err:
+        res = load_config()
+    except EsphomeyamlError as err:
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
     excepts = {}

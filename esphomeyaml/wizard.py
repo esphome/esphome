@@ -12,6 +12,7 @@ from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ES
 from esphomeyaml.helpers import color
 # pylint: disable=anomalous-backslash-in-string
 from esphomeyaml.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import safe_print
 
 CORE_BIG = """    _____ ____  _____  ______
@@ -80,6 +81,17 @@ def wizard_file(**kwargs):
         config += u"ota:\n"
 
     return config
+
+
+def wizard_write(path, **kwargs):
+    with codecs.open(path, 'w') as f_handle:
+        f_handle.write(wizard_file(**kwargs))
+    name = kwargs['name']
+    platform = kwargs['platform']
+    board = kwargs['board']
+    storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
+    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage.save(storage_path)
 
 
 if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
@@ -287,13 +299,10 @@ def wizard(path):
     safe_print("Press ENTER for no password")
     ota_password = raw_input(color('bold_white', '(password): '))
 
-    config = wizard_file(name=name, platform=platform, board=board,
-                         ssid=ssid, psk=psk, broker=broker,
-                         mqtt_username=mqtt_username, mqtt_password=mqtt_password,
-                         ota_password=ota_password)
-
-    with codecs.open(path, 'w') as f_handle:
-        f_handle.write(config)
+    wizard_write(path=path, name=name, platform=platform, board=board,
+                 ssid=ssid, psk=psk, broker=broker,
+                 mqtt_username=mqtt_username, mqtt_password=mqtt_password,
+                 ota_password=ota_password)
 
     safe_print()
     safe_print(color('cyan', "DONE! I've now written a new configuration file to ") +

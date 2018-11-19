@@ -1,13 +1,14 @@
 import voluptuous as vol
 
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_OSCILLATION_COMMAND_TOPIC, \
-    CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_INTERNAL, \
-    CONF_SPEED, CONF_OSCILLATING, CONF_OSCILLATION_OUTPUT, CONF_NAME
-from esphomeyaml.helpers import Application, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
-    TemplateArguments, get_variable, templatable, bool_, Action, Nameable, Component
+from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, CONF_OSCILLATING, \
+    CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_OUTPUT, CONF_OSCILLATION_STATE_TOPIC, \
+    CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC
+from esphomeyaml.cpp_generator import add, Pvariable, get_variable, TemplateArguments, templatable
+from esphomeyaml.cpp_types import Application, Component, Nameable, esphomelib_ns, Action, bool_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -37,7 +38,6 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 })
 
 FAN_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FAN_SCHEMA.schema)
-
 
 FAN_SPEEDS = {
     'OFF': FAN_SPEED_OFF,
@@ -73,7 +73,6 @@ def setup_fan(fan_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_FAN'
-
 
 CONF_FAN_TOGGLE = 'fan.toggle'
 FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({

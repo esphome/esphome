@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_GAIN, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_CLK_PIN
-from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, variable, \
-    setup_component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CLK_PIN, CONF_GAIN, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application
 
 MakeHX711Sensor = Application.struct('MakeHX711Sensor')
 HX711Sensor = sensor.sensor_ns.class_('HX711Sensor', sensor.PollingSensorComponent)

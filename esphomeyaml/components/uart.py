@@ -1,9 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN
-from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 UARTComponent = esphomelib_ns.class_('UARTComponent', Component)
 UARTDevice = esphomelib_ns.class_('UARTDevice')

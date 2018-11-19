@@ -1,6 +1,7 @@
 import voluptuous as vol
 
-from esphomeyaml.helpers import App, add
+from esphomeyaml.cpp_generator import add
+from esphomeyaml.cpp_types import App
 
 DEPENDENCIES = ['logger']
 

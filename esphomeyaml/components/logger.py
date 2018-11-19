@@ -6,9 +6,10 @@ from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
-from esphomeyaml.core import ESPHomeYAMLError, Lambda
-from esphomeyaml.helpers import App, Pvariable, RawExpression, TemplateArguments, add, \
-    esphomelib_ns, global_ns, process_lambda, statement, Component
+from esphomeyaml.core import EsphomeyamlError, Lambda
+from esphomeyaml.cpp_generator import Pvariable, add, TemplateArguments, RawExpression, statement, \
+    process_lambda
+from esphomeyaml.cpp_types import global_ns, esphomelib_ns, Component, App
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -39,7 +40,7 @@ def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
     for tag, level in value.get(CONF_LOGS, {}).iteritems():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
-            raise ESPHomeYAMLError(u"The local log level {} for {} must be less severe than the "
+            raise EsphomeyamlError(u"The local log level {} for {} must be less severe than the "
                                    u"global log level {}.".format(level, tag, global_level))
     return value
 

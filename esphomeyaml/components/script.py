@@ -4,8 +4,8 @@ from esphomeyaml import automation
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID
-from esphomeyaml.helpers import NoArg, Pvariable, TemplateArguments, esphomelib_ns, get_variable, \
-    Trigger, Action
+from esphomeyaml.cpp_generator import Pvariable, TemplateArguments, get_variable
+from esphomeyaml.cpp_types import Action, NoArg, Trigger, esphomelib_ns
 
 Script = esphomelib_ns.class_('Script', Trigger.template(NoArg))
 ScriptExecuteAction = esphomelib_ns.class_('ScriptExecuteAction', Action)

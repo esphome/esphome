@@ -5,8 +5,9 @@ from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CO2, CONF_MAKE_ID, CONF_NAME, CONF_TEMPERATURE, CONF_UART_ID, \
     CONF_UPDATE_INTERVAL, CONF_ID
-from esphomeyaml.helpers import App, Application, PollingComponent, get_variable, setup_component, \
-    variable, Pvariable
+from esphomeyaml.cpp_generator import get_variable, variable, Pvariable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import Application, PollingComponent, App
 
 DEPENDENCIES = ['uart']
 

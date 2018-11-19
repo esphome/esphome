@@ -1,17 +1,17 @@
 from __future__ import print_function
 
 import codecs
+from collections import OrderedDict
 import fnmatch
 import logging
 import os
 import uuid
-from collections import OrderedDict
 
 import yaml
 import yaml.constructor
 
 from esphomeyaml import core
-from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphomeyaml.core import EsphomeyamlError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,12 +50,12 @@ def load_yaml(fname):
         with codecs.open(fname, encoding='utf-8') as conf_file:
             return yaml.load(conf_file, Loader=SafeLineLoader) or OrderedDict()
     except yaml.YAMLError as exc:
-        raise ESPHomeYAMLError(exc)
+        raise EsphomeyamlError(exc)
     except IOError as exc:
-        raise ESPHomeYAMLError(u"Error accessing file {}: {}".format(fname, exc))
+        raise EsphomeyamlError(u"Error accessing file {}: {}".format(fname, exc))
     except UnicodeDecodeError as exc:
         _LOGGER.error(u"Unable to read file %s: %s", fname, exc)
-        raise ESPHomeYAMLError(exc)
+        raise EsphomeyamlError(exc)
 
 
 def dump(dict_):
@@ -70,7 +70,7 @@ def custom_construct_pairs(loader, node):
         if isinstance(kv, yaml.ScalarNode):
             obj = loader.construct_object(kv)
             if not isinstance(obj, dict):
-                raise ESPHomeYAMLError(
+                raise EsphomeyamlError(
                     "Expected mapping for anchored include tag, got {}".format(type(obj)))
             for key, value in obj.iteritems():
                 pairs.append((key, value))
@@ -153,7 +153,7 @@ def _ordered_dict(loader, node):
 
         if key in seen:
             fname = getattr(loader.stream, 'name', '')
-            raise ESPHomeYAMLError(u'YAML file {} contains duplicate key "{}". '
+            raise EsphomeyamlError(u'YAML file {} contains duplicate key "{}". '
                                    u'Check lines {} and {}.'.format(fname, key, seen[key], line))
         seen[key] = line
 
@@ -186,7 +186,7 @@ def _env_var_yaml(_, node):
         return os.getenv(args[0], u' '.join(args[1:]))
     elif args[0] in os.environ:
         return os.environ[args[0]]
-    raise ESPHomeYAMLError(u"Environment variable {} not defined.".format(node.value))
+    raise EsphomeyamlError(u"Environment variable {} not defined.".format(node.value))
 
 
 def _include_yaml(loader, node):
@@ -263,7 +263,7 @@ def _secret_yaml(loader, node):
     secret_path = os.path.join(os.path.dirname(loader.name), SECRET_YAML)
     secrets = load_yaml(secret_path)
     if node.value not in secrets:
-        raise ESPHomeYAMLError(u"Secret {} not defined".format(node.value))
+        raise EsphomeyamlError(u"Secret {} not defined".format(node.value))
     return secrets[node.value]
 
 

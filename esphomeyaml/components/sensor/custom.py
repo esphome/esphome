@@ -3,7 +3,8 @@ import voluptuous as vol
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SENSORS
-from esphomeyaml.helpers import process_lambda, std_vector, variable
+from esphomeyaml.cpp_generator import process_lambda, variable
+from esphomeyaml.cpp_types import std_vector
 
 CustomSensorConstructor = sensor.sensor_ns.class_('CustomSensorConstructor')
 

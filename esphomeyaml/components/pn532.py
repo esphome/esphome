@@ -1,13 +1,14 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
-from esphomeyaml import pins, automation
+from esphomeyaml import automation, pins
 from esphomeyaml.components import binary_sensor, spi
 from esphomeyaml.components.spi import SPIComponent
-from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_SPI_ID, CONF_UPDATE_INTERVAL, \
-    CONF_ON_TAG, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable, gpio_output_pin_expression, \
-    std_string, setup_component, PollingComponent, Trigger
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_ON_TAG, CONF_SPI_ID, CONF_TRIGGER_ID, \
+    CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, get_variable
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, PollingComponent, Trigger, std_string
 
 DEPENDENCIES = ['spi']
 

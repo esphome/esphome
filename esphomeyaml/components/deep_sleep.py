@@ -2,11 +2,12 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
-from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
-    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN, CONF_MODE, CONF_PINS
-from esphomeyaml.helpers import Action, App, Component, Pvariable, TemplateArguments, add, \
-    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component, global_ns, \
-    StructInitializer
+from esphomeyaml.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
+    CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, TemplateArguments, add, \
+    get_variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import Action, App, Component, esphomelib_ns, global_ns
 
 
 def validate_pin_number(value):

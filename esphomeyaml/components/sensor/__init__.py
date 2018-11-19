@@ -2,6 +2,7 @@ import voluptuous as vol
 
 from esphomeyaml import automation
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
@@ -10,9 +11,10 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CO
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
     CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
     CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
-from esphomeyaml.helpers import App, ArrayInitializer, Component, Nameable, PollingComponent, \
-    Pvariable, Trigger, add, add_job, esphomelib_ns, float_, process_lambda, setup_mqtt_component, \
-    templatable
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, process_lambda, templatable
+from esphomeyaml.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
+    esphomelib_ns, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -188,12 +190,10 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
         rhs = sensor_var.make_value_range_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_ABOVE in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_ABOVE], float_, float_):
                 yield
             add(trigger.set_min(template_))
         if CONF_BELOW in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_BELOW], float_, float_):
                 yield
             add(trigger.set_max(template_))
@@ -210,14 +210,14 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
 def setup_sensor(sensor_obj, mqtt_obj, config):
     sensor_var = Pvariable(config[CONF_ID], sensor_obj, has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
 
 
 def register_sensor(var, config):
     sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_sensor(sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'

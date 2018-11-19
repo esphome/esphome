@@ -1,10 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ENABLE_TIME, CONF_ID, CONF_KEEP_ON_TIME, CONF_PIN
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, gpio_output_pin_expression, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 PowerSupplyComponent = esphomelib_ns.class_('PowerSupplyComponent', Component)
 

@@ -4,8 +4,9 @@ from esphomeyaml.automation import ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
-from esphomeyaml.helpers import Pvariable, TemplateArguments, add, add_job, esphomelib_ns, \
-    get_variable, int32, templatable, Action
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, TemplateArguments, add, get_variable, templatable
+from esphomeyaml.cpp_types import Action, esphomelib_ns, int32
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -78,7 +79,7 @@ def setup_stepper_core_(stepper_var, config):
 
 
 def setup_stepper(stepper_var, config):
-    add_job(setup_stepper_core_, stepper_var, config)
+    CORE.add_job(setup_stepper_core_, stepper_var, config)
 
 
 BUILD_FLAGS = '-DUSE_STEPPER'

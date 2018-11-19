@@ -2,21 +2,21 @@ from __future__ import print_function
 
 import argparse
 from collections import OrderedDict
+from datetime import datetime
 import logging
 import os
 import random
 import sys
-from datetime import datetime
 
-from esphomeyaml import const, core, core_config, mqtt, wizard, writer, yaml_util, platformio_api
+from esphomeyaml import const, core, core_config, mqtt, platformio_api, wizard, writer, yaml_util
 from esphomeyaml.config import get_component, iter_components, read_config
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF_ESPHOMEYAML, \
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
-    CONF_WIFI, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, \
-    _EXPRESSIONS, add, add_job, color, flush_tasks, indent, statement, relative_path
-from esphomeyaml.util import safe_print, run_external_command
+    CONF_WIFI
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
+from esphomeyaml.helpers import color, indent
+from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -32,6 +32,7 @@ def get_serial_ports():
             continue
         if "VID:PID" in info:
             result.append((port, desc))
+    result.sort(key=lambda x: x[0])
     return result
 
 
@@ -94,37 +95,31 @@ def run_miniterm(config, port, escape=False):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    add_job(core_config.to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
+    CORE.add_job(core_config.to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
     for domain in PRE_INITIALIZE:
         if domain == CONF_ESPHOMEYAML or domain not in config:
             continue
-        add_job(get_component(domain).to_code, config[domain], domain=domain)
+        CORE.add_job(get_component(domain).to_code, config[domain], domain=domain)
 
     for domain, component, conf in iter_components(config):
         if domain in PRE_INITIALIZE or not hasattr(component, 'to_code'):
             continue
-        add_job(component.to_code, conf, domain=domain)
+        CORE.add_job(component.to_code, conf, domain=domain)
 
-    flush_tasks()
+    CORE.flush_tasks()
     add(RawStatement(''))
     add(RawStatement(''))
     all_code = []
-    for exp in _EXPRESSIONS:
+    for exp in CORE.expressions:
         if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
             if isinstance(exp, Expression) and not exp.required:
                 continue
-            if isinstance(exp, AssignmentExpression) and not exp.obj.required:
-                if not exp.has_side_effects():
-                    continue
-                exp = exp.rhs
         all_code.append(unicode(statement(exp)))
 
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    writer.write_platformio_project(config, build_path)
+    writer.write_platformio_project()
 
     code_s = indent('\n'.join(line.rstrip() for line in all_code))
-    cpp_path = os.path.join(build_path, 'src', 'main.cpp')
-    writer.write_cpp(code_s, cpp_path)
+    writer.write_cpp(code_s)
     return 0
 
 
@@ -146,8 +141,7 @@ def get_upload_host(config):
 def upload_using_esptool(config, port):
     import esptool
 
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
+    path = os.path.join(CORE.build_path, '.pioenvs', CORE.name, 'firmware.bin')
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
     # pylint: disable=protected-access
@@ -155,12 +149,10 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, port):
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-
     # if upload is to a serial port use platformio, otherwise assume ota
     serial_port = port.startswith('/') or port.startswith('COM')
     if port != 'OTA' and serial_port:
-        if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
+        if CORE.is_esp8266 and args.use_esptoolpy:
             return upload_using_esptool(config, port)
         return platformio_api.run_upload(config, args.verbose, port)
 
@@ -178,7 +170,6 @@ def upload_program(config, args, port):
     from esphomeyaml.components import ota
     from esphomeyaml import espota2
 
-    bin_file = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
     if args.host_port is not None:
         host_port = args.host_port
     else:
@@ -188,11 +179,12 @@ def upload_program(config, args, port):
     remote_port = ota.get_port(config)
     password = ota.get_auth(config)
 
-    res = espota2.run_ota(host, remote_port, password, bin_file)
+    res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
     if res == 0:
         return res
     _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
-    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password, bin_file)
+    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password,
+                                  CORE.firmware_bin)
 
 
 def show_logs(config, args, port, escape=False):
@@ -325,9 +317,8 @@ def command_version(args):
 
 
 def command_clean(args, config):
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
     try:
-        writer.clean_build(build_path)
+        writer.clean_build()
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
@@ -472,20 +463,21 @@ def run_esphomeyaml(argv):
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
-        except ESPHomeYAMLError as e:
+        except EsphomeyamlError as e:
             _LOGGER.error(e)
             return 1
 
-    core.CONFIG_PATH = args.configuration
+    CORE.config_path = args.configuration
 
-    config = read_config(core.CONFIG_PATH)
+    config = read_config()
     if config is None:
         return 1
+    CORE.config = config
 
     if args.command in POST_CONFIG_ACTIONS:
         try:
             return POST_CONFIG_ACTIONS[args.command](args, config)
-        except ESPHomeYAMLError as e:
+        except EsphomeyamlError as e:
             _LOGGER.error(e)
             return 1
     safe_print(u"Unknown command {}".format(args.command))
@@ -495,7 +487,7 @@ def run_esphomeyaml(argv):
 def main():
     try:
         return run_esphomeyaml(sys.argv)
-    except ESPHomeYAMLError as e:
+    except EsphomeyamlError as e:
         _LOGGER.error(e)
         return 1
     except KeyboardInterrupt:

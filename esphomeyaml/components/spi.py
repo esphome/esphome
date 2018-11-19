@@ -1,10 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN
-from esphomeyaml.helpers import App, Pvariable, esphomelib_ns, gpio_input_pin_expression, \
-    gpio_output_pin_expression, add, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, gpio_output_pin_expression, \
+    setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 SPIComponent = esphomelib_ns.class_('SPIComponent', Component)
 SPIDevice = esphomelib_ns.class_('SPIDevice')

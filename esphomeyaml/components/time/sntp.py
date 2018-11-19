@@ -3,7 +3,9 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import time as time_
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SERVERS
-from esphomeyaml.helpers import App, Pvariable, add, setup_component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 SNTPComponent = time_.time_ns.class_('SNTPComponent', time_.RealTimeClockComponent)
 

@@ -2,11 +2,12 @@ import voluptuous as vol
 
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
     CONF_OPTIMISTIC
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, setup_mqtt_component, \
-    TemplateArguments, get_variable, Nameable, Action
+from esphomeyaml.cpp_generator import add, Pvariable, TemplateArguments, get_variable
+from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Action, App
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -14,6 +15,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 switch_ns = esphomelib_ns.namespace('switch_')
 Switch = switch_ns.class_('Switch', Nameable)
+SwitchPtr = Switch.operator('ptr')
 MQTTSwitchComponent = switch_ns.class_('MQTTSwitchComponent', mqtt.MQTTComponent)
 
 ToggleAction = switch_ns.class_('ToggleAction', Action)

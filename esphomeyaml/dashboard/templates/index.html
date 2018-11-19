@@ -157,6 +157,65 @@
     .dropdown-trigger {
       cursor: pointer;
     }
+
+    /* https://github.com/tnhu/status-indicator/blob/master/styles.css */
+    .status-indicator .status-indicator-icon {
+      display: inline-block;
+      border-radius: 50%;
+      width: 10px;
+      height: 10px;
+    }
+
+    .status-indicator.unknown .status-indicator-icon {
+      background-color: rgb(216, 226, 233);
+    }
+
+    .status-indicator.unknown .status-indicator-text::after {
+      content: "Unknown status";
+    }
+
+    .status-indicator.offline .status-indicator-icon {
+      background-color: rgb(255, 77, 77);
+    }
+
+    .status-indicator.offline .status-indicator-text::after {
+      content: "Offline";
+    }
+
+    .status-indicator.not-responding .status-indicator-icon {
+      background-color: rgb(255, 170, 0);
+    }
+
+    .status-indicator.not-responding .status-indicator-text::after {
+      content: "Not Responding";
+    }
+
+    @keyframes status-indicator-pulse-online {
+      0%   {
+        box-shadow: 0 0 0 0 rgba(75, 210, 143, .5);
+      }
+      25%  {
+        box-shadow: 0 0 0 10px rgba(75, 210, 143, 0);
+      }
+      30% {
+        box-shadow: 0 0 0 0 rgba(75, 210, 143, 0);
+      }
+    }
+
+    .status-indicator.online .status-indicator-icon {
+      background-color: rgb(75, 210, 143);
+      animation-duration: 5s;
+      animation-timing-function: ease-in-out;
+      animation-iteration-count: infinite;
+      animation-direction: normal;
+      animation-delay: 0s;
+      animation-fill-mode: none;
+      animation-name: status-indicator-pulse-online;
+    }
+
+    .status-indicator.online .status-indicator-text::after {
+      content: "Online";
+    }
   </style>
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
@@ -189,7 +248,7 @@
 
 <main>
 <div class="container">
-  {% for i, (file, full_path) in enumerate(zip(files, full_path_files)) %}
+  {% for i, entry in enumerate(entries) %}
   <div class="row">
     <div class="col s8 offset-s2 m10 offset-m1 l12">
       <div class="card horizontal">
@@ -199,23 +258,25 @@
         <div class="card-stacked">
           <div class="card-content">
             <span class="card-title">
-              {{ escape(file) }}
+              {{ escape(entry.name) }}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
             <p>
-              Full path: <code class="inlinecode">{{ escape(full_path) }}</code>
+              <span class="status-indicator unknown" data-node="{{ entry.filename }}">
+                <span class="status-indicator-icon"></span>
+                <span class="status-indicator-text"></span></span>. Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
             </p>
           </div>
           <div class="card-action">
-            <a href="#" class="action-upload" data-node="{{ file }}">Upload</a>
-            <a href="#" class="action-compile" data-node="{{ file }}">Compile</a>
-            <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
-            <a href="#" class="action-validate" data-node="{{ file }}">Validate</a>
+            <a href="#" class="action-upload" data-node="{{ entry.filename }}">Upload</a>
+            <a href="#" class="action-compile" data-node="{{ entry.filename }}">Compile</a>
+            <a href="#" class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
+            <a href="#" class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
           <ul id="dropdown-{{ i }}" class="dropdown-content">
-            <li><a href="#" class="action-clean-mqtt" data-node="{{ file }}">Clean MQTT</a></li>
-            <li><a href="#" class="action-clean" data-node="{{ file }}">Clean Build</a></li>
-            <li><a href="#" class="action-hass-config" data-node="{{ file }}">Home Assistant Configuration</a></li>
+            <li><a href="#" class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
+            <li><a href="#" class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
+            <li><a href="#" class="action-hass-config" data-node="{{ entry.filename }}">Home Assistant Configuration</a></li>
           </ul>
         </div>
       </div>
@@ -526,7 +587,7 @@
   <div class="footer-copyright">
     <div class="container">
       © 2018 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
-      <a class="grey-text text-lighten-4 right" href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml {{ version }} Documentation</a>
+      <a class="grey-text text-lighten-4 right" href="{{ docs_link }}" target="_blank">esphomeyaml {{ version }} Documentation</a>
     </div>
   </div>
 </footer>
@@ -563,6 +624,50 @@
     wsProtocol = 'wss:';
   }
   const wsUrl = wsProtocol + '//' + window.location.hostname + ':' + window.location.port;
+
+  let isFetchingPing = false;
+  const fetchPing = () => {
+    if (isFetchingPing)
+        return;
+    isFetchingPing = true;
+
+    fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
+      .then(response => {
+        for (let filename in response) {
+          let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
+          if (node === null)
+            continue;
+
+          let status = response[filename];
+          let klass;
+          if (status === null) {
+            klass = 'unknown';
+          } else if (status === true) {
+            klass = 'online';
+            node.setAttribute('data-last-connected', Date.now().toString());
+          } else if (node.hasAttribute('data-last-connected')) {
+            const attr = parseInt(node.getAttribute('data-last-connected'));
+            if (Date.now() - attr <= 5000) {
+              klass = 'not-responding';
+            } else {
+              klass = 'offline';
+            }
+          } else {
+            klass = 'offline';
+          }
+
+          if (node.classList.contains(klass))
+            continue;
+
+          node.classList.remove('unknown', 'online', 'offline', 'not-responding');
+          node.classList.add(klass);
+        }
+
+        isFetchingPing = false;
+      });
+  };
+  setInterval(fetchPing, 2000);
+  fetchPing();
 
   const portSelect = document.querySelector('.nav-wrapper select');
   let ports = [];
@@ -986,7 +1091,7 @@
   setupWizardStart.addEventListener('click', startWizard);
 </script>
 
-{% if len(files) == 0 %}
+{% if len(entries) == 0 %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tapTargetElem = document.querySelector('.tap-target.setup-wizard');

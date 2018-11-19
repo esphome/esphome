@@ -1,9 +1,11 @@
 # coding=utf-8
 import voluptuous as vol
 
+from esphomeyaml.components.text_sensor import add_job
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_ROTATION, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import add, add_job, esphomelib_ns
+from esphomeyaml.cpp_generator import add
+from esphomeyaml.cpp_types import esphomelib_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 

@@ -5,8 +5,10 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_ECHO_PIN, CONF_MAKE_ID, CONF_NAME, CONF_TIMEOUT_METER, \
     CONF_TIMEOUT_TIME, CONF_TRIGGER_PIN, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, \
-    gpio_output_pin_expression, variable, setup_component
+from esphomeyaml.cpp_generator import variable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, gpio_input_pin_expression, \
+    setup_component
+from esphomeyaml.cpp_types import Application, App
 
 MakeUltrasonicSensor = Application.struct('MakeUltrasonicSensor')
 UltrasonicSensorComponent = sensor.sensor_ns.class_('UltrasonicSensorComponent',

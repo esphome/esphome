@@ -2,8 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE
-from esphomeyaml.helpers import App, Component, Pvariable, RawExpression, TemplateArguments, add, \
-    esphomelib_ns, setup_component
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, TemplateArguments, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 GlobalVariableComponent = esphomelib_ns.class_('GlobalVariableComponent', Component)
 

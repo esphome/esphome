@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch, uart
 from esphomeyaml.components.uart import UARTComponent
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DATA, CONF_INVERTED, CONF_MAKE_ID, CONF_NAME, CONF_UART_ID
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, Application, ArrayInitializer, get_variable, variable
+from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, variable
+from esphomeyaml.cpp_types import App, Application
 
 DEPENDENCIES = ['uart']
 

@@ -5,13 +5,13 @@ import voluptuous as vol
 from esphomeyaml import core
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, \
-    CONF_BELOW, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, \
-    CONF_ELSE, CONF_ID, CONF_IF, CONF_LAMBDA, \
-    CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, TemplateArguments, add, add_job, \
-    esphomelib_ns, float_, process_lambda, templatable, uint32, get_variable, PollingComponent, \
-    Action, Component, Trigger
+    CONF_BELOW, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, \
+    CONF_LAMBDA, CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, TemplateArguments, add, \
+    get_variable, process_lambda, templatable
+from esphomeyaml.cpp_types import Action, App, Component, PollingComponent, Trigger, \
+    esphomelib_ns, float_, uint32
 from esphomeyaml.util import ServiceRegistry
 
 
@@ -130,7 +130,6 @@ AUTOMATION_SCHEMA = vol.Schema({
 def build_condition(config, arg_type):
     template_arg = TemplateArguments(arg_type)
     if isinstance(config, core.Lambda):
-        lambda_ = None
         for lambda_ in process_lambda(config, [(arg_type, 'x')]):
             yield
         yield LambdaCondition.new(template_arg, lambda_)
@@ -149,18 +148,16 @@ def build_condition(config, arg_type):
         type = RangeCondition.template(template_arg)
         condition = Pvariable(config[CONF_CONDITION_ID], rhs, type=type)
         if CONF_ABOVE in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_ABOVE], arg_type, float_):
                 yield
             condition.set_min(template_)
         if CONF_BELOW in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_BELOW], arg_type, float_):
                 yield
             condition.set_max(template_)
         yield condition
     else:
-        raise ESPHomeYAMLError(u"Unsupported condition {}".format(config))
+        raise EsphomeyamlError(u"Unsupported condition {}".format(config))
 
 
 def build_conditions(config, arg_type):
@@ -280,4 +277,4 @@ def build_automation_(trigger, arg_type, config):
 
 
 def build_automation(trigger, arg_type, config):
-    add_job(build_automation_, trigger, arg_type, config)
+    CORE.add_job(build_automation_, trigger, arg_type, config)

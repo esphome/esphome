@@ -3,7 +3,9 @@ import voluptuous as vol
 from esphomeyaml.components import text_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_QOS, CONF_TOPIC
-from esphomeyaml.helpers import App, Application, add, variable, setup_component, Component
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, Component
 
 DEPENDENCIES = ['mqtt']
 

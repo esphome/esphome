@@ -7,8 +7,9 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_DUTY_PERCENT, CONF_CHAN
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_ID, CONF_INVERTED, CONF_ONE, CONF_PIN, \
     CONF_PROTOCOL, CONF_PULSE_LENGTH, CONF_STATE, CONF_SYNC, CONF_ZERO
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, Component, Pvariable, add, gpio_output_pin_expression, \
-    setup_component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component
 
 RemoteTransmitterComponent = remote_ns.class_('RemoteTransmitterComponent',
                                               RemoteControlComponentBase, Component)

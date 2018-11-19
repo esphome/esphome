@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, \
     CONF_PIN, CONF_TOLERANCE
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, gpio_input_pin_expression, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 remote_ns = esphomelib_ns.namespace('remote')
 

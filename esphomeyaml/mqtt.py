@@ -1,18 +1,18 @@
 from __future__ import print_function
 
+from datetime import datetime
 import hashlib
 import logging
 import ssl
 import sys
-from datetime import datetime
 
 import paho.mqtt.client as mqtt
 
 from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
-    CONF_LOG_TOPIC, \
-    CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_TOPIC_PREFIX, \
-    CONF_USERNAME, CONF_TOPIC, CONF_SSL_FINGERPRINTS
+    CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, \
+    CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
+from esphomeyaml.core import CORE
 from esphomeyaml.helpers import color
 from esphomeyaml.util import safe_print
 
@@ -113,5 +113,5 @@ def get_fingerprint(config):
 
     safe_print(u"SHA1 Fingerprint: " + color('cyan', sha1))
     safe_print(u"Copy the string above into mqtt.ssl_fingerprints section of {}"
-               u"".format(core.CONFIG_PATH))
+               u"".format(CORE.config_path))
     return 0

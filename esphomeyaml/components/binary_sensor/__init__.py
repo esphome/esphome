@@ -2,15 +2,17 @@ import voluptuous as vol
 
 from esphomeyaml import automation, core
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
     CONF_TIMING, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, ArrayInitializer, NoArg, Pvariable, StructInitializer, add, \
-    add_job, bool_, esphomelib_ns, process_lambda, setup_mqtt_component, Nameable, Trigger, \
-    Component
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
+    StructInitializer
+from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -25,6 +27,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 binary_sensor_ns = esphomelib_ns.namespace('binary_sensor')
 BinarySensor = binary_sensor_ns.class_('BinarySensor', Nameable)
+BinarySensorPtr = BinarySensor.operator('ptr')
 MQTTBinarySensorComponent = binary_sensor_ns.class_('MQTTBinarySensorComponent', mqtt.MQTTComponent)
 
 # Triggers
@@ -269,14 +272,14 @@ def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
                                   has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
                          has_side_effects=False)
-    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 def register_binary_sensor(var, config):
     binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_binary_sensor(binary_sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 def core_to_hass_config(data, config):
