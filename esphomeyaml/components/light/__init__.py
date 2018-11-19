@@ -1,18 +1,16 @@
 import voluptuous as vol
 
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
-    CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, \
-    CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, \
-    CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, CONF_FLASH_LENGTH, CONF_COLOR_TEMPERATURE, \
-    CONF_EFFECT
-from esphomeyaml.helpers import Application, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, add, add_job, esphomelib_ns, process_lambda, setup_mqtt_component, \
-    get_variable, TemplateArguments, templatable, uint32, float_, std_string, Nameable, Component, \
-    Action
+    CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
+    CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
+    CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
+    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
+from esphomeyaml.helpers import Action, Application, ArrayInitializer, Component, Nameable, \
+    Pvariable, StructInitializer, TemplateArguments, add, add_job, esphomelib_ns, float_, \
+    get_variable, process_lambda, setup_mqtt_component, std_string, templatable, uint32
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -31,7 +29,6 @@ TurnOffAction = light_ns.class_('TurnOffAction', Action)
 TurnOnAction = light_ns.class_('TurnOnAction', Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
-
 
 MQTTJSONLightComponent = light_ns.class_('MQTTJSONLightComponent', mqtt.MQTTComponent)
 
@@ -353,7 +350,6 @@ def setup_light(light_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'
-
 
 CONF_LIGHT_TOGGLE = 'light.toggle'
 LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
