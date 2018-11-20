@@ -16,7 +16,7 @@ COUNT_MODES = {
     'DECREMENT': PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
 }
 
-COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(*COUNT_MODES))
+COUNT_MODE_SCHEMA = cv.one_of(*COUNT_MODES, upper=True)
 
 PulseCounterBase = sensor.sensor_ns.class_('PulseCounterBase')
 MakePulseCounterSensor = Application.struct('MakePulseCounterSensor')

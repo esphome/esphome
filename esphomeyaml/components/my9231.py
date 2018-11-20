@@ -20,8 +20,7 @@ MY9231_SCHEMA = vol.Schema({
                                              vol.Range(3, 1020)),
     vol.Optional(CONF_NUM_CHIPS): vol.All(vol.Coerce(int),
                                           vol.Range(1, 255)),
-    vol.Optional(CONF_BIT_DEPTH): vol.All(vol.Coerce(int),
-                                          cv.one_of(8, 12, 14, 16)),
+    vol.Optional(CONF_BIT_DEPTH): cv.one_of(8, 12, 14, 16, int=True),
     vol.Optional(CONF_UPDATE_ON_BOOT): vol.Coerce(bool),
 }).extend(cv.COMPONENT_SCHEMA.schema)
 

@@ -33,7 +33,7 @@ IIR_FILTER_OPTIONS = {
 }
 
 BME680_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
-    vol.Optional(CONF_OVERSAMPLING): vol.All(vol.Upper, cv.one_of(*OVERSAMPLING_OPTIONS)),
+    vol.Optional(CONF_OVERSAMPLING): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
 })
 
 MakeBME680Sensor = Application.struct('MakeBME680Sensor')
@@ -61,7 +61,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680GasResistanceSensor),
     })),
-    vol.Optional(CONF_IIR_FILTER): vol.All(vol.Upper, cv.one_of(*IIR_FILTER_OPTIONS)),
+    vol.Optional(CONF_IIR_FILTER): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
     vol.Optional(CONF_HEATER): vol.Any(None, vol.All(vol.Schema({
         vol.Optional(CONF_TEMPERATURE, default=320): vol.All(vol.Coerce(int), vol.Range(200, 400)),
         vol.Optional(CONF_DURATION, default='150ms'): vol.All(

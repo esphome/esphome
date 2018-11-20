@@ -48,7 +48,7 @@ PMSX003_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
-    vol.Required(CONF_TYPE): vol.All(vol.Upper, cv.one_of(*PMSX003_TYPES)),
+    vol.Required(CONF_TYPE): cv.one_of(*PMSX003_TYPES, upper=True),
 
     vol.Optional(CONF_PM_1_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
     vol.Optional(CONF_PM_2_5): cv.nameable(PMSX003_SENSOR_SCHEMA),

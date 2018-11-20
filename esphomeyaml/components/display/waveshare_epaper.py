@@ -43,7 +43,7 @@ PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-    vol.Required(CONF_MODEL): vol.All(vol.Lower, cv.one_of(*MODELS)),
+    vol.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     vol.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,

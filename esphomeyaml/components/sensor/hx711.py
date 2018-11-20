@@ -24,7 +24,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeHX711Sensor),
     vol.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
     vol.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_GAIN): vol.All(cv.int_, cv.one_of(*GAINS)),
+    vol.Optional(CONF_GAIN): cv.one_of(*GAINS, int=True),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
