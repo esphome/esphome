@@ -4,7 +4,7 @@ from esphomeyaml.components import sensor, uart
 from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CURRENT, CONF_ID, CONF_NAME, CONF_POWER, CONF_UART_ID, \
-    CONF_VOLTAGE
+    CONF_VOLTAGE, CONF_UPDATE_INTERVAL
 from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
 
 DEPENDENCIES = ['uart']
@@ -30,6 +30,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(CSE7766PowerSensor),
     })),
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT,
                                                                CONF_POWER))
 
@@ -38,7 +39,7 @@ def to_code(config):
     for uart_ in get_variable(config[CONF_UART_ID]):
         yield
 
-    rhs = App.make_cse7766(uart_)
+    rhs = App.make_cse7766(uart_, config.get(CONF_UPDATE_INTERVAL))
     cse = Pvariable(config[CONF_ID], rhs)
 
     if CONF_VOLTAGE in config:
