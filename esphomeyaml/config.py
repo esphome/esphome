@@ -15,11 +15,7 @@ from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
-REQUIRED_COMPONENTS = [
-    CONF_ESPHOMEYAML, CONF_WIFI
-]
 _COMPONENT_CACHE = {}
-_ALL_COMPONENTS = []
 
 
 def get_component(domain):
@@ -137,29 +133,55 @@ def do_id_pass(result):
 
 
 def validate_config(config):
-    global _ALL_COMPONENTS
-
-    for req in REQUIRED_COMPONENTS:
-        if req not in config:
-            raise EsphomeyamlError("Component {} is required for esphomeyaml.".format(req))
-
-    _ALL_COMPONENTS = list(config.keys())
-
     result = Config()
 
     def _comp_error(ex, domain, config):
         result.add_error(_format_config_error(ex, domain, config), domain, config)
 
+    skip_domains = set()
+
     # Step 1: Load everything
     for domain, conf in config.iteritems():
         domain = str(domain)
         if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
+            skip_domains.add(domain)
             continue
         if conf is None:
             conf = {}
         component = get_component(domain)
         if component is None:
             result.add_error(u"Component not found: {}".format(domain), domain, conf)
+            skip_domains.add(domain)
+            continue
+
+        success = True
+        dependencies = getattr(component, 'DEPENDENCIES', [])
+        for dependency in dependencies:
+            if dependency not in config:
+                result.add_error(u"Component {} requires component {}".format(domain, dependency),
+                                 domain, conf)
+                success = False
+        if not success:
+            skip_domains.add(domain)
+            continue
+
+        success = True
+        conflicts_with = getattr(component, 'CONFLICTS_WITH', [])
+        for conflict in conflicts_with:
+            if conflict not in config:
+                result.add_error(u"Component {} cannot be used together with component {}"
+                                 u"".format(domain, conflict),
+                                 domain, conf)
+                success = False
+        if not success:
+            skip_domains.add(domain)
+            continue
+
+        esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
+        if CORE.esp_platform not in esp_platforms:
+            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                             domain, conf)
+            skip_domains.add(domain)
             continue
 
         if not hasattr(component, 'PLATFORM_SCHEMA'):
@@ -177,6 +199,39 @@ def validate_config(config):
             platform = get_platform(domain, p_name)
             if platform is None:
                 result.add_error(u"Platform not found: '{}'".format(p_domain), p_domain, p_config)
+                skip_domains.add(p_domain)
+                continue
+
+            success = True
+            dependencies = getattr(platform, 'DEPENDENCIES', [])
+            for dependency in dependencies:
+                if dependency not in config:
+                    result.add_error(
+                        u"Platform {} requires component {}".format(p_domain, dependency),
+                        p_domain, p_config)
+                    success = False
+            if not success:
+                skip_domains.add(p_domain)
+                continue
+
+            success = True
+            conflicts_with = getattr(platform, 'CONFLICTS_WITH', [])
+            for conflict in conflicts_with:
+                if conflict not in config:
+                    result.add_error(u"Platform {} cannot be used together with component {}"
+                                     u"".format(p_domain, conflict),
+                                     domain, conf)
+                    success = False
+            if not success:
+                skip_domains.add(p_domain)
+                continue
+
+            esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
+            if CORE.esp_platform not in esp_platforms:
+                result.add_error(
+                    u"Platform {} doesn't support {}.".format(p_domain, CORE.esp_platform),
+                    p_domain, p_config)
+                skip_domains.add(p_domain)
                 continue
 
     # Step 2: Validate configuration
@@ -186,30 +241,12 @@ def validate_config(config):
         _comp_error(ex, CONF_ESPHOMEYAML, config[CONF_ESPHOMEYAML])
 
     for domain, conf in config.iteritems():
-        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
-            continue
         if conf is None:
             conf = {}
         domain = str(domain)
+        if domain in skip_domains:
+            continue
         component = get_component(domain)
-        if component is None:
-            continue
-
-        esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
-        if CORE.esp_platform not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
-                             domain, conf)
-            continue
-
-        success = True
-        dependencies = getattr(component, 'DEPENDENCIES', [])
-        for dependency in dependencies:
-            if dependency not in _ALL_COMPONENTS:
-                result.add_error(u"Component {} requires component {}".format(domain, dependency),
-                                 domain, conf)
-                success = False
-        if not success:
-            continue
 
         if hasattr(component, 'CONFIG_SCHEMA'):
             try:
@@ -230,27 +267,9 @@ def validate_config(config):
             if p_name is None:
                 continue
             p_domain = u'{}.{}'.format(domain, p_name)
+            if p_domain in skip_domains:
+                continue
             platform = get_platform(domain, p_name)
-            if platform is None:
-                continue
-
-            success = True
-            dependencies = getattr(platform, 'DEPENDENCIES', [])
-            for dependency in dependencies:
-                if dependency not in _ALL_COMPONENTS:
-                    result.add_error(
-                        u"Platform {} requires component {}".format(p_domain, dependency),
-                        p_domain, p_config)
-                    success = False
-            if not success:
-                continue
-
-            esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
-            if CORE.esp_platform not in esp_platforms:
-                result.add_error(
-                    u"Platform {} doesn't support {}.".format(p_domain, CORE.esp_platform),
-                    p_domain, p_config)
-                continue
 
             if hasattr(platform, u'PLATFORM_SCHEMA'):
                 try:
@@ -263,9 +282,6 @@ def validate_config(config):
 
     do_id_pass(result)
     return result
-
-
-REQUIRED = ['esphomeyaml', 'wifi']
 
 
 def _format_config_error(ex, domain, config):
