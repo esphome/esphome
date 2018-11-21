@@ -315,7 +315,13 @@ class EsphomeyamlCore(object):
     def address(self):  # type: () -> str
         from esphomeyaml.components import wifi
 
-        return wifi.get_upload_host(self.config[CONF_WIFI])
+        if 'wifi' in self.config:
+            return wifi.get_upload_host(self.config[CONF_WIFI])
+
+        if 'ethernet' in self.config:
+            return wifi.get_upload_host(self.config['ethernet'])
+
+        return None
 
     @property
     def esphomelib_version(self):  # type: () -> Dict[str, str]

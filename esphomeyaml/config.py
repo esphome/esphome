@@ -262,7 +262,7 @@ def validate_config(config):
         success = True
         conflicts_with = getattr(component, 'CONFLICTS_WITH', [])
         for conflict in conflicts_with:
-            if conflict not in config:
+            if conflict in config:
                 result.add_error(u"Component {} cannot be used together with component {}"
                                  u"".format(domain, conflict), [domain])
                 success = False
@@ -317,7 +317,7 @@ def validate_config(config):
             success = True
             conflicts_with = getattr(platform, 'CONFLICTS_WITH', [])
             for conflict in conflicts_with:
-                if conflict not in config:
+                if conflict in config:
                     result.add_error(u"Platform {} cannot be used together with component {}"
                                      u"".format(p_domain, conflict), [domain, i])
                     success = False
