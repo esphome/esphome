@@ -53,8 +53,8 @@ def validate_config(value):
     if CONF_PORT not in value:
         parts = value[CONF_BROKER].split(u':')
         if len(parts) == 2:
-            value[CONF_BROKER] = parts[1]
-            value[CONF_PORT] = cv.port(parts[2])
+            value[CONF_BROKER] = parts[0]
+            value[CONF_PORT] = cv.port(parts[1])
         else:
             value[CONF_PORT] = 1883
     return value
