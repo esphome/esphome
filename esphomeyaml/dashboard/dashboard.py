@@ -318,6 +318,9 @@ class PingThread(threading.Thread):
 
                 try:
                     item.get(0.1)
+                except OSError:
+                    # ping not installed
+                    pass
                 except multiprocessing.TimeoutError:
                     pass
 
