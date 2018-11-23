@@ -44,10 +44,10 @@ HASSIO_MQTT_CONFIG = {}
 # pylint: disable=abstract-method
 class BaseHandler(tornado.web.RequestHandler):
     def is_authenticated(self):
-        if not USING_HASSIO_AUTH and not USING_PASSWORD:
-            return True
+        if USING_HASSIO_AUTH or USING_PASSWORD:
+            return self.get_secure_cookie('authenticated') == 'yes'
 
-        return self.get_secure_cookie('authenticated') == 'yes'
+        return True
 
 
 # pylint: disable=abstract-method, arguments-differ
@@ -59,7 +59,7 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
 
     def on_message(self, message):
         if USING_HASSIO_AUTH or USING_PASSWORD:
-            if not self.get_secure_cookie('authenticated') == 'yes':
+            if self.get_secure_cookie('authenticated') != 'yes':
                 return
         if self.proc is not None:
             return
