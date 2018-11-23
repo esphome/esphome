@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>esphomeyaml Dashboard</title>
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/css/materialize.min.css">
+
+  <link rel="stylesheet" href="/static/materialize-stepper.min.css">
+
+  <!-- jQuery :( -->
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
+  <script src="https://code.jquery.com/ui/1.8.5/jquery-ui.min.js" integrity="sha256-fOse6WapxTrUSJOJICXXYwHRJOPa6C1OUQXi7C9Ddy8=" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/js/materialize.min.js"></script>
+  <script src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.15.0/jquery.validate.min.js"></script>
+
+
+  <script src="/static/materialize-stepper.min.js"></script>
+
+  <style>
+    nav .brand-logo {
+      margin-left: 48px;
+      font-size: 20px;
+    }
+
+    main .container {
+      margin-top: -12vh;
+      flex-shrink: 0;
+    }
+
+    .ribbon {
+      width: 100%;
+      height: 17vh;
+      background-color: #3F51B5;
+      flex-shrink: 0;
+    }
+
+    i.very-large {
+      font-size: 8rem;
+      padding-top: 2px;
+      color: #424242;
+    }
+
+    .card .card-content {
+      padding-left: 18px;
+      padding-bottom: 10px;
+    }
+
+    .page-footer {
+      padding-top: 0;
+    }
+
+    body {
+      display: flex;
+      min-height: 100vh;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1 0 auto;
+    }
+  </style>
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body>
+
+<header>
+<nav>
+  <div class="nav-wrapper indigo">
+    <a href="#" class="brand-logo left">esphomeyaml Dashboard</a>
+  </div>
+</nav>
+
+<div class="ribbon"></div>
+</header>
+
+<main>
+<div class="container">
+  <div class="row">
+    <div class="col card s10 offset-s1 m10 offset-m1 l8 offset-l2">
+      <form action="/login" method="post">
+        <div class="card-content">
+          <span class="card-title">Enter credentials</span>
+          <p>
+            Please login using your Home Assistant credentials.
+          </p>
+          {% if error is not None %}
+            <p>
+              {{ escape(error) }}
+            </p>
+          {% end %}
+          <div class="row">
+            <div class="input-field col s12">
+              <label for="username">Username</label>
+              <input type="text" class="validate" name="username" id="username" />
+            </div>
+            <div class="input-field col s12">
+              <label for="password">Password</label>
+              <input type="password" class="validate" name="password" id="password" />
+            </div>
+          </div>
+        </div>
+        <div class="card-action right-align">
+          <button class="btn indigo waves-effect waves-light" type="submit" name="action">Login</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+</main>
+
+<footer class="page-footer indigo darken-1">
+  <div class="container">
+
+  </div>
+  <div class="footer-copyright">
+    <div class="container">
+      © 2018 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
+      <a class="grey-text text-lighten-4 right" href="{{ docs_link }}" target="_blank">esphomeyaml {{ version }} Documentation</a>
+    </div>
+  </div>
+</footer>
+</body>
+</html>

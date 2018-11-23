@@ -1,6 +1,7 @@
 # pylint: disable=wrong-import-position
 from __future__ import print_function
 
+import binascii
 import collections
 import hmac
 import json
@@ -10,7 +11,6 @@ import os
 import random
 import subprocess
 import threading
-import urllib2
 
 import tornado
 import tornado.concurrent
@@ -33,13 +33,23 @@ from typing import Optional  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
-PASSWORD = ''
+PASSWORD_DIGEST = ''
+COOKIE_SECRET = None
+USING_PASSWORD = False
+ON_HASSIO = False
+USING_HASSIO_AUTH = True
+HASSIO_MQTT_CONFIG = {}
 
 
 # pylint: disable=abstract-method
 class BaseHandler(tornado.web.RequestHandler):
     def is_authenticated(self):
-        return not PASSWORD or self.get_secure_cookie('authenticated') == 'yes'
+        has_cookie = self.get_secure_cookie('authenticated') == 'yes'
+
+        if ON_HASSIO:
+            return not USING_HASSIO_AUTH or has_cookie
+
+        return not USING_PASSWORD or has_cookie
 
 
 # pylint: disable=abstract-method, arguments-differ
@@ -50,7 +60,10 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
         self.closed = False
 
     def on_message(self, message):
-        if PASSWORD and self.get_secure_cookie('authenticated') != 'yes':
+        has_cookie = self.get_secure_cookie('authenticated') == 'yes'
+        if USING_PASSWORD and not has_cookie:
+            return
+        if ON_HASSIO and (USING_HASSIO_AUTH and not has_cookie):
             return
         if self.proc is not None:
             return
@@ -346,15 +359,53 @@ PING_REQUEST = threading.Event()
 
 class LoginHandler(BaseHandler):
     def get(self):
+        if USING_HASSIO_AUTH:
+            self.render_hassio_login()
+            return
         self.write('<html><body><form action="/login" method="post">'
                    'Password: <input type="password" name="password">'
                    '<input type="submit" value="Sign in">'
                    '</form></body></html>')
 
+    def render_hassio_login(self, error=None):
+        version = const.__version__
+        docs_link = 'https://beta.esphomelib.com/esphomeyaml/' if 'b' in version else \
+            'https://esphomelib.com/esphomeyaml/'
+
+        self.render("templates/login.html", version=version, docs_link=docs_link, error=error)
+
+    def post_hassio_login(self):
+        import requests
+
+        headers = {
+            'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
+        }
+        data = {
+            'username': str(self.get_argument('username', '')),
+            'password': str(self.get_argument('password', ''))
+        }
+        try:
+            req = requests.post('http://hassio/auth', headers=headers, data=data)
+            if req.status_code == 200:
+                self.set_secure_cookie("authenticated", "yes")
+                self.redirect('/')
+                return
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.warn("Error during HassIO auth request: %s", err)
+            self.set_status(500)
+            self.render_hassio_login(error="Internal server error")
+            return
+        self.set_status(401)
+        self.render_hassio_login(error="Invalid username or password")
+
     def post(self):
+        if USING_HASSIO_AUTH:
+            self.post_hassio_login()
+            return
+
         password = str(self.get_argument("password", ''))
         password = hmac.new(password).digest()
-        if hmac.compare_digest(PASSWORD, password):
+        if hmac.compare_digest(PASSWORD_DIGEST, password):
             self.set_secure_cookie("authenticated", "yes")
         self.redirect("/")
 
@@ -394,23 +445,19 @@ def make_app(debug=False):
         (r"/ping", PingRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
-    ], debug=debug, cookie_secret=PASSWORD, log_function=log_function)
+    ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function)
     return app
 
 
-HASSIO_MQTT_CONFIG = None
-
-
 def _get_mqtt_config_impl():
-    token = os.getenv('HASSIO_TOKEN')
-    if token is None:
-        raise ValueError
+    import requests
 
-    req = urllib2.Request('http://hassio/services/mqtt')
-    req.add_header('X-HASSIO-KEY', token)
-    resp = urllib2.urlopen(req)
-    content = resp.read()
-    mqtt_config = json.loads(content)
+    headers = {
+        'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
+    }
+
+    req = requests.get('http://hassio/services/mqtt', headers=headers)
+    mqtt_config = req.json()
     return {
         'addon': mqtt_config['addon'],
         'host': mqtt_config['host'],
@@ -422,7 +469,7 @@ def _get_mqtt_config_impl():
 def get_mqtt_config_lazy():
     global HASSIO_MQTT_CONFIG
 
-    if HASSIO_MQTT_CONFIG is None:
+    if not ON_HASSIO or HASSIO_MQTT_CONFIG is None:
         return None
 
     if not HASSIO_MQTT_CONFIG:
@@ -436,26 +483,32 @@ def get_mqtt_config_lazy():
 
 def start_web_server(args):
     global CONFIG_DIR
-    global PASSWORD
-    global HASSIO_MQTT_CONFIG
+    global PASSWORD_DIGEST
+    global USING_PASSWORD
+    global ON_HASSIO
+    global USING_HASSIO_AUTH
+    global COOKIE_SECRET
 
     CONFIG_DIR = args.configuration
     if not os.path.exists(CONFIG_DIR):
         os.makedirs(CONFIG_DIR)
 
-    # HassIO options storage
-    PASSWORD = args.password
-
     if args.hassio:
-        HASSIO_MQTT_CONFIG = False
+        ON_HASSIO = True
+        USING_HASSIO_AUTH = not bool(os.getenv('DISABLE_HA_AUTHENTICATION'))
+    elif args.password:
+        USING_PASSWORD = True
+        PASSWORD_DIGEST = hmac.new(args.password).digest()
 
-    if PASSWORD:
-        PASSWORD = hmac.new(str(PASSWORD)).digest()
-        # Use the digest of the password as our cookie secret. This makes sure the cookie
-        # isn't too short. It, of course, enables local hash brute forcing (because the cookie
-        # secret can be brute forced without making requests). But the hashing algorithm used
-        # by tornado is apparently strong enough to make brute forcing even a short string pretty
-        # hard.
+    if USING_HASSIO_AUTH or USING_PASSWORD:
+        cookie_secret_path = os.path.join(CONFIG_DIR, '.esphomeyaml', '.cookie_secret')
+        if os.path.exists(cookie_secret_path):
+            with open(cookie_secret_path, 'r') as f:
+                COOKIE_SECRET = f.read()
+        else:
+            COOKIE_SECRET = binascii.hexlify(os.urandom(64))
+            with open(cookie_secret_path, 'w') as f:
+                f.write(COOKIE_SECRET)
 
     _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)
