@@ -501,7 +501,7 @@ def start_web_server(args):
         PASSWORD_DIGEST = hmac.new(args.password).digest()
 
     if USING_HASSIO_AUTH or USING_PASSWORD:
-        cookie_secret_path = os.path.join(CONFIG_DIR, '.esphomeyaml', '.cookie_secret')
+        cookie_secret_path = os.path.join(CONFIG_DIR, '.esphomeyaml', 'cookie_secret')
         if os.path.exists(cookie_secret_path):
             with open(cookie_secret_path, 'r') as f:
                 COOKIE_SECRET = f.read()
