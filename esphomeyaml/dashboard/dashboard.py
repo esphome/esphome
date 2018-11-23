@@ -10,28 +10,26 @@ import os
 import random
 import subprocess
 import threading
+import urllib2
 
+import tornado
+import tornado.concurrent
+import tornado.gen
+import tornado.ioloop
+import tornado.iostream
 from tornado.log import access_log
-from typing import Optional
+import tornado.process
+import tornado.web
+import tornado.websocket
 
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import run_system_command
 from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import shlex_quote
 
-try:
-    import tornado
-    import tornado.gen
-    import tornado.ioloop
-    import tornado.iostream
-    import tornado.process
-    import tornado.web
-    import tornado.websocket
-    import tornado.concurrent
-except ImportError as err:
-    tornado = None
+# pylint: disable=unused-import, wrong-import-order
+from typing import Optional  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
@@ -274,9 +272,10 @@ class MainRequestHandler(BaseHandler):
         version = const.__version__
         docs_link = 'https://beta.esphomelib.com/esphomeyaml/' if 'b' in version else \
             'https://esphomelib.com/esphomeyaml/'
+        mqtt_config = get_mqtt_config_lazy()
 
         self.render("templates/index.html", entries=entries,
-                    version=version, begin=begin, docs_link=docs_link)
+                    version=version, begin=begin, docs_link=docs_link, mqtt_config=mqtt_config)
 
 
 def _ping_func(filename, address):
@@ -372,6 +371,7 @@ def make_app(debug=False):
             log_method = access_log.error
 
         request_time = 1000.0 * handler.request.request_time()
+        # pylint: disable=protected-access
         log_method("%d %s %.2fms", handler.get_status(),
                    handler._request_summary(), request_time)
 
@@ -395,13 +395,46 @@ def make_app(debug=False):
     return app
 
 
+HASSIO_MQTT_CONFIG = None
+
+
+def _get_mqtt_config_impl():
+    token = os.getenv('HASSIO_TOKEN')
+    if token is None:
+        raise ValueError
+
+    req = urllib2.Request('http://hassio/services/mqtt')
+    req.add_header('X-HASSIO-KEY', token)
+    resp = urllib2.urlopen(req)
+    content = resp.read()
+    mqtt_config = json.loads(content)
+    return {
+        'addon': mqtt_config['addon'],
+        'host': mqtt_config['host'],
+        'username': mqtt_config.get('username', ''),
+        'password': mqtt_config.get('password', '')
+    }
+
+
+def get_mqtt_config_lazy():
+    global HASSIO_MQTT_CONFIG
+
+    if HASSIO_MQTT_CONFIG is None:
+        return None
+
+    if not HASSIO_MQTT_CONFIG:
+        try:
+            HASSIO_MQTT_CONFIG = _get_mqtt_config_impl()
+        except Exception:  # pylint: disable=broad-except
+            HASSIO_MQTT_CONFIG = None
+
+    return HASSIO_MQTT_CONFIG
+
+
 def start_web_server(args):
     global CONFIG_DIR
     global PASSWORD
-
-    if tornado is None:
-        raise EsphomeyamlError("Attempted to load dashboard, but tornado is not installed! "
-                               "Please run \"pip2 install tornado esptool\" in your terminal.")
+    global HASSIO_MQTT_CONFIG
 
     CONFIG_DIR = args.configuration
     if not os.path.exists(CONFIG_DIR):
@@ -409,10 +442,9 @@ def start_web_server(args):
 
     # HassIO options storage
     PASSWORD = args.password
-    if os.path.isfile('/data/options.json'):
-        with open('/data/options.json') as f:
-            js = json.load(f)
-            PASSWORD = js.get('password') or PASSWORD
+
+    if args.hassio:
+        HASSIO_MQTT_CONFIG = False
 
     if PASSWORD:
         PASSWORD = hmac.new(str(PASSWORD)).digest()

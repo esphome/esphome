@@ -446,29 +446,47 @@
         <div class="step-title waves-effect">MQTT</div>
         <div class="step-content">
           <div class="row">
-            <p>
-              esphomelib connects to your Home Assistant instance via
-              <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>. If you haven't already, please set up
-              MQTT on your Home Assistant server, for example with the awesome
-              <a href="https://www.home-assistant.io/addons/mosquitto/">Mosquitto Hass.io Add-on</a>.
-            </p>
-            <p>
-              When you're done with that, please enter your MQTT broker here. For example
-              <code class="inlinecode">192.168.1.100</code> (Note
-              <code class="inlinecode">hassio.local</code> doesn't always work, please use a static IP).
-              Please also specify the MQTT username and password you wish esphomelib to use
-              (leave them empty if you're not using any authentication).
-            </p>
+            {% if mqtt_config is None %}
+              <p>
+                esphomelib connects to your Home Assistant instance via
+                <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>.
+                  If you haven't already, please set up
+                  MQTT on your Home Assistant server, for example with the
+                  <a href="https://www.home-assistant.io/addons/mosquitto/">Mosquitto Hass.io Add-on</a>.
+              </p>
+              <p>
+                When you're done with that, please enter your MQTT broker here. For example
+                <code class="inlinecode">192.168.1.100</code>.
+                Please also specify the MQTT username and password you wish esphomelib to use
+                (leave them empty if you're not using any authentication).
+              </p>
+            {% else %}
+              <p>
+                It looks like you've already set up MQTT, the values below are taken from your "{{ escape(mqtt_config['addon']) }}" add-on.
+              </p>
+            {% end %}
             <div class="input-field col s12">
-              <input id="mqtt_broker" class="validate" type="text" name="broker" required>
+              {% if mqtt_config is None %}
+                <input id="mqtt_broker" class="validate" type="text" name="broker" required>
+              {% else %}
+                <input id="mqtt_broker" class="validate" type="text" name="broker" value="{{ mqtt_config['host'] }}" required>
+              {% end %}
               <label for="mqtt_broker">MQTT Broker</label>
             </div>
             <div class="input-field col s6">
-              <input id="mqtt_username" class="validate" type="text" name="mqtt_username">
+              {% if mqtt_config is None %}
+                <input id="mqtt_username" class="validate" type="text" name="mqtt_username">
+              {% else %}
+                <input id="mqtt_username" class="validate" type="text" name="mqtt_username" value="{{ mqtt_config['username'] }}">
+              {% end%}
               <label for="mqtt_username">MQTT Username</label>
             </div>
             <div class="input-field col s6">
-              <input id="mqtt_password" class="validate" name="mqtt_password" type="password">
+              {% if mqtt_config is None %}
+                <input id="mqtt_password" class="validate" name="mqtt_password" type="password">
+              {% else %}
+                <input id="mqtt_password" class="validate" name="mqtt_password" type="password" value="{{ mqtt_config['password'] }}">
+              {% end %}
               <label for="mqtt_password">MQTT Password</label>
             </div>
           </div>

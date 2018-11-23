@@ -1,10 +1,12 @@
 from collections import OrderedDict
 
-from typing import Any, Generator, List, Optional, Tuple, Union
-
-from esphomeyaml.core import CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds, \
+from esphomeyaml.core import CORE, HexInt, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 from esphomeyaml.helpers import cpp_string_escape, indent_all_but_first_and_last
+
+# pylint: disable=unused-import, wrong-import-order
+from typing import Any, Generator, List, Optional, Tuple, Union  # noqa
+from esphomeyaml.core import ID  # noqa
 
 
 class Expression(object):
@@ -260,6 +262,7 @@ class FloatLiteral(Literal):
         return u"{:f}f".format(self.float_)
 
 
+# pylint: disable=bad-continuation
 def safe_exp(obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod]
              ):
     # type: (...) -> Expression

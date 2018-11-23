@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml.components import binary_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BINARY_SENSORS, CONF_ID, CONF_LAMBDA
-from esphomeyaml.cpp_generator import process_lambda
+from esphomeyaml.cpp_generator import process_lambda, variable
 from esphomeyaml.cpp_types import std_vector
 
 CustomBinarySensorConstructor = binary_sensor.binary_sensor_ns.class_(

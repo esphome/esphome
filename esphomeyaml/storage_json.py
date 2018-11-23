@@ -2,10 +2,12 @@ import codecs
 import json
 import os
 
-from typing import Any, Dict, Optional
-
-from esphomeyaml.core import CORE, CoreType
+from esphomeyaml.core import CORE
 from esphomeyaml.helpers import mkdir_p
+
+# pylint: disable=unused-import, wrong-import-order
+from esphomeyaml.core import CoreType  # noqa
+from typing import Any, Dict, Optional  # noqa
 
 
 def storage_path():  # type: () -> str
@@ -16,6 +18,7 @@ def ext_storage_path(base_path, config_filename):  # type: (str, str) -> str
     return os.path.join(base_path, '.esphomeyaml', '{}.json'.format(config_filename))
 
 
+# pylint: disable=too-many-instance-attributes
 class StorageJSON(object):
     def __init__(self, storage_version, name, esphomelib_version, src_version,
                  arduino_version, address, esp_platform, board, build_path,

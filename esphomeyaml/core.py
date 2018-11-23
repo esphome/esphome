@@ -6,12 +6,13 @@ import math
 import os
 import re
 
-from typing import Any, Dict, List
-
 from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_DOMAIN, CONF_ESPHOMELIB_VERSION, \
     CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_LOCAL, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_WIFI, \
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import ensure_unique_string
+
+# pylint: disable=unused-import, wrong-import-order
+from typing import Any, Dict, List  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -253,6 +254,7 @@ class ID(object):
         return hash(self.id)
 
 
+# pylint: disable=too-many-instance-attributes
 class EsphomeyamlCore(object):
     def __init__(self):
         # The name of the node
@@ -266,9 +268,9 @@ class EsphomeyamlCore(object):
         # The board that's used (for example nodemcuv2)
         self.board = None  # type: str
         # The full raw configuration
-        self.raw_config = None  # type: ConfigType
+        self.raw_config = {}  # type: ConfigType
         # The validated configuration, this is None until the config has been validated
-        self.config = None  # type: ConfigType
+        self.config = {}  # type: ConfigType
         # The pending tasks in the task queue (mostly for C++ generation)
         self.pending_tasks = collections.deque()
         # The variable cache, for each ID this holds a MockObj of the variable obj

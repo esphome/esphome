@@ -325,8 +325,8 @@ def write_platformio_ini(content, path):
     else:
         prev_file = None
         content_format = INI_BASE_FORMAT
-    full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + \
-                content + INI_AUTO_GENERATE_END + content_format[1]
+    full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + content
+    full_file += INI_AUTO_GENERATE_END + content_format[1]
     if prev_file == full_file:
         return
     with codecs.open(path, mode='w+', encoding='utf-8') as f_handle:
@@ -371,9 +371,9 @@ def write_cpp(code_s):
 
     include_s = get_include_text()
 
-    full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + include_s + CPP_INCLUDE_END + \
-                code_format[1] + CPP_AUTO_GENERATE_BEGIN + u'\n' + code_s + \
-                CPP_AUTO_GENERATE_END + code_format[2]
+    full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + include_s + CPP_INCLUDE_END
+    full_file += code_format[1] + CPP_AUTO_GENERATE_BEGIN + u'\n' + code_s + CPP_AUTO_GENERATE_END
+    full_file += code_format[2]
     if prev_file == full_file:
         return
     with codecs.open(path, 'w+', encoding='utf-8') as f_handle:

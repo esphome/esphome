@@ -31,7 +31,7 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 _LOGGER = logging.getLogger(__name__)
 
 
-class ProgressBar:
+class ProgressBar(object):
     def __init__(self):
         self.last_progress = None
 
@@ -51,6 +51,7 @@ class ProgressBar:
         sys.stderr.write(text)
         sys.stderr.flush()
 
+    # pylint: disable=no-self-use
     def done(self):
         sys.stderr.write('\n')
         sys.stderr.flush()
@@ -193,7 +194,7 @@ def perform_ota(sock, password, file_handle, filename):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
 
     offset = 0
-    bar = ProgressBar()
+    progress = ProgressBar()
     while True:
         chunk = file_handle.read(1024)
         if not chunk:
@@ -206,8 +207,8 @@ def perform_ota(sock, password, file_handle, filename):
             sys.stderr.write('\n')
             raise OTAError("Error sending data: {}".format(err))
 
-        bar.update(offset / float(file_size))
-    bar.done()
+        progress.update(offset / float(file_size))
+    progress.done()
 
     # Enable nodelay for last checks
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)

@@ -3,16 +3,16 @@ from __future__ import print_function
 from datetime import datetime
 import hashlib
 import logging
+import socket
 import ssl
 import sys
 
 import paho.mqtt.client as mqtt
 
-from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
     CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, \
     CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
-from esphomeyaml.core import CORE
+from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.helpers import color
 from esphomeyaml.util import safe_print
 
@@ -41,7 +41,11 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
             tls_version = ssl.PROTOCOL_SSLv23
         client.tls_set(ca_certs=None, certfile=None, keyfile=None, cert_reqs=ssl.CERT_REQUIRED,
                        tls_version=tls_version, ciphers=None)
-    client.connect(config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT])
+
+    try:
+        client.connect(config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT])
+    except socket.error as err:
+        raise EsphomeyamlError("Cannot connect to MQTT broker: {}".format(err))
 
     try:
         client.loop_forever()

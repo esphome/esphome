@@ -444,12 +444,16 @@ def parse_args(argv):
 
     dashboard = subparsers.add_parser('dashboard',
                                       help="Create a simple web server for a dashboard.")
-    dashboard.add_argument("--port", help="The HTTP port to open connections on.", type=int,
-                           default=6052)
+    dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
+                           type=int, default=6052)
     dashboard.add_argument("--password", help="The optional password to require for all requests.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
+    dashboard.add_argument("--hassio",
+                           help="Internal flag used to tell esphomeyaml is started as a HassIO "
+                                "add-on.",
+                           action="store_true")
 
     subparsers.add_parser('hass-config', help="Dump the configuration entries that should be added"
                                               "to Home Assistant when not using MQTT discovery.")
