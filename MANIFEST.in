@@ -3,3 +3,4 @@ include esphomeyaml/dashboard/templates/index.html
 include esphomeyaml/dashboard/templates/login.html
 include esphomeyaml/dashboard/static/materialize-stepper.min.css
 include esphomeyaml/dashboard/static/materialize-stepper.min.js
+include esphomeyaml/dashboard/static/favicon.ico
