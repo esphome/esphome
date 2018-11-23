@@ -46,8 +46,8 @@ class BaseHandler(tornado.web.RequestHandler):
     def is_authenticated(self):
         has_cookie = self.get_secure_cookie('authenticated') == 'yes'
 
-        if ON_HASSIO:
-            return not USING_HASSIO_AUTH or has_cookie
+        if USING_HASSIO_AUTH:
+            return has_cookie
 
         return not USING_PASSWORD or has_cookie
 
