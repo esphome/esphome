@@ -24,7 +24,7 @@ import tornado.websocket
 
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.helpers import run_system_command
+from esphomeyaml.helpers import run_system_command, mkdir_p
 from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import shlex_quote
 
@@ -38,7 +38,7 @@ COOKIE_SECRET = None
 USING_PASSWORD = False
 ON_HASSIO = False
 USING_HASSIO_AUTH = True
-HASSIO_MQTT_CONFIG = {}
+HASSIO_MQTT_CONFIG = None
 
 
 # pylint: disable=abstract-method
@@ -453,10 +453,10 @@ def _get_mqtt_config_impl():
     }
 
     req = requests.get('http://hassio/services/mqtt', headers=headers)
-    mqtt_config = req.json()
+    mqtt_config = req.json()['data']
     return {
-        'addon': mqtt_config['addon'],
-        'host': mqtt_config['host'],
+        'ssl': mqtt_config['ssl'],
+        'host': mqtt_config['host'] + ':' + mqtt_config['port'],
         'username': mqtt_config.get('username', ''),
         'password': mqtt_config.get('password', '')
     }
@@ -465,14 +465,14 @@ def _get_mqtt_config_impl():
 def get_mqtt_config_lazy():
     global HASSIO_MQTT_CONFIG
 
-    if not ON_HASSIO or HASSIO_MQTT_CONFIG is None:
+    if not ON_HASSIO:
         return None
 
-    if not HASSIO_MQTT_CONFIG:
+    if HASSIO_MQTT_CONFIG is None:
         try:
             HASSIO_MQTT_CONFIG = _get_mqtt_config_impl()
         except Exception:  # pylint: disable=broad-except
-            HASSIO_MQTT_CONFIG = None
+            pass
 
     return HASSIO_MQTT_CONFIG
 
@@ -486,8 +486,8 @@ def start_web_server(args):
     global COOKIE_SECRET
 
     CONFIG_DIR = args.configuration
-    if not os.path.exists(CONFIG_DIR):
-        os.makedirs(CONFIG_DIR)
+    mkdir_p(CONFIG_DIR)
+    mkdir_p(os.path.join(CONFIG_DIR, ".esphomeyaml"))
 
     ON_HASSIO = args.hassio
     if ON_HASSIO:

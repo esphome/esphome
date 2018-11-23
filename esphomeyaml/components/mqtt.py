@@ -49,12 +49,14 @@ MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
 MQTTComponent = mqtt_ns.class_('MQTTComponent', Component)
 
 
-def validate_broker(value):
-    value = cv.string_strict(value)
-    if u':' in value:
-        raise vol.Invalid(u"Please specify the port using the port: option")
-    if not value:
-        raise vol.Invalid(u"Broker cannot be empty")
+def validate_config(value):
+    if CONF_PORT not in value:
+        parts = value[CONF_BROKER].split(u':')
+        if len(parts) == 2:
+            value[CONF_BROKER] = parts[1]
+            value[CONF_PORT] = cv.port(parts[2])
+        else:
+            value[CONF_PORT] = 1883
     return value
 
 
@@ -65,10 +67,10 @@ def validate_fingerprint(value):
     return value
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
-    vol.Required(CONF_BROKER): validate_broker,
-    vol.Optional(CONF_PORT, default=1883): cv.port,
+    vol.Required(CONF_BROKER): cv.string_strict,
+    vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_USERNAME, default=''): cv.string,
     vol.Optional(CONF_PASSWORD, default=''): cv.string,
     vol.Optional(CONF_CLIENT_ID): vol.All(cv.string, vol.Length(max=23)),
@@ -97,7 +99,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_TOPIC): cv.subscribe_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     }),
-})
+}), validate_config)
 
 
 def exp_mqtt_message(config):
