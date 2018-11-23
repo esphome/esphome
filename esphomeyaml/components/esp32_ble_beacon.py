@@ -14,7 +14,7 @@ CONF_MINOR = 'minor'
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLEBeacon),
-    vol.Required(CONF_TYPE): vol.All(vol.Upper, cv.one_of('IBEACON')),
+    vol.Required(CONF_TYPE): cv.one_of('IBEACON', upper=True),
     vol.Required(CONF_UUID): cv.uuid,
     vol.Optional(CONF_MAJOR): cv.uint16_t,
     vol.Optional(CONF_MINOR): cv.uint16_t,

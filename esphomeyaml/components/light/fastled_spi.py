@@ -35,12 +35,12 @@ MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
-    vol.Required(CONF_CHIPSET): vol.All(vol.Upper, cv.one_of(*CHIPSETS)),
+    vol.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
     vol.Required(CONF_DATA_PIN): pins.output_pin,
     vol.Required(CONF_CLOCK_PIN): pins.output_pin,
 
     vol.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-    vol.Optional(CONF_RGB_ORDER): vol.All(vol.Upper, cv.one_of(*RGB_ORDERS)),
+    vol.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
     vol.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
     vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,

@@ -86,7 +86,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_POWER_SAVE_MODE): vol.All(vol.Upper, cv.one_of(*WIFI_POWER_SAVE_MODES)),
+    vol.Optional(CONF_POWER_SAVE_MODE): cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
 }), validate)
 
 

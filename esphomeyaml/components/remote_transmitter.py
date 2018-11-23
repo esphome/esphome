@@ -61,17 +61,15 @@ RC_SWITCH_TYPE_B_SCHEMA = vol.Schema({
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_C_SCHEMA = vol.Schema({
-    vol.Required(CONF_FAMILY): vol.All(
-        cv.string, vol.Lower,
-        cv.one_of('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o',
-                  'p')),
+    vol.Required(CONF_FAMILY): cv.one_of('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
+                                         'l', 'm', 'n', 'o', 'p', lower=True),
     vol.Required(CONF_GROUP): vol.All(cv.uint8_t, vol.Range(min=1, max=4)),
     vol.Required(CONF_DEVICE): vol.All(cv.uint8_t, vol.Range(min=1, max=4)),
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_D_SCHEMA = vol.Schema({
-    vol.Required(CONF_GROUP): vol.All(cv.string, vol.Lower, cv.one_of('a', 'b', 'c', 'd')),
+    vol.Required(CONF_GROUP): cv.one_of('a', 'b', 'c', 'd', lower=True),
     vol.Required(CONF_DEVICE): vol.All(cv.uint8_t, vol.Range(min=1, max=3)),
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
