@@ -452,11 +452,12 @@ def _get_mqtt_config_impl():
         'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
     }
 
-    req = requests.get('http://hassio/services/mqtt', headers=headers)
-    mqtt_config = req.json()['data']
+    mqtt_config = requests.get('http://hassio/services/mqtt', headers=headers).json()['data']
+    info = requests.get('http://hassio/info', headers=headers).json()['data']
+
     return {
         'ssl': mqtt_config['ssl'],
-        'host': mqtt_config['host'] + ':' + str(mqtt_config['port']),
+        'host': info['hostname'] + '.local:' + str(mqtt_config['port']),
         'username': mqtt_config.get('username', ''),
         'password': mqtt_config.get('password', '')
     }
