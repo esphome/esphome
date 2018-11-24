@@ -306,7 +306,7 @@ class PingThread(threading.Thread):
             PING_REQUEST.clear()
 
             def callback(ret):
-                PING_RESULT[ret[0]] = True  # ret[1]
+                PING_RESULT[ret[0]] = ret[1]
 
             entries = _list_dashboard_entries()
             queue = collections.deque()
