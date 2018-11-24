@@ -1,6 +1,16 @@
 include README.md
 include esphomeyaml/dashboard/templates/index.html
 include esphomeyaml/dashboard/templates/login.html
+include esphomeyaml/dashboard/static/ace.js
+include esphomeyaml/dashboard/static/esphomeyaml.css
+include esphomeyaml/dashboard/static/esphomeyaml.js
+include esphomeyaml/dashboard/static/favicon.ico
+include esphomeyaml/dashboard/static/jquery.min.js
+include esphomeyaml/dashboard/static/jquery.validate.min.js
+include esphomeyaml/dashboard/static/jquery-ui.min.js
+include esphomeyaml/dashboard/static/materialize-min.css
+include esphomeyaml/dashboard/static/materialize-min.js
 include esphomeyaml/dashboard/static/materialize-stepper.min.css
 include esphomeyaml/dashboard/static/materialize-stepper.min.js
-include esphomeyaml/dashboard/static/favicon.ico
+include esphomeyaml/dashboard/static/mode-yaml.js
+include esphomeyaml/dashboard/static/theme-dreamweaver.js

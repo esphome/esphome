@@ -1,0 +1,206 @@
+nav .brand-logo {
+  margin-left: 48px;
+  font-size: 20px;
+}
+
+main .container {
+  margin-top: -12vh;
+  flex-shrink: 0;
+}
+
+.ribbon {
+  width: 100%;
+  height: 17vh;
+  background-color: #3F51B5;
+  flex-shrink: 0;
+}
+
+.ribbon-fab:not(.tap-target-origin) {
+  position: absolute;
+  right: 24px;
+  top: calc(17vh + 34px);
+}
+
+i.very-large {
+  font-size: 8rem;
+  padding-top: 2px;
+  color: #424242;
+}
+
+.card .card-content {
+  padding-left: 18px;
+  padding-bottom: 10px;
+}
+
+.log {
+  background-color: #1c1c1c;
+  margin-top: 0;
+  margin-bottom: 0;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+  font-size: 12px;
+  padding: 16px;
+  overflow: auto;
+  line-height: 1.45;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  color: #DDD;
+}
+
+.inlinecode {
+  box-sizing: border-box;
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(27,31,35,0.05);
+  border-radius: 3px;
+  font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+}
+
+.log.bold {
+  font-weight: bold;
+}
+
+.log .v {
+  color: #888888;
+}
+
+.log .d {
+  color: #00DDDD;
+}
+
+.log .c {
+  color: magenta;
+}
+
+.log .i {
+  color: limegreen;
+}
+
+.log .w {
+  color: yellow;
+}
+
+.log .e {
+  color: red;
+  font-weight: bold;
+}
+
+.log .e {
+  color: red;
+}
+
+.log .ww {
+  color: white;
+}
+
+.modal {
+  width: 95%;
+  max-height: 90%;
+  height: 85% !important;
+}
+
+.page-footer {
+  padding-top: 0;
+}
+
+body {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
+}
+
+main {
+  flex: 1 0 auto;
+}
+
+ul.browser-default {
+  padding-left: 30px;
+  margin-top: 10px;
+  margin-bottom: 15px;
+}
+
+ul.browser-default li {
+  list-style-type: initial;
+}
+
+ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .step.done::before, ul.stepper.horizontal .step.active .step-title::before, ul.stepper.horizontal .step.done .step-title::before {
+  background-color: #3f51b5 !important;
+}
+
+.select-port-container {
+  margin-top: 8px;
+  margin-right: 24px;
+  width: 350px;
+}
+
+.dropdown-trigger {
+  cursor: pointer;
+}
+
+/* https://github.com/tnhu/status-indicator/blob/master/styles.css */
+.status-indicator .status-indicator-icon {
+  display: inline-block;
+  border-radius: 50%;
+  width: 10px;
+  height: 10px;
+}
+
+.status-indicator.unknown .status-indicator-icon {
+  background-color: rgb(216, 226, 233);
+}
+
+.status-indicator.unknown .status-indicator-text::after {
+  content: "Unknown status";
+}
+
+.status-indicator.offline .status-indicator-icon {
+  background-color: rgb(255, 77, 77);
+}
+
+.status-indicator.offline .status-indicator-text::after {
+  content: "Offline";
+}
+
+.status-indicator.not-responding .status-indicator-icon {
+  background-color: rgb(255, 170, 0);
+}
+
+.status-indicator.not-responding .status-indicator-text::after {
+  content: "Not Responding";
+}
+
+@keyframes status-indicator-pulse-online {
+  0%   {
+    box-shadow: 0 0 0 0 rgba(75, 210, 143, .5);
+  }
+  25%  {
+    box-shadow: 0 0 0 10px rgba(75, 210, 143, 0);
+  }
+  30% {
+    box-shadow: 0 0 0 0 rgba(75, 210, 143, 0);
+  }
+}
+
+.status-indicator.online .status-indicator-icon {
+  background-color: rgb(75, 210, 143);
+  animation-duration: 5s;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: normal;
+  animation-delay: 0s;
+  animation-fill-mode: none;
+  animation-name: status-indicator-pulse-online;
+}
+
+.status-indicator.online .status-indicator-text::after {
+  content: "Online";
+}
+
+#editor {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding: 16px;
+  border-radius: 3px;
+  height: 100%
+}

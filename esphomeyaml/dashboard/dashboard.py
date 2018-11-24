@@ -348,6 +348,39 @@ class PingRequestHandler(BaseHandler):
         self.write(json.dumps(PING_RESULT))
 
 
+def is_allowed(configuration):
+    return os.path.sep not in configuration
+
+
+class EditRequestHandler(BaseHandler):
+    def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+        configuration = self.get_argument('configuration')
+        if not is_allowed(configuration):
+            self.set_status(401)
+            return
+
+        with open(os.path.join(CONFIG_DIR, configuration), 'r') as f:
+            content = f.read()
+        self.write(content)
+
+    def post(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+        configuration = self.get_argument('configuration')
+        if not is_allowed(configuration):
+            self.set_status(401)
+            return
+
+        with open(os.path.join(CONFIG_DIR, configuration), 'w') as f:
+            f.write(self.request.body)
+        self.set_status(200)
+        return
+
+
 PING_RESULT = {}  # type: dict
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
@@ -436,6 +469,7 @@ def make_app(debug=False):
         (r"/clean-mqtt", EsphomeyamlCleanMqttHandler),
         (r"/clean", EsphomeyamlCleanHandler),
         (r"/hass-config", EsphomeyamlHassConfigHandler),
+        (r"/edit", EditRequestHandler),
         (r"/download.bin", DownloadBinaryRequestHandler),
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/ping", PingRequestHandler),
