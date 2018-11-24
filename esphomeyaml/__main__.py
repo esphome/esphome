@@ -250,6 +250,7 @@ def strip_default_ids(config):
 
 
 def command_config(args, config):
+    _LOGGER.info("Configuration is valid!")
     if not args.verbose:
         config = strip_default_ids(config)
     safe_print(yaml_util.dump(config))
