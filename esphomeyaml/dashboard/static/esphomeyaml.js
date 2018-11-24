@@ -5,19 +5,19 @@ document.addEventListener('DOMContentLoaded', () => {
 const colorReplace = (input) => {
 input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
 input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
-input = input.replace(/\\033\[(?:1;)?31m/g, '<span class="e bold">');
+input = input.replace(/\\033\[(?:0?1;)?31m/g, '<span class="e bold">');
 input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
-input = input.replace(/\\033\[(?:1;)?32m/g, '<span class="i bold">');
+input = input.replace(/\\033\[(?:0?1;)?32m/g, '<span class="i bold">');
 input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
-input = input.replace(/\\033\[(?:1;)?33m/g, '<span class="w bold">');
+input = input.replace(/\\033\[(?:0?1;)?33m/g, '<span class="w bold">');
 input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
-input = input.replace(/\\033\[(?:1;)?35m/g, '<span class="c bold">');
+input = input.replace(/\\033\[(?:0?1;)?35m/g, '<span class="c bold">');
 input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
-input = input.replace(/\\033\[(?:1;)?36m/g, '<span class="d bold">');
+input = input.replace(/\\033\[(?:0?1;)?36m/g, '<span class="d bold">');
 input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
-input = input.replace(/\\033\[(?:1;)?37m/g, '<span class="v bold">');
+input = input.replace(/\\033\[(?:0?1;)?37m/g, '<span class="v bold">');
 input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
-input = input.replace(/\\033\[(?:1;)?38m/g, '<span class="vv bold">');
+input = input.replace(/\\033\[(?:0?1;)?38m/g, '<span class="vv bold">');
 input = input.replace(/\\033\[0m/g, '</span>');
 
 return input;
@@ -26,50 +26,50 @@ return input;
 let configuration = "";
 let wsProtocol = "ws:";
 if (window.location.protocol === "https:") {
-wsProtocol = 'wss:';
+  wsProtocol = 'wss:';
 }
 const wsUrl = wsProtocol + '//' + window.location.hostname + ':' + window.location.port;
 
 let isFetchingPing = false;
 const fetchPing = () => {
-if (isFetchingPing)
-    return;
-isFetchingPing = true;
+  if (isFetchingPing)
+      return;
+  isFetchingPing = true;
 
-fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
-  .then(response => {
-    for (let filename in response) {
-      let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
-      if (node === null)
-        continue;
+  fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
+    .then(response => {
+      for (let filename in response) {
+        let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
+        if (node === null)
+          continue;
 
-      let status = response[filename];
-      let klass;
-      if (status === null) {
-        klass = 'unknown';
-      } else if (status === true) {
-        klass = 'online';
-        node.setAttribute('data-last-connected', Date.now().toString());
-      } else if (node.hasAttribute('data-last-connected')) {
-        const attr = parseInt(node.getAttribute('data-last-connected'));
-        if (Date.now() - attr <= 5000) {
-          klass = 'not-responding';
+        let status = response[filename];
+        let klass;
+        if (status === null) {
+          klass = 'unknown';
+        } else if (status === true) {
+          klass = 'online';
+          node.setAttribute('data-last-connected', Date.now().toString());
+        } else if (node.hasAttribute('data-last-connected')) {
+          const attr = parseInt(node.getAttribute('data-last-connected'));
+          if (Date.now() - attr <= 5000) {
+            klass = 'not-responding';
+          } else {
+            klass = 'offline';
+          }
         } else {
           klass = 'offline';
         }
-      } else {
-        klass = 'offline';
+
+        if (node.classList.contains(klass))
+          continue;
+
+        node.classList.remove('unknown', 'online', 'offline', 'not-responding');
+        node.classList.add(klass);
       }
 
-      if (node.classList.contains(klass))
-        continue;
-
-      node.classList.remove('unknown', 'online', 'offline', 'not-responding');
-      node.classList.add(klass);
-    }
-
-    isFetchingPing = false;
-  });
+      isFetchingPing = false;
+    });
 };
 setInterval(fetchPing, 2000);
 fetchPing();
@@ -78,53 +78,53 @@ const portSelect = document.querySelector('.nav-wrapper select');
 let ports = [];
 
 const fetchSerialPorts = (begin=false) => {
-fetch('/serial-ports', {credentials: "same-origin"}).then(res => res.json())
-  .then(response => {
-    if (ports.length === response.length) {
-      let allEqual = true;
+  fetch('/serial-ports', {credentials: "same-origin"}).then(res => res.json())
+    .then(response => {
+      if (ports.length === response.length) {
+        let allEqual = true;
+        for (let i = 0; i < response.length; i++) {
+          if (ports[i].port !== response[i].port) {
+            allEqual = false;
+            break;
+          }
+        }
+        if (allEqual)
+          return;
+      }
+      const hasNewPort = response.length >= ports.length;
+
+      ports = response;
+
+      const inst = M.FormSelect.getInstance(portSelect);
+      if (inst !== undefined) {
+        inst.destroy();
+      }
+
+      portSelect.innerHTML = "";
+      const prevSelected = getUploadPort();
       for (let i = 0; i < response.length; i++) {
-        if (ports[i].port !== response[i].port) {
-          allEqual = false;
-          break;
+        const val = response[i];
+        if (val.port === prevSelected) {
+          portSelect.innerHTML += `<option value="${val.port}" selected>${val.port} (${val.desc})</option>`;
+        } else {
+          portSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
         }
       }
-      if (allEqual)
-        return;
-    }
-    const hasNewPort = response.length >= ports.length;
 
-    ports = response;
-
-    const inst = M.FormSelect.getInstance(portSelect);
-    if (inst !== undefined) {
-      inst.destroy();
-    }
-
-    portSelect.innerHTML = "";
-    const prevSelected = getUploadPort();
-    for (let i = 0; i < response.length; i++) {
-      const val = response[i];
-      if (val.port === prevSelected) {
-        portSelect.innerHTML += `<option value="${val.port}" selected>${val.port} (${val.desc})</option>`;
-      } else {
-        portSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
-      }
-    }
-
-    M.FormSelect.init(portSelect, {});
-    if (!begin && hasNewPort)
-      M.toast({html: "Discovered new serial port."});
-  });
+      M.FormSelect.init(portSelect, {});
+      if (!begin && hasNewPort)
+        M.toast({html: "Discovered new serial port."});
+    });
 };
 
 const getUploadPort = () => {
-const inst = M.FormSelect.getInstance(portSelect);
-if (inst === undefined) {
-  return "OTA";
-}
+  const inst = M.FormSelect.getInstance(portSelect);
+  if (inst === undefined) {
+    return "OTA";
+  }
 
-inst._setSelectedStates();
-return inst.getSelectedValues()[0];
+  inst._setSelectedStates();
+  return inst.getSelectedValues()[0];
 };
 setInterval(fetchSerialPorts, 5000);
 fetchSerialPorts(true);
@@ -132,347 +132,348 @@ fetchSerialPorts(true);
 const logsModalElem = document.getElementById("modal-logs");
 
 document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
-showLogs.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(logsModalElem);
-  const log = logsModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = logsModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  showLogs.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(logsModalElem);
+    const log = logsModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = logsModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = logsModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = logsModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/logs");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({html: "Program exited successfully."});
-      } else {
-        M.toast({html: `Program failed with code ${data.code}`});
+    const logSocket = new WebSocket(wsUrl + "/logs");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({html: "Program exited successfully."});
+        } else {
+          M.toast({html: `Program failed with code ${data.code}`});
+        }
+
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
-
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const uploadModalElem = document.getElementById("modal-upload");
 
 document.querySelectorAll(".action-upload").forEach((upload) => {
-upload.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(uploadModalElem);
-  const log = uploadModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = uploadModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  upload.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(uploadModalElem);
+    const log = uploadModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = uploadModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = uploadModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = uploadModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/run");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({html: "Program exited successfully."});
-      } else {
-        M.toast({html: `Program failed with code ${data.code}`});
+    const logSocket = new WebSocket(wsUrl + "/run");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({html: "Program exited successfully."});
+        } else {
+          M.toast({html: `Program failed with code ${data.code}`});
+        }
+
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
-
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const validateModalElem = document.getElementById("modal-validate");
 
 document.querySelectorAll(".action-validate").forEach((upload) => {
-upload.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(validateModalElem);
-  const log = validateModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = validateModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  upload.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(validateModalElem);
+    const log = validateModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = validateModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = validateModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = validateModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/validate");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({
-          html: `<code class="inlinecode">${configuration}</code> is valid 👍`,
-          displayLength: 5000,
-        });
-      } else {
-        M.toast({
-          html: `<code class="inlinecode">${configuration}</code> is invalid 😕`,
-          displayLength: 5000,
-        });
+    const logSocket = new WebSocket(wsUrl + "/validate");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({
+            html: `<code class="inlinecode">${configuration}</code> is valid 👍`,
+            displayLength: 5000,
+          });
+        } else {
+          M.toast({
+            html: `<code class="inlinecode">${configuration}</code> is invalid 😕`,
+            displayLength: 5000,
+          });
+        }
+
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
-
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const compileModalElem = document.getElementById("modal-compile");
 const downloadButton = compileModalElem.querySelector('.download-binary');
 
 document.querySelectorAll(".action-compile").forEach((upload) => {
-upload.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(compileModalElem);
-  const log = compileModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = compileModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  downloadButton.classList.add('disabled');
+  upload.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(compileModalElem);
+    const log = compileModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = compileModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    downloadButton.classList.add('disabled');
 
-  modalInstance.open();
+    modalInstance.open();
 
-  const filenameField = compileModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = compileModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/compile");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({html: "Program exited successfully."});
-        downloadButton.classList.remove('disabled');
-      } else {
-        M.toast({html: `Program failed with code ${data.code}`});
+    const logSocket = new WebSocket(wsUrl + "/compile");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({html: "Program exited successfully."});
+          downloadButton.classList.remove('disabled');
+        } else {
+          M.toast({html: `Program failed with code ${data.code}`});
+        }
+
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
+  });
+});
 
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
-  });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
-});
 downloadButton.addEventListener('click', () => {
-const link = document.createElement("a");
-link.download = name;
-link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
-link.click();
+  const link = document.createElement("a");
+  link.download = name;
+  link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
+  link.click();
 });
 
 const cleanMqttModalElem = document.getElementById("modal-clean-mqtt");
 
 document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
-btn.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(cleanMqttModalElem);
-  const log = cleanMqttModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = cleanMqttModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  btn.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(cleanMqttModalElem);
+    const log = cleanMqttModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = cleanMqttModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = cleanMqttModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = cleanMqttModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/clean-mqtt");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    const logSocket = new WebSocket(wsUrl + "/clean-mqtt");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
+      }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const cleanModalElem = document.getElementById("modal-clean");
 
 document.querySelectorAll(".action-clean").forEach((btn) => {
-btn.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(cleanModalElem);
-  const log = cleanModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = cleanModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  btn.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(cleanModalElem);
+    const log = cleanModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = cleanModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = cleanModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = cleanModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/clean");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({html: "Program exited successfully."});
-        downloadButton.classList.remove('disabled');
-      } else {
-        M.toast({html: `Program failed with code ${data.code}`});
+    const logSocket = new WebSocket(wsUrl + "/clean");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({html: "Program exited successfully."});
+          downloadButton.classList.remove('disabled');
+        } else {
+          M.toast({html: `Program failed with code ${data.code}`});
+        }
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const hassConfigModalElem = document.getElementById("modal-hass-config");
 
 document.querySelectorAll(".action-hass-config").forEach((btn) => {
-btn.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(hassConfigModalElem);
-  const log = hassConfigModalElem.querySelector(".log");
-  log.innerHTML = "";
-  const stopLogsButton = hassConfigModalElem.querySelector(".stop-logs");
-  let stopped = false;
-  stopLogsButton.innerHTML = "Stop";
-  modalInstance.open();
+  btn.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(hassConfigModalElem);
+    const log = hassConfigModalElem.querySelector(".log");
+    log.innerHTML = "";
+    const stopLogsButton = hassConfigModalElem.querySelector(".stop-logs");
+    let stopped = false;
+    stopLogsButton.innerHTML = "Stop";
+    modalInstance.open();
 
-  const filenameField = hassConfigModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+    const filenameField = hassConfigModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  const logSocket = new WebSocket(wsUrl + "/hass-config");
-  logSocket.addEventListener('message', (event) => {
-    const data = JSON.parse(event.data);
-    if (data.event === "line") {
-      const msg = data.data;
-      log.innerHTML += colorReplace(msg);
-    } else if (data.event === "exit") {
-      if (data.code === 0) {
-        M.toast({html: "Program exited successfully."});
-        downloadButton.classList.remove('disabled');
-      } else {
-        M.toast({html: `Program failed with code ${data.code}`});
+    const logSocket = new WebSocket(wsUrl + "/hass-config");
+    logSocket.addEventListener('message', (event) => {
+      const data = JSON.parse(event.data);
+      if (data.event === "line") {
+        const msg = data.data;
+        log.innerHTML += colorReplace(msg);
+      } else if (data.event === "exit") {
+        if (data.code === 0) {
+          M.toast({html: "Program exited successfully."});
+          downloadButton.classList.remove('disabled');
+        } else {
+          M.toast({html: `Program failed with code ${data.code}`});
+        }
+        stopLogsButton.innerHTML = "Close";
+        stopped = true;
       }
-      stopLogsButton.innerHTML = "Close";
-      stopped = true;
-    }
+    });
+    logSocket.addEventListener('open', () => {
+      const msg = JSON.stringify({configuration: configuration});
+      logSocket.send(msg);
+    });
+    logSocket.addEventListener('close', () => {
+      if (!stopped) {
+        M.toast({html: 'Terminated process.'});
+      }
+    });
+    modalInstance.options.onCloseStart = () => {
+      logSocket.close();
+    };
   });
-  logSocket.addEventListener('open', () => {
-    const msg = JSON.stringify({configuration: configuration});
-    logSocket.send(msg);
-  });
-  logSocket.addEventListener('close', () => {
-    if (!stopped) {
-      M.toast({html: 'Terminated process.'});
-    }
-  });
-  modalInstance.options.onCloseStart = () => {
-    logSocket.close();
-  };
-});
 });
 
 const editModalElem = document.getElementById("modal-editor");
@@ -486,58 +487,59 @@ editor.session.setOption('tabSize', 2);
 
 const saveButton = editModalElem.querySelector(".save-button");
 const saveEditor = () => {
-fetch(`/edit?configuration=${configuration}`, {
-    credentials: "same-origin",
-    method: "POST",
-    body: editor.getValue()
-  }).then(res => res.text()).then(() => {
-    M.toast({
-      html: `Saved <code class="inlinecode">${configuration}</code>`
+  fetch(`/edit?configuration=${configuration}`, {
+      credentials: "same-origin",
+      method: "POST",
+      body: editor.getValue()
+    }).then(res => res.text()).then(() => {
+      M.toast({
+        html: `Saved <code class="inlinecode">${configuration}</code>`
+      });
     });
-  });
 };
 
 editor.commands.addCommand({
-name: 'saveCommand',
-bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
-exec: saveEditor,
-readOnly: false
+  name: 'saveCommand',
+  bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
+  exec: saveEditor,
+  readOnly: false
 });
 
 saveButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
-btn.addEventListener('click', (e) => {
-  configuration = e.target.getAttribute('data-node');
-  const modalInstance = M.Modal.getInstance(editModalElem);
-  const filenameField = editModalElem.querySelector('.filename');
-  filenameField.innerHTML = configuration;
+  btn.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    const modalInstance = M.Modal.getInstance(editModalElem);
+    const filenameField = editModalElem.querySelector('.filename');
+    filenameField.innerHTML = configuration;
 
-  fetch(`/edit?configuration=${configuration}`, {credentials: "same-origin"})
-    .then(res => res.text()).then(response => {
-      editor.setValue(response, -1);
+    fetch(`/edit?configuration=${configuration}`, {credentials: "same-origin"})
+      .then(res => res.text()).then(response => {
+        editor.setValue(response, -1);
+    });
+
+    modalInstance.open();
   });
-
-  modalInstance.open();
-});
 });
 
 const modalSetupElem = document.getElementById("modal-wizard");
 const setupWizardStart = document.getElementById('setup-wizard-start');
 const startWizard = () => {
-const modalInstance = M.Modal.getInstance(modalSetupElem);
-modalInstance.open();
+  const modalInstance = M.Modal.getInstance(modalSetupElem);
+  modalInstance.open();
 
-modalInstance.options.onCloseStart = () => {
+  modalInstance.options.onCloseStart = () => {
 
+  };
+
+  $('.stepper').activateStepper({
+    linearStepsNavigation: false,
+    autoFocusInput: true,
+    autoFormCreation: true,
+    showFeedbackLoader: true,
+    parallel: false
+  });
 };
 
-$('.stepper').activateStepper({
-  linearStepsNavigation: false,
-  autoFocusInput: true,
-  autoFormCreation: true,
-  showFeedbackLoader: true,
-  parallel: false
-});
-};
 setupWizardStart.addEventListener('click', startWizard);

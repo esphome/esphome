@@ -9,6 +9,7 @@ import sys
 
 import paho.mqtt.client as mqtt
 
+from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
     CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, \
     CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
@@ -54,7 +55,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
     return 0
 
 
-def show_logs(config, topic=None, username=None, password=None, client_id=None, escape=False):
+def show_logs(config, topic=None, username=None, password=None, client_id=None):
     if topic is not None:
         pass  # already have topic
     elif CONF_MQTT in config:
@@ -73,7 +74,7 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None, 
     def on_message(client, userdata, msg):
         time = datetime.now().time().strftime(u'[%H:%M:%S]')
         message = time + msg.payload
-        if escape:
+        if core.FROM_DASHBOARD:
             message = message.replace('\033', '\\033')
         safe_print(message)
 

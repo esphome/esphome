@@ -105,7 +105,7 @@ class EsphomeyamlLogsHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = CONFIG_DIR + '/' + js['configuration']
-        return ["esphomeyaml", config_file, "logs", '--serial-port', js["port"], '--escape']
+        return ["esphomeyaml", config_file, "logs", '--serial-port', js["port"], '--dashboard']
 
 
 class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
@@ -113,42 +113,42 @@ class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
         return ["esphomeyaml", config_file, "run", '--upload-port', js["port"],
-                '--escape', '--use-esptoolpy']
+                '--dashboard']
 
 
 class EsphomeyamlCompileHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "compile"]
+        return ["esphomeyaml", config_file, "compile", '--dashboard']
 
 
 class EsphomeyamlValidateHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "config"]
+        return ["esphomeyaml", config_file, "config", '--dashboard']
 
 
 class EsphomeyamlCleanMqttHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "clean-mqtt"]
+        return ["esphomeyaml", config_file, "clean-mqtt", '--dashboard']
 
 
 class EsphomeyamlCleanHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "clean"]
+        return ["esphomeyaml", config_file, "clean", '--dashboard']
 
 
 class EsphomeyamlHassConfigHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "hass-config"]
+        return ["esphomeyaml", config_file, "hass-config", '--dashboard']
 
 
 class SerialPortRequestHandler(BaseHandler):

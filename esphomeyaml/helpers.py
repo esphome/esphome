@@ -49,12 +49,18 @@ def cpp_string_escape(string, encoding='utf-8'):
     return '"' + result + '"'
 
 
-def color(the_color, message='', reset=None):
-    """Color helper."""
+def color(the_color, message=''):
+    from esphomeyaml import core
     from colorlog.escape_codes import escape_codes, parse_colors
+
     if not message:
-        return parse_colors(the_color)
-    return parse_colors(the_color) + message + escape_codes[reset or 'reset']
+        res = parse_colors(the_color)
+    else:
+        res = parse_colors(the_color) + message + escape_codes['reset']
+
+    if core.FROM_DASHBOARD:
+        res = res.replace('\033', '\\033')
+    return res
 
 
 def run_system_command(*args):

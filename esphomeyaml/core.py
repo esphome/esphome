@@ -398,3 +398,4 @@ CORE = EsphomeyamlCore()
 
 ConfigType = Dict[str, Any]
 CoreType = EsphomeyamlCore
+FROM_DASHBOARD = False

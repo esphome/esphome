@@ -2,10 +2,10 @@ from __future__ import print_function
 
 from collections import OrderedDict
 import importlib
+import json
 import logging
 
 import voluptuous as vol
-from voluptuous.humanize import humanize_error
 
 from esphomeyaml import core, core_config, yaml_util
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
@@ -268,22 +268,53 @@ def validate_config(config):
 REQUIRED = ['esphomeyaml', 'wifi']
 
 
-def _format_config_error(ex, domain, config):
-    message = u"Invalid config for [{}]: ".format(domain)
+def _nested_getitem(data, path):
+    for item_index in path:
+        try:
+            data = data[item_index]
+        except (KeyError, IndexError, TypeError):
+            return None
+    return data
+
+
+def _format_path(path):
+    return u'->'.join(unicode(m) for m in path)
+
+
+def humanize_error(config, validation_error):
+    offending_item_summary = _nested_getitem(config, validation_error.path)
+    if isinstance(offending_item_summary, dict):
+        offending_item_summary = json.dumps(offending_item_summary)
+    return u'{}. Got {}'.format(validation_error, offending_item_summary)
+
+
+def _format_config_error(ex, domain, config, recursion=False):
+    message = u"" if recursion else u"Invalid config for [{}]: ".format(domain)
+    if isinstance(ex, vol.MultipleInvalid):
+        return color('red', message + u'\n'.join(sorted(
+            _format_config_error(sub_error, domain, config, recursion=True)
+            for sub_error in ex.errors
+        )))
+
     if u'extra keys not allowed' in ex.error_message:
-        message += u'[{}] is an invalid option for [{}]. Check: {}->{}.' \
-            .format(ex.path[-1], domain, domain,
-                    u'->'.join(str(m) for m in ex.path))
+        message += u'[{}] is an invalid option for [{}].' \
+            .format(ex.path[-1], domain)
+    elif u'required key not provided' in ex.error_message:
+        message += u"'{}' is a required option for [{}]." \
+                   u"".format(ex.path[-1], domain)
     else:
         message += u'{}.'.format(humanize_error(config, ex))
+
+    message += u' Check {}->{}.'.format(domain, _format_path(ex.path))
+    message = color('red', message)
 
     if isinstance(config, list):
         return message
 
     domain_config = config.get(domain, config)
-    message += u" (See {}, line {}). ".format(
+    message += color('cyan', u" (See {}, line {}). ".format(
         getattr(domain_config, '__config_file__', '?'),
-        getattr(domain_config, '__line__', '?'))
+        getattr(domain_config, '__line__', '?')))
 
     return message
 
@@ -316,7 +347,7 @@ def line_info(obj, **kwargs):
     return '?'
 
 
-def dump_dict(layer, indent_count=3, listi=False, **kwargs):
+def dump_dict(layer, indent_count=0, listi=False, **kwargs):
     def sort_dict_key(val):
         """Return the dict key for sorting."""
         key = str.lower(val[0])
@@ -358,9 +389,7 @@ def read_config():
     if excepts:
         safe_print(color('bold_white', u"Failed config"))
         for domain, config in excepts.iteritems():
-            safe_print(u' {} {}'.format(color('bold_red', domain + u':'),
-                                        color('red', '', reset='red')))
-            dump_dict(config, reset='red')
-            safe_print(color('reset'))
+            safe_print(color('bold_red', domain + u':'))
+            dump_dict(config)
         return None
     return OrderedDict(res)

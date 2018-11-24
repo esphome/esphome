@@ -59,7 +59,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
 def validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise vol.Invalid("Cannot have WiFi password without SSID!")
-    if CONF_SSID not in config and CONF_AP not in config:
+    if (CONF_SSID not in config) and (CONF_AP not in config):
         raise vol.Invalid("Please specify at least an SSID or an Access Point "
                           "to create.")
     return config
