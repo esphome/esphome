@@ -94,7 +94,7 @@ class StorageJSON(object):
             esphomelib_version=None,
             src_version=1,
             arduino_version=None,
-            address=None,
+            address=address,
             esp_platform=esp_platform,
             board=board,
             build_path=None,

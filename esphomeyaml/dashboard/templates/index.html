@@ -387,25 +387,97 @@
           <div class="row">
             <p>
               Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
-              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices).
+              Please choose the board you're using below. If you're not sure you can also use similar ones
+              or even the "Generic" option. In most cases that will work too.
             </p>
             <div class="input-field col s12">
-              <select id="esp_type" name="platform" required>
-                <option value="ESP8266">ESP8266</option>
-                <option value="ESP32">ESP32</option>
+              <select id="board" name="board" required>
+                <optgroup label="ESP8266">
+                  <option value="esp01_1m">Generic ESP8266 (for example Sonoff)</option>
+                  <option value="nodemcuv2">NodeMCU</option>
+                  <option value="d1_mini">Wemos D1 and Wemos D1 mini</option>
+                  <option value="d1_mini_lite">Wemos D1 mini Lite</option>
+                  <option value="d1_mini_pro">Wemos D1 mini Pro</option>
+                  <option value="huzzah">Adafruit HUZZAH ESP8266</option>
+                  <option value="oak">DigiStump Oak</option>
+                  <option value="thing">Sparkfun ESP8266 Thing</option>
+                  <option value="thingdev">Sparkfun ESP8266 Thing - Dev Board</option>
+                </optgroup>
+                <optgroup label="ESP32">
+                  <option value="esp-wrover-kit">Generic ESP32 (WROVER Module)</option>
+                  <option value="nodemcu-32s">NodeMCU-32S</option>
+                  <option value="lolin_d32">Wemos Lolin D32</option>
+                  <option value="lolin_d32_pro">Wemos Lolin D32 Pro</option>
+                  <option value="featheresp32">Adafruit ESP32 Feather</option>
+                  <option value="m5stack-core-esp32">M5Stack Core ESP32</option>
+                </optgroup>
+                <optgroup label="Other ESP8266s">
+                  <option value="gen4iod">4D Systems gen4 IoD Range</option>
+                  <option value="wifi_slot">Amperka WiFi Slot</option>
+                  <option value="espduino">Doit ESPDuino</option>
+                  <option value="espectro">DycodeX ESPectro Core</option>
+                  <option value="espino">ESPino</option>
+                  <option value="esp_wroom_02">Espressif ESP-WROOM-02 module</option>
+                  <option value="esp12e">Espressif ESP-12E module</option>
+                  <option value="esp01">Espressif ESP-01 512k module</option>
+                  <option value="esp07">Espressif ESP-07 module</option>
+                  <option value="esp8285">Generic ESP8285 module</option>
+                  <option value="espresso_lite_v1">ESPert ESPresso Lite 1.0</option>
+                  <option value="espresso_lite_v2">ESPert ESPresso Lite 2.0</option>
+                  <option value="phoenix_v1">ESPert Phoenix 1.0</option>
+                  <option value="wifinfo">WiFInfo</option>
+                  <option value="heltec_wifi_kit_8">Heltec WiFi kit 8</option>
+                  <option value="nodemcu">NodeMCU 0.9</option>
+                  <option value="modwifi">Olimex MOD-WIFI</option>
+                  <option value="wio_link">SeedStudio Wio Link</option>
+                  <option value="wio_node">SeedStudio Wio Node</option>
+                  <option value="sparkfunBlynk">Sparkfun Blynk Board</option>
+                  <option value="esp210">SweetPea ESP-210</option>
+                  <option value="espinotee">ThaiEasyElec ESPino</option>
+                  <option value="d1">Wemos D1 Revision 1</option>
+                  <option value="wifiduino">WiFiDuino</option>
+                  <option value="xinabox_cw01">XinaBox CW01</option>
+                </optgroup>
+                <optgroup label="Other ESP32s">
+                  <option value="lolin32">Wemos Lolin 32</option>
+                  <option value="esp32dev">Espressif ESP32 Dev Module</option>
+                  <option value="m5stack-fire">M5Stack FIRE</option>
+                  <option value="wemosbat">Wemos WiFi &amp; Bluetooth Battery</option>
+                  <option value="node32s">Aiyarafun Node32s</option>
+                  <option value="espea32">April Brother ESPea32</option>
+                  <option value="firebeetle32">DFRobot FireBeetle-ESP32</option>
+                  <option value="esp32doit-devkit-v1">Doit ESP32 Devkit v1</option>
+                  <option value="pocket_32">Dongsen Tech Pocket 32</option>
+                  <option value="espectro32">DycodeX ESPectro32</option>
+                  <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
+                  <option value="esp320">Electronic SweetPeas ESP320</option>
+                  <option value="pico32">Espressif ESP32 Pico Kit</option>
+                  <option value="odroid_esp32">Hardkernel Odroid GO</option>
+                  <option value="heltec_wifi_kit_32">Heltec WIFI Kit 32</option>
+                  <option value="heltec_wifi_lora_32">Heltec WIFI LoRa 32</option>
+                  <option value="hornbill32dev">Hornbill ESP32 Dev</option>
+                  <option value="hornbill32minima">Hornbill ESP32 Minima</option>
+                  <option value="intorobot">IntoRobot Fig</option>
+                  <option value="mhetesp32devkit">MH-ET Live ESP32 Devkit</option>
+                  <option value="mhetesp32minikit">MH-ET Live ESP32 Minikit</option>
+                  <option value="nano32">MakerAsia Nano32</option>
+                  <option value="microduino-core-esp32">Microduino Core ESP32</option>
+                  <option value="quantum">Noduino Quantum</option>
+                  <option value="esp32-evb">Olimex ESP32-EVB</option>
+                  <option value="esp32-gateway">Olimex ESP32-GATEWAY</option>
+                  <option value="esp32-pro">Olimex ESP32-PRO</option>
+                  <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
+                  <option value="alksesp32">RoboticsBrno ALKS ESP32</option>
+                  <option value="esp32thing">Sparkfun ESP32 Thing</option>
+                  <option value="ttgo-lora32-v1">TTGO LoRa32-OLED v1</option>
+                  <option value="espino32">ThaiEasyElec ESPino32</option>
+                  <option value="widora-air">Widora AIR</option>
+                  <option value="xinabox_cw02">XinaBox CW02</option>
+                  <option value="iotbusio">oddWires IoT-Bus Io</option>
+                  <option value="iotbusproteus">oddWires Proteus IoT-Bus</option>
+                  <option value="nina_w10">u-blox NINA-W10 series</option>
+                </optgroup>
               </select>
-              <label>Microcontroller Type</label>
-            </div>
-            <p>
-              I'm also going to need to know which type of board you're using. Please go to
-              <a href="http://docs.platformio.org/en/latest/platforms/espressif32.html#boards" target="_blank">ESP32 boards</a> or
-              <a href="http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards" target="_blank">ESP8266 boards</a>,
-              find your board and enter it here. For example, enter <code class="inlinecode">nodemcuv2</code>
-              for ESP8266 NodeMCU boards. Note: Use <code class="inlinecode">esp01_1m</code> for Sonoff devices.
-            </p>
-            <div class="input-field col s12">
-              <input id="board_type" class="validate" type="text" name="board" required>
-              <label for="board_type">Board Type</label>
             </div>
           </div>
           <div class="step-actions">
