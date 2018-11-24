@@ -1,6 +1,6 @@
 # Esphomeyaml HassIO Add-On
 
-![esphomeyaml logo][logo.png]
+[![esphomeyaml logo](logo.png)](https://esphomelib.com/esphomeyaml/index.html)
 
 ## WARNING! THIS IS AN EDGE VERSION!
 
@@ -21,9 +21,7 @@ directly through HassIO **with no programming experience required**. All you nee
 is write YAML configuration files; the rest (over-the-air updates, compiling) is all
 handled by esphomeyaml.
 
-[Click here for the full documentation][docs]
-
-![esphomeyaml dashboard screenshot][screenshot.png]
+![esphomeyaml dashboard screenshot](screenshot.png)
 
 ## Installation
 
@@ -39,14 +37,7 @@ first:
 
 **NOTE**: Installation on RPis running in 64-bit mode is currently not possible. Please use the 32-bit variant of HassOS instead.
 
-## Docker status
-
-![Supports armhf Architecture][armhf-shield]
-![Supports amd64 Architecture][amd64-shield]
-![Supports i386 Architecture][i386-shield]
-
-[![Docker Layers][layers-shield]][microbadger]
-[![Docker Pulls][pulls-shield]][dockerhub]
+You can view the esphomeyaml docs here: https://esphomelib.com/esphomeyaml/index.html
 
 ## Configuration
 

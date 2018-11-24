@@ -62,21 +62,20 @@ test2:
   stage: build
   script:
     - docker run --rm --privileged hassioaddons/qemu-user-static:latest
-    - BUILD_FROM=homeassistant/${ADDON_ARCH}-base-ubuntu:latest
+    - BUILD_FROM=hassioaddons/ubuntu-base-${BUILD_ARCH}:2.2.0
     - ADDON_VERSION="${CI_COMMIT_TAG#v}"
     - ADDON_VERSION="${ADDON_VERSION:-${CI_COMMIT_SHA:0:7}}"
-    - ESPHOMELIB_VERSION="${ESPHOMELIB_VERSION:-''}"
     - echo "Build from ${BUILD_FROM}"
     - echo "Add-on version ${ADDON_VERSION}"
-    - echo "Esphomelib version ${ESPHOMELIB_VERSION}"
     - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev"
     - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - |
       docker build \
         --build-arg "BUILD_FROM=${BUILD_FROM}" \
-        --build-arg "ADDON_ARCH=${ADDON_ARCH}" \
-        --build-arg "ADDON_VERSION=${ADDON_VERSION}" \
-        --build-arg "ESPHOMELIB_VERSION=${ESPHOMELIB_VERSION}" \
+        --build-arg "BUILD_DATE=$(date +"%Y-%m-%dT%H:%M:%SZ")" \
+        --build-arg "BUILD_ARCH=${ADDON_ARCH}" \
+        --build-arg "BUILD_REF=${CI_COMMIT_SHA}" \
+        --build-arg "BUILD_VERSION=${ADDON_VERSION}" \
         --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
         --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         --file "docker/Dockerfile.hassio" \
@@ -209,7 +208,6 @@ build:hassio-armhf-edge:
   variables:
     ADDON_ARCH: armhf
     DO_PUSH: "false"
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-armhf:
   <<: *build-hassio-release
@@ -221,7 +219,6 @@ build:hassio-aarch64-edge:
   variables:
     ADDON_ARCH: aarch64
     DO_PUSH: "false"
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-aarch64:
   <<: *build-hassio-release
@@ -233,7 +230,6 @@ build:hassio-i386-edge:
   variables:
     ADDON_ARCH: i386
     DO_PUSH: "false"
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-i386:
   <<: *build-hassio-release
@@ -245,7 +241,6 @@ build:hassio-amd64-edge:
   variables:
     ADDON_ARCH: amd64
     DO_PUSH: "false"
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-amd64:
   <<: *build-hassio-release
