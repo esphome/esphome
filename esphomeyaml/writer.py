@@ -12,7 +12,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, \
     CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
     CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphomeyaml.core import CORE, EsphomeyamlError
-from esphomeyaml.core_config import VERSION_REGEX
+from esphomeyaml.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCHIVE_ZIP
 from esphomeyaml.helpers import mkdir_p, run_system_command
 from esphomeyaml.storage_json import StorageJSON, storage_path
 from esphomeyaml.util import safe_print
@@ -222,11 +222,13 @@ def gather_lib_deps():
     lib_deps = set()
     esphomelib_version = CORE.config[CONF_ESPHOMEYAML][CONF_ESPHOMELIB_VERSION]
     if CONF_REPOSITORY in esphomelib_version:
+        repo = esphomelib_version[CONF_REPOSITORY]
         ref = next((esphomelib_version[x] for x in (CONF_COMMIT, CONF_BRANCH, CONF_TAG)
                     if x in esphomelib_version), None)
-        this_version = esphomelib_version[CONF_REPOSITORY]
-        if ref is not None:
-            this_version += '#' + ref
+        if CONF_TAG in esphomelib_version and repo == LIBRARY_URI_REPO:
+            this_version = GITHUB_ARCHIVE_ZIP.format(ref)
+        elif ref is not None:
+            this_version = repo + '#' + ref
         lib_deps.add(this_version)
     elif CORE.is_local_esphomelib_copy:
         src_path = CORE.relative_path(esphomelib_version[CONF_LOCAL])

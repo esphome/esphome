@@ -86,7 +86,7 @@ def wizard_write(path, **kwargs):
     name = kwargs['name']
     board = kwargs['board']
     if 'platform' not in kwargs:
-        kwargs['platform'] = 'ESP8266' if board in ESP32_BOARD_PINS else 'ESP32'
+        kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
 
     with codecs.open(path, 'w') as f_handle:

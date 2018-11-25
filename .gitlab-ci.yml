@@ -11,6 +11,8 @@ stages:
 
 .lint: &lint
   stage: lint
+  before_script:
+    - pip install -e .
   tags:
     - python2.7
     - esphomeyaml-lint

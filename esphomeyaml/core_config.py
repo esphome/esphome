@@ -19,6 +19,7 @@ from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
 _LOGGER = logging.getLogger(__name__)
 
 LIBRARY_URI_REPO = u'https://github.com/OttoWinter/esphomelib.git'
+GITHUB_ARCHIVE_ZIP = u'https://github.com/OttoWinter/esphomelib/archive/{}.zip'
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
 StartupTrigger = esphomelib_ns.StartupTrigger
