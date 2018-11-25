@@ -26,9 +26,6 @@ stages:
     - esphomeyaml-test
   variables:
     TZ: UTC
-  cache:
-    paths:
-      - tests/build
 
 .docker-builder: &docker-builder
   before_script:
@@ -64,7 +61,7 @@ test2:
   stage: build
   script:
     - docker run --rm --privileged hassioaddons/qemu-user-static:latest
-    - BUILD_FROM=hassioaddons/ubuntu-base-${BUILD_ARCH}:2.2.0
+    - BUILD_FROM=hassioaddons/ubuntu-base-${ADDON_ARCH}:2.2.0
     - ADDON_VERSION="${CI_COMMIT_TAG#v}"
     - ADDON_VERSION="${ADDON_VERSION:-${CI_COMMIT_SHA:0:7}}"
     - echo "Build from ${BUILD_FROM}"
@@ -216,16 +213,16 @@ build:hassio-armhf:
   variables:
     ADDON_ARCH: armhf
 
-build:hassio-aarch64-edge:
-  <<: *build-hassio-edge
-  variables:
-    ADDON_ARCH: aarch64
-    DO_PUSH: "false"
+#build:hassio-aarch64-edge:
+#  <<: *build-hassio-edge
+#  variables:
+#    ADDON_ARCH: aarch64
+#    DO_PUSH: "false"
 
-build:hassio-aarch64:
-  <<: *build-hassio-release
-  variables:
-    ADDON_ARCH: aarch64
+#build:hassio-aarch64:
+#  <<: *build-hassio-release
+#  variables:
+#    ADDON_ARCH: aarch64
 
 build:hassio-i386-edge:
   <<: *build-hassio-edge
@@ -260,15 +257,15 @@ deploy-beta:armhf:
   variables:
     ADDON_ARCH: armhf
 
-deploy-release:aarch64:
-  <<: *deploy-release
-  variables:
-    ADDON_ARCH: aarch64
+#deploy-release:aarch64:
+#  <<: *deploy-release
+#  variables:
+#    ADDON_ARCH: aarch64
 
-deploy-beta:aarch64:
-  <<: *deploy-beta
-  variables:
-    ADDON_ARCH: aarch64
+#deploy-beta:aarch64:
+#  <<: *deploy-beta
+#  variables:
+#    ADDON_ARCH: aarch64
 
 deploy-release:i386:
   <<: *deploy-release
