@@ -1,4 +1,3 @@
-import codecs
 import logging
 import os
 import re
@@ -233,6 +232,7 @@ def lib_deps(config):
 def includes(config):
     ret = []
     for include in config.get(CONF_INCLUDES, []):
-        with codecs.open(CORE.relative_path(include), 'r', encoding='utf-8') as f_handle:
-            ret.append(f_handle.read())
+        path = CORE.relative_path(include)
+        res = os.path.relpath(path, CORE.relative_build_path('src', 'main.cpp'))
+        ret.append(res)
     return ret

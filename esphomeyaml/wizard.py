@@ -6,7 +6,6 @@ import unicodedata
 
 import voluptuous as vol
 
-from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import color
@@ -264,17 +263,7 @@ def wizard(path):
     safe_print("Please enter the " + color('green', 'address') + " of your MQTT broker.")
     safe_print()
     safe_print("For example \"{}\".".format(color('bold_white', '192.168.178.84')))
-    while True:
-        broker = raw_input(color('bold_white', "(broker): "))
-        try:
-            broker = mqtt.validate_broker(broker)
-            break
-        except vol.Invalid as err:
-            safe_print(color('red', u"The broker address \"{}\" seems to be invalid: {} :("
-                                    u"".format(broker, err)))
-            safe_print("Please try again.")
-            safe_print()
-            sleep(1)
+    broker = raw_input(color('bold_white', "(broker): "))
 
     safe_print("Thanks! Now enter the " + color('green', 'username') + " and " +
                color('green', 'password') +

@@ -3,7 +3,8 @@ esphomeyaml:
   platform: ESP32
   board: nodemcu-32s
   # Use latest upstream esphomelib git version.
-  esphomelib_version: dev
+  esphomelib_version:
+    branch: custom-sensor-platform
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
