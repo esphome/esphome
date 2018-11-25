@@ -143,6 +143,9 @@ def replace_file_content(text, pattern, repl):
 
 def migrate_src_version_0_to_1():
     main_cpp = CORE.relative_build_path('src', 'main.cpp')
+    if not os.path.isfile(main_cpp):
+        return
+
     with codecs.open(main_cpp, 'r', encoding='utf-8') as f_handle:
         content = orig_content = f_handle.read()
 
