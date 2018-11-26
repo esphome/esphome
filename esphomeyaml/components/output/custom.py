@@ -1,15 +1,13 @@
 import voluptuous as vol
 
-from esphomeyaml.components import binary_sensor, output
+from esphomeyaml.components import output
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_OUTPUTS, CONF_TYPE
 from esphomeyaml.cpp_generator import process_lambda, variable
 from esphomeyaml.cpp_types import std_vector
 
-CustomBinaryOutputConstructor = binary_sensor.binary_sensor_ns.class_(
-    'CustomBinaryOutputConstructor')
-CustomFloatOutputConstructor = binary_sensor.binary_sensor_ns.class_(
-    'CustomFloatOutputConstructor')
+CustomBinaryOutputConstructor = output.output_ns.class_('CustomBinaryOutputConstructor')
+CustomFloatOutputConstructor = output.output_ns.class_('CustomFloatOutputConstructor')
 
 BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
