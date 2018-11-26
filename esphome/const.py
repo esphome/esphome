@@ -418,6 +418,8 @@ CONF_SEGMENTS = 'segments'
 CONF_MIN_POWER = 'min_power'
 CONF_MIN_VALUE = 'min_value'
 CONF_MAX_VALUE = 'max_value'
+CONF_QUERY_MODE = 'query_mode'
+CONF_RX_ONLY = 'rx_only'
 
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'

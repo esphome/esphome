@@ -488,6 +488,14 @@ sensor:
           payload: |-
             root["key"] = id(the_sensor).value;
             root["greeting"] = "Hello World";
+  - platform: sds011
+    pm_2_5:
+      name: "SDS011 PM2.5"
+    pm_10_0:
+      name: "SDS011 PM10.0"
+    update_interval: 5min
+    rx_only: false
+    query_mode: false
 
 
 esp32_touch:
