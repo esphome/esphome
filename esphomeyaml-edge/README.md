@@ -21,7 +21,7 @@ directly through HassIO **with no programming experience required**. All you nee
 is write YAML configuration files; the rest (over-the-air updates, compiling) is all
 handled by esphomeyaml.
 
-<p class="center">
+<p align="center">
 <img title="esphomeyaml dashboard screenshot" src="images/screenshot.png" width="700px"></img>
 </p>
 
