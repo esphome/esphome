@@ -45,7 +45,7 @@ Then just click UPLOAD and the sensor will magically appear in Home Assistant:
 To install this HassIO add-on you need to add the esphomeyaml add-on repository
 first:
 
-1. [Add esphomeyaml's HassIO add-ons repository][https://github.com/OttoWinter/esphomeyaml] to your HassIO instance. You can do this by navigating to the "Add-on Store" tab in the HassIO panel and then entering https://github.com/OttoWinter/esphomeyaml in the "Add new repository by URL" field.
+1. [Add esphomeyaml's HassIO add-ons repository](https://github.com/OttoWinter/esphomeyaml) to your HassIO instance. You can do this by navigating to the "Add-on Store" tab in the HassIO panel and then entering https://github.com/OttoWinter/esphomeyaml in the "Add new repository by URL" field.
 2. Now scroll down to the bottom of the page and select the "esphomeyaml-edge" add-on.
 3. Press install to download the add-on and unpack it on your machine. This can take some time.
 4. Optional: If you're using SSL certificates and want to encrypt your communication to this add-on, please enter `true` into the `ssl` field and set the `fullchain` and `certfile` options accordingly.
