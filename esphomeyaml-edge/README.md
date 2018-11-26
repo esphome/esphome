@@ -21,7 +21,22 @@ directly through HassIO **with no programming experience required**. All you nee
 is write YAML configuration files; the rest (over-the-air updates, compiling) is all
 handled by esphomeyaml.
 
-![esphomeyaml dashboard screenshot](screenshot.png)
+![esphomeyaml dashboard screenshot](images/screenshot.png)
+
+[_View the esphomeyaml documentation here_](https://esphomelib.com/esphomeyaml/index.html)
+
+## Example
+
+With esphomeyaml, you can go from a few lines of YAML straight to a custom-made
+firmware. For example, to include a [DHT22](https://esphomelib.com/esphomeyaml/components/sensor/dht.html) 
+temperature and humidity sensor, you just need to include 8 lines of YAML
+in your configuration file:
+
+![esphomeyaml DHT configuration example](images/dht-example.png)
+
+Then just click UPLOAD and the sensor will magically appear in Home Assistant:
+
+![esphomelib Home Assistant MQTT discovery](images/temperature-humidity.png)
 
 ## Installation
 
