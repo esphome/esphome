@@ -35,7 +35,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(DHTHumiditySensor),
     })),
-    vol.Optional(CONF_MODEL): vol.All(vol.Upper, cv.one_of(*DHT_MODELS)),
+    vol.Optional(CONF_MODEL): cv.one_of(*DHT_MODELS, upper=True),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 

@@ -64,8 +64,8 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_COLOR_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(TCS35725ColorTemperatureSensor),
     })),
-    vol.Optional(CONF_INTEGRATION_TIME): cv.one_of(*TCS34725_INTEGRATION_TIMES),
-    vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*TCS34725_GAINS)),
+    vol.Optional(CONF_INTEGRATION_TIME): cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
+    vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*TCS34725_GAINS), upper=True),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSOR_KEYS))
 

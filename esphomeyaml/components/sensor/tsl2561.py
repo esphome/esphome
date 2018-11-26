@@ -42,7 +42,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTSL2561Sensor),
     vol.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
     vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
-    vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*GAINS)),
+    vol.Optional(CONF_GAIN): cv.one_of(*GAINS, upper=True),
     vol.Optional(CONF_IS_CS_PACKAGE): cv.boolean,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))

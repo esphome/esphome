@@ -42,7 +42,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitter),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=28): vol.All(vol.Coerce(int), cv.one_of(28, 32)),
+        vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
     }),
     vol.Optional(CONF_NEC): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -53,7 +53,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     }),
     vol.Optional(CONF_SONY): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=12): vol.All(vol.Coerce(int), cv.one_of(12, 15, 20)),
+        vol.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
     }),
     vol.Optional(CONF_PANASONIC): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,

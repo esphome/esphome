@@ -47,10 +47,6 @@ FAN_SPEEDS = {
 }
 
 
-def validate_fan_speed(value):
-    return vol.All(vol.Upper, cv.one_of(*FAN_SPEEDS))(value)
-
-
 def setup_fan_core_(fan_var, mqtt_var, config):
     if CONF_INTERNAL in config:
         add(fan_var.set_internal(config[CONF_INTERNAL]))
@@ -110,7 +106,7 @@ CONF_FAN_TURN_ON = 'fan.turn_on'
 FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
     vol.Required(CONF_ID): cv.use_variable_id(FanState),
     vol.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
-    vol.Optional(CONF_SPEED): cv.templatable(validate_fan_speed),
+    vol.Optional(CONF_SPEED): cv.templatable(cv.one_of(*FAN_SPEEDS, upper=True)),
 })
 
 

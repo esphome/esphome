@@ -584,10 +584,22 @@ def valid(value):
     return value
 
 
-def one_of(*values):
+def one_of(*values, **kwargs):
     options = u', '.join(u"'{}'".format(x) for x in values)
+    lower = kwargs.get('lower', False)
+    upper = kwargs.get('upper', False)
+    string_ = kwargs.get('string', False) or lower or upper
+    to_int = kwargs.get('int', False)
 
     def validator(value):
+        if string_:
+            value = string(value)
+        if to_int:
+            value = int_(value)
+        if lower:
+            value = vol.Lower(value)
+        if upper:
+            value = vol.Upper(value)
         if value not in values:
             raise vol.Invalid(u"Unknown value '{}', must be one of {}".format(value, options))
         return value

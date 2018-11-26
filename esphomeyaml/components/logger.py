@@ -33,7 +33,7 @@ LOG_LEVEL_TO_ESP_LOG = {
 LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
 
 # pylint: disable=invalid-name
-is_log_level = vol.All(vol.Upper, cv.one_of(*LOG_LEVELS))
+is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def validate_local_no_higher_than_global(value):
@@ -110,7 +110,7 @@ CONF_LOGGER_LOG = 'logger.log'
 LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
     vol.Required(CONF_FORMAT): cv.string,
     vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
-    vol.Optional(CONF_LEVEL, default="DEBUG"): vol.All(vol.Upper, cv.one_of(*LOG_LEVEL_TO_ESP_LOG)),
+    vol.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(*LOG_LEVEL_TO_ESP_LOG, upper=True),
     vol.Optional(CONF_TAG, default="main"): cv.string,
 }), validate_printf)
 

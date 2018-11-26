@@ -257,11 +257,10 @@ PIN_MODES_ESP32 = [
 
 
 def pin_mode(value):
-    value = vol.All(vol.Coerce(str), vol.Upper)(value)
     if CORE.is_esp32:
-        return cv.one_of(*PIN_MODES_ESP32)(value)
+        return cv.one_of(*PIN_MODES_ESP32, upper=True)(value)
     elif CORE.is_esp8266:
-        return cv.one_of(*PIN_MODES_ESP8266)(value)
+        return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
     raise NotImplementedError
 
 
@@ -299,12 +298,12 @@ PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
 PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
     vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
-    vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("OUTPUT")),
+    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
     vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): vol.All(vol.Upper, cv.one_of("INPUT", "INPUT_PULLUP")),
+    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
 })
 
 

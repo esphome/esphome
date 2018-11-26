@@ -156,15 +156,15 @@ def default_build_path():
 
 CONFIG_SCHEMA = vol.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
-    vol.Required(CONF_PLATFORM): vol.All(vol.Upper, cv.one_of('ESP8266', 'ESPRESSIF8266',
-                                                              'ESP32', 'ESPRESSIF32')),
+    vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
+                                           upper=True),
     vol.Required(CONF_BOARD): validate_board,
     vol.Optional(CONF_ESPHOMELIB_VERSION, default='latest'): ESPHOMELIB_VERSION_SCHEMA,
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
 
-    vol.Optional(CONF_BOARD_FLASH_MODE): vol.All(vol.Lower, cv.one_of(*BUILD_FLASH_MODES)),
+    vol.Optional(CONF_BOARD_FLASH_MODE): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
         vol.Optional(CONF_PRIORITY): vol.Coerce(float),

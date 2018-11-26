@@ -1,6 +1,6 @@
 import voluptuous as vol
 
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
@@ -34,7 +34,6 @@ TurnOffAction = light_ns.class_('TurnOffAction', Action)
 TurnOnAction = light_ns.class_('TurnOnAction', Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
-
 
 MQTTJSONLightComponent = light_ns.class_('MQTTJSONLightComponent', mqtt.MQTTComponent)
 
@@ -355,7 +354,6 @@ def setup_light(light_obj, mqtt_obj, config):
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'
-
 
 CONF_LIGHT_TOGGLE = 'light.toggle'
 LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({

@@ -39,7 +39,7 @@ def validate_range(value):
     value = cv.string(value)
     if value.endswith(u'µT') or value.endswith('uT'):
         value = value[:-2]
-    return cv.one_of(*HMC5883L_RANGES)(int(value))
+    return cv.one_of(*HMC5883L_RANGES, int=True)(value)
 
 
 SENSOR_KEYS = [CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,

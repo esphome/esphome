@@ -153,7 +153,7 @@ def validate_multi_click_timing(value):
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
 
-    vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
+    vol.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
     vol.Optional(CONF_ON_PRESS): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
