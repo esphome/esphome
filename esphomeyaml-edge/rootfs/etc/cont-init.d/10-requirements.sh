@@ -21,7 +21,7 @@ if hass.config.true 'ssl'; then
             # Both files are missing, let's print a friendlier error message
             text = "You enabled encrypted connections using the \"ssl\": true option.
             However, the SSL files \"$(hass.config.get 'certfile')\" and \"$(hass.config.get 'keyfile')\"
-            were not found. If you're using HassIO on your local network and don't want
+            were not found. If you're using Hass.io on your local network and don't want
             to encrypt connections to the esphomeyaml dashboard, you can manually disable
             SSL by setting \"ssl\" to false."
             hass.die "${text}"

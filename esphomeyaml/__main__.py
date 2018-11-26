@@ -455,7 +455,7 @@ def parse_args(argv):
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
     dashboard.add_argument("--hassio",
-                           help="Internal flag used to tell esphomeyaml is started as a HassIO "
+                           help="Internal flag used to tell esphomeyaml is started as a Hass.io "
                                 "add-on.",
                            action="store_true")
 

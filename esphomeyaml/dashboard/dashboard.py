@@ -420,7 +420,7 @@ class LoginHandler(BaseHandler):
                 self.redirect('/')
                 return
         except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.warn("Error during HassIO auth request: %s", err)
+            _LOGGER.warn("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_hassio_login(error="Internal server error")
             return

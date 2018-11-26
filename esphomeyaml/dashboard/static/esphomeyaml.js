@@ -3,24 +3,24 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
 const colorReplace = (input) => {
-input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
-input = input.replace(/\\033\[(?:0?1;)?31m/g, '<span class="e bold">');
-input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
-input = input.replace(/\\033\[(?:0?1;)?32m/g, '<span class="i bold">');
-input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
-input = input.replace(/\\033\[(?:0?1;)?33m/g, '<span class="w bold">');
-input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
-input = input.replace(/\\033\[(?:0?1;)?35m/g, '<span class="c bold">');
-input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
-input = input.replace(/\\033\[(?:0?1;)?36m/g, '<span class="d bold">');
-input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
-input = input.replace(/\\033\[(?:0?1;)?37m/g, '<span class="v bold">');
-input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
-input = input.replace(/\\033\[(?:0?1;)?38m/g, '<span class="vv bold">');
-input = input.replace(/\\033\[0m/g, '</span>');
+  input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
+  input = input.replace(/\\033\[(?:0?1;)?31m/g, '<span class="e bold">');
+  input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
+  input = input.replace(/\\033\[(?:0?1;)?32m/g, '<span class="i bold">');
+  input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
+  input = input.replace(/\\033\[(?:0?1;)?33m/g, '<span class="w bold">');
+  input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
+  input = input.replace(/\\033\[(?:0?1;)?35m/g, '<span class="c bold">');
+  input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
+  input = input.replace(/\\033\[(?:0?1;)?36m/g, '<span class="d bold">');
+  input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
+  input = input.replace(/\\033\[(?:0?1;)?37m/g, '<span class="v bold">');
+  input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
+  input = input.replace(/\\033\[(?:0?1;)?38m/g, '<span class="vv bold">');
+  input = input.replace(/\\033\[0m/g, '</span>');
 
-return input;
+  return input;
 };
 
 let configuration = "";

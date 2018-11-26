@@ -1,4 +1,4 @@
-# Esphomeyaml HassIO Add-On
+# Esphomeyaml Hass.io Add-On
 
 [![esphomeyaml logo](logo.png)](https://esphomelib.com/esphomeyaml/index.html)
 
@@ -17,7 +17,7 @@ It is intended for:
 ## About
 
 This add-on allows you to manage and program your ESP8266 and ESP32 based microcontrollers
-directly through HassIO **with no programming experience required**. All you need to do
+directly through Hass.io **with no programming experience required**. All you need to do
 is write YAML configuration files; the rest (over-the-air updates, compiling) is all
 handled by esphomeyaml.
 
@@ -42,15 +42,15 @@ Then just click UPLOAD and the sensor will magically appear in Home Assistant:
 
 ## Installation
 
-To install this HassIO add-on you need to add the esphomeyaml add-on repository
+To install this Hass.io add-on you need to add the esphomeyaml add-on repository
 first:
 
-1. [Add esphomeyaml's HassIO add-ons repository](https://github.com/OttoWinter/esphomeyaml) to your HassIO instance. You can do this by navigating to the "Add-on Store" tab in the HassIO panel and then entering https://github.com/OttoWinter/esphomeyaml in the "Add new repository by URL" field.
+1. Add esphomeyaml's Hass.io add-ons repository to your Hass.io instance. You can do this by navigating to the "Add-on Store" tab in the Hass.io panel and then entering https://github.com/OttoWinter/esphomeyaml in the "Add new repository by URL" field.
 2. Now scroll down to the bottom of the page and select the "esphomeyaml-edge" add-on.
 3. Press install to download the add-on and unpack it on your machine. This can take some time.
 4. Optional: If you're using SSL certificates and want to encrypt your communication to this add-on, please enter `true` into the `ssl` field and set the `fullchain` and `certfile` options accordingly.
 5. Start the add-on, check the logs of the add-on to see if everything went well.
-6. Click "OPEN WEB UI" to open the esphomeyaml dashboard. You will be asked for your Home Assistant credentials - esphomeyaml uses HassIO's authentication system to log you in.
+6. Click "OPEN WEB UI" to open the esphomeyaml dashboard. You will be asked for your Home Assistant credentials - esphomeyaml uses Hass.io's authentication system to log you in.
 
 **NOTE**: Installation on RPis running in 64-bit mode is currently not possible. Please use the 32-bit variant of HassOS instead.
 
