@@ -377,7 +377,7 @@ CONF_OUTPUTS = 'outputs'
 CONF_SWITCHES = 'switches'
 CONF_TEXT_SENSORS = 'text_sensors'
 CONF_INCLUDES = 'includes'
-CONF_EXTRA_LIBRARIES = 'extra_libraries'
+CONF_LIBRARIES = 'libraries'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

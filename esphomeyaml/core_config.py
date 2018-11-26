@@ -11,7 +11,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266
     CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, \
     CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, \
     CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, ESPHOMELIB_VERSION, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266, CONF_EXTRA_LIBRARIES, CONF_INCLUDES
+    ESP_PLATFORM_ESP8266, CONF_LIBRARIES, CONF_INCLUDES
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
 from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
@@ -176,7 +176,7 @@ CONFIG_SCHEMA = vol.Schema({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
     }),
     vol.Optional(CONF_INCLUDES): vol.All(cv.ensure_list, [cv.file_]),
-    vol.Optional(CONF_EXTRA_LIBRARIES): vol.All(cv.ensure_list, [cv.string_strict]),
+    vol.Optional(CONF_LIBRARIES): vol.All(cv.ensure_list, [cv.string_strict]),
 
     vol.Optional('library_uri'): cv.invalid("The library_uri option has been removed in 1.8.0 and "
                                             "was moved into the esphomelib_version option."),
@@ -227,7 +227,7 @@ def to_code(config):
 
 
 def lib_deps(config):
-    return set(config.get(CONF_EXTRA_LIBRARIES, []))
+    return set(config.get(CONF_LIBRARIES, []))
 
 
 def includes(config):
@@ -235,5 +235,5 @@ def includes(config):
     for include in config.get(CONF_INCLUDES, []):
         path = CORE.relative_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src', 'main.cpp'))
-        ret.append(res)
+        ret.append(u'#include "{}"'.format(res))
     return ret
