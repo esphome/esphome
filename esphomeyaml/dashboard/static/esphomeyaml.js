@@ -23,6 +23,13 @@ const colorReplace = (input) => {
   return input;
 };
 
+const removeUpdateAvailable = (filename) => {
+  const p = document.querySelector(`.update-available[data-node="${filename}"]`);
+  if (p === undefined)
+    return;
+  p.remove();
+};
+
 let configuration = "";
 let wsProtocol = "ws:";
 if (window.location.protocol === "https:") {
@@ -202,6 +209,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
+          removeUpdateAvailable(configuration);
         } else {
           M.toast({html: `Program failed with code ${data.code}`});
         }
@@ -481,7 +489,6 @@ const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
 editor.setTheme("ace/theme/dreamweaver");
 editor.session.setMode("ace/mode/yaml");
-editor.session.setValue("Hello World!");
 editor.session.setOption('useSoftTabs', true);
 editor.session.setOption('tabSize', 2);
 

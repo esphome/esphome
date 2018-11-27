@@ -204,3 +204,11 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   border-radius: 3px;
   height: 100%
 }
+
+.update-available i {
+  vertical-align: bottom;
+  font-size: 20px !important;
+  color: #3F51B5 !important;
+  margin-right: -4.5px;
+  margin-left: -5.5px;
+}

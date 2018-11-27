@@ -590,10 +590,12 @@ def one_of(*values, **kwargs):
     upper = kwargs.get('upper', False)
     string_ = kwargs.get('string', False) or lower or upper
     to_int = kwargs.get('int', False)
+    space = kwargs.get('space', ' ')
 
     def validator(value):
         if string_:
             value = string(value)
+            value = value.replace(' ', space)
         if to_int:
             value = int_(value)
         if lower:

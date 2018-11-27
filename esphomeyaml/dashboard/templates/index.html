@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <title>esphomeyaml Dashboard</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link rel="stylesheet" href="/static/materialize.min.css">
-  <link rel="stylesheet" href="/static/materialize-stepper.min.css">
-  <link rel="stylesheet" href="/static/esphomeyaml.css">
-  <link rel="shortcut icon" href="/static/favicon.ico">
+  <link rel="stylesheet" href="/static/materialize.min.css?v=1">
+  <link rel="stylesheet" href="/static/materialize-stepper.min.css?v=1">
+  <link rel="stylesheet" href="/static/esphomeyaml.css?v=1">
+  <link rel="shortcut icon" href="/static/favicon.ico?v=1">
 
-  <script src="/static/jquery.min.js"></script>
-  <script src="/static/jquery-ui.min.js"></script>
-  <script src="/static/materialize.min.js"></script>
-  <script src="/static/jquery.validate.min.js"></script>
+  <script src="/static/jquery.min.js?v=1"></script>
+  <script src="/static/jquery-ui.min.js?v=1"></script>
+  <script src="/static/materialize.min.js?v=1"></script>
+  <script src="/static/jquery.validate.min.js?v=1"></script>
 
-  <script src="/static/materialize-stepper.min.js"></script>
+  <script src="/static/materialize-stepper.min.js?v=1"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </head>
 <body>
@@ -61,8 +61,15 @@
             <p>
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
-                <span class="status-indicator-text"></span></span>. Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
+                <span class="status-indicator-text"></span></span>.
+              Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
             </p>
+            {% if entry.update_available %}
+              <p class="update-available" data-node="{{ entry.filename }}">
+                <i class="material-icons">system_update</i>
+                Update Available!
+              </p>
+            {% end %}
           </div>
           <div class="card-action">
             <a href="#" class="action-upload" data-node="{{ entry.filename }}">Upload</a>
@@ -500,8 +507,8 @@
   </div>
 </footer>
 
-<script src="/static/ace.js" type="text/javascript" charset="utf-8"></script>
-<script src="/static/esphomeyaml.js" type="text/javascript"></script>
+<script src="/static/ace.js?v=1" type="text/javascript" charset="utf-8"></script>
+<script src="/static/esphomeyaml.js?v=1" type="text/javascript"></script>
 
 {% if len(entries) == 0 %}
 <script>

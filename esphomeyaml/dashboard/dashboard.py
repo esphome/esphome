@@ -269,6 +269,12 @@ class DashboardEntry(object):
             return None
         return self.storage.board
 
+    @property
+    def update_available(self):
+        if self.storage is None:
+            return True
+        return self.storage.esphomeyaml_version != const.__version__
+
 
 class MainRequestHandler(BaseHandler):
     def get(self):

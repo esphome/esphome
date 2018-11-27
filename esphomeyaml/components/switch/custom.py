@@ -1,14 +1,14 @@
 import voluptuous as vol
 
-from esphomeyaml.components import binary_sensor, switch
+from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BINARY_SENSORS, CONF_ID, CONF_LAMBDA, CONF_SWITCHES
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SWITCHES
 from esphomeyaml.cpp_generator import process_lambda, variable
 from esphomeyaml.cpp_types import std_vector
 
 CustomSwitchConstructor = switch.switch_ns.class_('CustomSwitchConstructor')
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomSwitchConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_SWITCHES):
@@ -29,8 +29,8 @@ def to_code(config):
         switch.register_switch(custom.get_switch(i), sens)
 
 
-BUILD_FLAGS = '-DUSE_CUSTOM_BINARY_SENSOR'
+BUILD_FLAGS = '-DUSE_CUSTOM_SWITCH'
 
 
 def to_hass_config(data, config):
-    return [binary_sensor.core_to_hass_config(data, sens) for sens in config[CONF_BINARY_SENSORS]]
+    return [switch.core_to_hass_config(data, swi) for swi in config[CONF_SWITCHES]]
