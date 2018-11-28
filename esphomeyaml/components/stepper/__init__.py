@@ -92,8 +92,7 @@ STEPPER_SET_TARGET_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_STEPPER_SET_TARGET, STEPPER_SET_TARGET_ACTION_SCHEMA)
-def stepper_set_target_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def stepper_set_target_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_set_target_action(template_arg)
@@ -113,8 +112,7 @@ STEPPER_REPORT_POSITION_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_STEPPER_REPORT_POSITION, STEPPER_REPORT_POSITION_ACTION_SCHEMA)
-def stepper_report_position_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def stepper_report_position_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_report_position_action(template_arg)

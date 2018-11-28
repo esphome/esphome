@@ -167,7 +167,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_BOARD_FLASH_MODE): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
-        vol.Optional(CONF_PRIORITY): vol.Coerce(float),
+        vol.Optional(CONF_PRIORITY): cv.float_,
     }),
     vol.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),

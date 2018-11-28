@@ -212,3 +212,8 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   margin-right: -4.5px;
   margin-left: -5.5px;
 }
+
+.flash-using-esphomeflasher {
+  vertical-align: middle;
+  color: #666 !important;
+}

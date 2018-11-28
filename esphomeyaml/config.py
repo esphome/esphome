@@ -8,6 +8,7 @@ import logging
 import voluptuous as vol
 
 from esphomeyaml import core, core_config, yaml_util
+from esphomeyaml.components import substitutions
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.helpers import color
@@ -325,6 +326,7 @@ def load_config():
     except OSError:
         raise EsphomeyamlError(u"Could not read configuration file at {}".format(CORE.config_path))
     CORE.raw_config = config
+    config = substitutions.do_substitution_pass(config)
     core_config.preload_core_config(config)
 
     try:
@@ -338,16 +340,15 @@ def load_config():
     return result
 
 
-def line_info(obj, **kwargs):
+def line_info(obj):
     """Display line config source."""
     if hasattr(obj, '__config_file__'):
         return color('cyan', "[source {}:{}]"
-                     .format(obj.__config_file__, obj.__line__ or '?'),
-                     **kwargs)
+                     .format(obj.__config_file__, obj.__line__ or '?'))
     return '?'
 
 
-def dump_dict(layer, indent_count=0, listi=False, **kwargs):
+def dump_dict(layer, indent_count=0, listi=False):
     def sort_dict_key(val):
         """Return the dict key for sorting."""
         key = str.lower(val[0])
@@ -359,7 +360,7 @@ def dump_dict(layer, indent_count=0, listi=False, **kwargs):
     if isinstance(layer, dict):
         for key, value in sorted(layer.items(), key=sort_dict_key):
             if isinstance(value, (dict, list)):
-                safe_print(u"{} {}: {}".format(indent_str, key, line_info(value, **kwargs)))
+                safe_print(u"{} {}: {}".format(indent_str, key, line_info(value)))
                 dump_dict(value, indent_count + 2)
             else:
                 safe_print(u"{} {}: {}".format(indent_str, key, value))

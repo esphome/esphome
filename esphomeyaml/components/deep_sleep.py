@@ -4,8 +4,7 @@ from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
-from esphomeyaml.cpp_generator import Pvariable, StructInitializer, TemplateArguments, add, \
-    get_variable
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, get_variable
 from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
 from esphomeyaml.cpp_types import Action, App, Component, esphomelib_ns, global_ns
 
@@ -96,8 +95,7 @@ DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_ENTER, DEEP_SLEEP_ENTER_ACTION_SCHEMA)
-def deep_sleep_enter_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def deep_sleep_enter_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_enter_deep_sleep_action(template_arg)
@@ -112,8 +110,7 @@ DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_PREVENT, DEEP_SLEEP_PREVENT_ACTION_SCHEMA)
-def deep_sleep_prevent_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def deep_sleep_prevent_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_prevent_deep_sleep_action(template_arg)

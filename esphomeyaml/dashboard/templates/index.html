@@ -67,7 +67,7 @@
             {% if entry.update_available %}
               <p class="update-available" data-node="{{ entry.filename }}">
                 <i class="material-icons">system_update</i>
-                Update Available!
+                Update Available! {{ entry.update_old }} &#x27A1;&#xFE0F;{{ entry.update_new }}
               </p>
             {% end %}
           </div>
@@ -110,6 +110,10 @@
     </div>
   </div>
   <div class="modal-footer">
+    <a href="https://esphomelib.com/esphomeyaml/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
+       class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher">
+      <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+    </a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
@@ -122,6 +126,10 @@
     </div>
   </div>
   <div class="modal-footer">
+    <a href="https://esphomelib.com/esphomeyaml/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
+       class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher">
+      <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+    </a>
     <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
@@ -427,7 +435,7 @@
     </form>
   </div>
   <div class="modal-footer">
-    <a href="#!" class="modal-close waves-effect waves-green btn-flat">Abort</a>
+    <a class="modal-close waves-effect waves-green btn-flat">Abort</a>
   </div>
 </div>
 

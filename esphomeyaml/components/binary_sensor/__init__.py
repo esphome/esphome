@@ -1,6 +1,7 @@
 import voluptuous as vol
 
 from esphomeyaml import automation, core
+from esphomeyaml.automation import maybe_simple_id, CONDITION_REGISTRY, Condition
 from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
@@ -11,7 +12,7 @@ from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLA
     CONF_TIMING, CONF_TRIGGER_ID
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
-    StructInitializer
+    StructInitializer, get_variable
 from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_
 
 DEVICE_CLASSES = [
@@ -37,6 +38,9 @@ ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template(NoArg))
 DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template(NoArg))
 MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(NoArg), Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
+
+# Condition
+BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Condition)
 
 # Filters
 Filter = binary_sensor_ns.class_('Filter')
@@ -293,3 +297,33 @@ def core_to_hass_config(data, config):
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
+
+
+CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'
+BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+})
+
+
+@CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_ON, BINARY_SENSOR_IS_ON_CONDITION_SCHEMA)
+def binary_sensor_is_on_to_code(config, condition_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_binary_sensor_is_on_condition(template_arg)
+    type = BinarySensorCondition.template(arg_type)
+    yield Pvariable(condition_id, rhs, type=type)
+
+
+CONF_BINARY_SENSOR_IS_OFF = 'binary_sensor.is_off'
+BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+})
+
+
+@CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_OFF, BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA)
+def binary_sensor_is_off_to_code(config, condition_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_binary_sensor_is_off_condition(template_arg)
+    type = BinarySensorCondition.template(arg_type)
+    yield Pvariable(condition_id, rhs, type=type)

@@ -363,8 +363,7 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
-def light_toggle_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_toggle_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
@@ -385,8 +384,7 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
-def light_turn_off_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_turn_off_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
@@ -417,8 +415,7 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_turn_on_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)

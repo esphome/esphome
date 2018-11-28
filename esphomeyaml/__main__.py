@@ -16,6 +16,8 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
 from esphomeyaml.helpers import color, indent
+from esphomeyaml.storage_json import StorageJSON, storage_path, start_update_check_thread, \
+    esphomeyaml_storage_path
 from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -125,7 +127,10 @@ def write_cpp(config):
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, args.verbose)
+    thread = start_update_check_thread(esphomeyaml_storage_path(CORE.config_dir))
+    rc = platformio_api.run_compile(config, args.verbose)
+    thread.join()
+    return rc
 
 
 def get_upload_host(config):
@@ -179,9 +184,16 @@ def upload_program(config, args, port):
     remote_port = ota.get_port(config)
     password = ota.get_auth(config)
 
+    storage = StorageJSON.load(storage_path())
     res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
     if res == 0:
+        if storage is not None and storage.use_legacy_ota:
+            storage.use_legacy_ota = False
+            storage.save(storage_path())
         return res
+    if storage is not None and not storage.use_legacy_ota:
+        return res
+
     _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
     return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password,
                                   CORE.firmware_bin)

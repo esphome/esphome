@@ -1,7 +1,6 @@
 # pylint: disable=wrong-import-position
 from __future__ import print_function
 
-import binascii
 import collections
 import hmac
 import json
@@ -24,8 +23,9 @@ import tornado.websocket
 
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.helpers import run_system_command, mkdir_p
-from esphomeyaml.storage_json import StorageJSON, ext_storage_path
+from esphomeyaml.helpers import mkdir_p, run_system_command
+from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
+    esphomeyaml_storage_path, ext_storage_path
 from esphomeyaml.util import shlex_quote
 
 # pylint: disable=unused-import, wrong-import-order
@@ -273,7 +273,17 @@ class DashboardEntry(object):
     def update_available(self):
         if self.storage is None:
             return True
-        return self.storage.esphomeyaml_version != const.__version__
+        return self.update_old != self.update_new
+
+    @property
+    def update_old(self):
+        if self.storage is None:
+            return ''
+        return self.storage.esphomeyaml_version or ''
+
+    @property
+    def update_new(self):
+        return const.__version__
 
 
 class MainRequestHandler(BaseHandler):
@@ -464,6 +474,11 @@ def make_app(debug=False):
         log_method("%d %s %.2fms", handler.get_status(),
                    handler._request_summary(), request_time)
 
+    class StaticFileHandler(tornado.web.StaticFileHandler):
+        def set_extra_headers(self, path):
+            if debug:
+                self.set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+
     static_path = os.path.join(os.path.dirname(__file__), 'static')
     app = tornado.web.Application([
         (r"/", MainRequestHandler),
@@ -480,7 +495,7 @@ def make_app(debug=False):
         (r"/serial-ports", SerialPortRequestHandler),
         (r"/ping", PingRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
-        (r'/static/(.*)', tornado.web.StaticFileHandler, {'path': static_path}),
+        (r'/static/(.*)', StaticFileHandler, {'path': static_path}),
     ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function)
     return app
 
@@ -542,14 +557,12 @@ def start_web_server(args):
         PASSWORD_DIGEST = hmac.new(args.password).digest()
 
     if USING_HASSIO_AUTH or USING_PASSWORD:
-        cookie_secret_path = os.path.join(CONFIG_DIR, '.esphomeyaml', 'cookie_secret')
-        if os.path.exists(cookie_secret_path):
-            with open(cookie_secret_path, 'r') as f:
-                COOKIE_SECRET = f.read()
-        else:
-            COOKIE_SECRET = binascii.hexlify(os.urandom(64))
-            with open(cookie_secret_path, 'w') as f:
-                f.write(COOKIE_SECRET)
+        path = esphomeyaml_storage_path(CONFIG_DIR)
+        storage = EsphomeyamlStorageJSON.load(path)
+        if storage is None:
+            storage = EsphomeyamlStorageJSON.get_default()
+            storage.save(path)
+        COOKIE_SECRET = storage.cookie_secret
 
     _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
                  args.port, CONFIG_DIR)

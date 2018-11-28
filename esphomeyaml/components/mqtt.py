@@ -197,8 +197,7 @@ MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
-def mqtt_publish_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
     rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
@@ -230,8 +229,7 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
-def mqtt_publish_json_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
     rhs = App.Pget_mqtt_client().Pmake_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)

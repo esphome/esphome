@@ -55,8 +55,7 @@ COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_OPEN, COVER_OPEN_ACTION_SCHEMA)
-def cover_open_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_open_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_open_action(template_arg)
@@ -71,8 +70,7 @@ COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_CLOSE, COVER_CLOSE_ACTION_SCHEMA)
-def cover_close_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_close_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_close_action(template_arg)
@@ -87,8 +85,7 @@ COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_STOP, COVER_STOP_ACTION_SCHEMA)
-def cover_stop_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_stop_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_stop_action(template_arg)

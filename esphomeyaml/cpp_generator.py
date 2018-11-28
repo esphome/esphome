@@ -464,7 +464,8 @@ class MockObj(Expression):
         return obj
 
     def class_(self, name, *parents):  # type: (str, *MockObjClass) -> MockObjClass
-        obj = MockObjClass(u'{}{}{}'.format(self.base, self.op, name), u'.', parents=parents)
+        op = '' if self.op == '' else '::'
+        obj = MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
         obj.requires.append(self)
         return obj
 

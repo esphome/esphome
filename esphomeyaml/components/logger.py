@@ -7,9 +7,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
 from esphomeyaml.core import EsphomeyamlError, Lambda
-from esphomeyaml.cpp_generator import Pvariable, add, TemplateArguments, RawExpression, statement, \
-    process_lambda
-from esphomeyaml.cpp_types import global_ns, esphomelib_ns, Component, App
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -116,8 +115,7 @@ LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def logger_log_action_to_code(config, action_id, arg_type, template_arg):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args = [RawExpression(unicode(x)) for x in config[CONF_ARGS]]
 

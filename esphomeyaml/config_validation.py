@@ -22,8 +22,9 @@ _LOGGER = logging.getLogger(__name__)
 # pylint: disable=invalid-name
 
 port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
-positive_float = vol.All(vol.Coerce(float), vol.Range(min=0))
-zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1))
+float_ = vol.Coerce(float)
+positive_float = vol.All(float_, vol.Range(min=0))
+zero_to_one_float = vol.All(float_, vol.Range(min=0, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
 
@@ -155,8 +156,9 @@ def variable_id_str_(value):
         raise vol.Invalid("Dashes are not supported in IDs, please use underscores instead.")
     for char in value:
         if char != '_' and not char.isalnum():
-            raise vol.Invalid(u"IDs must only consist of upper/lowercase characters and numbers."
-                              u"The character '{}' cannot be used".format(char))
+            raise vol.Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
+                              u"character and numbers. The character '{}' cannot be used"
+                              u"".format(char))
     if value in RESERVED_IDS:
         raise vol.Invalid(u"ID {} is reserved internally and cannot be used".format(value))
     return value
@@ -258,12 +260,12 @@ TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 
 
 time_period_dict = vol.All(
     dict, vol.Schema({
-        'days': vol.Coerce(float),
-        'hours': vol.Coerce(float),
-        'minutes': vol.Coerce(float),
-        'seconds': vol.Coerce(float),
-        'milliseconds': vol.Coerce(float),
-        'microseconds': vol.Coerce(float),
+        'days': float_,
+        'hours': float_,
+        'minutes': float_,
+        'seconds': float_,
+        'milliseconds': float_,
+        'microseconds': float_,
     }),
     has_at_least_one_key('days', 'hours', 'minutes',
                          'seconds', 'milliseconds', 'microseconds'),
@@ -701,5 +703,5 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
 })
 
 COMPONENT_SCHEMA = vol.Schema({
-    vol.Optional(CONF_SETUP_PRIORITY): vol.Coerce(float)
+    vol.Optional(CONF_SETUP_PRIORITY): float_
 })

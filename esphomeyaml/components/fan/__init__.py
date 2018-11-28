@@ -77,8 +77,7 @@ FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TOGGLE, FAN_TOGGLE_ACTION_SCHEMA)
-def fan_toggle_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def fan_toggle_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
@@ -93,8 +92,7 @@ FAN_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_OFF, FAN_TURN_OFF_ACTION_SCHEMA)
-def fan_turn_off_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def fan_turn_off_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
@@ -111,8 +109,7 @@ FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_ON, FAN_TURN_ON_ACTION_SCHEMA)
-def fan_turn_on_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def fan_turn_on_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)

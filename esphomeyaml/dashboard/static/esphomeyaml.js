@@ -157,7 +157,7 @@ document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -205,7 +205,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -254,7 +254,7 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({
@@ -311,7 +311,7 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -367,7 +367,7 @@ document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         stopLogsButton.innerHTML = "Close";
         stopped = true;
@@ -409,7 +409,7 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -457,7 +457,7 @@ document.querySelectorAll(".action-hass-config").forEach((btn) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
         const msg = data.data;
-        log.innerHTML += colorReplace(msg);
+        log.insertAdjacentHTML('beforeend', colorReplace(msg));
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});

@@ -184,18 +184,38 @@ def migrate_src_version(old, new):
         migrate_src_version_0_to_1()
 
 
+def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
+    if old is None:
+        return True
+
+    if old.esphomelib_version != new.esphomelib_version:
+        return True
+    if old.esphomeyaml_version != new.esphomeyaml_version:
+        return True
+    if old.src_version != new.src_version:
+        return True
+    if old.arduino_version != new.arduino_version:
+        return True
+    if old.board != new.board:
+        return True
+    if old.build_path != new.build_path:
+        return True
+    return False
+
+
 def update_storage_json():
     path = storage_path()
     old = StorageJSON.load(path)
-    new = StorageJSON.from_esphomeyaml_core(CORE)
+    new = StorageJSON.from_esphomeyaml_core(CORE, old)
     if old == new:
         return
 
     old_src_version = old.src_version if old is not None else 0
     migrate_src_version(old_src_version, new.src_version)
 
-    _LOGGER.info("Core config or version changed, cleaning build files...")
-    clean_build()
+    if storage_should_clean(old, new):
+        _LOGGER.info("Core config or version changed, cleaning build files...")
+        clean_build()
 
     new.save(path)
 

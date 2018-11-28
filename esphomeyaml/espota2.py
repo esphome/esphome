@@ -263,7 +263,7 @@ def resolve_ip_address(host):
     return ip
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota_impl_(remote_host, remote_port, password, filename):
     ip = resolve_ip_address(remote_host)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10.0)
@@ -285,6 +285,14 @@ def run_ota(remote_host, remote_port, password, filename):
         file_handle.close()
 
     return 0
+
+
+def run_ota(remote_host, remote_port, password, filename):
+    try:
+        return run_ota_impl_(remote_host, remote_port, password, filename)
+    except OTAError as err:
+        _LOGGER.error(err)
+        return 1
 
 
 def run_legacy_ota(verbose, host_port, remote_host, remote_port, password, filename):

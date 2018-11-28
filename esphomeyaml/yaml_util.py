@@ -348,7 +348,7 @@ def represent_time_period(dumper, data):
 
 
 def represent_lambda(_, data):
-    node = yaml.ScalarNode(tag='!lambda', value=data.value, style='>')
+    node = yaml.ScalarNode(tag='!lambda', value=data.value, style='|')
     return node
 
 

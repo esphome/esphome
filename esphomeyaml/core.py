@@ -209,11 +209,36 @@ class TimePeriodSeconds(TimePeriod):
     pass
 
 
+LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
+
+
 class Lambda(object):
     def __init__(self, value):
-        self.value = value
-        self.parts = re.split(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)', value)
-        self.requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 3)]
+        self._value = value
+        self._parts = None
+        self._requires_ids = None
+
+    @property
+    def parts(self):
+        if self._parts is None:
+            self._parts = re.split(LAMBDA_PROG, self._value)
+        return self._parts
+
+    @property
+    def requires_ids(self):
+        if self._requires_ids is None:
+            self._requires_ids = [ID(self.parts[i]) for i in range(1, len(self.parts), 3)]
+        return self._requires_ids
+
+    @property
+    def value(self):
+        return self._value
+
+    @value.setter
+    def value(self, value):
+        self._value = value
+        self._parts = None
+        self._requires_ids = None
 
     def __str__(self):
         return self.value
