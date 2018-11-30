@@ -19,7 +19,6 @@ const colorReplace = (pre, state, text) => {
   let i = 0;
 
   if (state.carriageReturn) {
-    console.log(text);
     if (text !== "\n") {
       // don't remove if \r\n
       pre.removeChild(pre.lastChild);

@@ -26,7 +26,7 @@ from esphomeyaml.__main__ import get_serial_ports
 from esphomeyaml.helpers import mkdir_p, run_system_command
 from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
     esphomeyaml_storage_path, ext_storage_path
-from esphomeyaml.util import shlex_quote, safe_print
+from esphomeyaml.util import shlex_quote
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
