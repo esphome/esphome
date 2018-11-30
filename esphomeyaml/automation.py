@@ -275,7 +275,7 @@ def lambda_condition_to_code(config, condition_id, arg_type, template_arg):
     for lambda_ in process_lambda(config, [(arg_type, 'x')]):
         yield
     rhs = LambdaCondition.new(template_arg, lambda_)
-    type = LambdaAction.template(template_arg)
+    type = LambdaCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
 
