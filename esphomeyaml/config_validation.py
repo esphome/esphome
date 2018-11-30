@@ -78,8 +78,8 @@ def string_strict(value):
     """Strictly only allow strings."""
     if isinstance(value, (str, unicode)):
         return value
-    raise vol.Invalid("Must be string, did you forget putting quotes "
-                      "around the value?")
+    raise vol.Invalid("Must be string, got {}. did you forget putting quotes "
+                      "around the value?".format(type(value)))
 
 
 def icon(value):
