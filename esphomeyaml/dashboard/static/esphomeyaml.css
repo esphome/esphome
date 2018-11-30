@@ -32,6 +32,26 @@ i.very-large {
   padding-bottom: 10px;
 }
 
+.inlinecode {
+  box-sizing: border-box;
+  padding: 0.2em 0.4em;
+  margin: 0;
+  font-size: 85%;
+  background-color: rgba(27,31,35,0.05);
+  border-radius: 3px;
+  font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
+}
+
+.autoscroll {
+  display: flex;
+  flex-direction: column-reverse;
+  flex-basis: auto;
+}
+
+.autoscroll div {
+  flex-basis: 100%;
+}
+
 .log {
   background-color: #1c1c1c;
   margin-top: 0;
@@ -45,16 +65,6 @@ i.very-large {
   white-space: pre-wrap;
   overflow-wrap: break-word;
   color: #DDD;
-}
-
-.inlinecode {
-  box-sizing: border-box;
-  padding: 0.2em 0.4em;
-  margin: 0;
-  font-size: 85%;
-  background-color: rgba(27,31,35,0.05);
-  border-radius: 3px;
-  font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
 }
 
 .log-bold { font-weight: bold; }
