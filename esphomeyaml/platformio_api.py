@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import re
 import subprocess
 
@@ -13,6 +14,7 @@ def run_platformio_cli(*args, **kwargs):
     import platformio.__main__
 
     cmd = ['platformio'] + list(args)
+    os.environ["PLATFORMIO_FORCE_COLOR"] = 'true'
     return run_external_command(platformio.__main__.main,
                                 *cmd, **kwargs)
 
