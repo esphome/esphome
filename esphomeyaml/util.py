@@ -54,11 +54,8 @@ class RedirectText(object):
     def __init__(self, out):
         self._out = out
 
-    def write(self, s):
-        self._out.write(s)
-
-    def flush(self):
-        self._out.flush()
+    def __getattr__(self, item):
+        return getattr(self._out, item)
 
     def isatty(self):
         return True
