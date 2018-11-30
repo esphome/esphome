@@ -505,11 +505,15 @@ def _get_mqtt_config_impl():
     }
 
     mqtt_config = requests.get('http://hassio/services/mqtt', headers=headers).json()['data']
-    info = requests.get('http://hassio/info', headers=headers).json()['data']
+    info = requests.get('http://hassio/host/info', headers=headers).json()['data']
+    host = '{}.local'.format(info['hostname'])
+    port = mqtt_config['port']
+    if port != 1883:
+        host = '{}:{}'.format(host, port)
 
     return {
         'ssl': mqtt_config['ssl'],
-        'host': info['hostname'] + '.local:' + str(mqtt_config['port']),
+        'host': host,
         'username': mqtt_config.get('username', ''),
         'password': mqtt_config.get('password', '')
     }
