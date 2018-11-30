@@ -1,5 +1,5 @@
 esphomeyaml:
-  name: test2
+  name: $devicename
   platform: ESP32
   board: nodemcu-32s
   # Use latest upstream esphomelib git version.
@@ -10,6 +10,9 @@ esphomeyaml:
   #   local: ~/path/to/esphomelib
   use_custom_code: true
   build_path: build/test2
+
+substitutions:
+  devicename: test2
 
 wifi:
   ssid: 'MySSID'

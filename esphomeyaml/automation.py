@@ -45,7 +45,7 @@ def validate_recursive_condition(value):
                               u"".format(key, key2))
         validator = CONDITION_REGISTRY[key][0]
         value[i] = {
-            CONF_CONDITION_ID: cv.declare_variable_id(Condition)(item[CONF_ACTION_ID]),
+            CONF_CONDITION_ID: cv.declare_variable_id(Condition)(item[CONF_CONDITION_ID]),
             key: validator(item[key])
         }
     return value
@@ -316,7 +316,7 @@ def build_actions(config, arg_type):
 
 
 def build_condition(full_config, arg_type):
-    action_id = full_config[CONF_ACTION_ID]
+    action_id = full_config[CONF_CONDITION_ID]
     key, config = next((k, v) for k, v in full_config.items() if k in CONDITION_REGISTRY)
 
     builder = CONDITION_REGISTRY[key][1]
