@@ -78,8 +78,6 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
                 data = yield self.proc.stdout.read_until_regex('[\n\r]')
             except tornado.iostream.StreamClosedError:
                 break
-            if data.endswith('\r') and random.randrange(100) < 90:
-                continue
             try:
                 data = data.replace('\033', '\\033')
             except UnicodeDecodeError:

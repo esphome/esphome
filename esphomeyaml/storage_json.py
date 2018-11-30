@@ -253,7 +253,7 @@ class CheckForUpdateThread(threading.Thread):
 
         req = requests.get('{}/_static/version'.format(self.docs_base))
         req.raise_for_status()
-        storage.remote_version = req.text
+        storage.remote_version = req.text.strip()
         storage.last_update_check = datetime.utcnow()
         storage.save(self._path)
         return storage

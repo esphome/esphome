@@ -1,26 +1,153 @@
 document.addEventListener('DOMContentLoaded', () => {
-    M.AutoInit(document.body);
-  });
+  M.AutoInit(document.body);
+});
 
-const colorReplace = (input) => {
-  input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-  input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
-  input = input.replace(/\\033\[(?:0?1;)?31m/g, '<span class="e bold">');
-  input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
-  input = input.replace(/\\033\[(?:0?1;)?32m/g, '<span class="i bold">');
-  input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
-  input = input.replace(/\\033\[(?:0?1;)?33m/g, '<span class="w bold">');
-  input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
-  input = input.replace(/\\033\[(?:0?1;)?35m/g, '<span class="c bold">');
-  input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
-  input = input.replace(/\\033\[(?:0?1;)?36m/g, '<span class="d bold">');
-  input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
-  input = input.replace(/\\033\[(?:0?1;)?37m/g, '<span class="v bold">');
-  input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
-  input = input.replace(/\\033\[(?:0?1;)?38m/g, '<span class="vv bold">');
-  input = input.replace(/\\033\[0m/g, '</span>');
+const initializeColorState = () => {
+  return {
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+    foregroundColor: false,
+    backgroundColor: false,
+    carriageReturn: false,
+  };
+};
 
-  return input;
+const colorReplace = (pre, state, text) => {
+  const re = /(?:\033|\\033)(?:\[(.*?)[@-~]|\].*?(?:\007|\033\\))/g;
+  let i = 0;
+
+  if (state.carriageReturn) {
+    pre.removeChild(pre.lastChild);
+    state.carriageReturn = false;
+  }
+
+  if (text.includes("\r")) {
+    state.carriageReturn = true;
+  }
+
+  const lineSpan = document.createElement("span");
+  lineSpan.classList.add("line");
+  pre.appendChild(lineSpan);
+
+  const addSpan = (content) => {
+    if (content === "")
+      return;
+
+    const span = document.createElement("span");
+    if (state.bold) span.classList.add("log-bold");
+    if (state.italic) span.classList.add("log-italic");
+    if (state.underline) span.classList.add("log-underline");
+    if (state.strikethrough) span.classList.add("log-strikethrough");
+    if (state.foregroundColor !== null) span.classList.add(`log-fg-${state.foregroundColor}`);
+    if (state.backgroundColor !== null) span.classList.add(`log-bg-${state.backgroundColor}`);
+    span.appendChild(document.createTextNode(content));
+    lineSpan.appendChild(span);
+  };
+
+
+  while (true) {
+    const match = re.exec(text);
+    if (match === null)
+      break;
+
+    const j = match.index;
+    addSpan(text.substring(i, j));
+    i = j + match[0].length;
+
+    if (match[1] === undefined) continue;
+
+    for (const colorCode of match[1].split(";")) {
+      switch (parseInt(colorCode)) {
+        case 0:
+          // reset
+          state.bold = false;
+          state.italic = false;
+          state.underline = false;
+          state.strikethrough = false;
+          state.foregroundColor = null;
+          state.backgroundColor = null;
+          break;
+        case 1:
+          state.bold = true;
+          break;
+        case 3:
+          state.italic = true;
+          break;
+        case 4:
+          state.underline = true;
+          break;
+        case 9:
+          state.strikethrough = true;
+          break;
+        case 22:
+          state.bold = false;
+          break;
+        case 23:
+          state.italic = false;
+          break;
+        case 24:
+          state.underline = false;
+          break;
+        case 29:
+          state.strikethrough = false;
+          break;
+        case 30:
+          state.foregroundColor = "black";
+          break;
+        case 31:
+          state.foregroundColor = "red";
+          state.bold = true;
+          break;
+        case 32:
+          state.foregroundColor = "green";
+          break;
+        case 33:
+          state.foregroundColor = "yellow";
+          break;
+        case 34:
+          state.foregroundColor = "blue";
+          break;
+        case 35:
+          state.foregroundColor = "magenta";
+          break;
+        case 36:
+          state.foregroundColor = "cyan";
+          break;
+        case 37:
+        case 39:
+          state.foregroundColor = null;
+          break;
+        case 41:
+          state.backgroundColor = "red";
+          break;
+        case 42:
+          state.backgroundColor = "green";
+          break;
+        case 43:
+          state.backgroundColor = "yellow";
+          break;
+        case 44:
+          state.backgroundColor = "blue";
+          break;
+        case 45:
+          state.backgroundColor = "magenta";
+          break;
+        case 46:
+          state.backgroundColor = "cyan";
+          break;
+        case 47:
+          state.backgroundColor = "white";
+          break;
+        case 40:
+        case 49:
+          state.backgroundColor = null;
+          break;
+      }
+    }
+  }
+  addSpan(text.substring(i));
 };
 
 const removeUpdateAvailable = (filename) => {
@@ -144,6 +271,7 @@ document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
     const modalInstance = M.Modal.getInstance(logsModalElem);
     const log = logsModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = logsModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -156,8 +284,7 @@ document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -192,6 +319,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
     const modalInstance = M.Modal.getInstance(uploadModalElem);
     const log = uploadModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = uploadModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -204,8 +332,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -241,6 +368,7 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
     const modalInstance = M.Modal.getInstance(validateModalElem);
     const log = validateModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = validateModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -253,8 +381,7 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({
@@ -296,6 +423,7 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
     const modalInstance = M.Modal.getInstance(compileModalElem);
     const log = compileModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = compileModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -310,8 +438,7 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -354,6 +481,7 @@ document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
     const modalInstance = M.Modal.getInstance(cleanMqttModalElem);
     const log = cleanMqttModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = cleanMqttModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -366,8 +494,7 @@ document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         stopLogsButton.innerHTML = "Close";
         stopped = true;
@@ -396,6 +523,7 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
     const modalInstance = M.Modal.getInstance(cleanModalElem);
     const log = cleanModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = cleanModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -408,8 +536,7 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});
@@ -444,6 +571,7 @@ document.querySelectorAll(".action-hass-config").forEach((btn) => {
     const modalInstance = M.Modal.getInstance(hassConfigModalElem);
     const log = hassConfigModalElem.querySelector(".log");
     log.innerHTML = "";
+    const colorState = initializeColorState();
     const stopLogsButton = hassConfigModalElem.querySelector(".stop-logs");
     let stopped = false;
     stopLogsButton.innerHTML = "Stop";
@@ -456,8 +584,7 @@ document.querySelectorAll(".action-hass-config").forEach((btn) => {
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        const msg = data.data;
-        log.insertAdjacentHTML('beforeend', colorReplace(msg));
+        colorReplace(log, colorState, data.data);
       } else if (data.event === "exit") {
         if (data.code === 0) {
           M.toast({html: "Program exited successfully."});

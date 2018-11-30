@@ -57,42 +57,27 @@ i.very-large {
   font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
 }
 
-.log.bold {
-  font-weight: bold;
-}
-
-.log .v {
-  color: #888888;
-}
-
-.log .d {
-  color: #00DDDD;
-}
-
-.log .c {
-  color: magenta;
-}
-
-.log .i {
-  color: limegreen;
-}
-
-.log .w {
-  color: yellow;
-}
-
-.log .e {
-  color: red;
-  font-weight: bold;
-}
-
-.log .e {
-  color: red;
-}
-
-.log .ww {
-  color: white;
-}
+.log-bold { font-weight: bold; }
+.log-italic { font-style: italic; }
+.log-underline { text-decoration: underline; }
+.log-strikethrough { text-decoration: line-through; }
+.log-underline.log-strikethrough { text-decoration: underline line-through; }
+.log-fg-black { color: rgb(128,128,128); }
+.log-fg-red { color: rgb(255,0,0); }
+.log-fg-green { color: rgb(0,255,0); }
+.log-fg-yellow { color: rgb(255,255,0); }
+.log-fg-blue { color: rgb(0,0,255); }
+.log-fg-magenta { color: rgb(255,0,255); }
+.log-fg-cyan { color: rgb(0,255,255); }
+.log-fg-white { background-color: rgb(255,255,255); }
+.log-bg-black { background-color: rgb(0,0,0); }
+.log-bg-red { background-color: rgb(255,0,0); }
+.log-bg-green { background-color: rgb(0,255,0); }
+.log-bg-yellow { background-color: rgb(255,255,0); }
+.log-bg-blue { background-color: rgb(0,0,255); }
+.log-bg-magenta { background-color: rgb(255,0,255); }
+.log-bg-cyan { background-color: rgb(0,255,255); }
+.log-bg-white { background-color: rgb(255,255,255); }
 
 .modal {
   width: 95%;
