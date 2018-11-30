@@ -50,7 +50,6 @@ def cpp_string_escape(string, encoding='utf-8'):
 
 
 def color(the_color, message=''):
-    from esphomeyaml import core
     from colorlog.escape_codes import escape_codes, parse_colors
 
     if not message:
@@ -58,8 +57,6 @@ def color(the_color, message=''):
     else:
         res = parse_colors(the_color) + message + escape_codes['reset']
 
-    if core.FROM_DASHBOARD:
-        res = res.replace('\033', '\\033')
     return res
 
 

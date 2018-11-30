@@ -74,8 +74,6 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     def on_message(client, userdata, msg):
         time = datetime.now().time().strftime(u'[%H:%M:%S]')
         message = time + msg.payload
-        if core.FROM_DASHBOARD:
-            message = message.replace('\033', '\\033')
         safe_print(message)
 
     return initialize(config, [topic], on_message, username, password, client_id)

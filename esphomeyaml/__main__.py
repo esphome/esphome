@@ -86,8 +86,6 @@ def run_miniterm(config, port):
             line = raw.replace('\r', '').replace('\n', '')
             time = datetime.now().time().strftime('[%H:%M:%S]')
             message = time + line
-            if core.FROM_DASHBOARD:
-                message = message.replace('\033', '\\033')
             safe_print(message)
 
             backtrace_state = platformio_api.process_stacktrace(
@@ -157,7 +155,7 @@ def upload_program(config, args, port):
     # if upload is to a serial port use platformio, otherwise assume ota
     serial_port = port.startswith('/') or port.startswith('COM')
     if port != 'OTA' and serial_port:
-        if CORE.is_esp8266 and args.dashboard:
+        if CORE.is_esp8266:
             return upload_using_esptool(config, port)
         return platformio_api.run_upload(config, args.verbose, port)
 
@@ -394,15 +392,11 @@ def parse_args(argv):
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
     config = subparsers.add_parser('config', help='Validate the configuration and spit it out.')
-    config.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                        action='store_true')
 
     parser_compile = subparsers.add_parser('compile',
                                            help='Read the configuration and compile a program.')
     parser_compile.add_argument('--only-generate',
                                 help="Only generate source code, do not compile.",
-                                action='store_true')
-    parser_compile.add_argument('--dashboard', help="Internal flag used by the dashboard",
                                 action='store_true')
 
     parser_upload = subparsers.add_parser('upload', help='Validate the configuration '
@@ -410,8 +404,6 @@ def parse_args(argv):
     parser_upload.add_argument('--upload-port', help="Manually specify the upload port to use. "
                                                      "For example /dev/cu.SLAB_USBtoUART.")
     parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
-    parser_upload.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                               action='store_true')
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
                                                      'and show all MQTT logs.')
@@ -421,8 +413,6 @@ def parse_args(argv):
     parser_logs.add_argument('--client-id', help='Manually set the client id.')
     parser_logs.add_argument('--serial-port', help="Manually specify a serial port to use"
                                                    "For example /dev/cu.SLAB_USBtoUART.")
-    parser_logs.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                             action='store_true')
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
                                                    'upload it, and start MQTT logs.')
@@ -435,8 +425,6 @@ def parse_args(argv):
     parser_run.add_argument('--username', help='Manually set the MQTT username for logs.')
     parser_run.add_argument('--password', help='Manually set the MQTT password for logs.')
     parser_run.add_argument('--client-id', help='Manually set the client id for logs.')
-    parser_run.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                            action='store_true')
 
     parser_clean = subparsers.add_parser('clean-mqtt', help="Helper to clear an MQTT topic from "
                                                             "retain messages.")
@@ -444,8 +432,6 @@ def parse_args(argv):
     parser_clean.add_argument('--username', help='Manually set the username.')
     parser_clean.add_argument('--password', help='Manually set the password.')
     parser_clean.add_argument('--client-id', help='Manually set the client id.')
-    parser_clean.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                              action='store_true')
 
     subparsers.add_parser('wizard', help="A helpful setup wizard that will guide "
                                          "you through setting up esphomeyaml.")
@@ -455,8 +441,6 @@ def parse_args(argv):
     subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
 
     clean = subparsers.add_parser('clean', help="Delete all temporary build files.")
-    clean.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                       action='store_true')
 
     dashboard = subparsers.add_parser('dashboard',
                                       help="Create a simple web server for a dashboard.")
@@ -474,16 +458,12 @@ def parse_args(argv):
     hass_config = subparsers.add_parser('hass-config',
                                         help="Dump the configuration entries that should be added "
                                              "to Home Assistant when not using MQTT discovery.")
-    hass_config.add_argument('--dashboard', help="Internal flag used by the dashboard",
-                             action='store_true')
 
     return parser.parse_args(argv[1:])
 
 
 def run_esphomeyaml(argv):
     args = parse_args(argv)
-    if hasattr(args, 'dashboard'):
-        core.FROM_DASHBOARD = args.dashboard
 
     setup_log(args.verbose)
     if args.command in PRE_CONFIG_ACTIONS:

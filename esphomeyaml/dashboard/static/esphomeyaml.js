@@ -15,7 +15,7 @@ const initializeColorState = () => {
 };
 
 const colorReplace = (pre, state, text) => {
-  const re = /(?:\033|\\033)(?:\[(.*?)[@-~]|\].*?(?:\007|\033\\))/g;
+  const re = /\033(?:\[(.*?)[@-~]|\].*?(?:\007|\033\\))/g;
   let i = 0;
 
   if (state.carriageReturn) {

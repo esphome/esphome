@@ -55,7 +55,6 @@ class RedirectText(object):
         self._out = out
 
     def write(self, s):
-        s = s.replace('\033', '\\033')
         self._out.write(s)
 
     def flush(self):
@@ -74,9 +73,8 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
 
-    if core.FROM_DASHBOARD:
-        sys.stdout = RedirectText(sys.stdout)
-        sys.stderr = RedirectText(sys.stderr)
+    sys.stdout = RedirectText(sys.stdout)
+    sys.stderr = RedirectText(sys.stderr)
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
