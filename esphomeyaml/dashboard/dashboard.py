@@ -1,13 +1,13 @@
 # pylint: disable=wrong-import-position
 from __future__ import print_function
 
+import codecs
 import collections
 import hmac
 import json
 import logging
 import multiprocessing
 import os
-import random
 import subprocess
 import threading
 
@@ -26,7 +26,7 @@ from esphomeyaml.__main__ import get_serial_ports
 from esphomeyaml.helpers import mkdir_p, run_system_command
 from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
     esphomeyaml_storage_path, ext_storage_path
-from esphomeyaml.util import shlex_quote
+from esphomeyaml.util import shlex_quote, safe_print
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
@@ -78,7 +78,11 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
                 data = yield self.proc.stdout.read_until_regex('[\n\r]')
             except tornado.iostream.StreamClosedError:
                 break
-            self.write_message({'event': 'line', 'data': data})
+            try:
+                self.write_message({'event': 'line', 'data': data})
+            except UnicodeDecodeError:
+                data = codecs.decode(data, 'utf8', 'replace')
+                self.write_message({'event': 'line', 'data': data})
 
     def proc_on_exit(self, returncode):
         if not self.closed:

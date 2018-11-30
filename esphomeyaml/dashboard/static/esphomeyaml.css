@@ -79,7 +79,7 @@ i.very-large {
 .log-fg-blue { color: rgb(0,0,255); }
 .log-fg-magenta { color: rgb(255,0,255); }
 .log-fg-cyan { color: rgb(0,255,255); }
-.log-fg-white { background-color: rgb(255,255,255); }
+.log-fg-white { color: rgb(187,187,187); }
 .log-bg-black { background-color: rgb(0,0,0); }
 .log-bg-red { background-color: rgb(255,0,0); }
 .log-bg-green { background-color: rgb(0,255,0); }

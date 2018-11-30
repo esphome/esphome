@@ -6,10 +6,10 @@ import logging
 import socket
 import ssl
 import sys
+import time
 
 import paho.mqtt.client as mqtt
 
-from esphomeyaml import core
 from esphomeyaml.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOMEYAML, \
     CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, \
     CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
@@ -25,9 +25,30 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
         for topic in subscriptions:
             client.subscribe(topic)
 
+    def on_disconnect(client, userdata, result_code):
+        if result_code == 0:
+            return
+
+        tries = 0
+        while True:
+            try:
+                if client.reconnect() == 0:
+                    _LOGGER.info("Successfully reconnected to the MQTT server")
+                    break
+            except socket.error:
+                pass
+
+            wait_time = min(2**tries, 300)
+            _LOGGER.warning(
+                "Disconnected from MQTT (%s). Trying to reconnect in %s s",
+                result_code, wait_time)
+            time.sleep(wait_time)
+            tries += 1
+
     client = mqtt.Client(client_id or u'')
     client.on_connect = on_connect
     client.on_message = on_message
+    client.on_disconnect = on_disconnect
     if username is None:
         if config[CONF_MQTT].get(CONF_USERNAME):
             client.username_pw_set(config[CONF_MQTT][CONF_USERNAME],
@@ -72,8 +93,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
     _LOGGER.info(u"Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time = datetime.now().time().strftime(u'[%H:%M:%S]')
-        message = time + msg.payload
+        time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
+        message = time_ + msg.payload
         safe_print(message)
 
     return initialize(config, [topic], on_message, username, password, client_id)

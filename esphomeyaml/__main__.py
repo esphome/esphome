@@ -391,7 +391,7 @@ def parse_args(argv):
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
-    config = subparsers.add_parser('config', help='Validate the configuration and spit it out.')
+    subparsers.add_parser('config', help='Validate the configuration and spit it out.')
 
     parser_compile = subparsers.add_parser('compile',
                                            help='Read the configuration and compile a program.')
@@ -440,7 +440,7 @@ def parse_args(argv):
 
     subparsers.add_parser('version', help="Print the esphomeyaml version and exit.")
 
-    clean = subparsers.add_parser('clean', help="Delete all temporary build files.")
+    subparsers.add_parser('clean', help="Delete all temporary build files.")
 
     dashboard = subparsers.add_parser('dashboard',
                                       help="Create a simple web server for a dashboard.")
@@ -455,9 +455,9 @@ def parse_args(argv):
                                 "add-on.",
                            action="store_true")
 
-    hass_config = subparsers.add_parser('hass-config',
-                                        help="Dump the configuration entries that should be added "
-                                             "to Home Assistant when not using MQTT discovery.")
+    subparsers.add_parser('hass-config',
+                          help="Dump the configuration entries that should be added "
+                               "to Home Assistant when not using MQTT discovery.")
 
     return parser.parse_args(argv[1:])
 

@@ -19,7 +19,11 @@ const colorReplace = (pre, state, text) => {
   let i = 0;
 
   if (state.carriageReturn) {
-    pre.removeChild(pre.lastChild);
+    console.log(text);
+    if (text !== "\n") {
+      // don't remove if \r\n
+      pre.removeChild(pre.lastChild);
+    }
     state.carriageReturn = false;
   }
 
@@ -116,6 +120,8 @@ const colorReplace = (pre, state, text) => {
           state.foregroundColor = "cyan";
           break;
         case 37:
+          state.foregroundColor = "white";
+          break;
         case 39:
           state.foregroundColor = null;
           break;

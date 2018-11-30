@@ -5,8 +5,6 @@ import logging
 import re
 import sys
 
-from esphomeyaml import core
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -57,6 +55,7 @@ class RedirectText(object):
     def __getattr__(self, item):
         return getattr(self._out, item)
 
+    # pylint: disable=no-self-use
     def isatty(self):
         return True
 
