@@ -19,10 +19,10 @@ def validate_substitution_key(value):
     value = cv.string(value)
     if not value:
         raise vol.Invalid("Substitution key must not be empty")
-    if value[0].isdigit():
-        raise vol.Invalid("First character in substitutions cannot be a digit.")
     if value[0] == '$':
         value = value[1:]
+    if value[0].isdigit():
+        raise vol.Invalid("First character in substitutions cannot be a digit.")
     for char in value:
         if char not in VALID_SUBSTITUTIONS_CHARACTERS:
             raise vol.Invalid(
