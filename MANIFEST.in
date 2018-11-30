@@ -8,8 +8,8 @@ include esphomeyaml/dashboard/static/favicon.ico
 include esphomeyaml/dashboard/static/jquery.min.js
 include esphomeyaml/dashboard/static/jquery.validate.min.js
 include esphomeyaml/dashboard/static/jquery-ui.min.js
-include esphomeyaml/dashboard/static/materialize-min.css
-include esphomeyaml/dashboard/static/materialize-min.js
+include esphomeyaml/dashboard/static/materialize.min.css
+include esphomeyaml/dashboard/static/materialize.min.js
 include esphomeyaml/dashboard/static/materialize-stepper.min.css
 include esphomeyaml/dashboard/static/materialize-stepper.min.js
 include esphomeyaml/dashboard/static/mode-yaml.js
