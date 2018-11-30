@@ -48,6 +48,18 @@ def shlex_quote(s):
     return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
 
 
+class RedirectText(object):
+    def __init__(self, out):
+        self._out = out
+
+    def __getattr__(self, item):
+        return getattr(self._out, item)
+
+    # pylint: disable=no-self-use
+    def isatty(self):
+        return True
+
+
 def run_external_command(func, *cmd, **kwargs):
     def mock_exit(return_code):
         raise SystemExit(return_code)
@@ -56,6 +68,9 @@ def run_external_command(func, *cmd, **kwargs):
     orig_exit = sys.exit  # mock sys.exit
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
+
+    sys.stdout = RedirectText(sys.stdout)
+    sys.stderr = RedirectText(sys.stderr)
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
@@ -75,6 +90,11 @@ def run_external_command(func, *cmd, **kwargs):
     finally:
         sys.argv = orig_argv
         sys.exit = orig_exit
+
+        if isinstance(sys.stdout, RedirectText):
+            sys.stdout = sys.__stdout__
+        if isinstance(sys.stderr, RedirectText):
+            sys.stderr = sys.__stderr__
 
         if capture_stdout:
             # pylint: disable=lost-exception
