@@ -4,12 +4,12 @@ from esphomeyaml.components import sensor, uart
 from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CURRENT, CONF_ID, CONF_NAME, CONF_POWER, CONF_UART_ID, \
-    CONF_VOLTAGE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
+    CONF_UPDATE_INTERVAL, CONF_VOLTAGE
+from esphomeyaml.helpers import App, PollingComponent, Pvariable, get_variable, setup_component
 
 DEPENDENCIES = ['uart']
 
-CSE7766Component = sensor.sensor_ns.class_('CSE7766Component', Component, uart.UARTDevice)
+CSE7766Component = sensor.sensor_ns.class_('CSE7766Component', PollingComponent, uart.UARTDevice)
 CSE7766VoltageSensor = sensor.sensor_ns.class_('CSE7766VoltageSensor',
                                                sensor.EmptySensor)
 CSE7766CurrentSensor = sensor.sensor_ns.class_('CSE7766CurrentSensor',
