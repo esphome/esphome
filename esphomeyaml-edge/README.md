@@ -1,18 +1,17 @@
 # Esphomeyaml Hass.io Add-On
 
+[![GitHub Release][releases-shield]][releases]
+![Project Stage][project-stage-shield]
+[![License][license-shield]](LICENSE.md)
+
+[![GitLab CI][gitlabci-shield]][gitlabci]
+![Project Maintenance][maintenance-shield]
+[![GitHub Activity][commits-shield]][commits]
+
+[![Discord][discord-shield]][discord]
+[![Community Forum][forum-shield]][forum]
+
 [![esphomeyaml logo](logo.png)](https://esphomelib.com/esphomeyaml/index.html)
-
-## WARNING! THIS IS AN EDGE VERSION!
-
-You're viewing the edge (latest build) of the esphomeyaml add-on. This
-contains the latest source code with all the latest features. However, the
-code in this version of the add-on is unstable and might break at any moment.
-
-It is intended for:
-
-- people who want to test the latest features.
-- people who can manually re-flash their node via USB if something breaks.
-- Developers
 
 ## About
 
@@ -30,7 +29,7 @@ handled by esphomeyaml.
 ## Example
 
 With esphomeyaml, you can go from a few lines of YAML straight to a custom-made
-firmware. For example, to include a [DHT22](https://esphomelib.com/esphomeyaml/components/sensor/dht.html)
+firmware. For example, to include a [DHT22][dht22].
 temperature and humidity sensor, you just need to include 8 lines of YAML
 in your configuration file:
 
@@ -45,8 +44,8 @@ Then just click UPLOAD and the sensor will magically appear in Home Assistant:
 To install this Hass.io add-on you need to add the esphomeyaml add-on repository
 first:
 
-1. Add esphomeyaml's Hass.io add-ons repository to your Hass.io instance. You can do this by navigating to the "Add-on Store" tab in the Hass.io panel and then entering https://github.com/OttoWinter/esphomeyaml in the "Add new repository by URL" field.
-2. Now scroll down to the bottom of the page and select the "esphomeyaml-edge" add-on.
+1. Add our Hass.io add-ons repository to your Hass.io instance. You can do this by navigating to the "Add-on Store" tab in the Hass.io panel and then entering https://github.com/hassio-addons/repository in the "Add new repository by URL" field.
+2. Now scroll down and select the "esphomeyaml" add-on.
 3. Press install to download the add-on and unpack it on your machine. This can take some time.
 4. Optional: If you're using SSL certificates and want to encrypt your communication to this add-on, please enter `true` into the `ssl` field and set the `fullchain` and `certfile` options accordingly.
 5. Start the add-on, check the logs of the add-on to see if everything went well.
@@ -64,7 +63,7 @@ Example add-on configuration:
 
 ```json
 {
-  "ssl": false,
+  "ssl": true,
   "certfile": "fullchain.pem",
   "keyfile": "privkey.pem"
 }
@@ -106,3 +105,19 @@ panel_iframe:
     icon: mdi:code-brackets
     url: https://addres.to.your.hass.io:6052
 ```
+
+[commits-shield]: https://img.shields.io/github/commit-activity/y/hassio-addons/addon-esphomeyaml.svg
+[commits]: https://github.com/hassio-addons/addon-esphomeyaml/commits/master
+[discord-shield]: https://img.shields.io/discord/429907082951524364.svg
+[dht22]: https://esphomelib.com/esphomeyaml/components/sensor/dht.html
+[discord]: https://discord.me/KhAMKrd
+[forum-shield]: https://img.shields.io/badge/community-forum-brightgreen.svg
+[forum]: https://community.home-assistant.io/c/third-party/esphomelib
+[gitlabci-shield]: https://gitlab.com/hassio-addons/addon-esphomeyaml/badges/master/pipeline.svg
+[gitlabci]: https://gitlab.com/hassio-addons/addon-esphomeyaml/pipelines
+[license-shield]: https://img.shields.io/github/license/hassio-addons/addon-esphomeyaml.svg
+[maintenance-shield]: https://img.shields.io/maintenance/yes/2018.svg
+[project-stage-shield]: https://img.shields.io/badge/project%20stage-stable-green.svg
+[releases-shield]: https://img.shields.io/github/release/hassio-addons/addon-esphomeyaml.svg
+[releases]: https://github.com/hassio-addons/addon-esphomeyaml/releases
+[repository]: https://github.com/hassio-addons/repository
