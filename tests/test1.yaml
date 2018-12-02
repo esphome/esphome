@@ -528,6 +528,11 @@ binary_sensor:
           format: "Multi Clicked SINGLE"
           level: warn
     id: binary_sensor1
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_PULLUP
+    name: "Living Room Window 2"
   - platform: status
     name: "Living Room Status"
   - platform: esp32_touch
