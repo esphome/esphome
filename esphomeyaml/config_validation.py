@@ -441,6 +441,13 @@ def hostname(value):
     return value
 
 
+def domain(value):
+    value = string(value)
+    if re.match(vol.DOMAIN_REGEX, value) is None:
+        raise vol.Invalid("Invalid domain: {}".format(value))
+    return value
+
+
 def domain_name(value):
     value = string(value)
     if not value.startswith('.'):
