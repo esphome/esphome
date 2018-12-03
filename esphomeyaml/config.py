@@ -5,12 +5,13 @@ import importlib
 import json
 import logging
 
+from typing import List, Optional, Tuple
 import voluptuous as vol
 
 from esphomeyaml import core, core_config, yaml_util
 from esphomeyaml.components import substitutions
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
-from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.core import CORE, EsphomeyamlError, ConfigType
 from esphomeyaml.helpers import color
 from esphomeyaml.util import safe_print
 
@@ -67,10 +68,11 @@ class Config(OrderedDict):
         super(Config, self).__init__()
         self.errors = []
 
-    def add_error(self, message, domain=None, config=None):
+    def add_error(self, message, domain=None, config=None, path=None):
+        # type: (basestring, Optional[basestring], Optional[ConfigType], Optional[List[basestring]]) -> None
         if not isinstance(message, unicode):
             message = unicode(message)
-        self.errors.append((message, domain, config))
+        self.errors.append((message, domain, config, path))
 
 
 def iter_ids(config, prefix=None, parent=None):
@@ -148,27 +150,27 @@ def validate_config(config):
 
     result = Config()
 
-    def _comp_error(ex, domain, config):
-        result.add_error(_format_config_error(ex, domain, config), domain, config)
+    def _comp_error(ex, domain, config, path):
+        result.add_error(_format_config_error(ex, domain, config), domain, config, path)
 
     # Step 1: Load everything
     for domain, conf in config.iteritems():
         domain = str(domain)
-        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
+        if domain == CONF_ESPHOMEYAML or domain.startswith(u'.'):
             continue
         if conf is None:
             conf = {}
         component = get_component(domain)
         if component is None:
-            result.add_error(u"Component not found: {}".format(domain), domain, conf)
+            result.add_error(u"Component not found: {}".format(domain), domain, conf, None)
             continue
 
         if not hasattr(component, 'PLATFORM_SCHEMA'):
             continue
 
-        for p_config in conf:
+        for i, p_config in enumerate(conf):
             if not isinstance(p_config, dict):
-                result.add_error(u"Platform schemas must have 'platform:' key", )
+                result.add_error(u"Platform schemas must have 'platform:' key", None, p_config, [])
                 continue
             p_name = p_config.get(u'platform')
             if p_name is None:
