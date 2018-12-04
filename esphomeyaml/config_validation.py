@@ -321,11 +321,11 @@ def time_period_str_unit(value):
 
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
-    if match is None or match.group(2) not in unit_to_kwarg:
+    if match is None:
         raise vol.Invalid(u"Expected time period with unit, "
                           u"got {}".format(value))
+    kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
-    kwarg = unit_to_kwarg[match.group(2)]
     return TimePeriod(**{kwarg: float(match.group(1))})
 
 

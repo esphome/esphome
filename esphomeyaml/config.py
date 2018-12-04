@@ -91,6 +91,9 @@ class Config(OrderedDict):
         # type: (ConfigPath, basestring) -> None
         self.domains.append((path, name))
 
+    def remove_domain(self, path, name):
+        self.domains.remove((path, name))
+
     def lookup_domain(self, path):
         # type: (ConfigPath) -> Optional[basestring]
         best_len = 0
@@ -111,7 +114,7 @@ class Config(OrderedDict):
 
     def get_error_for_path(self, path):
         for msg, p in self.errors:
-            if p == path:
+            if self.nested_item_path(p) == path:
                 return msg
         return None
 
@@ -123,6 +126,17 @@ class Config(OrderedDict):
             except (KeyError, IndexError, TypeError):
                 return {}
         return data
+
+    def nested_item_path(self, path):
+        data = self
+        part = []
+        for item_index in path:
+            try:
+                data = data[item_index]
+            except (KeyError, IndexError, TypeError):
+                return part
+            part.append(item_index)
+        return part
 
 
 def iter_ids(config, path=None):
@@ -252,6 +266,8 @@ def validate_config(config):
         if not hasattr(component, 'PLATFORM_SCHEMA'):
             continue
 
+        result.remove_domain([domain], domain)
+
         if not isinstance(conf, list) and conf:
             result[domain] = conf = [conf]
 
@@ -374,9 +390,17 @@ def _format_vol_invalid(ex, config, path, domain):
     # type: (vol.Invalid, ConfigType, ConfigPath, basestring) -> unicode
     message = u''
     if u'extra keys not allowed' in ex.error_message:
-        message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], domain)
+        try:
+            paren = ex.path[-2]
+        except IndexError:
+            paren = domain
+        message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
     elif u'required key not provided' in ex.error_message:
-        message += u"'{}' is a required option for [{}].".format(ex.path[-1], domain)
+        try:
+            paren = ex.path[-2]
+        except IndexError:
+            paren = domain
+        message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += u'{}.'.format(humanize_error(_nested_getitem(config, path), ex))
 
@@ -434,6 +458,10 @@ def dump_dict(config, path, at_root=True):
 
     if isinstance(conf, (list, tuple)):
         multiline = True
+        if not conf:
+            ret += u'[]'
+            multiline = False
+
         for i, obj in enumerate(conf):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
@@ -453,6 +481,10 @@ def dump_dict(config, path, at_root=True):
             ret += sep + msg + u'\n'
     elif isinstance(conf, dict):
         multiline = True
+        if not conf:
+            ret += u'{}'
+            multiline = False
+
         for k, v in conf.iteritems():
             path_ = path + [k]
             error = config.get_error_for_path(path_)
@@ -475,18 +507,21 @@ def dump_dict(config, path, at_root=True):
                     msg = msg + u' ' + inf
             ret += st + msg + u'\n'
     elif isinstance(conf, str):
+        if not conf:
+            conf += u"''"
+
         if len(conf) > 80:
-            ret += u'|-\n'
-            conf = indent(conf)
+            conf = u'|-\n' + indent(conf)
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, unicode(conf))
     elif isinstance(conf, core.Lambda):
-        ret += u'|-\n'
-        conf = indent(unicode(conf.value))
+        conf = u'!lambda |-\n' + indent(unicode(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, conf)
+    elif conf is None:
+        pass
     else:
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
