@@ -57,6 +57,7 @@ class RedirectText(object):
 
     # pylint: disable=no-self-use
     def isatty(self):
+        print("isatty: True")
         return True
 
 
@@ -69,6 +70,7 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
 
+    sys.stdin = RedirectText(sys.stdin)
     sys.stdout = RedirectText(sys.stdout)
     sys.stderr = RedirectText(sys.stderr)
 
@@ -91,6 +93,8 @@ def run_external_command(func, *cmd, **kwargs):
         sys.argv = orig_argv
         sys.exit = orig_exit
 
+        if isinstance(sys.stdin, RedirectText):
+            sys.stdin = sys.__stdin__
         if isinstance(sys.stdout, RedirectText):
             sys.stdout = sys.__stdout__
         if isinstance(sys.stderr, RedirectText):

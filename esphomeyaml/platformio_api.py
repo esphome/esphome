@@ -21,14 +21,15 @@ def run_platformio_cli(*args, **kwargs):
 
         def strip_ansi(x):
             print("strip_ansi({})".format(x))
+            return x
 
-        click._compat.strip_ansi = lambda x: x
+        click._compat.strip_ansi = strip_ansi
 
         def should_strip_ansi(stream=None, color=None):
             print("should_strip_ansi({}, {})".format(stream, color))
             return False
 
-        click._compat.should_strip_ansi = lambda x: False
+        click._compat.should_strip_ansi = should_strip_ansi
     except Exception as e:  # pylint: disable=broad-except
         print("Error: {}".format(e))
 
