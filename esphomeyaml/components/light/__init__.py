@@ -182,21 +182,21 @@ def validate_effects(allowed_effects):
         ret = []
         for i, effect in enumerate(value):
             if not isinstance(effect, dict):
-                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)))
+                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)), [i])
             if len(effect) > 1:
-                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.")
+                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.", [i])
             if not effect:
-                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i))
+                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i), [i])
             key = next(iter(effect.keys()))
             if key not in allowed_effects:
                 raise vol.Invalid("The effect '{}' does not exist or is not allowed for this "
-                                  "light type".format(key))
+                                  "light type".format(key), [i])
             effect[key] = effect[key] or {}
             conf = EFFECTS_SCHEMA(effect)
             name = conf[key][CONF_NAME]
             if name in names:
                 raise vol.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                                  u"unique names".format(name))
+                                  u"unique names".format(name), [i])
             names.add(name)
             ret.append(conf)
         return ret

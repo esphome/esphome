@@ -448,8 +448,10 @@ def load_config():
 
 def line_info(obj, highlight=True):
     """Display line config source."""
+    if not highlight:
+        return None
     if hasattr(obj, '__config_file__'):
-        return color('cyan' if highlight else 'white', "[source {}:{}]"
+        return color('cyan', "[source {}:{}]"
                      .format(obj.__config_file__, obj.__line__ or '?'))
     return None
 
