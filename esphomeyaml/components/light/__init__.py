@@ -2,15 +2,19 @@ import voluptuous as vol
 
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
-    CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
-    CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
-    CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
-    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
-from esphomeyaml.helpers import Action, Application, ArrayInitializer, Component, Nameable, \
-    Pvariable, StructInitializer, TemplateArguments, add, add_job, esphomelib_ns, float_, \
-    get_variable, process_lambda, setup_mqtt_component, std_string, templatable, uint32
+    CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
+    CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, \
+    CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, \
+    CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, CONF_FLASH_LENGTH, CONF_COLOR_TEMPERATURE, \
+    CONF_EFFECT
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import process_lambda, Pvariable, add, StructInitializer, \
+    ArrayInitializer, get_variable, templatable
+from esphomeyaml.cpp_types import esphomelib_ns, Application, Component, Nameable, Action, uint32, \
+    float_, std_string
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -173,26 +177,35 @@ EFFECTS_SCHEMA = vol.Schema({
 
 def validate_effects(allowed_effects):
     def validator(value):
+        is_list = isinstance(value, list)
         value = cv.ensure_list(value)
         names = set()
         ret = []
         for i, effect in enumerate(value):
+            path = [i] if is_list else []
             if not isinstance(effect, dict):
-                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)))
+                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)),
+                                  path)
             if len(effect) > 1:
-                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.")
+                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.",
+                                  path)
             if not effect:
-                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i))
+                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i),
+                                  path)
             key = next(iter(effect.keys()))
             if key not in allowed_effects:
                 raise vol.Invalid("The effect '{}' does not exist or is not allowed for this "
-                                  "light type".format(key))
+                                  "light type".format(key), path)
             effect[key] = effect[key] or {}
-            conf = EFFECTS_SCHEMA(effect)
+            try:
+                conf = EFFECTS_SCHEMA(effect)
+            except vol.Invalid as err:
+                err.prepend(path)
+                raise err
             name = conf[key][CONF_NAME]
             if name in names:
                 raise vol.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                                  u"unique names".format(name))
+                                  u"unique names".format(name), [i])
             names.add(name)
             ret.append(conf)
         return ret
@@ -346,7 +359,7 @@ def setup_light_core_(light_var, mqtt_var, config):
 def setup_light(light_obj, mqtt_obj, config):
     light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    add_job(setup_light_core_, light_var, mqtt_var, config)
+    CORE.add_job(setup_light_core_, light_var, mqtt_var, config)
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'
@@ -359,8 +372,7 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
-def light_toggle_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_toggle_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
@@ -381,8 +393,7 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
-def light_turn_off_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_turn_off_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
@@ -413,8 +424,7 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def light_turn_on_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)

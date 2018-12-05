@@ -1,11 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ATTENUATION, CONF_MAKE_ID, CONF_NAME, CONF_PIN, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, global_ns, variable, setup_component
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, global_ns
 
 ATTENUATION_MODES = {
     '0db': global_ns.ADC_0db,
@@ -60,3 +62,9 @@ def required_build_flags(config):
 
 def to_hass_config(data, config):
     return sensor.core_to_hass_config(data, config)
+
+
+def includes(config):
+    if config[CONF_PIN] == 'VCC':
+        return 'ADC_MODE(ADC_VCC);'
+    return None

@@ -12,7 +12,7 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL
     CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
     CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
     CONF_WAIT_TIME
-from esphomeyaml.helpers import ArrayInitializer, Pvariable, add, get_variable
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, get_variable
 
 DEPENDENCIES = ['remote_transmitter']
 

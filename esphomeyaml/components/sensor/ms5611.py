@@ -4,9 +4,9 @@ from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, PollingComponent, Pvariable, add, \
-    setup_component, \
-    variable
+from esphomeyaml.cpp_generator import Pvariable, add, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, PollingComponent
 
 DEPENDENCIES = ['i2c']
 

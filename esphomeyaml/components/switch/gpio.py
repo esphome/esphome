@@ -4,8 +4,9 @@ from esphomeyaml import pins
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_PIN
-from esphomeyaml.helpers import App, Application, gpio_output_pin_expression, variable, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application, Component
 
 MakeGPIOSwitch = Application.struct('MakeGPIOSwitch')
 GPIOSwitch = switch.switch_ns.class_('GPIOSwitch', switch.Switch, Component)

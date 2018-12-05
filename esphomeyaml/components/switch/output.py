@@ -3,7 +3,9 @@ import voluptuous as vol
 from esphomeyaml.components import output, switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
-from esphomeyaml.helpers import App, Application, Component, get_variable, setup_component, variable
+from esphomeyaml.cpp_generator import get_variable, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, Component
 
 MakeOutputSwitch = Application.struct('MakeOutputSwitch')
 OutputSwitch = switch.switch_ns.class_('OutputSwitch', switch.Switch, Component)

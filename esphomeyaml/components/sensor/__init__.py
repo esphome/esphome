@@ -1,7 +1,9 @@
 import voluptuous as vol
 
 from esphomeyaml import automation
+from esphomeyaml.automation import CONDITION_REGISTRY
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
@@ -10,9 +12,11 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CO
     CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
     CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
     CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
-from esphomeyaml.helpers import App, ArrayInitializer, Component, Nameable, PollingComponent, \
-    Pvariable, Trigger, add, add_job, esphomelib_ns, float_, process_lambda, setup_mqtt_component, \
-    templatable
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, process_lambda, \
+    templatable, get_variable
+from esphomeyaml.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
+    esphomelib_ns, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -37,9 +41,9 @@ FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT, CONF_FILTER_NAN,
                CONF_THROTTLE, CONF_DELTA, CONF_UNIQUE, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR]
 
 FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
-    vol.Optional(CONF_OFFSET): vol.Coerce(float),
-    vol.Optional(CONF_MULTIPLY): vol.Coerce(float),
-    vol.Optional(CONF_FILTER_OUT): vol.Coerce(float),
+    vol.Optional(CONF_OFFSET): cv.float_,
+    vol.Optional(CONF_MULTIPLY): cv.float_,
+    vol.Optional(CONF_FILTER_OUT): cv.float_,
     vol.Optional(CONF_FILTER_NAN): None,
     vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
         vol.Required(CONF_WINDOW_SIZE): cv.positive_not_null_int,
@@ -52,7 +56,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     }),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_THROTTLE): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_DELTA): vol.Coerce(float),
+    vol.Optional(CONF_DELTA): cv.float_,
     vol.Optional(CONF_UNIQUE): None,
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DEBOUNCE): cv.positive_time_period_milliseconds,
@@ -62,6 +66,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
 # Base
 sensor_ns = esphomelib_ns.namespace('sensor')
 Sensor = sensor_ns.class_('Sensor', Nameable)
+SensorPtr = Sensor.operator('ptr')
 MQTTSensorComponent = sensor_ns.class_('MQTTSensorComponent', mqtt.MQTTComponent)
 
 PollingSensorComponent = sensor_ns.class_('PollingSensorComponent', PollingComponent, Sensor)
@@ -71,7 +76,7 @@ EmptyPollingParentSensor = sensor_ns.class_('EmptyPollingParentSensor', EmptySen
 # Triggers
 SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', Trigger.template(float_))
 SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger', Trigger.template(float_))
-ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', Trigger.template(float_))
+ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', Trigger.template(float_), Component)
 
 # Filters
 Filter = sensor_ns.class_('Filter')
@@ -88,6 +93,7 @@ HeartbeatFilter = sensor_ns.class_('HeartbeatFilter', Filter, Component)
 DeltaFilter = sensor_ns.class_('DeltaFilter', Filter)
 OrFilter = sensor_ns.class_('OrFilter', Filter)
 UniqueFilter = sensor_ns.class_('UniqueFilter', Filter)
+SensorInRangeCondition = sensor_ns.class_('SensorInRangeCondition', Filter)
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),
@@ -104,8 +110,8 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     }),
     vol.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
-        vol.Optional(CONF_ABOVE): vol.Coerce(float),
-        vol.Optional(CONF_BELOW): vol.Coerce(float),
+        vol.Optional(CONF_ABOVE): cv.float_,
+        vol.Optional(CONF_BELOW): cv.float_,
     }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
 })
 
@@ -186,13 +192,12 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         rhs = sensor_var.make_value_range_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        add(App.register_component(trigger))
         if CONF_ABOVE in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_ABOVE], float_, float_):
                 yield
             add(trigger.set_min(template_))
         if CONF_BELOW in conf:
-            template_ = None
             for template_ in templatable(conf[CONF_BELOW], float_, float_):
                 yield
             add(trigger.set_max(template_))
@@ -209,17 +214,41 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
 def setup_sensor(sensor_obj, mqtt_obj, config):
     sensor_var = Pvariable(config[CONF_ID], sensor_obj, has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
 
 
 def register_sensor(var, config):
     sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_sensor(sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'
+
+
+CONF_SENSOR_IN_RANGE = 'sensor.in_range'
+SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({
+    vol.Required(CONF_ID): cv.use_variable_id(Sensor),
+    vol.Optional(CONF_ABOVE): cv.float_,
+    vol.Optional(CONF_BELOW): cv.float_,
+}, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
+
+
+@CONDITION_REGISTRY.register(CONF_SENSOR_IN_RANGE, SENSOR_IN_RANGE_CONDITION_SCHEMA)
+def sensor_in_range_to_code(config, condition_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_sensor_in_range_condition(template_arg)
+    type = SensorInRangeCondition.template(arg_type)
+    cond = Pvariable(condition_id, rhs, type=type)
+
+    if CONF_ABOVE in config:
+        add(cond.set_min(config[CONF_ABOVE]))
+    if CONF_BELOW in config:
+        add(cond.set_max(config[CONF_BELOW]))
+
+    yield cond
 
 
 def core_to_hass_config(data, config):

@@ -4,161 +4,17 @@
   <meta charset="UTF-8">
   <title>esphomeyaml Dashboard</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/css/materialize.min.css">
+  <link rel="stylesheet" href="/static/materialize.min.css?v=1">
+  <link rel="stylesheet" href="/static/materialize-stepper.min.css?v=1">
+  <link rel="stylesheet" href="/static/esphomeyaml.css?v=1">
+  <link rel="shortcut icon" href="/static/favicon.ico?v=1">
 
-  <link rel="stylesheet" href="/static/materialize-stepper.min.css">
+  <script src="/static/jquery.min.js?v=1"></script>
+  <script src="/static/jquery-ui.min.js?v=1"></script>
+  <script src="/static/materialize.min.js?v=1"></script>
+  <script src="/static/jquery.validate.min.js?v=1"></script>
 
-  <!-- jQuery :( -->
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.4/jquery.min.js"></script>
-  <script src="https://code.jquery.com/ui/1.8.5/jquery-ui.min.js" integrity="sha256-fOse6WapxTrUSJOJICXXYwHRJOPa6C1OUQXi7C9Ddy8=" crossorigin="anonymous"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0-beta/js/materialize.min.js"></script>
-  <script src="https://ajax.aspnetcdn.com/ajax/jquery.validate/1.15.0/jquery.validate.min.js"></script>
-
-
-  <script src="/static/materialize-stepper.min.js"></script>
-
-  <style>
-    nav .brand-logo {
-      margin-left: 48px;
-      font-size: 20px;
-    }
-
-    main .container {
-      margin-top: -12vh;
-      flex-shrink: 0;
-    }
-
-    .ribbon {
-      width: 100%;
-      height: 17vh;
-      background-color: #3F51B5;
-      flex-shrink: 0;
-    }
-
-    .ribbon-fab:not(.tap-target-origin) {
-      position: absolute;
-      right: 24px;
-      top: calc(17vh + 34px);
-    }
-
-    i.very-large {
-      font-size: 8rem;
-      padding-top: 2px;
-      color: #424242;
-    }
-
-    .card .card-content {
-      padding-left: 18px;
-      padding-bottom: 10px;
-    }
-
-    .log {
-      background-color: #1c1c1c;
-      margin-top: 0;
-      margin-bottom: 0;
-      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-      font-size: 12px;
-      padding: 16px;
-      overflow: auto;
-      line-height: 1.45;
-      border-radius: 3px;
-      white-space: pre-wrap;
-      overflow-wrap: break-word;
-      color: #DDD;
-    }
-
-    .inlinecode {
-      box-sizing: border-box;
-      padding: 0.2em 0.4em;
-      margin: 0;
-      font-size: 85%;
-      background-color: rgba(27,31,35,0.05);
-      border-radius: 3px;
-      font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
-    }
-
-    .log.bold {
-      font-weight: bold;
-    }
-
-    .log .v {
-      color: #888888;
-    }
-
-    .log .d {
-      color: #00DDDD;
-    }
-
-    .log .c {
-      color: magenta;
-    }
-
-    .log .i {
-      color: limegreen;
-    }
-
-    .log .w {
-      color: yellow;
-    }
-
-    .log .e {
-      color: red;
-      font-weight: bold;
-    }
-
-    .log .e {
-      color: red;
-    }
-
-    .log .ww {
-      color: white;
-    }
-
-    .modal {
-      width: 95%;
-      max-height: 90%;
-      height: 85% !important;
-    }
-
-    .page-footer {
-      padding-top: 0;
-    }
-
-    body {
-      display: flex;
-      min-height: 100vh;
-      flex-direction: column;
-    }
-
-    main {
-      flex: 1 0 auto;
-    }
-
-    ul.browser-default {
-      padding-left: 30px;
-      margin-top: 10px;
-      margin-bottom: 15px;
-    }
-
-    ul.browser-default li {
-      list-style-type: initial;
-    }
-
-    ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .step.done::before, ul.stepper.horizontal .step.active .step-title::before, ul.stepper.horizontal .step.done .step-title::before {
-      background-color: #3f51b5 !important;
-    }
-
-    .select-port-container {
-      margin-top: 8px;
-      margin-right: 24px;
-      width: 350px;
-    }
-
-    .dropdown-trigger {
-      cursor: pointer;
-    }
-  </style>
-
+  <script src="/static/materialize-stepper.min.js?v=1"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </head>
 <body>
@@ -178,7 +34,7 @@
     <h5>Select Upload Port</h5>
     <p>
       Here you can select where esphomeyaml will attempt to show logs and upload firmwares to.
-      By default, this is "OTA", or Over-The-Air. Note that you might have to restart the HassIO add-on
+      By default, this is "OTA", or Over-The-Air. Note that you might have to restart the Hass.io add-on
       for new serial ports to be detected.
     </p>
   </div>
@@ -189,7 +45,7 @@
 
 <main>
 <div class="container">
-  {% for i, (file, full_path) in enumerate(zip(files, full_path_files)) %}
+  {% for i, entry in enumerate(entries) %}
   <div class="row">
     <div class="col s8 offset-s2 m10 offset-m1 l12">
       <div class="card horizontal">
@@ -199,23 +55,33 @@
         <div class="card-stacked">
           <div class="card-content">
             <span class="card-title">
-              {{ escape(file) }}
+              {{ escape(entry.name) }}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
             <p>
-              Full path: <code class="inlinecode">{{ escape(full_path) }}</code>
+              <span class="status-indicator unknown" data-node="{{ entry.filename }}">
+                <span class="status-indicator-icon"></span>
+                <span class="status-indicator-text"></span></span>.
+              Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
             </p>
+            {% if entry.update_available %}
+              <p class="update-available" data-node="{{ entry.filename }}">
+                <i class="material-icons">system_update</i>
+                Update Available! {{ entry.update_old }} &#x27A1;&#xFE0F;{{ entry.update_new }}
+              </p>
+            {% end %}
           </div>
           <div class="card-action">
-            <a href="#" class="action-upload" data-node="{{ file }}">Upload</a>
-            <a href="#" class="action-compile" data-node="{{ file }}">Compile</a>
-            <a href="#" class="action-show-logs" data-node="{{ file }}">Show Logs</a>
-            <a href="#" class="action-validate" data-node="{{ file }}">Validate</a>
+            <a class="action-upload" data-node="{{ entry.filename }}">Upload</a>
+            <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
+            <a class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
+            <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
-          <ul id="dropdown-{{ i }}" class="dropdown-content">
-            <li><a href="#" class="action-clean-mqtt" data-node="{{ file }}">Clean MQTT</a></li>
-            <li><a href="#" class="action-clean" data-node="{{ file }}">Clean Build</a></li>
-            <li><a href="#" class="action-hass-config" data-node="{{ file }}">Home Assistant Configuration</a></li>
+          <ul id="dropdown-{{ i }}" class="dropdown-content card-dropdown-action">
+            <li><a class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
+            <li><a class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
+            <li><a class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
+            <li><a class="action-hass-config" data-node="{{ entry.filename }}">Home Assistant Configuration</a></li>
           </ul>
         </div>
       </div>
@@ -225,10 +91,14 @@
 </div>
 
 <div id="modal-logs" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Show Logs <code class="inlinecode filename"></code></h4>
-    <div class="log-container">
-      <pre class="log"></pre>
+  <div class="modal-content autoscroll">
+    <div>
+      <h4>Show Logs <code class="inlinecode filename"></code></h4>
+      <div>
+        <div class="log-container">
+          <pre class="log"></pre>
+        </div>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
@@ -237,25 +107,37 @@
 </div>
 
 <div id="modal-upload" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Compile And Upload <code class="inlinecode filename"></code></h4>
-    <div class="log-container">
-      <pre class="log"></pre>
+  <div class="modal-content autoscroll">
+    <div>
+      <h4>Compile And Upload <code class="inlinecode filename"></code></h4>
+      <div class="log-container">
+        <pre class="log"></pre>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
+    <a href="https://esphomelib.com/esphomeyaml/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
+       class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher">
+      <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+    </a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
 
 <div id="modal-compile" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Compile <code class="inlinecode filename"></code></h4>
-    <div class="log-container">
-      <pre class="log"></pre>
+  <div class="modal-content autoscroll">
+    <div>
+      <h4>Compile <code class="inlinecode filename"></code></h4>
+      <div class="log-container">
+        <pre class="log"></pre>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
+    <a href="https://esphomelib.com/esphomeyaml/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
+       class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher">
+      <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+    </a>
     <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
@@ -324,25 +206,97 @@
           <div class="row">
             <p>
               Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
-              Please choose either ESP32 or ESP8266 (use ESP8266 for Sonoff devices).
+              Please choose the board you're using below. If you're not sure you can also use similar ones
+              or even the "Generic" option. In most cases that will work too.
             </p>
             <div class="input-field col s12">
-              <select id="esp_type" name="platform" required>
-                <option value="ESP8266">ESP8266</option>
-                <option value="ESP32">ESP32</option>
+              <select id="board" name="board" required>
+                <optgroup label="ESP8266">
+                  <option value="esp01_1m">Generic ESP8266 (for example Sonoff)</option>
+                  <option value="nodemcuv2">NodeMCU</option>
+                  <option value="d1_mini">Wemos D1 and Wemos D1 mini</option>
+                  <option value="d1_mini_lite">Wemos D1 mini Lite</option>
+                  <option value="d1_mini_pro">Wemos D1 mini Pro</option>
+                  <option value="huzzah">Adafruit HUZZAH ESP8266</option>
+                  <option value="oak">DigiStump Oak</option>
+                  <option value="thing">Sparkfun ESP8266 Thing</option>
+                  <option value="thingdev">Sparkfun ESP8266 Thing - Dev Board</option>
+                </optgroup>
+                <optgroup label="ESP32">
+                  <option value="esp-wrover-kit">Generic ESP32 (WROVER Module)</option>
+                  <option value="nodemcu-32s">NodeMCU-32S</option>
+                  <option value="lolin_d32">Wemos Lolin D32</option>
+                  <option value="lolin_d32_pro">Wemos Lolin D32 Pro</option>
+                  <option value="featheresp32">Adafruit ESP32 Feather</option>
+                  <option value="m5stack-core-esp32">M5Stack Core ESP32</option>
+                </optgroup>
+                <optgroup label="Other ESP8266s">
+                  <option value="gen4iod">4D Systems gen4 IoD Range</option>
+                  <option value="wifi_slot">Amperka WiFi Slot</option>
+                  <option value="espduino">Doit ESPDuino</option>
+                  <option value="espectro">DycodeX ESPectro Core</option>
+                  <option value="espino">ESPino</option>
+                  <option value="esp_wroom_02">Espressif ESP-WROOM-02 module</option>
+                  <option value="esp12e">Espressif ESP-12E module</option>
+                  <option value="esp01">Espressif ESP-01 512k module</option>
+                  <option value="esp07">Espressif ESP-07 module</option>
+                  <option value="esp8285">Generic ESP8285 module</option>
+                  <option value="espresso_lite_v1">ESPert ESPresso Lite 1.0</option>
+                  <option value="espresso_lite_v2">ESPert ESPresso Lite 2.0</option>
+                  <option value="phoenix_v1">ESPert Phoenix 1.0</option>
+                  <option value="wifinfo">WiFInfo</option>
+                  <option value="heltec_wifi_kit_8">Heltec WiFi kit 8</option>
+                  <option value="nodemcu">NodeMCU 0.9</option>
+                  <option value="modwifi">Olimex MOD-WIFI</option>
+                  <option value="wio_link">SeedStudio Wio Link</option>
+                  <option value="wio_node">SeedStudio Wio Node</option>
+                  <option value="sparkfunBlynk">Sparkfun Blynk Board</option>
+                  <option value="esp210">SweetPea ESP-210</option>
+                  <option value="espinotee">ThaiEasyElec ESPino</option>
+                  <option value="d1">Wemos D1 Revision 1</option>
+                  <option value="wifiduino">WiFiDuino</option>
+                  <option value="xinabox_cw01">XinaBox CW01</option>
+                </optgroup>
+                <optgroup label="Other ESP32s">
+                  <option value="lolin32">Wemos Lolin 32</option>
+                  <option value="esp32dev">Espressif ESP32 Dev Module</option>
+                  <option value="m5stack-fire">M5Stack FIRE</option>
+                  <option value="wemosbat">Wemos WiFi &amp; Bluetooth Battery</option>
+                  <option value="node32s">Aiyarafun Node32s</option>
+                  <option value="espea32">April Brother ESPea32</option>
+                  <option value="firebeetle32">DFRobot FireBeetle-ESP32</option>
+                  <option value="esp32doit-devkit-v1">Doit ESP32 Devkit v1</option>
+                  <option value="pocket_32">Dongsen Tech Pocket 32</option>
+                  <option value="espectro32">DycodeX ESPectro32</option>
+                  <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
+                  <option value="esp320">Electronic SweetPeas ESP320</option>
+                  <option value="pico32">Espressif ESP32 Pico Kit</option>
+                  <option value="odroid_esp32">Hardkernel Odroid GO</option>
+                  <option value="heltec_wifi_kit_32">Heltec WIFI Kit 32</option>
+                  <option value="heltec_wifi_lora_32">Heltec WIFI LoRa 32</option>
+                  <option value="hornbill32dev">Hornbill ESP32 Dev</option>
+                  <option value="hornbill32minima">Hornbill ESP32 Minima</option>
+                  <option value="intorobot">IntoRobot Fig</option>
+                  <option value="mhetesp32devkit">MH-ET Live ESP32 Devkit</option>
+                  <option value="mhetesp32minikit">MH-ET Live ESP32 Minikit</option>
+                  <option value="nano32">MakerAsia Nano32</option>
+                  <option value="microduino-core-esp32">Microduino Core ESP32</option>
+                  <option value="quantum">Noduino Quantum</option>
+                  <option value="esp32-evb">Olimex ESP32-EVB</option>
+                  <option value="esp32-gateway">Olimex ESP32-GATEWAY</option>
+                  <option value="esp32-pro">Olimex ESP32-PRO</option>
+                  <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
+                  <option value="alksesp32">RoboticsBrno ALKS ESP32</option>
+                  <option value="esp32thing">Sparkfun ESP32 Thing</option>
+                  <option value="ttgo-lora32-v1">TTGO LoRa32-OLED v1</option>
+                  <option value="espino32">ThaiEasyElec ESPino32</option>
+                  <option value="widora-air">Widora AIR</option>
+                  <option value="xinabox_cw02">XinaBox CW02</option>
+                  <option value="iotbusio">oddWires IoT-Bus Io</option>
+                  <option value="iotbusproteus">oddWires Proteus IoT-Bus</option>
+                  <option value="nina_w10">u-blox NINA-W10 series</option>
+                </optgroup>
               </select>
-              <label>Microcontroller Type</label>
-            </div>
-            <p>
-              I'm also going to need to know which type of board you're using. Please go to
-              <a href="http://docs.platformio.org/en/latest/platforms/espressif32.html#boards" target="_blank">ESP32 boards</a> or
-              <a href="http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards" target="_blank">ESP8266 boards</a>,
-              find your board and enter it here. For example, enter <code class="inlinecode">nodemcuv2</code>
-              for ESP8266 NodeMCU boards. Note: Use <code class="inlinecode">esp01_1m</code> for Sonoff devices.
-            </p>
-            <div class="input-field col s12">
-              <input id="board_type" class="validate" type="text" name="board" required>
-              <label for="board_type">Board Type</label>
             </div>
           </div>
           <div class="step-actions">
@@ -385,29 +339,54 @@
         <div class="step-title waves-effect">MQTT</div>
         <div class="step-content">
           <div class="row">
-            <p>
-              esphomelib connects to your Home Assistant instance via
-              <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>. If you haven't already, please set up
-              MQTT on your Home Assistant server, for example with the awesome
-              <a href="https://www.home-assistant.io/addons/mosquitto/">Mosquitto Hass.io Add-on</a>.
-            </p>
-            <p>
-              When you're done with that, please enter your MQTT broker here. For example
-              <code class="inlinecode">192.168.1.100</code> (Note
-              <code class="inlinecode">hassio.local</code> doesn't always work, please use a static IP).
-              Please also specify the MQTT username and password you wish esphomelib to use
-              (leave them empty if you're not using any authentication).
-            </p>
+            {% if mqtt_config is None %}
+              <p>
+                esphomelib connects to your Home Assistant instance via
+                <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>.
+                  If you haven't already, please set up
+                  MQTT on your Home Assistant server, for example with the
+                  <a href="https://www.home-assistant.io/addons/mosquitto/">Mosquitto Hass.io Add-on</a>.
+              </p>
+              <p>
+                When you're done with that, please enter your MQTT broker here. For example
+                <code class="inlinecode">192.168.1.100</code>.
+                Please also specify the MQTT username and password you wish esphomelib to use
+                (leave them empty if you're not using any authentication).
+              </p>
+            {% else %}
+              <p>
+                esphomelib connects to your Home Assistant instance via
+                <a href="https://www.home-assistant.io/docs/mqtt/">MQTT</a>. In this section you will have
+                to tell esphomelib which MQTT "broker" to use.
+
+              </p>
+              <p>
+                It looks like you've already set up MQTT, the values below are taken from your Hass.io MQTT add-on.
+                Please confirm they are correct and press CONTINUE.
+              </p>
+            {% end %}
             <div class="input-field col s12">
-              <input id="mqtt_broker" class="validate" type="text" name="broker" required>
+              {% if mqtt_config is None %}
+                <input id="mqtt_broker" class="validate" type="text" name="broker" required>
+              {% else %}
+                <input id="mqtt_broker" class="validate" type="text" name="broker" value="{{ mqtt_config['host'] }}" required>
+              {% end %}
               <label for="mqtt_broker">MQTT Broker</label>
             </div>
             <div class="input-field col s6">
-              <input id="mqtt_username" class="validate" type="text" name="mqtt_username">
+              {% if mqtt_config is None %}
+                <input id="mqtt_username" class="validate" type="text" name="mqtt_username">
+              {% else %}
+                <input id="mqtt_username" class="validate" type="text" name="mqtt_username" value="{{ mqtt_config['username'] }}">
+              {% end%}
               <label for="mqtt_username">MQTT Username</label>
             </div>
             <div class="input-field col s6">
-              <input id="mqtt_password" class="validate" name="mqtt_password" type="password">
+              {% if mqtt_config is None %}
+                <input id="mqtt_password" class="validate" name="mqtt_password" type="password">
+              {% else %}
+                <input id="mqtt_password" class="validate" name="mqtt_password" type="password" value="{{ mqtt_config['password'] }}">
+              {% end %}
               <label for="mqtt_password">MQTT Password</label>
             </div>
           </div>
@@ -464,15 +443,17 @@
     </form>
   </div>
   <div class="modal-footer">
-    <a href="#!" class="modal-close waves-effect waves-green btn-flat">Abort</a>
+    <a class="modal-close waves-effect waves-green btn-flat">Abort</a>
   </div>
 </div>
 
 <div id="modal-clean-mqtt" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Clean MQTT discovery <code class="inlinecode filename"></code></h4>
-    <div class="log-container">
-      <pre class="log"></pre>
+  <div class="modal-content autoscroll">
+    <div>
+      <h4>Clean MQTT discovery <code class="inlinecode filename"></code></h4>
+      <div class="log-container">
+        <pre class="log"></pre>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
@@ -481,10 +462,12 @@
 </div>
 
 <div id="modal-clean" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Clean Build Files <code class="inlinecode filename"></code></h4>
-    <div class="log-container">
-      <pre class="log"></pre>
+  <div class="modal-content autoscroll">
+    <div>
+      <h4>Clean Build Files <code class="inlinecode filename"></code></h4>
+      <div class="log-container">
+        <pre class="log"></pre>
+      </div>
     </div>
   </div>
   <div class="modal-footer">
@@ -501,6 +484,19 @@
   </div>
   <div class="modal-footer">
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+  </div>
+</div>
+
+<div id="modal-editor" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Edit <code class="inlinecode filename"></code></h4>
+    <div id="editor">
+
+    </div>
+  </div>
+  <div class="modal-footer">
+    <a class="waves-effect waves-green btn-flat save-button">Save</a>
+    <a class="modal-close waves-effect waves-green btn-flat">Close</a>
   </div>
 </div>
 
@@ -526,467 +522,15 @@
   <div class="footer-copyright">
     <div class="container">
       © 2018 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
-      <a class="grey-text text-lighten-4 right" href="https://esphomelib.com/esphomeyaml/index.html" target="_blank">esphomeyaml {{ version }} Documentation</a>
+      <a class="grey-text text-lighten-4 right" href="{{ docs_link }}" target="_blank">esphomeyaml {{ version }} Documentation</a>
     </div>
   </div>
 </footer>
 
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    M.AutoInit(document.body);
-  });
+<script src="/static/ace.js?v=1" type="text/javascript" charset="utf-8"></script>
+<script src="/static/esphomeyaml.js?v=1" type="text/javascript"></script>
 
-  const colorReplace = (input) => {
-    input = input.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
-    input = input.replace(/\\033\[(?:0;)?31m/g, '<span class="e">');
-    input = input.replace(/\\033\[(?:1;)?31m/g, '<span class="e bold">');
-    input = input.replace(/\\033\[(?:0;)?32m/g, '<span class="i">');
-    input = input.replace(/\\033\[(?:1;)?32m/g, '<span class="i bold">');
-    input = input.replace(/\\033\[(?:0;)?33m/g, '<span class="w">');
-    input = input.replace(/\\033\[(?:1;)?33m/g, '<span class="w bold">');
-    input = input.replace(/\\033\[(?:0;)?35m/g, '<span class="c">');
-    input = input.replace(/\\033\[(?:1;)?35m/g, '<span class="c bold">');
-    input = input.replace(/\\033\[(?:0;)?36m/g, '<span class="d">');
-    input = input.replace(/\\033\[(?:1;)?36m/g, '<span class="d bold">');
-    input = input.replace(/\\033\[(?:0;)?37m/g, '<span class="v">');
-    input = input.replace(/\\033\[(?:1;)?37m/g, '<span class="v bold">');
-    input = input.replace(/\\033\[(?:0;)?38m/g, '<span class="vv">');
-    input = input.replace(/\\033\[(?:1;)?38m/g, '<span class="vv bold">');
-    input = input.replace(/\\033\[0m/g, '</span>');
-
-    return input;
-  };
-
-  let configuration = "";
-  let wsProtocol = "ws:";
-  if (window.location.protocol === "https:") {
-    wsProtocol = 'wss:';
-  }
-  const wsUrl = wsProtocol + '//' + window.location.hostname + ':' + window.location.port;
-
-  const portSelect = document.querySelector('.nav-wrapper select');
-  let ports = [];
-
-  const fetchSerialPorts = (begin=false) => {
-    fetch('/serial-ports', {credentials: "same-origin"}).then(res => res.json())
-      .then(response => {
-        if (ports.length === response.length) {
-          let allEqual = true;
-          for (let i = 0; i < response.length; i++) {
-            if (ports[i].port !== response[i].port) {
-              allEqual = false;
-              break;
-            }
-          }
-          if (allEqual)
-            return;
-        }
-        const hasNewPort = response.length >= ports.length;
-
-        ports = response;
-
-        const inst = M.FormSelect.getInstance(portSelect);
-        if (inst !== undefined) {
-          inst.destroy();
-        }
-
-        portSelect.innerHTML = "";
-        const prevSelected = getUploadPort();
-        for (let i = 0; i < response.length; i++) {
-          const val = response[i];
-          if (val.port === prevSelected) {
-            portSelect.innerHTML += `<option value="${val.port}" selected>${val.port} (${val.desc})</option>`;
-          } else {
-            portSelect.innerHTML += `<option value="${val.port}">${val.port} (${val.desc})</option>`;
-          }
-        }
-
-        M.FormSelect.init(portSelect, {});
-        if (!begin && hasNewPort)
-          M.toast({html: "Discovered new serial port."});
-      });
-  };
-
-  const getUploadPort = () => {
-    const inst = M.FormSelect.getInstance(portSelect);
-    if (inst === undefined) {
-      return "OTA";
-    }
-
-    inst._setSelectedStates();
-    return inst.getSelectedValues()[0];
-  };
-  setInterval(fetchSerialPorts, 5000);
-  fetchSerialPorts(true);
-
-  const logsModalElem = document.getElementById("modal-logs");
-
-  document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
-    showLogs.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(logsModalElem);
-      const log = logsModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = logsModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = logsModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/logs");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({html: "Program exited successfully."});
-          } else {
-            M.toast({html: `Program failed with code ${data.code}`});
-          }
-
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const uploadModalElem = document.getElementById("modal-upload");
-
-  document.querySelectorAll(".action-upload").forEach((upload) => {
-    upload.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(uploadModalElem);
-      const log = uploadModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = uploadModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = uploadModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/run");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({html: "Program exited successfully."});
-          } else {
-            M.toast({html: `Program failed with code ${data.code}`});
-          }
-
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration, port: getUploadPort()});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const validateModalElem = document.getElementById("modal-validate");
-
-  document.querySelectorAll(".action-validate").forEach((upload) => {
-    upload.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(validateModalElem);
-      const log = validateModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = validateModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = validateModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/validate");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({
-              html: `<code class="inlinecode">${configuration}</code> is valid 👍`,
-              displayLength: 5000,
-            });
-          } else {
-            M.toast({
-              html: `<code class="inlinecode">${configuration}</code> is invalid 😕`,
-              displayLength: 5000,
-            });
-          }
-
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const compileModalElem = document.getElementById("modal-compile");
-  const downloadButton = compileModalElem.querySelector('.download-binary');
-
-  document.querySelectorAll(".action-compile").forEach((upload) => {
-    upload.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(compileModalElem);
-      const log = compileModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = compileModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      downloadButton.classList.add('disabled');
-
-      modalInstance.open();
-
-      const filenameField = compileModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/compile");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({html: "Program exited successfully."});
-            downloadButton.classList.remove('disabled');
-          } else {
-            M.toast({html: `Program failed with code ${data.code}`});
-          }
-
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-  downloadButton.addEventListener('click', () => {
-    const link = document.createElement("a");
-    link.download = name;
-    link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
-    link.click();
-  });
-
-  const cleanMqttModalElem = document.getElementById("modal-clean-mqtt");
-
-  document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(cleanMqttModalElem);
-      const log = cleanMqttModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = cleanMqttModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = cleanMqttModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/clean-mqtt");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const cleanModalElem = document.getElementById("modal-clean");
-
-  document.querySelectorAll(".action-clean").forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(cleanModalElem);
-      const log = cleanModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = cleanModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = cleanModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/clean");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({html: "Program exited successfully."});
-            downloadButton.classList.remove('disabled');
-          } else {
-            M.toast({html: `Program failed with code ${data.code}`});
-          }
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const hassConfigModalElem = document.getElementById("modal-hass-config");
-
-  document.querySelectorAll(".action-hass-config").forEach((btn) => {
-    btn.addEventListener('click', (e) => {
-      configuration = e.target.getAttribute('data-node');
-      const modalInstance = M.Modal.getInstance(hassConfigModalElem);
-      const log = hassConfigModalElem.querySelector(".log");
-      log.innerHTML = "";
-      const stopLogsButton = hassConfigModalElem.querySelector(".stop-logs");
-      let stopped = false;
-      stopLogsButton.innerHTML = "Stop";
-      modalInstance.open();
-
-      const filenameField = hassConfigModalElem.querySelector('.filename');
-      filenameField.innerHTML = configuration;
-
-      const logSocket = new WebSocket(wsUrl + "/hass-config");
-      logSocket.addEventListener('message', (event) => {
-        const data = JSON.parse(event.data);
-        if (data.event === "line") {
-          const msg = data.data;
-          log.innerHTML += colorReplace(msg);
-        } else if (data.event === "exit") {
-          if (data.code === 0) {
-            M.toast({html: "Program exited successfully."});
-            downloadButton.classList.remove('disabled');
-          } else {
-            M.toast({html: `Program failed with code ${data.code}`});
-          }
-          stopLogsButton.innerHTML = "Close";
-          stopped = true;
-        }
-      });
-      logSocket.addEventListener('open', () => {
-        const msg = JSON.stringify({configuration: configuration});
-        logSocket.send(msg);
-      });
-      logSocket.addEventListener('close', () => {
-        if (!stopped) {
-          M.toast({html: 'Terminated process.'});
-        }
-      });
-      modalInstance.options.onCloseStart = () => {
-        logSocket.close();
-      };
-    });
-  });
-
-  const modalSetupElem = document.getElementById("modal-wizard");
-  const setupWizardStart = document.getElementById('setup-wizard-start');
-  const startWizard = () => {
-    const modalInstance = M.Modal.getInstance(modalSetupElem);
-    modalInstance.open();
-
-    modalInstance.options.onCloseStart = () => {
-
-    };
-
-    $('.stepper').activateStepper({
-      linearStepsNavigation: false,
-      autoFocusInput: true,
-      autoFormCreation: true,
-      showFeedbackLoader: true,
-      parallel: false
-    });
-  };
-  setupWizardStart.addEventListener('click', startWizard);
-</script>
-
-{% if len(files) == 0 %}
+{% if len(entries) == 0 %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const tapTargetElem = document.querySelector('.tap-target.setup-wizard');

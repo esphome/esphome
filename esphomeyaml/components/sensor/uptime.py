@@ -1,9 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, variable, setup_component
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application
 
 MakeUptimeSensor = Application.struct('MakeUptimeSensor')
 UptimeSensor = sensor.sensor_ns.class_('UptimeSensor', sensor.PollingSensorComponent)

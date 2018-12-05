@@ -6,12 +6,12 @@ import unicodedata
 
 import voluptuous as vol
 
-from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import color
 # pylint: disable=anomalous-backslash-in-string
 from esphomeyaml.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import safe_print
 
 CORE_BIG = """    _____ ____  _____  ______
@@ -80,6 +80,20 @@ def wizard_file(**kwargs):
         config += u"ota:\n"
 
     return config
+
+
+def wizard_write(path, **kwargs):
+    name = kwargs['name']
+    board = kwargs['board']
+    if 'platform' not in kwargs:
+        kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
+    platform = kwargs['platform']
+
+    with codecs.open(path, 'w') as f_handle:
+        f_handle.write(wizard_file(**kwargs))
+    storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
+    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage.save(storage_path)
 
 
 if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
@@ -249,17 +263,7 @@ def wizard(path):
     safe_print("Please enter the " + color('green', 'address') + " of your MQTT broker.")
     safe_print()
     safe_print("For example \"{}\".".format(color('bold_white', '192.168.178.84')))
-    while True:
-        broker = raw_input(color('bold_white', "(broker): "))
-        try:
-            broker = mqtt.validate_broker(broker)
-            break
-        except vol.Invalid as err:
-            safe_print(color('red', u"The broker address \"{}\" seems to be invalid: {} :("
-                                    u"".format(broker, err)))
-            safe_print("Please try again.")
-            safe_print()
-            sleep(1)
+    broker = raw_input(color('bold_white', "(broker): "))
 
     safe_print("Thanks! Now enter the " + color('green', 'username') + " and " +
                color('green', 'password') +
@@ -287,13 +291,10 @@ def wizard(path):
     safe_print("Press ENTER for no password")
     ota_password = raw_input(color('bold_white', '(password): '))
 
-    config = wizard_file(name=name, platform=platform, board=board,
-                         ssid=ssid, psk=psk, broker=broker,
-                         mqtt_username=mqtt_username, mqtt_password=mqtt_password,
-                         ota_password=ota_password)
-
-    with codecs.open(path, 'w') as f_handle:
-        f_handle.write(config)
+    wizard_write(path=path, name=name, platform=platform, board=board,
+                 ssid=ssid, psk=psk, broker=broker,
+                 mqtt_username=mqtt_username, mqtt_password=mqtt_password,
+                 ota_password=ota_password)
 
     safe_print()
     safe_print(color('cyan', "DONE! I've now written a new configuration file to ") +

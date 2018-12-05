@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_RESOLUTION
-from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, variable, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application, Component
 
 RotaryEncoderResolution = sensor.sensor_ns.enum('RotaryEncoderResolution')
 RESOLUTIONS = {

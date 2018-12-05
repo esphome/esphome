@@ -6,7 +6,9 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_BUS_VOLTAGE, CONF_CURRENT, CONF_ID, \
     CONF_MAX_CURRENT, CONF_MAX_VOLTAGE, CONF_NAME, CONF_POWER, CONF_SHUNT_RESISTANCE, \
     CONF_SHUNT_VOLTAGE, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, PollingComponent, Pvariable, setup_component
+from esphomeyaml.cpp_generator import Pvariable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, PollingComponent
 
 DEPENDENCIES = ['i2c']
 

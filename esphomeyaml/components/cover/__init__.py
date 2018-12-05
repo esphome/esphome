@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY
+from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_MQTT_ID, CONF_INTERNAL
-from esphomeyaml.helpers import Pvariable, esphomelib_ns, setup_mqtt_component, add, \
-    TemplateArguments, get_variable, Action, Nameable
+from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable
+from esphomeyaml.cpp_types import Action, Nameable, esphomelib_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -54,8 +55,7 @@ COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_OPEN, COVER_OPEN_ACTION_SCHEMA)
-def cover_open_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_open_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_open_action(template_arg)
@@ -70,8 +70,7 @@ COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_CLOSE, COVER_CLOSE_ACTION_SCHEMA)
-def cover_close_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_close_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_close_action(template_arg)
@@ -86,8 +85,7 @@ COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COVER_STOP, COVER_STOP_ACTION_SCHEMA)
-def cover_stop_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def cover_stop_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_stop_action(template_arg)

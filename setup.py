@@ -29,6 +29,7 @@ REQUIRES = [
     'colorlog>=3.1.2',
     'tornado>=5.0.0',
     'esptool>=2.3.1',
+    'typing>=3.0.0',
 ]
 
 CLASSIFIERS = [

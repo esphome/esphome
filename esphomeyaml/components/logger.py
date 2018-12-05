@@ -6,9 +6,9 @@ from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
-from esphomeyaml.core import ESPHomeYAMLError, Lambda
-from esphomeyaml.helpers import App, Pvariable, RawExpression, TemplateArguments, add, \
-    esphomelib_ns, global_ns, process_lambda, statement, Component
+from esphomeyaml.core import EsphomeyamlError, Lambda
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -39,7 +39,7 @@ def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
     for tag, level in value.get(CONF_LOGS, {}).iteritems():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
-            raise ESPHomeYAMLError(u"The local log level {} for {} must be less severe than the "
+            raise EsphomeyamlError(u"The local log level {} for {} must be less severe than the "
                                    u"global log level {}.".format(level, tag, global_level))
     return value
 
@@ -115,8 +115,7 @@ LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def logger_log_action_to_code(config, action_id, arg_type, template_arg):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
     args = [RawExpression(unicode(x)) for x in config[CONF_ARGS]]
 

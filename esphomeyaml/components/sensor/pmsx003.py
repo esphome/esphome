@@ -5,7 +5,9 @@ from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, CONF_UART_ID
-from esphomeyaml.helpers import App, Pvariable, get_variable, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, get_variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component
 
 DEPENDENCIES = ['uart']
 
@@ -43,7 +45,6 @@ def validate_pmsx003_sensors(value):
 PMSX003_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Sensor),
 })
-
 
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Component),

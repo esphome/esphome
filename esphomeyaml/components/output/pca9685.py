@@ -1,10 +1,10 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
 from esphomeyaml.components.pca9685 import PCA9685OutputComponent
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CHANNEL, CONF_ID, CONF_PCA9685_ID, CONF_POWER_SUPPLY
-from esphomeyaml.helpers import Pvariable, get_variable
+from esphomeyaml.cpp_generator import Pvariable, get_variable
 
 DEPENDENCIES = ['pca9685']
 

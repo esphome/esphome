@@ -1,11 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.components.dallas import DallasComponent
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAME, \
     CONF_RESOLUTION
-from esphomeyaml.helpers import HexIntLiteral, get_variable
+from esphomeyaml.cpp_generator import HexIntLiteral, get_variable
 
 DallasTemperatureSensor = sensor.sensor_ns.class_('DallasTemperatureSensor',
                                                   sensor.EmptyPollingParentSensor)

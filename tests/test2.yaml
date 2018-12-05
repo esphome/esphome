@@ -1,14 +1,15 @@
 esphomeyaml:
-  name: test2
+  name: $devicename
   platform: ESP32
   board: nodemcu-32s
-  # Use latest upstream esphomelib git version.
-  esphomelib_version: dev
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
   use_custom_code: true
   build_path: build/test2
+
+substitutions:
+  devicename: test2
 
 wifi:
   ssid: 'MySSID'
@@ -150,7 +151,7 @@ text_sensor:
     icon: mdi:icon
     id: version_sensor
     on_value:
-      - lambda: |-
+      - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
   - platform: mqtt_subscribe

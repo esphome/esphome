@@ -2,9 +2,9 @@ from esphomeyaml.components import display, uart
 from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_UART_ID
-from esphomeyaml.helpers import App, PollingComponent, Pvariable, add, get_variable, \
-    process_lambda, \
-    setup_component
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, PollingComponent
 
 DEPENDENCIES = ['uart']
 

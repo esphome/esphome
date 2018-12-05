@@ -2,11 +2,13 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
 from esphomeyaml.components import binary_sensor
-from esphomeyaml.const import CONF_ID, CONF_SETUP_MODE, CONF_IIR_FILTER, \
-    CONF_SLEEP_DURATION, CONF_MEASUREMENT_DURATION, CONF_LOW_VOLTAGE_REFERENCE, \
-    CONF_HIGH_VOLTAGE_REFERENCE, CONF_VOLTAGE_ATTENUATION, ESP_PLATFORM_ESP32
+from esphomeyaml.const import CONF_HIGH_VOLTAGE_REFERENCE, CONF_ID, CONF_IIR_FILTER, \
+    CONF_LOW_VOLTAGE_REFERENCE, CONF_MEASUREMENT_DURATION, CONF_SETUP_MODE, CONF_SLEEP_DURATION, \
+    CONF_VOLTAGE_ATTENUATION, ESP_PLATFORM_ESP32
 from esphomeyaml.core import TimePeriod
-from esphomeyaml.helpers import App, Pvariable, add, global_ns, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, global_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -19,6 +21,7 @@ def validate_voltage(values):
         if not value.endswith('V'):
             value += 'V'
         return cv.one_of(*values)(value)
+
     return validator
 
 

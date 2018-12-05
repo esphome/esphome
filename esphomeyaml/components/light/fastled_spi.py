@@ -1,14 +1,15 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import light
 from esphomeyaml.components.power_supply import PowerSupplyComponent
-from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, \
-    CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER, CONF_EFFECTS, CONF_COLOR_CORRECT
-from esphomeyaml.helpers import App, Application, RawExpression, TemplateArguments, add, \
-    get_variable, variable, setup_component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_COLOR_CORRECT, CONF_DATA_PIN, \
+    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, \
+    CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER
+from esphomeyaml.cpp_generator import RawExpression, TemplateArguments, add, get_variable, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application
 
 CHIPSETS = [
     'LPD8806',
@@ -82,6 +83,8 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'
+
+LIB_DEPS = 'FastLED@3.2.0'
 
 
 def to_hass_config(data, config):

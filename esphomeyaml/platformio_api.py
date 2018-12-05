@@ -1,10 +1,12 @@
+from __future__ import print_function
+
 import json
 import logging
+import os
 import re
 import subprocess
 
-from esphomeyaml.const import CONF_BUILD_PATH, CONF_ESPHOMEYAML
-from esphomeyaml.helpers import relative_path
+from esphomeyaml.core import CORE
 from esphomeyaml.util import run_external_command
 
 _LOGGER = logging.getLogger(__name__)
@@ -13,14 +15,14 @@ _LOGGER = logging.getLogger(__name__)
 def run_platformio_cli(*args, **kwargs):
     import platformio.__main__
 
+    os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     cmd = ['platformio'] + list(args)
     return run_external_command(platformio.__main__.main,
                                 *cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    command = ['run', '-d', build_path]
+    command = ['run', '-d', CORE.build_path]
     if verbose:
         command += ['-v']
     command += list(args)

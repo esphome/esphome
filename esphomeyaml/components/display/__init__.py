@@ -3,7 +3,9 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_ROTATION, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import add, add_job, esphomelib_ns
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import add
+from esphomeyaml.cpp_types import esphomelib_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -50,7 +52,7 @@ def setup_display_core_(display_var, config):
 
 
 def setup_display(display_var, config):
-    add_job(setup_display_core_, display_var, config)
+    CORE.add_job(setup_display_core_, display_var, config)
 
 
 BUILD_FLAGS = '-DUSE_DISPLAY'

@@ -4,7 +4,9 @@ from esphomeyaml.components import light, output
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, \
     CONF_MAKE_ID, CONF_NAME, CONF_OUTPUT
-from esphomeyaml.helpers import App, get_variable, setup_component, variable
+from esphomeyaml.cpp_generator import get_variable, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),

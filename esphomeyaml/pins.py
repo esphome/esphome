@@ -2,11 +2,10 @@ import logging
 
 import voluptuous as vol
 
-from esphomeyaml import core
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.helpers import Component, esphomelib_ns, io_ns
+from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_types import Component, esphomelib_ns, io_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,18 +146,18 @@ ESP32_BOARD_PINS = {
 }
 
 
-def _lookup_pin(platform, board, value):
-    if platform == ESP_PLATFORM_ESP8266:
-        board_pins = ESP8266_BOARD_PINS.get(board, {})
+def _lookup_pin(value):
+    if CORE.is_esp8266:
+        board_pins = ESP8266_BOARD_PINS.get(CORE.board, {})
         base_pins = ESP8266_BASE_PINS
-    elif platform == ESP_PLATFORM_ESP32:
-        board_pins = ESP32_BOARD_PINS.get(board, {})
+    elif CORE.is_esp32:
+        board_pins = ESP32_BOARD_PINS.get(CORE.board, {})
         base_pins = ESP32_BASE_PINS
     else:
         raise NotImplementedError
 
-    if isinstance(board_pins, str):
-        return _lookup_pin(platform, board_pins, value)
+    while isinstance(board_pins, str):
+        board_pins = ESP8266_BOARD_PINS.get(board_pins, {})
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:
@@ -178,12 +177,12 @@ def _translate_pin(value):
         pass
     if value.startswith('GPIO'):
         return vol.Coerce(int)(value[len('GPIO'):].strip())
-    return _lookup_pin(core.ESP_PLATFORM, core.BOARD, value)
+    return _lookup_pin(value)
 
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if value < 0 or value > 39:
             raise vol.Invalid(u"ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
@@ -193,53 +192,60 @@ def validate_gpio_pin(value):
             _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
                             u"Be warned.", value)
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif CORE.is_esp8266:
         if 6 <= value <= 11:
             _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
         if value < 0 or value > 17:
             raise vol.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
         return value
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def input_pin(value):
-    value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    return validate_gpio_pin(value)
+
+
+def input_pullup_pin(value):
+    value = input_pin(value)
+    if CORE.is_esp32:
+        return output_pin(value)
+    elif CORE.is_esp8266:
+        if value == 0:
+            raise vol.Invalid("GPIO Pin 0 does not support pullup pin mode. "
+                              "Please choose another pin.")
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
-        return value
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def output_pin(value):
     value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if 34 <= value <= 39:
-            raise vol.Invalid(u"ESP32: Pin {} (34-39) can only be used as "
-                              u"input pins.".format(value))
+            raise vol.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
+                              u"input pin.".format(value))
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif CORE.is_esp8266:
         return value
-    raise vol.Invalid("Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def analog_pin(value):
     value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if 32 <= value <= 39:  # ADC1
             return value
         raise vol.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif CORE.is_esp8266:
         if value == 17:  # A0
             return value
         raise vol.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
-# pylint: disable=invalid-name
 input_output_pin = vol.All(input_pin, output_pin)
-gpio_pin = vol.Any(input_pin, output_pin)
+
+
 PIN_MODES_ESP8266 = [
     'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',
@@ -254,11 +260,11 @@ PIN_MODES_ESP32 = [
 
 
 def pin_mode(value):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         return cv.one_of(*PIN_MODES_ESP32, upper=True)(value)
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif CORE.is_esp8266:
         return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
@@ -284,6 +290,11 @@ def shorthand_input_pin(value):
     return {CONF_NUMBER: value}
 
 
+def shorthand_input_pullup_pin(value):
+    value = input_pullup_pin(value)
+    return {CONF_NUMBER: value}
+
+
 I2CDevice = esphomelib_ns.class_('I2CDevice')
 PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
 
@@ -306,11 +317,9 @@ def internal_gpio_output_pin_schema(value):
 
 
 def gpio_output_pin_schema(value):
-    if isinstance(value, dict):
-        if CONF_PCF8574 in value:
-            return PCF8574_OUTPUT_PIN_SCHEMA(value)
-        return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
-    return shorthand_output_pin(value)
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_OUTPUT_PIN_SCHEMA(value)
+    return internal_gpio_output_pin_schema(value)
 
 
 def internal_gpio_input_pin_schema(value):
@@ -320,8 +329,18 @@ def internal_gpio_input_pin_schema(value):
 
 
 def gpio_input_pin_schema(value):
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_INPUT_PIN_SCHEMA(value)
+    return internal_gpio_input_pin_schema(value)
+
+
+def internal_gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict):
-        if CONF_PCF8574 in value:
-            return PCF8574_INPUT_PIN_SCHEMA(value)
         return GPIO_FULL_INPUT_PIN_SCHEMA(value)
-    return shorthand_input_pin(value)
+    return shorthand_input_pullup_pin(value)
+
+
+def gpio_input_pullup_pin_schema(value):
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_INPUT_PIN_SCHEMA(value)
+    return internal_gpio_input_pin_schema(value)

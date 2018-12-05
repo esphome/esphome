@@ -1,10 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, process_lambda, variable, Application, float_, optional, add, \
-    setup_component
+from esphomeyaml.cpp_generator import add, process_lambda, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, float_, optional
 
 MakeTemplateSensor = Application.struct('MakeTemplateSensor')
 TemplateSensor = sensor.sensor_ns.class_('TemplateSensor', sensor.PollingSensorComponent)

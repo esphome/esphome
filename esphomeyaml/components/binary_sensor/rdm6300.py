@@ -3,7 +3,7 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor, rdm6300
 from esphomeyaml.const import CONF_NAME, CONF_UID
-from esphomeyaml.helpers import get_variable
+from esphomeyaml.cpp_generator import get_variable
 
 DEPENDENCIES = ['rdm6300']
 

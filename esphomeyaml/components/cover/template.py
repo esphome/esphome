@@ -5,8 +5,9 @@ from esphomeyaml import automation
 from esphomeyaml.components import cover
 from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, \
     CONF_OPEN_ACTION, CONF_STOP_ACTION, CONF_OPTIMISTIC
-from esphomeyaml.helpers import App, Application, NoArg, add, process_lambda, variable, optional, \
-    setup_component
+from esphomeyaml.cpp_generator import variable, process_lambda, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import Application, App, optional, NoArg
 
 MakeTemplateCover = Application.struct('MakeTemplateCover')
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)

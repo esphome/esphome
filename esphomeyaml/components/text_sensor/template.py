@@ -3,8 +3,9 @@ import voluptuous as vol
 from esphomeyaml.components import text_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, optional, process_lambda, std_string, \
-    variable, setup_component, PollingComponent
+from esphomeyaml.cpp_generator import add, process_lambda, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, PollingComponent, optional, std_string
 
 MakeTemplateTextSensor = Application.struct('MakeTemplateTextSensor')
 TemplateTextSensor = text_sensor.text_sensor_ns.class_('TemplateTextSensor',

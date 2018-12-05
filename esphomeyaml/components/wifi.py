@@ -1,12 +1,12 @@
 import voluptuous as vol
 
-from esphomeyaml import core
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
-    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE,\
-    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, ESP_PLATFORM_ESP8266
-from esphomeyaml.helpers import App, Pvariable, StructInitializer, add, esphomelib_ns, global_ns, \
-    Component
+    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE, \
+    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
 
 
 def validate_password(value):
@@ -59,7 +59,7 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
 def validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise vol.Invalid("Cannot have WiFi password without SSID!")
-    if CONF_SSID not in config and CONF_AP not in config:
+    if (CONF_SSID not in config) and (CONF_AP not in config):
         raise vol.Invalid("Please specify at least an SSID or an Access Point "
                           "to create.")
     return config
@@ -140,6 +140,8 @@ def to_code(config):
 
 
 def lib_deps(config):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         return 'ESP8266WiFi'
-    return None
+    elif CORE.is_esp32:
+        return None
+    raise NotImplementedError

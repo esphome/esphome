@@ -4,7 +4,7 @@ import random
 import socket
 import sys
 
-from esphomeyaml.core import ESPHomeYAMLError
+from esphomeyaml.core import EsphomeyamlError
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -29,29 +29,35 @@ OTA_VERSION_1_0 = 1
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 _LOGGER = logging.getLogger(__name__)
-LAST_PROGRESS = -1
 
 
-def update_progress(progress):
-    global LAST_PROGRESS
+class ProgressBar(object):
+    def __init__(self):
+        self.last_progress = None
 
-    bar_length = 60
-    status = ""
-    if progress >= 1:
-        progress = 1
-        status = "Done...\r\n"
-    new_progress = int(progress * 100)
-    if new_progress == LAST_PROGRESS:
-        return
-    LAST_PROGRESS = new_progress
-    block = int(round(bar_length * progress))
-    text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
-                                                new_progress, status)
-    sys.stderr.write(text)
-    sys.stderr.flush()
+    def update(self, progress):
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
+                                                    new_progress, status)
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    # pylint: disable=no-self-use
+    def done(self):
+        sys.stderr.write('\n')
+        sys.stderr.flush()
 
 
-class OTAError(ESPHomeYAMLError):
+class OTAError(EsphomeyamlError):
     pass
 
 
@@ -188,7 +194,7 @@ def perform_ota(sock, password, file_handle, filename):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
 
     offset = 0
-    update_progress(0.0)
+    progress = ProgressBar()
     while True:
         chunk = file_handle.read(1024)
         if not chunk:
@@ -201,12 +207,12 @@ def perform_ota(sock, password, file_handle, filename):
             sys.stderr.write('\n')
             raise OTAError("Error sending data: {}".format(err))
 
-        update_progress(offset / float(file_size))
+        progress.update(offset / float(file_size))
+    progress.done()
 
     # Enable nodelay for last checks
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    sys.stderr.write('\n')
     _LOGGER.info("Waiting for result...")
 
     receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
@@ -257,7 +263,7 @@ def resolve_ip_address(host):
     return ip
 
 
-def run_ota(remote_host, remote_port, password, filename):
+def run_ota_impl_(remote_host, remote_port, password, filename):
     ip = resolve_ip_address(remote_host)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10.0)
@@ -279,6 +285,14 @@ def run_ota(remote_host, remote_port, password, filename):
         file_handle.close()
 
     return 0
+
+
+def run_ota(remote_host, remote_port, password, filename):
+    try:
+        return run_ota_impl_(remote_host, remote_port, password, filename)
+    except OTAError as err:
+        _LOGGER.error(err)
+        return 1
 
 
 def run_legacy_ota(verbose, host_port, remote_host, remote_port, password, filename):
