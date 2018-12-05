@@ -2,9 +2,6 @@ esphomeyaml:
   name: test1
   platform: ESP32
   board: nodemcu-32s
-  # Use latest upstream esphomelib git version.
-  esphomelib_version:
-    branch: custom-sensor-platform
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
@@ -181,7 +178,7 @@ sensor:
       - lambda: return x * (9.0/5.0) + 32.0;
     on_value:
       then:
-        - lambda: >-
+        - lambda: |-
             ESP_LOGD("main", "Got value %f", x);
             id(my_sensor).publish_state(42.0);
             ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
