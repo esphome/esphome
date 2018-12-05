@@ -108,17 +108,6 @@ OrCondition = esphomelib_ns.class_('OrCondition', Condition)
 RangeCondition = esphomelib_ns.class_('RangeCondition', Condition)
 LambdaCondition = esphomelib_ns.class_('LambdaCondition', Condition)
 
-CONDITIONS_SCHEMA = vol.All(cv.ensure_list, [cv.templatable({
-    cv.GenerateID(CONF_CONDITION_ID): cv.declare_variable_id(Condition),
-    vol.Optional(CONF_AND): validate_recursive_condition,
-    vol.Optional(CONF_OR): validate_recursive_condition,
-    vol.Optional(CONF_RANGE): vol.All(vol.Schema({
-        vol.Optional(CONF_ABOVE): cv.float_,
-        vol.Optional(CONF_BELOW): cv.float_,
-    }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
-})])
-
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
     schema = AUTOMATION_SCHEMA.extend(extra_schema or {})
