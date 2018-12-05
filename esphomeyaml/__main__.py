@@ -9,7 +9,7 @@ import random
 import sys
 
 from esphomeyaml import const, core, core_config, mqtt, platformio_api, wizard, writer, yaml_util
-from esphomeyaml.config import get_component, iter_components, read_config
+from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
     CONF_WIFI
@@ -240,25 +240,6 @@ def command_wizard(args):
     return wizard.wizard(args.configuration)
 
 
-def strip_default_ids(config):
-    value = config
-    if isinstance(config, list):
-        value = type(config)()
-        for x in config:
-            if isinstance(x, core.ID) and not x.is_manual:
-                continue
-            value.append(strip_default_ids(x))
-        return value
-    elif isinstance(config, dict):
-        value = type(config)()
-        for k, v in config.iteritems():
-            if isinstance(v, core.ID) and not v.is_manual:
-                continue
-            value[k] = strip_default_ids(v)
-        return value
-    return value
-
-
 def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
     if not args.verbose:
@@ -475,7 +456,7 @@ def run_esphomeyaml(argv):
 
     CORE.config_path = args.configuration
 
-    config = read_config()
+    config = read_config(args.verbose)
     if config is None:
         return 1
     CORE.config = config

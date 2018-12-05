@@ -101,7 +101,6 @@ const colorReplace = (pre, state, text) => {
           break;
         case 31:
           state.foregroundColor = "red";
-          state.bold = true;
           break;
         case 32:
           state.foregroundColor = "green";

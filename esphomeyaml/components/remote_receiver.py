@@ -9,6 +9,7 @@ from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 remote_ns = esphomelib_ns.namespace('remote')
+MULTI_CONF = True
 
 RemoteControlComponentBase = remote_ns.class_('RemoteControlComponentBase')
 RemoteReceiverComponent = remote_ns.class_('RemoteReceiverComponent',
@@ -36,7 +37,7 @@ def validate_dumpers_all(value):
     raise vol.Invalid("Not valid dumpers")
 
 
-CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
+CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiverComponent),
     vol.Required(CONF_PIN): pins.gpio_input_pin_schema,
     vol.Optional(CONF_DUMP, default=[]):
@@ -46,28 +47,27 @@ CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
     vol.Optional(CONF_BUFFER_SIZE): cv.validate_bytes,
     vol.Optional(CONF_FILTER): cv.positive_time_period_microseconds,
     vol.Optional(CONF_IDLE): cv.positive_time_period_microseconds,
-}).extend(cv.COMPONENT_SCHEMA.schema)])
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
-    for conf in config:
-        for pin in gpio_input_pin_expression(conf[CONF_PIN]):
-            yield
-        rhs = App.make_remote_receiver_component(pin)
-        receiver = Pvariable(conf[CONF_ID], rhs)
+    for pin in gpio_input_pin_expression(config[CONF_PIN]):
+        yield
+    rhs = App.make_remote_receiver_component(pin)
+    receiver = Pvariable(config[CONF_ID], rhs)
 
-        for dumper in conf[CONF_DUMP]:
-            add(receiver.add_dumper(DUMPERS[dumper].new()))
-        if CONF_TOLERANCE in conf:
-            add(receiver.set_tolerance(conf[CONF_TOLERANCE]))
-        if CONF_BUFFER_SIZE in conf:
-            add(receiver.set_buffer_size(conf[CONF_BUFFER_SIZE]))
-        if CONF_FILTER in conf:
-            add(receiver.set_filter_us(conf[CONF_FILTER]))
-        if CONF_IDLE in conf:
-            add(receiver.set_idle_us(conf[CONF_IDLE]))
+    for dumper in config[CONF_DUMP]:
+        add(receiver.add_dumper(DUMPERS[dumper].new()))
+    if CONF_TOLERANCE in config:
+        add(receiver.set_tolerance(config[CONF_TOLERANCE]))
+    if CONF_BUFFER_SIZE in config:
+        add(receiver.set_buffer_size(config[CONF_BUFFER_SIZE]))
+    if CONF_FILTER in config:
+        add(receiver.set_filter_us(config[CONF_FILTER]))
+    if CONF_IDLE in config:
+        add(receiver.set_idle_us(config[CONF_IDLE]))
 
-        setup_component(receiver, conf)
+    setup_component(receiver, config)
 
 
 BUILD_FLAGS = '-DUSE_REMOTE_RECEIVER'

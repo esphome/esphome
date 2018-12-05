@@ -10,6 +10,7 @@ from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawE
 from esphomeyaml.cpp_types import App
 
 DEPENDENCIES = ['display']
+MULTI_CONF = True
 
 Font = display.display_ns.class_('Font')
 Glyph = display.display_ns.class_('Glyph')
@@ -76,46 +77,45 @@ FONT_SCHEMA = vol.Schema({
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
 })
 
-CONFIG_SCHEMA = vol.All(validate_pillow_installed, cv.ensure_list, [FONT_SCHEMA])
+CONFIG_SCHEMA = vol.All(validate_pillow_installed, FONT_SCHEMA)
 
 
 def to_code(config):
     from PIL import ImageFont
 
-    for conf in config:
-        path = CORE.relative_path(conf[CONF_FILE])
-        try:
-            font = ImageFont.truetype(path, conf[CONF_SIZE])
-        except Exception as e:
-            raise core.EsphomeyamlError(u"Could not load truetype file {}: {}".format(path, e))
+    path = CORE.relative_path(config[CONF_FILE])
+    try:
+        font = ImageFont.truetype(path, config[CONF_SIZE])
+    except Exception as e:
+        raise core.EsphomeyamlError(u"Could not load truetype file {}: {}".format(path, e))
 
-        ascent, descent = font.getmetrics()
+    ascent, descent = font.getmetrics()
 
-        glyph_args = {}
-        data = []
-        for glyph in conf[CONF_GLYPHS]:
-            mask = font.getmask(glyph, mode='1')
-            _, (offset_x, offset_y) = font.font.getsize(glyph)
-            width, height = mask.size
-            width8 = ((width + 7) // 8) * 8
-            glyph_data = [0 for _ in range(height * width8 // 8)]  # noqa: F812
-            for y in range(height):
-                for x in range(width):
-                    if not mask.getpixel((x, y)):
-                        continue
-                    pos = x + y * width8
-                    glyph_data[pos // 8] |= 0x80 >> (pos % 8)
-            glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
-            data += glyph_data
+    glyph_args = {}
+    data = []
+    for glyph in config[CONF_GLYPHS]:
+        mask = font.getmask(glyph, mode='1')
+        _, (offset_x, offset_y) = font.font.getsize(glyph)
+        width, height = mask.size
+        width8 = ((width + 7) // 8) * 8
+        glyph_data = [0 for _ in range(height * width8 // 8)]  # noqa: F812
+        for y in range(height):
+            for x in range(width):
+                if not mask.getpixel((x, y)):
+                    continue
+                pos = x + y * width8
+                glyph_data[pos // 8] |= 0x80 >> (pos % 8)
+        glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
+        data += glyph_data
 
-        raw_data = MockObj(conf[CONF_RAW_DATA_ID])
-        add(RawExpression('static const uint8_t {}[{}] PROGMEM = {}'.format(
-            raw_data, len(data),
-            ArrayInitializer(*[HexInt(x) for x in data], multiline=False))))
+    raw_data = MockObj(config[CONF_RAW_DATA_ID])
+    add(RawExpression('static const uint8_t {}[{}] PROGMEM = {}'.format(
+        raw_data, len(data),
+        ArrayInitializer(*[HexInt(x) for x in data], multiline=False))))
 
-        glyphs = []
-        for glyph in conf[CONF_GLYPHS]:
-            glyphs.append(Glyph(glyph, raw_data, *glyph_args[glyph]))
+    glyphs = []
+    for glyph in config[CONF_GLYPHS]:
+        glyphs.append(Glyph(glyph, raw_data, *glyph_args[glyph]))
 
-        rhs = App.make_font(ArrayInitializer(*glyphs), ascent, ascent + descent)
-        Pvariable(conf[CONF_ID], rhs)
+    rhs = App.make_font(ArrayInitializer(*glyphs), ascent, ascent + descent)
+    Pvariable(config[CONF_ID], rhs)

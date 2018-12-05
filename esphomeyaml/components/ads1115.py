@@ -8,22 +8,20 @@ from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import App, Component
 
 DEPENDENCIES = ['i2c']
+MULTI_CONF = True
 
 ADS1115Component = sensor.sensor_ns.class_('ADS1115Component', Component, i2c.I2CDevice)
 
-ADS1115_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Component),
     vol.Required(CONF_ADDRESS): cv.i2c_address,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
-CONFIG_SCHEMA = vol.All(cv.ensure_list, [ADS1115_SCHEMA])
-
 
 def to_code(config):
-    for conf in config:
-        rhs = App.make_ads1115_component(conf[CONF_ADDRESS])
-        var = Pvariable(conf[CONF_ID], rhs)
-        setup_component(var, conf)
+    rhs = App.make_ads1115_component(config[CONF_ADDRESS])
+    var = Pvariable(config[CONF_ID], rhs)
+    setup_component(var, config)
 
 
 BUILD_FLAGS = '-DUSE_ADS1115_SENSOR'

@@ -171,7 +171,7 @@ def _add_reference(obj, loader, node):
     if isinstance(obj, (str, unicode)):
         obj = NodeStrClass(obj)
     if isinstance(obj, list):
-        return obj
+        obj = NodeListClass(obj)
     setattr(obj, '__config_file__', loader.name)
     setattr(obj, '__line__', node.start_mark.line)
     return obj
@@ -369,7 +369,7 @@ yaml.SafeDumper.add_representer(
 yaml.SafeDumper.add_representer(
     NodeListClass,
     lambda dumper, value:
-    dumper.represent_sequence(dumper, 'tag:yaml.org,2002:map', value)
+    dumper.represent_sequence('tag:yaml.org,2002:seq', value)
 )
 
 yaml.SafeDumper.add_representer(unicode, unicode_representer)

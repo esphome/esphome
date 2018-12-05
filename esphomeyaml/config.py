@@ -52,7 +52,11 @@ def iter_components(config):
             yield CONF_ESPHOMEYAML, core_config, conf
             continue
         component = get_component(domain)
-        yield domain, component, conf
+        if getattr(component, 'MULTI_CONF', False):
+            for conf_ in conf:
+                yield domain, component, conf_
+        else:
+            yield domain, component, conf
         if is_platform_component(component):
             for p_config in conf:
                 p_name = u"{}.{}".format(domain, p_config[CONF_PLATFORM])
@@ -180,7 +184,7 @@ def do_id_pass(result):  # type: (Config) -> None
             match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
             if match is None:
                 # No declared ID with this name
-                result.add_error("Couldn't find ID {}".format(id.id), path)
+                result.add_error("Couldn't find ID '{}'".format(id.id), path)
                 continue
             if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
                 continue
@@ -198,7 +202,7 @@ def do_id_pass(result):  # type: (Config) -> None
                     id.id = v[0].id
                     break
             else:
-                result.add_error("Couldn't resolve ID for type {}".format(id.type), path)
+                result.add_error("Couldn't resolve ID for type '{}'".format(id.type), path)
 
 
 def validate_config(config):
@@ -220,6 +224,7 @@ def validate_config(config):
 
     # Step 1: Load everything
     result.add_domain([CONF_ESPHOMEYAML], CONF_ESPHOMEYAML)
+    result[CONF_ESPHOMEYAML] = config[CONF_ESPHOMEYAML]
 
     for domain, conf in config.iteritems():
         domain = str(domain)
@@ -229,12 +234,15 @@ def validate_config(config):
         result.add_domain([domain], domain)
         result[domain] = conf
         if conf is None:
-            config[domain] = conf = {}
+            result[domain] = conf = {}
         component = get_component(domain)
         if component is None:
             result.add_error(u"Component not found: {}".format(domain), [domain])
             skip_paths.append([domain])
             continue
+
+        if not isinstance(conf, list) and getattr(component, 'MULTI_CONF', False):
+            result[domain] = conf = [conf]
 
         success = True
         dependencies = getattr(component, 'DEPENDENCIES', [])
@@ -320,24 +328,33 @@ def validate_config(config):
 
     # Step 2: Validate configuration
     try:
-        result[CONF_ESPHOMEYAML] = config[CONF_ESPHOMEYAML]
-        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(config[CONF_ESPHOMEYAML])
+        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(result[CONF_ESPHOMEYAML])
     except vol.Invalid as ex:
         _comp_error(ex, [CONF_ESPHOMEYAML])
 
-    for domain, conf in config.iteritems():
+    for domain, conf in result.iteritems():
         domain = str(domain)
         if [domain] in skip_paths:
             continue
         component = get_component(domain)
 
         if hasattr(component, 'CONFIG_SCHEMA'):
-            try:
-                validated = component.CONFIG_SCHEMA(conf)
-                result[domain] = validated
-            except vol.Invalid as ex:
-                _comp_error(ex, [domain])
-                continue
+            multi_conf = getattr(component, 'MULTI_CONF', False)
+
+            if multi_conf:
+                for i, conf_ in enumerate(conf):
+                    try:
+                        validated = component.CONFIG_SCHEMA(conf_)
+                        result[domain][i] = validated
+                    except vol.Invalid as ex:
+                        _comp_error(ex, [domain, i])
+            else:
+                try:
+                    validated = component.CONFIG_SCHEMA(conf)
+                    result[domain] = validated
+                except vol.Invalid as ex:
+                    _comp_error(ex, [domain])
+                    continue
 
         if not hasattr(component, 'PLATFORM_SCHEMA'):
             continue
@@ -377,12 +394,14 @@ def humanize_error(config, validation_error):
         except (TypeError, ValueError):
             pass
     validation_error = unicode(validation_error)
-    m = re.match(r'^(.*)\s*for dictionary value @.*$', validation_error)
+    m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
     if m is not None:
         validation_error = m.group(1)
     validation_error = validation_error.strip()
     if not validation_error.endswith(u'.'):
         validation_error += u'.'
+    if offending_item_summary is None:
+        return validation_error
     return u"{} Got '{}'".format(validation_error, offending_item_summary)
 
 
@@ -402,7 +421,7 @@ def _format_vol_invalid(ex, config, path, domain):
             paren = domain
         message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
-        message += u'{}.'.format(humanize_error(_nested_getitem(config, path), ex))
+        message += humanize_error(_nested_getitem(config, path), ex)
 
     return message
 
@@ -427,10 +446,10 @@ def load_config():
     return result
 
 
-def line_info(obj):
+def line_info(obj, highlight=True):
     """Display line config source."""
     if hasattr(obj, '__config_file__'):
-        return color('cyan', "[source {}:{}]"
+        return color('cyan' if highlight else 'white', "[source {}:{}]"
                      .format(obj.__config_file__, obj.__line__ or '?'))
     return None
 
@@ -473,7 +492,7 @@ def dump_dict(config, path, at_root=True):
                 sep = color('red', sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
-            inf = line_info(config.nested_item(path_))
+            inf = line_info(config.nested_item(path_), highlight=config.is_in_error_path(path_))
             if inf is not None:
                 msg = inf + u'\n' + msg
             elif msg:
@@ -496,7 +515,7 @@ def dump_dict(config, path, at_root=True):
                 st = color('red', st)
             msg, m = dump_dict(config, path_, at_root=False)
 
-            inf = line_info(config.nested_item(path_))
+            inf = line_info(config.nested_item(path_), highlight=config.is_in_error_path(path_))
             if m:
                 msg = u'\n' + indent(msg)
 
@@ -531,7 +550,27 @@ def dump_dict(config, path, at_root=True):
     return ret, multiline
 
 
-def read_config():
+def strip_default_ids(config):
+    if isinstance(config, list):
+        to_remove = []
+        for i, x in enumerate(config):
+            x = config[i] = strip_default_ids(x)
+            if isinstance(x, core.ID) and not x.is_manual:
+                to_remove.append(x)
+        for x in to_remove:
+            config.remove(x)
+    elif isinstance(config, dict):
+        to_remove = []
+        for k, v in config.iteritems():
+            v = config[k] = strip_default_ids(v)
+            if isinstance(v, core.ID) and not v.is_manual:
+                to_remove.append(k)
+        for k in to_remove:
+            config.pop(k)
+    return config
+
+
+def read_config(verbose):
     _LOGGER.info("Reading configuration...")
     try:
         res = load_config()
@@ -539,6 +578,9 @@ def read_config():
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
     if res.errors:
+        if not verbose:
+            res = strip_default_ids(res)
+
         safe_print(color('bold_red', u"Failed config"))
         safe_print('')
         for path, domain in res.domains:
