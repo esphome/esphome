@@ -4,7 +4,7 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_INTERNAL_FILTER, \
-    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_PULL_MODE, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL
+    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import add, variable
 from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
