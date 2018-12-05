@@ -64,19 +64,23 @@ Example add-on configuration:
 
 ### Option: `ssl`
 
-Enables/Disables encrypted SSL (HTTPS) connections to the web server of this add-on. Set it to `true` to encrypt communications, `false` otherwise. Please note that if you set this to `true` you must also specify a `certfile` and `keyfile`.
+Enables/Disables encrypted SSL (HTTPS) connections to the web server of this add-on.
+Set it to `true` to encrypt communications, `false` otherwise.
+Please note that if you set this to `true` you must also generate the key and certificate
+files for encryption. For example using [Let's Encrypt](https://www.home-assistant.io/addons/lets_encrypt/)
+or [Self-signed certificates](https://www.home-assistant.io/docs/ecosystem/certificates/tls_self_signed_certificate/).
 
 ### Option: `certfile`
 
-The certificate file to use for SSL.
+The certificate file to use for SSL. If this file doesn't exist, the add-on start will fail.
 
-**Note**: _The file MUST be stored in `/ssl/`, which is the default for Hass.io_
+**Note**: The file MUST be stored in `/ssl/`, which is the default for Hass.io
 
 ### Option: `keyfile`
 
-The private key file to use for SSL.
+The private key file to use for SSL. If this file doesn't exist, the add-on start will fail.
 
-**Note**: _The file MUST be stored in `/ssl/`, which is the default for Hass.io_
+**Note**: The file MUST be stored in `/ssl/`, which is the default for Hass.io
 
 ### Option: `leave_front_door_open`
 
