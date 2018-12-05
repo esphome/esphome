@@ -274,7 +274,7 @@ GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_NUMBER): output_pin,
+    vol.Required(CONF_NUMBER): input_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
