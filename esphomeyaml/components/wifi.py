@@ -142,4 +142,6 @@ def to_code(config):
 def lib_deps(config):
     if CORE.is_esp8266:
         return 'ESP8266WiFi'
-    return None
+    elif CORE.is_esp32:
+        return None
+    raise NotImplementedError

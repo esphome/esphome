@@ -61,6 +61,8 @@ framework = arduino
 lib_deps =
     {lib_deps}
     ${{common.lib_deps}}
+lib_ignore =
+    {lib_ignore}
 build_flags =
     {build_flags}
     ${{common.build_flags}}
@@ -266,6 +268,7 @@ def gather_lib_deps():
                 lib_deps.add(dep['name'] + '@' + dep['version'])
             else:
                 lib_deps.add(dep['version'])
+        lib_deps.add('esphomelib')
     else:
         lib_deps.add(esphomelib_version)
 
@@ -299,13 +302,19 @@ def gather_build_flags():
 
 def get_ini_content():
     version_specific_settings = determine_platformio_version_settings()
+    lib_deps = gather_lib_deps()
+    lib_ignore = {'FastLED', 'ESP Async WebServer', 'Wire', 'ArduinoOTA'}
+    for lib in list(lib_ignore):
+        if any(lib in x for x in lib_deps):
+            lib_ignore.remove(lib)
     options = {
         u'env': CORE.name,
         u'platform': CORE.config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
         u'board': CORE.board,
         u'build_flags': u'\n    '.join(gather_build_flags()),
         u'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
-        u'lib_deps': u'\n    '.join(gather_lib_deps()),
+        u'lib_deps': u'\n    '.join(lib_deps),
+        u'lib_ignore': u'\n    '.join(lib_ignore),
     }
     content = INI_CONTENT_FORMAT.format(**options)
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOMEYAML]:

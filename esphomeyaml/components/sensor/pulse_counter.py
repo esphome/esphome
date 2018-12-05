@@ -49,9 +49,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     }),
     vol.Optional(CONF_INTERNAL_FILTER): validate_internal_filter,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-
-    vol.Optional(CONF_PULL_MODE): cv.invalid("The pull_mode option has been removed in 1.7.0, "
-                                             "please use the pin mode schema now.")
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 

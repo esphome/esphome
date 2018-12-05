@@ -32,6 +32,8 @@ BUILD_FLAGS = '-DUSE_WEB_SERVER'
 
 
 def lib_deps(config):
+    deps = []
     if CORE.is_esp32:
-        return 'FS'
-    return ''
+        deps.append('FS')
+    deps.append('ESP Async WebServer@1.1.1')
+    return deps
