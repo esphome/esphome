@@ -32,6 +32,10 @@ i.very-large {
   padding-bottom: 10px;
 }
 
+.card-action a, .card-dropdown-action a {
+  cursor: pointer;
+}
+
 .inlinecode {
   box-sizing: border-box;
   padding: 0.2em 0.4em;

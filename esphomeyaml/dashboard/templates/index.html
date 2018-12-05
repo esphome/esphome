@@ -72,16 +72,16 @@
             {% end %}
           </div>
           <div class="card-action">
-            <a href="#" class="action-upload" data-node="{{ entry.filename }}">Upload</a>
-            <a href="#" class="action-edit" data-node="{{ entry.filename }}">Edit</a>
-            <a href="#" class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
-            <a href="#" class="action-validate" data-node="{{ entry.filename }}">Validate</a>
+            <a class="action-upload" data-node="{{ entry.filename }}">Upload</a>
+            <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
+            <a class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
+            <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
-          <ul id="dropdown-{{ i }}" class="dropdown-content">
-            <li><a href="#" class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
-            <li><a href="#" class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
-            <li><a href="#" class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
-            <li><a href="#" class="action-hass-config" data-node="{{ entry.filename }}">Home Assistant Configuration</a></li>
+          <ul id="dropdown-{{ i }}" class="dropdown-content card-dropdown-action">
+            <li><a class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
+            <li><a class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
+            <li><a class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
+            <li><a class="action-hass-config" data-node="{{ entry.filename }}">Home Assistant Configuration</a></li>
           </ul>
         </div>
       </div>
