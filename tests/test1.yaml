@@ -371,6 +371,10 @@ sensor:
     name: "Living Room Temperature"
     cs_pin: GPIO23
     update_interval: 15s
+  - platform: max31855
+    name: "Den Temperature"
+    cs_pin: GPIO23
+    update_interval: 15s
   - platform: mhz19
     co2:
       name: "MH-Z19 CO2 Value"
