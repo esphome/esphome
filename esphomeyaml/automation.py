@@ -26,28 +26,30 @@ def maybe_simple_id(*validators):
 
 
 def validate_recursive_condition(value):
+    is_list = isinstance(value, list)
     value = cv.ensure_list(value)[:]
     for i, item in enumerate(value):
+        path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item), [i])
+            raise vol.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item), path)
         key = next((x for x in item if x != CONF_CONDITION_ID), None)
         if key is None:
-            raise vol.Invalid(u"Key missing from action! Got {}".format(item), [i])
+            raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
         if key not in CONDITION_REGISTRY:
             raise vol.Invalid(u"Unable to find condition with the name '{}', is the "
-                              u"component loaded?".format(key), [i])
+                              u"component loaded?".format(key), path + [key])
         item.setdefault(CONF_CONDITION_ID, None)
         key2 = next((x for x in item if x != CONF_CONDITION_ID and x != key), None)
         if key2 is not None:
             raise vol.Invalid(u"Cannot have two conditions in one item. Key '{}' overrides '{}'! "
                               u"Did you forget to indent the block inside the condition?"
-                              u"".format(key, key2), [i])
+                              u"".format(key, key2), path)
         validator = CONDITION_REGISTRY[key][0]
         try:
             condition = validator(item[key])
         except vol.Invalid as e:
-            e.prepend([i])
+            e.prepend(path)
             raise e
         value[i] = {
             CONF_CONDITION_ID: cv.declare_variable_id(Condition)(item[CONF_CONDITION_ID]),
@@ -57,28 +59,30 @@ def validate_recursive_condition(value):
 
 
 def validate_recursive_action(value):
+    is_list = isinstance(value, list)
     value = cv.ensure_list(value)[:]
     for i, item in enumerate(value):
+        path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item), [i])
+            raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item), path)
         key = next((x for x in item if x != CONF_ACTION_ID), None)
         if key is None:
-            raise vol.Invalid(u"Key missing from action! Got {}".format(item), [i])
+            raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
         if key not in ACTION_REGISTRY:
             raise vol.Invalid(u"Unable to find action with the name '{}', is the component loaded?"
-                              u"".format(key), [i, key])
+                              u"".format(key), path + [key])
         item.setdefault(CONF_ACTION_ID, None)
         key2 = next((x for x in item if x != CONF_ACTION_ID and x != key), None)
         if key2 is not None:
             raise vol.Invalid(u"Cannot have two actions in one item. Key '{}' overrides '{}'! "
                               u"Did you forget to indent the block inside the action?"
-                              u"".format(key, key2), [i])
+                              u"".format(key, key2), path)
         validator = ACTION_REGISTRY[key][0]
         try:
             action = validator(item[key])
         except vol.Invalid as e:
-            e.prepend([i])
+            e.prepend(path)
             raise e
         value[i] = {
             CONF_ACTION_ID: cv.declare_variable_id(Action)(item[CONF_ACTION_ID]),
