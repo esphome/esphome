@@ -125,7 +125,6 @@ def do_substitution_pass(config):
             substitutions[new] = substitutions[old]
             del substitutions[old]
     except vol.Invalid as err:
-        from esphomeyaml.config import _format_vol_invalid
         err.path.append(key)
 
         raise EsphomeyamlError(u"Error while parsing substitutions: {}".format(err))

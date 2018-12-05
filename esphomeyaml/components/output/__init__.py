@@ -5,7 +5,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components.power_supply import PowerSupplyComponent
 from esphomeyaml.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import add, get_variable, Pvariable, TemplateArguments, templatable
+from esphomeyaml.cpp_generator import add, get_variable, Pvariable, templatable
 from esphomeyaml.cpp_types import esphomelib_ns, Action, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({

@@ -5,7 +5,7 @@ from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID
-from esphomeyaml.cpp_generator import Pvariable, TemplateArguments, add, get_variable
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable
 from esphomeyaml.cpp_types import Action, Nameable, esphomelib_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({

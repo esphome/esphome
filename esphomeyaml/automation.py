@@ -32,7 +32,8 @@ def validate_recursive_condition(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item), path)
+            raise vol.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item),
+                              path)
         key = next((x for x in item if x != CONF_CONDITION_ID), None)
         if key is None:
             raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
@@ -48,9 +49,9 @@ def validate_recursive_condition(value):
         validator = CONDITION_REGISTRY[key][0]
         try:
             condition = validator(item[key])
-        except vol.Invalid as e:
-            e.prepend(path)
-            raise e
+        except vol.Invalid as err:
+            err.prepend(path)
+            raise err
         value[i] = {
             CONF_CONDITION_ID: cv.declare_variable_id(Condition)(item[CONF_CONDITION_ID]),
             key: condition,
@@ -65,7 +66,8 @@ def validate_recursive_action(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item), path)
+            raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item),
+                              path)
         key = next((x for x in item if x != CONF_ACTION_ID), None)
         if key is None:
             raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
@@ -81,9 +83,9 @@ def validate_recursive_action(value):
         validator = ACTION_REGISTRY[key][0]
         try:
             action = validator(item[key])
-        except vol.Invalid as e:
-            e.prepend(path)
-            raise e
+        except vol.Invalid as err:
+            err.prepend(path)
+            raise err
         value[i] = {
             CONF_ACTION_ID: cv.declare_variable_id(Action)(item[CONF_ACTION_ID]),
             key: action,

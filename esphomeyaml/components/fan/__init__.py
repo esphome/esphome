@@ -7,7 +7,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_OUTPUT, CONF_OSCILLATION_STATE_TOPIC, \
     CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC
-from esphomeyaml.cpp_generator import add, Pvariable, get_variable, TemplateArguments, templatable
+from esphomeyaml.cpp_generator import add, Pvariable, get_variable, templatable
 from esphomeyaml.cpp_types import Application, Component, Nameable, esphomelib_ns, Action, bool_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({

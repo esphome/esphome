@@ -5,7 +5,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import Pvariable, TemplateArguments, add, get_variable, templatable
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, templatable
 from esphomeyaml.cpp_types import Action, esphomelib_ns, int32
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({

@@ -8,7 +8,7 @@ import os
 import random
 import sys
 
-from esphomeyaml import const, core, core_config, mqtt, platformio_api, wizard, writer, yaml_util
+from esphomeyaml import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
 from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
@@ -22,7 +22,7 @@ from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
-PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ethernet', 'ota', 'mqtt', 'web_server', 'i2c']
+PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'i2c']
 
 
 def get_serial_ports():

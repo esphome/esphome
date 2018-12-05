@@ -12,7 +12,7 @@ from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLOR
     CONF_EFFECT
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, Pvariable, add, StructInitializer, \
-    ArrayInitializer, TemplateArguments, get_variable, templatable
+    ArrayInitializer, get_variable, templatable
 from esphomeyaml.cpp_types import esphomelib_ns, Application, Component, Nameable, Action, uint32, \
     float_, std_string
 
@@ -177,22 +177,31 @@ EFFECTS_SCHEMA = vol.Schema({
 
 def validate_effects(allowed_effects):
     def validator(value):
+        is_list = isinstance(value, list)
         value = cv.ensure_list(value)
         names = set()
         ret = []
         for i, effect in enumerate(value):
+            path = [i] if is_list else []
             if not isinstance(effect, dict):
-                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)), [i])
+                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)),
+                                  path)
             if len(effect) > 1:
-                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.", [i])
+                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.",
+                                  path)
             if not effect:
-                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i), [i])
+                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i),
+                                  path)
             key = next(iter(effect.keys()))
             if key not in allowed_effects:
                 raise vol.Invalid("The effect '{}' does not exist or is not allowed for this "
-                                  "light type".format(key), [i])
+                                  "light type".format(key), path)
             effect[key] = effect[key] or {}
-            conf = EFFECTS_SCHEMA(effect)
+            try:
+                conf = EFFECTS_SCHEMA(effect)
+            except vol.Invalid as err:
+                err.prepend(path)
+                raise err
             name = conf[key][CONF_NAME]
             if name in names:
                 raise vol.Invalid(u"Found the effect name '{}' twice. All effects must have "

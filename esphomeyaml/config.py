@@ -6,15 +6,18 @@ import json
 import logging
 import re
 
-from typing import List, Optional, Tuple, Set, Union, Any, Dict
 import voluptuous as vol
 
 from esphomeyaml import core, core_config, yaml_util
 from esphomeyaml.components import substitutions
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, ESP_PLATFORMS
-from esphomeyaml.core import CORE, EsphomeyamlError, ConfigType
+from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.helpers import color, indent
 from esphomeyaml.util import safe_print
+
+# pylint: disable=unused-import, wrong-import-order
+from typing import List, Optional, Tuple, Union  # noqa
+from esphomeyaml.core import ConfigType  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -248,7 +251,8 @@ def validate_config(config):
         dependencies = getattr(component, 'DEPENDENCIES', [])
         for dependency in dependencies:
             if dependency not in config:
-                result.add_error(u"Component {} requires component {}".format(domain, dependency), [domain])
+                result.add_error(u"Component {} requires component {}".format(domain, dependency),
+                                 [domain])
                 success = False
         if not success:
             skip_paths.append([domain])
@@ -267,7 +271,8 @@ def validate_config(config):
 
         esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
         if CORE.esp_platform not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform), [domain])
+            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                             [domain])
             skip_paths.append([domain])
             continue
 
@@ -301,8 +306,8 @@ def validate_config(config):
             dependencies = getattr(platform, 'DEPENDENCIES', [])
             for dependency in dependencies:
                 if dependency not in config:
-                    result.add_error(u"Platform {} requires component {}".format(p_domain, dependency),
-                                     [domain, i])
+                    result.add_error(u"Platform {} requires component {}"
+                                     u"".format(p_domain, dependency), [domain, i])
                     success = False
             if not success:
                 skip_paths.append([domain, i])
@@ -321,8 +326,8 @@ def validate_config(config):
 
             esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
             if CORE.esp_platform not in esp_platforms:
-                result.add_error(u"Platform {} doesn't support {}.".format(p_domain, CORE.esp_platform),
-                                 [domain, i])
+                result.add_error(u"Platform {} doesn't support {}."
+                                 u"".format(p_domain, CORE.esp_platform), [domain, i])
                 skip_paths.append([domain, i])
                 continue
 
@@ -483,7 +488,7 @@ def dump_dict(config, path, at_root=True):
             ret += u'[]'
             multiline = False
 
-        for i, obj in enumerate(conf):
+        for i in range(len(conf)):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -506,7 +511,7 @@ def dump_dict(config, path, at_root=True):
             ret += u'{}'
             multiline = False
 
-        for k, v in conf.iteritems():
+        for k in conf.iterkeys():
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -589,7 +594,8 @@ def read_config(verbose):
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', u'{}:'.format(domain)) + u' ' + (line_info(res.nested_item(path)) or u''))
+            safe_print(color('bold_red', u'{}:'.format(domain)) + u' ' +
+                       (line_info(res.nested_item(path)) or u''))
             safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)

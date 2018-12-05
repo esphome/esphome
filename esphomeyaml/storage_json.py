@@ -247,7 +247,7 @@ class CheckForUpdateThread(threading.Thread):
         import requests
 
         storage = EsphomeyamlStorageJSON.load(self._path) or \
-                  EsphomeyamlStorageJSON.get_default()
+            EsphomeyamlStorageJSON.get_default()
         if not storage.should_do_esphomeyaml_update_check:
             return storage
 
