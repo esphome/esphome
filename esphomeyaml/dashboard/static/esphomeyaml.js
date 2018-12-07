@@ -176,7 +176,7 @@ const fetchPing = () => {
 
   fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
-      for (let filename in response) {
+      for (let filename of response) {
         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
         if (node === null)
           continue;
@@ -474,7 +474,9 @@ downloadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
   link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
+  document.body.appendChild(link);
   link.click();
+  link.remove();
 });
 
 const cleanMqttModalElem = document.getElementById("modal-clean-mqtt");
