@@ -5,7 +5,6 @@ from esphomeyaml.cpp_generator import variable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import Application, Component, App
 
-DEPENDENCIES = ['mqtt']
 
 MakeStatusBinarySensor = Application.struct('MakeStatusBinarySensor')
 StatusBinarySensor = binary_sensor.binary_sensor_ns.class_('StatusBinarySensor',

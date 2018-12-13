@@ -85,7 +85,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
         vol.Optional(CONF_LEVEL): logger.is_log_level,
     }), validate_message_just_topic),
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
-                                                 cv.ensure_list, [validate_fingerprint]),
+                                                 cv.ensure_list(validate_fingerprint)),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_ON_MESSAGE): automation.validate_automation({
@@ -260,12 +260,11 @@ def get_default_topic_for(data, component_type, name, suffix):
                                 sanitized_name, suffix)
 
 
-def build_hass_config(data, component_type, config, include_state=True, include_command=True,
-                      platform='mqtt'):
+def build_hass_config(data, component_type, config, include_state=True, include_command=True):
     if config.get(CONF_INTERNAL, False):
         return None
     ret = OrderedDict()
-    ret['platform'] = platform
+    ret['platform'] = 'mqtt'
     ret['name'] = config[CONF_NAME]
     if include_state:
         default = get_default_topic_for(data, component_type, config[CONF_NAME], 'state')

@@ -102,13 +102,26 @@ def boolean(value):
     return bool(value)
 
 
-def ensure_list(value):
+def ensure_list(*validators):
     """Wrap value in list if it is not one."""
-    if value is None or (isinstance(value, dict) and not value):
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
+    valid = vol.All(*validators)
+
+    def validator(value):
+        if value is None or (isinstance(value, dict) and not value):
+            return []
+        if isinstance(value, list):
+            ret = []
+            for i, val in enumerate(value):
+                try:
+                    ret.append(valid(val))
+                except vol.Invalid as err:
+                    err.prepend(i)
+                    raise err
+            return ret
+        else:
+            return [valid(value)]
+
+    return validator
 
 
 def ensure_list_not_empty(value):
@@ -469,8 +482,8 @@ def ssid(value):
         raise vol.Invalid("SSID must be a string. Did you wrap it in quotes?")
     if not value:
         raise vol.Invalid("SSID can't be empty.")
-    if len(value) > 31:
-        raise vol.Invalid("SSID can't be longer than 31 characters")
+    if len(value) > 32:
+        raise vol.Invalid("SSID can't be longer than 32 characters")
     return value
 
 

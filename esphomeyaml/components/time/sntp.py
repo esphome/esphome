@@ -11,7 +11,7 @@ SNTPComponent = time_.time_ns.class_('SNTPComponent', time_.RealTimeClockCompone
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SNTPComponent),
-    vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list, [cv.domain], vol.Length(min=1, max=3)),
+    vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list(cv.domain), vol.Length(min=1, max=3)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 

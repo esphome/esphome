@@ -11,9 +11,9 @@ CustomSensorConstructor = sensor.sensor_ns.class_('CustomSensorConstructor')
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomSensorConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
-    vol.Required(CONF_SENSORS): vol.All(cv.ensure_list, [sensor.SENSOR_SCHEMA.extend({
+    vol.Required(CONF_SENSORS): cv.ensure_list(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(sensor.Sensor),
-    })]),
+    })),
 })
 
 

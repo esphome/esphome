@@ -12,9 +12,9 @@ PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomSwitchConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_SWITCHES):
-        vol.All(cv.ensure_list, [switch.SWITCH_SCHEMA.extend({
+        cv.ensure_list(switch.SWITCH_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(switch.Switch),
-        })]),
+        })),
 })
 
 

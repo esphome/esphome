@@ -9,7 +9,7 @@ from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLA
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
-    CONF_TIMING, CONF_TRIGGER_ID
+    CONF_TIMING, CONF_TRIGGER_ID, CONF_ON_STATE
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
     StructInitializer, get_variable
@@ -38,6 +38,7 @@ ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template(NoArg))
 DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template(NoArg))
 MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(NoArg), Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
+StateTrigger = binary_sensor_ns.class_('StateTrigger', Trigger.template(bool_))
 
 # Condition
 BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Condition)
@@ -53,13 +54,13 @@ LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
 
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
-FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
+FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_INVERT): None,
     vol.Optional(CONF_DELAYED_ON): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DELAYED_OFF): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_LAMBDA): cv.lambda_,
-}, cv.has_exactly_one_key(*FILTER_KEYS))])
+}, cv.has_exactly_one_key(*FILTER_KEYS))
 
 MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
     vol.Optional(CONF_STATE): cv.boolean,
@@ -181,6 +182,9 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
                                            validate_multi_click_timing),
         vol.Optional(CONF_INVALID_COOLDOWN): cv.positive_time_period_milliseconds,
     }),
+    vol.Optional(CONF_ON_STATE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StateTrigger),
+    }),
 
     vol.Optional(CONF_INVERTED): cv.invalid(
         "The inverted binary_sensor property has been replaced by the "
@@ -267,6 +271,11 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
         if CONF_INVALID_COOLDOWN in conf:
             add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         automation.build_automation(trigger, NoArg, conf)
+
+    for conf in config.get(CONF_ON_STATE, []):
+        rhs = binary_sensor_var.make_state_trigger()
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, bool_, conf)
 
     setup_mqtt_component(mqtt_var, config)
 

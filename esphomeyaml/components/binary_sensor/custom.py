@@ -13,9 +13,9 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomBinarySensorConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_BINARY_SENSORS):
-        vol.All(cv.ensure_list, [binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+        cv.ensure_list(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(binary_sensor.BinarySensor),
-        })]),
+        })),
 })
 
 

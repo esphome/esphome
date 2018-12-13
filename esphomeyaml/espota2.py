@@ -3,8 +3,10 @@ import logging
 import random
 import socket
 import sys
+import time
 
 from esphomeyaml.core import EsphomeyamlError
+from esphomeyaml.helpers import resolve_ip_address, is_ip_address
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -221,50 +223,26 @@ def perform_ota(sock, password, file_handle, filename):
 
     _LOGGER.info("OTA successful")
 
-
-def is_ip_address(host):
-    parts = host.split('.')
-    if len(parts) != 4:
-        return False
-    try:
-        for p in parts:
-            int(p)
-        return True
-    except ValueError:
-        return False
-
-
-def resolve_ip_address(host):
-    if is_ip_address(host):
-        _LOGGER.info("Connecting to %s", host)
-        return host
-
-    _LOGGER.info("Resolving IP Address of %s", host)
-    hosts = [host]
-    if host.endswith('.local'):
-        hosts.append(host[:-6])
-
-    errors = []
-    for x in hosts:
-        try:
-            ip = socket.gethostbyname(x)
-            break
-        except socket.error as err:
-            errors.append(err)
-    else:
-        _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
-                      host)
-
-        _LOGGER.error("(If this error persists, please set a static IP address: "
-                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
-        raise OTAError("Errors: {}".format(', '.join(str(x) for x in errors)))
-
-    _LOGGER.info(" -> %s", ip)
-    return ip
+    # Do not connect logs until it is fully on
+    time.sleep(2)
 
 
 def run_ota_impl_(remote_host, remote_port, password, filename):
-    ip = resolve_ip_address(remote_host)
+    if is_ip_address(remote_host):
+        _LOGGER.info("Connecting to %s", remote_host)
+        ip = remote_host
+    else:
+        _LOGGER.info("Resolving IP address of %s", remote_host)
+        try:
+            ip = resolve_ip_address(remote_host)
+        except EsphomeyamlError as err:
+            _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
+                          remote_host)
+            _LOGGER.error("(If this error persists, please set a static IP address: "
+                          "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
+            raise OTAError(err)
+        _LOGGER.info(" -> %s", ip)
+
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10.0)
     try:

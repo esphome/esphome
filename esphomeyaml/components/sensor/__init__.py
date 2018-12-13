@@ -40,7 +40,7 @@ FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT, CONF_FILTER_NAN,
                CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_LAMBDA,
                CONF_THROTTLE, CONF_DELTA, CONF_UNIQUE, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR]
 
-FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
+FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_OFFSET): cv.float_,
     vol.Optional(CONF_MULTIPLY): cv.float_,
     vol.Optional(CONF_FILTER_OUT): cv.float_,
@@ -61,7 +61,7 @@ FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DEBOUNCE): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_OR): validate_recursive_filter,
-}, cv.has_exactly_one_key(*FILTER_KEYS))])
+}, cv.has_exactly_one_key(*FILTER_KEYS))
 
 # Base
 sensor_ns = esphomelib_ns.namespace('sensor')

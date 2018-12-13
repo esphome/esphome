@@ -13,18 +13,18 @@ BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_OUTPUTS):
-        vol.All(cv.ensure_list, [output.BINARY_OUTPUT_SCHEMA.extend({
+        cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.BinaryOutput),
-        })]),
+        })),
 })
 
 FLOAT_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomFloatOutputConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_OUTPUTS):
-        vol.All(cv.ensure_list, [output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
+        cv.ensure_list(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.FloatOutput),
-        })]),
+        })),
 })
 
 
