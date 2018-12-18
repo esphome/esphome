@@ -9,6 +9,7 @@ import random
 import sys
 
 from esphomeyaml import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
+from esphomeyaml.api.client import run_logs
 from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
@@ -22,7 +23,7 @@ from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
-PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'i2c']
+PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'api', 'i2c']
 
 
 def get_serial_ports():
@@ -202,6 +203,8 @@ def show_logs(config, args, port):
     if port != 'OTA' and serial_port:
         run_miniterm(config, port)
         return 0
+    if 'api' in config:
+        return run_logs(config, get_upload_host(config))
     return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
 
 
@@ -368,6 +371,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphomeyaml')
     parser.add_argument('-v', '--verbose', help="Enable verbose esphomeyaml logs.",
                         action='store_true')
+    parser.add_argument('--dashboard', help="Internal flag to set if the command is run from the "
+                                            "dashboard.", action='store_true')
     parser.add_argument('configuration', help='Your YAML configuration file.')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -445,6 +450,7 @@ def parse_args(argv):
 
 def run_esphomeyaml(argv):
     args = parse_args(argv)
+    CORE.dashboard = args.dashboard
 
     setup_log(args.verbose)
     if args.command in PRE_CONFIG_ACTIONS:

@@ -14,12 +14,9 @@
   ],
   "hassio_api": true,
   "auth_api": true,
-  "services": [
-    "mqtt:want"
-  ],
   "hassio_role": "default",
   "homeassistant_api": false,
-  "host_network": false,
+  "host_network": true,
   "boot": "auto",
   "ports": {
     "6052/tcp": 6052

@@ -3,6 +3,7 @@ from __future__ import print_function
 import errno
 import logging
 import os
+import socket
 import subprocess
 
 _LOGGER = logging.getLogger(__name__)
@@ -75,3 +76,26 @@ def mkdir_p(path):
             pass
         else:
             raise
+
+
+def is_ip_address(host):
+    parts = host.split('.')
+    if len(parts) != 4:
+        return False
+    try:
+        for p in parts:
+            int(p)
+        return True
+    except ValueError:
+        return False
+
+
+def resolve_ip_address(host):
+    try:
+        ip = socket.gethostbyname(host)
+    except socket.error as err:
+        from esphomeyaml.core import EsphomeyamlError
+
+        raise EsphomeyamlError("Error resolving IP address: {}".format(err))
+
+    return ip

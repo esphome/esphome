@@ -108,7 +108,7 @@ def validate_printf(value):
 CONF_LOGGER_LOG = 'logger.log'
 LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
     vol.Required(CONF_FORMAT): cv.string,
-    vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
+    vol.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
     vol.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(*LOG_LEVEL_TO_ESP_LOG, upper=True),
     vol.Optional(CONF_TAG, default="main"): cv.string,
 }), validate_printf)

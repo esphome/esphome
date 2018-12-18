@@ -46,8 +46,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32,
                                                 cv.one_of(*WAKEUP_PIN_MODES), upper=True),
     vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, vol.Schema({
-        vol.Required(CONF_PINS): vol.All(cv.ensure_list, [pins.shorthand_input_pin],
-                                         [validate_pin_number]),
+        vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
         vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,

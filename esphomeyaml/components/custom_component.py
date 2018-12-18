@@ -12,9 +12,9 @@ MULTI_CONF = True
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomComponentConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
-    vol.Optional(CONF_COMPONENTS): vol.All(cv.ensure_list, [vol.Schema({
+    vol.Optional(CONF_COMPONENTS): cv.ensure_list(vol.Schema({
         cv.GenerateID(): cv.declare_variable_id(Component)
-    }).extend(cv.COMPONENT_SCHEMA.schema)]),
+    }).extend(cv.COMPONENT_SCHEMA.schema)),
 })
 
 

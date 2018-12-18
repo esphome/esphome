@@ -103,49 +103,49 @@ class EsphomeyamlLogsHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = CONFIG_DIR + '/' + js['configuration']
-        return ["esphomeyaml", config_file, "logs", '--serial-port', js["port"]]
+        return ["esphomeyaml", "--dashboard", config_file, "logs", '--serial-port', js["port"]]
 
 
 class EsphomeyamlRunHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "run", '--upload-port', js["port"]]
+        return ["esphomeyaml", "--dashboard", config_file, "run", '--upload-port', js["port"]]
 
 
 class EsphomeyamlCompileHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "compile"]
+        return ["esphomeyaml", "--dashboard", config_file, "compile"]
 
 
 class EsphomeyamlValidateHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "config"]
+        return ["esphomeyaml", "--dashboard", config_file, "config"]
 
 
 class EsphomeyamlCleanMqttHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "clean-mqtt"]
+        return ["esphomeyaml", "--dashboard", config_file, "clean-mqtt"]
 
 
 class EsphomeyamlCleanHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "clean"]
+        return ["esphomeyaml", "--dashboard", config_file, "clean"]
 
 
 class EsphomeyamlHassConfigHandler(EsphomeyamlCommandWebSocket):
     def build_command(self, message):
         js = json.loads(message)
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphomeyaml", config_file, "hass-config"]
+        return ["esphomeyaml", "--dashboard", config_file, "hass-config"]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -294,10 +294,9 @@ class MainRequestHandler(BaseHandler):
         version = const.__version__
         docs_link = 'https://beta.esphomelib.com/esphomeyaml/' if 'b' in version else \
             'https://esphomelib.com/esphomeyaml/'
-        mqtt_config = get_mqtt_config_lazy()
 
         self.render("templates/index.html", entries=entries,
-                    version=version, begin=begin, docs_link=docs_link, mqtt_config=mqtt_config)
+                    version=version, begin=begin, docs_link=docs_link)
 
 
 def _ping_func(filename, address):
@@ -495,43 +494,6 @@ def make_app(debug=False):
         (r'/static/(.*)', StaticFileHandler, {'path': static_path}),
     ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function)
     return app
-
-
-def _get_mqtt_config_impl():
-    import requests
-
-    headers = {
-        'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
-    }
-
-    mqtt_config = requests.get('http://hassio/services/mqtt', headers=headers).json()['data']
-    info = requests.get('http://hassio/host/info', headers=headers).json()['data']
-    host = '{}.local'.format(info['hostname'])
-    port = mqtt_config['port']
-    if port != 1883:
-        host = '{}:{}'.format(host, port)
-
-    return {
-        'ssl': mqtt_config['ssl'],
-        'host': host,
-        'username': mqtt_config.get('username', ''),
-        'password': mqtt_config.get('password', '')
-    }
-
-
-def get_mqtt_config_lazy():
-    global HASSIO_MQTT_CONFIG
-
-    if not ON_HASSIO:
-        return None
-
-    if HASSIO_MQTT_CONFIG is None:
-        try:
-            HASSIO_MQTT_CONFIG = _get_mqtt_config_impl()
-        except Exception:  # pylint: disable=broad-except
-            pass
-
-    return HASSIO_MQTT_CONFIG
 
 
 def start_web_server(args):

@@ -175,8 +175,8 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
     }),
-    vol.Optional(CONF_INCLUDES): vol.All(cv.ensure_list, [cv.file_]),
-    vol.Optional(CONF_LIBRARIES): vol.All(cv.ensure_list, [cv.string_strict]),
+    vol.Optional(CONF_INCLUDES): cv.ensure_list(cv.file_),
+    vol.Optional(CONF_LIBRARIES): cv.ensure_list(cv.string_strict),
 
     vol.Optional('library_uri'): cv.invalid("The library_uri option has been removed in 1.8.0 and "
                                             "was moved into the esphomelib_version option."),

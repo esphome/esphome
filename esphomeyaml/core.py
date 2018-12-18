@@ -282,6 +282,8 @@ class ID(object):
 # pylint: disable=too-many-instance-attributes
 class EsphomeyamlCore(object):
     def __init__(self):
+        # True if command is run from dashboard
+        self.dashboard = False
         # The name of the node
         self.name = None  # type: str
         # The relative path to the configuration YAML

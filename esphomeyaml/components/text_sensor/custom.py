@@ -12,9 +12,9 @@ PLATFORM_SCHEMA = text_sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomTextSensorConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Required(CONF_TEXT_SENSORS):
-        vol.All(cv.ensure_list, [text_sensor.TEXT_SENSOR_SCHEMA.extend({
+        cv.ensure_list(text_sensor.TEXT_SENSOR_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(text_sensor.TextSensor),
-        })]),
+        })),
 })
 
 

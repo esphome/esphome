@@ -27,7 +27,7 @@ def maybe_simple_id(*validators):
 
 def validate_recursive_condition(value):
     is_list = isinstance(value, list)
-    value = cv.ensure_list(value)[:]
+    value = cv.ensure_list()(value)[:]
     for i, item in enumerate(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)
@@ -61,7 +61,8 @@ def validate_recursive_condition(value):
 
 def validate_recursive_action(value):
     is_list = isinstance(value, list)
-    value = cv.ensure_list(value)[:]
+    if not is_list:
+        value = [value]
     for i, item in enumerate(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)

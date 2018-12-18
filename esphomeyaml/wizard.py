@@ -35,13 +35,6 @@ WIFI_BIG = """   __          ___ ______ _
       \  /\  /  | | |    | |
        \/  \/   |_|_|    |_|
 """
-MQTT_BIG = """   __  __  ____ _______ _______
-  |  \/  |/ __ \__   __|__   __|
-  | \  / | |  | | | |     | |
-  | |\/| | |  | | | |     | |
-  | |  | | |__| | | |     | |
-  |_|  |_|\___\_\ |_|     |_|
-"""
 OTA_BIG = """       ____ _______
       / __ \__   __|/\\
      | |  | | | |  /  \\
@@ -50,7 +43,6 @@ OTA_BIG = """       ____ _______
       \____/  |_/_/    \_\\
 """
 
-# TODO handle escaping
 BASE_CONFIG = u"""esphomeyaml:
   name: {name}
   platform: {platform}
@@ -60,24 +52,21 @@ wifi:
   ssid: '{ssid}'
   password: '{psk}'
 
-mqtt:
-  broker: '{broker}'
-  username: '{mqtt_username}'
-  password: '{mqtt_password}'
-
 # Enable logging
 logger:
 
+# Enable Home Assistant API
+api:
 """
 
 
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
-    if kwargs['ota_password']:
-        config += u"ota:\n  password: '{}'\n".format(kwargs['ota_password'])
+    if kwargs['password']:
+        config += u"  password: '{0}'\n\nota:\n  password: '{0}'\n".format(kwargs['password'])
     else:
-        config += u"ota:\n"
+        config += u"\nota:\n"
 
     return config
 
@@ -135,11 +124,11 @@ def wizard(path):
         return 1
     safe_print("Hi there!")
     sleep(1.5)
-    safe_print("I'm the wizard of esphomeyaml :)")
+    safe_print("I'm the wizard of ESPHome :)")
     sleep(1.25)
-    safe_print("And I'm here to help you get started with esphomeyaml.")
+    safe_print("And I'm here to help you get started with ESPHome.")
     sleep(2.0)
-    safe_print("In 5 steps I'm going to guide you through creating a basic "
+    safe_print("In 4 steps I'm going to guide you through creating a basic "
                "configuration file for your custom ESP8266/ESP32 firmware. Yay!")
     sleep(3.0)
     safe_print()
@@ -205,6 +194,8 @@ def wizard(path):
     else:
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
         boards = list(ESP8266_BOARD_PINS.keys())
+    safe_print("Options: {}".format(', '.join(boards)))
+
     while True:
         board = raw_input(color("bold_white", "(board): "))
         try:
@@ -214,7 +205,6 @@ def wizard(path):
             safe_print(color('red', "Sorry, I don't think the board \"{}\" exists."))
             safe_print()
             sleep(0.25)
-            safe_print("Possible options are {}".format(', '.join(boards)))
             safe_print()
 
     safe_print(u"Way to go! You've chosen {} as your board.".format(color('cyan', board)))
@@ -255,60 +245,26 @@ def wizard(path):
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
     sleep(1.5)
 
-    safe_print_step(4, MQTT_BIG)
-    safe_print("Almost there! Now let's setup MQTT so that your node can connect to the "
-               "outside world.")
-    safe_print()
-    sleep(1)
-    safe_print("Please enter the " + color('green', 'address') + " of your MQTT broker.")
-    safe_print()
-    safe_print("For example \"{}\".".format(color('bold_white', '192.168.178.84')))
-    broker = raw_input(color('bold_white', "(broker): "))
-
-    safe_print("Thanks! Now enter the " + color('green', 'username') + " and " +
-               color('green', 'password') +
-               " for the MQTT broker. Leave empty for no authentication.")
-    mqtt_username = raw_input(color('bold_white', '(username): '))
-    mqtt_password = ''
-    if mqtt_username:
-        mqtt_password = raw_input(color('bold_white', '(password): '))
-
-        show = '*' * len(mqtt_password)
-        if len(mqtt_password) >= 2:
-            show = mqtt_password[:2] + '*' * len(mqtt_password)
-        safe_print(u"MQTT Username: \"{}\"; Password: \"{}\""
-                   u"".format(color('cyan', mqtt_username), color('cyan', show)))
-    else:
-        safe_print("No authentication for MQTT")
-
-    safe_print_step(5, OTA_BIG)
-    safe_print("Last step! esphomeyaml can automatically upload custom firmwares over WiFi "
-               "(over the air).")
+    safe_print_step(4, OTA_BIG)
+    safe_print("Almost there! ESPHome can automatically upload custom firmwares over WiFi "
+               "(over the air) and integrates into Home Assistant with a native API.")
     safe_print("This can be insecure if you do not trust the WiFi network. Do you want to set "
-               "an " + color('green', 'OTA password') + " for remote updates?")
+               "a " + color('green', 'password') + " for connecting to this ESP?")
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    ota_password = raw_input(color('bold_white', '(password): '))
+    password = raw_input(color('bold_white', '(password): '))
 
     wizard_write(path=path, name=name, platform=platform, board=board,
-                 ssid=ssid, psk=psk, broker=broker,
-                 mqtt_username=mqtt_username, mqtt_password=mqtt_password,
-                 ota_password=ota_password)
+                 ssid=ssid, psk=psk, password=password)
 
     safe_print()
     safe_print(color('cyan', "DONE! I've now written a new configuration file to ") +
                color('bold_cyan', path))
     safe_print()
     safe_print("Next steps:")
-    safe_print("  > If you haven't already, enable MQTT discovery in Home Assistant:")
-    safe_print()
-    safe_print(color('bold_white', "# In your configuration.yaml"))
-    safe_print(color('bold_white', "mqtt:"))
-    safe_print(color('bold_white', u"  broker: {}".format(broker)))
-    safe_print(color('bold_white', "  # ..."))
-    safe_print(color('bold_white', "  discovery: True"))
-    safe_print()
+    safe_print("  > Check your Home Assistant \"integrations\" screen. If all goes well, you "
+               "should see your ESP being discovered automatically.")
     safe_print("  > Then follow the rest of the getting started guide:")
     safe_print("  > https://esphomelib.com/esphomeyaml/guides/getting_started_command_line.html")
     return 0

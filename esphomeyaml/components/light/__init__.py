@@ -100,7 +100,7 @@ EFFECTS_SCHEMA = vol.Schema({
     vol.Optional(CONF_STROBE): vol.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(StrobeLightEffect),
         vol.Optional(CONF_NAME, default="Strobe"): cv.string,
-        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list, [vol.All(vol.Schema({
+        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(vol.Schema({
             vol.Optional(CONF_STATE, default=True): cv.boolean,
             vol.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             vol.Optional(CONF_RED, default=1.0): cv.percentage,
@@ -109,7 +109,7 @@ EFFECTS_SCHEMA = vol.Schema({
             vol.Optional(CONF_WHITE, default=1.0): cv.percentage,
             vol.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
         }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
-                                    CONF_WHITE))], vol.Length(min=2)),
+                                    CONF_WHITE)), vol.Length(min=2)),
     }),
     vol.Optional(CONF_FLICKER): vol.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FlickerLightEffect),
@@ -131,13 +131,13 @@ EFFECTS_SCHEMA = vol.Schema({
     vol.Optional(CONF_FASTLED_COLOR_WIPE): vol.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDColorWipeEffect),
         vol.Optional(CONF_NAME, default="Color Wipe"): cv.string,
-        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list, [vol.Schema({
+        vol.Optional(CONF_COLORS): cv.ensure_list({
             vol.Optional(CONF_RED, default=1.0): cv.percentage,
             vol.Optional(CONF_GREEN, default=1.0): cv.percentage,
             vol.Optional(CONF_BLUE, default=1.0): cv.percentage,
             vol.Optional(CONF_RANDOM, default=False): cv.boolean,
             vol.Required(CONF_NUM_LEDS): vol.All(cv.uint32_t, vol.Range(min=1)),
-        })]),
+        }),
         vol.Optional(CONF_ADD_LED_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_REVERSE): cv.boolean,
     }),
@@ -178,7 +178,8 @@ EFFECTS_SCHEMA = vol.Schema({
 def validate_effects(allowed_effects):
     def validator(value):
         is_list = isinstance(value, list)
-        value = cv.ensure_list(value)
+        if not is_list:
+            value = [value]
         names = set()
         ret = []
         for i, effect in enumerate(value):
@@ -471,10 +472,10 @@ def light_turn_on_to_code(config, action_id, arg_type, template_arg):
 
 def core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=True,
                         white_value=True):
-    ret = mqtt.build_hass_config(data, 'light', config, include_state=True, include_command=True,
-                                 platform='mqtt_json')
+    ret = mqtt.build_hass_config(data, 'light', config, include_state=True, include_command=True)
     if ret is None:
         return None
+    ret['schema'] = 'json'
     if brightness:
         ret['brightness'] = True
     if rgb:

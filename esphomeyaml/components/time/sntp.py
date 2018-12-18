@@ -1,8 +1,8 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import time as time_
-from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SERVERS
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_ID, CONF_SERVERS
 from esphomeyaml.cpp_generator import Pvariable, add
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import App
@@ -11,8 +11,7 @@ SNTPComponent = time_.time_ns.class_('SNTPComponent', time_.RealTimeClockCompone
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SNTPComponent),
-    vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list, [cv.domain], vol.Length(min=1, max=3)),
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
+    vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list(cv.domain), vol.Length(min=1, max=3)),
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 

@@ -30,6 +30,7 @@ REQUIRES = [
     'tornado>=5.0.0',
     'esptool>=2.3.1',
     'typing>=3.0.0',
+    'protobuf>=3.4',
 ]
 
 CLASSIFIERS = [

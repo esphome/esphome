@@ -279,6 +279,7 @@ def gather_lib_deps():
         # Manual fix for AsyncTCP
         if CORE.config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
             lib_deps.add('https://github.com/me-no-dev/AsyncTCP.git#idf-update')
+            lib_deps.remove('AsyncTCP@1.0.1')
     # avoid changing build flags order
     return sorted(x for x in lib_deps if x)
 
@@ -376,6 +377,7 @@ def write_platformio_project():
                 f.write("app1,     app,  ota_1,   0x200000, 0x190000,\n")
                 f.write("eeprom,   data, 0x99,    0x390000, 0x001000,\n")
                 f.write("spiffs,   data, spiffs,  0x391000, 0x00F000\n")
+    write_gitignore()
     write_platformio_ini(content, platformio_ini)
 
 
@@ -427,3 +429,23 @@ def clean_build():
             continue
         _LOGGER.info("Deleting %s", dir_path)
         shutil.rmtree(dir_path)
+
+
+GITIGNORE_CONTENT = """# Gitignore settings for esphomeyaml
+# This is an example and may include too much for your use-case.
+# You can modify this file to suit your needs.
+/.esphomeyaml/
+**/.pioenvs/
+**/.piolibdeps/
+**/lib/
+**/src/
+**/platformio.ini
+/secrets.yaml
+"""
+
+
+def write_gitignore():
+    path = CORE.relative_path('.gitignore')
+    if not os.path.isfile(path):
+        with open(path, 'w') as f:
+            f.write(GITIGNORE_CONTENT)
