@@ -5,8 +5,9 @@ import socket
 import threading
 import time
 
-from google.protobuf import message
+# pylint: disable=unused-import
 from typing import Optional  # noqa
+from google.protobuf import message
 
 from esphomeyaml import const
 import esphomeyaml.api.api_pb2 as pb
@@ -446,8 +447,7 @@ def run_logs(config, address):
 
     def on_log(msg):
         time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
-        message = time_ + msg.message
-        safe_print(message)
+        safe_print(time_ + msg.message)
 
     has_connects = []
 
