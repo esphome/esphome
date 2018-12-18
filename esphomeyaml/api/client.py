@@ -102,7 +102,7 @@ class APIClient(threading.Thread):
         self._connected = False
         self._authenticated = False
         self._message_handlers = []
-        self._keepalive = 10
+        self._keepalive = 5
         self._ping_timer = None
         self._refresh_ping()
 
@@ -312,7 +312,7 @@ class APIClient(threading.Thread):
         if not self._authenticated:
             raise APIConnectionError("Must login first!")
 
-    def subscribe_logs(self, on_log, log_level=None):
+    def subscribe_logs(self, on_log, log_level=None, dump_config=False):
         self._check_authenticated()
 
         def on_msg(msg):
@@ -320,7 +320,7 @@ class APIClient(threading.Thread):
                 on_log(msg)
 
         self._message_handlers.append(on_msg)
-        req = pb.SubscribeLogsRequest()
+        req = pb.SubscribeLogsRequest(dump_config=dump_config)
         if log_level is not None:
             req.level = log_level
         self._send_message(req)
@@ -448,9 +448,12 @@ def run_logs(config, address):
         message = time_ + msg.message
         safe_print(message)
 
+    has_connects = []
+
     def on_login():
         try:
-            cli.subscribe_logs(on_log)
+            cli.subscribe_logs(on_log, dump_config=not has_connects)
+            has_connects.append(True)
         except APIConnectionError:
             cli.disconnect()
 
@@ -464,7 +467,7 @@ def run_logs(config, address):
             time.sleep(1)
     except KeyboardInterrupt:
         stopping = True
-        cli.stop()
+        cli.stop(True)
         while retry_timer:
             retry_timer.pop(0).cancel()
     return 0

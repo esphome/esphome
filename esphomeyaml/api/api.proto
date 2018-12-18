@@ -283,6 +283,7 @@ enum LogLevel {
 
 message SubscribeLogsRequest {
   LogLevel level = 1;
+  bool dump_config = 2;
 }
 
 message SubscribeLogsResponse {
