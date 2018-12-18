@@ -371,6 +371,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphomeyaml')
     parser.add_argument('-v', '--verbose', help="Enable verbose esphomeyaml logs.",
                         action='store_true')
+    parser.add_argument('--dashboard', help="Internal flag to set if the command is run from the "
+                                            "dashboard.", action='store_true')
     parser.add_argument('configuration', help='Your YAML configuration file.')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -448,6 +450,7 @@ def parse_args(argv):
 
 def run_esphomeyaml(argv):
     args = parse_args(argv)
+    CORE.dashboard = args.dashboard
 
     setup_log(args.verbose)
     if args.command in PRE_CONFIG_ACTIONS:

@@ -15,7 +15,7 @@ const initializeColorState = () => {
 };
 
 const colorReplace = (pre, state, text) => {
-  const re = /\033(?:\[(.*?)[@-~]|\].*?(?:\007|\033\\))/g;
+  const re = /(?:\033|\\033)(?:\[(.*?)[@-~]|\].*?(?:\007|\033\\))/g;
   let i = 0;
 
   if (state.carriageReturn) {
@@ -176,7 +176,7 @@ const fetchPing = () => {
 
   fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
-      for (let filename of response) {
+      for (let filename in response) {
         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
         if (node === null)
           continue;

@@ -5,6 +5,9 @@ from esphomeyaml.cpp_generator import Pvariable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import App
 
+
+DEPENDENCIES = ['api']
+
 HomeAssistantTime = time_.time_ns.class_('HomeAssistantTime', time_.RealTimeClockComponent)
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
