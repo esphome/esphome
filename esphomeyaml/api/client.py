@@ -57,6 +57,10 @@ MESSAGE_TYPE_TO_PROTO = {
     31: pb.FanCommandRequest,
     32: pb.LightCommandRequest,
     33: pb.SwitchCommandRequest,
+    34: pb.SubscribeServiceCallsRequest,
+    35: pb.ServiceCallResponse,
+    36: pb.GetTimeRequest,
+    37: pb.GetTimeResponse,
 }
 
 
@@ -308,48 +312,6 @@ class APIClient(threading.Thread):
         if not self._authenticated:
             raise APIConnectionError("Must login first!")
 
-    def list_entities(self):
-        self._check_authenticated()
-        response_types = (
-            pb.ListEntitiesBinarySensorResponse,
-            pb.ListEntitiesCoverResponse,
-            pb.ListEntitiesFanResponse,
-            pb.ListEntitiesLightResponse,
-            pb.ListEntitiesSensorResponse,
-            pb.ListEntitiesSwitchResponse,
-            pb.ListEntitiesTextSensorResponse,
-        )
-
-        def do_append(msg):
-            return isinstance(msg, response_types)
-
-        def do_stop(msg):
-            return isinstance(msg, pb.ListEntitiesDoneResponse)
-
-        entities = self._send_message_await_response_complex(
-            pb.ListEntitiesRequest(), do_append, do_stop, timeout=5)
-        return entities
-
-    def subscribe_states(self, on_state):
-        self._check_authenticated()
-
-        response_types = (
-            pb.BinarySensorStateResponse,
-            pb.CoverStateResponse,
-            pb.FanStateResponse,
-            pb.LightStateResponse,
-            pb.SensorStateResponse,
-            pb.SwitchStateResponse,
-            pb.TextSensorStateResponse,
-        )
-
-        def on_msg(msg):
-            if isinstance(msg, response_types):
-                on_state(msg)
-
-        self._message_handlers.append(on_msg)
-        self._send_message(pb.SubscribeStatesRequest())
-
     def subscribe_logs(self, on_log, log_level=None):
         self._check_authenticated()
 
@@ -361,97 +323,6 @@ class APIClient(threading.Thread):
         req = pb.SubscribeLogsRequest()
         if log_level is not None:
             req.level = log_level
-        self._send_message(req)
-
-    def cover_command(self,
-                      key,  # type: int
-                      command  # type: pb.CoverCommandRequest.CoverCommand
-                      ):
-        # type: (...) -> None
-        self._check_authenticated()
-
-        req = pb.CoverCommandRequest()
-        req.key = key
-        req.has_state = True
-        req.command = command
-        self._send_message(req)
-
-    def fan_command(self,
-                    key,  # type: int
-                    state=None,  # type: Optional[bool]
-                    speed=None,  # type: Optional[pb.FanSpeed]
-                    oscillating=None  # type: Optional[bool]
-                    ):
-        # type: (...) -> None
-        self._check_authenticated()
-
-        req = pb.FanCommandRequest()
-        req.key = key
-        if state is not None:
-            req.has_state = True
-            req.state = state
-        if speed is not None:
-            req.has_speed = True
-            req.speed = speed
-        if oscillating is not None:
-            req.has_oscillating = True
-            req.oscillating = oscillating
-        self._send_message(req)
-
-    def light_command(self,
-                      key,  # type: int
-                      state=None,  # type: Optional[bool]
-                      brightness=None,  # type: Optional[float]
-                      rgb=None,  # type: Optional[Tuple[float, float, float]]
-                      white=None,  # type: Optional[float]
-                      color_temperature=None,  # type: Optional[float]
-                      transition_length=None,  # type: Optional[int]
-                      flash_length=None,  # type: Optional[int]
-                      effect=None  # type: Optional[str]
-                      ):
-        # type: (...) -> None
-        self._check_authenticated()
-
-        req = pb.LightCommandRequest()
-        req.key = key
-        if state is not None:
-            req.has_state = True
-            req.state = state
-        if brightness is not None:
-            req.has_brightness = True
-            req.brightness = brightness
-        if rgb is not None:
-            req.has_rgb = True
-            req.red = rgb[0]
-            req.green = rgb[1]
-            req.blue = rgb[2]
-        if white is not None:
-            req.has_white = True
-            req.white = white
-        if color_temperature is not None:
-            req.has_color_temperature = True
-            req.color_temperature = color_temperature
-        if transition_length is not None:
-            req.has_transition_length = True
-            req.transition_length = transition_length
-        if flash_length is not None:
-            req.has_flash_length = True
-            req.flash_length = flash_length
-        if effect is not None:
-            req.has_effect = True
-            req.effect = effect
-        self._send_message(req)
-
-    def switch_command(self,
-                       key,  # type: int
-                       state  # type: bool
-                       ):
-        # type: (...) -> None
-        self._check_authenticated()
-
-        req = pb.SwitchCommandRequest()
-        req.key = key
-        req.state = state
         self._send_message(req)
 
     def _recv(self, amount):
@@ -492,6 +363,10 @@ class APIClient(threading.Thread):
         msg_type = self._recv_varint()
 
         raw_msg = self._recv(length)
+        if msg_type not in MESSAGE_TYPE_TO_PROTO:
+            _LOGGER.debug("Skipping message type %s", msg_type)
+            return
+
         msg = MESSAGE_TYPE_TO_PROTO[msg_type]()
         msg.ParseFromString(raw_msg)
         _LOGGER.debug("Got message of type %s: %s", type(msg), msg)
@@ -525,6 +400,10 @@ class APIClient(threading.Thread):
                 self.on_disconnect()
         elif isinstance(msg, pb.PingRequest):
             self._send_message(pb.PingResponse())
+        elif isinstance(msg, pb.GetTimeRequest):
+            resp = pb.GetTimeResponse()
+            resp.epoch_seconds = int(time.time())
+            self._send_message(resp)
 
 
 def run_logs(config, address):

@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto3',
   serialized_options=None,
-  serialized_pb=_b('\n\tapi.proto\"#\n\x0cHelloRequest\x12\x13\n\x0b\x63lient_info\x18\x01 \x01(\t\"Z\n\rHelloResponse\x12\x19\n\x11\x61pi_version_major\x18\x01 \x01(\r\x12\x19\n\x11\x61pi_version_minor\x18\x02 \x01(\r\x12\x13\n\x0bserver_info\x18\x03 \x01(\t\"\"\n\x0e\x43onnectRequest\x12\x10\n\x08password\x18\x01 \x01(\t\"+\n\x0f\x43onnectResponse\x12\x18\n\x10invalid_password\x18\x01 \x01(\x08\"#\n\x11\x44isconnectRequest\x12\x0e\n\x06reason\x18\x01 \x01(\t\"\x14\n\x12\x44isconnectResponse\"\r\n\x0bPingRequest\"\x0e\n\x0cPingResponse\"\x13\n\x11\x44\x65viceInfoRequest\"\xa4\x01\n\x12\x44\x65viceInfoResponse\x12\x15\n\ruses_password\x18\x01 \x01(\x08\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x0f\n\x07\x61\x64\x64ress\x18\x03 \x01(\t\x12\x13\n\x0bmac_address\x18\x04 \x01(\t\x12\x1a\n\x12\x65sphomelib_version\x18\x05 \x01(\t\x12\x18\n\x10\x63ompilation_time\x18\x06 \x01(\t\x12\r\n\x05model\x18\x07 \x01(\t\"\x15\n\x13ListEntitiesRequest\"y\n ListEntitiesBinarySensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x14\n\x0c\x64\x65vice_class\x18\x05 \x01(\t\"\\\n\x19ListEntitiesCoverResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\"\x90\x01\n\x17ListEntitiesFanResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x1c\n\x14supports_oscillation\x18\x05 \x01(\x08\x12\x16\n\x0esupports_speed\x18\x06 \x01(\x08\"\x8a\x02\n\x19ListEntitiesLightResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x1b\n\x13supports_brightness\x18\x05 \x01(\x08\x12\x14\n\x0csupports_rgb\x18\x06 \x01(\x08\x12\x1c\n\x14supports_white_value\x18\x07 \x01(\x08\x12\"\n\x1asupports_color_temperature\x18\x08 \x01(\x08\x12\x12\n\nmin_mireds\x18\t \x01(\x02\x12\x12\n\nmax_mireds\x18\n \x01(\x02\x12\x0f\n\x07\x65\x66\x66\x65\x63ts\x18\x0b \x03(\t\"\xa3\x01\n\x1aListEntitiesSensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\x12\x1b\n\x13unit_of_measurement\x18\x06 \x01(\t\x12\x19\n\x11\x61\x63\x63uracy_decimals\x18\x07 \x01(\x05\"k\n\x1aListEntitiesSwitchResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\"o\n\x1eListEntitiesTextSensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\"\x1a\n\x18ListEntitiesDoneResponse\"\x18\n\x16SubscribeStatesRequest\"7\n\x19\x42inarySensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"t\n\x12\x43overStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12-\n\x05state\x18\x02 \x01(\x0e\x32\x1e.CoverStateResponse.CoverState\"\"\n\nCoverState\x12\x08\n\x04OPEN\x10\x00\x12\n\n\x06\x43LOSED\x10\x01\"]\n\x10\x46\x61nStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\x12\x13\n\x0boscillating\x18\x03 \x01(\x08\x12\x18\n\x05speed\x18\x04 \x01(\x0e\x32\t.FanSpeed\"\xa8\x01\n\x12LightStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\x12\x12\n\nbrightness\x18\x03 \x01(\x02\x12\x0b\n\x03red\x18\x04 \x01(\x02\x12\r\n\x05green\x18\x05 \x01(\x02\x12\x0c\n\x04\x62lue\x18\x06 \x01(\x02\x12\r\n\x05white\x18\x07 \x01(\x02\x12\x19\n\x11\x63olor_temperature\x18\x08 \x01(\x02\x12\x0e\n\x06\x65\x66\x66\x65\x63t\x18\t \x01(\t\"1\n\x13SensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x02\"1\n\x13SwitchStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"5\n\x17TextSensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\t\"\x98\x01\n\x13\x43overCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\x32\n\x07\x63ommand\x18\x03 \x01(\x0e\x32!.CoverCommandRequest.CoverCommand\"-\n\x0c\x43overCommand\x12\x08\n\x04OPEN\x10\x00\x12\t\n\x05\x43LOSE\x10\x01\x12\x08\n\x04STOP\x10\x02\"\x9d\x01\n\x11\x46\x61nCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\r\n\x05state\x18\x03 \x01(\x08\x12\x11\n\thas_speed\x18\x04 \x01(\x08\x12\x18\n\x05speed\x18\x05 \x01(\x0e\x32\t.FanSpeed\x12\x17\n\x0fhas_oscillating\x18\x06 \x01(\x08\x12\x13\n\x0boscillating\x18\x07 \x01(\x08\"\x95\x03\n\x13LightCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\r\n\x05state\x18\x03 \x01(\x08\x12\x16\n\x0ehas_brightness\x18\x04 \x01(\x08\x12\x12\n\nbrightness\x18\x05 \x01(\x02\x12\x0f\n\x07has_rgb\x18\x06 \x01(\x08\x12\x0b\n\x03red\x18\x07 \x01(\x02\x12\r\n\x05green\x18\x08 \x01(\x02\x12\x0c\n\x04\x62lue\x18\t \x01(\x02\x12\x11\n\thas_white\x18\n \x01(\x08\x12\r\n\x05white\x18\x0b \x01(\x02\x12\x1d\n\x15has_color_temperature\x18\x0c \x01(\x08\x12\x19\n\x11\x63olor_temperature\x18\r \x01(\x02\x12\x1d\n\x15has_transition_length\x18\x0e \x01(\x08\x12\x19\n\x11transition_length\x18\x0f \x01(\r\x12\x18\n\x10has_flash_length\x18\x10 \x01(\x08\x12\x14\n\x0c\x66lash_length\x18\x11 \x01(\r\x12\x12\n\nhas_effect\x18\x12 \x01(\x08\x12\x0e\n\x06\x65\x66\x66\x65\x63t\x18\x13 \x01(\t\"2\n\x14SwitchCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"0\n\x14SubscribeLogsRequest\x12\x18\n\x05level\x18\x01 \x01(\x0e\x32\t.LogLevel\"O\n\x15SubscribeLogsResponse\x12\x18\n\x05level\x18\x01 \x01(\x0e\x32\t.LogLevel\x12\x0b\n\x03tag\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t*)\n\x08\x46\x61nSpeed\x12\x07\n\x03LOW\x10\x00\x12\n\n\x06MEDIUM\x10\x01\x12\x08\n\x04HIGH\x10\x02*]\n\x08LogLevel\x12\x08\n\x04NONE\x10\x00\x12\t\n\x05\x45RROR\x10\x01\x12\x08\n\x04WARN\x10\x02\x12\x08\n\x04INFO\x10\x03\x12\t\n\x05\x44\x45\x42UG\x10\x04\x12\x0b\n\x07VERBOSE\x10\x05\x12\x10\n\x0cVERY_VERBOSE\x10\x06\x62\x06proto3')
+  serialized_pb=_b('\n\tapi.proto\"#\n\x0cHelloRequest\x12\x13\n\x0b\x63lient_info\x18\x01 \x01(\t\"Z\n\rHelloResponse\x12\x19\n\x11\x61pi_version_major\x18\x01 \x01(\r\x12\x19\n\x11\x61pi_version_minor\x18\x02 \x01(\r\x12\x13\n\x0bserver_info\x18\x03 \x01(\t\"\"\n\x0e\x43onnectRequest\x12\x10\n\x08password\x18\x01 \x01(\t\"+\n\x0f\x43onnectResponse\x12\x18\n\x10invalid_password\x18\x01 \x01(\x08\"\x13\n\x11\x44isconnectRequest\"\x14\n\x12\x44isconnectResponse\"\r\n\x0bPingRequest\"\x0e\n\x0cPingResponse\"\x13\n\x11\x44\x65viceInfoRequest\"\xad\x01\n\x12\x44\x65viceInfoResponse\x12\x15\n\ruses_password\x18\x01 \x01(\x08\x12\x0c\n\x04name\x18\x02 \x01(\t\x12\x13\n\x0bmac_address\x18\x03 \x01(\t\x12\x1c\n\x14\x65sphome_core_version\x18\x04 \x01(\t\x12\x18\n\x10\x63ompilation_time\x18\x05 \x01(\t\x12\r\n\x05model\x18\x06 \x01(\t\x12\x16\n\x0ehas_deep_sleep\x18\x07 \x01(\x08\"\x15\n\x13ListEntitiesRequest\"\x9a\x01\n ListEntitiesBinarySensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x14\n\x0c\x64\x65vice_class\x18\x05 \x01(\t\x12\x1f\n\x17is_status_binary_sensor\x18\x06 \x01(\x08\"s\n\x19ListEntitiesCoverResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x15\n\ris_optimistic\x18\x05 \x01(\x08\"\x90\x01\n\x17ListEntitiesFanResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x1c\n\x14supports_oscillation\x18\x05 \x01(\x08\x12\x16\n\x0esupports_speed\x18\x06 \x01(\x08\"\x8a\x02\n\x19ListEntitiesLightResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x1b\n\x13supports_brightness\x18\x05 \x01(\x08\x12\x14\n\x0csupports_rgb\x18\x06 \x01(\x08\x12\x1c\n\x14supports_white_value\x18\x07 \x01(\x08\x12\"\n\x1asupports_color_temperature\x18\x08 \x01(\x08\x12\x12\n\nmin_mireds\x18\t \x01(\x02\x12\x12\n\nmax_mireds\x18\n \x01(\x02\x12\x0f\n\x07\x65\x66\x66\x65\x63ts\x18\x0b \x03(\t\"\xa3\x01\n\x1aListEntitiesSensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\x12\x1b\n\x13unit_of_measurement\x18\x06 \x01(\t\x12\x19\n\x11\x61\x63\x63uracy_decimals\x18\x07 \x01(\x05\"\x7f\n\x1aListEntitiesSwitchResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\x12\x12\n\noptimistic\x18\x06 \x01(\x08\"o\n\x1eListEntitiesTextSensorResponse\x12\x11\n\tobject_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\x07\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x11\n\tunique_id\x18\x04 \x01(\t\x12\x0c\n\x04icon\x18\x05 \x01(\t\"\x1a\n\x18ListEntitiesDoneResponse\"\x18\n\x16SubscribeStatesRequest\"7\n\x19\x42inarySensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"t\n\x12\x43overStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12-\n\x05state\x18\x02 \x01(\x0e\x32\x1e.CoverStateResponse.CoverState\"\"\n\nCoverState\x12\x08\n\x04OPEN\x10\x00\x12\n\n\x06\x43LOSED\x10\x01\"]\n\x10\x46\x61nStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\x12\x13\n\x0boscillating\x18\x03 \x01(\x08\x12\x18\n\x05speed\x18\x04 \x01(\x0e\x32\t.FanSpeed\"\xa8\x01\n\x12LightStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\x12\x12\n\nbrightness\x18\x03 \x01(\x02\x12\x0b\n\x03red\x18\x04 \x01(\x02\x12\r\n\x05green\x18\x05 \x01(\x02\x12\x0c\n\x04\x62lue\x18\x06 \x01(\x02\x12\r\n\x05white\x18\x07 \x01(\x02\x12\x19\n\x11\x63olor_temperature\x18\x08 \x01(\x02\x12\x0e\n\x06\x65\x66\x66\x65\x63t\x18\t \x01(\t\"1\n\x13SensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x02\"1\n\x13SwitchStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"5\n\x17TextSensorStateResponse\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\t\"\x98\x01\n\x13\x43overCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\x32\n\x07\x63ommand\x18\x03 \x01(\x0e\x32!.CoverCommandRequest.CoverCommand\"-\n\x0c\x43overCommand\x12\x08\n\x04OPEN\x10\x00\x12\t\n\x05\x43LOSE\x10\x01\x12\x08\n\x04STOP\x10\x02\"\x9d\x01\n\x11\x46\x61nCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\r\n\x05state\x18\x03 \x01(\x08\x12\x11\n\thas_speed\x18\x04 \x01(\x08\x12\x18\n\x05speed\x18\x05 \x01(\x0e\x32\t.FanSpeed\x12\x17\n\x0fhas_oscillating\x18\x06 \x01(\x08\x12\x13\n\x0boscillating\x18\x07 \x01(\x08\"\x95\x03\n\x13LightCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\x11\n\thas_state\x18\x02 \x01(\x08\x12\r\n\x05state\x18\x03 \x01(\x08\x12\x16\n\x0ehas_brightness\x18\x04 \x01(\x08\x12\x12\n\nbrightness\x18\x05 \x01(\x02\x12\x0f\n\x07has_rgb\x18\x06 \x01(\x08\x12\x0b\n\x03red\x18\x07 \x01(\x02\x12\r\n\x05green\x18\x08 \x01(\x02\x12\x0c\n\x04\x62lue\x18\t \x01(\x02\x12\x11\n\thas_white\x18\n \x01(\x08\x12\r\n\x05white\x18\x0b \x01(\x02\x12\x1d\n\x15has_color_temperature\x18\x0c \x01(\x08\x12\x19\n\x11\x63olor_temperature\x18\r \x01(\x02\x12\x1d\n\x15has_transition_length\x18\x0e \x01(\x08\x12\x19\n\x11transition_length\x18\x0f \x01(\r\x12\x18\n\x10has_flash_length\x18\x10 \x01(\x08\x12\x14\n\x0c\x66lash_length\x18\x11 \x01(\r\x12\x12\n\nhas_effect\x18\x12 \x01(\x08\x12\x0e\n\x06\x65\x66\x66\x65\x63t\x18\x13 \x01(\t\"2\n\x14SwitchCommandRequest\x12\x0b\n\x03key\x18\x01 \x01(\x07\x12\r\n\x05state\x18\x02 \x01(\x08\"0\n\x14SubscribeLogsRequest\x12\x18\n\x05level\x18\x01 \x01(\x0e\x32\t.LogLevel\"O\n\x15SubscribeLogsResponse\x12\x18\n\x05level\x18\x01 \x01(\x0e\x32\t.LogLevel\x12\x0b\n\x03tag\x18\x02 \x01(\t\x12\x0f\n\x07message\x18\x03 \x01(\t\"\x1e\n\x1cSubscribeServiceCallsRequest\"\xdf\x02\n\x13ServiceCallResponse\x12\x0f\n\x07service\x18\x01 \x01(\t\x12,\n\x04\x64\x61ta\x18\x02 \x03(\x0b\x32\x1e.ServiceCallResponse.DataEntry\x12=\n\rdata_template\x18\x03 \x03(\x0b\x32&.ServiceCallResponse.DataTemplateEntry\x12\x36\n\tvariables\x18\x04 \x03(\x0b\x32#.ServiceCallResponse.VariablesEntry\x1a+\n\tDataEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a\x33\n\x11\x44\x61taTemplateEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\x1a\x30\n\x0eVariablesEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"7\n\"SubscribeHomeAssistantStateRequest\x12\x11\n\tentity_id\x18\x01 \x01(\t\"G\n#SubscribeHomeAssistantStateResponse\x12\x11\n\tentity_id\x18\x01 \x01(\t\x12\r\n\x05state\x18\x02 \x01(\t\"\x10\n\x0eGetTimeRequest\"(\n\x0fGetTimeResponse\x12\x15\n\repoch_seconds\x18\x01 \x01(\x07*)\n\x08\x46\x61nSpeed\x12\x07\n\x03LOW\x10\x00\x12\n\n\x06MEDIUM\x10\x01\x12\x08\n\x04HIGH\x10\x02*]\n\x08LogLevel\x12\x08\n\x04NONE\x10\x00\x12\t\n\x05\x45RROR\x10\x01\x12\x08\n\x04WARN\x10\x02\x12\x08\n\x04INFO\x10\x03\x12\t\n\x05\x44\x45\x42UG\x10\x04\x12\x0b\n\x07VERBOSE\x10\x05\x12\x10\n\x0cVERY_VERBOSE\x10\x06\x62\x06proto3')
 )
 
 _FANSPEED = _descriptor.EnumDescriptor(
@@ -44,8 +44,8 @@ _FANSPEED = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3103,
-  serialized_end=3144,
+  serialized_start=3749,
+  serialized_end=3790,
 )
 _sym_db.RegisterEnumDescriptor(_FANSPEED)
 
@@ -87,8 +87,8 @@ _LOGLEVEL = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=3146,
-  serialized_end=3239,
+  serialized_start=3792,
+  serialized_end=3885,
 )
 _sym_db.RegisterEnumDescriptor(_LOGLEVEL)
 
@@ -122,8 +122,8 @@ _COVERSTATERESPONSE_COVERSTATE = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=1738,
-  serialized_end=1772,
+  serialized_start=1808,
+  serialized_end=1842,
 )
 _sym_db.RegisterEnumDescriptor(_COVERSTATERESPONSE_COVERSTATE)
 
@@ -148,8 +148,8 @@ _COVERCOMMANDREQUEST_COVERCOMMAND = _descriptor.EnumDescriptor(
   ],
   containing_type=None,
   serialized_options=None,
-  serialized_start=2305,
-  serialized_end=2350,
+  serialized_start=2375,
+  serialized_end=2420,
 )
 _sym_db.RegisterEnumDescriptor(_COVERCOMMANDREQUEST_COVERCOMMAND)
 
@@ -299,13 +299,6 @@ _DISCONNECTREQUEST = _descriptor.Descriptor(
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
-    _descriptor.FieldDescriptor(
-      name='reason', full_name='DisconnectRequest.reason', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -319,7 +312,7 @@ _DISCONNECTREQUEST = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=223,
-  serialized_end=258,
+  serialized_end=242,
 )
 
 
@@ -342,8 +335,8 @@ _DISCONNECTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=260,
-  serialized_end=280,
+  serialized_start=244,
+  serialized_end=264,
 )
 
 
@@ -366,8 +359,8 @@ _PINGREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=282,
-  serialized_end=295,
+  serialized_start=266,
+  serialized_end=279,
 )
 
 
@@ -390,8 +383,8 @@ _PINGRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=297,
-  serialized_end=311,
+  serialized_start=281,
+  serialized_end=295,
 )
 
 
@@ -414,8 +407,8 @@ _DEVICEINFOREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=313,
-  serialized_end=332,
+  serialized_start=297,
+  serialized_end=316,
 )
 
 
@@ -441,37 +434,37 @@ _DEVICEINFORESPONSE = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='address', full_name='DeviceInfoResponse.address', index=2,
+      name='mac_address', full_name='DeviceInfoResponse.mac_address', index=2,
       number=3, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='mac_address', full_name='DeviceInfoResponse.mac_address', index=3,
+      name='esphome_core_version', full_name='DeviceInfoResponse.esphome_core_version', index=3,
       number=4, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='esphomelib_version', full_name='DeviceInfoResponse.esphomelib_version', index=4,
+      name='compilation_time', full_name='DeviceInfoResponse.compilation_time', index=4,
       number=5, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='compilation_time', full_name='DeviceInfoResponse.compilation_time', index=5,
+      name='model', full_name='DeviceInfoResponse.model', index=5,
       number=6, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='model', full_name='DeviceInfoResponse.model', index=6,
-      number=7, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
+      name='has_deep_sleep', full_name='DeviceInfoResponse.has_deep_sleep', index=6,
+      number=7, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
@@ -487,8 +480,8 @@ _DEVICEINFORESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=335,
-  serialized_end=499,
+  serialized_start=319,
+  serialized_end=492,
 )
 
 
@@ -511,8 +504,8 @@ _LISTENTITIESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=501,
-  serialized_end=522,
+  serialized_start=494,
+  serialized_end=515,
 )
 
 
@@ -558,6 +551,13 @@ _LISTENTITIESBINARYSENSORRESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='is_status_binary_sensor', full_name='ListEntitiesBinarySensorResponse.is_status_binary_sensor', index=5,
+      number=6, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -570,8 +570,8 @@ _LISTENTITIESBINARYSENSORRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=524,
-  serialized_end=645,
+  serialized_start=518,
+  serialized_end=672,
 )
 
 
@@ -610,6 +610,13 @@ _LISTENTITIESCOVERRESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='is_optimistic', full_name='ListEntitiesCoverResponse.is_optimistic', index=4,
+      number=5, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -622,8 +629,8 @@ _LISTENTITIESCOVERRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=647,
-  serialized_end=739,
+  serialized_start=674,
+  serialized_end=789,
 )
 
 
@@ -688,8 +695,8 @@ _LISTENTITIESFANRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=742,
-  serialized_end=886,
+  serialized_start=792,
+  serialized_end=936,
 )
 
 
@@ -789,8 +796,8 @@ _LISTENTITIESLIGHTRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=889,
-  serialized_end=1155,
+  serialized_start=939,
+  serialized_end=1205,
 )
 
 
@@ -862,8 +869,8 @@ _LISTENTITIESSENSORRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1158,
-  serialized_end=1321,
+  serialized_start=1208,
+  serialized_end=1371,
 )
 
 
@@ -909,6 +916,13 @@ _LISTENTITIESSWITCHRESPONSE = _descriptor.Descriptor(
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='optimistic', full_name='ListEntitiesSwitchResponse.optimistic', index=5,
+      number=6, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
   ],
   extensions=[
   ],
@@ -921,8 +935,8 @@ _LISTENTITIESSWITCHRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1323,
-  serialized_end=1430,
+  serialized_start=1373,
+  serialized_end=1500,
 )
 
 
@@ -980,8 +994,8 @@ _LISTENTITIESTEXTSENSORRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1432,
-  serialized_end=1543,
+  serialized_start=1502,
+  serialized_end=1613,
 )
 
 
@@ -1004,8 +1018,8 @@ _LISTENTITIESDONERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1545,
-  serialized_end=1571,
+  serialized_start=1615,
+  serialized_end=1641,
 )
 
 
@@ -1028,8 +1042,8 @@ _SUBSCRIBESTATESREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1573,
-  serialized_end=1597,
+  serialized_start=1643,
+  serialized_end=1667,
 )
 
 
@@ -1066,8 +1080,8 @@ _BINARYSENSORSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1599,
-  serialized_end=1654,
+  serialized_start=1669,
+  serialized_end=1724,
 )
 
 
@@ -1105,8 +1119,8 @@ _COVERSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1656,
-  serialized_end=1772,
+  serialized_start=1726,
+  serialized_end=1842,
 )
 
 
@@ -1157,8 +1171,8 @@ _FANSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1774,
-  serialized_end=1867,
+  serialized_start=1844,
+  serialized_end=1937,
 )
 
 
@@ -1244,8 +1258,8 @@ _LIGHTSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=1870,
-  serialized_end=2038,
+  serialized_start=1940,
+  serialized_end=2108,
 )
 
 
@@ -1282,8 +1296,8 @@ _SENSORSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2040,
-  serialized_end=2089,
+  serialized_start=2110,
+  serialized_end=2159,
 )
 
 
@@ -1320,8 +1334,8 @@ _SWITCHSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2091,
-  serialized_end=2140,
+  serialized_start=2161,
+  serialized_end=2210,
 )
 
 
@@ -1358,8 +1372,8 @@ _TEXTSENSORSTATERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2142,
-  serialized_end=2195,
+  serialized_start=2212,
+  serialized_end=2265,
 )
 
 
@@ -1404,8 +1418,8 @@ _COVERCOMMANDREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2198,
-  serialized_end=2350,
+  serialized_start=2268,
+  serialized_end=2420,
 )
 
 
@@ -1477,8 +1491,8 @@ _FANCOMMANDREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2353,
-  serialized_end=2510,
+  serialized_start=2423,
+  serialized_end=2580,
 )
 
 
@@ -1634,8 +1648,8 @@ _LIGHTCOMMANDREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2513,
-  serialized_end=2918,
+  serialized_start=2583,
+  serialized_end=2988,
 )
 
 
@@ -1672,8 +1686,8 @@ _SWITCHCOMMANDREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2920,
-  serialized_end=2970,
+  serialized_start=2990,
+  serialized_end=3040,
 )
 
 
@@ -1703,8 +1717,8 @@ _SUBSCRIBELOGSREQUEST = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=2972,
-  serialized_end=3020,
+  serialized_start=3042,
+  serialized_end=3090,
 )
 
 
@@ -1748,8 +1762,319 @@ _SUBSCRIBELOGSRESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=3022,
-  serialized_end=3101,
+  serialized_start=3092,
+  serialized_end=3171,
+)
+
+
+_SUBSCRIBESERVICECALLSREQUEST = _descriptor.Descriptor(
+  name='SubscribeServiceCallsRequest',
+  full_name='SubscribeServiceCallsRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3173,
+  serialized_end=3203,
+)
+
+
+_SERVICECALLRESPONSE_DATAENTRY = _descriptor.Descriptor(
+  name='DataEntry',
+  full_name='ServiceCallResponse.DataEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='ServiceCallResponse.DataEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='ServiceCallResponse.DataEntry.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=_b('8\001'),
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3411,
+  serialized_end=3454,
+)
+
+_SERVICECALLRESPONSE_DATATEMPLATEENTRY = _descriptor.Descriptor(
+  name='DataTemplateEntry',
+  full_name='ServiceCallResponse.DataTemplateEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='ServiceCallResponse.DataTemplateEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='ServiceCallResponse.DataTemplateEntry.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=_b('8\001'),
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3456,
+  serialized_end=3507,
+)
+
+_SERVICECALLRESPONSE_VARIABLESENTRY = _descriptor.Descriptor(
+  name='VariablesEntry',
+  full_name='ServiceCallResponse.VariablesEntry',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='key', full_name='ServiceCallResponse.VariablesEntry.key', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='value', full_name='ServiceCallResponse.VariablesEntry.value', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=_b('8\001'),
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3509,
+  serialized_end=3557,
+)
+
+_SERVICECALLRESPONSE = _descriptor.Descriptor(
+  name='ServiceCallResponse',
+  full_name='ServiceCallResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='service', full_name='ServiceCallResponse.service', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='data', full_name='ServiceCallResponse.data', index=1,
+      number=2, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='data_template', full_name='ServiceCallResponse.data_template', index=2,
+      number=3, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='variables', full_name='ServiceCallResponse.variables', index=3,
+      number=4, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[_SERVICECALLRESPONSE_DATAENTRY, _SERVICECALLRESPONSE_DATATEMPLATEENTRY, _SERVICECALLRESPONSE_VARIABLESENTRY, ],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3206,
+  serialized_end=3557,
+)
+
+
+_SUBSCRIBEHOMEASSISTANTSTATEREQUEST = _descriptor.Descriptor(
+  name='SubscribeHomeAssistantStateRequest',
+  full_name='SubscribeHomeAssistantStateRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='entity_id', full_name='SubscribeHomeAssistantStateRequest.entity_id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3559,
+  serialized_end=3614,
+)
+
+
+_SUBSCRIBEHOMEASSISTANTSTATERESPONSE = _descriptor.Descriptor(
+  name='SubscribeHomeAssistantStateResponse',
+  full_name='SubscribeHomeAssistantStateResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='entity_id', full_name='SubscribeHomeAssistantStateResponse.entity_id', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='state', full_name='SubscribeHomeAssistantStateResponse.state', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3616,
+  serialized_end=3687,
+)
+
+
+_GETTIMEREQUEST = _descriptor.Descriptor(
+  name='GetTimeRequest',
+  full_name='GetTimeRequest',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3689,
+  serialized_end=3705,
+)
+
+
+_GETTIMERESPONSE = _descriptor.Descriptor(
+  name='GetTimeResponse',
+  full_name='GetTimeResponse',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='epoch_seconds', full_name='GetTimeResponse.epoch_seconds', index=0,
+      number=1, type=7, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=3707,
+  serialized_end=3747,
 )
 
 _COVERSTATERESPONSE.fields_by_name['state'].enum_type = _COVERSTATERESPONSE_COVERSTATE
@@ -1760,6 +2085,12 @@ _COVERCOMMANDREQUEST_COVERCOMMAND.containing_type = _COVERCOMMANDREQUEST
 _FANCOMMANDREQUEST.fields_by_name['speed'].enum_type = _FANSPEED
 _SUBSCRIBELOGSREQUEST.fields_by_name['level'].enum_type = _LOGLEVEL
 _SUBSCRIBELOGSRESPONSE.fields_by_name['level'].enum_type = _LOGLEVEL
+_SERVICECALLRESPONSE_DATAENTRY.containing_type = _SERVICECALLRESPONSE
+_SERVICECALLRESPONSE_DATATEMPLATEENTRY.containing_type = _SERVICECALLRESPONSE
+_SERVICECALLRESPONSE_VARIABLESENTRY.containing_type = _SERVICECALLRESPONSE
+_SERVICECALLRESPONSE.fields_by_name['data'].message_type = _SERVICECALLRESPONSE_DATAENTRY
+_SERVICECALLRESPONSE.fields_by_name['data_template'].message_type = _SERVICECALLRESPONSE_DATATEMPLATEENTRY
+_SERVICECALLRESPONSE.fields_by_name['variables'].message_type = _SERVICECALLRESPONSE_VARIABLESENTRY
 DESCRIPTOR.message_types_by_name['HelloRequest'] = _HELLOREQUEST
 DESCRIPTOR.message_types_by_name['HelloResponse'] = _HELLORESPONSE
 DESCRIPTOR.message_types_by_name['ConnectRequest'] = _CONNECTREQUEST
@@ -1793,6 +2124,12 @@ DESCRIPTOR.message_types_by_name['LightCommandRequest'] = _LIGHTCOMMANDREQUEST
 DESCRIPTOR.message_types_by_name['SwitchCommandRequest'] = _SWITCHCOMMANDREQUEST
 DESCRIPTOR.message_types_by_name['SubscribeLogsRequest'] = _SUBSCRIBELOGSREQUEST
 DESCRIPTOR.message_types_by_name['SubscribeLogsResponse'] = _SUBSCRIBELOGSRESPONSE
+DESCRIPTOR.message_types_by_name['SubscribeServiceCallsRequest'] = _SUBSCRIBESERVICECALLSREQUEST
+DESCRIPTOR.message_types_by_name['ServiceCallResponse'] = _SERVICECALLRESPONSE
+DESCRIPTOR.message_types_by_name['SubscribeHomeAssistantStateRequest'] = _SUBSCRIBEHOMEASSISTANTSTATEREQUEST
+DESCRIPTOR.message_types_by_name['SubscribeHomeAssistantStateResponse'] = _SUBSCRIBEHOMEASSISTANTSTATERESPONSE
+DESCRIPTOR.message_types_by_name['GetTimeRequest'] = _GETTIMEREQUEST
+DESCRIPTOR.message_types_by_name['GetTimeResponse'] = _GETTIMERESPONSE
 DESCRIPTOR.enum_types_by_name['FanSpeed'] = _FANSPEED
 DESCRIPTOR.enum_types_by_name['LogLevel'] = _LOGLEVEL
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -2028,5 +2365,74 @@ SubscribeLogsResponse = _reflection.GeneratedProtocolMessageType('SubscribeLogsR
   ))
 _sym_db.RegisterMessage(SubscribeLogsResponse)
 
+SubscribeServiceCallsRequest = _reflection.GeneratedProtocolMessageType('SubscribeServiceCallsRequest', (_message.Message,), dict(
+  DESCRIPTOR = _SUBSCRIBESERVICECALLSREQUEST,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:SubscribeServiceCallsRequest)
+  ))
+_sym_db.RegisterMessage(SubscribeServiceCallsRequest)
 
+ServiceCallResponse = _reflection.GeneratedProtocolMessageType('ServiceCallResponse', (_message.Message,), dict(
+
+  DataEntry = _reflection.GeneratedProtocolMessageType('DataEntry', (_message.Message,), dict(
+    DESCRIPTOR = _SERVICECALLRESPONSE_DATAENTRY,
+    __module__ = 'api_pb2'
+    # @@protoc_insertion_point(class_scope:ServiceCallResponse.DataEntry)
+    ))
+  ,
+
+  DataTemplateEntry = _reflection.GeneratedProtocolMessageType('DataTemplateEntry', (_message.Message,), dict(
+    DESCRIPTOR = _SERVICECALLRESPONSE_DATATEMPLATEENTRY,
+    __module__ = 'api_pb2'
+    # @@protoc_insertion_point(class_scope:ServiceCallResponse.DataTemplateEntry)
+    ))
+  ,
+
+  VariablesEntry = _reflection.GeneratedProtocolMessageType('VariablesEntry', (_message.Message,), dict(
+    DESCRIPTOR = _SERVICECALLRESPONSE_VARIABLESENTRY,
+    __module__ = 'api_pb2'
+    # @@protoc_insertion_point(class_scope:ServiceCallResponse.VariablesEntry)
+    ))
+  ,
+  DESCRIPTOR = _SERVICECALLRESPONSE,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:ServiceCallResponse)
+  ))
+_sym_db.RegisterMessage(ServiceCallResponse)
+_sym_db.RegisterMessage(ServiceCallResponse.DataEntry)
+_sym_db.RegisterMessage(ServiceCallResponse.DataTemplateEntry)
+_sym_db.RegisterMessage(ServiceCallResponse.VariablesEntry)
+
+SubscribeHomeAssistantStateRequest = _reflection.GeneratedProtocolMessageType('SubscribeHomeAssistantStateRequest', (_message.Message,), dict(
+  DESCRIPTOR = _SUBSCRIBEHOMEASSISTANTSTATEREQUEST,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:SubscribeHomeAssistantStateRequest)
+  ))
+_sym_db.RegisterMessage(SubscribeHomeAssistantStateRequest)
+
+SubscribeHomeAssistantStateResponse = _reflection.GeneratedProtocolMessageType('SubscribeHomeAssistantStateResponse', (_message.Message,), dict(
+  DESCRIPTOR = _SUBSCRIBEHOMEASSISTANTSTATERESPONSE,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:SubscribeHomeAssistantStateResponse)
+  ))
+_sym_db.RegisterMessage(SubscribeHomeAssistantStateResponse)
+
+GetTimeRequest = _reflection.GeneratedProtocolMessageType('GetTimeRequest', (_message.Message,), dict(
+  DESCRIPTOR = _GETTIMEREQUEST,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:GetTimeRequest)
+  ))
+_sym_db.RegisterMessage(GetTimeRequest)
+
+GetTimeResponse = _reflection.GeneratedProtocolMessageType('GetTimeResponse', (_message.Message,), dict(
+  DESCRIPTOR = _GETTIMERESPONSE,
+  __module__ = 'api_pb2'
+  # @@protoc_insertion_point(class_scope:GetTimeResponse)
+  ))
+_sym_db.RegisterMessage(GetTimeResponse)
+
+
+_SERVICECALLRESPONSE_DATAENTRY._options = None
+_SERVICECALLRESPONSE_DATATEMPLATEENTRY._options = None
+_SERVICECALLRESPONSE_VARIABLESENTRY._options = None
 # @@protoc_insertion_point(module_scope)
