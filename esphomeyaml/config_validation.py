@@ -104,22 +104,21 @@ def boolean(value):
 
 def ensure_list(*validators):
     """Wrap value in list if it is not one."""
-    valid = vol.All(*validators)
+    user = vol.All(*validators)
 
     def validator(value):
         if value is None or (isinstance(value, dict) and not value):
             return []
-        if isinstance(value, list):
-            ret = []
-            for i, val in enumerate(value):
-                try:
-                    ret.append(valid(val))
-                except vol.Invalid as err:
-                    err.prepend(i)
-                    raise err
-            return ret
-        else:
-            return [valid(value)]
+        if not isinstance(value, list):
+            return [user(value)]
+        ret = []
+        for i, val in enumerate(value):
+            try:
+                ret.append(user(val))
+            except vol.Invalid as err:
+                err.prepend(i)
+                raise err
+        return ret
 
     return validator
 
@@ -490,8 +489,10 @@ def ssid(value):
 def ipv4(value):
     if isinstance(value, list):
         parts = value
-    elif isinstance(value, str):
+    elif isinstance(value, basestring):
         parts = value.split('.')
+    elif isinstance(value, IPAddress):
+        return value
     else:
         raise vol.Invalid("IPv4 address must consist of either string or "
                           "integer list")
@@ -674,6 +675,16 @@ def file_(value):
             path))
     if not os.path.isfile(path):
         raise vol.Invalid(u"Path '{}' is not a file.".format(path))
+    return value
+
+
+ENTITY_ID_PATTERN = re.compile(r"^([a-z0-9]+)\.([a-z0-9]+)$")
+
+
+def entity_id(value):
+    value = string_strict(value).lower()
+    if ENTITY_ID_PATTERN.match(value) is None:
+        raise vol.Invalid(u"Invalid entity ID: {}".format(value))
     return value
 
 

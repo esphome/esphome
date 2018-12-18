@@ -5,13 +5,12 @@ import socket
 import threading
 import time
 
-from typing import Optional, Tuple
-
 from google.protobuf import message
+from typing import Optional  # noqa
 
 from esphomeyaml import const
 import esphomeyaml.api.api_pb2 as pb
-from esphomeyaml.const import CONF_PORT, CONF_PASSWORD
+from esphomeyaml.const import CONF_PASSWORD, CONF_PORT
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address
 from esphomeyaml.util import safe_print
@@ -81,7 +80,7 @@ def _varuint_to_bytes(value):
 
 
 def _bytes_to_varuint(value):
-    result= 0
+    result = 0
     bitpos = 0
     for c in value:
         val = ord(c)
@@ -92,6 +91,7 @@ def _bytes_to_varuint(value):
     return None
 
 
+# pylint: disable=too-many-instance-attributes,not-callable
 class APIClient(threading.Thread):
     def __init__(self, address, port, password):
         threading.Thread.__init__(self)
@@ -282,6 +282,7 @@ class APIClient(threading.Thread):
     def _send_message_await_response(self, send_msg, response_type, timeout=1):
         def is_response(msg):
             return isinstance(msg, response_type)
+
         return self._send_message_await_response_complex(send_msg, is_response, is_response,
                                                          timeout)[0]
 

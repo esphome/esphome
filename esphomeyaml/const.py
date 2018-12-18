@@ -391,6 +391,7 @@ CONF_COMPONENTS = 'components'
 CONF_DATA_TEMPLATE = 'data_template'
 CONF_VARIABLES = 'variables'
 CONF_SERVICE = 'service'
+CONF_ENTITY_ID = 'entity_id'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

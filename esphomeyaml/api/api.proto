@@ -303,11 +303,18 @@ message ServiceCallResponse {
   map<string, string> variables = 4;
 }
 
-message SubscribeHomeAssistantStateRequest {
-  string entity_id = 1;
+// 1. Client sends SubscribeHomeAssistantStatesRequest
+// 2. Server responds with zero or more SubscribeHomeAssistantStateResponse (async)
+// 3. Client sends HomeAssistantStateResponse for state changes.
+message SubscribeHomeAssistantStatesRequest {
+
 }
 
 message SubscribeHomeAssistantStateResponse {
+  string entity_id = 1;
+}
+
+message HomeAssistantStateResponse {
   string entity_id = 1;
   string state = 2;
 }

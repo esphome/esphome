@@ -139,7 +139,7 @@ def wifi_network(config):
     if CONF_CHANNEL in config:
         add(ap.set_channel(config[CONF_CHANNEL]))
     if CONF_MANUAL_IP in config:
-        add(ap.set_manual_ip(config[CONF_MANUAL_IP]))
+        add(ap.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
     return ap
 

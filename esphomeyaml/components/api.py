@@ -2,13 +2,12 @@ import voluptuous as vol
 
 from esphomeyaml.automation import ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_PORT, CONF_PASSWORD, CONF_SERVICE, CONF_DATA, \
-    CONF_DATA_TEMPLATE, CONF_VARIABLES
+from esphomeyaml.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
+    CONF_SERVICE, CONF_VARIABLES
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import Pvariable, add, get_variable, StructInitializer, \
-    ArrayInitializer, process_lambda
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, get_variable, process_lambda
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Component, StoringController, esphomelib_ns, Action
+from esphomeyaml.cpp_types import Action, App, Component, StoringController, esphomelib_ns
 
 api_ns = esphomelib_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', Component, StoringController)
