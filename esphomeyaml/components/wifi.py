@@ -74,6 +74,18 @@ WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
 def validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise vol.Invalid("Cannot have WiFi password without SSID!")
+
+    if CONF_SSID in config:
+        network = {CONF_SSID: config.pop(CONF_SSID)}
+        if CONF_PASSWORD in config:
+            network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
+        if CONF_MANUAL_IP in config:
+            network[CONF_MANUAL_IP] = config.pop(CONF_MANUAL_IP)
+        if CONF_NETWORKS in config:
+            raise vol.Invalid("You cannot use the 'ssid:' option together with 'networks:'. Please "
+                              "copy your network into the 'networks:' key")
+        config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
+
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         raise vol.Invalid("Please specify at least an SSID or an Access Point "
                           "to create.")
@@ -83,6 +95,11 @@ def validate(config):
 CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
     vol.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
+
+    vol.Optional(CONF_SSID): cv.ssid,
+    vol.Optional(CONF_PASSWORD): validate_password,
+    vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
     vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
