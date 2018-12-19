@@ -6,8 +6,10 @@ from esphomeyaml.components import sensor, spi
 from esphomeyaml.components.spi import SPIComponent
 from esphomeyaml.const import CONF_CS_PIN, CONF_MAKE_ID, CONF_NAME, CONF_SPI_ID, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, get_variable, gpio_output_pin_expression, \
-    variable, setup_component
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression
+from esphomeyaml.cpp_generator import get_variable, variable, \
+    setup_component
+from esphomeyaml.cpp_types import Application, App
 
 MakeMAX31855Sensor = Application.struct('MakeMAX31855Sensor')
 MAX31855Sensor = sensor.sensor_ns.class_('MAX31855Sensor', sensor.PollingSensorComponent,
