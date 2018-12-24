@@ -378,7 +378,10 @@ def validate_config(config):
                     continue
                 result[domain][i] = p_validated
 
-    do_id_pass(result)
+    if not result.errors:
+        # Only parse IDs if no validation error. Otherwise
+        # user gets confusing messages
+        do_id_pass(result)
     return result
 
 

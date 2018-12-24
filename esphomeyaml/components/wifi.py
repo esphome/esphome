@@ -62,11 +62,10 @@ WIFI_NETWORK_BASE = vol.Schema({
 })
 
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
-    vol.Optional(CONF_MANUAL_IP): AP_MANUAL_IP_SCHEMA,
+
 })
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
-    vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
     vol.Optional(CONF_BSSID): cv.mac_address,
 })
 
@@ -79,8 +78,6 @@ def validate(config):
         network = {CONF_SSID: config.pop(CONF_SSID)}
         if CONF_PASSWORD in config:
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
-        if CONF_MANUAL_IP in config:
-            network[CONF_MANUAL_IP] = config.pop(CONF_MANUAL_IP)
         if CONF_NETWORKS in config:
             raise vol.Invalid("You cannot use the 'ssid:' option together with 'networks:'. Please "
                               "copy your network into the 'networks:' key")
@@ -127,7 +124,7 @@ def manual_ip(config):
     )
 
 
-def wifi_network(config):
+def wifi_network(config, static_ip):
     ap = variable(config[CONF_ID], WiFiAP())
     if CONF_SSID in config:
         add(ap.set_ssid(config[CONF_SSID]))
@@ -138,10 +135,17 @@ def wifi_network(config):
         add(ap.set_bssid(ArrayInitializer(*bssid, multiline=False)))
     if CONF_CHANNEL in config:
         add(ap.set_channel(config[CONF_CHANNEL]))
-    if CONF_MANUAL_IP in config:
-        add(ap.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
+    if static_ip is not None:
+        add(ap.set_manual_ip(manual_ip(static_ip)))
 
     return ap
+
+
+def get_upload_host(config):
+    if CONF_MANUAL_IP in config:
+        return str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
+    hostname = config.get(CONF_HOSTNAME) or CORE.name
+    return hostname + config[CONF_DOMAIN]
 
 
 def to_code(config):
@@ -149,10 +153,10 @@ def to_code(config):
     wifi = Pvariable(config[CONF_ID], rhs)
 
     for network in config.get(CONF_NETWORKS, []):
-        add(wifi.add_sta(wifi_network(network)))
+        add(wifi.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
 
     if CONF_AP in config:
-        add(wifi.set_ap(wifi_network(config[CONF_AP])))
+        add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
 
     if CONF_HOSTNAME in config:
         add(wifi.set_hostname(config[CONF_HOSTNAME]))

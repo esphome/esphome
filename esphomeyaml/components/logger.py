@@ -6,7 +6,7 @@ from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
-from esphomeyaml.core import EsphomeyamlError, Lambda
+from esphomeyaml.core import EsphomeyamlError, Lambda, CORE
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
 
@@ -69,9 +69,15 @@ def to_code(config):
 
 
 def required_build_flags(config):
+    flags = []
     if CONF_LEVEL in config:
-        return u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]]))
-    return None
+        flags.append(u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]])))
+        this_severity = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
+        if CORE.is_esp8266 and config.get(CONF_BAUD_RATE) != 0 and \
+                this_severity >= verbose_severity:
+            flags.append(u"-DDEBUG_ESP_PORT=Serial")
+    return flags
 
 
 def maybe_simple_message(schema):

@@ -307,13 +307,9 @@ class EsphomeyamlCore(object):
 
     @property
     def address(self):  # type: () -> str
-        if CONF_MANUAL_IP in self.config[CONF_WIFI]:
-            return str(self.config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
-        elif CONF_HOSTNAME in self.config[CONF_WIFI]:
-            hostname = self.config[CONF_WIFI][CONF_HOSTNAME]
-        else:
-            hostname = self.name
-        return hostname + self.config[CONF_WIFI][CONF_DOMAIN]
+        from esphomeyaml.components import wifi
+
+        return wifi.get_upload_host(self.config[CONF_WIFI])
 
     @property
     def esphomelib_version(self):  # type: () -> Dict[str, str]

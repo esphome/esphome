@@ -224,7 +224,7 @@ def perform_ota(sock, password, file_handle, filename):
     _LOGGER.info("OTA successful")
 
     # Do not connect logs until it is fully on
-    time.sleep(2)
+    time.sleep(1)
 
 
 def run_ota_impl_(remote_host, remote_port, password, filename):

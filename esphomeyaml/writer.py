@@ -279,7 +279,7 @@ def gather_lib_deps():
         # Manual fix for AsyncTCP
         if CORE.config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
             lib_deps.add('https://github.com/me-no-dev/AsyncTCP.git#idf-update')
-            lib_deps.remove('AsyncTCP@1.0.1')
+            lib_deps.discard('AsyncTCP@1.0.1')
     # avoid changing build flags order
     return sorted(x for x in lib_deps if x)
 

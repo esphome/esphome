@@ -18,11 +18,7 @@ VOLUME /config
 WORKDIR /usr/src/app
 
 COPY docker/platformio.ini /pio/platformio.ini
-ARG ESPHOMELIB_VERSION=""
-RUN platformio run -d /pio; rm -rf /pio && \
-    /bin/bash -c "if [ ! -z '$ESPHOMELIB_VERSION']; then \
-        platformio lib -g install '${ESPHOMELIB_VERSION}'; \
-    fi"
+RUN platformio run -d /pio; rm -rf /pio
 
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \

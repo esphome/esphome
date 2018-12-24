@@ -10,10 +10,11 @@ import sys
 
 from esphomeyaml import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
 from esphomeyaml.api.client import run_logs
+from esphomeyaml.components import wifi
 from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
 from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
     CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
-    CONF_WIFI
+    CONF_WIFI, CONF_BROKER
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
 from esphomeyaml.helpers import color, indent
@@ -39,31 +40,57 @@ def get_serial_ports():
     return result
 
 
-def choose_serial_port(config):
-    result = get_serial_ports()
+def choose_prompt(options):
+    if not options:
+        raise ValueError
 
-    if not result:
-        return 'OTA'
-    safe_print(u"Found multiple serial port options, please choose one:")
-    for i, (res, desc) in enumerate(result):
-        safe_print(u"  [{}] {} ({})".format(i, res, desc))
-    safe_print(u"  [{}] Over The Air ({})".format(len(result), get_upload_host(config)))
-    safe_print()
+    if len(options) == 1:
+        return options[0][1]
+
+    safe_print(u"Found multiple options, please choose one:")
+    for i, (desc, _) in enumerate(options):
+        safe_print(u"  [{}] {}".format(i + 1, desc))
+
     while True:
         opt = raw_input('(number): ')
-        if opt in result:
-            opt = result.index(opt)
+        if opt in options:
+            opt = options.index(opt)
             break
         try:
             opt = int(opt)
-            if opt < 0 or opt > len(result):
+            if opt < 1 or opt > len(options):
                 raise ValueError
             break
         except ValueError:
             safe_print(color('red', u"Invalid option: '{}'".format(opt)))
-    if opt == len(result):
-        return 'OTA'
-    return result[opt][0]
+    return options[opt - 1][1]
+
+
+def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
+    options = []
+    for res, desc in get_serial_ports():
+        options.append((u"{} ({})".format(res, desc), res))
+    if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
+        options.append((u"Over The Air ({})".format(CORE.address), CORE.address))
+        if default == 'OTA':
+            return CORE.address
+    if show_mqtt and 'mqtt' in CORE.config:
+        options.append((u"MQTT ({})".format(CORE.config['mqtt'][CONF_BROKER]), 'MQTT'))
+        if default == 'OTA':
+            return 'MQTT'
+    if default is not None:
+        return default
+    if check_default is not None and check_default in [opt[1] for opt in options]:
+        return check_default
+    return choose_prompt(options)
+
+
+def get_port_type(port):
+    if port.startswith('/') or port.startswith('COM'):
+        return 'SERIAL'
+    if port == 'MQTT':
+        return 'MQTT'
+    return 'NETWORK'
 
 
 def run_miniterm(config, port):
@@ -132,16 +159,6 @@ def compile_program(args, config):
     return rc
 
 
-def get_upload_host(config):
-    if CONF_MANUAL_IP in config[CONF_WIFI]:
-        host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
-    elif CONF_HOSTNAME in config[CONF_WIFI]:
-        host = config[CONF_WIFI][CONF_HOSTNAME] + config[CONF_WIFI][CONF_DOMAIN]
-    else:
-        host = config[CONF_ESPHOMEYAML][CONF_NAME] + config[CONF_WIFI][CONF_DOMAIN]
-    return host
-
-
 def upload_using_esptool(config, port):
     import esptool
 
@@ -152,24 +169,12 @@ def upload_using_esptool(config, port):
     return run_external_command(esptool._main, *cmd)
 
 
-def upload_program(config, args, port):
+def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
-    serial_port = port.startswith('/') or port.startswith('COM')
-    if port != 'OTA' and serial_port:
+    if get_port_type(host) == 'SERIAL':
         if CORE.is_esp8266:
-            return upload_using_esptool(config, port)
-        return platformio_api.run_upload(config, args.verbose, port)
-
-    if 'ota' not in config:
-        _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
-        return -1
-
-    # If hostname/ip is explicitly provided as upload-port argument, use this instead of zeroconf
-    # hostname. This is to support use cases where zeroconf (hostname.local) does not work.
-    if port != 'OTA':
-        host = port
-    else:
-        host = get_upload_host(config)
+            return upload_using_esptool(config, host)
+        return platformio_api.run_upload(config, args.verbose, host)
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota2
@@ -199,13 +204,15 @@ def upload_program(config, args, port):
 
 
 def show_logs(config, args, port):
-    serial_port = port.startswith('/') or port.startswith('COM')
-    if port != 'OTA' and serial_port:
+    if get_port_type(port) == 'SERIAL':
         run_miniterm(config, port)
         return 0
-    if 'api' in config:
-        return run_logs(config, get_upload_host(config))
-    return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
+    elif get_port_type(port) == 'NETWORK':
+        return run_logs(config, port)
+    elif get_port_type(port) == 'MQTT':
+        return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
+
+    raise ValueError
 
 
 def clean_mqtt(config, args):
@@ -266,7 +273,8 @@ def command_compile(args, config):
 
 
 def command_upload(args, config):
-    port = args.upload_port or choose_serial_port(config)
+    port = choose_upload_log_host(default=args.upload_port, check_default=None,
+                                  show_ota=True, show_mqtt=False, show_api=False)
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
@@ -275,7 +283,8 @@ def command_upload(args, config):
 
 
 def command_logs(args, config):
-    port = args.serial_port or choose_serial_port(config)
+    port = choose_upload_log_host(default=args.serial_port, check_default=None,
+                                  show_ota=False, show_mqtt=True, show_api=True)
     return show_logs(config, args, port)
 
 
@@ -287,13 +296,16 @@ def command_run(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully compiled program.")
-    port = args.upload_port or choose_serial_port(config)
+    port = choose_upload_log_host(default=args.upload_port, check_default=None,
+                                  show_ota=True, show_mqtt=False, show_api=True)
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully uploaded program.")
     if args.no_logs:
         return 0
+    port = choose_upload_log_host(default=args.upload_port, check_default=port,
+                                  show_ota=False, show_mqtt=True, show_api=True)
     return show_logs(config, args, port)
 
 

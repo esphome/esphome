@@ -290,6 +290,7 @@ message SubscribeLogsResponse {
   LogLevel level = 1;
   string tag = 2;
   string message = 3;
+  bool send_failed = 4;
 }
 
 message SubscribeServiceCallsRequest {
