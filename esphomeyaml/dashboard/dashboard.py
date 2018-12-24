@@ -296,7 +296,8 @@ class MainRequestHandler(BaseHandler):
             'https://esphomelib.com/esphomeyaml/'
 
         self.render("templates/index.html", entries=entries,
-                    version=version, begin=begin, docs_link=docs_link)
+                    version=version, begin=begin, docs_link=docs_link,
+                    get_static_file_url=get_static_file_url)
 
 
 def _ping_func(filename, address):
@@ -413,7 +414,8 @@ class LoginHandler(BaseHandler):
         docs_link = 'https://beta.esphomelib.com/esphomeyaml/' if 'b' in version else \
             'https://esphomelib.com/esphomeyaml/'
 
-        self.render("templates/login.html", version=version, docs_link=docs_link, error=error)
+        self.render("templates/login.html", version=version, docs_link=docs_link, error=error,
+                    get_static_file_url=get_static_file_url)
 
     def post_hassio_login(self):
         import requests
@@ -449,6 +451,21 @@ class LoginHandler(BaseHandler):
         if hmac.compare_digest(PASSWORD_DIGEST, password):
             self.set_secure_cookie("authenticated", "yes")
         self.redirect("/")
+
+
+_STATIC_FILE_HASHES = {}
+
+
+def get_static_file_url(name):
+    static_path = os.path.join(os.path.dirname(__file__), 'static')
+    if name in _STATIC_FILE_HASHES:
+        hash_ = _STATIC_FILE_HASHES[name]
+    else:
+        path = os.path.join(static_path, name)
+        with open(path, 'rb') as f_handle:
+            hash_ = hash(f_handle.read())
+        _STATIC_FILE_HASHES[name] = hash_
+    return u'/static/{}?hash={}'.format(name, hash_)
 
 
 def make_app(debug=False):
@@ -493,6 +510,10 @@ def make_app(debug=False):
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', StaticFileHandler, {'path': static_path}),
     ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function)
+
+    if debug:
+        _STATIC_FILE_HASHES.clear()
+
     return app
 
 

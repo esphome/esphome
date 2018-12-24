@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <title>ESPHome Dashboard</title>
   <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-  <link rel="stylesheet" href="/static/materialize.min.css?v=1">
-  <link rel="stylesheet" href="/static/materialize-stepper.min.css?v=1">
-  <link rel="stylesheet" href="/static/esphomeyaml.css?v=1">
-  <link rel="shortcut icon" href="/static/favicon.ico?v=1">
+  <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('materialize-stepper.min.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('esphomeyaml.css') }}">
+  <link rel="shortcut icon" href="{{ get_static_file_url('favicon.ico') }}">
 
-  <script src="/static/jquery.min.js?v=1"></script>
-  <script src="/static/jquery-ui.min.js?v=1"></script>
-  <script src="/static/materialize.min.js?v=1"></script>
-  <script src="/static/jquery.validate.min.js?v=1"></script>
+  <script src="{{ get_static_file_url('jquery.min.js') }}"></script>
+  <script src="{{ get_static_file_url('jquery-ui.min.js') }}"></script>
+  <script src="{{ get_static_file_url('materialize.min.js') }}"></script>
+  <script src="{{ get_static_file_url('jquery.validate.min.js') }}"></script>
 
-  <script src="/static/materialize-stepper.min.js?v=1"></script>
+  <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 </head>
 <body>
@@ -469,8 +469,8 @@
   </div>
 </footer>
 
-<script src="/static/ace.js?v=1" type="text/javascript" charset="utf-8"></script>
-<script src="/static/esphomeyaml.js?v=1" type="text/javascript"></script>
+<script src="{{ get_static_file_url('ace.js') }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ get_static_file_url('esphomeyaml.js') }}" type="text/javascript"></script>
 
 {% if len(entries) == 0 %}
 <script>
