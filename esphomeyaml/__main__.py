@@ -16,8 +16,9 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_LOGGER, CON
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
 from esphomeyaml.helpers import color, indent
-from esphomeyaml.storage_json import StorageJSON, storage_path, start_update_check_thread, \
-    esphomeyaml_storage_path
+from esphomeyaml.py_compat import safe_input, text_type
+from esphomeyaml.storage_json import StorageJSON, esphomeyaml_storage_path, \
+    start_update_check_thread, storage_path
 from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,7 +51,7 @@ def choose_prompt(options):
         safe_print(u"  [{}] {}".format(i + 1, desc))
 
     while True:
-        opt = raw_input('(number): ')
+        opt = safe_input('(number): ')
         if opt in options:
             opt = options.index(opt)
             break
@@ -140,7 +141,7 @@ def write_cpp(config):
         if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
             if isinstance(exp, Expression) and not exp.required:
                 continue
-        all_code.append(unicode(statement(exp)))
+        all_code.append(text_type(statement(exp)))
 
     writer.write_platformio_project()
 

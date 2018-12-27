@@ -11,6 +11,7 @@ from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, 
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import add, Pvariable, ArrayInitializer
 from esphomeyaml.cpp_types import esphomelib_ns, Component, NoArg, Trigger, App
+from esphomeyaml.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def detect_tz():
         import pytz
     except ImportError:
         raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
-                          "detect the timezone please install tzlocal (pip2 install tzlocal)")
+                          "detect the timezone please install tzlocal (pip install tzlocal)")
     try:
         tz = tzlocal.get_localzone()
     except pytz.exceptions.UnknownTimeZoneError:
@@ -131,7 +132,7 @@ def detect_tz():
 
 def _parse_cron_int(value, special_mapping, message):
     special_mapping = special_mapping or {}
-    if isinstance(value, (str, unicode)) and value in special_mapping:
+    if isinstance(value, string_types) and value in special_mapping:
         return special_mapping[value]
     try:
         return int(value)

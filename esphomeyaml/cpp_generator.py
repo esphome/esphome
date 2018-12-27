@@ -7,6 +7,7 @@ from esphomeyaml.helpers import cpp_string_escape, indent_all_but_first_and_last
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Union  # noqa
 from esphomeyaml.core import ID  # noqa
+from esphomeyaml.py_compat import text_type, string_types, integer_types
 
 
 class Expression(object):
@@ -28,7 +29,7 @@ class Expression(object):
         return self.required
 
 
-SafeExpType = Union[Expression, bool, str, unicode, int, long, float, TimePeriod]
+SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod]
 
 
 class RawExpression(Expression):
@@ -73,7 +74,7 @@ class ExpressionList(Expression):
             self.args.append(exp)
 
     def __str__(self):
-        text = u", ".join(unicode(x) for x in self.args)
+        text = u", ".join(text_type(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
 
@@ -115,7 +116,7 @@ class StructInitializer(Expression):
         if not isinstance(args, OrderedDict):
             args = OrderedDict(args)
         self.args = OrderedDict()
-        for key, value in args.iteritems():
+        for key, value in args.items():
             if value is None:
                 continue
             exp = safe_exp(value)
@@ -124,7 +125,7 @@ class StructInitializer(Expression):
 
     def __str__(self):
         cpp = u'{}{{\n'.format(self.base)
-        for key, value in self.args.iteritems():
+        for key, value in self.args.items():
             cpp += u'  .{} = {},\n'.format(key, value)
         cpp += u'}'
         return cpp
@@ -176,7 +177,7 @@ class ParameterListExpression(Expression):
             self.requires.append(parameter)
 
     def __str__(self):
-        return u", ".join(unicode(x) for x in self.parameters)
+        return u", ".join(text_type(x) for x in self.parameters)
 
 
 class LambdaExpression(Expression):
@@ -203,7 +204,7 @@ class LambdaExpression(Expression):
 
     @property
     def content(self):
-        return u''.join(unicode(part) for part in self.parts)
+        return u''.join(text_type(part) for part in self.parts)
 
 
 class Literal(Expression):
@@ -232,7 +233,7 @@ class IntLiteral(Literal):
             return u'{}UL'.format(self.i)
         if self.i < -2147483648:
             return u'{}LL'.format(self.i)
-        return unicode(self.i)
+        return text_type(self.i)
 
 
 class BoolLiteral(Literal):
@@ -270,11 +271,11 @@ def safe_exp(obj  # type: Union[Expression, bool, str, unicode, int, long, float
         return obj
     elif isinstance(obj, bool):
         return BoolLiteral(obj)
-    elif isinstance(obj, (str, unicode)):
+    elif isinstance(obj, string_types):
         return StringLiteral(obj)
     elif isinstance(obj, HexInt):
         return HexIntLiteral(obj)
-    elif isinstance(obj, (int, long)):
+    elif isinstance(obj, integer_types):
         return IntLiteral(obj)
     elif isinstance(obj, float):
         return FloatLiteral(obj)
@@ -441,7 +442,7 @@ class MockObj(Expression):
         return obj
 
     def __str__(self):  # type: () -> unicode
-        return unicode(self.base)
+        return text_type(self.base)
 
     def require(self):  # type: () -> None
         self.required = True

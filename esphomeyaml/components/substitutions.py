@@ -82,7 +82,7 @@ def _substitute_item(substitutions, item, path):
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
-        for k, v in item.iteritems():
+        for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
                 sub = _substitute_item(substitutions, k, path + [k])
                 if sub is not None:
@@ -116,7 +116,7 @@ def do_substitution_pass(config):
     key = ''
     try:
         replace_keys = []
-        for key, value in substitutions.iteritems():
+        for key, value in substitutions.items():
             sub = validate_substitution_key(key)
             if sub != key:
                 replace_keys.append((key, sub))

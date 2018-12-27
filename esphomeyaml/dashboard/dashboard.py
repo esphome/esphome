@@ -176,7 +176,7 @@ class WizardRequestHandler(BaseHandler):
         if not self.is_authenticated():
             self.redirect('/login')
             return
-        kwargs = {k: ''.join(v) for k, v in self.request.arguments.iteritems()}
+        kwargs = {k: ''.join(v) for k, v in self.request.arguments.items()}
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('/?begin=True')

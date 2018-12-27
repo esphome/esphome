@@ -6,6 +6,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_NAME, \
     CONF_UPDATE_INTERVAL
 from esphomeyaml.cpp_generator import get_variable
+from esphomeyaml.py_compat import text_type
 
 DEPENDENCIES = ['ads1115']
 
@@ -35,7 +36,7 @@ GAIN = {
 def validate_gain(value):
     if isinstance(value, float):
         value = u'{:0.03f}'.format(value)
-    elif not isinstance(value, (str, unicode)):
+    elif not isinstance(value, text_type.string_types):
         raise vol.Invalid('invalid gain "{}"'.format(value))
 
     return cv.one_of(*GAIN)(value)

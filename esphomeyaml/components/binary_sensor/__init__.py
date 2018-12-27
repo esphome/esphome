@@ -14,6 +14,7 @@ from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
     StructInitializer, get_variable
 from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_
+from esphomeyaml.py_compat import string_types
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -70,7 +71,7 @@ MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
 
 
 def parse_multi_click_timing_str(value):
-    if not isinstance(value, basestring):
+    if not isinstance(value, string_types):
         return value
 
     parts = value.lower().split(' ')

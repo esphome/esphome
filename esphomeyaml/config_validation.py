@@ -16,6 +16,7 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOV
     ESP_PLATFORM_ESP8266
 from esphomeyaml.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
+from esphomeyaml.py_compat import text_type, string_types, integer_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ RESERVED_IDS = [
 def alphanumeric(value):
     if value is None:
         raise vol.Invalid("string value is None")
-    value = unicode(value)
+    value = text_type(value)
     if not value.isalnum():
         raise vol.Invalid("string value is not alphanumeric")
     return value
@@ -70,13 +71,13 @@ def string(value):
     if isinstance(value, (dict, list)):
         raise vol.Invalid("string value cannot be dictionary or list.")
     if value is not None:
-        return unicode(value)
+        return text_type(value)
     raise vol.Invalid("string value is None")
 
 
 def string_strict(value):
     """Strictly only allow strings."""
-    if isinstance(value, (str, unicode)):
+    if isinstance(value, string_types):
         return value
     raise vol.Invalid("Must be string, got {}. did you forget putting quotes "
                       "around the value?".format(type(value)))
@@ -138,7 +139,7 @@ def ensure_dict(value):
 
 
 def hex_int_(value):
-    if isinstance(value, (int, long)):
+    if isinstance(value, integer_types):
         return HexInt(value)
     value = string_strict(value).lower()
     if value.startswith('0x'):
@@ -147,7 +148,7 @@ def hex_int_(value):
 
 
 def int_(value):
-    if isinstance(value, (int, long)):
+    if isinstance(value, integer_types):
         return value
     value = string_strict(value).lower()
     if value.startswith('0x'):
@@ -312,7 +313,7 @@ def time_period_str_unit(value):
     if isinstance(value, int):
         raise vol.Invalid("Don't know what '{}' means as it has no time *unit*! Did you mean "
                           "'{}s'?".format(value, value))
-    elif not isinstance(value, (str, unicode)):
+    elif not isinstance(value, string_types):
         raise vol.Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
@@ -489,7 +490,7 @@ def ssid(value):
 def ipv4(value):
     if isinstance(value, list):
         parts = value
-    elif isinstance(value, basestring):
+    elif isinstance(value, string_types):
         parts = value.split('.')
     elif isinstance(value, IPAddress):
         return value
@@ -579,7 +580,7 @@ i2c_address = hex_uint8_t
 
 
 def percentage(value):
-    has_percent_sign = isinstance(value, (str, unicode)) and value.endswith('%')
+    has_percent_sign = isinstance(value, string_types) and value.endswith('%')
     if has_percent_sign:
         value = float(value[:-1].rstrip()) / 100.0
     if value > 1:
@@ -591,7 +592,7 @@ def percentage(value):
 
 
 def percentage_int(value):
-    if isinstance(value, (str, unicode)) and value.endswith('%'):
+    if isinstance(value, string_types) and value.endswith('%'):
         value = int(value[:-1].rstrip())
     return value
 

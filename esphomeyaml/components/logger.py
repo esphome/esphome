@@ -10,6 +10,8 @@ from esphomeyaml.core import EsphomeyamlError, Lambda, CORE
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
 
+from esphomeyaml.py_compat import text_type
+
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
     'ERROR': global_ns.ESPHOMELIB_LOG_LEVEL_ERROR,
@@ -37,7 +39,7 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
-    for tag, level in value.get(CONF_LOGS, {}).iteritems():
+    for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
             raise EsphomeyamlError(u"The local log level {} for {} must be less severe than the "
                                    u"global log level {}.".format(level, tag, global_level))
@@ -64,7 +66,7 @@ def to_code(config):
         add(log.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
     if CONF_LEVEL in config:
         add(log.set_global_log_level(LOG_LEVELS[config[CONF_LEVEL]]))
-    for tag, level in config.get(CONF_LOGS, {}).iteritems():
+    for tag, level in config.get(CONF_LOGS, {}).items():
         add(log.set_log_level(tag, LOG_LEVELS[level]))
 
 
@@ -140,9 +142,9 @@ LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
 def logger_log_action_to_code(config, action_id, arg_type, template_arg):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args = [RawExpression(unicode(x)) for x in config[CONF_ARGS]]
+    args = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
 
-    text = unicode(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
+    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
 
     for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')]):
         yield None

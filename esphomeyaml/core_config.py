@@ -15,6 +15,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
 from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
+from esphomeyaml.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -206,7 +207,7 @@ def preload_core_config(config):
         CORE.build_path = CORE.relative_path(
             cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
     except vol.Invalid as e:
-        raise EsphomeyamlError(unicode(e))
+        raise EsphomeyamlError(text_type(e))
 
 
 def to_code(config):

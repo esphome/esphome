@@ -47,11 +47,11 @@ def validate_pillow_installed(value):
         import PIL
     except ImportError:
         raise vol.Invalid("Please install the pillow python package to use this feature. "
-                          "(pip2 install pillow)")
+                          "(pip install pillow)")
 
     if PIL.__version__[0] < '4':
         raise vol.Invalid("Please update your pillow installation to at least 4.0.x. "
-                          "(pip2 install -U pillow)")
+                          "(pip install -U pillow)")
 
     return value
 

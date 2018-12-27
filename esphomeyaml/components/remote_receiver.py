@@ -7,6 +7,7 @@ from esphomeyaml.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID,
 from esphomeyaml.cpp_generator import Pvariable, add
 from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns
+from esphomeyaml.py_compat import string_types
 
 remote_ns = esphomelib_ns.namespace('remote')
 MULTI_CONF = True
@@ -30,7 +31,7 @@ DUMPERS = {
 
 
 def validate_dumpers_all(value):
-    if not isinstance(value, (str, unicode)):
+    if not isinstance(value, string_types):
         raise vol.Invalid("Not valid dumpers")
     if value.upper() == "ALL":
         return list(sorted(list(DUMPERS)))
