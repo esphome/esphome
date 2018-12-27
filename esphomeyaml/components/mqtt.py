@@ -173,7 +173,7 @@ def to_code(config):
         add(mqtt.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
-        rhs = mqtt.make_message_trigger(conf[CONF_TOPIC])
+        rhs = App.register_component(mqtt.make_message_trigger(conf[CONF_TOPIC]))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_QOS in conf:
             add(trigger.set_qos(conf[CONF_QOS]))
