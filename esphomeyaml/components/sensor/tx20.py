@@ -12,9 +12,9 @@ MakeTX20Sensor = Application.struct('MakeTX20Sensor')
 TX20WindSpeedSensor = sensor.sensor_ns.class_('TX20WindSpeedSensor',
                                               sensor.EmptyPollingParentSensor)
 TX20WindDirectionSensor = sensor.sensor_ns.class_('TX20WindDirectionSensor',
-                                               sensor.EmptyPollingParentSensor)
+                                                  sensor.EmptyPollingParentSensor)
 TX20WindDirectionTextSensor = text_sensor.text_sensor_ns.class_('TX20WindDirectionTextSensor',
-                                                                 text_sensor.MQTTTextSensor)
+                                                                text_sensor.MQTTTextSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTX20Sensor),
@@ -37,8 +37,7 @@ def to_code(config):
         yield
     rhs = App.make_tx20_sensor(config[CONF_WIND_SPEED][CONF_NAME],
                                config[CONF_WIND_DIRECTION][CONF_NAME],
-                               config[CONF_WIND_DIRECTION_TEXT][CONF_NAME],
-                               pin,
+                               config[CONF_WIND_DIRECTION_TEXT][CONF_NAME], pin,
                                config.get(CONF_UPDATE_INTERVAL))
     make = variable(config[CONF_MAKE_ID], rhs)
     tx20 = make.Ptx20
@@ -47,7 +46,8 @@ def to_code(config):
                         config[CONF_WIND_SPEED])
     sensor.setup_sensor(tx20.Pget_wind_direction_sensor(), make.Pmqtt_wind_direction,
                         config[CONF_WIND_DIRECTION])
-    text_sensor.setup_text_sensor(tx20.Pget_wind_direction_text_sensor(), make.Pmqtt_wind_direction_text,
+    text_sensor.setup_text_sensor(tx20.Pget_wind_direction_text_sensor(), 
+                                  make.Pmqtt_wind_direction_text,
                                   config[CONF_WIND_DIRECTION_TEXT])
     setup_component(tx20, config)
 
