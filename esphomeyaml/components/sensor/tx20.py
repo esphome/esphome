@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml import core, pins
+from esphomeyaml import pins
 from esphomeyaml.components import sensor, text_sensor
 from esphomeyaml.const import CONF_MAKE_ID, CONF_UPDATE_INTERVAL, CONF_WIND_SPEED, \
     CONF_WIND_DIRECTION, CONF_WIND_DIRECTION_TEXT, CONF_PIN, CONF_NAME
@@ -46,7 +46,7 @@ def to_code(config):
                         config[CONF_WIND_SPEED])
     sensor.setup_sensor(tx20.Pget_wind_direction_sensor(), make.Pmqtt_wind_direction,
                         config[CONF_WIND_DIRECTION])
-    text_sensor.setup_text_sensor(tx20.Pget_wind_direction_text_sensor(), 
+    text_sensor.setup_text_sensor(tx20.Pget_wind_direction_text_sensor(),
                                   make.Pmqtt_wind_direction_text,
                                   config[CONF_WIND_DIRECTION_TEXT])
     setup_component(tx20, config)
