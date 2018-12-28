@@ -572,6 +572,7 @@ sensor:
     pin: 
       number: GPIO04
       mode: INPUT
+<<<<<<< HEAD
   - platform: zyaura
     clock_pin: GPIO5
     data_pin: GPIO4
@@ -582,6 +583,8 @@ sensor:
     humidity:
       name: "ZyAura Humidity"
 
+=======
+>>>>>>> updated tx20
 
 esp32_touch:
   setup_mode: False

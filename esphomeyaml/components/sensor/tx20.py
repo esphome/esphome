@@ -27,8 +27,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_WIND_DIRECTION_TEXT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(TX20WindDirectionTextSensor),
     })),
-    vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 
@@ -37,8 +36,8 @@ def to_code(config):
         yield
     rhs = App.make_tx20_sensor(config[CONF_WIND_SPEED][CONF_NAME],
                                config[CONF_WIND_DIRECTION][CONF_NAME],
-                               config[CONF_WIND_DIRECTION_TEXT][CONF_NAME], pin,
-                               config.get(CONF_UPDATE_INTERVAL))
+                               config[CONF_WIND_DIRECTION_TEXT][CONF_NAME],
+                               pin)
     make = variable(config[CONF_MAKE_ID], rhs)
     tx20 = make.Ptx20
 
