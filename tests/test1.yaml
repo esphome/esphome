@@ -574,8 +574,6 @@ sensor:
     pin: 
       number: GPIO04
       mode: INPUT
-    update_interval: 0.5s
-
 
 esp32_touch:
   setup_mode: False
