@@ -11,10 +11,15 @@ jobs:
       script:
         - flake8 esphomeyaml
         - pylint esphomeyaml
-    - name: "Test"
+    - name: "Test 1"
       install:
         - pip install -e .
         - pip install tzlocal pillow
       script:
         - esphomeyaml tests/test1.yaml compile
+    - name: "Test 2"
+      install:
+        - pip install -e .
+        - pip install tzlocal pillow
+      script:
         - esphomeyaml tests/test2.yaml compile
