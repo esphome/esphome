@@ -92,6 +92,15 @@ The private key file to use for SSL. If this file doesn't exist, the add-on star
 Adding this option to the add-on configuration allows you to disable
 authentication by setting it to `true`.
 
+### Option: `esphomeyaml_version`
+
+Manually override which esphomeyaml version to use in the addon.
+For example to install the latest development version, use `"esphomeyaml_version": "dev"`,
+or for version 1.10.0: `"esphomeyaml_version": "v1.10.0""`.
+ 
+Please note that this does not always work and is only meant for testing, usually the
+esphomeyaml add-on and dashboard version must match to guarantee a working system.  
+
 [discord-shield]: https://img.shields.io/discord/429907082951524364.svg
 [dht22]: https://esphomelib.com/esphomeyaml/components/sensor/dht.html
 [discord]: https://discord.me/KhAMKrd

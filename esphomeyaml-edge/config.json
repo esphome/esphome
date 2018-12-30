@@ -33,6 +33,7 @@
     "certfile": "str",
     "keyfile": "str",
     "port": "int",
-    "leave_front_door_open": "bool?"
+    "leave_front_door_open": "bool?",
+    "esphomeyaml_version": "str?"
   }
 }
