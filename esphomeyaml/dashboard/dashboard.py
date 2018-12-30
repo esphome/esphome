@@ -13,6 +13,8 @@ import threading
 
 import tornado
 import tornado.concurrent
+import tornado.httpserver
+import tornado.netutil
 import tornado.gen
 import tornado.ioloop
 import tornado.iostream
@@ -548,15 +550,22 @@ def start_web_server(args):
             storage.save(path)
         COOKIE_SECRET = storage.cookie_secret
 
-    _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
-                 args.port, CONFIG_DIR)
     app = make_app(args.verbose)
-    app.listen(args.port)
+    if args.socket is not None:
+        _LOGGER.info("Starting dashboard web server on unix socket %s and configuration dir %s...",
+                     args.socket, CONFIG_DIR)
+        server = tornado.httpserver.HTTPServer(app)
+        socket = tornado.netutil.bind_unix_socket(args.socket)
+        server.add_socket(socket)
+    else:
+        _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
+                     args.port, CONFIG_DIR)
+        app.listen(args.port)
 
-    if args.open_ui:
-        import webbrowser
+        if args.open_ui:
+            import webbrowser
 
-        webbrowser.open('localhost:{}'.format(args.port))
+            webbrowser.open('localhost:{}'.format(args.port))
 
     ping_thread = PingThread()
     ping_thread.start()
@@ -567,3 +576,5 @@ def start_web_server(args):
         STOP_EVENT.set()
         PING_REQUEST.set()
         ping_thread.join()
+        if args.socket is not None:
+            os.remove(args.socket)

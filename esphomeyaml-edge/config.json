@@ -18,9 +18,6 @@
   "homeassistant_api": false,
   "host_network": true,
   "boot": "auto",
-  "ports": {
-    "6052/tcp": 6052
-  },
   "map": [
     "ssl",
     "config:rw"
@@ -28,12 +25,14 @@
   "options": {
     "ssl": false,
     "certfile": "fullchain.pem",
-    "keyfile": "privkey.pem"
+    "keyfile": "privkey.pem",
+    "port": 6052
   },
   "schema": {
     "ssl": "bool",
     "certfile": "str",
     "keyfile": "str",
+    "port": "int",
     "leave_front_door_open": "bool?"
   }
 }

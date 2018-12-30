@@ -58,9 +58,14 @@ Example add-on configuration:
 {
   "ssl": false,
   "certfile": "fullchain.pem",
-  "keyfile": "privkey.pem"
+  "keyfile": "privkey.pem",
+  "port": 6052
 }
 ```
+
+### Option: `port`
+
+The port to start the dashboard server on. Default is 6052.
 
 ### Option: `ssl`
 

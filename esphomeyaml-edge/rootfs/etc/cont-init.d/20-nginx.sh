@@ -8,6 +8,7 @@ source /usr/lib/hassio-addons/base.sh
 
 declare certfile
 declare keyfile
+declare port
 
 mkdir -p /var/log/nginx
 
@@ -22,3 +23,6 @@ if hass.config.true 'ssl'; then
     sed -i "s/%%certfile%%/${certfile}/g" /etc/nginx/nginx.conf
     sed -i "s/%%keyfile%%/${keyfile}/g" /etc/nginx/nginx.conf
 fi
+
+port=$(hass.config.get 'port')
+sed -i "s/%%port%%/${port}/g" /etc/nginx/nginx.conf
