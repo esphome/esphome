@@ -555,7 +555,7 @@ def start_web_server(args):
         _LOGGER.info("Starting dashboard web server on unix socket %s and configuration dir %s...",
                      args.socket, CONFIG_DIR)
         server = tornado.httpserver.HTTPServer(app)
-        socket = tornado.netutil.bind_unix_socket(args.socket, mode=0o664)
+        socket = tornado.netutil.bind_unix_socket(args.socket, mode=0o666)
         server.add_socket(socket)
     else:
         _LOGGER.info("Starting dashboard web server on port %s and configuration dir %s...",
