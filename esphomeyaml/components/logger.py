@@ -74,9 +74,27 @@ def required_build_flags(config):
         flags.append(u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]])))
         this_severity = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
         verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
-        if CORE.is_esp8266 and config.get(CONF_BAUD_RATE) != 0 and \
-                this_severity >= verbose_severity:
+        is_at_least_verbose = this_severity >= verbose_severity
+        has_serial_logging = config.get(CONF_BAUD_RATE) != 0
+        if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
             flags.append(u"-DDEBUG_ESP_PORT=Serial")
+            DEBUG_COMPONENTS = {
+                'CORE',
+                'HTTP_CLIENT',
+                'HTTP_SERVER',
+                'HTTP_UPDATE',
+                'OOM',
+                'OTA',
+                'SSL',
+                'TLS_MEM',
+                'UPDATER',
+                'WIFI',
+            }
+            for comp in DEBUG_COMPONENTS:
+                flags.append(u"-DDEBUG_ESP_{}".format(comp))
+        if CORE.is_esp32 and is_at_least_verbose:
+            flags.append('-DCORE_DEBUG_LEVEL=5')
+
     return flags
 
 
