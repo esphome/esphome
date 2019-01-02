@@ -78,12 +78,11 @@ def required_build_flags(config):
         has_serial_logging = config.get(CONF_BAUD_RATE) != 0
         if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
             flags.append(u"-DDEBUG_ESP_PORT=Serial")
+            flags.append(u"-DLWIP_DEBUG")
             DEBUG_COMPONENTS = {
-                'CORE',
                 'HTTP_CLIENT',
                 'HTTP_SERVER',
                 'HTTP_UPDATE',
-                'OOM',
                 'OTA',
                 'SSL',
                 'TLS_MEM',
