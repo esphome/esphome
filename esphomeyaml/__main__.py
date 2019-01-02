@@ -152,7 +152,7 @@ def write_cpp(config):
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    update_check = not os.getenv('ESPHOMEYAML_NO_UPDATE_CHECK', False)
+    update_check = not os.getenv('ESPHOMEYAML_NO_UPDATE_CHECK', '')
     if update_check:
         thread = start_update_check_thread(esphomeyaml_storage_path(CORE.config_dir))
     rc = platformio_api.run_compile(config, args.verbose)
