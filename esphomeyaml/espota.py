@@ -37,6 +37,7 @@
 
 import hashlib
 import logging
+# pylint: disable=deprecated-module
 import optparse
 import os
 import random

@@ -7,6 +7,7 @@ from esphomeyaml.const import CONF_DATA, CONF_INVERTED, CONF_MAKE_ID, CONF_NAME,
 from esphomeyaml.core import HexInt
 from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, variable
 from esphomeyaml.cpp_types import App, Application
+from esphomeyaml.py_compat import text_type
 
 DEPENDENCIES = ['uart']
 
@@ -15,11 +16,11 @@ UARTSwitch = switch.switch_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevic
 
 
 def validate_data(value):
-    if isinstance(value, unicode):
+    if isinstance(value, text_type):
         return value.encode('utf-8')
-    elif isinstance(value, str):
+    if isinstance(value, str):
         return value
-    elif isinstance(value, list):
+    if isinstance(value, list):
         return vol.Schema([cv.hex_uint8_t])(value)
     raise vol.Invalid("data must either be a string wrapped in quotes or a list of bytes")
 

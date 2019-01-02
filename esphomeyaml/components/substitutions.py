@@ -61,8 +61,8 @@ def _expand_substitutions(substitutions, value, path):
         if name.startswith(u'{') and name.endswith(u'}'):
             name = name[1:-1]
         if name not in substitutions:
-            _LOGGER.warn(u"Found '%s' (see %s) which looks like a substitution, but '%s' was not "
-                         u"declared", orig_value, u'->'.join(str(x) for x in path), name)
+            _LOGGER.warning(u"Found '%s' (see %s) which looks like a substitution, but '%s' was "
+                            u"not declared", orig_value, u'->'.join(str(x) for x in path), name)
             i = j
             continue
 
@@ -82,7 +82,7 @@ def _substitute_item(substitutions, item, path):
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
-        for k, v in item.iteritems():
+        for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
                 sub = _substitute_item(substitutions, k, path + [k])
                 if sub is not None:
@@ -116,7 +116,7 @@ def do_substitution_pass(config):
     key = ''
     try:
         replace_keys = []
-        for key, value in substitutions.iteritems():
+        for key, value in substitutions.items():
             sub = validate_substitution_key(key)
             if sub != key:
                 replace_keys.append((key, sub))

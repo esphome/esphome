@@ -272,13 +272,13 @@ class CheckForUpdateThread(threading.Thread):
         remote_version = StrictVersion(storage.remote_version)
         self_version = StrictVersion(const.__version__)
         if remote_version > self_version:
-            _LOGGER.warn("*" * 80)
-            _LOGGER.warn("A new version of esphomeyaml is available: %s (this is %s)",
-                         self.format_version(remote_version), self.format_version(self_version))
-            _LOGGER.warn("Changelog: %s/esphomeyaml/changelog/index.html", self.docs_base)
-            _LOGGER.warn("Update Instructions: %s/esphomeyaml/guides/faq.html"
-                         "#how-do-i-update-to-the-latest-version", self.docs_base)
-            _LOGGER.warn("*" * 80)
+            _LOGGER.warning("*" * 80)
+            _LOGGER.warning("A new version of esphomeyaml is available: %s (this is %s)",
+                            self.format_version(remote_version), self.format_version(self_version))
+            _LOGGER.warning("Changelog: %s/esphomeyaml/changelog/index.html", self.docs_base)
+            _LOGGER.warning("Update Instructions: %s/esphomeyaml/guides/faq.html"
+                            "#how-do-i-update-to-the-latest-version", self.docs_base)
+            _LOGGER.warning("*" * 80)
 
     def run(self):
         try:

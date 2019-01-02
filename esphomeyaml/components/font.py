@@ -33,10 +33,9 @@ def validate_glyphs(value):
 
         if len(x_) < len(y_):
             return -1
-        elif len(x_) > len(y_):
+        if len(x_) > len(y_):
             return 1
-        else:
-            raise vol.Invalid(u"Found duplicate glyph {}".format(x))
+        raise vol.Invalid(u"Found duplicate glyph {}".format(x))
 
     value.sort(cmp=comparator)
     return value
@@ -47,11 +46,11 @@ def validate_pillow_installed(value):
         import PIL
     except ImportError:
         raise vol.Invalid("Please install the pillow python package to use this feature. "
-                          "(pip2 install pillow)")
+                          "(pip install pillow)")
 
     if PIL.__version__[0] < '4':
         raise vol.Invalid("Please update your pillow installation to at least 4.0.x. "
-                          "(pip2 install -U pillow)")
+                          "(pip install -U pillow)")
 
     return value
 

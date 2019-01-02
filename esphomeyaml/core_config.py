@@ -15,6 +15,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
 from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
+from esphomeyaml.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,12 +53,12 @@ def validate_simple_esphomelib_version(value):
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + ESPHOMELIB_VERSION,
         }
-    elif value.upper() == 'DEV':
+    if value.upper() == 'DEV':
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_BRANCH: 'dev'
         }
-    elif VERSION_REGEX.match(value) is not None:
+    if VERSION_REGEX.match(value) is not None:
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + value,
@@ -139,7 +140,7 @@ def validate_arduino_version(value):
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
-    elif CORE.is_esp32:
+    if CORE.is_esp32:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                               "at this time. You can override this by manually using "
@@ -206,7 +207,7 @@ def preload_core_config(config):
         CORE.build_path = CORE.relative_path(
             cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
     except vol.Invalid as e:
-        raise EsphomeyamlError(unicode(e))
+        raise EsphomeyamlError(text_type(e))
 
 
 def to_code(config):

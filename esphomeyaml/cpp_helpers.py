@@ -20,11 +20,11 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
             mode = pcf8574.PCF8675_GPIO_MODES[conf.get(CONF_MODE, u'INPUT')]
             yield hub.make_input_pin(number, mode, inverted)
             return
-        elif default_mode == u'OUTPUT':
+        if default_mode == u'OUTPUT':
             yield hub.make_output_pin(number, inverted)
             return
-        else:
-            raise EsphomeyamlError(u"Unknown default mode {}".format(default_mode))
+
+        raise EsphomeyamlError(u"Unknown default mode {}".format(default_mode))
     if len(conf) == 1:
         yield IntLiteral(number)
         return

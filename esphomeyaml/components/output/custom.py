@@ -37,7 +37,7 @@ def validate_custom_output(value):
     value[CONF_TYPE] = type
     if type == 'binary':
         return BINARY_SCHEMA(value)
-    elif type == 'float':
+    if type == 'float':
         return FLOAT_SCHEMA(value)
     raise vol.Invalid("type must either be binary or float, not {}!".format(type))
 

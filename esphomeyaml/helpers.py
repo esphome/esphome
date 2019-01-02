@@ -6,6 +6,8 @@ import os
 import socket
 import subprocess
 
+from esphomeyaml.py_compat import text_type, IS_PY2
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -39,14 +41,16 @@ def indent(text, padding=u'  '):
 
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding='utf-8'):
-    if isinstance(string, unicode):
+    if isinstance(string, text_type):
         string = string.encode(encoding)
     result = ''
     for character in string:
-        if not (32 <= ord(character) < 127) or character in ('\\', '"'):
-            result += '\\%03o' % ord(character)
+        if IS_PY2:
+            character = ord(character)
+        if not (32 <= character < 127) or character in ('\\', '"'):
+            result += '\\%03o' % character
         else:
-            result += character
+            result += chr(character)
     return '"' + result + '"'
 
 

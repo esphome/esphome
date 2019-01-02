@@ -13,15 +13,22 @@ from esphomeyaml.helpers import ensure_unique_string
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List  # noqa
 
+from esphomeyaml.py_compat import integer_types, IS_PY2
+
 _LOGGER = logging.getLogger(__name__)
 
 
 class EsphomeyamlError(Exception):
     """General esphomeyaml exception occurred."""
-    pass
 
 
-class HexInt(long):
+if IS_PY2:
+    base_int = long
+else:
+    base_int = int
+
+
+class HexInt(base_int):
     def __str__(self):
         if 0 <= self <= 255:
             return "0x{:02X}".format(self)
@@ -55,7 +62,7 @@ class MACAddress(object):
 
 
 def is_approximately_integer(value):
-    if isinstance(value, (int, long)):
+    if isinstance(value, integer_types):
         return True
     return abs(value - round(value)) < 0.001
 
@@ -379,7 +386,7 @@ class EsphomeyamlCore(object):
             task, domain = self.pending_tasks.popleft()
             _LOGGER.debug("Executing task for domain=%s", domain)
             try:
-                task.next()
+                next(task)
                 self.pending_tasks.append((task, domain))
             except StopIteration:
                 _LOGGER.debug(" -> %s finished", domain)
@@ -404,7 +411,7 @@ class EsphomeyamlCore(object):
     def get_variable_with_full_id(self, id):
         while True:
             if id in self.variables:
-                for k, v in self.variables.iteritems():
+                for k, v in self.variables.items():
                     if k == id:
                         yield (k, v)
                         return

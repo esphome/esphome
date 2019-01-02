@@ -12,6 +12,7 @@ import yaml.constructor
 
 from esphomeyaml import core
 from esphomeyaml.core import EsphomeyamlError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphomeyaml.py_compat import text_type, string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,13 +25,9 @@ SECRET_YAML = u'secrets.yaml'
 class NodeListClass(list):
     """Wrapper class to be able to add attributes on a list."""
 
-    pass
 
-
-class NodeStrClass(unicode):
+class NodeStrClass(text_type):
     """Wrapper class to be able to add attributes on a string."""
-
-    pass
 
 
 class SafeLineLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
@@ -72,7 +69,7 @@ def custom_construct_pairs(loader, node):
             if not isinstance(obj, dict):
                 raise EsphomeyamlError(
                     "Expected mapping for anchored include tag, got {}".format(type(obj)))
-            for key, value in obj.iteritems():
+            for key, value in obj.items():
                 pairs.append((key, value))
         else:
             key_node, value_node = kv
@@ -168,7 +165,7 @@ def _construct_seq(loader, node):
 
 def _add_reference(obj, loader, node):
     """Add file reference information to an object."""
-    if isinstance(obj, (str, unicode)):
+    if isinstance(obj, string_types):
         obj = NodeStrClass(obj)
     if isinstance(obj, list):
         obj = NodeListClass(obj)
@@ -184,7 +181,7 @@ def _env_var_yaml(_, node):
     # Check for a default value
     if len(args) > 1:
         return os.getenv(args[0], u' '.join(args[1:]))
-    elif args[0] in os.environ:
+    if args[0] in os.environ:
         return os.environ[args[0]]
     raise EsphomeyamlError(u"Environment variable {} not defined.".format(node.value))
 
@@ -268,7 +265,7 @@ def _secret_yaml(loader, node):
 
 
 def _lambda(loader, node):
-    return Lambda(unicode(node.value))
+    return Lambda(text_type(node.value))
 
 
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
@@ -295,7 +292,7 @@ def represent_odict(dump, tag, mapping, flow_style=None):
         dump.represented_objects[dump.alias_key] = node
     best_style = True
     if hasattr(mapping, 'items'):
-        mapping = mapping.items()
+        mapping = list(mapping.items())
     for item_key, item_value in mapping:
         node_key = dump.represent_data(item_key)
         node_value = dump.represent_data(item_value)
@@ -372,7 +369,7 @@ yaml.SafeDumper.add_representer(
     dumper.represent_sequence('tag:yaml.org,2002:seq', value)
 )
 
-yaml.SafeDumper.add_representer(unicode, unicode_representer)
+yaml.SafeDumper.add_representer(text_type, unicode_representer)
 yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
 yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
 yaml.SafeDumper.add_representer(MACAddress, stringify_representer)

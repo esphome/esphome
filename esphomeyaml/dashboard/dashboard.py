@@ -176,7 +176,7 @@ class WizardRequestHandler(BaseHandler):
         if not self.is_authenticated():
             self.redirect('/login')
             return
-        kwargs = {k: ''.join(v) for k, v in self.request.arguments.iteritems()}
+        kwargs = {k: ''.join(v) for k, v in self.request.arguments.items()}
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('/?begin=True')
@@ -436,7 +436,7 @@ class LoginHandler(BaseHandler):
                 self.redirect('/')
                 return
         except Exception as err:  # pylint: disable=broad-except
-            _LOGGER.warn("Error during Hass.io auth request: %s", err)
+            _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
             self.render_hassio_login(error="Internal server error")
             return

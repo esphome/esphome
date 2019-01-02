@@ -10,6 +10,7 @@ from esphomeyaml.core import HexInt
 from esphomeyaml.cpp_generator import Pvariable, add
 from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
 from esphomeyaml.cpp_types import App, Component
+from esphomeyaml.py_compat import text_type
 
 RemoteTransmitterComponent = remote_ns.class_('RemoteTransmitterComponent',
                                               RemoteControlComponentBase, Component)
@@ -20,7 +21,7 @@ MULTI_CONF = True
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, unicode)):
+    if not isinstance(value, (str, text_type)):
         raise vol.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1'):

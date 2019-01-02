@@ -11,31 +11,32 @@ from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ES
 from esphomeyaml.helpers import color
 # pylint: disable=anomalous-backslash-in-string
 from esphomeyaml.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+from esphomeyaml.py_compat import safe_input, text_type
 from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import safe_print
 
-CORE_BIG = """    _____ ____  _____  ______
+CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
   | |   | |  | | |__) | |__
   | |   | |  | |  _  /|  __|
   | |___| |__| | | \ \| |____
    \_____\____/|_|  \_\______|
 """
-ESP_BIG = """      ______  _____ _____
+ESP_BIG = r"""      ______  _____ _____
      |  ____|/ ____|  __ \\
      | |__  | (___ | |__) |
      |  __|  \___ \|  ___/
      | |____ ____) | |
      |______|_____/|_|
 """
-WIFI_BIG = """   __          ___ ______ _
+WIFI_BIG = r"""   __          ___ ______ _
    \ \        / (_)  ____(_)
     \ \  /\  / / _| |__   _
      \ \/  \/ / | |  __| | |
       \  /\  /  | | |    | |
        \/  \/   |_|_|    |_|
 """
-OTA_BIG = """       ____ _______
+OTA_BIG = r"""       ____ _______
       / __ \__   __|/\\
      | |  | | | |  /  \\
      | |  | | | | / /\ \\
@@ -85,7 +86,7 @@ def wizard_write(path, **kwargs):
     storage.save(storage_path)
 
 
-if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
+if os.getenv('ESPHOMEYAML_QUICKWIZARD', ''):
     def sleep(time):
         pass
 else:
@@ -104,12 +105,12 @@ def safe_print_step(step, big):
 def default_input(text, default):
     safe_print()
     safe_print(u"Press ENTER for default ({})".format(default))
-    return raw_input(text.format(default)) or default
+    return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
 def strip_accents(string):
-    return u''.join(c for c in unicodedata.normalize('NFD', unicode(string))
+    return u''.join(c for c in unicodedata.normalize('NFD', text_type(string))
                     if unicodedata.category(c) != 'Mn')
 
 
@@ -140,7 +141,7 @@ def wizard(path):
         color('bold_white', "livingroom")))
     safe_print()
     sleep(1)
-    name = raw_input(color("bold_white", "(name): "))
+    name = safe_input(color("bold_white", "(name): "))
     while True:
         try:
             name = cv.valid_name(name)
@@ -165,7 +166,7 @@ def wizard(path):
         sleep(0.5)
         safe_print()
         safe_print("Please enter either ESP32 or ESP8266.")
-        platform = raw_input(color("bold_white", "(ESP32/ESP8266): "))
+        platform = safe_input(color("bold_white", "(ESP32/ESP8266): "))
         try:
             platform = vol.All(vol.Upper, vol.Any(*ESP_PLATFORMS))(platform)
             break
@@ -197,7 +198,7 @@ def wizard(path):
     safe_print("Options: {}".format(', '.join(boards)))
 
     while True:
-        board = raw_input(color("bold_white", "(board): "))
+        board = safe_input(color("bold_white", "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
@@ -221,7 +222,7 @@ def wizard(path):
     sleep(1.5)
     safe_print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:
-        ssid = raw_input(color('bold_white', "(ssid): "))
+        ssid = safe_input(color('bold_white', "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
@@ -241,7 +242,7 @@ def wizard(path):
     safe_print()
     safe_print("For example \"{}\"".format(color('bold_white', 'PASSWORD42')))
     sleep(0.5)
-    psk = raw_input(color('bold_white', '(PSK): '))
+    psk = safe_input(color('bold_white', '(PSK): '))
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
     sleep(1.5)
 
@@ -253,7 +254,7 @@ def wizard(path):
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    password = raw_input(color('bold_white', '(password): '))
+    password = safe_input(color('bold_white', '(password): '))
 
     wizard_write(path=path, name=name, platform=platform, board=board,
                  ssid=ssid, psk=psk, password=password)

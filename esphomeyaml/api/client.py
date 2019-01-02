@@ -14,6 +14,7 @@ import esphomeyaml.api.api_pb2 as pb
 from esphomeyaml.const import CONF_PASSWORD, CONF_PORT
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address, indent, color
+from esphomeyaml.py_compat import text_type
 from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -254,14 +255,14 @@ class APIClient(threading.Thread):
 
     def _send_message(self, msg):
         # type: (message.Message) -> None
-        for message_type, klass in MESSAGE_TYPE_TO_PROTO.iteritems():
+        for message_type, klass in MESSAGE_TYPE_TO_PROTO.items():
             if isinstance(msg, klass):
                 break
         else:
             raise ValueError
 
         encoded = msg.SerializeToString()
-        _LOGGER.debug("Sending %s:\n%s", type(msg), indent(unicode(msg)))
+        _LOGGER.debug("Sending %s:\n%s", type(msg), indent(text_type(msg)))
         req = chr(0x00)
         req += _varuint_to_bytes(len(encoded))
         req += _varuint_to_bytes(message_type)
@@ -435,12 +436,14 @@ def run_logs(config, address):
         while retry_timer:
             retry_timer.pop(0).cancel()
 
+        error = None
         try:
             cli.connect()
             cli.login()
-        except APIConnectionError as error:
-            pass
-        else:
+        except APIConnectionError as err:  # noqa
+            error = err
+
+        if error is None:
             _LOGGER.info("Successfully connected to %s", address)
             return
 

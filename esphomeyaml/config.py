@@ -13,6 +13,7 @@ from esphomeyaml.components import substitutions
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, ESP_PLATFORMS
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.helpers import color, indent
+from esphomeyaml.py_compat import text_type
 from esphomeyaml.util import safe_print
 
 # pylint: disable=unused-import, wrong-import-order
@@ -50,7 +51,7 @@ def is_platform_component(component):
 
 
 def iter_components(config):
-    for domain, conf in config.iteritems():
+    for domain, conf in config.items():
         if domain == CONF_ESPHOMEYAML:
             yield CONF_ESPHOMEYAML, core_config, conf
             continue
@@ -67,7 +68,7 @@ def iter_components(config):
                 yield p_name, platform, p_config
 
 
-ConfigPath = List[Union[basestring, int]]
+ConfigPath = List[Union[str, int]]
 
 
 def _path_begins_with_(path, other):  # type: (ConfigPath, ConfigPath) -> bool
@@ -90,8 +91,8 @@ class Config(OrderedDict):
 
     def add_error(self, message, path):
         # type: (basestring, ConfigPath) -> None
-        if not isinstance(message, unicode):
-            message = unicode(message)
+        if not isinstance(message, text_type):
+            message = text_type(message)
         self.errors.append((message, path))
 
     def add_domain(self, path, name):
@@ -158,7 +159,7 @@ def iter_ids(config, path=None):
             for result in iter_ids(item, path + [i]):
                 yield result
     elif isinstance(config, dict):
-        for key, value in config.iteritems():
+        for key, value in config.items():
             for result in iter_ids(value, path + [key]):
                 yield result
 
@@ -229,7 +230,7 @@ def validate_config(config):
     result.add_domain([CONF_ESPHOMEYAML], CONF_ESPHOMEYAML)
     result[CONF_ESPHOMEYAML] = config[CONF_ESPHOMEYAML]
 
-    for domain, conf in config.iteritems():
+    for domain, conf in config.items():
         domain = str(domain)
         if domain == CONF_ESPHOMEYAML or domain.startswith(u'.'):
             skip_paths.append([domain])
@@ -337,7 +338,7 @@ def validate_config(config):
     except vol.Invalid as ex:
         _comp_error(ex, [CONF_ESPHOMEYAML])
 
-    for domain, conf in result.iteritems():
+    for domain, conf in result.items():
         domain = str(domain)
         if [domain] in skip_paths:
             continue
@@ -401,7 +402,7 @@ def humanize_error(config, validation_error):
             offending_item_summary = json.dumps(offending_item_summary)
         except (TypeError, ValueError):
             pass
-    validation_error = unicode(validation_error)
+    validation_error = text_type(validation_error)
     m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
     if m is not None:
         validation_error = m.group(1)
@@ -514,7 +515,7 @@ def dump_dict(config, path, at_root=True):
             ret += u'{}'
             multiline = False
 
-        for k in conf.iterkeys():
+        for k in conf.keys():
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
@@ -543,9 +544,9 @@ def dump_dict(config, path, at_root=True):
             conf = u'|-\n' + indent(conf)
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
-        ret += color(col, unicode(conf))
+        ret += color(col, text_type(conf))
     elif isinstance(conf, core.Lambda):
-        conf = u'!lambda |-\n' + indent(unicode(conf.value))
+        conf = u'!lambda |-\n' + indent(text_type(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, conf)
@@ -554,7 +555,7 @@ def dump_dict(config, path, at_root=True):
     else:
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
-        ret += color(col, unicode(conf))
+        ret += color(col, text_type(conf))
         multiline = u'\n' in ret
 
     return ret, multiline
@@ -571,7 +572,7 @@ def strip_default_ids(config):
             config.remove(x)
     elif isinstance(config, dict):
         to_remove = []
-        for k, v in config.iteritems():
+        for k, v in config.items():
             v = config[k] = strip_default_ids(v)
             if isinstance(v, core.ID) and not v.is_manual:
                 to_remove.append(k)

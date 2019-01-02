@@ -41,7 +41,7 @@ def validate_recursive_condition(value):
             raise vol.Invalid(u"Unable to find condition with the name '{}', is the "
                               u"component loaded?".format(key), path + [key])
         item.setdefault(CONF_CONDITION_ID, None)
-        key2 = next((x for x in item if x != CONF_CONDITION_ID and x != key), None)
+        key2 = next((x for x in item if x not in (CONF_CONDITION_ID, key)), None)
         if key2 is not None:
             raise vol.Invalid(u"Cannot have two conditions in one item. Key '{}' overrides '{}'! "
                               u"Did you forget to indent the block inside the condition?"
@@ -76,7 +76,7 @@ def validate_recursive_action(value):
             raise vol.Invalid(u"Unable to find action with the name '{}', is the component loaded?"
                               u"".format(key), path + [key])
         item.setdefault(CONF_ACTION_ID, None)
-        key2 = next((x for x in item if x != CONF_ACTION_ID and x != key), None)
+        key2 = next((x for x in item if x not in (CONF_ACTION_ID, key)), None)
         if key2 is not None:
             raise vol.Invalid(u"Cannot have two actions in one item. Key '{}' overrides '{}'! "
                               u"Did you forget to indent the block inside the action?"

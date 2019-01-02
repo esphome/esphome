@@ -16,6 +16,7 @@ from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCHIVE_ZIP
 from esphomeyaml.helpers import mkdir_p, run_system_command
 from esphomeyaml.pins import ESP8266_LD_SCRIPTS, ESP8266_FLASH_SIZES
+from esphomeyaml.py_compat import IS_PY3, string_types
 from esphomeyaml.storage_json import StorageJSON, storage_path
 from esphomeyaml.util import safe_print
 
@@ -71,7 +72,7 @@ def get_build_flags(key):
             flags = flags(conf)
         if flags is None:
             continue
-        if isinstance(flags, (str, unicode)):
+        if isinstance(flags, string_types):
             flags = [flags]
         build_flags |= set(flags)
     return build_flags
@@ -114,14 +115,19 @@ def update_esphomelib_repo():
                                   '--')
     if rc != 0:
         # local changes, cannot update
-        _LOGGER.warn("Local changes in esphomelib copy from git. Will not auto-update.")
+        _LOGGER.warning("Local changes in esphomelib copy from git. Will not auto-update.")
         return
     _LOGGER.info("Updating esphomelib copy from git (%s)", esphomelib_path)
     rc, stdout, _ = run_system_command('git', '-c', 'color.ui=always', '-C', esphomelib_path,
                                        'pull', '--stat')
     if rc != 0:
-        _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
+        _LOGGER.warning("Couldn't auto-update local git copy of esphomelib.")
         return
+    if IS_PY3:
+        try:
+            stdout = stdout.encode('utf-8')
+        except Exception:  # pylint: disable=broad-except
+            pass
     safe_print(stdout.strip())
 
 
