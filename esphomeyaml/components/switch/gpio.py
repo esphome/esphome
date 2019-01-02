@@ -23,7 +23,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeGPIOSwitch),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_RESTORE_MODE): cv.one_of(RESTORE_MODES, upper=True, space='_'),
+    vol.Optional(CONF_RESTORE_MODE): cv.one_of(*RESTORE_MODES, upper=True, space='_'),
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 
