@@ -1,20 +1,23 @@
 sudo: false
 language: python
-python:
-  - "2.7"
-jobs:
+install: pip install -e . && pip install flake8==3.5.0 pylint==1.9.3 tzlocal pillow
+
+matrix:
+  fast_finish: true
   include:
-    - name: "Lint"
-      install:
-        - pip install -r requirements.txt
-        - pip install flake8==3.5.0 pylint==1.9.3 tzlocal pillow
+    - python: "2.7"
       script:
         - flake8 esphomeyaml
         - pylint esphomeyaml
-    - name: "Test"
-      install:
-        - pip install -e .
-        - pip install tzlocal pillow
+    - python: "3.5.3"
+      script:
+        - flake8 esphomeyaml
+        - pylint esphomeyaml
+    - python: "2.7"
+      script:
+        - esphomeyaml tests/test1.yaml compile
+        - esphomeyaml tests/test2.yaml compile
+    - python: "3.5.3"
       script:
         - esphomeyaml tests/test1.yaml compile
         - esphomeyaml tests/test2.yaml compile
