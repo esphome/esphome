@@ -6,7 +6,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_NAME, \
     CONF_UPDATE_INTERVAL
 from esphomeyaml.cpp_generator import get_variable
-from esphomeyaml.py_compat import text_type, string_types
+from esphomeyaml.py_compat import string_types
 
 DEPENDENCIES = ['ads1115']
 
