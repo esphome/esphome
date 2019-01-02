@@ -9,11 +9,13 @@ import shutil
 
 from esphomeyaml.config import iter_components
 from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, \
-    CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
-    CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
+    CONF_BRANCH, CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
+    CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE, CONF_PLATFORMIO_OPTIONS, \
+    CONF_BOARD_FLASH_MODE, ARDUINO_VERSION_ESP8266_DEV
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCHIVE_ZIP
 from esphomeyaml.helpers import mkdir_p, run_system_command
+from esphomeyaml.pins import ESP8266_LD_SCRIPTS, ESP8266_FLASH_SIZES
 from esphomeyaml.storage_json import StorageJSON, storage_path
 from esphomeyaml.util import safe_print
 
@@ -53,19 +55,6 @@ upload_flags =
 ; ========= YOU CAN EDIT AFTER THIS LINE =========
 
 """)
-
-INI_CONTENT_FORMAT = u"""[env:{env}]
-platform = {platform}
-board = {board}
-framework = arduino
-lib_deps =
-    {lib_deps}
-    ${{common.lib_deps}}
-build_flags =
-    {build_flags}
-    ${{common.build_flags}}
-upload_speed = {upload_speed}
-"""
 
 UPLOAD_SPEED_OVERRIDE = {
     'esp210': 57600,
@@ -241,6 +230,18 @@ def symlink_esphomelib_version(esphomelib_version):
             os.unlink(dst_path)
 
 
+def format_ini(data):
+    content = u''
+    for key, value in sorted(data.items()):
+        if isinstance(value, (list, set, tuple)):
+            content += u'{} =\n'.format(key)
+            for x in value:
+                content += u'    {}\n'.format(x)
+        else:
+            content += u'{} = {}\n'.format(key, value)
+    return content
+
+
 def gather_lib_deps():
     lib_deps = set()
     esphomelib_version = CORE.config[CONF_ESPHOMEYAML][CONF_ESPHOMELIB_VERSION]
@@ -281,7 +282,7 @@ def gather_lib_deps():
             lib_deps.add('https://github.com/me-no-dev/AsyncTCP.git#idf-update')
             lib_deps.discard('AsyncTCP@1.0.1')
     # avoid changing build flags order
-    return sorted(x for x in lib_deps if x)
+    return list(sorted(x for x in lib_deps if x))
 
 
 def gather_build_flags():
@@ -296,25 +297,45 @@ def gather_build_flags():
     build_flags |= get_build_flags('REQUIRED_BUILD_FLAGS')
 
     # avoid changing build flags order
-    return sorted(list(build_flags))
+    return list(sorted(list(build_flags)))
 
 
 def get_ini_content():
-    version_specific_settings = determine_platformio_version_settings()
-    lib_deps = gather_lib_deps()
-    options = {
-        u'env': CORE.name,
-        u'platform': CORE.config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
-        u'board': CORE.board,
-        u'build_flags': u'\n    '.join(gather_build_flags()),
-        u'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
-        u'lib_deps': u'\n    '.join(lib_deps),
+    lib_deps = gather_lib_deps() + ['${common.lib_deps}']
+    build_flags = gather_build_flags() + ['${common.build_flags}']
+
+    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
+        flash_size = ESP8266_FLASH_SIZES[CORE.board]
+        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
+        ld_script = None
+
+        if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
+                                    'espressif8266@1.6.0', 'espressif8266@1.5.0'):
+            ld_script = ld_scripts[0]
+        elif CORE.arduino_version == ARDUINO_VERSION_ESP8266_DEV:
+            ld_script = ld_scripts[1]
+
+        if ld_script is not None:
+            build_flags.append('-Wl,-T{}'.format(ld_script))
+
+    data = {
+        'platform': CORE.config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
+        'board': CORE.board,
+        'framework': 'arduino',
+        'lib_deps': lib_deps,
+        'build_flags': build_flags,
+        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
     }
-    content = INI_CONTENT_FORMAT.format(**options)
+
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOMEYAML]:
-        flash_mode_key = version_specific_settings['flash_mode_key']
         flash_mode = CORE.config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
-        content += "{} = {}\n".format(flash_mode_key, flash_mode)
+        data['board_build.flash_mode'] = flash_mode
+
+    data.update(CORE.config[CONF_ESPHOMEYAML].get(CONF_PLATFORMIO_OPTIONS, {}))
+
+    content = u'[env:{}]\n'.format(CORE.name)
+    content += format_ini(data)
+
     return content
 
 
@@ -407,19 +428,6 @@ def write_cpp(code_s):
         return
     with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
         f_handle.write(full_file)
-
-
-def determine_platformio_version_settings():
-    import platformio
-
-    settings = {}
-
-    if platformio.VERSION < (3, 5, 3):
-        settings['flash_mode_key'] = 'board_flash_mode'
-    else:
-        settings['flash_mode_key'] = 'board_build.flash_mode'
-
-    return settings
 
 
 def clean_build():

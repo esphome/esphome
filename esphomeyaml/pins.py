@@ -1,3 +1,5 @@
+from __future__ import division
+
 import logging
 
 import voluptuous as vol
@@ -55,6 +57,58 @@ ESP8266_BOARD_PINS = {
     'wio_link': {'LED': 2, 'GROVE': 15},
     'wio_node': 'nodemcu',
     'xinabox_cw01': {'SDA': 2, 'SCL': 14, 'LED': 5, 'LED_RED': 12, 'LED_GREEN': 13}
+}
+
+FLASH_SIZE_1_MB = 2**20
+FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
+FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB
+FLASH_SIZE_4_MB = 4 * FLASH_SIZE_1_MB
+FLASH_SIZE_16_MB = 4 * FLASH_SIZE_1_MB
+
+ESP8266_FLASH_SIZES = {
+    'd1': FLASH_SIZE_4_MB,
+    'd1_mini': FLASH_SIZE_4_MB,
+    'd1_mini_lite': FLASH_SIZE_1_MB,
+    'd1_mini_pro': FLASH_SIZE_16_MB,
+    'esp01': FLASH_SIZE_512_KB,
+    'esp01_1m': FLASH_SIZE_1_MB,
+    'esp07': FLASH_SIZE_4_MB,
+    'esp12e': FLASH_SIZE_4_MB,
+    'esp210': FLASH_SIZE_4_MB,
+    'esp8285': FLASH_SIZE_1_MB,
+    'esp_wroom_02': FLASH_SIZE_2_MB,
+    'espduino': FLASH_SIZE_4_MB,
+    'espectro': FLASH_SIZE_4_MB,
+    'espino': FLASH_SIZE_4_MB,
+    'espinotee': FLASH_SIZE_4_MB,
+    'espresso_lite_v1': FLASH_SIZE_4_MB,
+    'espresso_lite_v2': FLASH_SIZE_4_MB,
+    'gen4iod': FLASH_SIZE_512_KB,
+    'heltec_wifi_kit_8': FLASH_SIZE_4_MB,
+    'huzzah': FLASH_SIZE_4_MB,
+    'modwifi': FLASH_SIZE_2_MB,
+    'nodemcu': FLASH_SIZE_4_MB,
+    'nodemcuv2': FLASH_SIZE_4_MB,
+    'oak': FLASH_SIZE_4_MB,
+    'phoenix_v1': FLASH_SIZE_4_MB,
+    'phoenix_v2': FLASH_SIZE_4_MB,
+    'sparkfunBlynk': FLASH_SIZE_4_MB,
+    'thing': FLASH_SIZE_512_KB,
+    'thingdev': FLASH_SIZE_512_KB,
+    'wifi_slot': FLASH_SIZE_1_MB,
+    'wifiduino': FLASH_SIZE_4_MB,
+    'wifinfo': FLASH_SIZE_1_MB,
+    'wio_link': FLASH_SIZE_4_MB,
+    'wio_node': FLASH_SIZE_4_MB,
+    'xinabox_cw01': FLASH_SIZE_4_MB,
+}
+
+ESP8266_LD_SCRIPTS = {
+    FLASH_SIZE_512_KB: ('eagle.flash.512k0.ld', 'eagle.flash.512k.ld'),
+    FLASH_SIZE_1_MB: ('eagle.flash.1m0.ld', 'eagle.flash.1m.ld'),
+    FLASH_SIZE_2_MB: ('eagle.flash.2m.ld', 'eagle.flash.2m.ld'),
+    FLASH_SIZE_4_MB: ('eagle.flash.4m.ld', 'eagle.flash.4m.ld'),
+    FLASH_SIZE_16_MB: ('eagle.flash.16m.ld', 'eagle.flash.16m14m.ld'),
 }
 
 ESP32_BASE_PINS = {
