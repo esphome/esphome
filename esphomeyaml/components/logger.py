@@ -111,7 +111,7 @@ def maybe_simple_message(schema):
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     # pylint: disable=anomalous-backslash-in-string
-    cfmt = r"""\
+    cfmt = u"""\
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:                                # first option
@@ -122,7 +122,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     ) |                                # OR
     %%)                                # literal "%%"
-    """
+    """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
         raise vol.Invalid(u"Found {} printf-patterns ({}), but {} args were given!"
