@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml.automation import ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
-    CONF_SERVICE, CONF_VARIABLES
+    CONF_SERVICE, CONF_VARIABLES, CONF_REBOOT_TIMEOUT
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, get_variable, process_lambda
 from esphomeyaml.cpp_helpers import setup_component
@@ -19,6 +19,7 @@ CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(APIServer),
     vol.Optional(CONF_PORT, default=6053): cv.port,
     vol.Optional(CONF_PASSWORD, default=''): cv.string_strict,
+    vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 
@@ -30,6 +31,8 @@ def to_code(config):
         add(api.set_port(config[CONF_PORT]))
     if config.get(CONF_PASSWORD):
         add(api.set_password(config[CONF_PASSWORD]))
+    if CONF_REBOOT_TIMEOUT in config:
+        add(api.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     setup_component(api, config)
 
