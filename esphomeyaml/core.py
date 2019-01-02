@@ -6,9 +6,8 @@ import math
 import os
 import re
 
-from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_DOMAIN, CONF_ESPHOMELIB_VERSION, \
-    CONF_ESPHOMEYAML, CONF_HOSTNAME, CONF_LOCAL, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_WIFI, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
+    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import ensure_unique_string
 
 # pylint: disable=unused-import, wrong-import-order

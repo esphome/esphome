@@ -10,11 +10,9 @@ import sys
 
 from esphomeyaml import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
 from esphomeyaml.api.client import run_logs
-from esphomeyaml.components import wifi
 from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_DOMAIN, CONF_ESPHOMEYAML, \
-    CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
-    CONF_WIFI, CONF_BROKER
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_LOGGER, CONF_USE_CUSTOM_CODE, \
+    CONF_BROKER
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
 from esphomeyaml.helpers import color, indent

@@ -7,7 +7,7 @@ import time
 
 # pylint: disable=unused-import
 from typing import Optional  # noqa
-from google.protobuf import message
+from google.protobuf import message  # noqa
 
 from esphomeyaml import const
 import esphomeyaml.api.api_pb2 as pb
