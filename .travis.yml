@@ -6,18 +6,22 @@ matrix:
   fast_finish: true
   include:
     - python: "2.7"
+      env: TARGET=Lint2.7
       script:
         - flake8 esphomeyaml
         - pylint esphomeyaml
     - python: "3.5.3"
+      env: TARGET=Lint3.5
       script:
         - flake8 esphomeyaml
         - pylint esphomeyaml
     - python: "2.7"
+      env: TARGET=Text2.7
       script:
         - esphomeyaml tests/test1.yaml compile
         - esphomeyaml tests/test2.yaml compile
     - python: "3.5.3"
+      env: TARGET=Text3.5
       script:
         - esphomeyaml tests/test1.yaml compile
         - esphomeyaml tests/test2.yaml compile
