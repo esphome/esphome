@@ -126,7 +126,7 @@ def update_esphomelib_repo():
     if IS_PY3:
         try:
             stdout = stdout.encode('utf-8')
-        except:  # pylint: disable=broad-except
+        except Exception:  # pylint: disable=broad-except
             pass
     safe_print(stdout.strip())
 

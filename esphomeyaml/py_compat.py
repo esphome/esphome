@@ -1,12 +1,11 @@
 import sys
 
-from typing import Union
-
 PYTHON_MAJOR = sys.version_info[0]
 IS_PY2 = PYTHON_MAJOR == 2
 IS_PY3 = PYTHON_MAJOR == 3
 
 
+# pylint: disable=no-else-return
 def safe_input(line):
     if IS_PY2:
         return raw_input(line)

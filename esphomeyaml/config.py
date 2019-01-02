@@ -13,7 +13,7 @@ from esphomeyaml.components import substitutions
 from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, ESP_PLATFORMS
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.helpers import color, indent
-from esphomeyaml.py_compat import text_type, string_types
+from esphomeyaml.py_compat import text_type
 from esphomeyaml.util import safe_print
 
 # pylint: disable=unused-import, wrong-import-order
