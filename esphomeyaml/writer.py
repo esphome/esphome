@@ -17,6 +17,7 @@ from esphomeyaml.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCH
 from esphomeyaml.helpers import mkdir_p, run_system_command
 from esphomeyaml.pins import ESP8266_LD_SCRIPTS, ESP8266_FLASH_SIZES
 from esphomeyaml.py_compat import text_type, IS_PY3
+from esphomeyaml.py_compat import text_type, IS_PY3, string_types
 from esphomeyaml.storage_json import StorageJSON, storage_path
 from esphomeyaml.util import safe_print
 
@@ -72,7 +73,7 @@ def get_build_flags(key):
             flags = flags(conf)
         if flags is None:
             continue
-        if isinstance(flags, text_type):
+        if isinstance(flags, string_types):
             flags = [flags]
         build_flags |= set(flags)
     return build_flags
