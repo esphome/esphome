@@ -115,13 +115,13 @@ def update_esphomelib_repo():
                                   '--')
     if rc != 0:
         # local changes, cannot update
-        _LOGGER.warn("Local changes in esphomelib copy from git. Will not auto-update.")
+        _LOGGER.warning("Local changes in esphomelib copy from git. Will not auto-update.")
         return
     _LOGGER.info("Updating esphomelib copy from git (%s)", esphomelib_path)
     rc, stdout, _ = run_system_command('git', '-c', 'color.ui=always', '-C', esphomelib_path,
                                        'pull', '--stat')
     if rc != 0:
-        _LOGGER.warn("Couldn't auto-update local git copy of esphomelib.")
+        _LOGGER.warning("Couldn't auto-update local git copy of esphomelib.")
         return
     if IS_PY3:
         try:

@@ -18,9 +18,9 @@ UARTSwitch = switch.switch_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevic
 def validate_data(value):
     if isinstance(value, text_type):
         return value.encode('utf-8')
-    elif isinstance(value, str):
+    if isinstance(value, str):
         return value
-    elif isinstance(value, list):
+    if isinstance(value, list):
         return vol.Schema([cv.hex_uint8_t])(value)
     raise vol.Invalid("data must either be a string wrapped in quotes or a list of bytes")
 

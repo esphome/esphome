@@ -25,13 +25,9 @@ SECRET_YAML = u'secrets.yaml'
 class NodeListClass(list):
     """Wrapper class to be able to add attributes on a list."""
 
-    pass
-
 
 class NodeStrClass(text_type):
     """Wrapper class to be able to add attributes on a string."""
-
-    pass
 
 
 class SafeLineLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
@@ -185,7 +181,7 @@ def _env_var_yaml(_, node):
     # Check for a default value
     if len(args) > 1:
         return os.getenv(args[0], u' '.join(args[1:]))
-    elif args[0] in os.environ:
+    if args[0] in os.environ:
         return os.environ[args[0]]
     raise EsphomeyamlError(u"Environment variable {} not defined.".format(node.value))
 

@@ -15,28 +15,28 @@ from esphomeyaml.py_compat import safe_input, text_type
 from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import safe_print
 
-CORE_BIG = """    _____ ____  _____  ______
+CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
   | |   | |  | | |__) | |__
   | |   | |  | |  _  /|  __|
   | |___| |__| | | \ \| |____
    \_____\____/|_|  \_\______|
 """
-ESP_BIG = """      ______  _____ _____
+ESP_BIG = r"""      ______  _____ _____
      |  ____|/ ____|  __ \\
      | |__  | (___ | |__) |
      |  __|  \___ \|  ___/
      | |____ ____) | |
      |______|_____/|_|
 """
-WIFI_BIG = """   __          ___ ______ _
+WIFI_BIG = r"""   __          ___ ______ _
    \ \        / (_)  ____(_)
     \ \  /\  / / _| |__   _
      \ \/  \/ / | |  __| | |
       \  /\  /  | | |    | |
        \/  \/   |_|_|    |_|
 """
-OTA_BIG = """       ____ _______
+OTA_BIG = r"""       ____ _______
       / __ \__   __|/\\
      | |  | | | |  /  \\
      | |  | | | | / /\ \\
@@ -86,7 +86,7 @@ def wizard_write(path, **kwargs):
     storage.save(storage_path)
 
 
-if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
+if os.getenv('ESPHOMEYAML_QUICKWIZARD', ''):
     def sleep(time):
         pass
 else:

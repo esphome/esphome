@@ -43,7 +43,7 @@ BUILD_FLAGS = '-DUSE_API'
 def lib_deps(config):
     if CORE.is_esp32:
         return 'AsyncTCP@1.0.1'
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         return 'ESPAsyncTCP@1.1.3'
     raise NotImplementedError
 

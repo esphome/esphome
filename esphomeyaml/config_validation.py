@@ -311,8 +311,8 @@ def time_period_str_colon(value):
 def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
     if isinstance(value, int):
-        raise vol.Invalid("Don't know what '{}' means as it has no time *unit*! Did you mean "
-                          "'{}s'?".format(value, value))
+        raise vol.Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
+                          "'{0}s'?".format(value))
     elif not isinstance(value, string_types):
         raise vol.Invalid("Expected string for time period with unit.")
 

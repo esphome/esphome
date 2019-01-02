@@ -269,21 +269,21 @@ def safe_exp(obj  # type: Union[Expression, bool, str, unicode, int, long, float
     # type: (...) -> Expression
     if isinstance(obj, Expression):
         return obj
-    elif isinstance(obj, bool):
+    if isinstance(obj, bool):
         return BoolLiteral(obj)
-    elif isinstance(obj, string_types):
+    if isinstance(obj, string_types):
         return StringLiteral(obj)
-    elif isinstance(obj, HexInt):
+    if isinstance(obj, HexInt):
         return HexIntLiteral(obj)
-    elif isinstance(obj, integer_types):
+    if isinstance(obj, integer_types):
         return IntLiteral(obj)
-    elif isinstance(obj, float):
+    if isinstance(obj, float):
         return FloatLiteral(obj)
-    elif isinstance(obj, TimePeriodMicroseconds):
+    if isinstance(obj, TimePeriodMicroseconds):
         return IntLiteral(int(obj.total_microseconds))
-    elif isinstance(obj, TimePeriodMilliseconds):
+    if isinstance(obj, TimePeriodMilliseconds):
         return IntLiteral(int(obj.total_milliseconds))
-    elif isinstance(obj, TimePeriodSeconds):
+    if isinstance(obj, TimePeriodSeconds):
         return IntLiteral(int(obj.total_seconds))
     raise ValueError(u"Object is not an expression", obj)
 

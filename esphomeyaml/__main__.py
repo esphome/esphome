@@ -197,7 +197,7 @@ def upload_program(config, args, host):
     if storage is not None and not storage.use_legacy_ota:
         return res
 
-    _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
+    _LOGGER.warning("OTA v2 method failed. Trying with legacy OTA...")
     return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password,
                                   CORE.firmware_bin)
 
@@ -206,9 +206,9 @@ def show_logs(config, args, port):
     if get_port_type(port) == 'SERIAL':
         run_miniterm(config, port)
         return 0
-    elif get_port_type(port) == 'NETWORK':
+    if get_port_type(port) == 'NETWORK':
         return run_logs(config, port)
-    elif get_port_type(port) == 'MQTT':
+    if get_port_type(port) == 'MQTT':
         return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
 
     raise ValueError

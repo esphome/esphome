@@ -53,12 +53,12 @@ def validate_simple_esphomelib_version(value):
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + ESPHOMELIB_VERSION,
         }
-    elif value.upper() == 'DEV':
+    if value.upper() == 'DEV':
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_BRANCH: 'dev'
         }
-    elif VERSION_REGEX.match(value) is not None:
+    if VERSION_REGEX.match(value) is not None:
         return {
             CONF_REPOSITORY: LIBRARY_URI_REPO,
             CONF_TAG: 'v' + value,
@@ -140,7 +140,7 @@ def validate_arduino_version(value):
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
-    elif CORE.is_esp32:
+    if CORE.is_esp32:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                               "at this time. You can override this by manually using "

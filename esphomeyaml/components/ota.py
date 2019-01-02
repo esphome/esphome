@@ -36,7 +36,7 @@ def get_port(config):
         return config[CONF_OTA][CONF_PORT]
     if CORE.is_esp32:
         return 3232
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         return 8266
     raise NotImplementedError
 
@@ -52,6 +52,6 @@ REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 def lib_deps(config):
     if CORE.is_esp32:
         return ['Update', 'ESPmDNS']
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         return ['Hash', 'ESP8266mDNS']
     raise NotImplementedError

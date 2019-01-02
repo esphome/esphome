@@ -19,6 +19,8 @@ disable=
   cyclic-import,
   redefined-builtin,
   undefined-loop-variable,
+  useless-object-inheritance,
+  stop-iteration-return,
 
 
 additional-builtins=

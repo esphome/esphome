@@ -20,7 +20,6 @@ _LOGGER = logging.getLogger(__name__)
 
 class EsphomeyamlError(Exception):
     """General esphomeyaml exception occurred."""
-    pass
 
 
 if IS_PY2:

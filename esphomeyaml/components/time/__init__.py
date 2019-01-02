@@ -31,9 +31,9 @@ def _tz_timedelta(td):
     offset_second = int(abs(td.total_seconds())) % 60
     if offset_hour == 0 and offset_minute == 0 and offset_second == 0:
         return '0'
-    elif offset_minute == 0 and offset_second == 0:
+    if offset_minute == 0 and offset_second == 0:
         return '{}'.format(offset_hour)
-    elif offset_second == 0:
+    if offset_second == 0:
         return '{}:{}'.format(offset_hour, offset_minute)
     return '{}:{}:{}'.format(offset_hour, offset_minute, offset_second)
 
@@ -141,7 +141,7 @@ def _parse_cron_int(value, special_mapping, message):
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
-    if part == '*' or part == '?':
+    if part in ('*', '?'):
         return set(x for x in range(min_value, max_value + 1))
     if '/' in part:
         data = part.split('/')

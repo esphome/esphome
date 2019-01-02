@@ -33,10 +33,9 @@ def validate_glyphs(value):
 
         if len(x_) < len(y_):
             return -1
-        elif len(x_) > len(y_):
+        if len(x_) > len(y_):
             return 1
-        else:
-            raise vol.Invalid(u"Found duplicate glyph {}".format(x))
+        raise vol.Invalid(u"Found duplicate glyph {}".format(x))
 
     value.sort(cmp=comparator)
     return value

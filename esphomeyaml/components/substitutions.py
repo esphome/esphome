@@ -61,8 +61,8 @@ def _expand_substitutions(substitutions, value, path):
         if name.startswith(u'{') and name.endswith(u'}'):
             name = name[1:-1]
         if name not in substitutions:
-            _LOGGER.warn(u"Found '%s' (see %s) which looks like a substitution, but '%s' was not "
-                         u"declared", orig_value, u'->'.join(str(x) for x in path), name)
+            _LOGGER.warning(u"Found '%s' (see %s) which looks like a substitution, but '%s' was "
+                            u"not declared", orig_value, u'->'.join(str(x) for x in path), name)
             i = j
             continue
 

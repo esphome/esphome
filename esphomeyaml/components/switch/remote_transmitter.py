@@ -85,15 +85,15 @@ def transmitter_base(full_config):
 
     if key == CONF_LG:
         return LGTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_NEC:
+    if key == CONF_NEC:
         return NECTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_PANASONIC:
+    if key == CONF_PANASONIC:
         return PanasonicTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_SAMSUNG:
+    if key == CONF_SAMSUNG:
         return SamsungTransmitter.new(name, config[CONF_DATA])
-    elif key == CONF_SONY:
+    if key == CONF_SONY:
         return SonyTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_RAW:
+    if key == CONF_RAW:
         if isinstance(config, dict):
             data = config[CONF_DATA]
             carrier_frequency = config.get(CONF_CARRIER_FREQUENCY)
@@ -102,29 +102,29 @@ def transmitter_base(full_config):
             carrier_frequency = None
         return RawTransmitter.new(name, ArrayInitializer(*data, multiline=False),
                                   carrier_frequency)
-    elif key == CONF_RC_SWITCH_RAW:
+    if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                           binary_code(config[CONF_CODE]), len(config[CONF_CODE]))
-    elif key == CONF_RC_SWITCH_TYPE_A:
+    if key == CONF_RC_SWITCH_TYPE_A:
         return RCSwitchTypeATransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             binary_code(config[CONF_GROUP]),
                                             binary_code(config[CONF_DEVICE]),
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_B:
+    if key == CONF_RC_SWITCH_TYPE_B:
         return RCSwitchTypeBTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             config[CONF_ADDRESS], config[CONF_CHANNEL],
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_C:
+    if key == CONF_RC_SWITCH_TYPE_C:
         return RCSwitchTypeCTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             ord(config[CONF_FAMILY][0]) - ord('a'),
                                             config[CONF_GROUP], config[CONF_DEVICE],
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_D:
+    if key == CONF_RC_SWITCH_TYPE_D:
         return RCSwitchTypeDTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             ord(config[CONF_GROUP][0]) - ord('a'),
                                             config[CONF_DEVICE], config[CONF_STATE])
-    else:
-        raise NotImplementedError("Unknown transmitter type {}".format(config))
+
+    raise NotImplementedError("Unknown transmitter type {}".format(config))
 
 
 def to_code(config):

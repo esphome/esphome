@@ -246,7 +246,7 @@ def validate_gpio_pin(value):
             _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
                             u"Be warned.", value)
         return value
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         if 6 <= value <= 11:
             _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
@@ -264,7 +264,7 @@ def input_pullup_pin(value):
     value = input_pin(value)
     if CORE.is_esp32:
         return output_pin(value)
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         if value == 0:
             raise vol.Invalid("GPIO Pin 0 does not support pullup pin mode. "
                               "Please choose another pin.")
@@ -279,7 +279,7 @@ def output_pin(value):
             raise vol.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
                               u"input pin.".format(value))
         return value
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         return value
     raise NotImplementedError
 
@@ -316,7 +316,7 @@ PIN_MODES_ESP32 = [
 def pin_mode(value):
     if CORE.is_esp32:
         return cv.one_of(*PIN_MODES_ESP32, upper=True)(value)
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
     raise NotImplementedError
 

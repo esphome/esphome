@@ -35,8 +35,8 @@ def validate_internal_filter(value):
         if value.total_microseconds > 13:
             raise vol.Invalid("Maximum internal filter value for ESP32 is 13us")
         return value
-    else:
-        return cv.positive_time_period_microseconds(value)
+
+    return cv.positive_time_period_microseconds(value)
 
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
