@@ -25,8 +25,8 @@ light_ns = esphomelib_ns.namespace('light')
 LightState = light_ns.class_('LightState', Nameable, Component)
 MakeLight = Application.struct('MakeLight')
 LightOutput = light_ns.class_('LightOutput')
-FastLEDLightOutputComponent = light_ns.class_('FastLEDLightOutputComponent', LightOutput)
-FastLEDLightOutputComponentRef = FastLEDLightOutputComponent.operator('ref')
+AddressableLight = light_ns.class_('AddressableLight')
+AddressableLightRef = AddressableLight.operator('ref')
 
 # Actions
 ToggleAction = light_ns.class_('ToggleAction', Action)
@@ -44,28 +44,30 @@ LambdaLightEffect = light_ns.class_('LambdaLightEffect', LightEffect)
 StrobeLightEffect = light_ns.class_('StrobeLightEffect', LightEffect)
 StrobeLightEffectColor = light_ns.class_('StrobeLightEffectColor', LightEffect)
 FlickerLightEffect = light_ns.class_('FlickerLightEffect', LightEffect)
-BaseFastLEDLightEffect = light_ns.class_('BaseFastLEDLightEffect', LightEffect)
-FastLEDLambdaLightEffect = light_ns.class_('FastLEDLambdaLightEffect', BaseFastLEDLightEffect)
-FastLEDRainbowLightEffect = light_ns.class_('FastLEDRainbowLightEffect', BaseFastLEDLightEffect)
-FastLEDColorWipeEffect = light_ns.class_('FastLEDColorWipeEffect', BaseFastLEDLightEffect)
-FastLEDColorWipeEffectColor = light_ns.class_('FastLEDColorWipeEffectColor', BaseFastLEDLightEffect)
-FastLEDScanEffect = light_ns.class_('FastLEDScanEffect', BaseFastLEDLightEffect)
-FastLEDScanEffectColor = light_ns.class_('FastLEDScanEffectColor', BaseFastLEDLightEffect)
-FastLEDTwinkleEffect = light_ns.class_('FastLEDTwinkleEffect', BaseFastLEDLightEffect)
-FastLEDRandomTwinkleEffect = light_ns.class_('FastLEDRandomTwinkleEffect', BaseFastLEDLightEffect)
-FastLEDFireworksEffect = light_ns.class_('FastLEDFireworksEffect', BaseFastLEDLightEffect)
-FastLEDFlickerEffect = light_ns.class_('FastLEDFlickerEffect', BaseFastLEDLightEffect)
+AddressableLightEffect = light_ns.class_('AddressableLightEffect', LightEffect)
+AddressableLambdaLightEffect = light_ns.class_('AddressableLambdaLightEffect',
+                                               AddressableLightEffect)
+AddressableRainbowLightEffect = light_ns.class_('AddressableRainbowLightEffect',
+                                                AddressableLightEffect)
+AddressableColorWipeEffect = light_ns.class_('AddressableColorWipeEffect', AddressableLightEffect)
+AddressableColorWipeEffectColor = light_ns.struct('AddressableColorWipeEffectColor')
+AddressableScanEffect = light_ns.class_('AddressableScanEffect', AddressableLightEffect)
+AddressableTwinkleEffect = light_ns.class_('AddressableTwinkleEffect', AddressableLightEffect)
+AddressableRandomTwinkleEffect = light_ns.class_('AddressableRandomTwinkleEffect',
+                                                 AddressableLightEffect)
+AddressableFireworksEffect = light_ns.class_('AddressableFireworksEffect', AddressableLightEffect)
+AddressableFlickerEffect = light_ns.class_('AddressableFlickerEffect', AddressableLightEffect)
 
 CONF_STROBE = 'strobe'
 CONF_FLICKER = 'flicker'
-CONF_FASTLED_LAMBDA = 'fastled_lambda'
-CONF_FASTLED_RAINBOW = 'fastled_rainbow'
-CONF_FASTLED_COLOR_WIPE = 'fastled_color_wipe'
-CONF_FASTLED_SCAN = 'fastled_scan'
-CONF_FASTLED_TWINKLE = 'fastled_twinkle'
-CONF_FASTLED_RANDOM_TWINKLE = 'fastled_random_twinkle'
-CONF_FASTLED_FIREWORKS = 'fastled_fireworks'
-CONF_FASTLED_FLICKER = 'fastled_flicker'
+CONF_ADDRESSABLE_LAMBDA = 'addressable_lambda'
+CONF_ADDRESSABLE_RAINBOW = 'addressable_rainbow'
+CONF_ADDRESSABLE_COLOR_WIPE = 'addressable_color_wipe'
+CONF_ADDRESSABLE_SCAN = 'addressable_scan'
+CONF_ADDRESSABLE_TWINKLE = 'addressable_twinkle'
+CONF_ADDRESSABLE_RANDOM_TWINKLE = 'addressable_random_twinkle'
+CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
+CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
@@ -80,10 +82,10 @@ CONF_INTENSITY = 'intensity'
 BINARY_EFFECTS = [CONF_LAMBDA, CONF_STROBE]
 MONOCHROMATIC_EFFECTS = BINARY_EFFECTS + [CONF_FLICKER]
 RGB_EFFECTS = MONOCHROMATIC_EFFECTS + [CONF_RANDOM]
-FASTLED_EFFECTS = RGB_EFFECTS + [CONF_FASTLED_LAMBDA, CONF_FASTLED_RAINBOW, CONF_FASTLED_COLOR_WIPE,
-                                 CONF_FASTLED_SCAN, CONF_FASTLED_TWINKLE,
-                                 CONF_FASTLED_RANDOM_TWINKLE, CONF_FASTLED_FIREWORKS,
-                                 CONF_FASTLED_FLICKER]
+ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_RAINBOW,
+                                     CONF_ADDRESSABLE_COLOR_WIPE, CONF_ADDRESSABLE_SCAN,
+                                     CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
+                                     CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
 
 EFFECTS_SCHEMA = vol.Schema({
     vol.Optional(CONF_LAMBDA): vol.Schema({
@@ -117,58 +119,59 @@ EFFECTS_SCHEMA = vol.Schema({
         vol.Optional(CONF_ALPHA): cv.percentage,
         vol.Optional(CONF_INTENSITY): cv.percentage,
     }),
-    vol.Optional(CONF_FASTLED_LAMBDA): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_LAMBDA): vol.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
         vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_FASTLED_RAINBOW): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDRainbowLightEffect),
+    vol.Optional(CONF_ADDRESSABLE_RAINBOW): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRainbowLightEffect),
         vol.Optional(CONF_NAME, default="Rainbow"): cv.string,
         vol.Optional(CONF_SPEED): cv.uint32_t,
         vol.Optional(CONF_WIDTH): cv.uint32_t,
     }),
-    vol.Optional(CONF_FASTLED_COLOR_WIPE): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDColorWipeEffect),
+    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableColorWipeEffect),
         vol.Optional(CONF_NAME, default="Color Wipe"): cv.string,
         vol.Optional(CONF_COLORS): cv.ensure_list({
             vol.Optional(CONF_RED, default=1.0): cv.percentage,
             vol.Optional(CONF_GREEN, default=1.0): cv.percentage,
             vol.Optional(CONF_BLUE, default=1.0): cv.percentage,
+            vol.Optional(CONF_WHITE, default=1.0): cv.percentage,
             vol.Optional(CONF_RANDOM, default=False): cv.boolean,
             vol.Required(CONF_NUM_LEDS): vol.All(cv.uint32_t, vol.Range(min=1)),
         }),
         vol.Optional(CONF_ADD_LED_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_REVERSE): cv.boolean,
     }),
-    vol.Optional(CONF_FASTLED_SCAN): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDScanEffect),
+    vol.Optional(CONF_ADDRESSABLE_SCAN): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableScanEffect),
         vol.Optional(CONF_NAME, default="Scan"): cv.string,
         vol.Optional(CONF_MOVE_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_FASTLED_TWINKLE): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDTwinkleEffect),
+    vol.Optional(CONF_ADDRESSABLE_TWINKLE): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableTwinkleEffect),
         vol.Optional(CONF_NAME, default="Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_FASTLED_RANDOM_TWINKLE): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDRandomTwinkleEffect),
+    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRandomTwinkleEffect),
         vol.Optional(CONF_NAME, default="Random Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_FASTLED_FIREWORKS): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDFireworksEffect),
+    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFireworksEffect),
         vol.Optional(CONF_NAME, default="Fireworks"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_SPARK_PROBABILITY): cv.percentage,
         vol.Optional(CONF_USE_RANDOM_COLOR): cv.boolean,
         vol.Optional(CONF_FADE_OUT_RATE): cv.uint8_t,
     }),
-    vol.Optional(CONF_FASTLED_FLICKER): vol.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FastLEDFlickerEffect),
-        vol.Optional(CONF_NAME, default="FastLED Flicker"): cv.string,
+    vol.Optional(CONF_ADDRESSABLE_FLICKER): vol.Schema({
+        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFlickerEffect),
+        vol.Optional(CONF_NAME, default="Addressable Flicker"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_INTENSITY): cv.percentage,
     }),
@@ -182,33 +185,59 @@ def validate_effects(allowed_effects):
             value = [value]
         names = set()
         ret = []
+        errors = []
         for i, effect in enumerate(value):
             path = [i] if is_list else []
             if not isinstance(effect, dict):
-                raise vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)),
-                                  path)
+                errors.append(
+                    vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)),
+                                path)
+                )
+                continue
             if len(effect) > 1:
-                raise vol.Invalid("Each entry in the 'effects:' option must be a single effect.",
-                                  path)
+                errors.append(
+                    vol.Invalid("Each entry in the 'effects:' option must be a single effect.",
+                                path)
+                )
+                continue
             if not effect:
-                raise vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i),
-                                  path)
+                errors.append(
+                    vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i),
+                                path)
+                )
+                continue
             key = next(iter(effect.keys()))
+            if key.startswith('fastled'):
+                errors.append(
+                    vol.Invalid("FastLED effects have been renamed to addressable effects. "
+                                "Please use '{}'".format(key.replace('fastled', 'addressable')),
+                                path)
+                )
+                continue
             if key not in allowed_effects:
-                raise vol.Invalid("The effect '{}' does not exist or is not allowed for this "
-                                  "light type".format(key), path)
+                errors.append(
+                    vol.Invalid("The effect '{}' does not exist or is not allowed for this "
+                                "light type".format(key), path)
+                )
+                continue
             effect[key] = effect[key] or {}
             try:
                 conf = EFFECTS_SCHEMA(effect)
             except vol.Invalid as err:
                 err.prepend(path)
-                raise err
+                errors.append(err)
+                continue
             name = conf[key][CONF_NAME]
             if name in names:
-                raise vol.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                                  u"unique names".format(name), [i])
+                errors.append(
+                    vol.Invalid(u"Found the effect name '{}' twice. All effects must have "
+                                u"unique names".format(name), [i])
+                )
+                continue
             names.add(name)
             ret.append(conf)
+        if errors:
+            raise vol.MultipleInvalid(errors)
         return ret
 
     return validator
@@ -260,21 +289,22 @@ def build_effect(full_config):
         if CONF_INTENSITY in config:
             add(effect.set_intensity(config[CONF_INTENSITY]))
         yield effect
-    elif key == CONF_FASTLED_LAMBDA:
-        args = [(FastLEDLightOutputComponentRef, 'it')]
+    elif key == CONF_ADDRESSABLE_LAMBDA:
+        args = [(AddressableLightRef, 'it')]
         for lambda_ in process_lambda(config[CONF_LAMBDA], args):
             yield None
-        yield FastLEDLambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
-    elif key == CONF_FASTLED_RAINBOW:
-        rhs = FastLEDRainbowLightEffect.new(config[CONF_NAME])
+        yield AddressableLambdaLightEffect.new(config[CONF_NAME], lambda_,
+                                               config[CONF_UPDATE_INTERVAL])
+    elif key == CONF_ADDRESSABLE_RAINBOW:
+        rhs = AddressableRainbowLightEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_SPEED in config:
             add(effect.set_speed(config[CONF_SPEED]))
         if CONF_WIDTH in config:
             add(effect.set_width(config[CONF_WIDTH]))
         yield effect
-    elif key == CONF_FASTLED_COLOR_WIPE:
-        rhs = FastLEDColorWipeEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_COLOR_WIPE:
+        rhs = AddressableColorWipeEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_ADD_LED_INTERVAL in config:
             add(effect.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
@@ -283,40 +313,41 @@ def build_effect(full_config):
         colors = []
         for color in config.get(CONF_COLORS, []):
             colors.append(StructInitializer(
-                FastLEDColorWipeEffectColor,
-                ('r', color[CONF_RED]),
-                ('g', color[CONF_GREEN]),
-                ('b', color[CONF_BLUE]),
+                AddressableColorWipeEffectColor,
+                ('r', int(round(color[CONF_RED] * 255))),
+                ('g', int(round(color[CONF_GREEN] * 255))),
+                ('b', int(round(color[CONF_BLUE] * 255))),
+                ('w', int(round(color[CONF_WHITE] * 255))),
                 ('random', color[CONF_RANDOM]),
                 ('num_leds', color[CONF_NUM_LEDS]),
             ))
         if colors:
             add(effect.set_colors(ArrayInitializer(*colors)))
         yield effect
-    elif key == CONF_FASTLED_SCAN:
-        rhs = FastLEDScanEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_SCAN:
+        rhs = AddressableScanEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_MOVE_INTERVAL in config:
             add(effect.set_move_interval(config[CONF_MOVE_INTERVAL]))
         yield effect
-    elif key == CONF_FASTLED_TWINKLE:
-        rhs = FastLEDTwinkleEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_TWINKLE:
+        rhs = AddressableTwinkleEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_TWINKLE_PROBABILITY in config:
             add(effect.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
         if CONF_PROGRESS_INTERVAL in config:
             add(effect.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
         yield effect
-    elif key == CONF_FASTLED_RANDOM_TWINKLE:
-        rhs = FastLEDRandomTwinkleEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_RANDOM_TWINKLE:
+        rhs = AddressableRandomTwinkleEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_TWINKLE_PROBABILITY in config:
             add(effect.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
         if CONF_PROGRESS_INTERVAL in config:
             add(effect.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
         yield effect
-    elif key == CONF_FASTLED_FIREWORKS:
-        rhs = FastLEDFireworksEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_FIREWORKS:
+        rhs = AddressableFireworksEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_UPDATE_INTERVAL in config:
             add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
@@ -327,8 +358,8 @@ def build_effect(full_config):
         if CONF_FADE_OUT_RATE in config:
             add(effect.set_spark_probability(config[CONF_FADE_OUT_RATE]))
         yield effect
-    elif key == CONF_FASTLED_FLICKER:
-        rhs = FastLEDFlickerEffect.new(config[CONF_NAME])
+    elif key == CONF_ADDRESSABLE_FLICKER:
+        rhs = AddressableFlickerEffect.new(config[CONF_NAME])
         effect = Pvariable(config[CONF_EFFECT_ID], rhs)
         if CONF_UPDATE_INTERVAL in config:
             add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))

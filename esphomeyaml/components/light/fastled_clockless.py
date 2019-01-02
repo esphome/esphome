@@ -70,7 +70,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_COLOR_CORRECT): vol.All([cv.percentage], vol.Length(min=3, max=3)),
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.FASTLED_EFFECTS),
+    vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
 }).extend(cv.COMPONENT_SCHEMA.schema), validate)
 
 

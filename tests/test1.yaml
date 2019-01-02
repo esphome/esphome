@@ -715,8 +715,8 @@ light:
     color_correct: [75%, 100%, 50%]
     name: "FastLED WS2811 Light"
     effects:
-    - fastled_color_wipe:
-    - fastled_color_wipe:
+    - addressable_color_wipe:
+    - addressable_color_wipe:
         name: Color Wipe Effect With Custom Values
         colors:
         - red: 100%
@@ -729,29 +729,29 @@ light:
           num_leds: 1
         add_led_interval: 100ms
         reverse: False
-    - fastled_scan:
-    - fastled_scan:
+    - addressable_scan:
+    - addressable_scan:
         name: Scan Effect With Custom Values
         move_interval: 100ms
-    - fastled_twinkle:
-    - fastled_twinkle:
+    - addressable_twinkle:
+    - addressable_twinkle:
         name: Twinkle Effect With Custom Values
         twinkle_probability: 5%
         progress_interval: 4ms
-    - fastled_random_twinkle:
-    - fastled_random_twinkle:
+    - addressable_random_twinkle:
+    - addressable_random_twinkle:
         name: Random Twinkle Effect With Custom Values
         twinkle_probability: 5%
         progress_interval: 32ms
-    - fastled_fireworks:
-    - fastled_fireworks:
+    - addressable_fireworks:
+    - addressable_fireworks:
         name: Fireworks Effect With Custom Values
         update_interval: 32ms
         spark_probability: 10%
         use_random_color: false
         fade_out_rate: 120
-    - fastled_flicker:
-    - fastled_flicker:
+    - addressable_flicker:
+    - addressable_flicker:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
