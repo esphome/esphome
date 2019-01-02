@@ -346,6 +346,8 @@ class APIClient(threading.Thread):
                 raise APIConnectionError("No socket!")
             try:
                 val = self._socket.recv(amount - len(ret))
+            except AttributeError:
+                raise APIConnectionError("Socket was closed")
             except socket.timeout:
                 continue
             except socket.error as err:
@@ -453,8 +455,8 @@ def run_logs(config, address):
         time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
         text = msg.message
         if msg.send_failed:
-            text = color('white', '(Message not received because it was too big to fit in '
-                                  'TCP buffer)')
+            text = color('white', '(Message skipped because it was too big to fit in '
+                                  'TCP buffer - This is only cosmetic)')
         safe_print(time_ + text)
 
     has_connects = []
