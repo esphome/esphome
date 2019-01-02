@@ -11,4 +11,4 @@ if hass.config.true 'leave_front_door_open'; then
 fi
 
 hass.log.info "Starting esphomeyaml dashboard..."
-exec esphomeyaml /config/esphomeyaml dashboard --port 80 --hassio
+exec esphomeyaml /config/esphomeyaml dashboard --socket /var/run/esphomeyaml.sock --hassio

@@ -450,6 +450,8 @@ def parse_args(argv):
                            help="Internal flag used to tell esphomeyaml is started as a Hass.io "
                                 "add-on.",
                            action="store_true")
+    dashboard.add_argument("--socket",
+                           help="Make the dashboard serve under a unix socket", type=str)
 
     subparsers.add_parser('hass-config',
                           help="Dump the configuration entries that should be added "
