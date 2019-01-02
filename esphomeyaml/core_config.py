@@ -11,7 +11,7 @@ from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266
     CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, \
     CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, \
     CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, ESPHOMELIB_VERSION, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266, CONF_LIBRARIES, CONF_INCLUDES
+    ESP_PLATFORM_ESP8266, CONF_LIBRARIES, CONF_INCLUDES, CONF_PLATFORMIO_OPTIONS
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
 from esphomeyaml.cpp_types import App, NoArg, const_char_ptr, esphomelib_ns
@@ -163,6 +163,9 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+    vol.Optional(CONF_PLATFORMIO_OPTIONS): vol.Schema({
+        cv.string_strict: vol.Any([cv.string], cv.string),
+    }),
 
     vol.Optional(CONF_BOARD_FLASH_MODE): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
