@@ -14,7 +14,7 @@ import esphomeyaml.api.api_pb2 as pb
 from esphomeyaml.const import CONF_PASSWORD, CONF_PORT
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address, indent, color
-from esphomeyaml.py_compat import text_type
+from esphomeyaml.py_compat import text_type, IS_PY2, byte, char, format_bytes
 from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,16 +67,16 @@ MESSAGE_TYPE_TO_PROTO = {
 
 def _varuint_to_bytes(value):
     if value <= 0x7F:
-        return chr(value)
+        return byte(value)
 
     ret = bytes()
     while value:
         temp = value & 0x7F
         value >>= 7
         if value:
-            ret += chr(temp | 0x80)
+            ret += byte(temp | 0x80)
         else:
-            ret += chr(temp)
+            ret += byte(temp)
 
     return ret
 
@@ -85,7 +85,7 @@ def _bytes_to_varuint(value):
     result = 0
     bitpos = 0
     for c in value:
-        val = ord(c)
+        val = char(c)
         result |= (val & 0x7F) << bitpos
         bitpos += 7
         if (val & 0x80) == 0:
@@ -245,7 +245,7 @@ class APIClient(threading.Thread):
         if self._socket is None:
             raise APIConnectionError("Socket closed")
 
-        _LOGGER.debug("Write: %s", ' '.join('{:02X}'.format(ord(x)) for x in data))
+        _LOGGER.debug("Write: %s", format_bytes(data))
         with self._socket_write_lock:
             try:
                 self._socket.sendall(data)
@@ -263,7 +263,10 @@ class APIClient(threading.Thread):
 
         encoded = msg.SerializeToString()
         _LOGGER.debug("Sending %s:\n%s", type(msg), indent(text_type(msg)))
-        req = chr(0x00)
+        if IS_PY2:
+            req = chr(0x00)
+        else:
+            req = bytes([0])
         req += _varuint_to_bytes(len(encoded))
         req += _varuint_to_bytes(message_type)
         req += encoded
@@ -358,7 +361,7 @@ class APIClient(threading.Thread):
 
     def _recv_varint(self):
         raw = bytes()
-        while not raw or ord(raw[-1]) & 0x80:
+        while not raw or char(raw[-1]) & 0x80:
             raw += self._recv(1)
         return _bytes_to_varuint(raw)
 
@@ -367,7 +370,7 @@ class APIClient(threading.Thread):
             return
 
         # Preamble
-        if ord(self._recv(1)[0]) != 0x00:
+        if char(self._recv(1)[0]) != 0x00:
             raise APIConnectionError("Invalid preamble")
 
         length = self._recv_varint()

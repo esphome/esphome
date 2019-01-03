@@ -23,3 +23,24 @@ else:
     string_types = (str,)
     integer_types = (int,)
     binary_type = bytes
+
+
+def byte(val):
+    if IS_PY2:
+        return chr(val)
+    else:
+        return bytes([val])
+
+
+def char(val):
+    if IS_PY2:
+        return ord(val)
+    else:
+        return val
+
+
+def format_bytes(val):
+    if IS_PY2:
+        return ' '.join('{:02X}'.format(ord(x)) for x in val)
+    else:
+        return ' '.join('{:02X}'.format(x) for x in val)

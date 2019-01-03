@@ -439,7 +439,7 @@ def load_config():
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except OSError:
-        raise EsphomeyamlError(u"Could not read configuration file at {}".format(CORE.config_path))
+        raise EsphomeyamlError(u"Invalid YAML at {}".format(CORE.config_path))
     CORE.raw_config = config
     config = substitutions.do_substitution_pass(config)
     core_config.preload_core_config(config)
