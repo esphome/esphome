@@ -124,10 +124,7 @@ def update_esphomelib_repo():
         _LOGGER.warning("Couldn't auto-update local git copy of esphomelib.")
         return
     if IS_PY3:
-        try:
-            stdout = stdout.encode('utf-8')
-        except Exception:  # pylint: disable=broad-except
-            pass
+        stdout = stdout.decode('utf-8', 'backslashreplace')
     safe_print(stdout.strip())
 
 
@@ -299,6 +296,7 @@ def gather_build_flags():
         build_flags.add('-DESPHOMEYAML_USE')
         build_flags.add("-Wno-unused-variable")
         build_flags.add("-Wno-unused-but-set-variable")
+        build_flags.add("-Wno-sign-compare")
     build_flags |= get_build_flags('required_build_flags')
     build_flags |= get_build_flags('REQUIRED_BUILD_FLAGS')
 

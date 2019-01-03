@@ -74,8 +74,10 @@ def recv_decode(sock, amount, decode=True):
 def receive_exactly(sock, amount, msg, expect, decode=True):
     if decode:
         data = []
-    else:
+    elif IS_PY2:
         data = ''
+    else:
+        data = b''
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -168,6 +170,8 @@ def perform_ota(sock, password, file_handle, filename):
         if not password:
             raise OTAError("ESP requests password, but no password given!")
         nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False)
+        if not IS_PY2:
+            nonce = nonce.decode()
         _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
         _LOGGER.debug("Auth: CNonce is %s", cnonce)
