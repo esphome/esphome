@@ -16,7 +16,7 @@ from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_LOGGER, CON
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
 from esphomeyaml.helpers import color, indent
-from esphomeyaml.py_compat import safe_input, text_type
+from esphomeyaml.py_compat import safe_input, text_type, IS_PY2
 from esphomeyaml.storage_json import StorageJSON, esphomeyaml_storage_path, \
     start_update_check_thread, storage_path
 from esphomeyaml.util import run_external_command, safe_print
@@ -110,7 +110,11 @@ def run_miniterm(config, port):
             except serial.SerialException:
                 _LOGGER.error("Serial port closed!")
                 return
-            line = raw.replace('\r', '').replace('\n', '')
+            if IS_PY2:
+                line = raw.replace('\r', '').replace('\n', '')
+            else:
+                line = raw.replace(b'\r', b'').replace(b'\n', b'').decode('utf8',
+                                                                          'backslashreplace')
             time = datetime.now().time().strftime('[%H:%M:%S]')
             message = time + line
             safe_print(message)

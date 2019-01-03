@@ -7,6 +7,7 @@ import time
 
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address, is_ip_address
+from esphomeyaml.py_compat import IS_PY2
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -125,10 +126,17 @@ def check_error(data, expect):
 
 def send_check(sock, data, msg):
     try:
-        if isinstance(data, (list, tuple)):
-            data = ''.join([chr(x) for x in data])
-        elif isinstance(data, int):
-            data = chr(data)
+        if IS_PY2:
+            if isinstance(data, (list, tuple)):
+                data = ''.join([chr(x) for x in data])
+            elif isinstance(data, int):
+                data = chr(data)
+        else:
+            if isinstance(data, (list, tuple)):
+                data = bytes(data)
+            elif isinstance(data, int):
+                data = bytes([data])
+
         sock.sendall(data)
     except socket.error as err:
         raise OTAError("Error sending {}: {}".format(msg, err))

@@ -26,6 +26,7 @@ import tornado.websocket
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
 from esphomeyaml.helpers import mkdir_p, run_system_command
+from esphomeyaml.py_compat import IS_PY2
 from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
     esphomeyaml_storage_path, ext_storage_path
 from esphomeyaml.util import shlex_quote
@@ -77,7 +78,13 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
     def redirect_stream(self):
         while True:
             try:
-                data = yield self.proc.stdout.read_until_regex('[\n\r]')
+                if IS_PY2:
+                    reg = '[\n\r]'
+                else:
+                    reg = b'[\n\r]'
+                data = yield self.proc.stdout.read_until_regex(reg)
+                if not IS_PY2:
+                    data = data.decode('utf-8', 'backslashreplace')
             except tornado.iostream.StreamClosedError:
                 break
             try:
@@ -166,7 +173,8 @@ class SerialPortRequestHandler(BaseHandler):
                 desc = split_desc[0]
             data.append({'port': port, 'desc': desc})
         data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
-        self.write(json.dumps(sorted(data, reverse=True)))
+        data.sort(key=lambda x: x['port'], reverse=True)
+        self.write(json.dumps(data))
 
 
 class WizardRequestHandler(BaseHandler):
@@ -390,7 +398,7 @@ class EditRequestHandler(BaseHandler):
             self.set_status(401)
             return
 
-        with open(os.path.join(CONFIG_DIR, configuration), 'w') as f:
+        with open(os.path.join(CONFIG_DIR, configuration), 'wb') as f:
             f.write(self.request.body)
         self.set_status(200)
         return
