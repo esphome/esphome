@@ -567,10 +567,8 @@ sensor:
   - platform: tx20
     wind_speed:
       name: "Windspeed"
-    wind_direction:
-      name: "Winddirection"
-    wind_direction_text:
-      name: "Winddirection Text"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
     pin: 
       number: GPIO04
       mode: INPUT
