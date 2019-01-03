@@ -14,3 +14,4 @@ include esphomeyaml/dashboard/static/materialize-stepper.min.css
 include esphomeyaml/dashboard/static/materialize-stepper.min.js
 include esphomeyaml/dashboard/static/mode-yaml.js
 include esphomeyaml/dashboard/static/theme-dreamweaver.js
+include esphomeyaml/dashboard/static/ext-searchbox.js
