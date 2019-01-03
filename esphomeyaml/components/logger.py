@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, C
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
 from esphomeyaml.core import EsphomeyamlError, Lambda, CORE
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
-from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns, void
 
 from esphomeyaml.py_compat import text_type
 
@@ -146,7 +146,7 @@ def logger_log_action_to_code(config, action_id, arg_type, template_arg):
 
     text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
 
-    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')]):
+    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')], return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)

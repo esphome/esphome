@@ -9,7 +9,7 @@ from esphomeyaml.const import CONF_BUSY_PIN, CONF_CS_PIN, CONF_DC_PIN, CONF_FULL
 from esphomeyaml.cpp_generator import get_variable, Pvariable, process_lambda, add
 from esphomeyaml.cpp_helpers import gpio_output_pin_expression, gpio_input_pin_expression, \
     setup_component
-from esphomeyaml.cpp_types import PollingComponent, App
+from esphomeyaml.cpp_types import PollingComponent, App, void
 
 DEPENDENCIES = ['spi']
 
@@ -71,7 +71,8 @@ def to_code(config):
         raise NotImplementedError()
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],
+                                      return_type=void):
             yield
         add(epaper.set_writer(lambda_))
     if CONF_RESET_PIN in config:

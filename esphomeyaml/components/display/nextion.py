@@ -4,7 +4,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_UART_ID
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, PollingComponent
+from esphomeyaml.cpp_types import App, PollingComponent, void
 
 DEPENDENCIES = ['uart']
 
@@ -24,7 +24,8 @@ def to_code(config):
     nextion = Pvariable(config[CONF_ID], rhs)
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(NextionRef, 'it')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(NextionRef, 'it')],
+                                      return_type=void):
             yield
         add(nextion.set_writer(lambda_))
 

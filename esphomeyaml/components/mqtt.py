@@ -18,7 +18,7 @@ from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, RawExpression, \
     StructInitializer, TemplateArguments, add, process_lambda, templatable
 from esphomeyaml.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
-    Trigger, bool_, esphomelib_ns, optional, std_string, uint8
+    Trigger, bool_, esphomelib_ns, optional, std_string, uint8, void
 
 
 def validate_message_just_topic(value):
@@ -237,7 +237,8 @@ def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
         yield None
     add(action.set_topic(template_))
 
-    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')]):
+    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')],
+                                  return_type=void):
         yield None
     add(action.set_payload(lambda_))
     if CONF_QOS in config:

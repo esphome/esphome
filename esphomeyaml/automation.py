@@ -10,7 +10,7 @@ from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, TemplateArguments, add, \
     get_variable, process_lambda, templatable
 from esphomeyaml.cpp_types import Action, App, Component, PollingComponent, Trigger, \
-    esphomelib_ns, float_, uint32
+    esphomelib_ns, float_, uint32, void, bool_
 from esphomeyaml.util import ServiceRegistry
 
 
@@ -266,7 +266,7 @@ LAMBDA_ACTION_SCHEMA = cv.lambda_
 
 @ACTION_REGISTRY.register(CONF_LAMBDA, LAMBDA_ACTION_SCHEMA)
 def lambda_action_to_code(config, action_id, arg_type, template_arg):
-    for lambda_ in process_lambda(config, [(arg_type, 'x')]):
+    for lambda_ in process_lambda(config, [(arg_type, 'x')], return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)
@@ -278,7 +278,7 @@ LAMBDA_CONDITION_SCHEMA = cv.lambda_
 
 @CONDITION_REGISTRY.register(CONF_LAMBDA, LAMBDA_CONDITION_SCHEMA)
 def lambda_condition_to_code(config, condition_id, arg_type, template_arg):
-    for lambda_ in process_lambda(config, [(arg_type, 'x')]):
+    for lambda_ in process_lambda(config, [(arg_type, 'x')], return_type=bool_):
         yield
     rhs = LambdaCondition.new(template_arg, lambda_)
     type = LambdaCondition.template(template_arg)

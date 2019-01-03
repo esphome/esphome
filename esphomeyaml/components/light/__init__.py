@@ -14,7 +14,7 @@ from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, Pvariable, add, StructInitializer, \
     ArrayInitializer, get_variable, templatable
 from esphomeyaml.cpp_types import esphomelib_ns, Application, Component, Nameable, Action, uint32, \
-    float_, std_string
+    float_, std_string, void
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -255,7 +255,7 @@ def build_effect(full_config):
     key, config = next(iter(full_config.items()))
     if key == CONF_LAMBDA:
         lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], []):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [], return_type=void):
             yield None
         yield LambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
     elif key == CONF_RANDOM:
@@ -291,7 +291,7 @@ def build_effect(full_config):
         yield effect
     elif key == CONF_ADDRESSABLE_LAMBDA:
         args = [(AddressableLightRef, 'it')]
-        for lambda_ in process_lambda(config[CONF_LAMBDA], args):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], args, return_type=void):
             yield None
         yield AddressableLambdaLightEffect.new(config[CONF_NAME], lambda_,
                                                config[CONF_UPDATE_INTERVAL])

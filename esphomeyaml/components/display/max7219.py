@@ -8,7 +8,7 @@ from esphomeyaml.const import CONF_CS_PIN, CONF_ID, CONF_INTENSITY, CONF_LAMBDA,
     CONF_SPI_ID
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda
 from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
-from esphomeyaml.cpp_types import App, PollingComponent
+from esphomeyaml.cpp_types import App, PollingComponent, void
 
 DEPENDENCIES = ['spi']
 
@@ -39,7 +39,8 @@ def to_code(config):
         add(max7219.set_intensity(config[CONF_INTENSITY]))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
+                                      return_type=void):
             yield
         add(max7219.set_writer(lambda_))
 

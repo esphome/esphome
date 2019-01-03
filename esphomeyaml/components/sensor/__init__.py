@@ -16,7 +16,7 @@ from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, process_lambda, \
     templatable, get_variable
 from esphomeyaml.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
-    esphomelib_ns, float_
+    esphomelib_ns, float_, optional
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -136,7 +136,8 @@ def setup_filter(config):
         yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
     elif CONF_LAMBDA in config:
         lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
+                                      return_type=optional.template(float_)):
             yield None
         yield LambdaFilter.new(lambda_)
     elif CONF_THROTTLE in config:

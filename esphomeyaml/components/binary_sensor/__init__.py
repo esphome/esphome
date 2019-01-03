@@ -13,7 +13,8 @@ from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLA
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
     StructInitializer, get_variable
-from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_
+from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_, \
+    optional
 from esphomeyaml.py_compat import string_types
 
 DEVICE_CLASSES = [
@@ -207,8 +208,8 @@ def setup_filter(config):
     elif CONF_HEARTBEAT in config:
         yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
     elif CONF_LAMBDA in config:
-        lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
+                                      return_type=optional.template(bool_)):
             yield None
         yield LambdaFilter.new(lambda_)
 
