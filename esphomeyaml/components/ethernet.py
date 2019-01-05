@@ -68,3 +68,6 @@ def to_code(config):
 
     if CONF_MANUAL_IP in config:
         add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))
+
+
+BUILD_FLAGS = '-DUSE_ETHERNET'
