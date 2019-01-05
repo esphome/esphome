@@ -70,4 +70,4 @@ def to_code(config):
         add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))
 
 
-BUILD_FLAGS = '-DUSE_ETHERNET'
+REQUIRED_BUILD_FLAGS = '-DUSE_ETHERNET'

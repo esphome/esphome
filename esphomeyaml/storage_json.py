@@ -291,6 +291,6 @@ class CheckForUpdateThread(threading.Thread):
 def start_update_check_thread(path):
     # dummy call to strptime as python 2.7 has a bug with strptime when importing from threads
     datetime.strptime('20180101', '%Y%m%d')
-    thread = CheckForUpdateThread(path)
+    thread = CheckForUpdateThread(os.path.abspath(path))
     thread.start()
     return thread

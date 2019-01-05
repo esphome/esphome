@@ -79,7 +79,6 @@ def _path_begins_with_(path, other):  # type: (ConfigPath, ConfigPath) -> bool
 
 def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
     ret = _path_begins_with_(path, other)
-    # print('_path_begins_with({}, {}) -> {}'.format(path, other, ret))
     return ret
 
 
