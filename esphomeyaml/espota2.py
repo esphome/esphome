@@ -7,7 +7,7 @@ import time
 
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address, is_ip_address
-from esphomeyaml.py_compat import IS_PY2, char
+from esphomeyaml.py_compat import IS_PY2, char_to_byte
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -68,7 +68,7 @@ def recv_decode(sock, amount, decode=True):
     data = sock.recv(amount)
     if not decode:
         return data
-    return [char(x) for x in data]
+    return [char_to_byte(x) for x in data]
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):

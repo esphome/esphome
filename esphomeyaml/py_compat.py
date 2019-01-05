@@ -1,3 +1,4 @@
+import functools
 import sys
 
 PYTHON_MAJOR = sys.version_info[0]
@@ -25,18 +26,28 @@ else:
     binary_type = bytes
 
 
-def byte(val):
+def byte_to_bytes(val):  # type: (int) -> bytes
     if IS_PY2:
         return chr(val)
     else:
         return bytes([val])
 
 
-def char(val):
+def char_to_byte(val):  # type: (str) -> int
     if IS_PY2:
-        return ord(val)
+        if isinstance(val, string_types):
+            return ord(val)
+        elif isinstance(val, int):
+            return val
+        else:
+            raise ValueError
     else:
-        return val
+        if isinstance(val, str):
+            return ord(val)
+        elif isinstance(val, int):
+            return val
+        else:
+            raise ValueError
 
 
 def format_bytes(val):
@@ -44,3 +55,10 @@ def format_bytes(val):
         return ' '.join('{:02X}'.format(ord(x)) for x in val)
     else:
         return ' '.join('{:02X}'.format(x) for x in val)
+
+
+def sort_by_cmp(list_, cmp):
+    if IS_PY2:
+        list_.sort(cmp=cmp)
+    else:
+        list_.sort(key=functools.cmp_to_key(cmp))

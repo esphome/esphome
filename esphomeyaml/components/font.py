@@ -8,6 +8,7 @@ from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import CORE, HexInt
 from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawExpression, add
 from esphomeyaml.cpp_types import App
+from esphomeyaml.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']
 MULTI_CONF = True
@@ -37,7 +38,7 @@ def validate_glyphs(value):
             return 1
         raise vol.Invalid(u"Found duplicate glyph {}".format(x))
 
-    value.sort(cmp=comparator)
+    sort_by_cmp(value, comparator)
     return value
 
 

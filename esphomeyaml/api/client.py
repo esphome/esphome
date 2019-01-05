@@ -14,7 +14,7 @@ import esphomeyaml.api.api_pb2 as pb
 from esphomeyaml.const import CONF_PASSWORD, CONF_PORT
 from esphomeyaml.core import EsphomeyamlError
 from esphomeyaml.helpers import resolve_ip_address, indent, color
-from esphomeyaml.py_compat import text_type, IS_PY2, byte, char, format_bytes
+from esphomeyaml.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte, format_bytes
 from esphomeyaml.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,16 +67,16 @@ MESSAGE_TYPE_TO_PROTO = {
 
 def _varuint_to_bytes(value):
     if value <= 0x7F:
-        return byte(value)
+        return byte_to_bytes(value)
 
     ret = bytes()
     while value:
         temp = value & 0x7F
         value >>= 7
         if value:
-            ret += byte(temp | 0x80)
+            ret += byte_to_bytes(temp | 0x80)
         else:
-            ret += byte(temp)
+            ret += byte_to_bytes(temp)
 
     return ret
 
@@ -85,7 +85,7 @@ def _bytes_to_varuint(value):
     result = 0
     bitpos = 0
     for c in value:
-        val = char(c)
+        val = char_to_byte(c)
         result |= (val & 0x7F) << bitpos
         bitpos += 7
         if (val & 0x80) == 0:
@@ -361,7 +361,7 @@ class APIClient(threading.Thread):
 
     def _recv_varint(self):
         raw = bytes()
-        while not raw or char(raw[-1]) & 0x80:
+        while not raw or char_to_byte(raw[-1]) & 0x80:
             raw += self._recv(1)
         return _bytes_to_varuint(raw)
 
@@ -370,7 +370,7 @@ class APIClient(threading.Thread):
             return
 
         # Preamble
-        if char(self._recv(1)[0]) != 0x00:
+        if char_to_byte(self._recv(1)[0]) != 0x00:
             raise APIConnectionError("Invalid preamble")
 
         length = self._recv_varint()
