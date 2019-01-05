@@ -11,10 +11,19 @@ esphomeyaml:
 substitutions:
   devicename: test2
 
-wifi:
-  ssid: 'MySSID'
-  password: 'password1'
-  reboot_timeout: 120s
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO24
+  clk_mode: GPIO0_IN
+  phy_addr: 0
+  power_pin: GPIO25
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  hostname: helloworld
+  domain: .local
 
 mqtt:
   broker: '192.168.178.84'

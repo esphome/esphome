@@ -23,7 +23,8 @@ from esphomeyaml.util import run_external_command, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
-PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'api', 'i2c']
+PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ethernet', 'ota', 'mqtt', 'web_server', 'api',
+                  'i2c']
 
 
 def get_serial_ports():
