@@ -396,6 +396,8 @@ CONF_ENTITY_ID = 'entity_id'
 CONF_RESTORE_MODE = 'restore_mode'
 CONF_INTERVAL = 'interval'
 CONF_DIRECTION = 'direction'
+CONF_VARIANT = 'variant'
+CONF_METHOD = 'method'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
