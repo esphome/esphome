@@ -74,7 +74,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_USERNAME, default=''): cv.string,
     vol.Optional(CONF_PASSWORD, default=''): cv.string,
     vol.Optional(CONF_CLIENT_ID): vol.All(cv.string, vol.Length(max=23)),
-    vol.Optional(CONF_DISCOVERY): cv.boolean,
+    vol.Optional(CONF_DISCOVERY): vol.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     vol.Optional(CONF_DISCOVERY_RETAIN): cv.boolean,
     vol.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
     vol.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -120,12 +120,17 @@ def to_code(config):
                         config[CONF_USERNAME], config[CONF_PASSWORD])
     mqtt = Pvariable(config[CONF_ID], rhs)
 
-    if not config.get(CONF_DISCOVERY, True):
+    discovery = config.get(CONF_DISCOVERY, True)
+    discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
+    discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
+
+    if not discovery:
         add(mqtt.disable_discovery())
+    elif discovery == "CLEAN":
+        add(mqtt.set_discovery_info(discovery_prefix, discovery_retain, True))
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
-        discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
-        discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
+
     if CONF_TOPIC_PREFIX in config:
         add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
