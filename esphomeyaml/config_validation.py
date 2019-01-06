@@ -570,6 +570,14 @@ def mqtt_qos(value):
     return one_of(0, 1, 2)(value)
 
 
+def requires_component(comp):
+    def validator(value):
+        if comp not in CORE.config:
+            raise vol.Invalid("This option requires component {}".format(comp))
+        return value
+    return validator
+
+
 uint8_t = vol.All(int_, vol.Range(min=0, max=255))
 uint16_t = vol.All(int_, vol.Range(min=0, max=65535))
 uint32_t = vol.All(int_, vol.Range(min=0, max=4294967295))
@@ -723,15 +731,16 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = vol.Schema({
 
 MQTT_COMPONENT_SCHEMA = vol.Schema({
     vol.Optional(CONF_NAME): string,
-    vol.Optional(CONF_RETAIN): boolean,
-    vol.Optional(CONF_DISCOVERY): boolean,
-    vol.Optional(CONF_STATE_TOPIC): publish_topic,
-    vol.Optional(CONF_AVAILABILITY): vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA),
+    vol.Optional(CONF_RETAIN): vol.All(requires_component('mqtt'), boolean),
+    vol.Optional(CONF_DISCOVERY): vol.All(requires_component('mqtt'), boolean),
+    vol.Optional(CONF_STATE_TOPIC): vol.All(requires_component('mqtt'), publish_topic),
+    vol.Optional(CONF_AVAILABILITY): vol.All(requires_component('mqtt'),
+                                             vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
     vol.Optional(CONF_INTERNAL): boolean,
 })
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
-    vol.Optional(CONF_COMMAND_TOPIC): subscribe_topic,
+    vol.Optional(CONF_COMMAND_TOPIC): vol.All(requires_component('mqtt'), subscribe_topic),
 })
 
 COMPONENT_SCHEMA = vol.Schema({

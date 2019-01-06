@@ -33,8 +33,10 @@ FAN_SPEED_HIGH = FanSpeed.FAN_SPEED_HIGH
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(FanState),
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTFanComponent),
-    vol.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.publish_topic,
-    vol.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.subscribe_topic,
+    vol.Optional(CONF_OSCILLATION_STATE_TOPIC): vol.All(cv.requires_component('mqtt'),
+                                                        cv.publish_topic),
+    vol.Optional(CONF_OSCILLATION_COMMAND_TOPIC): vol.All(cv.requires_component('mqtt'),
+                                                          cv.subscribe_topic),
 })
 
 FAN_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FAN_SCHEMA.schema)
