@@ -27,7 +27,7 @@ MODELS = {
     'SH1106_64X48': SSD1306Model.SH1106_MODEL_64_48,
 }
 
-SSD1306_MODEL = vol.All(vol.Replace(' ', '_'), cv.one_of(*MODELS, upper=True))
+SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
 
 PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
