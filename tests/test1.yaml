@@ -771,6 +771,22 @@ light:
     num_leds: 60
     rgb_order: BRG
     name: "FastLED SPI Light"
+  - platform: neopixelbus
+    name: "Neopixelbus Light"
+    gamma_correct: 2.8
+    color_correct: [0.0, 0.0, 0.0, 0.0]
+    default_transition_length: 10s
+    power_supply: atx_power_supply
+    effects:
+    - addressable_flicker:
+        name: Flicker Effect With Custom Values
+        update_interval: 16ms
+        intensity: 5%
+    type: GRBW
+    variant: SK6812
+    method: ESP32_I2S_0
+    num_leds: 60
+    pin: GPIO23
 
 remote_transmitter:
   - pin: 32

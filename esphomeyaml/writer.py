@@ -305,8 +305,8 @@ def gather_build_flags():
 
 
 def get_ini_content():
-    lib_deps = gather_lib_deps() + ['${common.lib_deps}']
-    build_flags = gather_build_flags() + ['${common.build_flags}']
+    lib_deps = gather_lib_deps()
+    build_flags = gather_build_flags()
 
     if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
         flash_size = ESP8266_FLASH_SIZES[CORE.board]
@@ -326,10 +326,22 @@ def get_ini_content():
         'platform': CORE.config[CONF_ESPHOMEYAML][CONF_ARDUINO_VERSION],
         'board': CORE.board,
         'framework': 'arduino',
-        'lib_deps': lib_deps,
-        'build_flags': build_flags,
+        'lib_deps': lib_deps + ['${common.lib_deps}'],
+        'build_flags': build_flags + ['${common.build_flags}'],
         'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
     }
+
+    if 'esp32_ble_beacon' in CORE.config or 'esp32_ble_tracker' in CORE.config:
+        data['board_build.partitions'] = "partitions.csv"
+        partitions_csv = CORE.relative_build_path('partitions.csv')
+        if not os.path.isfile(partitions_csv):
+            with open(partitions_csv, "w") as f:
+                f.write("nvs,      data, nvs,     0x009000, 0x005000,\n")
+                f.write("otadata,  data, ota,     0x00e000, 0x002000,\n")
+                f.write("app0,     app,  ota_0,   0x010000, 0x190000,\n")
+                f.write("app1,     app,  ota_1,   0x200000, 0x190000,\n")
+                f.write("eeprom,   data, 0x99,    0x390000, 0x001000,\n")
+                f.write("spiffs,   data, spiffs,  0x391000, 0x00F000\n")
 
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOMEYAML]:
         flash_mode = CORE.config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
@@ -391,17 +403,6 @@ def write_platformio_project():
 
     platformio_ini = CORE.relative_build_path('platformio.ini')
     content = get_ini_content()
-    if 'esp32_ble_beacon' in CORE.config or 'esp32_ble_tracker' in CORE.config:
-        content += 'board_build.partitions = partitions.csv\n'
-        partitions_csv = CORE.relative_build_path('partitions.csv')
-        if not os.path.isfile(partitions_csv):
-            with open(partitions_csv, "w") as f:
-                f.write("nvs,      data, nvs,     0x009000, 0x005000,\n")
-                f.write("otadata,  data, ota,     0x00e000, 0x002000,\n")
-                f.write("app0,     app,  ota_0,   0x010000, 0x190000,\n")
-                f.write("app1,     app,  ota_1,   0x200000, 0x190000,\n")
-                f.write("eeprom,   data, 0x99,    0x390000, 0x001000,\n")
-                f.write("spiffs,   data, spiffs,  0x391000, 0x00F000\n")
     write_gitignore()
     write_platformio_ini(content, platformio_ini)
 

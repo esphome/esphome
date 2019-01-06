@@ -54,9 +54,9 @@ def validate_method(value):
         raise NotImplementedError
 
     if CORE.is_esp32:
-        return cv.one_of(*ESP32_METHODS, upper=True, space='_')
+        return cv.one_of(*ESP32_METHODS, upper=True, space='_')(value)
     if CORE.is_esp8266:
-        return cv.one_of(*ESP8266_METHODS, upper=True, space='_')
+        return cv.one_of(*ESP8266_METHODS, upper=True, space='_')(value)
     raise NotImplementedError
 
 

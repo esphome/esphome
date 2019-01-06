@@ -49,7 +49,7 @@ def lib_deps(config):
 
 
 CONF_HOMEASSISTANT_SERVICE = 'homeassistant.service'
-LOGGER_LOG_ACTION_SCHEMA = vol.Schema({
+HOMEASSISTANT_SERVIC_ACTION_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.use_variable_id(APIServer),
     vol.Required(CONF_SERVICE): cv.string,
     vol.Optional(CONF_DATA): vol.Schema({
@@ -64,7 +64,7 @@ LOGGER_LOG_ACTION_SCHEMA = vol.Schema({
 })
 
 
-@ACTION_REGISTRY.register(CONF_HOMEASSISTANT_SERVICE, LOGGER_LOG_ACTION_SCHEMA)
+@ACTION_REGISTRY.register(CONF_HOMEASSISTANT_SERVICE, HOMEASSISTANT_SERVIC_ACTION_SCHEMA)
 def homeassistant_service_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
