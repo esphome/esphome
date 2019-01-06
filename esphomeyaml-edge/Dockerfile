@@ -31,9 +31,6 @@ RUN \
     \
     && pip2 install --no-cache-dir --no-binary :all: https://github.com/OttoWinter/esphomeyaml/archive/dev.zip \
     \
-    # tzlocal for automatic timezone detection
-    && pip2 install --no-cache-dir --no-binary :all: tzlocal \
-    \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_libraries_interval 1000000 \

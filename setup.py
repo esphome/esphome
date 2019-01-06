@@ -31,6 +31,7 @@ REQUIRES = [
     'esptool>=2.3.1',
     'typing>=3.0.0',
     'protobuf>=3.4',
+    'tzlocal>=1.4',
 ]
 
 CLASSIFIERS = [
