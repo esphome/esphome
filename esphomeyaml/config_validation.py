@@ -117,7 +117,7 @@ def ensure_list(*validators):
             try:
                 ret.append(user(val))
             except vol.Invalid as err:
-                err.prepend(i)
+                err.prepend([i])
                 raise err
         return ret
 
@@ -572,7 +572,7 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     def validator(value):
-        if comp not in CORE.config:
+        if comp not in CORE.raw_config:
             raise vol.Invalid("This option requires component {}".format(comp))
         return value
     return validator

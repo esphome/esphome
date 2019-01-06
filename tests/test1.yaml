@@ -22,8 +22,13 @@ esphomeyaml:
   build_path: build/test1
 
 wifi:
-  ssid: 'MySSID'
-  password: 'password1'
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+  - ssid: 'MySSID2'
+    password: ''
+    channel: 14
+    bssid: 'A1:63:95:47:D3:1D'
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
@@ -777,6 +782,7 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
+    restore_mode: ALWAYS_OFF
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
