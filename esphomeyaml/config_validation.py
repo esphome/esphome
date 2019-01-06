@@ -687,13 +687,17 @@ def file_(value):
     return value
 
 
-ENTITY_ID_PATTERN = re.compile(r"^([a-z0-9]+)\.([a-z0-9]+)$")
+ENTITY_ID_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 
 def entity_id(value):
     value = string_strict(value).lower()
-    if ENTITY_ID_PATTERN.match(value) is None:
-        raise vol.Invalid(u"Invalid entity ID: {}".format(value))
+    if value.count('.') != 1:
+        raise vol.Invalid("Entity ID must have exactly one dot in it")
+    for x in value.split('.'):
+        for c in x:
+            if c not in ENTITY_ID_CHARACTERS:
+                raise vol.Invalid("Invalid character for entity ID: {}".format(c))
     return value
 
 

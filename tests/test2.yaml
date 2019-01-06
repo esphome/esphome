@@ -31,6 +31,8 @@ mqtt:
   username: 'debug'
   password: 'debug'
 
+api:
+
 i2c:
   sda: 21
   scl: 22
@@ -142,6 +144,12 @@ sensor:
   - platform: apds9960
     type: blue
     name: APDS9960 Blue
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+
+time:
+- platform: homeassistant
 
 apds9960:
   address: 0x20
@@ -202,8 +210,26 @@ text_sensor:
     name: "Template Text Sensor"
     lambda: |-
       return {"Hello World"};
+  - platform: homeassistant
+    entity_id: sensor.hello_world2
+    id: ha_hello_world2
 
 script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+
+stepper:
+  - platform: uln2003
+    id: my_stepper
+    pin_a: GPIO23
+    pin_b: GPIO24
+    pin_c: GPIO25
+    pin_d: GPIO26
+    sleep_when_done: no
+    step_mode: HALF_STEP
+    max_speed: 250 steps/s
+
+    # Optional:
+    acceleration: inf
+    deceleration: inf
