@@ -2,32 +2,38 @@
   "name": "esphomeyaml-edge",
   "version": "dev",
   "slug": "esphomeyaml-edge",
-  "description": "Development build of the esphomeyaml HassIO add-on.",
-  "url": "https://esphomelib.com/esphomeyaml/index.html",
-  "startup": "application",
+  "description": "Development Version! Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files",
+  "url": "https://github.com/OttoWinter/esphomeyaml/tree/dev/esphomeyaml-edge/README.md",
   "webui": "http://[HOST]:[PORT:6052]",
-  "boot": "auto",
-  "ports": {
-    "6052/tcp": 6052,
-    "6053/tcp": 6053
-  },
+  "startup": "application",
   "arch": [
     "aarch64",
     "amd64",
     "armhf",
     "i386"
   ],
-  "auto_uart": true,
+  "hassio_api": true,
+  "auth_api": true,
+  "hassio_role": "default",
+  "homeassistant_api": false,
+  "host_network": true,
+  "boot": "auto",
   "map": [
+    "ssl",
     "config:rw"
   ],
   "options": {
-    "password": ""
+    "ssl": false,
+    "certfile": "fullchain.pem",
+    "keyfile": "privkey.pem",
+    "port": 6052
   },
   "schema": {
-    "password": "str?"
-  },
-  "environment": {
-    "ESPHOMEYAML_OTA_HOST_PORT": "6053"
+    "ssl": "bool",
+    "certfile": "str",
+    "keyfile": "str",
+    "port": "int",
+    "leave_front_door_open": "bool?",
+    "esphomeyaml_version": "str?"
   }
 }

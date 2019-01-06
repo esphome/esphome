@@ -29,6 +29,9 @@ REQUIRES = [
     'colorlog>=3.1.2',
     'tornado>=5.0.0',
     'esptool>=2.3.1',
+    'typing>=3.0.0',
+    'protobuf>=3.4',
+    'tzlocal>=1.4',
 ]
 
 CLASSIFIERS = [
@@ -54,7 +57,7 @@ setup(
     zip_safe=False,
     platforms='any',
     test_suite='tests',
-    python_requires='>=2.7,<3',
+    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4.0',
     install_requires=REQUIRES,
     keywords=['home', 'automation'],
     entry_points={

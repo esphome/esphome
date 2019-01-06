@@ -5,7 +5,7 @@ from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.pn532 import PN532Component
 from esphomeyaml.const import CONF_NAME, CONF_UID
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import ArrayInitializer, get_variable
+from esphomeyaml.cpp_generator import get_variable, ArrayInitializer
 
 DEPENDENCIES = ['pn532']
 

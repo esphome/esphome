@@ -4,7 +4,9 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor, i2c
 from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_RANGE
-from esphomeyaml.helpers import App, Pvariable, add, setup_component, PollingComponent
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import PollingComponent, App
 
 DEPENDENCIES = ['i2c']
 
@@ -37,7 +39,7 @@ def validate_range(value):
     value = cv.string(value)
     if value.endswith(u'µT') or value.endswith('uT'):
         value = value[:-2]
-    return cv.one_of(*HMC5883L_RANGES)(int(value))
+    return cv.one_of(*HMC5883L_RANGES, int=True)(value)
 
 
 SENSOR_KEYS = [CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,

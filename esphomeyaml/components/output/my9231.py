@@ -1,10 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import output
 from esphomeyaml.components.my9231 import MY9231OutputComponent
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CHANNEL, CONF_ID, CONF_MY9231_ID, CONF_POWER_SUPPLY
-from esphomeyaml.helpers import Pvariable, get_variable, setup_component
+from esphomeyaml.cpp_generator import Pvariable, get_variable
+from esphomeyaml.cpp_helpers import setup_component
 
 DEPENDENCIES = ['my9231']
 

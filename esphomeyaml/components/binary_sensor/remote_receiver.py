@@ -11,7 +11,7 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAN
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE
-from esphomeyaml.helpers import ArrayInitializer, Pvariable, get_variable
+from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable
 
 DEPENDENCIES = ['remote_receiver']
 
@@ -39,7 +39,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=28): vol.All(vol.Coerce(int), cv.one_of(28, 32)),
+        vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
     }),
     vol.Optional(CONF_NEC): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -50,7 +50,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
     }),
     vol.Optional(CONF_SONY): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=12): vol.All(vol.Coerce(int), cv.one_of(12, 15, 20)),
+        vol.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
     }),
     vol.Optional(CONF_PANASONIC): vol.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
@@ -73,40 +73,40 @@ def receiver_base(full_config):
     key, config = next((k, v) for k, v in full_config.items() if k in REMOTE_KEYS)
     if key == CONF_LG:
         return LGReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_NEC:
+    if key == CONF_NEC:
         return NECReceiver.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_PANASONIC:
+    if key == CONF_PANASONIC:
         return PanasonicReceiver.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_SAMSUNG:
+    if key == CONF_SAMSUNG:
         return SamsungReceiver.new(name, config[CONF_DATA])
-    elif key == CONF_SONY:
+    if key == CONF_SONY:
         return SonyReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_RAW:
+    if key == CONF_RAW:
         data = ArrayInitializer(*config, multiline=False)
         return RawReceiver.new(name, data)
-    elif key == CONF_RC_SWITCH_RAW:
+    if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                        binary_code(config[CONF_CODE]), len(config[CONF_CODE]))
-    elif key == CONF_RC_SWITCH_TYPE_A:
+    if key == CONF_RC_SWITCH_TYPE_A:
         return RCSwitchTypeAReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                          binary_code(config[CONF_GROUP]),
                                          binary_code(config[CONF_DEVICE]),
                                          config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_B:
+    if key == CONF_RC_SWITCH_TYPE_B:
         return RCSwitchTypeBReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                          config[CONF_ADDRESS], config[CONF_CHANNEL],
                                          config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_C:
+    if key == CONF_RC_SWITCH_TYPE_C:
         return RCSwitchTypeCReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                          ord(config[CONF_FAMILY][0]) - ord('a'),
                                          config[CONF_GROUP], config[CONF_DEVICE],
                                          config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_D:
+    if key == CONF_RC_SWITCH_TYPE_D:
         return RCSwitchTypeDReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                          ord(config[CONF_GROUP][0]) - ord('a'),
                                          config[CONF_DEVICE], config[CONF_STATE])
-    else:
-        raise NotImplementedError("Unknown receiver type {}".format(config))
+
+    raise NotImplementedError("Unknown receiver type {}".format(config))
 
 
 def to_code(config):

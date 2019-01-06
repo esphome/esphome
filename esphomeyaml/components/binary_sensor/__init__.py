@@ -1,16 +1,21 @@
 import voluptuous as vol
 
 from esphomeyaml import automation, core
+from esphomeyaml.automation import maybe_simple_id, CONDITION_REGISTRY, Condition
 from esphomeyaml.components import mqtt
+from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
-    CONF_TIMING, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, ArrayInitializer, NoArg, Pvariable, StructInitializer, add, \
-    add_job, bool_, esphomelib_ns, process_lambda, setup_mqtt_component, Nameable, Trigger, \
-    Component
+    CONF_TIMING, CONF_TRIGGER_ID, CONF_ON_STATE
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
+    StructInitializer, get_variable
+from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_, \
+    optional
+from esphomeyaml.py_compat import string_types
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -25,6 +30,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 binary_sensor_ns = esphomelib_ns.namespace('binary_sensor')
 BinarySensor = binary_sensor_ns.class_('BinarySensor', Nameable)
+BinarySensorPtr = BinarySensor.operator('ptr')
 MQTTBinarySensorComponent = binary_sensor_ns.class_('MQTTBinarySensorComponent', mqtt.MQTTComponent)
 
 # Triggers
@@ -34,6 +40,10 @@ ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template(NoArg))
 DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template(NoArg))
 MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(NoArg), Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
+StateTrigger = binary_sensor_ns.class_('StateTrigger', Trigger.template(bool_))
+
+# Condition
+BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Condition)
 
 # Filters
 Filter = binary_sensor_ns.class_('Filter')
@@ -46,13 +56,13 @@ LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
 
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
-FILTERS_SCHEMA = vol.All(cv.ensure_list, [vol.All({
+FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_INVERT): None,
     vol.Optional(CONF_DELAYED_ON): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DELAYED_OFF): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_LAMBDA): cv.lambda_,
-}, cv.has_exactly_one_key(*FILTER_KEYS))])
+}, cv.has_exactly_one_key(*FILTER_KEYS))
 
 MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
     vol.Optional(CONF_STATE): cv.boolean,
@@ -62,7 +72,7 @@ MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
 
 
 def parse_multi_click_timing_str(value):
-    if not isinstance(value, basestring):
+    if not isinstance(value, string_types):
         return value
 
     parts = value.lower().split(' ')
@@ -150,7 +160,7 @@ def validate_multi_click_timing(value):
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
 
-    vol.Optional(CONF_DEVICE_CLASS): vol.All(vol.Lower, cv.one_of(*DEVICE_CLASSES)),
+    vol.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
     vol.Optional(CONF_ON_PRESS): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
@@ -174,6 +184,9 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
                                            validate_multi_click_timing),
         vol.Optional(CONF_INVALID_COOLDOWN): cv.positive_time_period_milliseconds,
     }),
+    vol.Optional(CONF_ON_STATE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StateTrigger),
+    }),
 
     vol.Optional(CONF_INVERTED): cv.invalid(
         "The inverted binary_sensor property has been replaced by the "
@@ -195,8 +208,8 @@ def setup_filter(config):
     elif CONF_HEARTBEAT in config:
         yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
     elif CONF_LAMBDA in config:
-        lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
+                                      return_type=optional.template(bool_)):
             yield None
         yield LambdaFilter.new(lambda_)
 
@@ -261,6 +274,11 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
             add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         automation.build_automation(trigger, NoArg, conf)
 
+    for conf in config.get(CONF_ON_STATE, []):
+        rhs = binary_sensor_var.make_state_trigger()
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, bool_, conf)
+
     setup_mqtt_component(mqtt_var, config)
 
 
@@ -269,14 +287,14 @@ def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
                                   has_side_effects=False)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
                          has_side_effects=False)
-    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 def register_binary_sensor(var, config):
     binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
     rhs = App.register_binary_sensor(binary_sensor_var)
     mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
 
 
 def core_to_hass_config(data, config):
@@ -290,3 +308,33 @@ def core_to_hass_config(data, config):
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
+
+
+CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'
+BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+})
+
+
+@CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_ON, BINARY_SENSOR_IS_ON_CONDITION_SCHEMA)
+def binary_sensor_is_on_to_code(config, condition_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_binary_sensor_is_on_condition(template_arg)
+    type = BinarySensorCondition.template(arg_type)
+    yield Pvariable(condition_id, rhs, type=type)
+
+
+CONF_BINARY_SENSOR_IS_OFF = 'binary_sensor.is_off'
+BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+})
+
+
+@CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_OFF, BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA)
+def binary_sensor_is_off_to_code(config, condition_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_binary_sensor_is_off_condition(template_arg)
+    type = BinarySensorCondition.template(arg_type)
+    yield Pvariable(condition_id, rhs, type=type)

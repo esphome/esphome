@@ -1,18 +1,20 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
-from esphomeyaml.const import CONF_FREQUENCY, CONF_SCL, CONF_SDA, CONF_SCAN, CONF_ID, \
-    CONF_RECEIVE_TIMEOUT
-from esphomeyaml.helpers import App, add, Pvariable, esphomelib_ns, setup_component, Component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_FREQUENCY, CONF_ID, CONF_RECEIVE_TIMEOUT, CONF_SCAN, CONF_SCL, \
+    CONF_SDA
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 I2CComponent = esphomelib_ns.class_('I2CComponent', Component)
 I2CDevice = pins.I2CDevice
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),
-    vol.Required(CONF_SDA, default='SDA'): pins.input_output_pin,
-    vol.Required(CONF_SCL, default='SCL'): pins.input_output_pin,
+    vol.Optional(CONF_SDA, default='SDA'): pins.input_pullup_pin,
+    vol.Optional(CONF_SCL, default='SCL'): pins.input_pullup_pin,
     vol.Optional(CONF_FREQUENCY): vol.All(cv.frequency, vol.Range(min=0, min_included=False)),
     vol.Optional(CONF_SCAN): cv.boolean,
 

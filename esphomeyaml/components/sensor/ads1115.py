@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.components.ads1115 import ADS1115Component
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_NAME, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import get_variable
+from esphomeyaml.cpp_generator import get_variable
+from esphomeyaml.py_compat import string_types
 
 DEPENDENCIES = ['ads1115']
 
@@ -35,7 +36,7 @@ GAIN = {
 def validate_gain(value):
     if isinstance(value, float):
         value = u'{:0.03f}'.format(value)
-    elif not isinstance(value, (str, unicode)):
+    elif not isinstance(value, string_types):
         raise vol.Invalid('invalid gain "{}"'.format(value))
 
     return cv.one_of(*GAIN)(value)
@@ -59,7 +60,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_ADS1115_ID]):
         yield
 

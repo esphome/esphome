@@ -1,11 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import display, i2c
-from esphomeyaml.components.display.lcd_gpio import LCDDisplayRef, validate_lcd_dimensions, \
-    LCDDisplay
+from esphomeyaml.components.display.lcd_gpio import LCDDisplay, LCDDisplayRef, \
+    validate_lcd_dimensions
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_DIMENSIONS, CONF_ID, CONF_LAMBDA
-from esphomeyaml.helpers import App, Pvariable, add, process_lambda, setup_component
+from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, void
 
 DEPENDENCIES = ['i2c']
 
@@ -26,7 +28,8 @@ def to_code(config):
         add(lcd.set_address(config[CONF_ADDRESS]))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
+                                      return_type=void):
             yield
         add(lcd.set_writer(lambda_))
 

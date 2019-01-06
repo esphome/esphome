@@ -1,5 +1,6 @@
 [MASTER]
 reports=no
+ignore=api_pb2.py
 
 disable=
   missing-docstring,
@@ -18,6 +19,8 @@ disable=
   cyclic-import,
   redefined-builtin,
   undefined-loop-variable,
+  useless-object-inheritance,
+  stop-iteration-return,
 
 
 additional-builtins=

@@ -3,7 +3,8 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import switch
 from esphomeyaml.const import CONF_INVERTED, CONF_MAKE_ID, CONF_NAME
-from esphomeyaml.helpers import App, Application, variable
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_types import Application, App
 
 MakeShutdownSwitch = Application.struct('MakeShutdownSwitch')
 ShutdownSwitch = switch.switch_ns.class_('ShutdownSwitch', switch.Switch)

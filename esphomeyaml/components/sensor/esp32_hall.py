@@ -3,7 +3,9 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Application, variable, setup_component
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import Application, App
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 

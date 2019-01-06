@@ -11,6 +11,8 @@ stages:
 
 .lint: &lint
   stage: lint
+  before_script:
+    - pip install -e .
   tags:
     - python2.7
     - esphomeyaml-lint
@@ -24,9 +26,6 @@ stages:
     - esphomeyaml-test
   variables:
     TZ: UTC
-  cache:
-    paths:
-      - tests/build
 
 .docker-builder: &docker-builder
   before_script:
@@ -62,21 +61,20 @@ test2:
   stage: build
   script:
     - docker run --rm --privileged hassioaddons/qemu-user-static:latest
-    - BUILD_FROM=homeassistant/${ADDON_ARCH}-base-ubuntu:latest
+    - BUILD_FROM=hassioaddons/ubuntu-base-${ADDON_ARCH}:2.2.0
     - ADDON_VERSION="${CI_COMMIT_TAG#v}"
     - ADDON_VERSION="${ADDON_VERSION:-${CI_COMMIT_SHA:0:7}}"
-    - ESPHOMELIB_VERSION="${ESPHOMELIB_VERSION:-dev}"
     - echo "Build from ${BUILD_FROM}"
     - echo "Add-on version ${ADDON_VERSION}"
-    - echo "Esphomelib version ${ESPHOMELIB_VERSION}"
     - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev"
     - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - |
       docker build \
         --build-arg "BUILD_FROM=${BUILD_FROM}" \
-        --build-arg "ADDON_ARCH=${ADDON_ARCH}" \
-        --build-arg "ADDON_VERSION=${ADDON_VERSION}" \
-        --build-arg "ESPHOMELIB_VERSION=${ESPHOMELIB_VERSION}" \
+        --build-arg "BUILD_DATE=$(date +"%Y-%m-%dT%H:%M:%SZ")" \
+        --build-arg "BUILD_ARCH=${ADDON_ARCH}" \
+        --build-arg "BUILD_REF=${CI_COMMIT_SHA}" \
+        --build-arg "BUILD_VERSION=${ADDON_VERSION}" \
         --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
         --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         --file "docker/Dockerfile.hassio" \
@@ -95,48 +93,48 @@ test2:
   script:
     - version="${CI_COMMIT_TAG#v}"
     - echo "Publishing release version ${version}"
-    - docker pull "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
+    - docker pull "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
 
-    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - echo "Tag ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
-    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
 
-    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+    - echo "Tag ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
-    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
 
-    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - echo "Tag ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
-    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
 
     - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
 
     - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:latest"
 
     - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
   only:
@@ -150,34 +148,34 @@ test2:
   script:
     - version="${CI_COMMIT_TAG#v}"
     - echo "Publishing beta version ${version}"
-    - docker pull "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
+    - docker pull "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}"
     - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
 
-    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - echo "Tag ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
-    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
 
-    - echo "Tag ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - echo "Tag ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
-    - docker push "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
+    - docker push "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
 
     - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}"
 
     - echo "Tag ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - |
       docker tag \
-        "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${version}" \
         "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
     - docker push "ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:rc"
   only:
@@ -190,7 +188,7 @@ build:normal:
   <<: *docker-builder
   stage: build
   script:
-    - docker build -t "${CI_REGISTRY}/esphomeyaml:dev" .
+    - docker build -t "${CI_REGISTRY}/ottowinter/esphomeyaml:dev" .
 
 .build-hassio-edge: &build-hassio-edge
   <<: *build-hassio
@@ -214,7 +212,6 @@ build:hassio-armhf:
   <<: *build-hassio-release
   variables:
     ADDON_ARCH: armhf
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 #build:hassio-aarch64-edge:
 #  <<: *build-hassio-edge
@@ -226,7 +223,6 @@ build:hassio-armhf:
 #  <<: *build-hassio-release
 #  variables:
 #    ADDON_ARCH: aarch64
-#    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-i386-edge:
   <<: *build-hassio-edge
@@ -238,7 +234,6 @@ build:hassio-i386:
   <<: *build-hassio-release
   variables:
     ADDON_ARCH: i386
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 build:hassio-amd64-edge:
   <<: *build-hassio-edge
@@ -250,7 +245,6 @@ build:hassio-amd64:
   <<: *build-hassio-release
   variables:
     ADDON_ARCH: amd64
-    ESPHOMELIB_VERSION: "${CI_COMMIT_TAG}"
 
 # Deploy jobs
 deploy-release:armhf:
@@ -267,7 +261,7 @@ deploy-beta:armhf:
 #  <<: *deploy-release
 #  variables:
 #    ADDON_ARCH: aarch64
-#
+
 #deploy-beta:aarch64:
 #  <<: *deploy-beta
 #  variables:

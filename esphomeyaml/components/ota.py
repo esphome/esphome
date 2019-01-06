@@ -2,12 +2,11 @@ import logging
 
 import voluptuous as vol
 
-from esphomeyaml import core
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_OTA, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, Pvariable, add, esphomelib_ns, Component
+from esphomeyaml.const import CONF_ID, CONF_OTA, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -35,11 +34,11 @@ def to_code(config):
 def get_port(config):
     if CONF_PORT in config[CONF_OTA]:
         return config[CONF_OTA][CONF_PORT]
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         return 3232
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         return 8266
-    raise ESPHomeYAMLError(u"Invalid ESP Platform for ESP OTA port.")
+    raise NotImplementedError
 
 
 def get_auth(config):
@@ -51,6 +50,8 @@ REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 
 
 def lib_deps(config):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
-        return ['ArduinoOTA', 'Update', 'ESPmDNS']
-    return ['Hash', 'ESP8266mDNS', 'ArduinoOTA']
+    if CORE.is_esp32:
+        return ['Update', 'ESPmDNS']
+    if CORE.is_esp8266:
+        return ['Hash', 'ESP8266mDNS']
+    raise NotImplementedError

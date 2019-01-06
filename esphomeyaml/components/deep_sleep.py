@@ -2,11 +2,11 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv, pins
 from esphomeyaml.automation import ACTION_REGISTRY, maybe_simple_id
-from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_RUN_CYCLES, CONF_RUN_DURATION, \
-    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN, CONF_MODE, CONF_PINS
-from esphomeyaml.helpers import Action, App, Component, Pvariable, TemplateArguments, add, \
-    esphomelib_ns, get_variable, gpio_input_pin_expression, setup_component, global_ns, \
-    StructInitializer
+from esphomeyaml.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
+    CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, get_variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import Action, App, Component, esphomelib_ns, global_ns
 
 
 def validate_pin_number(value):
@@ -43,12 +43,11 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                            validate_pin_number),
-    vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32, vol.Upper,
-                                                cv.one_of(*WAKEUP_PIN_MODES)),
+    vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32,
+                                                cv.one_of(*WAKEUP_PIN_MODES), upper=True),
     vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, vol.Schema({
-        vol.Required(CONF_PINS): vol.All(cv.ensure_list, [pins.shorthand_input_pin],
-                                         [validate_pin_number]),
-        vol.Required(CONF_MODE): vol.All(vol.Upper, cv.one_of(*EXT1_WAKEUP_MODES)),
+        vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
+        vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),
     vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
@@ -95,8 +94,7 @@ DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_ENTER, DEEP_SLEEP_ENTER_ACTION_SCHEMA)
-def deep_sleep_enter_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def deep_sleep_enter_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_enter_deep_sleep_action(template_arg)
@@ -111,8 +109,7 @@ DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_PREVENT, DEEP_SLEEP_PREVENT_ACTION_SCHEMA)
-def deep_sleep_prevent_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def deep_sleep_prevent_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_prevent_deep_sleep_action(template_arg)

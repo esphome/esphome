@@ -4,7 +4,7 @@ from esphomeyaml.components import binary_sensor, display
 from esphomeyaml.components.display.nextion import Nextion
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_COMPONENT_ID, CONF_NAME, CONF_PAGE_ID
-from esphomeyaml.helpers import get_variable
+from esphomeyaml.cpp_generator import get_variable
 
 DEPENDENCIES = ['display']
 
@@ -22,7 +22,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    hub = None
     for hub in get_variable(config[CONF_NEXTION_ID]):
         yield
     rhs = hub.make_touch_component(config[CONF_NAME], config[CONF_PAGE_ID],
