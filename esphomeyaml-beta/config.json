@@ -34,5 +34,6 @@
     "port": "int",
     "leave_front_door_open": "bool?",
     "esphomeyaml_version": "str?"
-  }
+  },
+  "image": "ottowinter/esphomeyaml-hassio-{arch}"
 }
