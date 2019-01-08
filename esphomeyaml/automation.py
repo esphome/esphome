@@ -295,7 +295,7 @@ COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
 def component_update_action_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = UpdateComponentAction.new(var)
+    rhs = UpdateComponentAction.new(template_arg, var)
     type = UpdateComponentAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
