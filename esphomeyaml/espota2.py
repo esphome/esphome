@@ -187,9 +187,6 @@ def perform_ota(sock, password, file_handle, filename):
 
         send_check(sock, result, 'auth result')
         receive_exactly(sock, 1, 'auth result', RESPONSE_AUTH_OK)
-    else:
-        if password:
-            raise OTAError("Password specified, but ESP doesn't accept password!")
 
     file_size_encoded = [
         (file_size >> 24) & 0xFF,
