@@ -75,15 +75,15 @@ test2:
         --build-arg "BUILD_ARCH=${ADDON_ARCH}" \
         --build-arg "BUILD_REF=${CI_COMMIT_SHA}" \
         --build-arg "BUILD_VERSION=${ADDON_VERSION}" \
-        --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
-        --tag "${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
+        --tag "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:dev" \
+        --tag "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}" \
         --file "docker/Dockerfile.hassio" \
         .
     - |
       if [ "${DO_PUSH:-true}" = true ]; then
         echo "Pushing to CI registry"
-        docker push ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}
-        docker push ${CI_REGISTRY}/esphomeyaml-hassio-${ADDON_ARCH}:dev
+        docker push ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:${CI_COMMIT_SHA}
+        docker push ${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-${ADDON_ARCH}:dev
       fi
 
 # Generic deploy template
