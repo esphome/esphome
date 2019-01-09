@@ -233,3 +233,8 @@ stepper:
     # Optional:
     acceleration: inf
     deceleration: inf
+
+interval:
+  interval: 5s
+  then:
+    - logger.log: "Interval Run"
