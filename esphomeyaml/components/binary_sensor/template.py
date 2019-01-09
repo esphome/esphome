@@ -3,8 +3,9 @@ import voluptuous as vol
 from esphomeyaml.components import binary_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME
-from esphomeyaml.helpers import App, Application, add, bool_, optional, process_lambda, variable, \
-    setup_component, Component
+from esphomeyaml.cpp_generator import variable, process_lambda, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import Application, Component, App, optional, bool_
 
 MakeTemplateBinarySensor = Application.struct('MakeTemplateBinarySensor')
 TemplateBinarySensor = binary_sensor.binary_sensor_ns.class_('TemplateBinarySensor',

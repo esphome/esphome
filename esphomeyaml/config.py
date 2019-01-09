@@ -1,25 +1,28 @@
 from __future__ import print_function
 
-import importlib
-import logging
 from collections import OrderedDict
+import importlib
+import json
+import logging
+import re
 
 import voluptuous as vol
-from voluptuous.humanize import humanize_error
 
-from esphomeyaml import core, yaml_util, core_config
-from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, CONF_WIFI, ESP_PLATFORMS
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import color, MockObjClass
+from esphomeyaml import core, core_config, yaml_util
+from esphomeyaml.components import substitutions
+from esphomeyaml.const import CONF_ESPHOMEYAML, CONF_PLATFORM, ESP_PLATFORMS
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.helpers import color, indent
+from esphomeyaml.py_compat import text_type
 from esphomeyaml.util import safe_print
+
+# pylint: disable=unused-import, wrong-import-order
+from typing import List, Optional, Tuple, Union  # noqa
+from esphomeyaml.core import ConfigType  # noqa
 
 _LOGGER = logging.getLogger(__name__)
 
-REQUIRED_COMPONENTS = [
-    CONF_ESPHOMEYAML, CONF_WIFI
-]
 _COMPONENT_CACHE = {}
-_ALL_COMPONENTS = []
 
 
 def get_component(domain):
@@ -48,11 +51,16 @@ def is_platform_component(component):
 
 
 def iter_components(config):
-    for domain, conf in config.iteritems():
+    for domain, conf in config.items():
         if domain == CONF_ESPHOMEYAML:
+            yield CONF_ESPHOMEYAML, core_config, conf
             continue
         component = get_component(domain)
-        yield domain, component, conf
+        if getattr(component, 'MULTI_CONF', False):
+            for conf_ in conf:
+                yield domain, component, conf_
+        else:
+            yield domain, component, conf
         if is_platform_component(component):
             for p_config in conf:
                 p_name = u"{}.{}".format(domain, p_config[CONF_PLATFORM])
@@ -60,65 +68,133 @@ def iter_components(config):
                 yield p_name, platform, p_config
 
 
+ConfigPath = List[Union[str, int]]
+
+
+def _path_begins_with_(path, other):  # type: (ConfigPath, ConfigPath) -> bool
+    if len(path) < len(other):
+        return False
+    return path[:len(other)] == other
+
+
+def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
+    ret = _path_begins_with_(path, other)
+    return ret
+
+
 class Config(OrderedDict):
     def __init__(self):
         super(Config, self).__init__()
-        self.errors = []
+        self.errors = []  # type: List[Tuple[basestring, ConfigPath]]
+        self.domains = []  # type: List[Tuple[ConfigPath, basestring]]
 
-    def add_error(self, message, domain=None, config=None):
-        if not isinstance(message, unicode):
-            message = unicode(message)
-        self.errors.append((message, domain, config))
+    def add_error(self, message, path):
+        # type: (basestring, ConfigPath) -> None
+        if not isinstance(message, text_type):
+            message = text_type(message)
+        self.errors.append((message, path))
+
+    def add_domain(self, path, name):
+        # type: (ConfigPath, basestring) -> None
+        self.domains.append((path, name))
+
+    def remove_domain(self, path, name):
+        self.domains.remove((path, name))
+
+    def lookup_domain(self, path):
+        # type: (ConfigPath) -> Optional[basestring]
+        best_len = 0
+        best_domain = None
+        for d_path, domain in self.domains:
+            if len(d_path) < best_len:
+                continue
+            if _path_begins_with(path, d_path):
+                best_len = len(d_path)
+                best_domain = domain
+        return best_domain
+
+    def is_in_error_path(self, path):
+        for _, p in self.errors:
+            if _path_begins_with(p, path):
+                return True
+        return False
+
+    def get_error_for_path(self, path):
+        for msg, p in self.errors:
+            if self.nested_item_path(p) == path:
+                return msg
+        return None
+
+    def nested_item(self, path):
+        data = self
+        for item_index in path:
+            try:
+                data = data[item_index]
+            except (KeyError, IndexError, TypeError):
+                return {}
+        return data
+
+    def nested_item_path(self, path):
+        data = self
+        part = []
+        for item_index in path:
+            try:
+                data = data[item_index]
+            except (KeyError, IndexError, TypeError):
+                return part
+            part.append(item_index)
+        return part
 
 
-def iter_ids(config, prefix=None, parent=None):
-    prefix = prefix or []
-    parent = parent or {}
+def iter_ids(config, path=None):
+    path = path or []
     if isinstance(config, core.ID):
-        yield config, prefix, parent
+        yield config, path
     elif isinstance(config, core.Lambda):
         for id in config.requires_ids:
-            yield id, prefix, parent
+            yield id, path
     elif isinstance(config, list):
         for i, item in enumerate(config):
-            for result in iter_ids(item, prefix + [str(i)], config):
+            for result in iter_ids(item, path + [i]):
                 yield result
     elif isinstance(config, dict):
-        for key, value in config.iteritems():
-            for result in iter_ids(value, prefix + [str(key)], config):
+        for key, value in config.items():
+            for result in iter_ids(value, path + [key]):
                 yield result
 
 
-def do_id_pass(result):
-    declare_ids = []
-    searching_ids = []
-    for id, prefix, config in iter_ids(result):
+def do_id_pass(result):  # type: (Config) -> None
+    from esphomeyaml.cpp_generator import MockObjClass
+
+    declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+    searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+    for id, path in iter_ids(result):
         if id.is_declaration:
             if id.id is not None and any(v[0].id == id.id for v in declare_ids):
-                result.add_error("ID {} redefined!".format(id.id), '.'.join(prefix), config)
+                result.add_error(u"ID {} redefined!".format(id.id), path)
                 continue
-            declare_ids.append((id, prefix, config))
+            declare_ids.append((id, path))
         else:
-            searching_ids.append((id, prefix, config))
+            searching_ids.append((id, path))
     # Resolve default ids after manual IDs
-    for id, _, _ in declare_ids:
+    for id, _ in declare_ids:
         id.resolve([v[0].id for v in declare_ids])
 
     # Check searched IDs
-    for id, prefix, config in searching_ids:
+    for id, path in searching_ids:
         if id.id is not None:
             # manually declared
             match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
             if match is None:
                 # No declared ID with this name
-                result.add_error("Couldn't find ID {}".format(id.id), '.'.join(prefix), config)
+                result.add_error("Couldn't find ID '{}'".format(id.id), path)
                 continue
             if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
                 continue
             if not match.type.inherits_from(id.type):
                 result.add_error("ID '{}' of type {} doesn't inherit from {}. Please double check "
                                  "your ID is pointing to the correct value"
-                                 "".format(id.id, match.type, id.type))
+                                 "".format(id.id, match.type, id.type), path)
 
         if id.id is None and id.type is not None:
             for v in declare_ids:
@@ -129,173 +205,247 @@ def do_id_pass(result):
                     id.id = v[0].id
                     break
             else:
-                result.add_error("Couldn't resolve ID for type {}".format(id.type),
-                                 '.'.join(prefix), config)
+                result.add_error("Couldn't resolve ID for type '{}'".format(id.type), path)
 
 
 def validate_config(config):
-    global _ALL_COMPONENTS
-
-    for req in REQUIRED_COMPONENTS:
-        if req not in config:
-            raise ESPHomeYAMLError("Component {} is required for esphomeyaml.".format(req))
-
-    _ALL_COMPONENTS = list(config.keys())
-
     result = Config()
 
-    def _comp_error(ex, domain, config):
-        result.add_error(_format_config_error(ex, domain, config), domain, config)
+    def _comp_error(ex, path):
+        # type: (vol.Invalid, List[basestring]) -> None
+        if isinstance(ex, vol.MultipleInvalid):
+            errors = ex.errors
+        else:
+            errors = [ex]
+
+        for e in errors:
+            path_ = path + e.path
+            domain = result.lookup_domain(path_) or ''
+            result.add_error(_format_vol_invalid(e, config, path, domain), path_)
+
+    skip_paths = list()  # type: List[ConfigPath]
 
     # Step 1: Load everything
-    for domain, conf in config.iteritems():
+    result.add_domain([CONF_ESPHOMEYAML], CONF_ESPHOMEYAML)
+    result[CONF_ESPHOMEYAML] = config[CONF_ESPHOMEYAML]
+
+    for domain, conf in config.items():
         domain = str(domain)
-        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
+        if domain == CONF_ESPHOMEYAML or domain.startswith(u'.'):
+            skip_paths.append([domain])
             continue
+        result.add_domain([domain], domain)
+        result[domain] = conf
         if conf is None:
-            conf = {}
+            result[domain] = conf = {}
         component = get_component(domain)
         if component is None:
-            result.add_error(u"Component not found: {}".format(domain), domain, conf)
+            result.add_error(u"Component not found: {}".format(domain), [domain])
+            skip_paths.append([domain])
             continue
 
-        if not hasattr(component, 'PLATFORM_SCHEMA'):
-            continue
-
-        for p_config in conf:
-            if not isinstance(p_config, dict):
-                result.add_error(u"Platform schemas must have 'platform:' key", )
-                continue
-            p_name = p_config.get(u'platform')
-            if p_name is None:
-                result.add_error(u"No platform specified for {}".format(domain))
-                continue
-            p_domain = u'{}.{}'.format(domain, p_name)
-            platform = get_platform(domain, p_name)
-            if platform is None:
-                result.add_error(u"Platform not found: '{}'".format(p_domain), p_domain, p_config)
-                continue
-
-    # Step 2: Validate configuration
-    try:
-        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(config[CONF_ESPHOMEYAML])
-    except vol.Invalid as ex:
-        _comp_error(ex, CONF_ESPHOMEYAML, config[CONF_ESPHOMEYAML])
-
-    for domain, conf in config.iteritems():
-        if domain == CONF_ESPHOMEYAML or domain.startswith('.'):
-            continue
-        if conf is None:
-            conf = {}
-        domain = str(domain)
-        component = get_component(domain)
-        if component is None:
-            continue
-
-        esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
-        if core.ESP_PLATFORM not in esp_platforms:
-            result.add_error(u"Component {} doesn't support {}.".format(domain, core.ESP_PLATFORM),
-                             domain, conf)
-            continue
+        if not isinstance(conf, list) and getattr(component, 'MULTI_CONF', False):
+            result[domain] = conf = [conf]
 
         success = True
         dependencies = getattr(component, 'DEPENDENCIES', [])
         for dependency in dependencies:
-            if dependency not in _ALL_COMPONENTS:
+            if dependency not in config:
                 result.add_error(u"Component {} requires component {}".format(domain, dependency),
-                                 domain, conf)
+                                 [domain])
                 success = False
         if not success:
+            skip_paths.append([domain])
             continue
 
-        if hasattr(component, 'CONFIG_SCHEMA'):
-            try:
-                validated = component.CONFIG_SCHEMA(conf)
-                result[domain] = validated
-            except vol.Invalid as ex:
-                _comp_error(ex, domain, conf)
-                continue
+        success = True
+        conflicts_with = getattr(component, 'CONFLICTS_WITH', [])
+        for conflict in conflicts_with:
+            if conflict in config:
+                result.add_error(u"Component {} cannot be used together with component {}"
+                                 u"".format(domain, conflict), [domain])
+                success = False
+        if not success:
+            skip_paths.append([domain])
+            continue
+
+        esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
+        if CORE.esp_platform not in esp_platforms:
+            result.add_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                             [domain])
+            skip_paths.append([domain])
+            continue
 
         if not hasattr(component, 'PLATFORM_SCHEMA'):
             continue
 
-        platforms = []
-        for p_config in conf:
+        result.remove_domain([domain], domain)
+
+        if not isinstance(conf, list) and conf:
+            result[domain] = conf = [conf]
+
+        for i, p_config in enumerate(conf):
             if not isinstance(p_config, dict):
+                result.add_error(u"Platform schemas must have 'platform:' key", [domain, i])
+                skip_paths.append([domain, i])
                 continue
-            p_name = p_config.get(u'platform')
+            p_name = p_config.get('platform')
             if p_name is None:
+                result.add_error(u"No platform specified for {}".format(domain), [domain, i])
+                skip_paths.append([domain, i])
                 continue
             p_domain = u'{}.{}'.format(domain, p_name)
+            result.add_domain([domain, i], p_domain)
             platform = get_platform(domain, p_name)
             if platform is None:
+                result.add_error(u"Platform not found: '{}'".format(p_domain), [domain, i])
+                skip_paths.append([domain, i])
                 continue
 
             success = True
             dependencies = getattr(platform, 'DEPENDENCIES', [])
             for dependency in dependencies:
-                if dependency not in _ALL_COMPONENTS:
-                    result.add_error(
-                        u"Platform {} requires component {}".format(p_domain, dependency),
-                        p_domain, p_config)
+                if dependency not in config:
+                    result.add_error(u"Platform {} requires component {}"
+                                     u"".format(p_domain, dependency), [domain, i])
                     success = False
             if not success:
+                skip_paths.append([domain, i])
+                continue
+
+            success = True
+            conflicts_with = getattr(platform, 'CONFLICTS_WITH', [])
+            for conflict in conflicts_with:
+                if conflict in config:
+                    result.add_error(u"Platform {} cannot be used together with component {}"
+                                     u"".format(p_domain, conflict), [domain, i])
+                    success = False
+            if not success:
+                skip_paths.append([domain, i])
                 continue
 
             esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
-            if core.ESP_PLATFORM not in esp_platforms:
-                result.add_error(
-                    u"Platform {} doesn't support {}.".format(p_domain, core.ESP_PLATFORM),
-                    p_domain, p_config)
+            if CORE.esp_platform not in esp_platforms:
+                result.add_error(u"Platform {} doesn't support {}."
+                                 u"".format(p_domain, CORE.esp_platform), [domain, i])
+                skip_paths.append([domain, i])
                 continue
 
-            if hasattr(platform, u'PLATFORM_SCHEMA'):
+    # Step 2: Validate configuration
+    try:
+        result[CONF_ESPHOMEYAML] = core_config.CONFIG_SCHEMA(result[CONF_ESPHOMEYAML])
+    except vol.Invalid as ex:
+        _comp_error(ex, [CONF_ESPHOMEYAML])
+
+    for domain, conf in result.items():
+        domain = str(domain)
+        if [domain] in skip_paths:
+            continue
+        component = get_component(domain)
+
+        if hasattr(component, 'CONFIG_SCHEMA'):
+            multi_conf = getattr(component, 'MULTI_CONF', False)
+
+            if multi_conf:
+                for i, conf_ in enumerate(conf):
+                    try:
+                        validated = component.CONFIG_SCHEMA(conf_)
+                        result[domain][i] = validated
+                    except vol.Invalid as ex:
+                        _comp_error(ex, [domain, i])
+            else:
+                try:
+                    validated = component.CONFIG_SCHEMA(conf)
+                    result[domain] = validated
+                except vol.Invalid as ex:
+                    _comp_error(ex, [domain])
+                    continue
+
+        if not hasattr(component, 'PLATFORM_SCHEMA'):
+            continue
+
+        for i, p_config in enumerate(conf):
+            if [domain, i] in skip_paths:
+                continue
+            p_name = p_config['platform']
+            platform = get_platform(domain, p_name)
+
+            if hasattr(platform, 'PLATFORM_SCHEMA'):
                 try:
                     p_validated = platform.PLATFORM_SCHEMA(p_config)
                 except vol.Invalid as ex:
-                    _comp_error(ex, p_domain, p_config)
+                    _comp_error(ex, [domain, i])
                     continue
-                platforms.append(p_validated)
-        result[domain] = platforms
+                result[domain][i] = p_validated
 
-    do_id_pass(result)
+    if not result.errors:
+        # Only parse IDs if no validation error. Otherwise
+        # user gets confusing messages
+        do_id_pass(result)
     return result
 
 
-REQUIRED = ['esphomeyaml', 'wifi']
+def _nested_getitem(data, path):
+    for item_index in path:
+        try:
+            data = data[item_index]
+        except (KeyError, IndexError, TypeError):
+            return None
+    return data
 
 
-def _format_config_error(ex, domain, config):
-    message = u"Invalid config for [{}]: ".format(domain)
+def humanize_error(config, validation_error):
+    offending_item_summary = _nested_getitem(config, validation_error.path)
+    if isinstance(offending_item_summary, dict):
+        try:
+            offending_item_summary = json.dumps(offending_item_summary)
+        except (TypeError, ValueError):
+            pass
+    validation_error = text_type(validation_error)
+    m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
+    if m is not None:
+        validation_error = m.group(1)
+    validation_error = validation_error.strip()
+    if not validation_error.endswith(u'.'):
+        validation_error += u'.'
+    if offending_item_summary is None:
+        return validation_error
+    return u"{} Got '{}'".format(validation_error, offending_item_summary)
+
+
+def _format_vol_invalid(ex, config, path, domain):
+    # type: (vol.Invalid, ConfigType, ConfigPath, basestring) -> unicode
+    message = u''
     if u'extra keys not allowed' in ex.error_message:
-        message += u'[{}] is an invalid option for [{}]. Check: {}->{}.' \
-            .format(ex.path[-1], domain, domain,
-                    u'->'.join(str(m) for m in ex.path))
+        try:
+            paren = ex.path[-2]
+        except IndexError:
+            paren = domain
+        message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
+    elif u'required key not provided' in ex.error_message:
+        try:
+            paren = ex.path[-2]
+        except IndexError:
+            paren = domain
+        message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
-        message += u'{}.'.format(humanize_error(config, ex))
-
-    if isinstance(config, list):
-        return message
-
-    domain_config = config.get(domain, config)
-    message += u" (See {}, line {}). ".format(
-        getattr(domain_config, '__config_file__', '?'),
-        getattr(domain_config, '__line__', '?'))
+        message += humanize_error(_nested_getitem(config, path), ex)
 
     return message
 
 
-def load_config(path):
+def load_config():
     try:
-        config = yaml_util.load_yaml(path)
+        config = yaml_util.load_yaml(CORE.config_path)
     except OSError:
-        raise ESPHomeYAMLError(u"Could not read configuration file at {}".format(path))
-    core.RAW_CONFIG = config
+        raise EsphomeyamlError(u"Invalid YAML at {}".format(CORE.config_path))
+    CORE.raw_config = config
+    config = substitutions.do_substitution_pass(config)
     core_config.preload_core_config(config)
 
     try:
         result = validate_config(config)
-    except ESPHomeYAMLError:
+    except EsphomeyamlError:
         raise
     except Exception:
         _LOGGER.error(u"Unexpected exception while reading configuration:")
@@ -304,60 +454,151 @@ def load_config(path):
     return result
 
 
-def line_info(obj, **kwargs):
+def line_info(obj, highlight=True):
     """Display line config source."""
+    if not highlight:
+        return None
     if hasattr(obj, '__config_file__'):
         return color('cyan', "[source {}:{}]"
-                     .format(obj.__config_file__, obj.__line__ or '?'),
-                     **kwargs)
-    return '?'
+                     .format(obj.__config_file__, obj.__line__ or '?'))
+    return None
 
 
-def dump_dict(layer, indent_count=3, listi=False, **kwargs):
-    def sort_dict_key(val):
-        """Return the dict key for sorting."""
-        key = str.lower(val[0])
-        return '0' if key == 'platform' else key
-
-    indent_str = indent_count * ' '
-    if listi or isinstance(layer, list):
-        indent_str = indent_str[:-1] + '-'
-    if isinstance(layer, dict):
-        for key, value in sorted(layer.items(), key=sort_dict_key):
-            if isinstance(value, (dict, list)):
-                safe_print(u"{} {}: {}".format(indent_str, key, line_info(value, **kwargs)))
-                dump_dict(value, indent_count + 2)
-            else:
-                safe_print(u"{} {}: {}".format(indent_str, key, value))
-            indent_str = indent_count * ' '
-    if isinstance(layer, (list, tuple)):
-        for i in layer:
-            if isinstance(i, dict):
-                dump_dict(i, indent_count + 2, True)
-            else:
-                safe_print(u" {} {}".format(indent_str, i))
+def _print_on_next_line(obj):
+    if isinstance(obj, (list, tuple, dict)):
+        return True
+    if isinstance(obj, str):
+        return len(obj) > 80
+    if isinstance(obj, core.Lambda):
+        return len(obj.value) > 80
+    return False
 
 
-def read_config(path):
+def dump_dict(config, path, at_root=True):
+    # type: (Config, ConfigPath, bool) -> Tuple[unicode, bool]
+    conf = config.nested_item(path)
+    ret = u''
+    multiline = False
+
+    if at_root:
+        error = config.get_error_for_path(path)
+        if error is not None:
+            ret += u'\n' + color('bold_red', error) + u'\n'
+
+    if isinstance(conf, (list, tuple)):
+        multiline = True
+        if not conf:
+            ret += u'[]'
+            multiline = False
+
+        for i in range(len(conf)):
+            path_ = path + [i]
+            error = config.get_error_for_path(path_)
+            if error is not None:
+                ret += u'\n' + color('bold_red', error) + u'\n'
+
+            sep = u'- '
+            if config.is_in_error_path(path_):
+                sep = color('red', sep)
+            msg, _ = dump_dict(config, path_, at_root=False)
+            msg = indent(msg)
+            inf = line_info(config.nested_item(path_), highlight=config.is_in_error_path(path_))
+            if inf is not None:
+                msg = inf + u'\n' + msg
+            elif msg:
+                msg = msg[2:]
+            ret += sep + msg + u'\n'
+    elif isinstance(conf, dict):
+        multiline = True
+        if not conf:
+            ret += u'{}'
+            multiline = False
+
+        for k in conf.keys():
+            path_ = path + [k]
+            error = config.get_error_for_path(path_)
+            if error is not None:
+                ret += u'\n' + color('bold_red', error) + u'\n'
+
+            st = u'{}: '.format(k)
+            if config.is_in_error_path(path_):
+                st = color('red', st)
+            msg, m = dump_dict(config, path_, at_root=False)
+
+            inf = line_info(config.nested_item(path_), highlight=config.is_in_error_path(path_))
+            if m:
+                msg = u'\n' + indent(msg)
+
+            if inf is not None:
+                if m:
+                    msg = u' ' + inf + msg
+                else:
+                    msg = msg + u' ' + inf
+            ret += st + msg + u'\n'
+    elif isinstance(conf, str):
+        if not conf:
+            conf += u"''"
+
+        if len(conf) > 80:
+            conf = u'|-\n' + indent(conf)
+        error = config.get_error_for_path(path)
+        col = 'bold_red' if error else 'white'
+        ret += color(col, text_type(conf))
+    elif isinstance(conf, core.Lambda):
+        conf = u'!lambda |-\n' + indent(text_type(conf.value))
+        error = config.get_error_for_path(path)
+        col = 'bold_red' if error else 'white'
+        ret += color(col, conf)
+    elif conf is None:
+        pass
+    else:
+        error = config.get_error_for_path(path)
+        col = 'bold_red' if error else 'white'
+        ret += color(col, text_type(conf))
+        multiline = u'\n' in ret
+
+    return ret, multiline
+
+
+def strip_default_ids(config):
+    if isinstance(config, list):
+        to_remove = []
+        for i, x in enumerate(config):
+            x = config[i] = strip_default_ids(x)
+            if isinstance(x, core.ID) and not x.is_manual:
+                to_remove.append(x)
+        for x in to_remove:
+            config.remove(x)
+    elif isinstance(config, dict):
+        to_remove = []
+        for k, v in config.items():
+            v = config[k] = strip_default_ids(v)
+            if isinstance(v, core.ID) and not v.is_manual:
+                to_remove.append(k)
+        for k in to_remove:
+            config.pop(k)
+    return config
+
+
+def read_config(verbose):
     _LOGGER.info("Reading configuration...")
     try:
-        res = load_config(path)
-    except ESPHomeYAMLError as err:
+        res = load_config()
+    except EsphomeyamlError as err:
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
-    excepts = {}
-    for message, domain, config in res.errors:
-        domain = domain or u"General Error"
-        excepts.setdefault(domain, []).append(message)
-        if config is not None:
-            excepts[domain].append(config)
+    if res.errors:
+        if not verbose:
+            res = strip_default_ids(res)
 
-    if excepts:
-        safe_print(color('bold_white', u"Failed config"))
-        for domain, config in excepts.iteritems():
-            safe_print(u' {} {}'.format(color('bold_red', domain + u':'),
-                                        color('red', '', reset='red')))
-            dump_dict(config, reset='red')
-            safe_print(color('reset'))
+        safe_print(color('bold_red', u"Failed config"))
+        safe_print('')
+        for path, domain in res.domains:
+            if not res.is_in_error_path(path):
+                continue
+
+            safe_print(color('bold_red', u'{}:'.format(domain)) + u' ' +
+                       (line_info(res.nested_item(path)) or u''))
+            safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)

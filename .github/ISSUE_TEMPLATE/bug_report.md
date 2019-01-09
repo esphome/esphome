@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Create a report to help esphomelib improve
 
 ---
 
@@ -9,7 +9,9 @@ about: Create a report to help us improve
   - esphomeyaml [here] - This is mostly for reporting bugs when compiling and when you get a long stack trace while compiling or if a configuration fails to validate.
   - esphomelib [https://github.com/OttoWinter/esphomelib] - Report bugs there if the ESP is crashing or a feature is not working as expected.
   - esphomedocs [https://github.com/OttoWinter/esphomedocs] - Report bugs there if the documentation is wrong/outdated.
-- Provide as many details as possible. Paste logs, configuration sample and code into the backticks (```). Do not delete any text from this template!
+- Provide as many details as possible. Paste logs, configuration sample and code into the backticks (```).
+ 
+  DO NOT DELETE ANY TEXT from this template! Otherwise the issue may be closed without a comment.
 -->
 
 **Operating environment (Hass.io/Docker/pip/etc.):**
@@ -33,7 +35,7 @@ Please add the link to the documentation at https://esphomelib.com/esphomeyaml/i
 
 **Problem-relevant YAML-configuration entries:**
 ```yaml
-
+PASTE YAML FILE HERE
 ```
 
 **Traceback (if applicable):**

@@ -1,7 +1,9 @@
 from esphomeyaml.components import text_sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME
-from esphomeyaml.helpers import App, Application, variable, setup_component, Component
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, Component
 
 MakeVersionTextSensor = Application.struct('MakeVersionTextSensor')
 VersionTextSensor = text_sensor.text_sensor_ns.class_('VersionTextSensor',

@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, gpio_input_pin_expression, variable, \
-    setup_component
+from esphomeyaml.cpp_generator import variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application
 
 MakeDutyCycleSensor = Application.struct('MakeDutyCycleSensor')
 DutyCycleSensor = sensor.sensor_ns.class_('DutyCycleSensor', sensor.PollingSensorComponent)

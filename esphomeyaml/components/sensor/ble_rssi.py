@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import sensor
 from esphomeyaml.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESP32BLETracker, \
     make_address_array
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAC_ADDRESS, CONF_NAME
-from esphomeyaml.helpers import get_variable, esphomelib_ns
+from esphomeyaml.cpp_generator import get_variable
+from esphomeyaml.cpp_types import esphomelib_ns
 
 DEPENDENCIES = ['esp32_ble_tracker']
 

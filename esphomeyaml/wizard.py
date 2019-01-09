@@ -6,43 +6,37 @@ import unicodedata
 
 import voluptuous as vol
 
-from esphomeyaml.components import mqtt
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphomeyaml.helpers import color
 # pylint: disable=anomalous-backslash-in-string
 from esphomeyaml.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
+from esphomeyaml.py_compat import safe_input, text_type
+from esphomeyaml.storage_json import StorageJSON, ext_storage_path
 from esphomeyaml.util import safe_print
 
-CORE_BIG = """    _____ ____  _____  ______
+CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
   | |   | |  | | |__) | |__
   | |   | |  | |  _  /|  __|
   | |___| |__| | | \ \| |____
    \_____\____/|_|  \_\______|
 """
-ESP_BIG = """      ______  _____ _____
+ESP_BIG = r"""      ______  _____ _____
      |  ____|/ ____|  __ \\
      | |__  | (___ | |__) |
      |  __|  \___ \|  ___/
      | |____ ____) | |
      |______|_____/|_|
 """
-WIFI_BIG = """   __          ___ ______ _
+WIFI_BIG = r"""   __          ___ ______ _
    \ \        / (_)  ____(_)
     \ \  /\  / / _| |__   _
      \ \/  \/ / | |  __| | |
       \  /\  /  | | |    | |
        \/  \/   |_|_|    |_|
 """
-MQTT_BIG = """   __  __  ____ _______ _______
-  |  \/  |/ __ \__   __|__   __|
-  | \  / | |  | | | |     | |
-  | |\/| | |  | | | |     | |
-  | |  | | |__| | | |     | |
-  |_|  |_|\___\_\ |_|     |_|
-"""
-OTA_BIG = """       ____ _______
+OTA_BIG = r"""       ____ _______
       / __ \__   __|/\\
      | |  | | | |  /  \\
      | |  | | | | / /\ \\
@@ -50,7 +44,6 @@ OTA_BIG = """       ____ _______
       \____/  |_/_/    \_\\
 """
 
-# TODO handle escaping
 BASE_CONFIG = u"""esphomeyaml:
   name: {name}
   platform: {platform}
@@ -60,29 +53,40 @@ wifi:
   ssid: '{ssid}'
   password: '{psk}'
 
-mqtt:
-  broker: '{broker}'
-  username: '{mqtt_username}'
-  password: '{mqtt_password}'
-
 # Enable logging
 logger:
 
+# Enable Home Assistant API
+api:
 """
 
 
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
-    if kwargs['ota_password']:
-        config += u"ota:\n  password: '{}'\n".format(kwargs['ota_password'])
+    if kwargs['password']:
+        config += u"  password: '{0}'\n\nota:\n  password: '{0}'\n".format(kwargs['password'])
     else:
-        config += u"ota:\n"
+        config += u"\nota:\n"
 
     return config
 
 
-if os.getenv('ESPHOMEYAML_QUICKWIZARD', False):
+def wizard_write(path, **kwargs):
+    name = kwargs['name']
+    board = kwargs['board']
+    if 'platform' not in kwargs:
+        kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
+    platform = kwargs['platform']
+
+    with codecs.open(path, 'w') as f_handle:
+        f_handle.write(wizard_file(**kwargs))
+    storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
+    storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
+    storage.save(storage_path)
+
+
+if os.getenv('ESPHOMEYAML_QUICKWIZARD', ''):
     def sleep(time):
         pass
 else:
@@ -101,12 +105,12 @@ def safe_print_step(step, big):
 def default_input(text, default):
     safe_print()
     safe_print(u"Press ENTER for default ({})".format(default))
-    return raw_input(text.format(default)) or default
+    return safe_input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
 def strip_accents(string):
-    return u''.join(c for c in unicodedata.normalize('NFD', unicode(string))
+    return u''.join(c for c in unicodedata.normalize('NFD', text_type(string))
                     if unicodedata.category(c) != 'Mn')
 
 
@@ -121,11 +125,11 @@ def wizard(path):
         return 1
     safe_print("Hi there!")
     sleep(1.5)
-    safe_print("I'm the wizard of esphomeyaml :)")
+    safe_print("I'm the wizard of ESPHome :)")
     sleep(1.25)
-    safe_print("And I'm here to help you get started with esphomeyaml.")
+    safe_print("And I'm here to help you get started with ESPHome.")
     sleep(2.0)
-    safe_print("In 5 steps I'm going to guide you through creating a basic "
+    safe_print("In 4 steps I'm going to guide you through creating a basic "
                "configuration file for your custom ESP8266/ESP32 firmware. Yay!")
     sleep(3.0)
     safe_print()
@@ -137,7 +141,7 @@ def wizard(path):
         color('bold_white', "livingroom")))
     safe_print()
     sleep(1)
-    name = raw_input(color("bold_white", "(name): "))
+    name = safe_input(color("bold_white", "(name): "))
     while True:
         try:
             name = cv.valid_name(name)
@@ -162,7 +166,7 @@ def wizard(path):
         sleep(0.5)
         safe_print()
         safe_print("Please enter either ESP32 or ESP8266.")
-        platform = raw_input(color("bold_white", "(ESP32/ESP8266): "))
+        platform = safe_input(color("bold_white", "(ESP32/ESP8266): "))
         try:
             platform = vol.All(vol.Upper, vol.Any(*ESP_PLATFORMS))(platform)
             break
@@ -191,8 +195,10 @@ def wizard(path):
     else:
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
         boards = list(ESP8266_BOARD_PINS.keys())
+    safe_print("Options: {}".format(', '.join(boards)))
+
     while True:
-        board = raw_input(color("bold_white", "(board): "))
+        board = safe_input(color("bold_white", "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
@@ -200,7 +206,6 @@ def wizard(path):
             safe_print(color('red', "Sorry, I don't think the board \"{}\" exists."))
             safe_print()
             sleep(0.25)
-            safe_print("Possible options are {}".format(', '.join(boards)))
             safe_print()
 
     safe_print(u"Way to go! You've chosen {} as your board.".format(color('cyan', board)))
@@ -217,7 +222,7 @@ def wizard(path):
     sleep(1.5)
     safe_print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:
-        ssid = raw_input(color('bold_white', "(ssid): "))
+        ssid = safe_input(color('bold_white', "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
@@ -237,77 +242,30 @@ def wizard(path):
     safe_print()
     safe_print("For example \"{}\"".format(color('bold_white', 'PASSWORD42')))
     sleep(0.5)
-    psk = raw_input(color('bold_white', '(PSK): '))
+    psk = safe_input(color('bold_white', '(PSK): '))
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
     sleep(1.5)
 
-    safe_print_step(4, MQTT_BIG)
-    safe_print("Almost there! Now let's setup MQTT so that your node can connect to the "
-               "outside world.")
-    safe_print()
-    sleep(1)
-    safe_print("Please enter the " + color('green', 'address') + " of your MQTT broker.")
-    safe_print()
-    safe_print("For example \"{}\".".format(color('bold_white', '192.168.178.84')))
-    while True:
-        broker = raw_input(color('bold_white', "(broker): "))
-        try:
-            broker = mqtt.validate_broker(broker)
-            break
-        except vol.Invalid as err:
-            safe_print(color('red', u"The broker address \"{}\" seems to be invalid: {} :("
-                                    u"".format(broker, err)))
-            safe_print("Please try again.")
-            safe_print()
-            sleep(1)
-
-    safe_print("Thanks! Now enter the " + color('green', 'username') + " and " +
-               color('green', 'password') +
-               " for the MQTT broker. Leave empty for no authentication.")
-    mqtt_username = raw_input(color('bold_white', '(username): '))
-    mqtt_password = ''
-    if mqtt_username:
-        mqtt_password = raw_input(color('bold_white', '(password): '))
-
-        show = '*' * len(mqtt_password)
-        if len(mqtt_password) >= 2:
-            show = mqtt_password[:2] + '*' * len(mqtt_password)
-        safe_print(u"MQTT Username: \"{}\"; Password: \"{}\""
-                   u"".format(color('cyan', mqtt_username), color('cyan', show)))
-    else:
-        safe_print("No authentication for MQTT")
-
-    safe_print_step(5, OTA_BIG)
-    safe_print("Last step! esphomeyaml can automatically upload custom firmwares over WiFi "
-               "(over the air).")
+    safe_print_step(4, OTA_BIG)
+    safe_print("Almost there! ESPHome can automatically upload custom firmwares over WiFi "
+               "(over the air) and integrates into Home Assistant with a native API.")
     safe_print("This can be insecure if you do not trust the WiFi network. Do you want to set "
-               "an " + color('green', 'OTA password') + " for remote updates?")
+               "a " + color('green', 'password') + " for connecting to this ESP?")
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    ota_password = raw_input(color('bold_white', '(password): '))
+    password = safe_input(color('bold_white', '(password): '))
 
-    config = wizard_file(name=name, platform=platform, board=board,
-                         ssid=ssid, psk=psk, broker=broker,
-                         mqtt_username=mqtt_username, mqtt_password=mqtt_password,
-                         ota_password=ota_password)
-
-    with codecs.open(path, 'w') as f_handle:
-        f_handle.write(config)
+    wizard_write(path=path, name=name, platform=platform, board=board,
+                 ssid=ssid, psk=psk, password=password)
 
     safe_print()
     safe_print(color('cyan', "DONE! I've now written a new configuration file to ") +
                color('bold_cyan', path))
     safe_print()
     safe_print("Next steps:")
-    safe_print("  > If you haven't already, enable MQTT discovery in Home Assistant:")
-    safe_print()
-    safe_print(color('bold_white', "# In your configuration.yaml"))
-    safe_print(color('bold_white', "mqtt:"))
-    safe_print(color('bold_white', u"  broker: {}".format(broker)))
-    safe_print(color('bold_white', "  # ..."))
-    safe_print(color('bold_white', "  discovery: True"))
-    safe_print()
+    safe_print("  > Check your Home Assistant \"integrations\" screen. If all goes well, you "
+               "should see your ESP being discovered automatically.")
     safe_print("  > Then follow the rest of the getting started guide:")
     safe_print("  > https://esphomelib.com/esphomeyaml/guides/getting_started_command_line.html")
     return 0

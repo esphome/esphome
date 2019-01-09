@@ -2,7 +2,7 @@
   "name": "esphomeyaml-beta",
   "version": "1.10.0b2",
   "slug": "esphomeyaml-beta",
-  "description": "Beta version of esphomeyaml HassIO add-on.",
+  "description": "Beta version of esphomeyaml Hass.io add-on.",
   "url": "https://beta.esphomelib.com/esphomeyaml/index.html",
   "webui": "http://[HOST]:[PORT:6052]",
   "startup": "application",

@@ -1,25 +1,37 @@
 esphomeyaml:
-  name: test2
+  name: $devicename
   platform: ESP32
   board: nodemcu-32s
-  # Use latest upstream esphomelib git version.
-  esphomelib_version: dev
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
   use_custom_code: true
   build_path: build/test2
 
-wifi:
-  ssid: 'MySSID'
-  password: 'password1'
-  reboot_timeout: 120s
+substitutions:
+  devicename: test2
+
+ethernet:
+  type: LAN8720
+  mdc_pin: GPIO23
+  mdio_pin: GPIO24
+  clk_mode: GPIO0_IN
+  phy_addr: 0
+  power_pin: GPIO25
+  manual_ip:
+    static_ip: 192.168.178.56
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+  hostname: helloworld
+  domain: .local
 
 mqtt:
   broker: '192.168.178.84'
   port: 1883
   username: 'debug'
   password: 'debug'
+
+api:
 
 i2c:
   sda: 21
@@ -117,6 +129,31 @@ sensor:
       name: "CSE7766 Current"
     power:
       name: "CSE776 Power"
+  - platform: apds9960
+    type: proximity
+    name: APDS9960 Proximity
+  - platform: apds9960
+    type: clear
+    name: APDS9960 Clear
+  - platform: apds9960
+    type: red
+    name: APDS9960 Red
+  - platform: apds9960
+    type: green
+    name: APDS9960 Green
+  - platform: apds9960
+    type: blue
+    name: APDS9960 Blue
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+
+time:
+- platform: homeassistant
+
+apds9960:
+  address: 0x20
+  update_interval: 60s
 
 esp32_touch:
   setup_mode: True
@@ -129,6 +166,18 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
+  - platform: apds9960
+    direction: up
+    name: APDS9960 Up
+  - platform: apds9960
+    direction: down
+    name: APDS9960 Down
+  - platform: apds9960
+    direction: left
+    name: APDS9960 Left
+  - platform: apds9960
+    direction: right
+    name: APDS9960 Right
 
 remote_receiver:
   pin: GPIO32
@@ -150,7 +199,7 @@ text_sensor:
     icon: mdi:icon
     id: version_sensor
     on_value:
-      - lambda: |-
+      - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
   - platform: mqtt_subscribe
@@ -161,8 +210,31 @@ text_sensor:
     name: "Template Text Sensor"
     lambda: |-
       return {"Hello World"};
+  - platform: homeassistant
+    entity_id: sensor.hello_world2
+    id: ha_hello_world2
 
 script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+
+stepper:
+  - platform: uln2003
+    id: my_stepper
+    pin_a: GPIO23
+    pin_b: GPIO24
+    pin_c: GPIO25
+    pin_d: GPIO26
+    sleep_when_done: no
+    step_mode: HALF_STEP
+    max_speed: 250 steps/s
+
+    # Optional:
+    acceleration: inf
+    deceleration: inf
+
+interval:
+  interval: 5s
+  then:
+    - logger.log: "Interval Run"

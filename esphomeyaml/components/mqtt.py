@@ -7,17 +7,18 @@ from esphomeyaml import automation
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import logger
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, CONF_DISCOVERY, \
-    CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, \
-    CONF_LOG_TOPIC, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, CONF_PORT, CONF_QOS, \
-    CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_TOPIC, \
-    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE, CONF_ON_JSON_MESSAGE, \
-    CONF_STATE_TOPIC, CONF_MQTT, CONF_ESPHOMEYAML, CONF_NAME, CONF_AVAILABILITY, \
-    CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_INTERNAL
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import App, ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, TemplateArguments, add, esphomelib_ns, optional, std_string, templatable, \
-    uint8, bool_, JsonObjectRef, process_lambda, JsonObjectConstRef, Component, Action, Trigger
+from esphomeyaml.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, \
+    CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, \
+    CONF_ESPHOMEYAML, CONF_ID, CONF_INTERNAL, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, \
+    CONF_MQTT, CONF_NAME, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, CONF_PASSWORD, CONF_PAYLOAD, \
+    CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PORT, CONF_QOS, CONF_REBOOT_TIMEOUT, \
+    CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_STATE_TOPIC, CONF_TOPIC, \
+    CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
+from esphomeyaml.core import EsphomeyamlError
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, RawExpression, \
+    StructInitializer, TemplateArguments, add, process_lambda, templatable
+from esphomeyaml.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
+    Trigger, bool_, esphomelib_ns, optional, std_string, uint8, void
 
 
 def validate_message_just_topic(value):
@@ -48,12 +49,14 @@ MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
 MQTTComponent = mqtt_ns.class_('MQTTComponent', Component)
 
 
-def validate_broker(value):
-    value = cv.string_strict(value)
-    if u':' in value:
-        raise vol.Invalid(u"Please specify the port using the port: option")
-    if not value:
-        raise vol.Invalid(u"Broker cannot be empty")
+def validate_config(value):
+    if CONF_PORT not in value:
+        parts = value[CONF_BROKER].split(u':')
+        if len(parts) == 2:
+            value[CONF_BROKER] = parts[0]
+            value[CONF_PORT] = cv.port(parts[1])
+        else:
+            value[CONF_PORT] = 1883
     return value
 
 
@@ -64,14 +67,14 @@ def validate_fingerprint(value):
     return value
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
-    vol.Required(CONF_BROKER): validate_broker,
-    vol.Optional(CONF_PORT, default=1883): cv.port,
+    vol.Required(CONF_BROKER): cv.string_strict,
+    vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_USERNAME, default=''): cv.string,
     vol.Optional(CONF_PASSWORD, default=''): cv.string,
     vol.Optional(CONF_CLIENT_ID): vol.All(cv.string, vol.Length(max=23)),
-    vol.Optional(CONF_DISCOVERY): cv.boolean,
+    vol.Optional(CONF_DISCOVERY): vol.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     vol.Optional(CONF_DISCOVERY_RETAIN): cv.boolean,
     vol.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
     vol.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -82,20 +85,21 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Optional(CONF_LEVEL): logger.is_log_level,
     }), validate_message_just_topic),
     vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
-                                                 cv.ensure_list, [validate_fingerprint]),
+                                                 cv.ensure_list(validate_fingerprint)),
     vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
         vol.Required(CONF_TOPIC): cv.subscribe_topic,
-        vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+        vol.Optional(CONF_QOS): cv.mqtt_qos,
+        vol.Optional(CONF_PAYLOAD): cv.string_strict,
     }),
     vol.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
         vol.Required(CONF_TOPIC): cv.subscribe_topic,
         vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     }),
-})
+}), validate_config)
 
 
 def exp_mqtt_message(config):
@@ -116,12 +120,17 @@ def to_code(config):
                         config[CONF_USERNAME], config[CONF_PASSWORD])
     mqtt = Pvariable(config[CONF_ID], rhs)
 
-    if not config.get(CONF_DISCOVERY, True):
+    discovery = config.get(CONF_DISCOVERY, True)
+    discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
+    discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
+
+    if not discovery:
         add(mqtt.disable_discovery())
+    elif discovery == "CLEAN":
+        add(mqtt.set_discovery_info(discovery_prefix, discovery_retain, True))
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
-        discovery_retain = config.get(CONF_DISCOVERY_RETAIN, True)
-        discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
+
     if CONF_TOPIC_PREFIX in config:
         add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
@@ -169,8 +178,12 @@ def to_code(config):
         add(mqtt.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
-        rhs = mqtt.make_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
+        rhs = App.register_component(mqtt.make_message_trigger(conf[CONF_TOPIC]))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        if CONF_QOS in conf:
+            add(trigger.set_qos(conf[CONF_QOS]))
+        if CONF_PAYLOAD in conf:
+            add(trigger.set_payload(conf[CONF_PAYLOAD]))
         automation.build_automation(trigger, std_string, conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
@@ -189,8 +202,7 @@ MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
-def mqtt_publish_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
     rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
@@ -222,8 +234,7 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
-def mqtt_publish_json_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
     rhs = App.Pget_mqtt_client().Pmake_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
@@ -231,7 +242,8 @@ def mqtt_publish_json_action_to_code(config, action_id, arg_type):
         yield None
     add(action.set_topic(template_))
 
-    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')]):
+    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')],
+                                  return_type=void):
         yield None
     add(action.set_payload(lambda_))
     if CONF_QOS in config:
@@ -254,12 +266,11 @@ def get_default_topic_for(data, component_type, name, suffix):
                                 sanitized_name, suffix)
 
 
-def build_hass_config(data, component_type, config, include_state=True, include_command=True,
-                      platform='mqtt'):
+def build_hass_config(data, component_type, config, include_state=True, include_command=True):
     if config.get(CONF_INTERNAL, False):
         return None
     ret = OrderedDict()
-    ret['platform'] = platform
+    ret['platform'] = 'mqtt'
     ret['name'] = config[CONF_NAME]
     if include_state:
         default = get_default_topic_for(data, component_type, config[CONF_NAME], 'state')
@@ -282,7 +293,7 @@ def build_hass_config(data, component_type, config, include_state=True, include_
 class GenerateHassConfigData(object):
     def __init__(self, config):
         if 'mqtt' not in config:
-            raise ESPHomeYAMLError("Cannot generate Home Assistant MQTT config if MQTT is not "
+            raise EsphomeyamlError("Cannot generate Home Assistant MQTT config if MQTT is not "
                                    "used!")
         mqtt = config[CONF_MQTT]
         self.topic_prefix = mqtt.get(CONF_TOPIC_PREFIX, config[CONF_ESPHOMEYAML][CONF_NAME])
@@ -308,3 +319,21 @@ class GenerateHassConfigData(object):
                 CONF_PAYLOAD_AVAILABLE: birth_message[CONF_PAYLOAD],
                 CONF_PAYLOAD_NOT_AVAILABLE: will_message[CONF_PAYLOAD],
             }
+
+
+def setup_mqtt_component(obj, config):
+    if CONF_RETAIN in config:
+        add(obj.set_retain(config[CONF_RETAIN]))
+    if not config.get(CONF_DISCOVERY, True):
+        add(obj.disable_discovery())
+    if CONF_STATE_TOPIC in config:
+        add(obj.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+    if CONF_COMMAND_TOPIC in config:
+        add(obj.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+    if CONF_AVAILABILITY in config:
+        availability = config[CONF_AVAILABILITY]
+        if not availability:
+            add(obj.disable_availability())
+        else:
+            add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
+                                     availability[CONF_PAYLOAD_NOT_AVAILABLE]))

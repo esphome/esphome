@@ -1,13 +1,14 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
-from esphomeyaml import core, pins
+from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_INTERNAL_FILTER, \
-    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_PULL_MODE, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, \
-    ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Application, add, variable, gpio_input_pin_expression, \
-    setup_component
+    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application
 
 PulseCounterCountMode = sensor.sensor_ns.enum('PulseCounterCountMode')
 COUNT_MODES = {
@@ -16,7 +17,7 @@ COUNT_MODES = {
     'DECREMENT': PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
 }
 
-COUNT_MODE_SCHEMA = vol.All(vol.Upper, cv.one_of(*COUNT_MODES))
+COUNT_MODE_SCHEMA = cv.one_of(*COUNT_MODES, upper=True)
 
 PulseCounterBase = sensor.sensor_ns.class_('PulseCounterBase')
 MakePulseCounterSensor = Application.struct('MakePulseCounterSensor')
@@ -26,7 +27,7 @@ PulseCounterSensorComponent = sensor.sensor_ns.class_('PulseCounterSensorCompone
 
 
 def validate_internal_filter(value):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if isinstance(value, int):
             raise vol.Invalid("Please specify the internal filter in microseconds now "
                               "(since 1.7.0). For example '17ms'")
@@ -34,8 +35,8 @@ def validate_internal_filter(value):
         if value.total_microseconds > 13:
             raise vol.Invalid("Maximum internal filter value for ESP32 is 13us")
         return value
-    else:
-        return cv.positive_time_period_microseconds(value)
+
+    return cv.positive_time_period_microseconds(value)
 
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
@@ -48,9 +49,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     }),
     vol.Optional(CONF_INTERNAL_FILTER): validate_internal_filter,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-
-    vol.Optional(CONF_PULL_MODE): cv.invalid("The pull_mode option has been removed in 1.7.0, "
-                                             "please use the pin mode schema now.")
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 

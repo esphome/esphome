@@ -3,9 +3,10 @@ import voluptuous as vol
 from esphomeyaml import pins
 from esphomeyaml.components import output
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP8266, CONF_FREQUENCY
-from esphomeyaml.helpers import App, Component, Pvariable, gpio_output_pin_expression, \
-    setup_component, add
+from esphomeyaml.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP8266
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
 

@@ -4,8 +4,9 @@ from esphomeyaml import pins
 from esphomeyaml.components import stepper
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, setup_component, \
-    Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import Component, App
 
 A4988 = stepper.stepper_ns.class_('A4988', stepper.Stepper, Component)
 

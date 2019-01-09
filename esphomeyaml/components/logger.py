@@ -6,9 +6,11 @@ from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
     CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
-from esphomeyaml.core import ESPHomeYAMLError, Lambda
-from esphomeyaml.helpers import App, Pvariable, RawExpression, TemplateArguments, add, \
-    esphomelib_ns, global_ns, process_lambda, statement, Component
+from esphomeyaml.core import EsphomeyamlError, Lambda, CORE
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns, void
+
+from esphomeyaml.py_compat import text_type
 
 LOG_LEVELS = {
     'NONE': global_ns.ESPHOMELIB_LOG_LEVEL_NONE,
@@ -32,14 +34,14 @@ LOG_LEVEL_TO_ESP_LOG = {
 LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
 
 # pylint: disable=invalid-name
-is_log_level = vol.All(vol.Upper, cv.one_of(*LOG_LEVELS))
+is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
-    for tag, level in value.get(CONF_LOGS, {}).iteritems():
+    for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
-            raise ESPHomeYAMLError(u"The local log level {} for {} must be less severe than the "
+            raise EsphomeyamlError(u"The local log level {} for {} must be less severe than the "
                                    u"global log level {}.".format(level, tag, global_level))
     return value
 
@@ -64,14 +66,37 @@ def to_code(config):
         add(log.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
     if CONF_LEVEL in config:
         add(log.set_global_log_level(LOG_LEVELS[config[CONF_LEVEL]]))
-    for tag, level in config.get(CONF_LOGS, {}).iteritems():
+    for tag, level in config.get(CONF_LOGS, {}).items():
         add(log.set_log_level(tag, LOG_LEVELS[level]))
 
 
 def required_build_flags(config):
+    flags = []
     if CONF_LEVEL in config:
-        return u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]]))
-    return None
+        flags.append(u'-DESPHOMELIB_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]])))
+        this_severity = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
+        verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
+        is_at_least_verbose = this_severity >= verbose_severity
+        has_serial_logging = config.get(CONF_BAUD_RATE) != 0
+        if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
+            flags.append(u"-DDEBUG_ESP_PORT=Serial")
+            flags.append(u"-DLWIP_DEBUG")
+            DEBUG_COMPONENTS = {
+                'HTTP_CLIENT',
+                'HTTP_SERVER',
+                'HTTP_UPDATE',
+                'OTA',
+                'SSL',
+                'TLS_MEM',
+                'UPDATER',
+                'WIFI',
+            }
+            for comp in DEBUG_COMPONENTS:
+                flags.append(u"-DDEBUG_ESP_{}".format(comp))
+        if CORE.is_esp32 and is_at_least_verbose:
+            flags.append('-DCORE_DEBUG_LEVEL=5')
+
+    return flags
 
 
 def maybe_simple_message(schema):
@@ -97,7 +122,7 @@ def validate_printf(value):
     [cCdiouxXeEfgGaAnpsSZ]             # type
     ) |                                # OR
     %%)                                # literal "%%"
-    """
+    """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
         raise vol.Invalid(u"Found {} printf-patterns ({}), but {} args were given!"
@@ -108,21 +133,20 @@ def validate_printf(value):
 CONF_LOGGER_LOG = 'logger.log'
 LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
     vol.Required(CONF_FORMAT): cv.string,
-    vol.Optional(CONF_ARGS, default=list): vol.All(cv.ensure_list, [cv.lambda_]),
-    vol.Optional(CONF_LEVEL, default="DEBUG"): vol.All(vol.Upper, cv.one_of(*LOG_LEVEL_TO_ESP_LOG)),
+    vol.Optional(CONF_ARGS, default=list): cv.ensure_list(cv.lambda_),
+    vol.Optional(CONF_LEVEL, default="DEBUG"): cv.one_of(*LOG_LEVEL_TO_ESP_LOG, upper=True),
     vol.Optional(CONF_TAG, default="main"): cv.string,
 }), validate_printf)
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def logger_log_action_to_code(config, action_id, arg_type, template_arg):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args = [RawExpression(unicode(x)) for x in config[CONF_ARGS]]
+    args = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
 
-    text = unicode(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
+    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
 
-    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')]):
+    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')], return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)

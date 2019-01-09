@@ -1,14 +1,14 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display, spi
 from esphomeyaml.components.spi import SPIComponent
-from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, \
-    CONF_ID, CONF_MODEL, \
-    CONF_RESET_PIN, CONF_SPI_ID, CONF_LAMBDA
-from esphomeyaml.helpers import App, Pvariable, add, get_variable, \
-    gpio_output_pin_expression, process_lambda, setup_component, PollingComponent
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, CONF_ID, CONF_LAMBDA, \
+    CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, PollingComponent, void
 
 DEPENDENCIES = ['spi']
 
@@ -27,7 +27,7 @@ MODELS = {
     'SH1106_64X48': SSD1306Model.SH1106_MODEL_64_48,
 }
 
-SSD1306_MODEL = vol.All(vol.Upper, vol.Replace(' ', '_'), cv.one_of(*MODELS))
+SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
 
 PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
@@ -60,7 +60,7 @@ def to_code(config):
         add(ssd.set_external_vcc(config[CONF_EXTERNAL_VCC]))
     if CONF_LAMBDA in config:
         for lambda_ in process_lambda(config[CONF_LAMBDA],
-                                      [(display.DisplayBufferRef, 'it')]):
+                                      [(display.DisplayBufferRef, 'it')], return_type=void):
             yield
         add(ssd.set_writer(lambda_))
 

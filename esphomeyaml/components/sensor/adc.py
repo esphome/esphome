@@ -1,11 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ATTENUATION, CONF_MAKE_ID, CONF_NAME, CONF_PIN, \
     CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, global_ns, variable, setup_component
+from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Application, global_ns
 
 ATTENUATION_MODES = {
     '0db': global_ns.ADC_0db,
@@ -29,7 +31,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensorComponent),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeADCSensor),
     vol.Required(CONF_PIN): validate_adc_pin,
-    vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES)),
+    vol.Optional(CONF_ATTENUATION): vol.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES,
+                                                                        lower=True)),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
@@ -59,3 +62,9 @@ def required_build_flags(config):
 
 def to_hass_config(data, config):
     return sensor.core_to_hass_config(data, config)
+
+
+def includes(config):
+    if config[CONF_PIN] == 'VCC':
+        return 'ADC_MODE(ADC_VCC);'
+    return None

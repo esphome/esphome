@@ -5,7 +5,8 @@ from esphomeyaml.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESP32BLE
     make_address_array
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_MAC_ADDRESS, CONF_NAME
-from esphomeyaml.helpers import esphomelib_ns, get_variable
+from esphomeyaml.cpp_generator import get_variable
+from esphomeyaml.cpp_types import esphomelib_ns
 
 DEPENDENCIES = ['esp32_ble_tracker']
 ESP32BLEPresenceDevice = esphomelib_ns.class_('ESP32BLEPresenceDevice', binary_sensor.BinarySensor)
