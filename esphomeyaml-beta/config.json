@@ -17,6 +17,7 @@
   "homeassistant_api": false,
   "host_network": true,
   "boot": "auto",
+  "auto_uart": true,
   "map": [
     "ssl",
     "config:rw"
