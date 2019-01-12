@@ -132,7 +132,7 @@ STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r'excvaddr=0x(4[0-9a-fA-F]{7})')
 STACKTRACE_ESP32_PC_RE = re.compile(r'PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})')
 STACKTRACE_ESP32_EXCVADDR_RE = re.compile(r'EXCVADDR\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})')
 STACKTRACE_BAD_ALLOC_RE = re.compile(r'^last failed alloc call: (4[0-9a-fA-F]{7})\((\d+)\)$')
-STACKTRACE_ESP32_BACKTRACE_RE = re.compile(r'Backtrace:(?:\s+0x4[0-9a-fA-F]{7}:0x3[0-9a-fA-F]{7})+')
+STACKTRACE_ESP32_BACKTRACE_RE = re.compile(r'Backtrace:(?:\s+0x[0-9a-fA-F]{8}:0x[0-9a-fA-F]{8})+')
 STACKTRACE_ESP32_BACKTRACE_PC_RE = re.compile(r'4[0-9a-f]{7}')
 STACKTRACE_ESP8266_BACKTRACE_PC_RE = re.compile(r'4[0-9a-f]{7}')
 
