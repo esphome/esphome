@@ -211,12 +211,14 @@ def upload_program(config, args, host):
 
 
 def show_logs(config, args, port):
+    if 'logger' not in config:
+        raise EsphomeyamlError("Logger is not configured!")
     if get_port_type(port) == 'SERIAL':
         run_miniterm(config, port)
         return 0
-    if get_port_type(port) == 'NETWORK':
+    if get_port_type(port) == 'NETWORK' and 'api' in config:
         return run_logs(config, port)
-    if get_port_type(port) == 'MQTT':
+    if get_port_type(port) == 'MQTT' and 'mqtt' in config:
         return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
 
     raise ValueError
