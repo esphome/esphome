@@ -3,7 +3,8 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE, \
-    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_NETWORKS, CONF_BSSID
+    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_NETWORKS, CONF_BSSID, \
+    CONF_FAST_CONNECT
 from esphomeyaml.core import CORE, HexInt
 from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, variable, ArrayInitializer
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
@@ -28,8 +29,8 @@ def validate_password(value):
         return value
     if len(value) < 8:
         raise vol.Invalid(u"WPA password must be at least 8 characters long")
-    if len(value) > 63:
-        raise vol.Invalid(u"WPA password must be at most 63 characters long")
+    if len(value) > 64:
+        raise vol.Invalid(u"WPA password must be at most 64 characters long")
     return value
 
 
@@ -86,6 +87,14 @@ def validate(config):
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         raise vol.Invalid("Please specify at least an SSID or an Access Point "
                           "to create.")
+
+    if config.get(CONF_FAST_CONNECT, False):
+        networks = config.get(CONF_NETWORKS, [])
+        if not networks:
+            raise vol.Invalid("At least one network required for fast_connect!")
+        if len(networks) != 1:
+            raise vol.Invalid("Fast connect can only be used with one network!")
+
     return config
 
 
@@ -102,6 +111,7 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SAVE_MODE): cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
+    vol.Optional(CONF_FAST_CONNECT): cv.boolean,
 }), validate)
 
 
@@ -166,6 +176,9 @@ def to_code(config):
 
     if CONF_POWER_SAVE_MODE in config:
         add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[config[CONF_POWER_SAVE_MODE]]))
+
+    if CONF_FAST_CONNECT in config:
+        add(wifi.set_fast_connect(config[CONF_FAST_CONNECT]))
 
 
 def lib_deps(config):
