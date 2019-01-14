@@ -202,6 +202,15 @@ text_sensor:
       - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            title: New Humidity
+          data_template:
+            message: The humidity is {{ my_variable }}%.
+          variables:
+            my_variable: |-
+              return id(version_sensor).state;
   - platform: mqtt_subscribe
     name: "MQTT Subscribe Text"
     topic: "the/topic"
