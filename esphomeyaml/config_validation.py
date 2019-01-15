@@ -458,9 +458,12 @@ def hostname(value):
 
 def domain(value):
     value = string(value)
-    if re.match(vol.DOMAIN_REGEX, value) is None:
+    if re.match(vol.DOMAIN_REGEX, value) is not None:
+        return value
+    try:
+        return str(ipv4(value))
+    except vol.Invalid:
         raise vol.Invalid("Invalid domain: {}".format(value))
-    return value
 
 
 def domain_name(value):
