@@ -32,6 +32,7 @@ REQUIRES = [
     'typing>=3.0.0;python_version<"3.5"',
     'protobuf>=3.4',
     'tzlocal>=1.4',
+    'pyserial>=3.4,<4',
 ]
 
 CLASSIFIERS = [
