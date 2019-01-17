@@ -348,6 +348,32 @@ def get_ini_content():
         flash_mode = CORE.config[CONF_ESPHOMEYAML][CONF_BOARD_FLASH_MODE]
         data['board_build.flash_mode'] = flash_mode
 
+    if CORE.is_esp8266:
+        # On ESP8266, we can disable LDF
+        data['lib_ldf_mode'] = 'off'
+    elif CORE.is_esp32:
+        # On ESP32, we need to enable LDF
+        # and can manually remove all libraries we don't need
+        data['lib_ldf_mode'] = 'chain'
+        REMOVABLE_LIBRARIES = [
+            'ArduinoOTA',
+            'ESPmDNS',
+            'Update',
+            'Wire',
+            'FastLED',
+            'NeoPixelBus',
+            'ESP Async WebServer',
+        ]
+        ignore = []
+        for x in REMOVABLE_LIBRARIES:
+            for o in lib_deps:
+                if x in o:
+                    break
+            else:
+                ignore.append(x)
+        if ignore:
+            data['lib_ignore'] = ignore
+
     data.update(CORE.config[CONF_ESPHOMEYAML].get(CONF_PLATFORMIO_OPTIONS, {}))
 
     content = u'[env:{}]\n'.format(CORE.name)
