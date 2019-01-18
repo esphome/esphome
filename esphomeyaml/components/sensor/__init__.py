@@ -100,7 +100,8 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_ACCURACY_DECIMALS): vol.Coerce(int),
-    vol.Optional(CONF_EXPIRE_AFTER): vol.Any(None, cv.positive_time_period_milliseconds),
+    vol.Optional(CONF_EXPIRE_AFTER): vol.All(cv.requires_component('mqtt'),
+                                             vol.Any(None, cv.positive_time_period_milliseconds)),
     vol.Optional(CONF_FILTERS): FILTERS_SCHEMA,
     vol.Optional(CONF_ON_VALUE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorStateTrigger),
