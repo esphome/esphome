@@ -24,7 +24,7 @@ WIFI_POWER_SAVE_MODES = {
 
 
 def validate_password(value):
-    value = cv.string(value)
+    value = cv.string_strict(value)
     if not value:
         return value
     if len(value) < 8:
