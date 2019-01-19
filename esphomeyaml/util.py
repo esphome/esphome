@@ -42,9 +42,12 @@ def safe_print(message=""):
         pass
 
     try:
-        print(message.encode('ascii', 'backslashreplace'))
+        print(message.encode('utf-8', 'backslashreplace'))
     except UnicodeEncodeError:
-        print("Cannot print line because of invalid locale!")
+        try:
+            print(message.encode('ascii', 'backslashreplace'))
+        except UnicodeEncodeError:
+            print("Cannot print line because of invalid locale!")
 
 
 def shlex_quote(s):
