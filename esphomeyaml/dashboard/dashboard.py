@@ -519,7 +519,8 @@ def make_app(debug=False):
         (r"/ping", PingRequestHandler),
         (r"/wizard.html", WizardRequestHandler),
         (r'/static/(.*)', StaticFileHandler, {'path': static_path}),
-    ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function)
+    ], debug=debug, cookie_secret=COOKIE_SECRET, log_function=log_function,
+        websocket_ping_interval=30.0)
 
     if debug:
         _STATIC_FILE_HASHES.clear()
