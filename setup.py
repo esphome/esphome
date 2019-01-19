@@ -34,7 +34,7 @@ REQUIRES = [
     'pyserial>=3.4,<4',
 ]
 
-# If you have problems importing platdormio and esptool as modules you can set
+# If you have problems importing platformio and esptool as modules you can set
 # $ESPHOME_USE_SUBPROCESS to make ESPHome call their executables instead.
 # This means they have to be in your $PATH.
 if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
