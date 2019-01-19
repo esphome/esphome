@@ -28,7 +28,7 @@ def to_code(config):
     setup_component(web_server, config)
 
 
-BUILD_FLAGS = '-DUSE_WEB_SERVER'
+REQUIRED_BUILD_FLAGS = '-DUSE_WEB_SERVER'
 
 
 def lib_deps(config):

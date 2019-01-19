@@ -82,7 +82,7 @@ def to_code(config):
     setup_component(fast_led, config)
 
 
-BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'
+REQUIRED_BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'
 
 LIB_DEPS = 'FastLED@3.2.0'
 
