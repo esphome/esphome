@@ -43,12 +43,17 @@ ON_HASSIO = False
 USING_HASSIO_AUTH = True
 HASSIO_MQTT_CONFIG = None
 
+if IS_PY2:
+    cookie_authenticated_yes = 'yes'
+else:
+    cookie_authenticated_yes = b'yes'
+
 
 # pylint: disable=abstract-method
 class BaseHandler(tornado.web.RequestHandler):
     def is_authenticated(self):
         if USING_HASSIO_AUTH or USING_PASSWORD:
-            return self.get_secure_cookie('authenticated') == 'yes'
+            return self.get_secure_cookie('authenticated') == cookie_authenticated_yes
 
         return True
 
@@ -62,7 +67,7 @@ class EsphomeyamlCommandWebSocket(tornado.websocket.WebSocketHandler):
 
     def on_message(self, message):
         if USING_HASSIO_AUTH or USING_PASSWORD:
-            if self.get_secure_cookie('authenticated') != 'yes':
+            if self.get_secure_cookie('authenticated') != cookie_authenticated_yes:
                 return
         if self.proc is not None:
             return
@@ -440,7 +445,7 @@ class LoginHandler(BaseHandler):
         try:
             req = requests.post('http://hassio/auth', headers=headers, data=data)
             if req.status_code == 200:
-                self.set_secure_cookie("authenticated", "yes")
+                self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect('/')
                 return
         except Exception as err:  # pylint: disable=broad-except
@@ -457,9 +462,12 @@ class LoginHandler(BaseHandler):
             return
 
         password = str(self.get_argument("password", ''))
-        password = hmac.new(password).digest()
+        if IS_PY2:
+            password = hmac.new(password).digest()
+        else:
+            password = hmac.new(password.encode()).digest()
         if hmac.compare_digest(PASSWORD_DIGEST, password):
-            self.set_secure_cookie("authenticated", "yes")
+            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
         self.redirect("/")
 
 
@@ -548,7 +556,10 @@ def start_web_server(args):
         USING_PASSWORD = args.password
 
     if USING_PASSWORD:
-        PASSWORD_DIGEST = hmac.new(args.password).digest()
+        if IS_PY2:
+            PASSWORD_DIGEST = hmac.new(args.password).digest()
+        else:
+            PASSWORD_DIGEST = hmac.new(args.password.encode()).digest()
 
     if USING_HASSIO_AUTH or USING_PASSWORD:
         path = esphomeyaml_storage_path(CONFIG_DIR)
