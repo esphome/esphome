@@ -26,7 +26,7 @@ import tornado.websocket
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
 from esphomeyaml.helpers import mkdir_p, run_system_command
-from esphomeyaml.py_compat import IS_PY2, binary_type
+from esphomeyaml.py_compat import IS_PY2
 from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
     esphomeyaml_storage_path, ext_storage_path
 from esphomeyaml.util import shlex_quote
@@ -47,6 +47,7 @@ if IS_PY2:
     cookie_authenticated_yes = 'yes'
 else:
     cookie_authenticated_yes = b'yes'
+
 
 # pylint: disable=abstract-method
 class BaseHandler(tornado.web.RequestHandler):
