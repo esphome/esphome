@@ -12,6 +12,7 @@ CustomFloatOutputConstructor = output.output_ns.class_('CustomFloatOutputConstru
 BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
+    vol.Required(CONF_TYPE): 'binary',
     vol.Required(CONF_OUTPUTS):
         cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.BinaryOutput),
@@ -21,8 +22,9 @@ BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
 FLOAT_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomFloatOutputConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
+    vol.Required(CONF_TYPE): 'float',
     vol.Required(CONF_OUTPUTS):
-        cv.ensure_list(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
+        cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.FloatOutput),
         })),
 })

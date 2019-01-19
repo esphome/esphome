@@ -7,18 +7,21 @@ import re
 import subprocess
 
 from esphomeyaml.core import CORE
-from esphomeyaml.util import run_external_command
+from esphomeyaml.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def run_platformio_cli(*args, **kwargs):
-    import platformio.__main__
-
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     cmd = ['platformio'] + list(args)
-    return run_external_command(platformio.__main__.main,
-                                *cmd, **kwargs)
+
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+        import platformio.__main__
+        return run_external_command(platformio.__main__.main,
+                                    *cmd, **kwargs)
+
+    return run_external_process(*cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):
@@ -63,7 +66,7 @@ def get_idedata(config):
 
 # ESP logs stack trace decoder, based on https://github.com/me-no-dev/EspExceptionDecoder
 ESP8266_EXCEPTION_CODES = {
-    0: "Illegal instruction",
+    0: "Illegal instruction (Is the flash damaged?)",
     1: "SYSCALL instruction",
     2: "InstructionFetchError: Processor internal physical address or data error during "
        "instruction fetch",
@@ -71,7 +74,7 @@ ESP8266_EXCEPTION_CODES = {
     4: "Level1Interrupt: Level-1 interrupt as indicated by set level-1 bits in the INTERRUPT "
        "register",
     5: "Alloca: MOVSP instruction, if caller's registers are not in the register file",
-    6: "IntegerDivideByZero: QUOS, QUOU, REMS, or REMU divisor operand is zero",
+    6: "Integer Divide By Zero",
     7: "reserved",
     8: "Privileged: Attempt to execute a privileged operation when CRING ? 0",
     9: "LoadStoreAlignmentCause: Load or store to an unaligned address",
@@ -96,10 +99,8 @@ ESP8266_EXCEPTION_CODES = {
     26: "LoadStorePrivilege: A load or store referenced a virtual address at a ring level less "
         "than ",
     27: "reserved",
-    28: "LoadProhibited: A load referenced a page mapped with an attribute that does not permit "
-        "loads",
-    29: "StoreProhibited: A store referenced a page mapped with an attribute that does not permit "
-        "stores",
+    28: "Access to invalid address: LOAD (wild pointer?)",
+    29: "Access to invalid address: STORE (wild pointer?)",
 }
 
 
@@ -126,7 +127,7 @@ def _parse_register(config, regex, line):
         _decode_pc(config, match.group(1))
 
 
-STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r'Exception \(([0-9]*)\):')
+STACKTRACE_ESP8266_EXCEPTION_TYPE_RE = re.compile(r'[eE]xception \((\d+)\):')
 STACKTRACE_ESP8266_PC_RE = re.compile(r'epc1=0x(4[0-9a-fA-F]{7})')
 STACKTRACE_ESP8266_EXCVADDR_RE = re.compile(r'excvaddr=0x(4[0-9a-fA-F]{7})')
 STACKTRACE_ESP32_PC_RE = re.compile(r'PC\s*:\s*(?:0x)?(4[0-9a-fA-F]{7})')

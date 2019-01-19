@@ -61,7 +61,7 @@ test2:
   stage: build
   script:
     - docker run --rm --privileged hassioaddons/qemu-user-static:latest
-    - BUILD_FROM=hassioaddons/ubuntu-base-${ADDON_ARCH}:2.2.0
+    - BUILD_FROM=hassioaddons/ubuntu-base-${ADDON_ARCH}:2.2.1
     - ADDON_VERSION="${CI_COMMIT_TAG#v}"
     - ADDON_VERSION="${ADDON_VERSION:-${CI_COMMIT_SHA:0:7}}"
     - echo "Build from ${BUILD_FROM}"

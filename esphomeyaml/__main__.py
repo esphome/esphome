@@ -19,7 +19,7 @@ from esphomeyaml.helpers import color, indent
 from esphomeyaml.py_compat import safe_input, text_type, IS_PY2
 from esphomeyaml.storage_json import StorageJSON, esphomeyaml_storage_path, \
     start_update_check_thread, storage_path
-from esphomeyaml.util import run_external_command, safe_print
+from esphomeyaml.util import run_external_command, run_external_process, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -167,13 +167,16 @@ def compile_program(args, config):
 
 
 def upload_using_esptool(config, port):
-    import esptool
-
     path = os.path.join(CORE.build_path, '.pioenvs', CORE.name, 'firmware.bin')
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
-    # pylint: disable=protected-access
-    return run_external_command(esptool._main, *cmd)
+
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+        import esptool
+        # pylint: disable=protected-access
+        return run_external_command(esptool._main, *cmd)
+
+    return run_external_process(*cmd)
 
 
 def upload_program(config, args, host):
