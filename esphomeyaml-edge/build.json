@@ -1,10 +1,10 @@
 {
   "squash": false,
   "build_from": {
-    "aarch64": "hassioaddons/ubuntu-base-aarch64:2.2.0",
-    "amd64": "hassioaddons/ubuntu-base-amd64:2.2.0",
-    "armhf": "hassioaddons/ubuntu-base-armhf:2.2.0",
-    "i386": "hassioaddons/ubuntu-base-i386:2.2.0"
+    "aarch64": "hassioaddons/ubuntu-base-aarch64:2.2.1",
+    "amd64": "hassioaddons/ubuntu-base-amd64:2.2.1",
+    "armhf": "hassioaddons/ubuntu-base-armhf:2.2.1",
+    "i386": "hassioaddons/ubuntu-base-i386:2.2.1"
   },
   "args": {}
 }
