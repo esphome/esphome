@@ -49,8 +49,11 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
         vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),
-    vol.Optional(CONF_RUN_CYCLES): cv.positive_int,
     vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
+
+    vol.Optional(CONF_RUN_CYCLES): cv.invalid("The run_cycles option has been removed in 1.11.0 as "
+                                              "it was essentially the same as a run_duration of 0s."
+                                              "Please use run_duration now.")
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 
