@@ -309,6 +309,13 @@ document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -358,6 +365,13 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -412,6 +426,13 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -464,6 +485,13 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -515,6 +543,13 @@ document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -563,6 +598,13 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
@@ -611,6 +653,13 @@ document.querySelectorAll(".action-hass-config").forEach((btn) => {
         M.toast({html: 'Terminated process.'});
       }
     });
+    const keepalive = () => {
+      if (logSocket.readyState === logSocket.OPEN) {
+        logSocket.send('');
+        setTimeout(keepalive, 20000);
+      }
+    };
+    keepalive();
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
