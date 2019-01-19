@@ -493,6 +493,10 @@ def run_esphomeyaml(argv):
         return 1
     CORE.config = config
 
+    _LOGGER.info("HELLO!")
+    import time
+    time.sleep(2**16)
+
     if args.command in POST_CONFIG_ACTIONS:
         try:
             return POST_CONFIG_ACTIONS[args.command](args, config)
