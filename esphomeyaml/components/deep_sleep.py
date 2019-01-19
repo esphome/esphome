@@ -68,8 +68,6 @@ def to_code(config):
         add(deep_sleep.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
         add(deep_sleep.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
-    if CONF_RUN_CYCLES in config:
-        add(deep_sleep.set_run_cycles(config[CONF_RUN_CYCLES]))
     if CONF_RUN_DURATION in config:
         add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
 
