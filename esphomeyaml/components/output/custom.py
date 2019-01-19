@@ -33,7 +33,8 @@ def validate_custom_output(value):
         raise vol.Invalid("Value must be dict")
     if CONF_TYPE not in value:
         raise vol.Invalid("type not specified!")
-    type = cv.string_strict(value.pop(CONF_TYPE)).lower()
+    type = cv.string_strict(value[CONF_TYPE]).lower()
+    value[CONF_TYPE] = type
     if type == 'binary':
         return BINARY_SCHEMA(value)
     if type == 'float':
