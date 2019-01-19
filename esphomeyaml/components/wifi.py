@@ -50,8 +50,8 @@ AP_MANUAL_IP_SCHEMA = vol.Schema({
 })
 
 STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
-    vol.Inclusive(CONF_DNS1, 'dns'): cv.ipv4,
-    vol.Inclusive(CONF_DNS2, 'dns'): cv.ipv4,
+    vol.Optional(CONF_DNS1, default="1.1.1.1"): cv.ipv4,
+    vol.Optional(CONF_DNS2, default="1.0.0.1"): cv.ipv4,
 })
 
 WIFI_NETWORK_BASE = vol.Schema({
