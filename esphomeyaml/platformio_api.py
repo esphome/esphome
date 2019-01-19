@@ -7,18 +7,21 @@ import re
 import subprocess
 
 from esphomeyaml.core import CORE
-from esphomeyaml.util import run_external_command
+from esphomeyaml.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def run_platformio_cli(*args, **kwargs):
-    import platformio.__main__
-
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     cmd = ['platformio'] + list(args)
-    return run_external_command(platformio.__main__.main,
-                                *cmd, **kwargs)
+
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+        import platformio.__main__
+        return run_external_command(platformio.__main__.main,
+                                    *cmd, **kwargs)
+
+    return run_external_process(*cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):

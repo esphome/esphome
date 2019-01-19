@@ -3,6 +3,7 @@ from __future__ import print_function
 import io
 import logging
 import re
+import subprocess
 import sys
 
 _LOGGER = logging.getLogger(__name__)
@@ -121,3 +122,28 @@ def run_external_command(func, *cmd, **kwargs):
         if capture_stdout:
             # pylint: disable=lost-exception
             return cap_stdout.getvalue()
+
+
+def run_external_process(*cmd, **kwargs):
+    full_cmd = u' '.join(shlex_quote(x) for x in cmd)
+    _LOGGER.info(u"Running:  %s", full_cmd)
+
+    capture_stdout = kwargs.get('capture_stdout', False)
+    if capture_stdout:
+        sub_stdout = io.BytesIO()
+    else:
+        sub_stdout = RedirectText(sys.stdout)
+
+    sub_stderr = RedirectText(sys.stderr)
+
+    try:
+        return subprocess.call(cmd,
+                               stdout=sub_stdout,
+                               stderr=sub_stderr)
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error(u"Running command failed: %s", err)
+        _LOGGER.error(u"Please try running %s locally.", full_cmd)
+    finally:
+        if capture_stdout:
+            # pylint: disable=lost-exception
+            return sub_stdout.getvalue()
