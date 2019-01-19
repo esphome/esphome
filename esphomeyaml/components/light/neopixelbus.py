@@ -160,7 +160,7 @@ def to_code(config):
     setup_component(output, config)
 
 
-BUILD_FLAGS = '-DUSE_NEO_PIXEL_BUS_LIGHT'
+REQUIRED_BUILD_FLAGS = '-DUSE_NEO_PIXEL_BUS_LIGHT'
 
 LIB_DEPS = 'NeoPixelBus@2.4.1'
 
