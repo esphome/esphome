@@ -429,6 +429,8 @@ def run_logs(config, address):
     stopping = False
     retry_timer = []
 
+    has_connects = []
+
     def try_connect(tries=0, is_disconnect=True):
         if stopping:
             return
@@ -451,8 +453,13 @@ def run_logs(config, address):
             return
 
         wait_time = min(2**tries, 300)
-        _LOGGER.warning(u"Couldn't connect to API (%s). Trying to reconnect in %s seconds",
-                        error, wait_time)
+        if not has_connects:
+            _LOGGER.warning(u"Initial connection failed. The ESP might not be connected"
+                            u"to WiFi yet (%s). Re-Trying in %s seconds",
+                            error, wait_time)
+        else:
+            _LOGGER.warning(u"Couldn't connect to API (%s). Trying to reconnect in %s seconds",
+                            error, wait_time)
         timer = threading.Timer(wait_time, functools.partial(try_connect, tries + 1, is_disconnect))
         timer.start()
         retry_timer.append(timer)
@@ -464,8 +471,6 @@ def run_logs(config, address):
             text = color('white', '(Message skipped because it was too big to fit in '
                                   'TCP buffer - This is only cosmetic)')
         safe_print(time_ + text)
-
-    has_connects = []
 
     def on_login():
         try:
