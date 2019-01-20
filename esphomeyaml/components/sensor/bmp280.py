@@ -1,12 +1,12 @@
 import voluptuous as vol
 
-from esphomeyaml.components import sensor
+from esphomeyaml.components import sensor, i2c
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_IIR_FILTER, CONF_MAKE_ID, \
-    CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.cpp_generator import add, variable
+    CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL, CONF_ID
+from esphomeyaml.cpp_generator import add, variable, Pvariable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Application
+from esphomeyaml.cpp_types import App, Application, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
@@ -33,14 +33,14 @@ BMP280_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     vol.Optional(CONF_OVERSAMPLING): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
 })
 
-MakeBMP280Sensor = Application.struct('MakeBMP280Sensor')
+BMP280Component = sensor.sensor_ns.class_('BMP280Component', PollingComponent, i2c.I2CDevice)
 BMP280TemperatureSensor = sensor.sensor_ns.class_('BMP280TemperatureSensor',
                                                   sensor.EmptyPollingParentSensor)
 BMP280PressureSensor = sensor.sensor_ns.class_('BMP280PressureSensor',
                                                sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBMP280Sensor),
+    cv.GenerateID(): cv.declare_variable_id(BMP280Component),
     vol.Optional(CONF_ADDRESS, default=0x77): cv.i2c_address,
     vol.Required(CONF_TEMPERATURE): cv.nameable(BMP280_OVERSAMPLING_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BMP280TemperatureSensor),
@@ -58,8 +58,7 @@ def to_code(config):
                                  config[CONF_PRESSURE][CONF_NAME],
                                  config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    bmp280 = make.Pbmp280
+    bmp280 = Pvariable(config[CONF_ID], rhs)
     if CONF_OVERSAMPLING in config[CONF_TEMPERATURE]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_TEMPERATURE][CONF_OVERSAMPLING]]
         add(bmp280.set_temperature_oversampling(constant))
@@ -70,10 +69,8 @@ def to_code(config):
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
         add(bmp280.set_iir_filter(constant))
 
-    sensor.setup_sensor(bmp280.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(bmp280.Pget_pressure_sensor(), make.Pmqtt_pressure,
-                        config[CONF_PRESSURE])
+    sensor.setup_sensor(bmp280.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bmp280.Pget_pressure_sensor(), config[CONF_PRESSURE])
     setup_component(bmp280, config)
 
 

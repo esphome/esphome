@@ -224,7 +224,7 @@ def setup_filters(config):
     yield ArrayInitializer(*filters)
 
 
-def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
+def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INTERNAL in config:
         add(binary_sensor_var.set_internal(CONF_INTERNAL))
     if CONF_DEVICE_CLASS in config:
@@ -279,22 +279,19 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, bool_, conf)
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(binary_sensor_var.Pget_mqtt(), config)
 
 
-def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
-    binary_sensor_var = Pvariable(config[CONF_ID], binary_sensor_obj,
-                                  has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
-    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+def setup_binary_sensor(binary_sensor_obj, config):
+    if not CORE.has_id(config[CONF_ID]):
+        binary_sensor_obj = Pvariable(config[CONF_ID], binary_sensor_obj, has_side_effects=True)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_obj, config)
 
 
 def register_binary_sensor(var, config):
     binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    rhs = App.register_binary_sensor(binary_sensor_var)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    add(App.register_binary_sensor(binary_sensor_var))
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, config)
 
 
 def core_to_hass_config(data, config):

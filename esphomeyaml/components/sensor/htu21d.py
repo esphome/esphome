@@ -2,11 +2,11 @@ import voluptuous as vol
 
 from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_HUMIDITY, CONF_MAKE_ID, CONF_NAME, CONF_TEMPERATURE, \
-    CONF_UPDATE_INTERVAL, CONF_ID
-from esphomeyaml.cpp_generator import variable, Pvariable
+from esphomeyaml.const import CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_TEMPERATURE, \
+    CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import Application, PollingComponent, App
+from esphomeyaml.cpp_types import App, Application, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
@@ -19,7 +19,6 @@ HTU21DHumiditySensor = sensor.sensor_ns.class_('HTU21DHumiditySensor',
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HTU21DComponent),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeHTU21DSensor),
     vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(HTU21DTemperatureSensor),
     })),
@@ -34,14 +33,10 @@ def to_code(config):
     rhs = App.make_htu21d_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_HUMIDITY][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    htu21d = make.Phtu21d
-    Pvariable(config[CONF_ID], htu21d)
+    htu21d = Pvariable(config[CONF_ID], rhs)
 
-    sensor.setup_sensor(htu21d.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(htu21d.Pget_humidity_sensor(), make.Pmqtt_humidity,
-                        config[CONF_HUMIDITY])
+    sensor.setup_sensor(htu21d.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
+    sensor.setup_sensor(htu21d.Pget_humidity_sensor(), config[CONF_HUMIDITY])
     setup_component(htu21d, config)
 
 

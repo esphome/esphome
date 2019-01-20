@@ -6,6 +6,7 @@ from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
     CONF_OPTIMISTIC
+from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import add, Pvariable, get_variable
 from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Action, App
 
@@ -33,7 +34,7 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 SWITCH_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SWITCH_SCHEMA.schema)
 
 
-def setup_switch_core_(switch_var, mqtt_var, config):
+def setup_switch_core_(switch_var, config):
     if CONF_INTERNAL in config:
         add(switch_var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
@@ -41,20 +42,19 @@ def setup_switch_core_(switch_var, mqtt_var, config):
     if CONF_INVERTED in config:
         add(switch_var.set_inverted(config[CONF_INVERTED]))
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(switch_var.Pget_mqtt(), config)
 
 
-def setup_switch(switch_obj, mqtt_obj, config):
-    switch_var = Pvariable(config[CONF_ID], switch_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    setup_switch_core_(switch_var, mqtt_var, config)
+def setup_switch(switch_obj, config):
+    if not CORE.has_id(config[CONF_ID]):
+        switch_obj = Pvariable(config[CONF_ID], switch_obj, has_side_effects=True)
+    CORE.add_job(setup_switch_core_, switch_obj, config)
 
 
 def register_switch(var, config):
     switch_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    rhs = App.register_switch(switch_var)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    setup_switch_core_(switch_var, mqtt_var, config)
+    add(App.register_switch(switch_var))
+    CORE.add_job(setup_switch_core_, switch_var, config)
 
 
 BUILD_FLAGS = '-DUSE_SWITCH'

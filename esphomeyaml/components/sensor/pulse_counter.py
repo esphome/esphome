@@ -4,9 +4,9 @@ from esphomeyaml import pins
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_INTERNAL_FILTER, \
-    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL
+    CONF_MAKE_ID, CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, CONF_ID
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import add, variable
+from esphomeyaml.cpp_generator import add, variable, Pvariable
 from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
 from esphomeyaml.cpp_types import App, Application
 
@@ -20,7 +20,6 @@ COUNT_MODES = {
 COUNT_MODE_SCHEMA = cv.one_of(*COUNT_MODES, upper=True)
 
 PulseCounterBase = sensor.sensor_ns.class_('PulseCounterBase')
-MakePulseCounterSensor = Application.struct('MakePulseCounterSensor')
 PulseCounterSensorComponent = sensor.sensor_ns.class_('PulseCounterSensorComponent',
                                                       sensor.PollingSensorComponent,
                                                       PulseCounterBase)
@@ -41,7 +40,6 @@ def validate_internal_filter(value):
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensorComponent),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakePulseCounterSensor),
     vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
     vol.Optional(CONF_COUNT_MODE): vol.Schema({
         vol.Required(CONF_RISING_EDGE): COUNT_MODE_SCHEMA,
@@ -57,8 +55,7 @@ def to_code(config):
         yield
     rhs = App.make_pulse_counter_sensor(config[CONF_NAME], pin,
                                         config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    pcnt = make.Ppcnt
+    pcnt = Pvariable(config[CONF_ID], rhs)
 
     if CONF_COUNT_MODE in config:
         rising_edge = COUNT_MODES[config[CONF_COUNT_MODE][CONF_RISING_EDGE]]
@@ -67,7 +64,7 @@ def to_code(config):
     if CONF_INTERNAL_FILTER in config:
         add(pcnt.set_filter_us(config[CONF_INTERNAL_FILTER]))
 
-    sensor.setup_sensor(pcnt, make.Pmqtt, config)
+    sensor.setup_sensor(pcnt, config)
     setup_component(pcnt, config)
 
 
