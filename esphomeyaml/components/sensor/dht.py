@@ -16,6 +16,7 @@ DHT_MODELS = {
     'DHT22': DHTModel.DHT_MODEL_DHT22,
     'AM2302': DHTModel.DHT_MODEL_AM2302,
     'RHT03': DHTModel.DHT_MODEL_RHT03,
+    'SI7021': DHTModel.DHT_MODEL_SI7021,
 }
 
 MakeDHTSensor = Application.struct('MakeDHTSensor')
