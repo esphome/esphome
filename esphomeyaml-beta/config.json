@@ -9,8 +9,7 @@
   "arch": [
     "amd64",
     "armhf",
-    "i386",
-    "aarch64"
+    "i386"
   ],
   "hassio_api": true,
   "auth_api": true,
