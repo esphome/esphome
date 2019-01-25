@@ -25,8 +25,9 @@ def to_code(config):
 
     rhs = CustomComponentConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, comp in enumerate(config.get(CONF_COMPONENTS, [])):
-        setup_component(custom.get_component(i), comp)
+    for i, comp_config in enumerate(config.get(CONF_COMPONENTS, [])):
+        comp = variable(comp_config[CONF_ID], custom.get_component(i), ComponentPtr)
+        setup_component(comp, comp_config)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_COMPONENT'
