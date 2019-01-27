@@ -2,7 +2,7 @@ import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_COMPONENTS
-from esphomeyaml.cpp_generator import process_lambda, variable
+from esphomeyaml.cpp_generator import process_lambda, variable, Pvariable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import Component, ComponentPtr, esphomelib_ns, std_vector
 
@@ -26,7 +26,7 @@ def to_code(config):
     rhs = CustomComponentConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
     for i, comp_config in enumerate(config.get(CONF_COMPONENTS, [])):
-        comp = variable(comp_config[CONF_ID], custom.get_component(i), ComponentPtr)
+        comp = Pvariable(comp_config[CONF_ID], custom.get_component(i))
         setup_component(comp, comp_config)
 
 
