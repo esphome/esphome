@@ -3,6 +3,7 @@ from __future__ import print_function
 import json
 import logging
 import os
+import platform
 import re
 import subprocess
 
@@ -17,7 +18,22 @@ def run_platformio_cli(*args, **kwargs):
     cmd = ['platformio'] + list(args)
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+        import platformio.util
+
+        orig_systype = platformio.util.get_systype
+
+        def patch_get_systype():
+            """Patch platformio's get_systype for aarch64 support."""
+            type_ = platform.system().lower()
+            arch = platform.machine().lower()
+            if arch == 'aarch64':
+                return '{}_aarch64'.format(type_)
+            return orig_systype()
+
+        platformio.util.get_systype = patch_get_systype
+
         import platformio.__main__
+
         return run_external_command(platformio.__main__.main,
                                     *cmd, **kwargs)
 

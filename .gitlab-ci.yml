@@ -257,15 +257,51 @@ deploy-beta:armhf:
   variables:
     ADDON_ARCH: armhf
 
-#deploy-release:aarch64:
-#  <<: *deploy-release
-#  variables:
-#    ADDON_ARCH: aarch64
+deploy-release:aarch64:
+  <<: *deploy-release
+  script:
+    - version="${CI_COMMIT_TAG#v}"
+    - echo "Publishing release version ${version}"
+    - docker pull "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}"
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
 
-#deploy-beta:aarch64:
-#  <<: *deploy-beta
-#  variables:
-#    ADDON_ARCH: aarch64
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-aarch64:${version}"
+    - docker push "ottowinter/esphomeyaml-hassio-aarch64:${version}"
+
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-aarch64:latest"
+    - docker push "ottowinter/esphomeyaml-hassio-aarch64:latest"
+
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-aarch64:rc"
+    - docker push "ottowinter/esphomeyaml-hassio-aarch64:latest"
+
+deploy-beta:aarch64:
+  <<: *deploy-beta
+  script:
+    - version="${CI_COMMIT_TAG#v}"
+    - echo "Publishing beta version ${version}"
+    - docker pull "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}"
+    - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-aarch64:${version}"
+    - docker push "ottowinter/esphomeyaml-hassio-aarch64:${version}"
+
+    - |
+      docker tag \
+        "${CI_REGISTRY}/ottowinter/esphomeyaml-hassio-armhf:${CI_COMMIT_SHA}" \
+        "ottowinter/esphomeyaml-hassio-aarch64:rc"
+    - docker push "ottowinter/esphomeyaml-hassio-aarch64:latest"
 
 deploy-release:i386:
   <<: *deploy-release
