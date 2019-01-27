@@ -24,10 +24,10 @@ def to_code(config):
 
     rhs = CustomSensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_SENSORS]):
-        var = Pvariable(config[CONF_ID], custom.get_sensor(i))
-        add(var.set_name(config[CONF_NAME]))
-        sensor.register_sensor(var, sens)
+    for i, conf in enumerate(config[CONF_SENSORS]):
+        var = Pvariable(conf[CONF_ID], custom.get_sensor(i))
+        add(var.set_name(conf[CONF_NAME]))
+        sensor.register_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SENSOR'

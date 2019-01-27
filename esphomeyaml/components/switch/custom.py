@@ -25,10 +25,10 @@ def to_code(config):
 
     rhs = CustomSwitchConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_SWITCHES]):
-        var = Pvariable(config[CONF_ID], custom.get_switch(i))
-        add(var.set_name(config[CONF_NAME]))
-        switch.register_switch(var, sens)
+    for i, conf in enumerate(config[CONF_SWITCHES]):
+        var = Pvariable(conf[CONF_ID], custom.get_switch(i))
+        add(var.set_name(conf[CONF_NAME]))
+        switch.register_switch(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SWITCH'

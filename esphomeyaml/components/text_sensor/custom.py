@@ -25,10 +25,10 @@ def to_code(config):
 
     rhs = CustomTextSensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_TEXT_SENSORS]):
-        var = Pvariable(config[CONF_ID], custom.get_text_sensor(i))
-        add(var.set_name(config[CONF_NAME]))
-        text_sensor.register_text_sensor(var, sens)
+    for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
+        var = Pvariable(conf[CONF_ID], custom.get_text_sensor(i))
+        add(var.set_name(conf[CONF_NAME]))
+        text_sensor.register_text_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_TEXT_SENSOR'

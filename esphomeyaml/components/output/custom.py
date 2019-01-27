@@ -61,9 +61,9 @@ def to_code(config):
 
     rhs = klass(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_OUTPUTS]):
-        var = Pvariable(config[CONF_ID], custom.get_output(i))
-        output.register_output(var, sens)
+    for i, conf in enumerate(config[CONF_OUTPUTS]):
+        var = Pvariable(conf[CONF_ID], custom.get_output(i))
+        output.register_output(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_OUTPUT'
