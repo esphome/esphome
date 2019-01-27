@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml.components import output
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_OUTPUTS, CONF_TYPE
-from esphomeyaml.cpp_generator import process_lambda, variable
+from esphomeyaml.cpp_generator import process_lambda, variable, Pvariable
 from esphomeyaml.cpp_types import std_vector
 
 CustomBinaryOutputConstructor = output.output_ns.class_('CustomBinaryOutputConstructor')
@@ -62,7 +62,8 @@ def to_code(config):
     rhs = klass(template_)
     custom = variable(config[CONF_ID], rhs)
     for i, sens in enumerate(config[CONF_OUTPUTS]):
-        output.register_output(custom.get_output(i), sens)
+        var = Pvariable(config[CONF_ID], custom.get_output(i))
+        output.register_output(var, sens)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_OUTPUT'
