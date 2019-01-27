@@ -118,8 +118,7 @@ def resolve_ip_address(host):
     from esphomeyaml.core import EsphomeyamlError
 
     try:
-        # ip = socket.gethostbyname(host)
-        raise socket.error
+        ip = socket.gethostbyname(host)
     except socket.error as err:
         if host.endswith('.local'):
             ip = _resolve_with_zeroconf(host)
