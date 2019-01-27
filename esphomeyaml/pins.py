@@ -247,7 +247,7 @@ def _lookup_pin(value):
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise vol.Invalid(u"Can't find internal pin number for {}.".format(value))
+    raise vol.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
 
 
 def _translate_pin(value):
