@@ -5,8 +5,7 @@ from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_ID, CONF_STATE, \
-    CONF_ASSUMED_STATE
+    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_ID, CONF_STATE
 from esphomeyaml.cpp_generator import add, process_lambda, variable, get_variable, Pvariable, \
     templatable
 from esphomeyaml.cpp_helpers import setup_component
