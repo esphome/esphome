@@ -79,7 +79,7 @@ def validate_method_pin(value):
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
             raise vol.Invalid("Method {} only supports pin(s) {}".format(
-                method, ', '.join(str(x) for x in pins_)
+                method, ', '.join('GPIO{}'.format(x) for x in pins_)
             ), path=[CONF_METHOD])
     return value
 
