@@ -43,7 +43,6 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_PHY_ADDR, default=0): vol.All(cv.int_, vol.Range(min=0, max=31)),
     vol.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_MANUAL_IP): wifi.STA_MANUAL_IP_SCHEMA,
-    vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
 })
 
@@ -62,9 +61,6 @@ def to_code(config):
         for pin in gpio_output_pin_expression(config[CONF_POWER_PIN]):
             yield
         add(eth.set_power_pin(pin))
-
-    if CONF_HOSTNAME in config:
-        add(eth.set_hostname(config[CONF_HOSTNAME]))
 
     if CONF_MANUAL_IP in config:
         add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))

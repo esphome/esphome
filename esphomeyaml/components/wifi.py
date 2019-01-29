@@ -171,9 +171,6 @@ def to_code(config):
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
 
-    if CONF_HOSTNAME in config:
-        add(wifi.set_hostname(config[CONF_HOSTNAME]))
-
     if CONF_REBOOT_TIMEOUT in config:
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
