@@ -3,10 +3,10 @@ import voluptuous as vol
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.cpp_generator import add, process_lambda, variable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, float_, optional, Action
+from esphomeyaml.cpp_types import Action, App, float_, optional
 
 TemplateSensor = sensor.sensor_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 SensorPublishAction = sensor.sensor_ns.class_('SensorPublishAction', Action)
@@ -32,7 +32,6 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SENSOR'
-
 
 CONF_SENSOR_TEMPLATE_PUBLISH = 'sensor.template.publish'
 SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({

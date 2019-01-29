@@ -4,11 +4,12 @@ from esphomeyaml import automation
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
-from esphomeyaml.cpp_generator import add, process_lambda, variable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
+    CONF_RESTORE_STATE, \
+    CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Component, NoArg, bool_, optional, Action
+from esphomeyaml.cpp_types import Action, App, Component, NoArg, bool_, optional
 
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 SwitchPublishAction = switch.switch_ns.class_('SwitchPublishAction', Action)
@@ -50,7 +51,6 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SWITCH'
-
 
 CONF_SWITCH_TEMPLATE_PUBLISH = 'switch.template.publish'
 SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
