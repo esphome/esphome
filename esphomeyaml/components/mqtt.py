@@ -337,3 +337,7 @@ def setup_mqtt_component(obj, config):
         else:
             add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+
+
+LIB_DEPS = 'AsyncMqttClient@0.8.2'
+REQUIRED_BUILD_FLAGS = '-DUSE_MQTT'

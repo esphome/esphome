@@ -425,8 +425,13 @@ class EsphomeyamlCore(object):
             yield None, None
 
     def register_variable(self, id, obj):
+        if id in self.variables:
+            raise EsphomeyamlError("ID {} is already registered".format(id))
         _LOGGER.debug("Registered variable %s of type %s", id.id, id.type)
         self.variables[id] = obj
+
+    def has_id(self, id):
+        return id in self.variables
 
 
 CORE = EsphomeyamlCore()

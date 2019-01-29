@@ -3,20 +3,16 @@ import voluptuous as vol
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_ID, \
-    CONF_STATE
-from esphomeyaml.cpp_generator import add, process_lambda, variable, get_variable, Pvariable, \
-    templatable
+from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import add, process_lambda, variable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Application, float_, optional, Action
+from esphomeyaml.cpp_types import App, float_, optional, Action
 
-MakeTemplateSensor = Application.struct('MakeTemplateSensor')
 TemplateSensor = sensor.sensor_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 SensorPublishAction = sensor.sensor_ns.class_('SensorPublishAction', Action)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateSensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
@@ -24,10 +20,9 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 def to_code(config):
     rhs = App.make_template_sensor(config[CONF_NAME], config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    template = make.Ptemplate_
+    template = Pvariable(config[CONF_ID], rhs)
 
-    sensor.setup_sensor(template, make.Pmqtt, config)
+    sensor.setup_sensor(template, config)
     setup_component(template, config)
 
     for template_ in process_lambda(config[CONF_LAMBDA], [],

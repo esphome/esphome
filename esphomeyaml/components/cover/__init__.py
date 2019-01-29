@@ -5,6 +5,7 @@ from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID
+from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable
 from esphomeyaml.cpp_types import Action, Nameable, esphomelib_ns
 
@@ -36,16 +37,14 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 COVER_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(COVER_SCHEMA.schema)
 
 
-def setup_cover_core_(cover_var, mqtt_var, config):
+def setup_cover_core_(cover_var, config):
     if CONF_INTERNAL in config:
         add(cover_var.set_internal(config[CONF_INTERNAL]))
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(cover_var.Pget_mqtt(), config)
 
 
-def setup_cover(cover_obj, mqtt_obj, config):
-    cover_var = Pvariable(config[CONF_ID], cover_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    setup_cover_core_(cover_var, mqtt_var, config)
+def setup_cover(cover_obj, config):
+    CORE.add_job(setup_cover_core_, cover_obj, config)
 
 
 BUILD_FLAGS = '-DUSE_COVER'

@@ -3,13 +3,11 @@ import voluptuous as vol
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import binary_sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_ID, CONF_STATE
-from esphomeyaml.cpp_generator import variable, process_lambda, add, get_variable, Pvariable, \
-    templatable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
+from esphomeyaml.cpp_generator import Pvariable, add, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import Application, Component, App, optional, bool_, Action
+from esphomeyaml.cpp_types import App, Component, bool_, optional
 
-MakeTemplateBinarySensor = Application.struct('MakeTemplateBinarySensor')
 TemplateBinarySensor = binary_sensor.binary_sensor_ns.class_('TemplateBinarySensor',
                                                              binary_sensor.BinarySensor,
                                                              Component)
@@ -18,21 +16,20 @@ BinarySensorPublishAction = binary_sensor.binary_sensor_ns.class_('BinarySensorP
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTemplateBinarySensor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
     rhs = App.make_template_binary_sensor(config[CONF_NAME])
-    make = variable(config[CONF_MAKE_ID], rhs)
-    binary_sensor.setup_binary_sensor(make.Ptemplate_, make.Pmqtt, config)
-    setup_component(make.Ptemplate_, config)
+    var = Pvariable(config[CONF_ID], rhs)
+    binary_sensor.setup_binary_sensor(var, config)
+    setup_component(var, config)
 
     for template_ in process_lambda(config[CONF_LAMBDA], [],
                                     return_type=optional.template(bool_)):
         yield
-    add(make.Ptemplate_.set_template(template_))
+    add(var.set_template(template_))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_BINARY_SENSOR'
