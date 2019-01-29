@@ -3,10 +3,9 @@ import voluptuous as vol
 from esphomeyaml import automation
 from esphomeyaml.components import cover
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STOP_ACTION, CONF_ASSUMED_STATE
+from esphomeyaml.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, \
+    CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STOP_ACTION
 from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
-from esphomeyaml.cpp_generator import variable, process_lambda, add
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import App, NoArg, optional
 
