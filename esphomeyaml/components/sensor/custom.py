@@ -2,8 +2,8 @@ import voluptuous as vol
 
 from esphomeyaml.components import sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SENSORS
-from esphomeyaml.cpp_generator import process_lambda, variable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SENSORS, CONF_NAME
+from esphomeyaml.cpp_generator import process_lambda, variable, Pvariable, add
 from esphomeyaml.cpp_types import std_vector
 
 CustomSensorConstructor = sensor.sensor_ns.class_('CustomSensorConstructor')
@@ -24,8 +24,10 @@ def to_code(config):
 
     rhs = CustomSensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_SENSORS]):
-        sensor.register_sensor(custom.get_sensor(i), sens)
+    for i, conf in enumerate(config[CONF_SENSORS]):
+        var = Pvariable(conf[CONF_ID], custom.get_sensor(i))
+        add(var.set_name(conf[CONF_NAME]))
+        sensor.register_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SENSOR'
