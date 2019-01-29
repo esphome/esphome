@@ -2,8 +2,8 @@ import voluptuous as vol
 
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SWITCHES
-from esphomeyaml.cpp_generator import process_lambda, variable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_SWITCHES, CONF_NAME
+from esphomeyaml.cpp_generator import process_lambda, variable, Pvariable, add
 from esphomeyaml.cpp_types import std_vector
 
 CustomSwitchConstructor = switch.switch_ns.class_('CustomSwitchConstructor')
@@ -25,8 +25,10 @@ def to_code(config):
 
     rhs = CustomSwitchConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
-    for i, sens in enumerate(config[CONF_SWITCHES]):
-        switch.register_switch(custom.get_switch(i), sens)
+    for i, conf in enumerate(config[CONF_SWITCHES]):
+        var = Pvariable(conf[CONF_ID], custom.get_switch(i))
+        add(var.set_name(conf[CONF_NAME]))
+        switch.register_switch(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SWITCH'

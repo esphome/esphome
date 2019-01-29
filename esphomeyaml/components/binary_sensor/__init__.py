@@ -60,8 +60,9 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_INVERT): None,
     vol.Optional(CONF_DELAYED_ON): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DELAYED_OFF): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_LAMBDA): cv.lambda_,
+
+    vol.Optional(CONF_HEARTBEAT): cv.invalid("The heartbeat filter has been removed in 1.11.0"),
 }, cv.has_exactly_one_key(*FILTER_KEYS))
 
 MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
@@ -205,8 +206,6 @@ def setup_filter(config):
         yield App.register_component(DelayedOffFilter.new(config[CONF_DELAYED_OFF]))
     elif CONF_DELAYED_ON in config:
         yield App.register_component(DelayedOnFilter.new(config[CONF_DELAYED_ON]))
-    elif CONF_HEARTBEAT in config:
-        yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
     elif CONF_LAMBDA in config:
         for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
                                       return_type=optional.template(bool_)):
@@ -224,7 +223,7 @@ def setup_filters(config):
     yield ArrayInitializer(*filters)
 
 
-def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
+def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INTERNAL in config:
         add(binary_sensor_var.set_internal(CONF_INTERNAL))
     if CONF_DEVICE_CLASS in config:
@@ -279,22 +278,19 @@ def setup_binary_sensor_core_(binary_sensor_var, mqtt_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, bool_, conf)
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(binary_sensor_var.Pget_mqtt(), config)
 
 
-def setup_binary_sensor(binary_sensor_obj, mqtt_obj, config):
-    binary_sensor_var = Pvariable(config[CONF_ID], binary_sensor_obj,
-                                  has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj,
-                         has_side_effects=False)
-    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+def setup_binary_sensor(binary_sensor_obj, config):
+    if not CORE.has_id(config[CONF_ID]):
+        binary_sensor_obj = Pvariable(config[CONF_ID], binary_sensor_obj, has_side_effects=True)
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_obj, config)
 
 
 def register_binary_sensor(var, config):
     binary_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    rhs = App.register_binary_sensor(binary_sensor_var)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, mqtt_var, config)
+    add(App.register_binary_sensor(binary_sensor_var))
+    CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, config)
 
 
 def core_to_hass_config(data, config):
