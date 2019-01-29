@@ -1,16 +1,20 @@
 import voluptuous as vol
 
 from esphomeyaml import automation
+from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
-from esphomeyaml.cpp_generator import add, process_lambda, variable
+    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_ID, CONF_STATE, \
+    CONF_ASSUMED_STATE
+from esphomeyaml.cpp_generator import add, process_lambda, variable, get_variable, Pvariable, \
+    templatable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Application, Component, NoArg, bool_, optional
+from esphomeyaml.cpp_types import App, Application, Component, NoArg, bool_, optional, Action
 
 MakeTemplateSwitch = Application.struct('MakeTemplateSwitch')
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
+SwitchPublishAction = switch.switch_ns.class_('SwitchPublishAction', Action)
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
@@ -51,6 +55,26 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SWITCH'
+
+
+CONF_SWITCH_TEMPLATE_PUBLISH = 'switch.template.publish'
+SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+    vol.Required(CONF_ID): cv.use_variable_id(switch.Switch),
+    vol.Required(CONF_STATE): cv.templatable(cv.boolean),
+})
+
+
+@ACTION_REGISTRY.register(CONF_SWITCH_TEMPLATE_PUBLISH, SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA)
+def switch_template_publish_to_code(config, action_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_switch_publish_action(template_arg)
+    type = SwitchPublishAction.template(arg_type)
+    action = Pvariable(action_id, rhs, type=type)
+    for template_ in templatable(config[CONF_STATE], arg_type, bool_):
+        yield None
+    add(action.set_state(template_))
+    yield action
 
 
 def to_hass_config(data, config):

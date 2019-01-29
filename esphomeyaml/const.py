@@ -399,6 +399,8 @@ CONF_DIRECTION = 'direction'
 CONF_VARIANT = 'variant'
 CONF_METHOD = 'method'
 CONF_FAST_CONNECT = 'fast_connect'
+CONF_ON_TURN_ON = 'on_turn_on'
+CONF_ON_TURN_OFF = 'on_turn_off'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
