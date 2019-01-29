@@ -1052,13 +1052,16 @@ time:
 cover:
   - platform: template
     name: "Template Cover"
-    lambda: >-
+    id: template_cover
+    lambda: |-
       if (id(binary_sensor1).state) {
         return cover::COVER_OPEN;
       } else {
         return {};
       }
     optimistic: true
+    open_action:
+      - cover.template.publish: template_cover
 
 debug:
 
