@@ -161,7 +161,6 @@ def setup_filter(config):
 def setup_filters(config):
     filters = []
     for conf in config:
-        filter = None
         for filter in setup_filter(conf):
             yield None
         filters.append(filter)
@@ -178,7 +177,6 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
     if CONF_ACCURACY_DECIMALS in config:
         add(sensor_var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     if CONF_FILTERS in config:
-        filters = None
         for filters in setup_filters(config[CONF_FILTERS]):
             yield
         add(sensor_var.set_filters(filters))
