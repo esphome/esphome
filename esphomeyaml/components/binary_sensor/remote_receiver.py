@@ -10,8 +10,10 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAN
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
-    CONF_STATE
-from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable
+    CONF_STATE, CONF_ID
+from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable, progmem_array
+from esphomeyaml.cpp_types import int32
+from esphomeyaml.py_compat import integer_types
 
 DEPENDENCIES = ['remote_receiver']
 
@@ -35,6 +37,18 @@ RCSwitchTypeBReceiver = remote_ns.class_('RCSwitchTypeBReceiver', RCSwitchRawRec
 RCSwitchTypeCReceiver = remote_ns.class_('RCSwitchTypeCReceiver', RCSwitchRawReceiver)
 RCSwitchTypeDReceiver = remote_ns.class_('RCSwitchTypeDReceiver', RCSwitchRawReceiver)
 
+
+def validate_raw(value):
+    if isinstance(value, dict):
+        return vol.Schema({
+            cv.GenerateID(): cv.declare_variable_id(int32),
+            vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+        })(value)
+    return validate_raw({
+        CONF_DATA: value
+    })
+
+
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
     vol.Optional(CONF_LG): vol.Schema({
@@ -56,7 +70,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RAW): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+    vol.Optional(CONF_RAW): validate_raw,
     vol.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_B): RC_SWITCH_TYPE_B_SCHEMA,
@@ -82,8 +96,9 @@ def receiver_base(full_config):
     if key == CONF_SONY:
         return SonyReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_RAW:
-        data = ArrayInitializer(*config, multiline=False)
-        return RawReceiver.new(name, data)
+        rhs = ArrayInitializer(*config[CONF_DATA], multiline=False)
+        arr = progmem_array(config[CONF_ID], rhs)
+        return RawReceiver.new(name, arr, len(config[CONF_DATA]))
     if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                        binary_code(config[CONF_CODE]), len(config[CONF_CODE]))

@@ -6,8 +6,8 @@ from esphomeyaml.components import display
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawExpression, add
-from esphomeyaml.cpp_types import App
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array
+from esphomeyaml.cpp_types import App, uint8
 from esphomeyaml.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']
@@ -74,7 +74,7 @@ FONT_SCHEMA = vol.Schema({
     vol.Required(CONF_FILE): validate_truetype_file,
     vol.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
     vol.Optional(CONF_SIZE, default=20): vol.All(cv.int_, vol.Range(min=1)),
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(uint8),
 })
 
 CONFIG_SCHEMA = vol.All(validate_pillow_installed, FONT_SCHEMA)
@@ -108,14 +108,12 @@ def to_code(config):
         glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
         data += glyph_data
 
-    raw_data = MockObj(config[CONF_RAW_DATA_ID])
-    add(RawExpression('static const uint8_t {}[{}] PROGMEM = {}'.format(
-        raw_data, len(data),
-        ArrayInitializer(*[HexInt(x) for x in data], multiline=False))))
+    rhs = ArrayInitializer(*[HexInt(x) for x in data], multiline=False)
+    prog_arr = progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
     glyphs = []
     for glyph in config[CONF_GLYPHS]:
-        glyphs.append(Glyph(glyph, raw_data, *glyph_args[glyph]))
+        glyphs.append(Glyph(glyph, prog_arr, *glyph_args[glyph]))
 
     rhs = App.make_font(ArrayInitializer(*glyphs), ascent, ascent + descent)
     Pvariable(config[CONF_ID], rhs)

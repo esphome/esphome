@@ -8,8 +8,8 @@ from esphomeyaml.components import display, font
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawExpression, add
-from esphomeyaml.cpp_types import App
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array
+from esphomeyaml.cpp_types import App, uint8
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ IMAGE_SCHEMA = vol.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Image_),
     vol.Required(CONF_FILE): cv.file_,
     vol.Optional(CONF_RESIZE): cv.dimensions,
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(None),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(uint8),
 })
 
 CONFIG_SCHEMA = vol.All(font.validate_pillow_installed, IMAGE_SCHEMA)
@@ -56,10 +56,8 @@ def to_code(config):
             pos = x + y * width8
             data[pos // 8] |= 0x80 >> (pos % 8)
 
-    raw_data = MockObj(config[CONF_RAW_DATA_ID])
-    add(RawExpression('static const uint8_t {}[{}] PROGMEM = {}'.format(
-        raw_data, len(data),
-        ArrayInitializer(*[HexInt(x) for x in data], multiline=False))))
+    rhs = ArrayInitializer(*[HexInt(x) for x in data], multiline=False)
+    prog_arr = progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
-    rhs = App.make_image(raw_data, width, height)
+    rhs = App.make_image(prog_arr, width, height)
     Pvariable(config[CONF_ID], rhs)
