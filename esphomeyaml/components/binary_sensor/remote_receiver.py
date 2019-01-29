@@ -13,7 +13,6 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAN
     CONF_STATE, CONF_ID
 from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable, progmem_array
 from esphomeyaml.cpp_types import int32
-from esphomeyaml.py_compat import integer_types
 
 DEPENDENCIES = ['remote_receiver']
 
