@@ -2,11 +2,9 @@
 from __future__ import print_function
 
 import codecs
-import collections
 import hmac
 import json
 import logging
-import multiprocessing
 import os
 import subprocess
 import threading
@@ -25,7 +23,7 @@ import tornado.websocket
 
 from esphomeyaml import const
 from esphomeyaml.__main__ import get_serial_ports
-from esphomeyaml.helpers import mkdir_p, run_system_command
+from esphomeyaml.helpers import mkdir_p
 from esphomeyaml.py_compat import IS_PY2
 from esphomeyaml.storage_json import EsphomeyamlStorageJSON, StorageJSON, \
     esphomeyaml_storage_path, ext_storage_path

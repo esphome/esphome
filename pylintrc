@@ -14,6 +14,7 @@ disable=
   too-many-statements,
   too-many-arguments,
   too-many-return-statements,
+  too-many-instance-attributes,
   duplicate-code,
   invalid-name,
   cyclic-import,

@@ -83,7 +83,8 @@ class IncomingDecodeError(Error):
     pass
 
 
-class QuietLogger:
+# pylint: disable=no-init
+class QuietLogger(object):
     _seen_logs = {}
 
     @classmethod
@@ -112,7 +113,7 @@ class QuietLogger:
         logger(*args)
 
 
-class DNSEntry:
+class DNSEntry(object):
     """A DNS entry"""
 
     def __init__(self, name, type_, class_):
@@ -221,7 +222,7 @@ class DNSIncoming(QuietLogger):
 
     def read_questions(self):
         """Reads questions section of packet"""
-        for i in range(self.num_questions):
+        for _ in range(self.num_questions):
             name = self.read_name()
             type_, class_ = self.unpack(b'!HH')
 
@@ -248,7 +249,7 @@ class DNSIncoming(QuietLogger):
         """Reads the answers, authorities and additionals section of the
         packet"""
         n = self.num_answers + self.num_authorities + self.num_additionals
-        for i in range(n):
+        for _ in range(n):
             domain = self.read_name()
             type_, class_, ttl, length = self.unpack(b'!HHiH')
 
@@ -318,7 +319,7 @@ class DNSIncoming(QuietLogger):
         return result
 
 
-class DNSOutgoing:
+class DNSOutgoing(object):
     """Object representation of an outgoing packet"""
 
     def __init__(self, flags):
@@ -448,6 +449,7 @@ class Engine(threading.Thread):
 
     def run(self):
         while not self.zc.done:
+            # pylint: disable=len-as-condition
             with self.condition:
                 rs = self.readers.keys()
                 if len(rs) == 0:
@@ -457,7 +459,7 @@ class Engine(threading.Thread):
 
             if len(rs) != 0:
                 try:
-                    rr, wr, er = select.select(rs, [], [], self.timeout)
+                    rr, _, _ = select.select(rs, [], [], self.timeout)
                     if not self.zc.done:
                         for socket_ in rr:
                             reader = self.readers.get(socket_)
@@ -489,7 +491,7 @@ class Listener(QuietLogger):
     def handle_read(self, socket_):
         try:
             data, (addr, port) = socket_.recvfrom(_MAX_MSG_ABSOLUTE)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             self.log_exception_warning()
             return
 
@@ -503,7 +505,7 @@ class Listener(QuietLogger):
             self.zc.handle_response(msg)
 
 
-class RecordUpdateListener:
+class RecordUpdateListener(object):
     def update_record(self, zc, now, record):
         raise NotImplementedError()
 
@@ -732,7 +734,7 @@ class Zeroconf(QuietLogger):
         try:
             self.listeners.remove(listener)
             self.notify_all()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             log.exception('Unknown error, possibly benign: %r', e)
 
     def update_record(self, now, rec):
@@ -758,7 +760,7 @@ class Zeroconf(QuietLogger):
                 return
             try:
                 bytes_sent = s.sendto(packet, 0, (_MDNS_ADDR, _MDNS_PORT))
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 # on send errors, log the exception and keep going
                 self.log_exception_warning()
             else:
