@@ -34,6 +34,8 @@ from esphomeyaml.util import shlex_quote
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
+from esphomeyaml.zeroconf import Zeroconf, DashboardStatus
+
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''
 PASSWORD_DIGEST = ''
@@ -315,55 +317,25 @@ class MainRequestHandler(BaseHandler):
                     get_static_file_url=get_static_file_url)
 
 
-def _ping_func(filename, address):
-    if os.name == 'nt':
-        command = ['ping', '-n', '1', address]
-    else:
-        command = ['ping', '-c', '1', address]
-    rc, _, _ = run_system_command(*command)
-    return filename, rc == 0
-
-
 class PingThread(threading.Thread):
     def run(self):
-        pool = multiprocessing.Pool(processes=8)
+        zc = Zeroconf()
 
+        def on_update(dat):
+            for key, b in dat.items():
+                PING_RESULT[key] = b
+
+        stat = DashboardStatus(zc, on_update)
+        stat.start()
         while not STOP_EVENT.is_set():
-            # Only do pings if somebody has the dashboard open
+            entries = _list_dashboard_entries()
+            stat.request_query({entry.filename: entry.name + '.local.' for entry in entries})
+
             PING_REQUEST.wait()
             PING_REQUEST.clear()
-
-            def callback(ret):
-                PING_RESULT[ret[0]] = ret[1]
-
-            entries = _list_dashboard_entries()
-            queue = collections.deque()
-            for entry in entries:
-                if entry.address is None:
-                    PING_RESULT[entry.filename] = None
-                    continue
-
-                result = pool.apply_async(_ping_func, (entry.filename, entry.address),
-                                          callback=callback)
-                queue.append(result)
-
-            while queue:
-                item = queue[0]
-                if item.ready():
-                    queue.popleft()
-                    continue
-
-                try:
-                    item.get(0.1)
-                except OSError:
-                    # ping not installed
-                    pass
-                except multiprocessing.TimeoutError:
-                    pass
-
-                if STOP_EVENT.is_set():
-                    pool.terminate()
-                    return
+        stat.stop()
+        stat.join()
+        zc.close()
 
 
 class PingRequestHandler(BaseHandler):

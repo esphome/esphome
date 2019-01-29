@@ -103,15 +103,21 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphomeyaml.core import EsphomeyamlError
-    zc = Zeroconf()
-    service = '_esphomelib._tcp.local.'
-    host = host[:-len('.local')]
-    info = zc.get_service_info(service, '{}.{}'.format(host, service))
-    zc.close()
+    try:
+        zc = Zeroconf()
+    except Exception:
+        raise EsphomeyamlError("Cannot start mDNS sockets, is this a docker container without "
+                               "host network mode?")
+    try:
+        info = zc.resolve_host(host + '.')
+    except Exception as err:
+        raise EsphomeyamlError("Error resolving mDNS hostname: {}".format(err))
+    finally:
+        zc.close()
     if info is None:
         raise EsphomeyamlError("Error resolving address with mDNS: Did not respond. "
                                "Maybe the device is offline.")
-    return socket.inet_ntoa(info.address)
+    return info
 
 
 def resolve_ip_address(host):

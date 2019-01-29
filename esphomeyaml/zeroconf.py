@@ -1,7 +1,6 @@
 # Custom zeroconf implementation based on python-zeroconf
 # (https://github.com/jstasiak/python-zeroconf) that supports Python 2
 
-import enum
 import errno
 import logging
 import select
@@ -11,9 +10,10 @@ import sys
 import threading
 import time
 
+import enum
 import ifaddr
 
-from esphomeyaml.py_compat import text_type, indexbytes
+from esphomeyaml.py_compat import indexbytes, text_type
 
 log = logging.getLogger(__name__)
 
@@ -72,12 +72,6 @@ _TYPE_ANY = 255
 
 # Mapping constants to names
 int2byte = struct.Struct(">B").pack
-
-
-# utility functions
-def current_time_millis():
-    """Current system time in milliseconds"""
-    return time.time() * 1000
 
 
 # Exceptions
@@ -147,12 +141,18 @@ class DNSRecord(DNSEntry):
 
     def __init__(self, name, type_, class_, ttl):
         DNSEntry.__init__(self, name, type_, class_)
-        self.ttl = ttl
-        self.created = current_time_millis()
+        self.ttl = 15
+        self.created = time.time()
 
     def write(self, out):
         """Abstract method"""
         raise NotImplementedError
+
+    def is_expired(self, now):
+        return self.created + self.ttl <= now
+
+    def is_removable(self, now):
+        return self.created + self.ttl * 2 <= now
 
 
 class DNSAddress(DNSRecord):
@@ -178,25 +178,6 @@ class DNSText(DNSRecord):
     def write(self, out):
         """Used in constructing an outgoing packet"""
         out.write_string(self.text)
-
-
-class DNSService(DNSRecord):
-    """A DNS service record"""
-
-    def __init__(self, name, type_, class_, ttl,
-                 priority, weight, port, server):
-        DNSRecord.__init__(self, name, type_, class_, ttl)
-        self.priority = priority
-        self.weight = weight
-        self.port = port
-        self.server = server
-
-    def write(self, out):
-        """Used in constructing an outgoing packet"""
-        out.write_short(self.priority)
-        out.write_short(self.weight)
-        out.write_short(self.port)
-        out.write_name(self.server)
 
 
 class DNSIncoming(QuietLogger):
@@ -278,11 +259,6 @@ class DNSIncoming(QuietLogger):
             elif type_ == _TYPE_TXT:
                 rec = DNSText(
                     domain, type_, class_, ttl, self.read_string(length))
-            elif type_ == _TYPE_SRV:
-                rec = DNSService(
-                    domain, type_, class_, ttl,
-                    self.read_unsigned_short(), self.read_unsigned_short(),
-                    self.read_unsigned_short(), self.read_name())
             elif type_ == _TYPE_AAAA:
                 rec = DNSAddress(
                     domain, type_, class_, ttl, self.read_string(16))
@@ -532,128 +508,103 @@ class RecordUpdateListener:
         raise NotImplementedError()
 
 
-class ServiceInfo(RecordUpdateListener):
-    """Service information"""
-
-    def __init__(self, type_, name):
-        """Create a service description.
-
-        type_: fully qualified service type name
-        name: fully qualified service name
-        address: IP address as unsigned short, network byte order
-        port: port that the service runs on
-        weight: weight of the service
-        priority: priority of the service
-        properties: dictionary of properties (or a string holding the
-                    bytes for the text field)
-        server: fully qualified name for service host (defaults to name)"""
-
-        self.type = type_
+class HostResolver(RecordUpdateListener):
+    def __init__(self, name):
         self.name = name
         self.address = None
-        self.port = None
-        self.weight = 0
-        self.priority = 0
-        self.server = name
-        self._properties = {}
-        self.text = b''
-        self.ttl = None
-
-    @property
-    def properties(self):
-        return self._properties
-
-    def _set_text(self, text):
-        """Sets properties and text given a text field"""
-        self.text = text
-        result = {}
-        end = len(text)
-        index = 0
-        strs = []
-        while index < end:
-            length = indexbytes(text, index)
-            index += 1
-            strs.append(text[index:index + length])
-            index += length
-
-        for s in strs:
-            parts = s.split(b'=', 1)
-            try:
-                key, value = parts
-            except ValueError:
-                # No equals sign at all
-                key = s
-                value = False
-            else:
-                if value == b'true':
-                    value = True
-                elif value == b'false' or not value:
-                    value = False
-
-            # Only update non-existent properties
-            if key and result.get(key) is None:
-                result[key] = value
-
-        self._properties = result
 
     def update_record(self, zc, now, record):
-        """Updates service information from a DNS record"""
-        if record is not None:
-            if record.type == _TYPE_A:
-                assert isinstance(record, DNSAddress)
-                # if record.name == self.name:
-                if record.name == self.server:
-                    self.address = record.address
-            elif record.type == _TYPE_SRV:
-                assert isinstance(record, DNSService)
-                if record.name == self.name:
-                    self.server = record.server
-                    self.port = record.port
-                    self.weight = record.weight
-                    self.priority = record.priority
-                    # self.address = None
-            elif record.type == _TYPE_TXT:
-                assert isinstance(record, DNSText)
-                if record.name == self.name:
-                    self._set_text(record.text)
+        if record is None:
+            return
+        if record.type == _TYPE_A:
+            assert isinstance(record, DNSAddress)
+            if record.name == self.name:
+                self.address = record.address
 
     def request(self, zc, timeout):
-        """Returns true if the service could be discovered on the
-        network, and updates this object with details discovered.
-        """
-        now = current_time_millis()
-        delay = _LISTENER_TIME
+        now = time.time()
+        delay = 0.2
         next_ = now + delay
         last = now + timeout
 
         try:
             zc.add_listener(self)
-            while None in (self.server, self.address, self.text):
+            while self.address is None:
                 if last <= now:
                     # Timeout
                     return False
                 if next_ <= now:
-                    # Wait until next query
                     out = DNSOutgoing(_FLAGS_QR_QUERY)
                     out.add_question(
-                        DNSQuestion(self.name, _TYPE_SRV, _CLASS_IN))
-
-                    out.add_question(
-                        DNSQuestion(self.name, _TYPE_TXT, _CLASS_IN))
-
-                    # Only looking for type a! (and txt if
-                    out.add_question(
-                        DNSQuestion(self.server, _TYPE_A, _CLASS_IN))
+                        DNSQuestion(self.name, _TYPE_A, _CLASS_IN))
                     zc.send(out)
                     next_ = now + delay
                     delay *= 2
 
                 zc.wait(min(next_, last) - now)
-                now = current_time_millis()
+                now = time.time()
         finally:
             zc.remove_listener(self)
 
         return True
+
+
+class DashboardStatus(RecordUpdateListener, threading.Thread):
+    def __init__(self, zc, on_update):
+        threading.Thread.__init__(self)
+        self.zc = zc
+        self.query_hosts = set()
+        self.key_to_host = {}
+        self.cache = {}
+        self.stop_event = threading.Event()
+        self.query_event = threading.Event()
+        self.on_update = on_update
+
+    def update_record(self, zc, now, record):
+        if record is None:
+            return
+        if record.type in (_TYPE_A, _TYPE_AAAA, _TYPE_TXT):
+            assert isinstance(record, DNSEntry)
+            if record.name in self.query_hosts:
+                self.cache.setdefault(record.name, []).insert(0, record)
+            self.purge_cache()
+
+    def purge_cache(self):
+        new_cache = {}
+        for host, records in self.cache.items():
+            if host not in self.query_hosts:
+                continue
+            new_records = [rec for rec in records if not rec.is_removable(time.time())]
+            if new_records:
+                new_cache[host] = new_records
+        self.cache = new_cache
+        self.on_update({key: self.host_status(key) for key in self.key_to_host})
+
+    def request_query(self, hosts):
+        self.query_hosts = set(host for host in hosts.values())
+        self.key_to_host = hosts
+        self.query_event.set()
+
+    def stop(self):
+        self.stop_event.set()
+        self.query_event.set()
+
+    def host_status(self, key):
+        return self.key_to_host.get(key) in self.cache
+
+    def run(self):
+        self.zc.add_listener(self)
+        while not self.stop_event.is_set():
+            self.purge_cache()
+            for host in self.query_hosts:
+                if all(record.is_expired(time.time()) for record in self.cache.get(host, [])):
+                    out = DNSOutgoing(_FLAGS_QR_QUERY)
+                    out.add_question(
+                        DNSQuestion(host, _TYPE_A, _CLASS_IN))
+                    self.zc.send(out)
+            self.query_event.wait()
+            self.query_event.clear()
+        self.zc.remove_listener(self)
 
 
 def get_all_addresses():
@@ -665,7 +616,7 @@ def get_all_addresses():
     ))
 
 
-def new_socket(port = _MDNS_PORT):
+def new_socket():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
@@ -688,15 +639,14 @@ def new_socket(port = _MDNS_PORT):
             if not err.errno == errno.ENOPROTOOPT:
                 raise
 
-    if port is _MDNS_PORT:
-        # OpenBSD needs the ttl and loop values for the IP_MULTICAST_TTL and
-        # IP_MULTICAST_LOOP socket options as an unsigned char.
-        ttl = struct.pack(b'B', 255)
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-        loop = struct.pack(b'B', 1)
-        s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, loop)
+    # OpenBSD needs the ttl and loop values for the IP_MULTICAST_TTL and
+    # IP_MULTICAST_LOOP socket options as an unsigned char.
+    ttl = struct.pack(b'B', 255)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+    loop = struct.pack(b'B', 1)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_LOOP, loop)
 
-    s.bind(('', port))
+    s.bind(('', _MDNS_PORT))
     return s
 
 
@@ -760,17 +710,17 @@ class Zeroconf(QuietLogger):
         """Calling thread waits for a given number of milliseconds or
         until notified."""
         with self.condition:
-            self.condition.wait(timeout / 1000.0)
+            self.condition.wait(timeout)
 
     def notify_all(self):
         """Notifies all waiting threads"""
         with self.condition:
             self.condition.notify_all()
 
-    def get_service_info(self, type_, name, timeout=3000):
-        info = ServiceInfo(type_, name)
+    def resolve_host(self, host, timeout=3.0):
+        info = HostResolver(host)
         if info.request(self, timeout):
-            return info
+            return socket.inet_ntoa(info.address)
         return None
 
     def add_listener(self, listener):
@@ -795,7 +745,7 @@ class Zeroconf(QuietLogger):
     def handle_response(self, msg):
         """Deal with incoming response packets.  All answers
         are held in the cache, and listeners are notified."""
-        now = current_time_millis()
+        now = time.time()
         for record in msg.answers:
             self.update_record(now, record)
 
