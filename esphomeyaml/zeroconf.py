@@ -638,7 +638,7 @@ def new_socket():
             s.setsockopt(socket.SOL_SOCKET, reuseport, 1)
         except (OSError, socket.error) as err:
             # OSError on python 3, socket.error on python 2
-            if not err.errno == errno.ENOPROTOOPT:
+            if err.errno != errno.ENOPROTOOPT:
                 raise
 
     # OpenBSD needs the ttl and loop values for the IP_MULTICAST_TTL and
