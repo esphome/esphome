@@ -136,7 +136,6 @@ def setup_filter(config):
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
         yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
     elif CONF_LAMBDA in config:
-        lambda_ = None
         for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
                                       return_type=optional.template(float_)):
             yield None
@@ -146,7 +145,6 @@ def setup_filter(config):
     elif CONF_DELTA in config:
         yield DeltaFilter.new(config[CONF_DELTA])
     elif CONF_OR in config:
-        filters = None
         for filters in setup_filters(config[CONF_OR]):
             yield None
         yield OrFilter.new(filters)
@@ -167,7 +165,7 @@ def setup_filters(config):
     yield ArrayInitializer(*filters)
 
 
-def setup_sensor_core_(sensor_var, mqtt_var, config):
+def setup_sensor_core_(sensor_var, config):
     if CONF_INTERNAL in config:
         add(sensor_var.set_internal(config[CONF_INTERNAL]))
     if CONF_UNIT_OF_MEASUREMENT in config:
@@ -203,25 +201,25 @@ def setup_sensor_core_(sensor_var, mqtt_var, config):
             add(trigger.set_max(template_))
         automation.build_automation(trigger, float_, conf)
 
+    mqtt_ = sensor_var.Pget_mqtt()
     if CONF_EXPIRE_AFTER in config:
         if config[CONF_EXPIRE_AFTER] is None:
-            add(mqtt_var.disable_expire_after())
+            add(mqtt_.disable_expire_after())
         else:
-            add(mqtt_var.set_expire_after(config[CONF_EXPIRE_AFTER]))
-    setup_mqtt_component(mqtt_var, config)
+            add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
+    setup_mqtt_component(mqtt_, config)
 
 
-def setup_sensor(sensor_obj, mqtt_obj, config):
-    sensor_var = Pvariable(config[CONF_ID], sensor_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+def setup_sensor(sensor_obj, config):
+    if not CORE.has_id(config[CONF_ID]):
+        sensor_obj = Pvariable(config[CONF_ID], sensor_obj, has_side_effects=True)
+    CORE.add_job(setup_sensor_core_, sensor_obj, config)
 
 
 def register_sensor(var, config):
     sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    rhs = App.register_sensor(sensor_var)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    CORE.add_job(setup_sensor_core_, sensor_var, mqtt_var, config)
+    add(App.register_sensor(sensor_var))
+    CORE.add_job(setup_sensor_core_, sensor_var, config)
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'

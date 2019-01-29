@@ -34,7 +34,7 @@ TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 TEXT_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(TEXT_SENSOR_SCHEMA.schema)
 
 
-def setup_text_sensor_core_(text_sensor_var, mqtt_var, config):
+def setup_text_sensor_core_(text_sensor_var, config):
     if CONF_INTERNAL in config:
         add(text_sensor_var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
@@ -45,20 +45,19 @@ def setup_text_sensor_core_(text_sensor_var, mqtt_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automation(trigger, std_string, conf)
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(text_sensor_var.get_mqtt(), config)
 
 
-def setup_text_sensor(text_sensor_obj, mqtt_obj, config):
-    sensor_var = Pvariable(config[CONF_ID], text_sensor_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    CORE.add_job(setup_text_sensor_core_, sensor_var, mqtt_var, config)
+def setup_text_sensor(text_sensor_obj, config):
+    if not CORE.has_id(config[CONF_ID]):
+        text_sensor_obj = Pvariable(config[CONF_ID], text_sensor_obj, has_side_effects=True)
+    CORE.add_job(setup_text_sensor_core_, text_sensor_obj, config)
 
 
 def register_text_sensor(var, config):
     text_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    rhs = App.register_text_sensor(text_sensor_var)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], rhs, has_side_effects=True)
-    CORE.add_job(setup_text_sensor_core_, text_sensor_var, mqtt_var, config)
+    add(App.register_text_sensor(text_sensor_var))
+    CORE.add_job(setup_text_sensor_core_, text_sensor_var, config)
 
 
 BUILD_FLAGS = '-DUSE_TEXT_SENSOR'

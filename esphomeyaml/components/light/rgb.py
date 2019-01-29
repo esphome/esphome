@@ -28,7 +28,7 @@ def to_code(config):
         yield
     rhs = App.make_rgb_light(config[CONF_NAME], red, green, blue)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+    light.setup_light(light_struct.Pstate, config)
     setup_component(light_struct.Pstate, config)
 
 

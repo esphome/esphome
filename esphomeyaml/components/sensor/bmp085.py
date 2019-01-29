@@ -1,23 +1,23 @@
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_ADDRESS, CONF_MAKE_ID, CONF_NAME, CONF_PRESSURE, \
-    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphomeyaml.cpp_generator import variable, add, HexIntLiteral
+from esphomeyaml.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_PRESSURE, CONF_TEMPERATURE, \
+    CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import HexIntLiteral, Pvariable, add
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import Application, App
+from esphomeyaml.cpp_types import App, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
-MakeBMP085Sensor = Application.struct('MakeBMP085Sensor')
+BMP085Component = sensor.sensor_ns.class_('BMP085Component', PollingComponent, i2c.I2CDevice)
 BMP085TemperatureSensor = sensor.sensor_ns.class_('BMP085TemperatureSensor',
                                                   sensor.EmptyPollingParentSensor)
 BMP085PressureSensor = sensor.sensor_ns.class_('BMP085PressureSensor',
                                                sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBMP085Sensor),
+    cv.GenerateID(): cv.declare_variable_id(BMP085Component),
     vol.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BMP085TemperatureSensor),
     })),
@@ -33,15 +33,13 @@ def to_code(config):
     rhs = App.make_bmp085_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                                  config[CONF_PRESSURE][CONF_NAME],
                                  config.get(CONF_UPDATE_INTERVAL))
-    bmp = variable(config[CONF_MAKE_ID], rhs)
+    bmp = Pvariable(config[CONF_ID], rhs)
     if CONF_ADDRESS in config:
-        add(bmp.Pbmp.set_address(HexIntLiteral(config[CONF_ADDRESS])))
+        add(bmp.set_address(HexIntLiteral(config[CONF_ADDRESS])))
 
-    sensor.setup_sensor(bmp.Pbmp.Pget_temperature_sensor(), bmp.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(bmp.Pbmp.Pget_pressure_sensor(), bmp.Pmqtt_pressure,
-                        config[CONF_PRESSURE])
-    setup_component(bmp.Pbmp, config)
+    sensor.setup_sensor(bmp.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bmp.Pget_pressure_sensor(), config[CONF_PRESSURE])
+    setup_component(bmp, config)
 
 
 BUILD_FLAGS = '-DUSE_BMP085_SENSOR'

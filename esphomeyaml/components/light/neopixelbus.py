@@ -156,7 +156,7 @@ def to_code(config):
     if CONF_COLOR_CORRECT in config:
         add(output.set_correction(*config[CONF_COLOR_CORRECT]))
 
-    light.setup_light(make.Pstate, make.Pmqtt, config)
+    light.setup_light(make.Pstate, config)
     setup_component(output, config)
 
 

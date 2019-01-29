@@ -24,12 +24,6 @@ ethernet:
   hostname: helloworld
   domain: .local
 
-mqtt:
-  broker: '192.168.178.84'
-  port: 1883
-  username: 'debug'
-  password: 'debug'
-
 api:
 
 i2c:
@@ -82,17 +76,6 @@ sensor:
       name: "Xiaomi MiJia Humidity"
     battery_level:
       name: "Xiaomi MiJia Battery Level"
-  - platform: mqtt_subscribe
-    name: "MQTT Subscribe Sensor 1"
-    topic: "mqtt/topic"
-    id: the_sensor
-    qos: 2
-    on_value:
-    - mqtt.publish_json:
-        topic: the/topic
-        payload: |-
-          root["key"] = id(the_sensor).value;
-          root["greeting"] = "Hello World";
   - platform: pmsx003
     type: PMSX003
     pm_1_0:
@@ -204,10 +187,6 @@ text_sensor:
           variables:
             my_variable: |-
               return id(version_sensor).state;
-  - platform: mqtt_subscribe
-    name: "MQTT Subscribe Text"
-    topic: "the/topic"
-    qos: 2
   - platform: template
     name: "Template Text Sensor"
     lambda: |-
