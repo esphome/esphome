@@ -80,7 +80,7 @@ def validate_method_pin(value):
         if opt in value and value[opt] not in pins_:
             raise vol.Invalid("Method {} only supports pin(s) {}".format(
                 method, ', '.join(str(x) for x in pins_)
-            ))
+            ), path=[CONF_METHOD])
     return value
 
 
