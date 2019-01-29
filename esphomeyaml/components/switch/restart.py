@@ -2,9 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_INVERTED, CONF_MAKE_ID, CONF_NAME, CONF_ID
-from esphomeyaml.cpp_generator import variable, Pvariable
-from esphomeyaml.cpp_types import App, Application
+from esphomeyaml.const import CONF_ID, CONF_INVERTED, CONF_NAME
+from esphomeyaml.cpp_generator import Pvariable
+from esphomeyaml.cpp_types import App
 
 RestartSwitch = switch.switch_ns.class_('RestartSwitch', switch.Switch)
 

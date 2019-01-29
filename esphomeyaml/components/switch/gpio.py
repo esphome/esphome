@@ -6,7 +6,7 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_NAME, CONF_PIN, CONF_RESTORE_MODE
 from esphomeyaml.cpp_generator import Pvariable, add
 from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
-from esphomeyaml.cpp_types import App, Application, Component
+from esphomeyaml.cpp_types import App, Component
 
 GPIOSwitch = switch.switch_ns.class_('GPIOSwitch', switch.Switch, Component)
 GPIOSwitchRestoreMode = switch.switch_ns.enum('GPIOSwitchRestoreMode')

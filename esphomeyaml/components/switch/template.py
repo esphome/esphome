@@ -3,11 +3,11 @@ import voluptuous as vol
 from esphomeyaml import automation
 from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_LAMBDA, CONF_MAKE_ID, CONF_NAME, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_ID
-from esphomeyaml.cpp_generator import add, process_lambda, variable, Pvariable
+from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
+    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, Application, Component, NoArg, bool_, optional
+from esphomeyaml.cpp_types import App, Component, NoArg, bool_, optional
 
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 
