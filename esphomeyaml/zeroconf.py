@@ -10,7 +10,6 @@ import sys
 import threading
 import time
 
-import enum
 import ifaddr
 
 from esphomeyaml.py_compat import indexbytes, text_type
@@ -329,14 +328,10 @@ class DNSOutgoing(object):
         self.names = {}
         self.data = []
         self.size = 12
-        self.state = self.State.init
+        self.state = False
 
         self.questions = []
         self.answers = []
-
-    class State(enum.Enum):
-        init = 0
-        finished = 1
 
     def add_question(self, record):
         """Adds a question"""
@@ -423,10 +418,10 @@ class DNSOutgoing(object):
         self.write_short(question.class_)
 
     def packet(self):
-        if self.state != self.State.finished:
+        if not self.state:
             for question in self.questions:
                 self.write_question(question)
-            self.state = self.State.finished
+            self.state = True
 
             self.insert_short(0, 0)  # num additionals
             self.insert_short(0, 0)  # num authorities
