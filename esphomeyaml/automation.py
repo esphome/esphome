@@ -7,10 +7,10 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMAT
     CONF_BELOW, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, \
     CONF_LAMBDA, CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WHILE
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, TemplateArguments, add, \
-    get_variable, process_lambda, templatable
-from esphomeyaml.cpp_types import Action, App, Component, PollingComponent, Trigger, \
-    esphomelib_ns, float_, uint32, void, bool_
+from esphomeyaml.cpp_generator import Pvariable, TemplateArguments, add, get_variable, \
+    process_lambda, templatable
+from esphomeyaml.cpp_types import Action, App, Component, PollingComponent, Trigger, bool_, \
+    esphomelib_ns, float_, uint32, void
 from esphomeyaml.util import ServiceRegistry
 
 
@@ -318,11 +318,10 @@ def build_action(full_config, arg_type):
 def build_actions(config, arg_type):
     actions = []
     for conf in config:
-        action = None
         for action in build_action(conf, arg_type):
             yield None
         actions.append(action)
-    yield ArrayInitializer(*actions, multiline=False)
+    yield actions
 
 
 def build_condition(full_config, arg_type):
@@ -342,7 +341,7 @@ def build_conditions(config, arg_type):
         for condition in build_condition(conf, arg_type):
             yield None
         conditions.append(condition)
-    yield ArrayInitializer(*conditions, multiline=False)
+    yield conditions
 
 
 def build_automation_(trigger, arg_type, config):

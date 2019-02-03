@@ -460,6 +460,17 @@ sensor:
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 15s
+  - platform: mqtt_subscribe
+    name: "MQTT Subscribe Sensor 1"
+    topic: "mqtt/topic"
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(the_sensor).value;
+            root["greeting"] = "Hello World";
 
 
 esp32_touch:
@@ -480,7 +491,6 @@ binary_sensor:
       - invert:
       - delayed_on: 40ms
       - delayed_off: 40ms
-      - heartbeat: 1s
     on_press:
       then:
         - lambda: >-
@@ -1072,3 +1082,9 @@ globals:
   type: std::string
   restore_value: no
   # initial_value: ""
+
+text_sensor:
+- platform: mqtt_subscribe
+  name: "MQTT Subscribe Text"
+  topic: "the/topic"
+  qos: 2

@@ -78,7 +78,7 @@ def to_code(config):
         r, g, b = config[CONF_COLOR_CORRECT]
         add(fast_led.set_correction(r, g, b))
 
-    light.setup_light(make.Pstate, make.Pmqtt, config)
+    light.setup_light(make.Pstate, config)
     setup_component(fast_led, config)
 
 

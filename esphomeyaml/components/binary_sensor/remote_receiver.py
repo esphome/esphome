@@ -1,17 +1,17 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.remote_receiver import RemoteReceiverComponent, remote_ns
 from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_A_SCHEMA, RC_SWITCH_TYPE_B_SCHEMA, RC_SWITCH_TYPE_C_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, binary_code, build_rc_switch_protocol
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA, \
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE
-from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable
+from esphomeyaml.cpp_generator import Pvariable, get_variable
 
 DEPENDENCIES = ['remote_receiver']
 
@@ -82,8 +82,7 @@ def receiver_base(full_config):
     if key == CONF_SONY:
         return SonyReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_RAW:
-        data = ArrayInitializer(*config, multiline=False)
-        return RawReceiver.new(name, data)
+        return RawReceiver.new(name, *config)
     if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                        binary_code(config[CONF_CODE]), len(config[CONF_CODE]))

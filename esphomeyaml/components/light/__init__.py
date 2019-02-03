@@ -279,7 +279,7 @@ def build_effect(full_config):
                 ('duration', color[CONF_DURATION]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_FLICKER:
         rhs = FlickerLightEffect.new(config[CONF_NAME])
@@ -322,7 +322,7 @@ def build_effect(full_config):
                 ('num_leds', color[CONF_NUM_LEDS]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_ADDRESSABLE_SCAN:
         rhs = AddressableScanEffect.new(config[CONF_NAME])
@@ -370,7 +370,7 @@ def build_effect(full_config):
         raise NotImplementedError("Effect {} not implemented".format(next(config.keys())))
 
 
-def setup_light_core_(light_var, mqtt_var, config):
+def setup_light_core_(light_var, config):
     if CONF_INTERNAL in config:
         add(light_var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEFAULT_TRANSITION_LENGTH in config:
@@ -383,15 +383,14 @@ def setup_light_core_(light_var, mqtt_var, config):
             yield
         effects.append(effect)
     if effects:
-        add(light_var.add_effects(ArrayInitializer(*effects)))
+        add(light_var.add_effects(effects))
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(light_var.Pget_mqtt(), config)
 
 
-def setup_light(light_obj, mqtt_obj, config):
+def setup_light(light_obj, config):
     light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    CORE.add_job(setup_light_core_, light_var, mqtt_var, config)
+    CORE.add_job(setup_light_core_, light_var, config)
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'

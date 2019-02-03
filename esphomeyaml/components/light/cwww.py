@@ -33,7 +33,7 @@ def to_code(config):
                               config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                               cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+    light.setup_light(light_struct.Pstate, config)
     setup_component(light_struct.Pstate, config)
 
 

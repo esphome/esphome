@@ -12,7 +12,7 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL
     CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
     CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
     CONF_WAIT_TIME
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, get_variable
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable
 
 DEPENDENCIES = ['remote_transmitter']
 
@@ -100,7 +100,7 @@ def transmitter_base(full_config):
         else:
             data = config
             carrier_frequency = None
-        return RawTransmitter.new(name, ArrayInitializer(*data, multiline=False),
+        return RawTransmitter.new(name, data,
                                   carrier_frequency)
     if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
