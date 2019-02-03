@@ -399,6 +399,7 @@ CONF_DIRECTION = 'direction'
 CONF_VARIANT = 'variant'
 CONF_METHOD = 'method'
 CONF_FAST_CONNECT = 'fast_connect'
+CONF_INTERLOCK = 'interlock'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
