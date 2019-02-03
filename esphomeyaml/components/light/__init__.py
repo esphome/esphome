@@ -279,7 +279,7 @@ def build_effect(full_config):
                 ('duration', color[CONF_DURATION]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_FLICKER:
         rhs = FlickerLightEffect.new(config[CONF_NAME])
@@ -322,7 +322,7 @@ def build_effect(full_config):
                 ('num_leds', color[CONF_NUM_LEDS]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_ADDRESSABLE_SCAN:
         rhs = AddressableScanEffect.new(config[CONF_NAME])
@@ -383,7 +383,7 @@ def setup_light_core_(light_var, config):
             yield
         effects.append(effect)
     if effects:
-        add(light_var.add_effects(ArrayInitializer(*effects)))
+        add(light_var.add_effects(effects))
 
     setup_mqtt_component(light_var.Pget_mqtt(), config)
 

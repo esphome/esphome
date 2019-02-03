@@ -6,7 +6,7 @@ from esphomeyaml.components import display
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, MockObj, Pvariable, RawExpression, add
+from esphomeyaml.cpp_generator import MockObj, Pvariable, RawExpression, add, safe_exp
 from esphomeyaml.cpp_types import App
 from esphomeyaml.py_compat import sort_by_cmp
 
@@ -111,11 +111,11 @@ def to_code(config):
     raw_data = MockObj(config[CONF_RAW_DATA_ID])
     add(RawExpression('static const uint8_t {}[{}] PROGMEM = {}'.format(
         raw_data, len(data),
-        ArrayInitializer(*[HexInt(x) for x in data], multiline=False))))
+        safe_exp([HexInt(x) for x in data]))))
 
     glyphs = []
     for glyph in config[CONF_GLYPHS]:
         glyphs.append(Glyph(glyph, raw_data, *glyph_args[glyph]))
 
-    rhs = App.make_font(ArrayInitializer(*glyphs), ascent, ascent + descent)
+    rhs = App.make_font(glyphs, ascent, ascent + descent)
     Pvariable(config[CONF_ID], rhs)

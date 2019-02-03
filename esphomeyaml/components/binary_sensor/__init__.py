@@ -216,11 +216,10 @@ def setup_filter(config):
 def setup_filters(config):
     filters = []
     for conf in config:
-        filter = None
         for filter in setup_filter(conf):
             yield None
         filters.append(filter)
-    yield ArrayInitializer(*filters)
+    yield filters
 
 
 def setup_binary_sensor_core_(binary_sensor_var, config):
@@ -231,7 +230,6 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INVERTED in config:
         add(binary_sensor_var.set_inverted(config[CONF_INVERTED]))
     if CONF_FILTERS in config:
-        filters = None
         for filters in setup_filters(config[CONF_FILTERS]):
             yield
         add(binary_sensor_var.add_filters(filters))
@@ -266,7 +264,6 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
                 ('min_length', tim[CONF_MIN_LENGTH]),
                 ('max_length', tim.get(CONF_MAX_LENGTH, 4294967294)),
             ))
-        timings = ArrayInitializer(*timings, multiline=False)
         rhs = App.register_component(binary_sensor_var.make_multi_click_trigger(timings))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_INVALID_COOLDOWN in conf:

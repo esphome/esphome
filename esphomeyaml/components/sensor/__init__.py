@@ -162,7 +162,7 @@ def setup_filters(config):
         for filter in setup_filter(conf):
             yield None
         filters.append(filter)
-    yield ArrayInitializer(*filters)
+    yield filters
 
 
 def setup_sensor_core_(sensor_var, config):

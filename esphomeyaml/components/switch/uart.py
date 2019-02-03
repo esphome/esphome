@@ -5,7 +5,7 @@ from esphomeyaml.components.uart import UARTComponent
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DATA, CONF_ID, CONF_INVERTED, CONF_NAME, CONF_UART_ID
 from esphomeyaml.core import HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, get_variable
+from esphomeyaml.cpp_generator import Pvariable, get_variable
 from esphomeyaml.cpp_types import App
 from esphomeyaml.py_compat import text_type
 
@@ -38,7 +38,7 @@ def to_code(config):
     data = config[CONF_DATA]
     if isinstance(data, str):
         data = [HexInt(ord(x)) for x in data]
-    rhs = App.make_uart_switch(uart_, config[CONF_NAME], ArrayInitializer(*data, multiline=False))
+    rhs = App.make_uart_switch(uart_, config[CONF_NAME], data)
     var = Pvariable(config[CONF_ID], rhs)
     switch.setup_switch(var, config)
 
