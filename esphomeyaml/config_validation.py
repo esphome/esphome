@@ -479,10 +479,7 @@ def domain_name(value):
 
 
 def ssid(value):
-    if value is None:
-        raise vol.Invalid("SSID can not be None")
-    if not isinstance(value, str):
-        raise vol.Invalid("SSID must be a string. Did you wrap it in quotes?")
+    value = string_strict(value)
     if not value:
         raise vol.Invalid("SSID can't be empty.")
     if len(value) > 32:
