@@ -11,8 +11,6 @@ RUN apt-get update && apt-get install -y \
     platformio settings set check_platformio_interval 1000000 && \
     platformio settings set check_platforms_interval 1000000
 
-ENV ESPHOMEYAML_OTA_HOST_PORT=6123
-EXPOSE 6123
 VOLUME /config
 WORKDIR /usr/src/app
 
