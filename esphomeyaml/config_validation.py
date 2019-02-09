@@ -467,7 +467,9 @@ def domain(value):
 
 
 def domain_name(value):
-    value = string(value)
+    value = string_strict(value)
+    if not value:
+        return value
     if not value.startswith('.'):
         raise vol.Invalid("Domain name must start with .")
     if value.startswith('..'):
