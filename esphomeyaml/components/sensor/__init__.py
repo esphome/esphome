@@ -13,8 +13,7 @@ from esphomeyaml.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CO
     CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
     CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, process_lambda, \
-    templatable, get_variable
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
     esphomelib_ns, float_, optional
 
@@ -223,7 +222,6 @@ def register_sensor(var, config):
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'
-
 
 CONF_SENSOR_IN_RANGE = 'sensor.in_range'
 SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({

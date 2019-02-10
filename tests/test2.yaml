@@ -158,6 +158,9 @@ binary_sensor:
   - platform: apds9960
     direction: right
     name: APDS9960 Right
+  - platform: homeassistant
+    entity_id: binary_sensor.hello_world
+    id: ha_hello_world_binary
 
 esp32_ble_tracker:
   scan_interval: 300s

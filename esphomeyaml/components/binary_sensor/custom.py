@@ -29,7 +29,7 @@ def to_code(config):
     for i, conf in enumerate(config[CONF_BINARY_SENSORS]):
         var = Pvariable(conf[CONF_ID], custom.get_binary_sensor(i))
         add(var.set_name(conf[CONF_NAME]))
-        binary_sensor.register_binary_sensor(var, conf)
+        binary_sensor.setup_binary_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_BINARY_SENSOR'
