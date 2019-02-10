@@ -7,7 +7,7 @@ import os
 import re
 
 from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
-    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_USE_ADDRESS
 from esphomeyaml.helpers import ensure_unique_string
 
 # pylint: disable=unused-import, wrong-import-order
@@ -316,13 +316,11 @@ class EsphomeyamlCore(object):
 
     @property
     def address(self):  # type: () -> str
-        from esphomeyaml.components import wifi
-
         if 'wifi' in self.config:
-            return wifi.get_upload_host(self.config[CONF_WIFI])
+            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
         if 'ethernet' in self.config:
-            return wifi.get_upload_host(self.config['ethernet'])
+            return self.config['ethernet'][CONF_USE_ADDRESS]
 
         return None
 
