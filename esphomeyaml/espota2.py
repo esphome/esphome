@@ -25,6 +25,10 @@ RESPONSE_ERROR_AUTH_INVALID = 130
 RESPONSE_ERROR_WRITING_FLASH = 131
 RESPONSE_ERROR_UPDATE_END = 132
 RESPONSE_ERROR_INVALID_BOOTSTRAPPING = 133
+RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG = 134
+RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG = 135
+RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136
+RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
@@ -118,6 +122,18 @@ def check_error(data, expect):
     if dat == RESPONSE_ERROR_INVALID_BOOTSTRAPPING:
         raise OTAError("Error: Please press the reset button on the ESP. A manual reset is "
                        "required on the first OTA-Update after flashing via USB.")
+    if dat == RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG:
+        raise OTAError("Error: ESP has been flashed with wrong flash size. Please choose the "
+                       "correct 'board' option (esp01_1m always works) and then flash over USB.")
+    if dat == RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG:
+        raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
+                       "choose the correct 'board' option (esp01_1m always works) and try again.")
+    if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
+        raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
+                       "choose the correct 'board' option (esp01_1m always works) and try again.")
+    if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
+        raise OTAError("Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
+                       "this partition, please flash over USB.")
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
     if not isinstance(expect, (list, tuple)):
