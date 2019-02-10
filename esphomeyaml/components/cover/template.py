@@ -4,8 +4,8 @@ from esphomeyaml import automation
 from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import cover
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
+from esphomeyaml.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, \
+    CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import Action, App, NoArg, optional
@@ -18,10 +18,11 @@ PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateCover),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
+    vol.Optional(CONF_ASSUMED_STATE): cv.boolean,
     vol.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
-}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -47,6 +48,8 @@ def to_code(config):
                                     config[CONF_STOP_ACTION])
     if CONF_OPTIMISTIC in config:
         add(var.set_optimistic(config[CONF_OPTIMISTIC]))
+    if CONF_ASSUMED_STATE in config:
+        add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'

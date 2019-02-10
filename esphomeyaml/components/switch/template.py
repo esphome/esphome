@@ -6,7 +6,7 @@ from esphomeyaml.components import switch
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
     CONF_RESTORE_STATE, \
-    CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+    CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_ASSUMED_STATE
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import Action, App, Component, NoArg, bool_, optional
@@ -18,10 +18,11 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_OPTIMISTIC): cv.boolean,
+    vol.Optional(CONF_ASSUMED_STATE): cv.boolean,
     vol.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_RESTORE_STATE): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_LAMBDA, CONF_OPTIMISTIC))
+}).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -43,6 +44,8 @@ def to_code(config):
                                     config[CONF_TURN_ON_ACTION])
     if CONF_OPTIMISTIC in config:
         add(template.set_optimistic(config[CONF_OPTIMISTIC]))
+    if CONF_ASSUMED_STATE in config:
+        add(template.set_assumed_state(config[CONF_ASSUMED_STATE]))
 
     if CONF_RESTORE_STATE in config:
         add(template.set_restore_state(config[CONF_RESTORE_STATE]))
