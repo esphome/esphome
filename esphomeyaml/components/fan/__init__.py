@@ -8,8 +8,9 @@ from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, C
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_OUTPUT, CONF_OSCILLATION_STATE_TOPIC, \
     CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import add, Pvariable, get_variable, templatable
-from esphomeyaml.cpp_types import Application, Component, Nameable, esphomelib_ns, Action, bool_
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, templatable
+from esphomeyaml.cpp_types import Action, Application, Component, Nameable, bool_, esphomelib_ns
+from esphomeyaml.py_compat import string_types
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -125,6 +126,8 @@ def fan_turn_on_to_code(config, action_id, arg_type, template_arg):
     if CONF_SPEED in config:
         for template_ in templatable(config[CONF_SPEED], arg_type, FanSpeed):
             yield None
+        if isinstance(template_, string_types):
+            template_ = FAN_SPEEDS[template_]
         add(action.set_speed(template_))
     yield action
 

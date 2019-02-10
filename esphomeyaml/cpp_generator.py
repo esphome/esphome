@@ -134,7 +134,7 @@ class StructInitializer(Expression):
 class ArrayInitializer(Expression):
     def __init__(self, *args, **kwargs):  # type: (*Any, **Any) -> None
         super(ArrayInitializer, self).__init__()
-        self.multiline = kwargs.get('multiline', True)
+        self.multiline = kwargs.get('multiline', False)
         self.args = []
         for arg in args:
             if arg is None:
@@ -264,7 +264,8 @@ class FloatLiteral(Literal):
 
 
 # pylint: disable=bad-continuation
-def safe_exp(obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod]
+def safe_exp(
+        obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
     if isinstance(obj, Expression):
@@ -285,6 +286,8 @@ def safe_exp(obj  # type: Union[Expression, bool, str, unicode, int, long, float
         return IntLiteral(int(obj.total_milliseconds))
     if isinstance(obj, TimePeriodSeconds):
         return IntLiteral(int(obj.total_seconds))
+    if isinstance(obj, (tuple, list)):
+        return ArrayInitializer(*[safe_exp(o) for o in obj])
     raise ValueError(u"Object is not an expression", obj)
 
 
@@ -312,6 +315,27 @@ class ExpressionStatement(Statement):
 
     def __str__(self):
         return u"{};".format(self.expression)
+
+
+class ProgmemAssignmentExpression(AssignmentExpression):
+    def __init__(self, type, name, rhs, obj):
+        super(ProgmemAssignmentExpression, self).__init__(
+            type, '', name, rhs, obj
+        )
+
+    def __str__(self):
+        type_ = self.type
+        return u"static const {} {}[] PROGMEM = {}".format(type_, self.name, self.rhs)
+
+
+def progmem_array(id, rhs):
+    rhs = safe_exp(rhs)
+    obj = MockObj(id, u'.')
+    assignment = ProgmemAssignmentExpression(id.type, id, rhs, obj)
+    CORE.add(assignment)
+    CORE.register_variable(id, obj)
+    obj.requires.append(assignment)
+    return obj
 
 
 def statement(expression):  # type: (Union[Expression, Statement]) -> Statement

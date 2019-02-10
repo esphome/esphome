@@ -1,11 +1,11 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.pn532 import PN532Component
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_NAME, CONF_UID
 from esphomeyaml.core import HexInt
-from esphomeyaml.cpp_generator import get_variable, ArrayInitializer
+from esphomeyaml.cpp_generator import get_variable
 
 DEPENDENCIES = ['pn532']
 
@@ -41,7 +41,7 @@ def to_code(config):
     for hub in get_variable(config[CONF_PN532_ID]):
         yield
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
-    rhs = hub.make_tag(config[CONF_NAME], ArrayInitializer(*addr, multiline=False))
+    rhs = hub.make_tag(config[CONF_NAME], addr)
     binary_sensor.register_binary_sensor(rhs, config)
 
 

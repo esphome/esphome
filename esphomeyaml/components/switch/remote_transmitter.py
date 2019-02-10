@@ -11,8 +11,9 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL
     CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, \
     CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
     CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
-    CONF_WAIT_TIME
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, add, get_variable
+    CONF_WAIT_TIME, CONF_ID
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, progmem_array
+from esphomeyaml.cpp_types import int32
 
 DEPENDENCIES = ['remote_transmitter']
 
@@ -36,7 +37,18 @@ RCSwitchTypeBTransmitter = remote_ns.class_('RCSwitchTypeBTransmitter', RCSwitch
 RCSwitchTypeCTransmitter = remote_ns.class_('RCSwitchTypeCTransmitter', RCSwitchRawTransmitter)
 RCSwitchTypeDTransmitter = remote_ns.class_('RCSwitchTypeDTransmitter', RCSwitchRawTransmitter)
 
-validate_raw_data = [vol.Any(vol.Coerce(int), cv.time_period_microseconds)]
+
+def validate_raw(value):
+    if isinstance(value, dict):
+        return vol.Schema({
+            cv.GenerateID(): cv.declare_variable_id(int32),
+            vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+            vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
+        })(value)
+    return validate_raw({
+        CONF_DATA: value
+    })
+
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitter),
@@ -59,10 +71,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RAW): vol.Any(validate_raw_data, vol.Schema({
-        vol.Required(CONF_DATA): validate_raw_data,
-        vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
-    })),
+    vol.Optional(CONF_RAW): validate_raw,
     vol.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_B): RC_SWITCH_TYPE_B_SCHEMA,
@@ -94,14 +103,9 @@ def transmitter_base(full_config):
     if key == CONF_SONY:
         return SonyTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_RAW:
-        if isinstance(config, dict):
-            data = config[CONF_DATA]
-            carrier_frequency = config.get(CONF_CARRIER_FREQUENCY)
-        else:
-            data = config
-            carrier_frequency = None
-        return RawTransmitter.new(name, ArrayInitializer(*data, multiline=False),
-                                  carrier_frequency)
+        arr = progmem_array(config[CONF_ID], config[CONF_DATA])
+        return RawTransmitter.new(name, arr, len(config[CONF_DATA]),
+                                  config.get(CONF_CARRIER_FREQUENCY))
     if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                           binary_code(config[CONF_CODE]), len(config[CONF_CODE]))

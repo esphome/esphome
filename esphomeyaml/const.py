@@ -399,6 +399,7 @@ CONF_DIRECTION = 'direction'
 CONF_VARIANT = 'variant'
 CONF_METHOD = 'method'
 CONF_FAST_CONNECT = 'fast_connect'
+CONF_INTERLOCK = 'interlock'
 CONF_ON_TURN_ON = 'on_turn_on'
 CONF_ON_TURN_OFF = 'on_turn_off'
 
