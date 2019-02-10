@@ -317,6 +317,27 @@ class ExpressionStatement(Statement):
         return u"{};".format(self.expression)
 
 
+class ProgmemAssignmentExpression(AssignmentExpression):
+    def __init__(self, type, name, rhs, obj):
+        super(ProgmemAssignmentExpression, self).__init__(
+            type, '', name, rhs, obj
+        )
+
+    def __str__(self):
+        type_ = self.type
+        return u"static const {} {}[] PROGMEM = {}".format(type_, self.name, self.rhs)
+
+
+def progmem_array(id, rhs):
+    rhs = safe_exp(rhs)
+    obj = MockObj(id, u'.')
+    assignment = ProgmemAssignmentExpression(id.type, id, rhs, obj)
+    CORE.add(assignment)
+    CORE.register_variable(id, obj)
+    obj.requires.append(assignment)
+    return obj
+
+
 def statement(expression):  # type: (Union[Expression, Statement]) -> Statement
     if isinstance(expression, Statement):
         return expression
