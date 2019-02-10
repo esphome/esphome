@@ -886,6 +886,7 @@ switch:
   - platform: template
     name: Living Room Lights
     optimistic: True
+    assumed_state: yes
     turn_on_action:
     - switch.turn_on: living_room_lights_on
     - output.set_level:
@@ -923,6 +924,7 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    assumed_state: no
     restore_state: True
   - platform: uart
     name: "UART String Output"
@@ -931,7 +933,7 @@ switch:
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: template
-    optimistic: true
+    assumed_state: yes
     name: Stepper Switch
     turn_on_action:
     - stepper.set_target:
@@ -1046,6 +1048,7 @@ cover:
         return {};
       }
     optimistic: true
+    assumed_state: no
 
 debug:
 
