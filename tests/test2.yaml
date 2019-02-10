@@ -5,6 +5,7 @@ esphomeyaml:
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
+  use_custom_code: true
   build_path: build/test2
 
 substitutions:
@@ -46,6 +47,8 @@ ota:
 
 logger:
   level: DEBUG
+
+web_server:
 
 deep_sleep:
   run_duration: 20s
@@ -160,6 +163,10 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
+
+remote_receiver:
+  pin: GPIO32
+  dump: []
 
 esp32_ble_tracker:
   scan_interval: 300s
