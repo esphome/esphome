@@ -1,15 +1,18 @@
 import voluptuous as vol
 
 from esphomeyaml import automation
+from esphomeyaml.automation import ACTION_REGISTRY
 from esphomeyaml.components import cover
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, \
-    CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STOP_ACTION
-from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
+    CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
-from esphomeyaml.cpp_types import App, NoArg, optional
+from esphomeyaml.cpp_types import Action, App, NoArg, optional
+from esphomeyaml.py_compat import string_types
 
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
+CoverPublishAction = cover.cover_ns.class_('CoverPublishAction', Action)
 
 PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateCover),
@@ -50,6 +53,30 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'
+
+CONF_COVER_TEMPLATE_PUBLISH = 'cover.template.publish'
+COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+    vol.Required(CONF_ID): cv.use_variable_id(cover.Cover),
+    vol.Required(CONF_STATE): cv.templatable(cover.validate_cover_state),
+})
+
+
+@ACTION_REGISTRY.register(CONF_COVER_TEMPLATE_PUBLISH,
+                          COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA)
+def cover_template_publish_to_code(config, action_id, arg_type, template_arg):
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_cover_publish_action(template_arg)
+    type = CoverPublishAction.template(arg_type)
+    action = Pvariable(action_id, rhs, type=type)
+    state = config[CONF_STATE]
+    if isinstance(state, string_types):
+        template_ = cover.COVER_STATES[state]
+    else:
+        for template_ in templatable(state, arg_type, cover.CoverState):
+            yield None
+    add(action.set_state(template_))
+    yield action
 
 
 def to_hass_config(data, config):
