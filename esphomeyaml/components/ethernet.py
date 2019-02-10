@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphomeyaml import pins
 from esphomeyaml.components import wifi
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_DOMAIN, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_TYPE, \
+from esphomeyaml.const import CONF_DOMAIN, CONF_ID, CONF_MANUAL_IP, CONF_TYPE, \
     ESP_PLATFORM_ESP32
 from esphomeyaml.cpp_generator import Pvariable, add
 from esphomeyaml.cpp_helpers import gpio_output_pin_expression
