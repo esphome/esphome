@@ -261,10 +261,13 @@ class ID(object):
         self.type = type
 
     def resolve(self, registered_ids):
+        from esphomeyaml.config_validation import RESERVED_IDS
+
         if self.id is None:
             base = str(self.type).replace('::', '_').lower()
             name = ''.join(c for c in base if c.isalnum() or c == '_')
-            self.id = ensure_unique_string(name, registered_ids)
+            used = set(registered_ids) | set(RESERVED_IDS)
+            self.id = ensure_unique_string(name, used)
         return self.id
 
     def __str__(self):

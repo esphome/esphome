@@ -1,14 +1,15 @@
 import voluptuous as vol
 
+from esphomeyaml import automation
 from esphomeyaml.automation import maybe_simple_id, ACTION_REGISTRY, CONDITION_REGISTRY, Condition
 from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
-    CONF_OPTIMISTIC
+    CONF_OPTIMISTIC, CONF_ON_TURN_ON, CONF_ON_TURN_OFF, CONF_TRIGGER_ID
 from esphomeyaml.core import CORE
 from esphomeyaml.cpp_generator import add, Pvariable, get_variable
-from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Action, App
+from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Action, App, Trigger, NoArg
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -24,11 +25,19 @@ TurnOffAction = switch_ns.class_('TurnOffAction', Action)
 TurnOnAction = switch_ns.class_('TurnOnAction', Action)
 
 SwitchCondition = switch_ns.class_('SwitchCondition', Condition)
+SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', Trigger.template(NoArg))
+SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', Trigger.template(NoArg))
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
     vol.Optional(CONF_ICON): cv.icon,
     vol.Optional(CONF_INVERTED): cv.boolean,
+    vol.Optional(CONF_ON_TURN_ON): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOnTrigger),
+    }),
+    vol.Optional(CONF_ON_TURN_OFF): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOffTrigger),
+    }),
 })
 
 SWITCH_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SWITCH_SCHEMA.schema)
@@ -41,6 +50,14 @@ def setup_switch_core_(switch_var, config):
         add(switch_var.set_icon(config[CONF_ICON]))
     if CONF_INVERTED in config:
         add(switch_var.set_inverted(config[CONF_INVERTED]))
+    for conf in config.get(CONF_ON_TURN_ON, []):
+        rhs = switch_var.make_switch_turn_on_trigger()
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, NoArg, conf)
+    for conf in config.get(CONF_ON_TURN_OFF, []):
+        rhs = switch_var.make_switch_turn_off_trigger()
+        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        automation.build_automation(trigger, NoArg, conf)
 
     setup_mqtt_component(switch_var.Pget_mqtt(), config)
 

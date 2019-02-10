@@ -11,6 +11,7 @@ const initializeColorState = () => {
     foregroundColor: false,
     backgroundColor: false,
     carriageReturn: false,
+    secret: false,
   };
 };
 
@@ -43,10 +44,18 @@ const colorReplace = (pre, state, text) => {
     if (state.italic) span.classList.add("log-italic");
     if (state.underline) span.classList.add("log-underline");
     if (state.strikethrough) span.classList.add("log-strikethrough");
+    if (state.secret) span.classList.add("log-secret");
     if (state.foregroundColor !== null) span.classList.add(`log-fg-${state.foregroundColor}`);
     if (state.backgroundColor !== null) span.classList.add(`log-bg-${state.backgroundColor}`);
     span.appendChild(document.createTextNode(content));
     lineSpan.appendChild(span);
+
+    if (state.secret) {
+      const redacted = document.createElement("span");
+      redacted.classList.add("log-secret-redacted");
+      redacted.appendChild(document.createTextNode("[redacted]"));
+      lineSpan.appendChild(redacted);
+    }
   };
 
 
@@ -71,6 +80,7 @@ const colorReplace = (pre, state, text) => {
           state.strikethrough = false;
           state.foregroundColor = null;
           state.backgroundColor = null;
+          state.secret = false;
           break;
         case 1:
           state.bold = true;
@@ -80,6 +90,12 @@ const colorReplace = (pre, state, text) => {
           break;
         case 4:
           state.underline = true;
+          break;
+        case 5:
+          state.secret = true;
+          break;
+        case 6:
+          state.secret = false;
           break;
         case 9:
           state.strikethrough = true;

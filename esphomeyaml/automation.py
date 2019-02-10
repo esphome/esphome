@@ -125,6 +125,9 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 # First try as a sequence of actions
                 return [schema({CONF_THEN: value})]
             except vol.Invalid as err:
+                if err.path and err.path[0] == CONF_THEN:
+                    err.path.pop(0)
+
                 # Next try as a sequence of automations
                 try:
                     return vol.Schema([schema])(value)
