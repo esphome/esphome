@@ -111,6 +111,9 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SAVE_MODE): cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
     vol.Optional(CONF_FAST_CONNECT): cv.boolean,
+
+    vol.Optional(CONF_HOSTNAME): cv.invalid("The hostname option has been removed in 1.11.0, "
+                                            "now it's always the node name.")
 }), validate)
 
 
@@ -165,9 +168,6 @@ def to_code(config):
 
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
-
-    if CONF_HOSTNAME in config:
-        add(wifi.set_hostname(config[CONF_HOSTNAME]))
 
     if CONF_REBOOT_TIMEOUT in config:
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
