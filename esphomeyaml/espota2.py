@@ -129,8 +129,8 @@ def check_error(data, expect):
         raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
                        "choose the correct 'board' option (esp01_1m always works) and try again.")
     if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
-        raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
-                       "choose the correct 'board' option (esp01_1m always works) and try again.")
+        raise OTAError("Error: ESP does not have enough space to store OTA file. Please try "
+                       "flashing a minimal firmware (see FAQ)")
     if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
         raise OTAError("Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
                        "this partition, please flash over USB.")
