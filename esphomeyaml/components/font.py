@@ -6,8 +6,8 @@ from esphomeyaml.components import display
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import MockObj, Pvariable, RawExpression, add, safe_exp, progmem_array
-from esphomeyaml.cpp_types import App
+from esphomeyaml.cpp_generator import Pvariable, progmem_array, safe_exp
+from esphomeyaml.cpp_types import App, uint8
 from esphomeyaml.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']

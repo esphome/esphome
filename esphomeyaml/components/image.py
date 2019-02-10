@@ -8,7 +8,7 @@ from esphomeyaml.components import display, font
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array, safe_exp
+from esphomeyaml.cpp_generator import Pvariable, progmem_array, safe_exp
 from esphomeyaml.cpp_types import App, uint8
 
 _LOGGER = logging.getLogger(__name__)
