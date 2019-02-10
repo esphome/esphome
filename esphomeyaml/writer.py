@@ -281,6 +281,8 @@ def gather_lib_deps():
             'Preferences',  # Preferences helper
             'AsyncTCP@1.0.1',  # Pin AsyncTCP version
         }
+        lib_deps.discard('AsyncTCP@1.0.3')
+
         # Manual fix for AsyncTCP
         if CORE.config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
             lib_deps.add('AsyncTCP@1.0.3')
@@ -332,7 +334,7 @@ def get_ini_content():
         'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
     }
 
-    if 'esp32_ble_beacon' in CORE.config or 'esp32_ble_tracker' in CORE.config:
+    if CORE.is_esp32:
         data['board_build.partitions'] = "partitions.csv"
         partitions_csv = CORE.relative_build_path('partitions.csv')
         if not os.path.isfile(partitions_csv):

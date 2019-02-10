@@ -5,7 +5,6 @@ esphomeyaml:
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
-  use_custom_code: true
   build_path: build/test2
 
 substitutions:
