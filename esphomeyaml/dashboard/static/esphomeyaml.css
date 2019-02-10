@@ -76,6 +76,17 @@ i.very-large {
 .log-underline { text-decoration: underline; }
 .log-strikethrough { text-decoration: line-through; }
 .log-underline.log-strikethrough { text-decoration: underline line-through; }
+.log-secret {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+.log-secret-redacted {
+  opacity: 0;
+  width: 1px;
+  font-size: 1px;
+}
 .log-fg-black { color: rgb(128,128,128); }
 .log-fg-red { color: rgb(255,0,0); }
 .log-fg-green { color: rgb(0,255,0); }
