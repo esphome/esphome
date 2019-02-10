@@ -6,11 +6,12 @@ from esphomeyaml.components.remote_receiver import RemoteReceiverComponent, remo
 from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_A_SCHEMA, RC_SWITCH_TYPE_B_SCHEMA, RC_SWITCH_TYPE_C_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, binary_code, build_rc_switch_protocol
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA, \
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
-    CONF_STATE, CONF_ID
+    CONF_STATE
 from esphomeyaml.cpp_generator import ArrayInitializer, get_variable, Pvariable, progmem_array
 from esphomeyaml.cpp_types import int32
 
@@ -95,8 +96,7 @@ def receiver_base(full_config):
     if key == CONF_SONY:
         return SonyReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_RAW:
-        rhs = ArrayInitializer(*config[CONF_DATA], multiline=False)
-        arr = progmem_array(config[CONF_ID], rhs)
+        arr = progmem_array(config[CONF_ID], *config[CONF_DATA])
         return RawReceiver.new(name, arr, len(config[CONF_DATA]))
     if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawReceiver.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),

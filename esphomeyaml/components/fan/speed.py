@@ -41,7 +41,7 @@ def to_code(config):
             yield
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
-    fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)
+    fan.setup_fan(fan_struct.Pstate, config)
 
 
 def to_hass_config(data, config):

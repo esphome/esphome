@@ -5,16 +5,15 @@ from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECTS, CONF_EFFECT_ID, \
-    CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, \
-    CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, \
-    CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, CONF_FLASH_LENGTH, CONF_COLOR_TEMPERATURE, \
-    CONF_EFFECT
+    CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
+    CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
+    CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
+    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import process_lambda, Pvariable, add, StructInitializer, \
-    ArrayInitializer, get_variable, templatable
-from esphomeyaml.cpp_types import esphomelib_ns, Application, Component, Nameable, Action, uint32, \
-    float_, std_string, void
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, get_variable, \
+    process_lambda, templatable
+from esphomeyaml.cpp_types import Action, Application, Component, Nameable, esphomelib_ns, float_, \
+    std_string, uint32, void
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -279,7 +278,7 @@ def build_effect(full_config):
                 ('duration', color[CONF_DURATION]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_FLICKER:
         rhs = FlickerLightEffect.new(config[CONF_NAME])
@@ -322,7 +321,7 @@ def build_effect(full_config):
                 ('num_leds', color[CONF_NUM_LEDS]),
             ))
         if colors:
-            add(effect.set_colors(ArrayInitializer(*colors)))
+            add(effect.set_colors(colors))
         yield effect
     elif key == CONF_ADDRESSABLE_SCAN:
         rhs = AddressableScanEffect.new(config[CONF_NAME])
@@ -370,7 +369,7 @@ def build_effect(full_config):
         raise NotImplementedError("Effect {} not implemented".format(next(config.keys())))
 
 
-def setup_light_core_(light_var, mqtt_var, config):
+def setup_light_core_(light_var, config):
     if CONF_INTERNAL in config:
         add(light_var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEFAULT_TRANSITION_LENGTH in config:
@@ -383,15 +382,14 @@ def setup_light_core_(light_var, mqtt_var, config):
             yield
         effects.append(effect)
     if effects:
-        add(light_var.add_effects(ArrayInitializer(*effects)))
+        add(light_var.add_effects(effects))
 
-    setup_mqtt_component(mqtt_var, config)
+    setup_mqtt_component(light_var.Pget_mqtt(), config)
 
 
-def setup_light(light_obj, mqtt_obj, config):
+def setup_light(light_obj, config):
     light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    CORE.add_job(setup_light_core_, light_var, mqtt_var, config)
+    CORE.add_job(setup_light_core_, light_var, config)
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'

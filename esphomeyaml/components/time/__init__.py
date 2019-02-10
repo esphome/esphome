@@ -4,13 +4,13 @@ import math
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import add, Pvariable, ArrayInitializer
-from esphomeyaml.cpp_types import esphomelib_ns, Component, NoArg, Trigger, App
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_types import App, Component, NoArg, Trigger, esphomelib_ns
 from esphomeyaml.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -278,22 +278,22 @@ def setup_time_core_(time_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
 
         seconds = conf.get(CONF_SECONDS, [x for x in range(0, 61)])
-        add(trigger.add_seconds(ArrayInitializer(*seconds, multiline=False)))
+        add(trigger.add_seconds(seconds))
 
         minutes = conf.get(CONF_MINUTES, [x for x in range(0, 60)])
-        add(trigger.add_minutes(ArrayInitializer(*minutes, multiline=False)))
+        add(trigger.add_minutes(minutes))
 
         hours = conf.get(CONF_HOURS, [x for x in range(0, 24)])
-        add(trigger.add_hours(ArrayInitializer(*hours, multiline=False)))
+        add(trigger.add_hours(hours))
 
         days_of_month = conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)])
-        add(trigger.add_days_of_month(ArrayInitializer(*days_of_month, multiline=False)))
+        add(trigger.add_days_of_month(days_of_month))
 
         months = conf.get(CONF_MONTHS, [x for x in range(1, 13)])
-        add(trigger.add_months(ArrayInitializer(*months, multiline=False)))
+        add(trigger.add_months(months))
 
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
-        add(trigger.add_days_of_week(ArrayInitializer(*days_of_week, multiline=False)))
+        add(trigger.add_days_of_week(days_of_week))
 
         automation.build_automation(trigger, NoArg, conf)
 

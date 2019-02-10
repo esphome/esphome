@@ -7,8 +7,10 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_OUTPUT, CONF_OSCILLATION_STATE_TOPIC, \
     CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC
-from esphomeyaml.cpp_generator import add, Pvariable, get_variable, templatable
-from esphomeyaml.cpp_types import Application, Component, Nameable, esphomelib_ns, Action, bool_
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, templatable
+from esphomeyaml.cpp_types import Action, Application, Component, Nameable, bool_, esphomelib_ns
+from esphomeyaml.py_compat import string_types
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -49,25 +51,25 @@ FAN_SPEEDS = {
 }
 
 
-def setup_fan_core_(fan_var, mqtt_var, config):
+def setup_fan_core_(fan_var, config):
     if CONF_INTERNAL in config:
         add(fan_var.set_internal(config[CONF_INTERNAL]))
 
+    mqtt_ = fan_var.Pget_mqtt()
     if CONF_OSCILLATION_STATE_TOPIC in config:
-        add(mqtt_var.set_custom_oscillation_state_topic(config[CONF_OSCILLATION_STATE_TOPIC]))
+        add(mqtt_.set_custom_oscillation_state_topic(config[CONF_OSCILLATION_STATE_TOPIC]))
     if CONF_OSCILLATION_COMMAND_TOPIC in config:
-        add(mqtt_var.set_custom_oscillation_command_topic(config[CONF_OSCILLATION_COMMAND_TOPIC]))
+        add(mqtt_.set_custom_oscillation_command_topic(config[CONF_OSCILLATION_COMMAND_TOPIC]))
     if CONF_SPEED_STATE_TOPIC in config:
-        add(mqtt_var.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
+        add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
     if CONF_SPEED_COMMAND_TOPIC in config:
-        add(mqtt_var.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC]))
-    setup_mqtt_component(mqtt_var, config)
+        add(mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC]))
+    setup_mqtt_component(mqtt_, config)
 
 
-def setup_fan(fan_obj, mqtt_obj, config):
+def setup_fan(fan_obj, config):
     fan_var = Pvariable(config[CONF_ID], fan_obj, has_side_effects=False)
-    mqtt_var = Pvariable(config[CONF_MQTT_ID], mqtt_obj, has_side_effects=False)
-    setup_fan_core_(fan_var, mqtt_var, config)
+    CORE.add_job(setup_fan_core_, fan_var, config)
 
 
 BUILD_FLAGS = '-DUSE_FAN'
@@ -124,6 +126,8 @@ def fan_turn_on_to_code(config, action_id, arg_type, template_arg):
     if CONF_SPEED in config:
         for template_ in templatable(config[CONF_SPEED], arg_type, FanSpeed):
             yield None
+        if isinstance(template_, string_types):
+            template_ = FAN_SPEEDS[template_]
         add(action.set_speed(template_))
     yield action
 

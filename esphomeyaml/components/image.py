@@ -8,7 +8,7 @@ from esphomeyaml.components import display, font
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array
+from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array, safe_exp
 from esphomeyaml.cpp_types import App, uint8
 
 _LOGGER = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ def to_code(config):
             pos = x + y * width8
             data[pos // 8] |= 0x80 >> (pos % 8)
 
-    rhs = ArrayInitializer(*[HexInt(x) for x in data], multiline=False)
+    rhs = safe_exp([HexInt(x) for x in data])
     prog_arr = progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
     rhs = App.make_image(prog_arr, width, height)

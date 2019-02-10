@@ -238,6 +238,6 @@ def includes(config):
     ret = []
     for include in config.get(CONF_INCLUDES, []):
         path = CORE.relative_path(include)
-        res = os.path.relpath(path, CORE.relative_build_path('src', 'main.cpp'))
+        res = os.path.relpath(path, CORE.relative_build_path('src'))
         ret.append(u'#include "{}"'.format(res))
     return ret

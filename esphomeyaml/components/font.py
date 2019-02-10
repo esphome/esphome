@@ -6,8 +6,8 @@ from esphomeyaml.components import display
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, progmem_array
-from esphomeyaml.cpp_types import App, uint8
+from esphomeyaml.cpp_generator import MockObj, Pvariable, RawExpression, add, safe_exp, progmem_array
+from esphomeyaml.cpp_types import App
 from esphomeyaml.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']
@@ -108,12 +108,12 @@ def to_code(config):
         glyph_args[glyph] = (len(data), offset_x, offset_y, width, height)
         data += glyph_data
 
-    rhs = ArrayInitializer(*[HexInt(x) for x in data], multiline=False)
+    rhs = safe_exp([HexInt(x) for x in data])
     prog_arr = progmem_array(config[CONF_RAW_DATA_ID], rhs)
 
     glyphs = []
     for glyph in config[CONF_GLYPHS]:
         glyphs.append(Glyph(glyph, prog_arr, *glyph_args[glyph]))
 
-    rhs = App.make_font(ArrayInitializer(*glyphs), ascent, ascent + descent)
+    rhs = App.make_font(glyphs, ascent, ascent + descent)
     Pvariable(config[CONF_ID], rhs)

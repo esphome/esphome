@@ -15,8 +15,8 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER
     CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_STATE_TOPIC, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphomeyaml.core import EsphomeyamlError
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, TemplateArguments, add, process_lambda, templatable
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, StructInitializer, \
+    TemplateArguments, add, process_lambda, templatable
 from esphomeyaml.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
     Trigger, bool_, esphomelib_ns, optional, std_string, uint8, void
 
@@ -169,7 +169,7 @@ def to_code(config):
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
-            add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
+            add(mqtt.add_ssl_fingerprint(arr))
 
     if CONF_KEEPALIVE in config:
         add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
@@ -337,3 +337,7 @@ def setup_mqtt_component(obj, config):
         else:
             add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+
+
+LIB_DEPS = 'AsyncMqttClient@0.8.2'
+BUILD_FLAGS = '-DUSE_MQTT'
