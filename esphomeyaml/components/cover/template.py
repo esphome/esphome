@@ -9,6 +9,7 @@ from esphomeyaml.const import CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME
 from esphomeyaml.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphomeyaml.cpp_helpers import setup_component
 from esphomeyaml.cpp_types import Action, App, NoArg, optional
+from esphomeyaml.py_compat import string_types
 
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
 CoverPublishAction = cover.cover_ns.class_('CoverPublishAction', Action)
@@ -65,8 +66,12 @@ def cover_template_publish_to_code(config, action_id, arg_type, template_arg):
     rhs = var.make_cover_publish_action(template_arg)
     type = CoverPublishAction.template(arg_type)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], arg_type, cover.CoverState):
-        yield None
+    state = config[CONF_STATE]
+    if isinstance(state, string_types):
+        template_ = cover.COVER_STATES[state]
+    else:
+        for template_ in templatable(state, arg_type, cover.CoverState):
+            yield None
     add(action.set_state(template_))
     yield action
 
