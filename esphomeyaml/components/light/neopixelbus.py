@@ -60,6 +60,30 @@ def validate_method(value):
     raise NotImplementedError
 
 
+def validate_method_pin(value):
+    method = value[CONF_METHOD]
+    method_pins = {
+        'ESP8266_DMA': [3],
+        'ESP8266_UART0': [1],
+        'ESP8266_ASYNC_UART0': [1],
+        'ESP8266_UART1': [2],
+        'ESP8266_ASYNC_UART1': [2],
+        'ESP32_I2S_0': list(range(0, 32)),
+        'ESP32_I2S_1': list(range(0, 32)),
+    }
+    if CORE.is_esp8266:
+        method_pins['BIT_BANG'] = list(range(0, 16))
+    elif CORE.is_esp32:
+        method_pins['BIT_BANG'] = list(range(0, 32))
+    pins_ = method_pins[method]
+    for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
+        if opt in value and value[opt] not in pins_:
+            raise vol.Invalid("Method {} only supports pin(s) {}".format(
+                method, ', '.join('GPIO{}'.format(x) for x in pins_)
+            ), path=[CONF_METHOD])
+    return value
+
+
 VARIANTS = {
     'WS2812X': 'Ws2812x',
     'SK6812': 'Sk6812',
@@ -123,7 +147,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}).extend(cv.COMPONENT_SCHEMA.schema), validate)
+}).extend(cv.COMPONENT_SCHEMA.schema), validate, validate_method_pin)
 
 
 def to_code(config):
