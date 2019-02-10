@@ -1070,7 +1070,9 @@ cover:
       }
     optimistic: true
     open_action:
-      - cover.template.publish: template_cover
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
 
 debug:
 
