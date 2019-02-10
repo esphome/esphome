@@ -1,14 +1,13 @@
 import voluptuous as vol
 
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_AP, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
-    CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_PASSWORD, CONF_POWER_SAVE_MODE, \
-    CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_NETWORKS, CONF_BSSID, \
-    CONF_FAST_CONNECT
+from esphomeyaml.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, \
+    CONF_DOMAIN, \
+    CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
+    CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET
 from esphomeyaml.core import CORE, HexInt
-from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, variable, ArrayInitializer
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, variable
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns
-
 
 IPAddress = global_ns.class_('IPAddress')
 ManualIP = esphomelib_ns.struct('ManualIP')
@@ -112,6 +111,9 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SAVE_MODE): cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
     vol.Optional(CONF_FAST_CONNECT): cv.boolean,
+
+    vol.Optional(CONF_HOSTNAME): cv.invalid("The hostname option has been removed in 1.11.0, "
+                                            "now it's always the node name.")
 }), validate)
 
 
@@ -141,8 +143,7 @@ def wifi_network(config, static_ip):
     if CONF_PASSWORD in config:
         add(ap.set_password(config[CONF_PASSWORD]))
     if CONF_BSSID in config:
-        bssid = [HexInt(i) for i in config[CONF_BSSID].parts]
-        add(ap.set_bssid(ArrayInitializer(*bssid, multiline=False)))
+        add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     if CONF_CHANNEL in config:
         add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
@@ -167,9 +168,6 @@ def to_code(config):
 
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
-
-    if CONF_HOSTNAME in config:
-        add(wifi.set_hostname(config[CONF_HOSTNAME]))
 
     if CONF_REBOOT_TIMEOUT in config:
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))

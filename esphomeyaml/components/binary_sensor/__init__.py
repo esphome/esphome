@@ -1,19 +1,19 @@
 import voluptuous as vol
 
 from esphomeyaml import automation, core
-from esphomeyaml.automation import maybe_simple_id, CONDITION_REGISTRY, Condition
+from esphomeyaml.automation import CONDITION_REGISTRY, Condition, maybe_simple_id
 from esphomeyaml.components import mqtt
 from esphomeyaml.components.mqtt import setup_mqtt_component
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
-    CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
-    CONF_TIMING, CONF_TRIGGER_ID, CONF_ON_STATE
+    CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID
 from esphomeyaml.core import CORE
-from esphomeyaml.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
-    StructInitializer, get_variable
-from esphomeyaml.cpp_types import esphomelib_ns, Nameable, Trigger, NoArg, Component, App, bool_, \
+from esphomeyaml.cpp_generator import Pvariable, StructInitializer, add, get_variable, \
+    process_lambda
+from esphomeyaml.cpp_types import App, Component, Nameable, NoArg, Trigger, bool_, esphomelib_ns, \
     optional
 from esphomeyaml.py_compat import string_types
 
@@ -52,7 +52,6 @@ DelayedOffFilter = binary_sensor_ns.class_('DelayedOffFilter', Filter, Component
 HeartbeatFilter = binary_sensor_ns.class_('HeartbeatFilter', Filter, Component)
 InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
 LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
-
 
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
@@ -216,11 +215,10 @@ def setup_filter(config):
 def setup_filters(config):
     filters = []
     for conf in config:
-        filter = None
         for filter in setup_filter(conf):
             yield None
         filters.append(filter)
-    yield ArrayInitializer(*filters)
+    yield filters
 
 
 def setup_binary_sensor_core_(binary_sensor_var, config):
@@ -231,7 +229,6 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INVERTED in config:
         add(binary_sensor_var.set_inverted(config[CONF_INVERTED]))
     if CONF_FILTERS in config:
-        filters = None
         for filters in setup_filters(config[CONF_FILTERS]):
             yield
         add(binary_sensor_var.add_filters(filters))
@@ -266,7 +263,6 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
                 ('min_length', tim[CONF_MIN_LENGTH]),
                 ('max_length', tim.get(CONF_MAX_LENGTH, 4294967294)),
             ))
-        timings = ArrayInitializer(*timings, multiline=False)
         rhs = App.register_component(binary_sensor_var.make_multi_click_trigger(timings))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_INVALID_COOLDOWN in conf:
@@ -304,7 +300,6 @@ def core_to_hass_config(data, config):
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
-
 
 CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'
 BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({

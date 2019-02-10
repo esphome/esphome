@@ -120,5 +120,5 @@ def stepper_report_position_to_code(config, action_id, arg_type, template_arg):
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_POSITION], arg_type, int32):
         yield None
-    add(action.set_target(template_))
+    add(action.set_position(template_))
     yield action

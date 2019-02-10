@@ -15,8 +15,8 @@ from esphomeyaml.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER
     CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_STATE_TOPIC, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphomeyaml.core import EsphomeyamlError
-from esphomeyaml.cpp_generator import ArrayInitializer, Pvariable, RawExpression, \
-    StructInitializer, TemplateArguments, add, process_lambda, templatable
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, StructInitializer, \
+    TemplateArguments, add, process_lambda, templatable, get_variable
 from esphomeyaml.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
     Trigger, bool_, esphomelib_ns, optional, std_string, uint8, void
 
@@ -169,7 +169,7 @@ def to_code(config):
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
-            add(mqtt.add_ssl_fingerprint(ArrayInitializer(*arr, multiline=False)))
+            add(mqtt.add_ssl_fingerprint(arr))
 
     if CONF_KEEPALIVE in config:
         add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
@@ -194,6 +194,7 @@ def to_code(config):
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
 MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
+    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
     vol.Optional(CONF_QOS): cv.templatable(cv.mqtt_qos),
@@ -203,7 +204,9 @@ MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
 def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
-    rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
@@ -226,6 +229,7 @@ def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
 
 CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
+    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.lambda_,
     vol.Optional(CONF_QOS): cv.mqtt_qos,
@@ -235,7 +239,9 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
 def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
-    rhs = App.Pget_mqtt_client().Pmake_publish_json_action(template_arg)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
@@ -340,4 +346,4 @@ def setup_mqtt_component(obj, config):
 
 
 LIB_DEPS = 'AsyncMqttClient@0.8.2'
-REQUIRED_BUILD_FLAGS = '-DUSE_MQTT'
+BUILD_FLAGS = '-DUSE_MQTT'

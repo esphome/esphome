@@ -22,8 +22,6 @@ RUN \
         python-pil \
         # Git for esphomelib downloads
         git \
-        # Ping for dashboard online/offline status
-        iputils-ping \
         # NGINX proxy
         nginx \
     \

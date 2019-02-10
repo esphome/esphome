@@ -22,9 +22,9 @@ matrix:
       script:
         - esphomeyaml tests/test1.yaml compile
         - esphomeyaml tests/test2.yaml compile
-    - python: "3.5.3"
-      env: TARGET=Test3.5
-      install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
-      script:
-        - esphomeyaml tests/test1.yaml compile
-        - esphomeyaml tests/test2.yaml compile
+    #- python: "3.5.3"
+    #  env: TARGET=Test3.5
+    #  install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
+    #  script:
+    #    - esphomeyaml tests/test1.yaml compile
+    #    - esphomeyaml tests/test2.yaml compile
