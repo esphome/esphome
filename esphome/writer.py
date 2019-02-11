@@ -79,7 +79,7 @@ def get_build_flags(key):
 
 
 def get_include_text():
-    include_text = u'#include "esphome/application.h"\n' \
+    include_text = u'#include "esphome.h"\n' \
                    u'using namespace esphome;\n'
     for _, component, conf in iter_components(CORE.config):
         if not hasattr(component, 'includes'):
@@ -269,7 +269,6 @@ def gather_lib_deps():
                 lib_deps.add(dep['name'] + '@' + dep['version'])
             else:
                 lib_deps.add(dep['version'])
-        lib_deps.add('esphome-core')
     else:
         lib_deps.add(CORE.esphome_core_version)
 

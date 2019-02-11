@@ -1,4 +1,4 @@
-esphomeyaml:
+esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s

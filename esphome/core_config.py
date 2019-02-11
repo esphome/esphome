@@ -189,6 +189,11 @@ CONFIG_SCHEMA = vol.Schema({
 
 def preload_core_config(config):
     if CONF_ESPHOME not in config:
+        if 'esphomeyaml' in config:
+            raise EsphomeError(u"The top-level 'esphomeyaml' section has been renamed to "
+                               u"'esphome' in 1.11.0.\n"
+                               u"Please replace the esphomeyaml: line in your config with"
+                               u"esphome:")
         raise EsphomeError(u"No esphome section in config")
     core_conf = config[CONF_ESPHOME]
     if CONF_PLATFORM not in core_conf:

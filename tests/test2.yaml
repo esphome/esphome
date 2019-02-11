@@ -1,4 +1,4 @@
-esphomeyaml:
+esphome:
   name: $devicename
   platform: ESP32
   board: nodemcu-32s
