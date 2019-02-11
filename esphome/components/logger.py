@@ -42,7 +42,7 @@ def validate_local_no_higher_than_global(value):
     for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
             raise EsphomeError(u"The local log level {} for {} must be less severe than the "
-                                   u"global log level {}.".format(level, tag, global_level))
+                               u"global log level {}.".format(level, tag, global_level))
     return value
 
 

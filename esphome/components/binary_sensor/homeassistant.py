@@ -1,10 +1,10 @@
 import voluptuous as vol
 
-from esphomeyaml.components import binary_sensor
-import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME
-from esphomeyaml.cpp_generator import Pvariable
-from esphomeyaml.cpp_types import App
+from esphome.components import binary_sensor
+import esphome.config_validation as cv
+from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME
+from esphome.cpp_generator import Pvariable
+from esphome.cpp_types import App
 
 DEPENDENCIES = ['api']
 

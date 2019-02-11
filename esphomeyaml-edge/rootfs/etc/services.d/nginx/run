@@ -1,6 +1,6 @@
 #!/usr/bin/with-contenv bash
 # ==============================================================================
-# Community Hass.io Add-ons: esphomeyaml
+# Community Hass.io Add-ons: ESPHome
 # Runs the NGINX proxy
 # ==============================================================================
 # shellcheck disable=SC1091

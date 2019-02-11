@@ -1,14 +1,15 @@
 import voluptuous as vol
 
-from esphome.automation import maybe_simple_id, ACTION_REGISTRY, CONDITION_REGISTRY, Condition
+from esphome import automation
+from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
-from esphome.const import CONF_ICON, CONF_ID, CONF_INVERTED, CONF_MQTT_ID, CONF_INTERNAL, \
-    CONF_OPTIMISTIC
+from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_MQTT_ID, \
+    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_OPTIMISTIC, CONF_TRIGGER_ID
 from esphome.core import CORE
-from esphome.cpp_generator import add, Pvariable, get_variable
-from esphome.cpp_types import esphome_ns, Nameable, Action, App
+from esphome.cpp_generator import Pvariable, add, get_variable
+from esphome.cpp_types import Action, App, Nameable, NoArg, Trigger, esphome_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -74,7 +75,6 @@ def register_switch(var, config):
 
 
 BUILD_FLAGS = '-DUSE_SWITCH'
-
 
 CONF_SWITCH_TOGGLE = 'switch.toggle'
 SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({

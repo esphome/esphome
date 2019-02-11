@@ -3,8 +3,9 @@ import voluptuous as vol
 from esphome import pins
 from esphome.components import wifi
 import esphome.config_validation as cv
-from esphome.const import CONF_DOMAIN, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_TYPE, \
-    ESP_PLATFORM_ESP32
+from esphome.const import CONF_DOMAIN, CONF_ID, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_TYPE, \
+    CONF_USE_ADDRESS, ESP_PLATFORM_ESP32
+from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import gpio_output_pin_expression
 from esphome.cpp_types import App, Component, esphome_ns, global_ns

@@ -23,7 +23,7 @@ import tornado.websocket
 
 from esphome import const
 from esphome.__main__ import get_serial_ports
-from esphome.helpers import mkdir_p, run_system_command
+from esphome.helpers import mkdir_p
 from esphome.py_compat import IS_PY2
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path
@@ -32,7 +32,7 @@ from esphome.util import shlex_quote
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphomeyaml.zeroconf import Zeroconf, DashboardStatus
+from esphome.zeroconf import Zeroconf, DashboardStatus
 
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''

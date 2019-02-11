@@ -8,14 +8,14 @@ import re
 import shutil
 
 from esphome.config import iter_components
-from esphome.const import CONF_ARDUINO_VERSION, CONF_BRANCH, CONF_COMMIT, \
-    CONF_ESPHOME_CORE_VERSION, CONF_ESPHOME, CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, \
-    CONF_USE_CUSTOM_CODE, CONF_PLATFORMIO_OPTIONS, CONF_BOARD_FLASH_MODE, \
-    ARDUINO_VERSION_ESP8266_DEV
+from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
+    CONF_ARDUINO_VERSION, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, \
+    CONF_LOCAL, \
+    CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
-from esphome.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCHIVE_ZIP
+from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
 from esphome.helpers import mkdir_p, run_system_command
-from esphome.pins import ESP8266_LD_SCRIPTS, ESP8266_FLASH_SIZES
+from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import IS_PY3, string_types
 from esphome.storage_json import StorageJSON, storage_path
 from esphome.util import safe_print
@@ -283,7 +283,7 @@ def gather_lib_deps():
         lib_deps.discard('AsyncTCP@1.0.3')
 
         # Manual fix for AsyncTCP
-        if CORE.config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
+        if CORE.config[CONF_ESPHOME].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
             lib_deps.add('AsyncTCP@1.0.3')
             lib_deps.discard('AsyncTCP@1.0.1')
     elif CORE.is_esp8266:
@@ -398,17 +398,17 @@ def find_begin_end(text, begin_s, end_s):
     begin_index = text.find(begin_s)
     if begin_index == -1:
         raise EsphomeError(u"Could not find auto generated code begin in file, either "
-                               u"delete the main sketch file or insert the comment again.")
+                           u"delete the main sketch file or insert the comment again.")
     if text.find(begin_s, begin_index + 1) != -1:
         raise EsphomeError(u"Found multiple auto generate code begins, don't know "
-                               u"which to chose, please remove one of them.")
+                           u"which to chose, please remove one of them.")
     end_index = text.find(end_s)
     if end_index == -1:
         raise EsphomeError(u"Could not find auto generated code end in file, either "
-                               u"delete the main sketch file or insert the comment again.")
+                           u"delete the main sketch file or insert the comment again.")
     if text.find(end_s, end_index + 1) != -1:
         raise EsphomeError(u"Found multiple auto generate code endings, don't know "
-                               u"which to chose, please remove one of them.")
+                           u"which to chose, please remove one of them.")
 
     return text[:begin_index], text[(end_index + len(end_s)):]
 

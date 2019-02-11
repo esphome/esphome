@@ -12,7 +12,7 @@ import time
 
 import ifaddr
 
-from esphomeyaml.py_compat import indexbytes, text_type
+from esphome.py_compat import indexbytes, text_type
 
 log = logging.getLogger(__name__)
 

@@ -14,7 +14,7 @@ RUN \
     # Install add-on dependencies
     && apt-get update \
     && apt-get install -y --no-install-recommends \
-        # Python for esphomeyaml
+        # Python 2 for ESPHome
         python \
         python-pip \
         python-setuptools \
@@ -27,7 +27,7 @@ RUN \
     \
     && mv /etc/nginx/nginx.conf.bkp /etc/nginx/nginx.conf \
     \
-    && pip2 install --no-cache-dir --no-binary :all: https://github.com/OttoWinter/esphomeyaml/archive/dev.zip \
+    && pip2 install --no-cache-dir --no-binary :all: https://github.com/esphome/esphome/archive/dev.zip \
     \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
@@ -54,18 +54,8 @@ ARG BUILD_VERSION
 
 # Labels
 LABEL \
-    io.hass.name="esphomeyaml-edge" \
+    io.hass.name="ESPHome" \
     io.hass.description="Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files" \
     io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version=${BUILD_VERSION} \
-    maintainer="Otto Winter <contact@otto-winter.com>" \
-    org.label-schema.description="Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files" \
-    org.label-schema.build-date=${BUILD_DATE} \
-    org.label-schema.name="esphomeyaml-edge" \
-    org.label-schema.schema-version="1.0" \
-    org.label-schema.url="https://esphomelib.com" \
-    org.label-schema.usage="https://github.com/OttoWinter/esphomeyaml/tree/dev/esphomeyaml-edge/README.md" \
-    org.label-schema.vcs-ref=${BUILD_REF} \
-    org.label-schema.vcs-url="https://github.com/OttoWinter/esphomeyaml" \
-    org.label-schema.vendor="esphomelib"
+    io.hass.version=${BUILD_VERSION}

@@ -1,13 +1,15 @@
 import voluptuous as vol
 
 from esphome import automation
+from esphome.automation import ACTION_REGISTRY
 from esphome.components import cover
 import esphome.config_validation as cv
-from esphome.const import CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STOP_ACTION
-from esphome.cpp_generator import Pvariable, add, process_lambda
+from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
+    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import App, NoArg, optional
+from esphome.cpp_types import Action, App, NoArg, optional
+from esphome.py_compat import string_types
 
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
 CoverPublishAction = cover.cover_ns.class_('CoverPublishAction', Action)

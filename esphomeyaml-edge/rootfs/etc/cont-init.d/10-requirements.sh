@@ -1,6 +1,6 @@
 #!/usr/bin/with-contenv bash
 # ==============================================================================
-# Community Hass.io Add-ons: esphomeyaml
+# Community Hass.io Add-ons: ESPHome
 # This files check if all user configuration requirements are met
 # ==============================================================================
 # shellcheck disable=SC1091
@@ -22,7 +22,7 @@ if hass.config.true 'ssl'; then
             text="You enabled encrypted connections using the \"ssl\": true option.
             However, the SSL files \"$(hass.config.get 'certfile')\" and \"$(hass.config.get 'keyfile')\"
             were not found. If you're using Hass.io on your local network and don't want
-            to encrypt connections to the esphomeyaml dashboard, you can manually disable
+            to encrypt connections to the ESPHome dashboard, you can manually disable
             SSL by setting \"ssl\" to false."
             hass.die "${text}"
         fi

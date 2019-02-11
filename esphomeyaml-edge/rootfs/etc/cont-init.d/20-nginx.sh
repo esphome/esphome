@@ -1,7 +1,7 @@
 #!/usr/bin/with-contenv bash
 # ==============================================================================
-# Community Hass.io Add-ons: esphomeyaml
-# Configures NGINX for use with esphomeyaml
+# Community Hass.io Add-ons: ESPHome
+# Configures NGINX for use with ESPHome
 # ==============================================================================
 # shellcheck disable=SC1091
 source /usr/lib/hassio-addons/base.sh

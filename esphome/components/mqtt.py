@@ -16,7 +16,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphome.core import EsphomeError
 from esphome.cpp_generator import Pvariable, RawExpression, StructInitializer, \
-    TemplateArguments, add, process_lambda, templatable
+    TemplateArguments, add, process_lambda, templatable, get_variable
 from esphome.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
     Trigger, bool_, esphome_ns, optional, std_string, uint8, void
 
@@ -300,7 +300,7 @@ class GenerateHassConfigData(object):
     def __init__(self, config):
         if 'mqtt' not in config:
             raise EsphomeError("Cannot generate Home Assistant MQTT config if MQTT is not "
-                                   "used!")
+                               "used!")
         mqtt = config[CONF_MQTT]
         self.topic_prefix = mqtt.get(CONF_TOPIC_PREFIX, config[CONF_ESPHOME][CONF_NAME])
         birth_message = mqtt.get(CONF_BIRTH_MESSAGE)

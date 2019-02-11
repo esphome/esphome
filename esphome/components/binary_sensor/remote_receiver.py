@@ -7,11 +7,12 @@ from esphome.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, binary_code, build_rc_switch_protocol
 import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA, \
-    CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
-    CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
+    CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_ID, CONF_JVC, CONF_LG, CONF_NAME, CONF_NBITS, \
+    CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE
-from esphome.cpp_generator import Pvariable, get_variable
+from esphome.cpp_generator import Pvariable, get_variable, progmem_array
+from esphome.cpp_types import int32
 
 DEPENDENCIES = ['remote_receiver']
 

@@ -1,13 +1,14 @@
 import voluptuous as vol
 
 from esphome import automation
+from esphome.automation import ACTION_REGISTRY
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
-from esphome.cpp_generator import Pvariable, add, process_lambda
+from esphome.const import CONF_ASSUMED_STATE, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
+    CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import App, Component, NoArg, bool_, optional
+from esphome.cpp_types import Action, App, Component, NoArg, bool_, optional
 
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 SwitchPublishAction = switch.switch_ns.class_('SwitchPublishAction', Action)

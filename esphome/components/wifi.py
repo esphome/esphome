@@ -2,9 +2,9 @@ import voluptuous as vol
 
 import esphome.config_validation as cv
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, \
-    CONF_DOMAIN, \
-    CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HOSTNAME, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
-    CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET
+    CONF_DOMAIN, CONF_FAST_CONNECT, CONF_GATEWAY, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
+    CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
+    CONF_SUBNET, CONF_USE_ADDRESS
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import Pvariable, StructInitializer, add, variable
 from esphome.cpp_types import App, Component, esphome_ns, global_ns

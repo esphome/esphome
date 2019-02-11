@@ -7,7 +7,7 @@ import os
 import re
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME_CORE_VERSION, CONF_ESPHOME, \
-    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_USE_ADDRESS
 from esphome.helpers import ensure_unique_string
 
 # pylint: disable=unused-import, wrong-import-order
@@ -261,7 +261,7 @@ class ID(object):
         self.type = type
 
     def resolve(self, registered_ids):
-        from esphomeyaml.config_validation import RESERVED_IDS
+        from esphome.config_validation import RESERVED_IDS
 
         if self.id is None:
             base = str(self.type).replace('::', '_').lower()
@@ -322,7 +322,7 @@ class EsphomeCore(object):
         if 'ethernet' in self.config:
             return self.config['ethernet'][CONF_USE_ADDRESS]
 
-        return None
+        raise EsphomeError("No network configured")
 
     @property
     def esphome_core_version(self):  # type: () -> Dict[str, str]

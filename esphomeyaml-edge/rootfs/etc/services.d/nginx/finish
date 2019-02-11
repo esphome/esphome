@@ -1,6 +1,6 @@
 #!/usr/bin/execlineb -S0
 # ==============================================================================
-# Community Hass.io Add-ons: esphomeyaml
+# Community Hass.io Add-ons: ESPHome
 # Take down the S6 supervision tree when NGINX fails
 # ==============================================================================
 if -n { s6-test $# -ne 0 }

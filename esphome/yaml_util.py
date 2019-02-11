@@ -151,7 +151,7 @@ def _ordered_dict(loader, node):
         if key in seen:
             fname = getattr(loader.stream, 'name', '')
             raise EsphomeError(u'YAML file {} contains duplicate key "{}". '
-                                   u'Check lines {} and {}.'.format(fname, key, seen[key], line))
+                               u'Check lines {} and {}.'.format(fname, key, seen[key], line))
         seen[key] = line
 
     return _add_reference(OrderedDict(nodes), loader, node)

@@ -7,6 +7,7 @@ import socket
 import subprocess
 
 from esphome.py_compat import text_type, char_to_byte
+from esphome.zeroconf import Zeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,26 +102,26 @@ def is_ip_address(host):
 
 
 def _resolve_with_zeroconf(host):
-    from esphomeyaml.core import EsphomeyamlError
+    from esphome.core import EsphomeError
     try:
         zc = Zeroconf()
     except Exception:
-        raise EsphomeyamlError("Cannot start mDNS sockets, is this a docker container without "
-                               "host network mode?")
+        raise EsphomeError("Cannot start mDNS sockets, is this a docker container without "
+                           "host network mode?")
     try:
         info = zc.resolve_host(host + '.')
     except Exception as err:
-        raise EsphomeyamlError("Error resolving mDNS hostname: {}".format(err))
+        raise EsphomeError("Error resolving mDNS hostname: {}".format(err))
     finally:
         zc.close()
     if info is None:
-        raise EsphomeyamlError("Error resolving address with mDNS: Did not respond. "
-                               "Maybe the device is offline.")
+        raise EsphomeError("Error resolving address with mDNS: Did not respond. "
+                           "Maybe the device is offline.")
     return info
 
 
 def resolve_ip_address(host):
-    from esphomeyaml.core import EsphomeError
+    from esphome.core import EsphomeError
 
     try:
         ip = socket.gethostbyname(host)

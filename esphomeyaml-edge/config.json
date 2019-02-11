@@ -26,7 +26,8 @@
     "ssl": false,
     "certfile": "fullchain.pem",
     "keyfile": "privkey.pem",
-    "port": 6052
+    "port": 6052,
+    "esphome_version": "dev"
   },
   "schema": {
     "ssl": "bool",
@@ -34,6 +35,6 @@
     "keyfile": "str",
     "port": "int",
     "leave_front_door_open": "bool?",
-    "esphomeyaml_version": "str?"
+    "esphome_version": "str?"
   }
 }

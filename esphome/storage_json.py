@@ -130,7 +130,8 @@ class StorageJSON(object):
         storage = json.loads(text, encoding='utf-8')
         storage_version = storage['storage_version']
         name = storage.get('name')
-        esphome_core_version = storage.get('esphome_core_version', storage.get('esphomelib_version'))
+        esphome_core_version = storage.get('esphome_core_version',
+                                           storage.get('esphomelib_version'))
         esphome_version = storage.get('esphome_version', storage.get('esphomeyaml_version'))
         src_version = storage.get('src_version')
         arduino_version = storage.get('arduino_version')

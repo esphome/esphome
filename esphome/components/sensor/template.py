@@ -1,11 +1,12 @@
 import voluptuous as vol
 
+from esphome.automation import ACTION_REGISTRY
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add, process_lambda
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE, CONF_UPDATE_INTERVAL
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import App, float_, optional
+from esphome.cpp_types import Action, App, float_, optional
 
 TemplateSensor = sensor.sensor_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 SensorPublishAction = sensor.sensor_ns.class_('SensorPublishAction', Action)

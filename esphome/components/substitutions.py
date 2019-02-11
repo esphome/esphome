@@ -111,7 +111,7 @@ def do_substitution_pass(config):
     substitutions = config[CONF_SUBSTITUTIONS]
     if not isinstance(substitutions, dict):
         raise EsphomeError(u"Substitutions must be a key to value mapping, got {}"
-                               u"".format(type(substitutions)))
+                           u"".format(type(substitutions)))
 
     key = ''
     try:

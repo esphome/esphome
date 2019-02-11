@@ -8,8 +8,8 @@ from esphome.components import display, font
 import esphome.config_validation as cv
 from esphome.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphome.core import CORE, HexInt
-from esphome.cpp_generator import MockObj, Pvariable, RawExpression, add, safe_exp
-from esphome.cpp_types import App
+from esphome.cpp_generator import Pvariable, progmem_array, safe_exp
+from esphome.cpp_types import App, uint8
 
 _LOGGER = logging.getLogger(__name__)
 
