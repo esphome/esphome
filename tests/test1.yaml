@@ -821,6 +821,11 @@ switch:
     command_topic: custom_command_topic
     restore_mode: ALWAYS_OFF
   - platform: remote_transmitter
+    name: "JVC Off"
+    jvc:
+      data: 0x10EF
+    repeat: 25
+  - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
       address: 0x4242

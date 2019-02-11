@@ -20,6 +20,7 @@ RemoteReceiverComponent = remote_ns.class_('RemoteReceiverComponent',
 RemoteReceiveDumper = remote_ns.class_('RemoteReceiveDumper')
 
 DUMPERS = {
+    'jvc': remote_ns.class_('JVCDumper', RemoteReceiveDumper),
     'lg': remote_ns.class_('LGDumper', RemoteReceiveDumper),
     'nec': remote_ns.class_('NECDumper', RemoteReceiveDumper),
     'panasonic': remote_ns.class_('PanasonicDumper', RemoteReceiveDumper),

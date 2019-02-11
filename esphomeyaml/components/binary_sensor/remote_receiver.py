@@ -7,7 +7,7 @@ from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, binary_code, build_rc_switch_protocol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA, \
-    CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
+    CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_JVC, CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, \
     CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE, CONF_ID
@@ -16,7 +16,7 @@ from esphomeyaml.cpp_types import int32
 
 DEPENDENCIES = ['remote_receiver']
 
-REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_SAMSUNG, CONF_RAW,
+REMOTE_KEYS = [CONF_JVC, CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_SAMSUNG, CONF_RAW,
                CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B,
                CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D]
 
@@ -24,6 +24,7 @@ CONF_REMOTE_RECEIVER_ID = 'remote_receiver_id'
 CONF_RECEIVER_ID = 'receiver_id'
 
 RemoteReceiver = remote_ns.class_('RemoteReceiver', binary_sensor.BinarySensor)
+JVCReceiver = remote_ns.class_('JVCReceiver', RemoteReceiver)
 LGReceiver = remote_ns.class_('LGReceiver', RemoteReceiver)
 NECReceiver = remote_ns.class_('NECReceiver', RemoteReceiver)
 PanasonicReceiver = remote_ns.class_('PanasonicReceiver', RemoteReceiver)
@@ -50,6 +51,9 @@ def validate_raw(value):
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
+    vol.Optional(CONF_JVC): vol.Schema({
+        vol.Required(CONF_DATA): cv.hex_uint32_t,
+    }),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
@@ -84,6 +88,8 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 def receiver_base(full_config):
     name = full_config[CONF_NAME]
     key, config = next((k, v) for k, v in full_config.items() if k in REMOTE_KEYS)
+    if key == CONF_JVC:
+        return JVCReceiver.new(name, config[CONF_DATA])
     if key == CONF_LG:
         return LGReceiver.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_NEC:
