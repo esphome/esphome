@@ -5,11 +5,10 @@ import voluptuous as vol
 from esphomeyaml.automation import ACTION_REGISTRY, LambdaAction
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_ID, CONF_LEVEL, \
-    CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
+    CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE, CONF_HW_UART
 from esphomeyaml.core import EsphomeyamlError, Lambda, CORE
 from esphomeyaml.cpp_generator import Pvariable, RawExpression, add, process_lambda, statement
 from esphomeyaml.cpp_types import App, Component, esphomelib_ns, global_ns, void
-
 from esphomeyaml.py_compat import text_type
 
 LOG_LEVELS = {
@@ -33,8 +32,27 @@ LOG_LEVEL_TO_ESP_LOG = {
 
 LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
 
+UART_SELECTION_ESP32 = ['UART0', 'UART1', 'UART2']
+
+UART_SELECTION_ESP8266 = ['UART0', 'UART0_SWAP', 'UART1']
+
+HW_UART_TO_UART_SELECTION = {
+    'UART0': global_ns.ESPHOMELIB_UART0,
+    'UART0_SWAP': global_ns.ESPHOMELIB_UART0_SWAP,
+    'UART1': global_ns.ESPHOMELIB_UART1,
+    'UART2': global_ns.ESPHOMELIB_UART2,
+}
+
 # pylint: disable=invalid-name
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
+
+
+def uart_selection(value):
+    if CORE.is_esp32:
+        return cv.one_of(*UART_SELECTION_ESP32, upper=True)(value)
+    if CORE.is_esp8266:
+        return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
+    raise NotImplementedError
 
 
 def validate_local_no_higher_than_global(value):
@@ -51,7 +69,8 @@ LogComponent = esphomelib_ns.class_('LogComponent', Component)
 CONFIG_SCHEMA = vol.All(vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(LogComponent),
     vol.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
-    vol.Optional(CONF_TX_BUFFER_SIZE): cv.validate_bytes,
+    vol.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
+    vol.Optional(CONF_HW_UART, default='UART0'): uart_selection,
     vol.Optional(CONF_LEVEL): is_log_level,
     vol.Optional(CONF_LOGS): vol.Schema({
         cv.string: is_log_level,
@@ -60,10 +79,10 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
 
 
 def to_code(config):
-    rhs = App.init_log(config.get(CONF_BAUD_RATE))
+    rhs = App.init_log(config.get(CONF_BAUD_RATE),
+                       config.get(CONF_TX_BUFFER_SIZE),
+                       HW_UART_TO_UART_SELECTION[config.get(CONF_HW_UART)])
     log = Pvariable(config[CONF_ID], rhs)
-    if CONF_TX_BUFFER_SIZE in config:
-        add(log.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
     if CONF_LEVEL in config:
         add(log.set_global_log_level(LOG_LEVELS[config[CONF_LEVEL]]))
     for tag, level in config.get(CONF_LOGS, {}).items():

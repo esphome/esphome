@@ -1,0 +1,28 @@
+esphomeyaml:
+  name: test3
+  platform: ESP32
+  board: nodemcu-32s
+  build_path: build/test3
+
+wifi:
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+
+mqtt:
+  broker: '192.168.178.84'
+
+uart:
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 9600
+
+ota:
+
+logger:
+  baud_rate: 115200
+  hw_uart: UART2
+  level: VERBOSE
+  logs:
+    mqtt.component: DEBUG
+    mqtt.client: ERROR
