@@ -168,7 +168,7 @@ CONFIG_SCHEMA = vol.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
 
-    vol.Optional(CONF_BOARD_FLASH_MODE): cv.one_of(*BUILD_FLASH_MODES, lower=True),
+    vol.Optional(CONF_BOARD_FLASH_MODE, default='dout'): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
         vol.Optional(CONF_PRIORITY): cv.float_,
