@@ -105,7 +105,7 @@ def update_esphome_core_repo():
         # Git commit hash or tag cannot be updated
         return
 
-    esphome_core_path = CORE.relative_build_path('.piolibdeps', 'esphome')
+    esphome_core_path = CORE.relative_build_path('.piolibdeps', 'esphome-core')
 
     rc, _, _ = run_system_command('git', '-C', esphome_core_path, '--help')
     if rc != 0:

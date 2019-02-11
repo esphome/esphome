@@ -3,8 +3,10 @@ esphome:
   platform: ESP32
   board: nodemcu-32s
   # Use this for testing while developing:
-  # esphomelib_version:
-  #   local: ~/path/to/esphomelib
+  # Note the travis check for esphome PRs will fail until the
+  # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
   build_path: build/test2
 
 substitutions:
