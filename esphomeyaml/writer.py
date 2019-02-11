@@ -8,10 +8,10 @@ import re
 import shutil
 
 from esphomeyaml.config import iter_components
-from esphomeyaml.const import CONF_ARDUINO_VERSION, CONF_BRANCH, CONF_COMMIT, \
-    CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, \
-    CONF_USE_CUSTOM_CODE, CONF_PLATFORMIO_OPTIONS, CONF_BOARD_FLASH_MODE, \
-    ARDUINO_VERSION_ESP8266_DEV
+from esphomeyaml.const import ARDUINO_VERSION_ESP32_DEV, CONF_ARDUINO_VERSION, \
+    CONF_BRANCH, CONF_COMMIT, CONF_ESPHOMELIB_VERSION, CONF_ESPHOMEYAML, \
+    CONF_LOCAL, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE, CONF_PLATFORMIO_OPTIONS, \
+    CONF_BOARD_FLASH_MODE, ARDUINO_VERSION_ESP8266_DEV
 from esphomeyaml.core import CORE, EsphomeyamlError
 from esphomeyaml.core_config import VERSION_REGEX, LIBRARY_URI_REPO, GITHUB_ARCHIVE_ZIP
 from esphomeyaml.helpers import mkdir_p, run_system_command
@@ -279,9 +279,27 @@ def gather_lib_deps():
     if CORE.is_esp32:
         lib_deps |= {
             'Preferences',  # Preferences helper
+            'AsyncTCP@1.0.1',  # Pin AsyncTCP version
         }
+        lib_deps.discard('AsyncTCP@1.0.3')
+
+        # Manual fix for AsyncTCP
+        if CORE.config[CONF_ESPHOMEYAML].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
+            lib_deps.add('AsyncTCP@1.0.3')
+            lib_deps.discard('AsyncTCP@1.0.1')
+    elif CORE.is_esp8266:
+        lib_deps.add('ESPAsyncTCP@1.1.3')
     # avoid changing build flags order
-    return list(sorted(x for x in lib_deps if x))
+    lib_deps_l = list(lib_deps)
+    lib_deps_l.sort()
+
+    # Move AsyncTCP to front, see https://github.com/platformio/platformio-core/issues/2115
+    if 'AsyncTCP@1.0.3' in lib_deps_l:
+        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.3')))
+    if 'AsyncTCP@1.0.1' in lib_deps_l:
+        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.1')))
+
+    return lib_deps_l
 
 
 def gather_build_flags():
@@ -344,32 +362,30 @@ def get_ini_content():
         data['board_build.flash_mode'] = flash_mode
 
     if not CORE.config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
-        if CORE.is_esp8266:
-            # On ESP8266, we can disable LDF
-            data['lib_ldf_mode'] = 'off'
-        elif CORE.is_esp32:
-            # On ESP32, we need to enable LDF
-            # and can manually remove all libraries we don't need
-            data['lib_ldf_mode'] = 'chain'
-            REMOVABLE_LIBRARIES = [
-                'ArduinoOTA',
-                'ESPmDNS',
-                'Update',
-                'Wire',
-                'FastLED',
-                'NeoPixelBus',
-                'ESP Async WebServer',
-                'AsyncMqttClient',
-            ]
-            ignore = []
-            for x in REMOVABLE_LIBRARIES:
-                for o in lib_deps:
-                    if x in o:
-                        break
-                else:
-                    ignore.append(x)
-            if ignore:
-                data['lib_ignore'] = ignore
+        # Ignore libraries that are not explicitly used, but may
+        # be added by LDF
+        data['lib_ldf_mode'] = 'chain'
+        REMOVABLE_LIBRARIES = [
+            'ArduinoOTA',
+            'ESPmDNS',
+            'Update',
+            'Wire',
+            'FastLED',
+            'NeoPixelBus',
+            'ESP Async WebServer',
+            'AsyncMqttClient',
+            'AsyncTCP',
+            'ESPAsyncTCP',
+        ]
+        ignore = []
+        for x in REMOVABLE_LIBRARIES:
+            for o in lib_deps:
+                if o.startswith(x):
+                    break
+            else:
+                ignore.append(x)
+        if ignore:
+            data['lib_ignore'] = ignore
 
     data.update(CORE.config[CONF_ESPHOMEYAML].get(CONF_PLATFORMIO_OPTIONS, {}))
 
