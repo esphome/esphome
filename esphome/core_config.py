@@ -123,7 +123,7 @@ PLATFORMIO_ESP8266_LUT = {
 
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
-    'RECOMMENDED': 'espressif32@1.6.0',
+    'RECOMMENDED': 'espressif32@1.5.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
@@ -168,7 +168,7 @@ CONFIG_SCHEMA = vol.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
 
-    vol.Optional(CONF_BOARD_FLASH_MODE): cv.one_of(*BUILD_FLASH_MODES, lower=True),
+    vol.Optional(CONF_BOARD_FLASH_MODE, default='dout'): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
         vol.Optional(CONF_PRIORITY): cv.float_,

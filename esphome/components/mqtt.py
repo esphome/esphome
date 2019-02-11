@@ -194,6 +194,7 @@ def to_code(config):
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
 MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
+    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
     vol.Optional(CONF_QOS): cv.templatable(cv.mqtt_qos),
@@ -203,7 +204,9 @@ MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
 def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
-    rhs = App.Pget_mqtt_client().Pmake_publish_action(template_arg)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
@@ -226,6 +229,7 @@ def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
 
 CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
+    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.lambda_,
     vol.Optional(CONF_QOS): cv.mqtt_qos,
@@ -235,7 +239,9 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
 def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
-    rhs = App.Pget_mqtt_client().Pmake_publish_json_action(template_arg)
+    for var in get_variable(config[CONF_ID]):
+        yield None
+    rhs = var.make_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):

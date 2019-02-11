@@ -28,7 +28,7 @@ def to_code(config):
     for i, conf in enumerate(config[CONF_SWITCHES]):
         var = Pvariable(conf[CONF_ID], custom.get_switch(i))
         add(var.set_name(conf[CONF_NAME]))
-        switch.register_switch(var, conf)
+        switch.setup_switch(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SWITCH'

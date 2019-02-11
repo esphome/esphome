@@ -53,7 +53,6 @@ HeartbeatFilter = binary_sensor_ns.class_('HeartbeatFilter', Filter, Component)
 InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
 LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
 
-
 FILTER_KEYS = [CONF_INVERT, CONF_DELAYED_ON, CONF_DELAYED_OFF, CONF_LAMBDA, CONF_HEARTBEAT]
 
 FILTERS_SCHEMA = cv.ensure_list({
@@ -301,7 +300,6 @@ def core_to_hass_config(data, config):
 
 
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
-
 
 CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'
 BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({

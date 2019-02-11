@@ -261,10 +261,13 @@ class ID(object):
         self.type = type
 
     def resolve(self, registered_ids):
+        from esphomeyaml.config_validation import RESERVED_IDS
+
         if self.id is None:
             base = str(self.type).replace('::', '_').lower()
             name = ''.join(c for c in base if c.isalnum() or c == '_')
-            self.id = ensure_unique_string(name, registered_ids)
+            used = set(registered_ids) | set(RESERVED_IDS)
+            self.id = ensure_unique_string(name, used)
         return self.id
 
     def __str__(self):
@@ -313,13 +316,11 @@ class EsphomeCore(object):
 
     @property
     def address(self):  # type: () -> str
-        from esphome.components import wifi
-
         if 'wifi' in self.config:
-            return wifi.get_upload_host(self.config[CONF_WIFI])
+            return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
         if 'ethernet' in self.config:
-            return wifi.get_upload_host(self.config['ethernet'])
+            return self.config['ethernet'][CONF_USE_ADDRESS]
 
         return None
 

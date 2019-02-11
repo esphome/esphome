@@ -224,7 +224,6 @@ def register_sensor(var, config):
 
 BUILD_FLAGS = '-DUSE_SENSOR'
 
-
 CONF_SENSOR_IN_RANGE = 'sensor.in_range'
 SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({
     vol.Required(CONF_ID): cv.use_variable_id(Sensor),

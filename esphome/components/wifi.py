@@ -94,6 +94,13 @@ def validate(config):
         if len(networks) != 1:
             raise vol.Invalid("Fast connect can only be used with one network!")
 
+    if CONF_USE_ADDRESS not in config:
+        if CONF_MANUAL_IP in config:
+            use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
+        else:
+            use_address = CORE.name + config[CONF_DOMAIN]
+        config[CONF_USE_ADDRESS] = use_address
+
     return config
 
 
@@ -106,11 +113,13 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
     vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
 
     vol.Optional(CONF_AP): WIFI_NETWORK_AP,
-    vol.Optional(CONF_HOSTNAME): cv.hostname,
     vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SAVE_MODE): cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
     vol.Optional(CONF_FAST_CONNECT): cv.boolean,
+    vol.Optional(CONF_USE_ADDRESS): cv.string_strict,
+
+    vol.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
 
 
@@ -149,25 +158,16 @@ def wifi_network(config, static_ip):
     return ap
 
 
-def get_upload_host(config):
-    if CONF_MANUAL_IP in config:
-        return str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
-    hostname = config.get(CONF_HOSTNAME) or CORE.name
-    return hostname + config[CONF_DOMAIN]
-
-
 def to_code(config):
     rhs = App.init_wifi()
     wifi = Pvariable(config[CONF_ID], rhs)
+    add(wifi.set_use_address(config[CONF_USE_ADDRESS]))
 
     for network in config.get(CONF_NETWORKS, []):
         add(wifi.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
 
     if CONF_AP in config:
         add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
-
-    if CONF_HOSTNAME in config:
-        add(wifi.set_hostname(config[CONF_HOSTNAME]))
 
     if CONF_REBOOT_TIMEOUT in config:
         add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))

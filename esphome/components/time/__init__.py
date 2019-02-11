@@ -22,7 +22,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 time_ns = esphome_ns.namespace('time')
 RealTimeClockComponent = time_ns.class_('RealTimeClockComponent', Component)
 CronTrigger = time_ns.class_('CronTrigger', Trigger.template(NoArg), Component)
-EsphomeTime = time_ns.struct('EsphomeTime')
+ESPTime = time_ns.struct('ESPTime')
 
 
 def _tz_timedelta(td):

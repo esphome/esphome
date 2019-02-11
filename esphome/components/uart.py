@@ -20,10 +20,13 @@ CONFIG_SCHEMA = vol.All(vol.Schema({
 
 
 def to_code(config):
-    tx = config.get(CONF_TX_PIN, -1)
-    rx = config.get(CONF_RX_PIN, -1)
-    rhs = App.init_uart(tx, rx, config[CONF_BAUD_RATE])
+    rhs = App.init_uart(config[CONF_BAUD_RATE])
     var = Pvariable(config[CONF_ID], rhs)
+
+    if CONF_TX_PIN in config:
+        add(var.set_tx_pin(config[CONF_TX_PIN]))
+    if CONF_RX_PIN in config:
+        add(var.set_rx_pin(config[CONF_RX_PIN]))
 
     setup_component(var, config)
 

@@ -27,7 +27,7 @@ def to_code(config):
     for i, conf in enumerate(config[CONF_SENSORS]):
         var = Pvariable(conf[CONF_ID], custom.get_sensor(i))
         add(var.set_name(conf[CONF_NAME]))
-        sensor.register_sensor(var, conf)
+        sensor.setup_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SENSOR'

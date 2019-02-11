@@ -32,6 +32,7 @@ REQUIRES = [
     'protobuf>=3.4',
     'tzlocal>=1.4',
     'pyserial>=3.4,<4',
+    'ifaddr>=0.1.6',
 ]
 
 # If you have problems importing platformio and esptool as modules you can set

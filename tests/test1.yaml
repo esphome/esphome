@@ -35,7 +35,6 @@ wifi:
     subnet: 255.255.255.0
     dns1: 1.1.1.1
     dns2: 1.2.2.1
-  hostname: myverylonghostname
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
@@ -434,13 +433,21 @@ sensor:
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
-    lambda: >-
+    id: template_sensor
+    lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
         return 42.0;
       } else {
         return {};
       }
     update_interval: 15s
+    on_value:
+      - sensor.template.publish:
+          id: template_sensor
+          state: 43.0
+      - sensor.template.publish:
+          id: template_sensor
+          state: !lambda 'return NAN;'
   - platform: tsl2561
     name: "TSL2561 Ambient Light"
     address: 0x39
@@ -561,7 +568,8 @@ binary_sensor:
     name: "Nextion Component 2 Touch"
   - platform: template
     name: "Garage Door Open"
-    lambda: >-
+    id: garage_door
+    lambda: |-
       if (isnan(id(my_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
@@ -574,6 +582,10 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+    on_press:
+      - binary_sensor.template.publish:
+          id: garage_door
+          state: OFF
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -809,6 +821,11 @@ switch:
     command_topic: custom_command_topic
     restore_mode: ALWAYS_OFF
   - platform: remote_transmitter
+    name: "JVC Off"
+    jvc:
+      data: 0x10EF
+    repeat: 25
+  - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
       address: 0x4242
@@ -886,7 +903,9 @@ switch:
       - -1000
   - platform: template
     name: Living Room Lights
+    id: livingroom_lights
     optimistic: True
+    assumed_state: yes
     turn_on_action:
     - switch.turn_on: living_room_lights_on
     - output.set_level:
@@ -898,6 +917,10 @@ switch:
     turn_off_action:
     - switch.turn_on: living_room_lights_off
     restore_state: False
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: restart
     name: "Living Room Restart"
   - platform: shutdown
@@ -924,7 +947,12 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    assumed_state: no
     restore_state: True
+    on_turn_off:
+      - switch.template.publish:
+          id: my_switch
+          state: !lambda 'return false;'
   - platform: uart
     name: "UART String Output"
     data: 'DataToSend'
@@ -932,7 +960,7 @@ switch:
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: template
-    optimistic: true
+    assumed_state: yes
     name: Stepper Switch
     turn_on_action:
     - stepper.set_target:
@@ -1040,13 +1068,19 @@ time:
 cover:
   - platform: template
     name: "Template Cover"
-    lambda: >-
+    id: template_cover
+    lambda: |-
       if (id(binary_sensor1).state) {
         return cover::COVER_OPEN;
       } else {
         return {};
       }
     optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
+    assumed_state: no
 
 debug:
 

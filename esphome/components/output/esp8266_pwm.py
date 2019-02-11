@@ -13,7 +13,7 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
 
 def valid_pwm_pin(value):
     num = value[CONF_NUMBER]
-    cv.one_of(0, 1, 2, 3, 4, 5, 12, 13, 14, 15, 16)(num)
+    cv.one_of(0, 1, 2, 3, 4, 5, 9, 10, 12, 13, 14, 15, 16)(num)
     return value
 
 

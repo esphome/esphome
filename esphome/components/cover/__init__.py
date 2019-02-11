@@ -22,6 +22,12 @@ CoverState = cover_ns.class_('CoverState')
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
 
+validate_cover_state = cv.one_of('OPEN', 'CLOSED', upper=True)
+COVER_STATES = {
+    'OPEN': COVER_OPEN,
+    'CLOSED': COVER_CLOSED,
+}
+
 # Actions
 OpenAction = cover_ns.class_('OpenAction', Action)
 CloseAction = cover_ns.class_('CloseAction', Action)

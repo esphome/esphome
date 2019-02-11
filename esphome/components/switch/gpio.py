@@ -22,6 +22,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_RESTORE_MODE): cv.one_of(*RESTORE_MODES, upper=True, space='_'),
+    vol.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_variable_id(switch.Switch)),
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 
@@ -33,6 +34,14 @@ def to_code(config):
 
     if CONF_RESTORE_MODE in config:
         add(gpio.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
+
+    if CONF_INTERLOCK in config:
+        interlock = []
+        for it in config[CONF_INTERLOCK]:
+            for lock in get_variable(it):
+                yield
+            interlock.append(lock)
+        add(gpio.set_interlock(interlock))
 
     switch.setup_switch(gpio, config)
     setup_component(gpio, config)

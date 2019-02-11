@@ -62,3 +62,10 @@ def sort_by_cmp(list_, cmp):
         list_.sort(cmp=cmp)
     else:
         list_.sort(key=functools.cmp_to_key(cmp))
+
+
+def indexbytes(buf, i):
+    if IS_PY3:
+        return buf[i]
+    else:
+        return ord(buf[i])

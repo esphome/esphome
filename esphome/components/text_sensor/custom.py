@@ -28,7 +28,7 @@ def to_code(config):
     for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
         var = Pvariable(conf[CONF_ID], custom.get_text_sensor(i))
         add(var.set_name(conf[CONF_NAME]))
-        text_sensor.register_text_sensor(var, conf)
+        text_sensor.setup_text_sensor(var, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_TEXT_SENSOR'

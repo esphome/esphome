@@ -46,6 +46,7 @@ RESERVED_IDS = [
 
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
+    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
 ]
 
 
@@ -467,7 +468,9 @@ def domain(value):
 
 
 def domain_name(value):
-    value = string(value)
+    value = string_strict(value)
+    if not value:
+        return value
     if not value.startswith('.'):
         raise vol.Invalid("Domain name must start with .")
     if value.startswith('..'):

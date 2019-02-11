@@ -454,7 +454,7 @@ def run_logs(config, address):
 
         wait_time = min(2**tries, 300)
         if not has_connects:
-            _LOGGER.warning(u"Initial connection failed. The ESP might not be connected"
+            _LOGGER.warning(u"Initial connection failed. The ESP might not be connected "
                             u"to WiFi yet (%s). Re-Trying in %s seconds",
                             error, wait_time)
         else:
