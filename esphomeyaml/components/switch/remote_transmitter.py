@@ -17,7 +17,7 @@ from esphomeyaml.cpp_types import int32
 
 DEPENDENCIES = ['remote_transmitter']
 
-REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
+REMOTE_KEYS = [CONF_JVC, CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
                CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B,
                CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D]
 
@@ -25,6 +25,7 @@ CONF_REMOTE_TRANSMITTER_ID = 'remote_transmitter_id'
 CONF_TRANSMITTER_ID = 'transmitter_id'
 
 RemoteTransmitter = remote_ns.class_('RemoteTransmitter', switch.Switch)
+JVCTransmitter = remote_ns.class_('JVCTransmitter', RemoteTransmitter)
 LGTransmitter = remote_ns.class_('LGTransmitter', RemoteTransmitter)
 NECTransmitter = remote_ns.class_('NECTransmitter', RemoteTransmitter)
 PanasonicTransmitter = remote_ns.class_('PanasonicTransmitter', RemoteTransmitter)
@@ -52,6 +53,9 @@ def validate_raw(value):
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitter),
+    vol.Optional(CONF_JVC): vol.Schema({
+        vol.Required(CONF_DATA): cv.hex_uint32_t,
+    }),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
@@ -92,6 +96,8 @@ def transmitter_base(full_config):
     name = full_config[CONF_NAME]
     key, config = next((k, v) for k, v in full_config.items() if k in REMOTE_KEYS)
 
+    if key == CONF_JVC:
+        return JVCTransmitter.new(name, config[CONF_DATA])
     if key == CONF_LG:
         return LGTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
     if key == CONF_NEC:
