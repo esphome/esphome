@@ -4,7 +4,8 @@ import esphomeyaml.config_validation as cv
 from esphomeyaml.components import binary_sensor
 from esphomeyaml.components.esp32_touch import ESP32TouchComponent
 from esphomeyaml.const import CONF_NAME, CONF_PIN, CONF_THRESHOLD, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import get_variable, global_ns
+from esphomeyaml.cpp_generator import get_variable
+from esphomeyaml.cpp_types import global_ns
 from esphomeyaml.pins import validate_gpio_pin
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]

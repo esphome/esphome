@@ -3,8 +3,11 @@ import logging
 import random
 import socket
 import sys
+import time
 
-from esphomeyaml.core import ESPHomeYAMLError
+from esphomeyaml.core import EsphomeyamlError
+from esphomeyaml.helpers import resolve_ip_address, is_ip_address
+from esphomeyaml.py_compat import IS_PY2, char_to_byte
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -22,6 +25,10 @@ RESPONSE_ERROR_AUTH_INVALID = 130
 RESPONSE_ERROR_WRITING_FLASH = 131
 RESPONSE_ERROR_UPDATE_END = 132
 RESPONSE_ERROR_INVALID_BOOTSTRAPPING = 133
+RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG = 134
+RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG = 135
+RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136
+RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
@@ -29,29 +36,35 @@ OTA_VERSION_1_0 = 1
 MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 
 _LOGGER = logging.getLogger(__name__)
-LAST_PROGRESS = -1
 
 
-def update_progress(progress):
-    global LAST_PROGRESS
+class ProgressBar(object):
+    def __init__(self):
+        self.last_progress = None
 
-    bar_length = 60
-    status = ""
-    if progress >= 1:
-        progress = 1
-        status = "Done...\r\n"
-    new_progress = int(progress * 100)
-    if new_progress == LAST_PROGRESS:
-        return
-    LAST_PROGRESS = new_progress
-    block = int(round(bar_length * progress))
-    text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
-                                                new_progress, status)
-    sys.stderr.write(text)
-    sys.stderr.flush()
+    def update(self, progress):
+        bar_length = 60
+        status = ""
+        if progress >= 1:
+            progress = 1
+            status = "Done...\r\n"
+        new_progress = int(progress * 100)
+        if new_progress == self.last_progress:
+            return
+        self.last_progress = new_progress
+        block = int(round(bar_length * progress))
+        text = "\rUploading: [{0}] {1}% {2}".format("=" * block + " " * (bar_length - block),
+                                                    new_progress, status)
+        sys.stderr.write(text)
+        sys.stderr.flush()
+
+    # pylint: disable=no-self-use
+    def done(self):
+        sys.stderr.write('\n')
+        sys.stderr.flush()
 
 
-class OTAError(ESPHomeYAMLError):
+class OTAError(EsphomeyamlError):
     pass
 
 
@@ -59,14 +72,16 @@ def recv_decode(sock, amount, decode=True):
     data = sock.recv(amount)
     if not decode:
         return data
-    return [ord(x) for x in data]
+    return [char_to_byte(x) for x in data]
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
     if decode:
         data = []
-    else:
+    elif IS_PY2:
         data = ''
+    else:
+        data = b''
 
     try:
         data += recv_decode(sock, 1, decode=decode)
@@ -107,6 +122,18 @@ def check_error(data, expect):
     if dat == RESPONSE_ERROR_INVALID_BOOTSTRAPPING:
         raise OTAError("Error: Please press the reset button on the ESP. A manual reset is "
                        "required on the first OTA-Update after flashing via USB.")
+    if dat == RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG:
+        raise OTAError("Error: ESP has been flashed with wrong flash size. Please choose the "
+                       "correct 'board' option (esp01_1m always works) and then flash over USB.")
+    if dat == RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG:
+        raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
+                       "choose the correct 'board' option (esp01_1m always works) and try again.")
+    if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
+        raise OTAError("Error: ESP does not have enough space to store OTA file. Please try "
+                       "flashing a minimal firmware (see FAQ)")
+    if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
+        raise OTAError("Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
+                       "this partition, please flash over USB.")
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")
     if not isinstance(expect, (list, tuple)):
@@ -117,10 +144,19 @@ def check_error(data, expect):
 
 def send_check(sock, data, msg):
     try:
-        if isinstance(data, (list, tuple)):
-            data = ''.join([chr(x) for x in data])
-        elif isinstance(data, int):
-            data = chr(data)
+        if IS_PY2:
+            if isinstance(data, (list, tuple)):
+                data = ''.join([chr(x) for x in data])
+            elif isinstance(data, int):
+                data = chr(data)
+        else:
+            if isinstance(data, (list, tuple)):
+                data = bytes(data)
+            elif isinstance(data, int):
+                data = bytes([data])
+            elif isinstance(data, str):
+                data = data.encode('utf8')
+
         sock.sendall(data)
     except socket.error as err:
         raise OTAError("Error sending {}: {}".format(msg, err))
@@ -150,6 +186,8 @@ def perform_ota(sock, password, file_handle, filename):
         if not password:
             raise OTAError("ESP requests password, but no password given!")
         nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False)
+        if not IS_PY2:
+            nonce = nonce.decode()
         _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
         _LOGGER.debug("Auth: CNonce is %s", cnonce)
@@ -165,9 +203,6 @@ def perform_ota(sock, password, file_handle, filename):
 
         send_check(sock, result, 'auth result')
         receive_exactly(sock, 1, 'auth result', RESPONSE_AUTH_OK)
-    else:
-        if password:
-            raise OTAError("Password specified, but ESP doesn't accept password!")
 
     file_size_encoded = [
         (file_size >> 24) & 0xFF,
@@ -188,7 +223,7 @@ def perform_ota(sock, password, file_handle, filename):
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
 
     offset = 0
-    update_progress(0.0)
+    progress = ProgressBar()
     while True:
         chunk = file_handle.read(1024)
         if not chunk:
@@ -201,12 +236,12 @@ def perform_ota(sock, password, file_handle, filename):
             sys.stderr.write('\n')
             raise OTAError("Error sending data: {}".format(err))
 
-        update_progress(offset / float(file_size))
+        progress.update(offset / float(file_size))
+    progress.done()
 
     # Enable nodelay for last checks
     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-    sys.stderr.write('\n')
     _LOGGER.info("Waiting for result...")
 
     receive_exactly(sock, 1, 'receive OK', RESPONSE_RECEIVE_OK)
@@ -215,50 +250,26 @@ def perform_ota(sock, password, file_handle, filename):
 
     _LOGGER.info("OTA successful")
 
-
-def is_ip_address(host):
-    parts = host.split('.')
-    if len(parts) != 4:
-        return False
-    try:
-        for p in parts:
-            int(p)
-        return True
-    except ValueError:
-        return False
+    # Do not connect logs until it is fully on
+    time.sleep(1)
 
 
-def resolve_ip_address(host):
-    if is_ip_address(host):
-        _LOGGER.info("Connecting to %s", host)
-        return host
-
-    _LOGGER.info("Resolving IP Address of %s", host)
-    hosts = [host]
-    if host.endswith('.local'):
-        hosts.append(host[:-6])
-
-    errors = []
-    for x in hosts:
-        try:
-            ip = socket.gethostbyname(x)
-            break
-        except socket.error as err:
-            errors.append(err)
+def run_ota_impl_(remote_host, remote_port, password, filename):
+    if is_ip_address(remote_host):
+        _LOGGER.info("Connecting to %s", remote_host)
+        ip = remote_host
     else:
-        _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
-                      host)
+        _LOGGER.info("Resolving IP address of %s", remote_host)
+        try:
+            ip = resolve_ip_address(remote_host)
+        except EsphomeyamlError as err:
+            _LOGGER.error("Error resolving IP address of %s. Is it connected to WiFi?",
+                          remote_host)
+            _LOGGER.error("(If this error persists, please set a static IP address: "
+                          "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
+            raise OTAError(err)
+        _LOGGER.info(" -> %s", ip)
 
-        _LOGGER.error("(If this error persists, please set a static IP address: "
-                      "https://esphomelib.com/esphomeyaml/components/wifi.html#manual-ips)")
-        raise OTAError("Errors: {}".format(', '.join(str(x) for x in errors)))
-
-    _LOGGER.info(" -> %s", ip)
-    return ip
-
-
-def run_ota(remote_host, remote_port, password, filename):
-    ip = resolve_ip_address(remote_host)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.settimeout(10.0)
     try:
@@ -279,6 +290,14 @@ def run_ota(remote_host, remote_port, password, filename):
         file_handle.close()
 
     return 0
+
+
+def run_ota(remote_host, remote_port, password, filename):
+    try:
+        return run_ota_impl_(remote_host, remote_port, password, filename)
+    except OTAError as err:
+        _LOGGER.error(err)
+        return 1
 
 
 def run_legacy_ota(verbose, host_port, remote_host, remote_port, password, filename):

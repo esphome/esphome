@@ -1,5 +1,6 @@
 [MASTER]
 reports=no
+ignore=api_pb2.py
 
 disable=
   missing-docstring,
@@ -13,11 +14,14 @@ disable=
   too-many-statements,
   too-many-arguments,
   too-many-return-statements,
+  too-many-instance-attributes,
   duplicate-code,
   invalid-name,
   cyclic-import,
   redefined-builtin,
   undefined-loop-variable,
+  useless-object-inheritance,
+  stop-iteration-return,
 
 
 additional-builtins=

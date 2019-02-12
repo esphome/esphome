@@ -2,8 +2,6 @@ esphomeyaml:
   name: test1
   platform: ESP32
   board: nodemcu-32s
-  # Use latest upstream esphomelib git version.
-  esphomelib_version: dev
   # Use this for testing while developing:
   # esphomelib_version:
   #   local: ~/path/to/esphomelib
@@ -24,15 +22,19 @@ esphomeyaml:
   build_path: build/test1
 
 wifi:
-  ssid: 'MySSID'
-  password: 'password1'
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+  - ssid: 'MySSID2'
+    password: ''
+    channel: 14
+    bssid: 'A1:63:95:47:D3:1D'
   manual_ip:
     static_ip: 192.168.178.230
     gateway: 192.168.178.1
     subnet: 255.255.255.0
     dns1: 1.1.1.1
     dns2: 1.2.2.1
-  hostname: myverylonghostname
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
@@ -134,7 +136,6 @@ power_supply:
 
 deep_sleep:
   run_duration: 20s
-  run_cycles: 500
   sleep_duration: 50s
   wakeup_pin: GPIO39
   wakeup_pin_mode: INVERT_WAKEUP
@@ -180,7 +181,7 @@ sensor:
       - lambda: return x * (9.0/5.0) + 32.0;
     on_value:
       then:
-        - lambda: >-
+        - lambda: |-
             ESP_LOGD("main", "Got value %f", x);
             id(my_sensor).publish_state(42.0);
             ESP_LOGI("main", "Value of my sensor: %f", id(my_sensor).state);
@@ -373,6 +374,10 @@ sensor:
     name: "Living Room Temperature"
     cs_pin: GPIO23
     update_interval: 15s
+  - platform: max31855
+    name: "Den Temperature"
+    cs_pin: GPIO23
+    update_interval: 15s
   - platform: mhz19
     co2:
       name: "MH-Z19 CO2 Value"
@@ -428,13 +433,21 @@ sensor:
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
-    lambda: >-
+    id: template_sensor
+    lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
         return 42.0;
       } else {
         return {};
       }
     update_interval: 15s
+    on_value:
+      - sensor.template.publish:
+          id: template_sensor
+          state: 43.0
+      - sensor.template.publish:
+          id: template_sensor
+          state: !lambda 'return NAN;'
   - platform: tsl2561
     name: "TSL2561 Ambient Light"
     address: 0x39
@@ -455,6 +468,17 @@ sensor:
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 15s
+  - platform: mqtt_subscribe
+    name: "MQTT Subscribe Sensor 1"
+    topic: "mqtt/topic"
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(the_sensor).value;
+            root["greeting"] = "Hello World";
 
 
 esp32_touch:
@@ -475,7 +499,6 @@ binary_sensor:
       - invert:
       - delayed_on: 40ms
       - delayed_off: 40ms
-      - heartbeat: 1s
     on_press:
       then:
         - lambda: >-
@@ -528,6 +551,11 @@ binary_sensor:
           format: "Multi Clicked SINGLE"
           level: warn
     id: binary_sensor1
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_PULLUP
+    name: "Living Room Window 2"
   - platform: status
     name: "Living Room Status"
   - platform: esp32_touch
@@ -540,7 +568,8 @@ binary_sensor:
     name: "Nextion Component 2 Touch"
   - platform: template
     name: "Garage Door Open"
-    lambda: >-
+    id: garage_door
+    lambda: |-
       if (isnan(id(my_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
@@ -553,6 +582,10 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+    on_press:
+      - binary_sensor.template.publish:
+          id: garage_door
+          state: OFF
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -712,8 +745,8 @@ light:
     color_correct: [75%, 100%, 50%]
     name: "FastLED WS2811 Light"
     effects:
-    - fastled_color_wipe:
-    - fastled_color_wipe:
+    - addressable_color_wipe:
+    - addressable_color_wipe:
         name: Color Wipe Effect With Custom Values
         colors:
         - red: 100%
@@ -726,29 +759,29 @@ light:
           num_leds: 1
         add_led_interval: 100ms
         reverse: False
-    - fastled_scan:
-    - fastled_scan:
+    - addressable_scan:
+    - addressable_scan:
         name: Scan Effect With Custom Values
         move_interval: 100ms
-    - fastled_twinkle:
-    - fastled_twinkle:
+    - addressable_twinkle:
+    - addressable_twinkle:
         name: Twinkle Effect With Custom Values
         twinkle_probability: 5%
         progress_interval: 4ms
-    - fastled_random_twinkle:
-    - fastled_random_twinkle:
+    - addressable_random_twinkle:
+    - addressable_random_twinkle:
         name: Random Twinkle Effect With Custom Values
         twinkle_probability: 5%
         progress_interval: 32ms
-    - fastled_fireworks:
-    - fastled_fireworks:
+    - addressable_fireworks:
+    - addressable_fireworks:
         name: Fireworks Effect With Custom Values
         update_interval: 32ms
         spark_probability: 10%
         use_random_color: false
         fade_out_rate: 120
-    - fastled_flicker:
-    - fastled_flicker:
+    - addressable_flicker:
+    - addressable_flicker:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
@@ -759,6 +792,22 @@ light:
     num_leds: 60
     rgb_order: BRG
     name: "FastLED SPI Light"
+  - platform: neopixelbus
+    name: "Neopixelbus Light"
+    gamma_correct: 2.8
+    color_correct: [0.0, 0.0, 0.0, 0.0]
+    default_transition_length: 10s
+    power_supply: atx_power_supply
+    effects:
+    - addressable_flicker:
+        name: Flicker Effect With Custom Values
+        update_interval: 16ms
+        intensity: 5%
+    type: GRBW
+    variant: SK6812
+    method: ESP32_I2S_0
+    num_leds: 60
+    pin: GPIO23
 
 remote_transmitter:
   - pin: 32
@@ -770,6 +819,12 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
+    restore_mode: ALWAYS_OFF
+  - platform: remote_transmitter
+    name: "JVC Off"
+    jvc:
+      data: 0x10EF
+    repeat: 25
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
@@ -848,7 +903,9 @@ switch:
       - -1000
   - platform: template
     name: Living Room Lights
+    id: livingroom_lights
     optimistic: True
+    assumed_state: yes
     turn_on_action:
     - switch.turn_on: living_room_lights_on
     - output.set_level:
@@ -860,6 +917,10 @@ switch:
     turn_off_action:
     - switch.turn_on: living_room_lights_off
     restore_state: False
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: restart
     name: "Living Room Restart"
   - platform: shutdown
@@ -886,7 +947,12 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    assumed_state: no
     restore_state: True
+    on_turn_off:
+      - switch.template.publish:
+          id: my_switch
+          state: !lambda 'return false;'
   - platform: uart
     name: "UART String Output"
     data: 'DataToSend'
@@ -894,7 +960,7 @@ switch:
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: template
-    optimistic: true
+    assumed_state: yes
     name: Stepper Switch
     turn_on_action:
     - stepper.set_target:
@@ -993,7 +1059,7 @@ time:
   servers:
   - 0.pool.ntp.org
   - 1.pool.ntp.org
-  - 2.pool.ntp.org
+  - 192.168.178.1
   on_time:
     cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
     then:
@@ -1002,13 +1068,19 @@ time:
 cover:
   - platform: template
     name: "Template Cover"
-    lambda: >-
+    id: template_cover
+    lambda: |-
       if (id(binary_sensor1).state) {
         return cover::COVER_OPEN;
       } else {
         return {};
       }
     optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
+    assumed_state: no
 
 debug:
 
@@ -1045,3 +1117,9 @@ globals:
   type: std::string
   restore_value: no
   # initial_value: ""
+
+text_sensor:
+- platform: mqtt_subscribe
+  name: "MQTT Subscribe Text"
+  topic: "the/topic"
+  qos: 2

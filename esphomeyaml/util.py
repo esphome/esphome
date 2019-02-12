@@ -3,6 +3,7 @@ from __future__ import print_function
 import io
 import logging
 import re
+import subprocess
 import sys
 
 _LOGGER = logging.getLogger(__name__)
@@ -27,6 +28,14 @@ class ServiceRegistry(dict):
 
 
 def safe_print(message=""):
+    from esphomeyaml.core import CORE
+
+    if CORE.dashboard:
+        try:
+            message = message.replace('\033', '\\033')
+        except UnicodeEncodeError:
+            pass
+
     try:
         print(message)
         return
@@ -34,9 +43,12 @@ def safe_print(message=""):
         pass
 
     try:
-        print(message.encode('ascii', 'backslashreplace'))
+        print(message.encode('utf-8', 'backslashreplace'))
     except UnicodeEncodeError:
-        print("Cannot print line because of invalid locale!")
+        try:
+            print(message.encode('ascii', 'backslashreplace'))
+        except UnicodeEncodeError:
+            print("Cannot print line because of invalid locale!")
 
 
 def shlex_quote(s):
@@ -48,6 +60,29 @@ def shlex_quote(s):
     return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
 
 
+class RedirectText(object):
+    def __init__(self, out):
+        self._out = out
+
+    def __getattr__(self, item):
+        return getattr(self._out, item)
+
+    def write(self, s):
+        from esphomeyaml.core import CORE
+
+        if CORE.dashboard:
+            try:
+                s = s.replace('\033', '\\033')
+            except UnicodeEncodeError:
+                pass
+
+        self._out.write(s)
+
+    # pylint: disable=no-self-use
+    def isatty(self):
+        return True
+
+
 def run_external_command(func, *cmd, **kwargs):
     def mock_exit(return_code):
         raise SystemExit(return_code)
@@ -57,9 +92,14 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
 
+    orig_stdout = sys.stdout
+    sys.stdout = RedirectText(sys.stdout)
+    orig_stderr = sys.stderr
+    sys.stderr = RedirectText(sys.stderr)
+
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
-        sys.stdout = io.BytesIO()
+        cap_stdout = sys.stdout = io.BytesIO()
 
     try:
         sys.argv = list(cmd)
@@ -76,8 +116,34 @@ def run_external_command(func, *cmd, **kwargs):
         sys.argv = orig_argv
         sys.exit = orig_exit
 
+        sys.stdout = orig_stdout
+        sys.stderr = orig_stderr
+
         if capture_stdout:
             # pylint: disable=lost-exception
-            stdout = sys.stdout.getvalue()
-            sys.stdout = sys.__stdout__
-            return stdout
+            return cap_stdout.getvalue()
+
+
+def run_external_process(*cmd, **kwargs):
+    full_cmd = u' '.join(shlex_quote(x) for x in cmd)
+    _LOGGER.info(u"Running:  %s", full_cmd)
+
+    capture_stdout = kwargs.get('capture_stdout', False)
+    if capture_stdout:
+        sub_stdout = io.BytesIO()
+    else:
+        sub_stdout = RedirectText(sys.stdout)
+
+    sub_stderr = RedirectText(sys.stderr)
+
+    try:
+        return subprocess.call(cmd,
+                               stdout=sub_stdout,
+                               stderr=sub_stderr)
+    except Exception as err:  # pylint: disable=broad-except
+        _LOGGER.error(u"Running command failed: %s", err)
+        _LOGGER.error(u"Please try running %s locally.", full_cmd)
+    finally:
+        if capture_stdout:
+            # pylint: disable=lost-exception
+            return sub_stdout.getvalue()

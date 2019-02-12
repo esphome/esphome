@@ -1,10 +1,12 @@
 import voluptuous as vol
 
+from esphomeyaml.components import i2c, sensor
 import esphomeyaml.config_validation as cv
-from esphomeyaml.components import sensor, i2c
-from esphomeyaml.const import CONF_ADDRESS, CONF_GAIN, CONF_INTEGRATION_TIME, CONF_MAKE_ID, \
-    CONF_NAME, CONF_UPDATE_INTERVAL
-from esphomeyaml.helpers import App, Application, add, variable, setup_component
+from esphomeyaml.const import CONF_ADDRESS, CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, CONF_NAME, \
+    CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 DEPENDENCIES = ['i2c']
 
@@ -31,13 +33,11 @@ def validate_integration_time(value):
     return value
 
 
-MakeTSL2561Sensor = Application.struct('MakeTSL2561Sensor')
 TSL2561Sensor = sensor.sensor_ns.class_('TSL2561Sensor', sensor.PollingSensorComponent,
                                         i2c.I2CDevice)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TSL2561Sensor),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeTSL2561Sensor),
     vol.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
     vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
     vol.Optional(CONF_GAIN): cv.one_of(*GAINS, upper=True),
@@ -49,8 +49,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 def to_code(config):
     rhs = App.make_tsl2561_sensor(config[CONF_NAME], config[CONF_ADDRESS],
                                   config.get(CONF_UPDATE_INTERVAL))
-    make_tsl = variable(config[CONF_MAKE_ID], rhs)
-    tsl2561 = make_tsl.Ptsl2561
+    tsl2561 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_INTEGRATION_TIME in config:
         add(tsl2561.set_integration_time(INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
@@ -59,7 +58,7 @@ def to_code(config):
     if CONF_IS_CS_PACKAGE in config:
         add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
 
-    sensor.setup_sensor(tsl2561, make_tsl.Pmqtt, config)
+    sensor.setup_sensor(tsl2561, config)
     setup_component(tsl2561, config)
 
 

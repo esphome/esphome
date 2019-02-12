@@ -7,17 +7,21 @@ from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_DUTY_PERCENT, CONF_CHAN
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_ID, CONF_INVERTED, CONF_ONE, CONF_PIN, \
     CONF_PROTOCOL, CONF_PULSE_LENGTH, CONF_STATE, CONF_SYNC, CONF_ZERO
 from esphomeyaml.core import HexInt
-from esphomeyaml.helpers import App, Component, Pvariable, add, gpio_output_pin_expression, \
-    setup_component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Component
+from esphomeyaml.py_compat import text_type
 
 RemoteTransmitterComponent = remote_ns.class_('RemoteTransmitterComponent',
                                               RemoteControlComponentBase, Component)
 RCSwitchProtocol = remote_ns.class_('RCSwitchProtocol')
 rc_switch_protocols = remote_ns.rc_switch_protocols
 
+MULTI_CONF = True
+
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, unicode)):
+    if not isinstance(value, (str, text_type)):
         raise vol.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1'):
@@ -75,12 +79,12 @@ RC_SWITCH_TYPE_D_SCHEMA = vol.Schema({
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 
-CONFIG_SCHEMA = vol.All(cv.ensure_list, [vol.Schema({
+CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitterComponent),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(cv.percentage_int,
                                                      vol.Range(min=1, max=100)),
-}).extend(cv.COMPONENT_SCHEMA.schema)])
+}).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def build_rc_switch_protocol(config):
@@ -102,16 +106,15 @@ def binary_code(value):
 
 
 def to_code(config):
-    for conf in config:
-        for pin in gpio_output_pin_expression(conf[CONF_PIN]):
-            yield
-        rhs = App.make_remote_transmitter_component(pin)
-        transmitter = Pvariable(conf[CONF_ID], rhs)
+    for pin in gpio_output_pin_expression(config[CONF_PIN]):
+        yield
+    rhs = App.make_remote_transmitter_component(pin)
+    transmitter = Pvariable(config[CONF_ID], rhs)
 
-        if CONF_CARRIER_DUTY_PERCENT in conf:
-            add(transmitter.set_carrier_duty_percent(conf[CONF_CARRIER_DUTY_PERCENT]))
+    if CONF_CARRIER_DUTY_PERCENT in config:
+        add(transmitter.set_carrier_duty_percent(config[CONF_CARRIER_DUTY_PERCENT]))
 
-        setup_component(transmitter, conf)
+    setup_component(transmitter, config)
 
 
 BUILD_FLAGS = '-DUSE_REMOTE_TRANSMITTER'

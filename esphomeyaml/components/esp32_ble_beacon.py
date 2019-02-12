@@ -2,8 +2,9 @@ import voluptuous as vol
 
 from esphomeyaml import config_validation as cv
 from esphomeyaml.const import CONF_ID, CONF_SCAN_INTERVAL, CONF_TYPE, CONF_UUID, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, ArrayInitializer, Component, Pvariable, RawExpression, add, \
-    esphomelib_ns, setup_component
+from esphomeyaml.cpp_generator import Pvariable, RawExpression, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component, esphomelib_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -25,7 +26,7 @@ CONFIG_SCHEMA = vol.Schema({
 def to_code(config):
     uuid = config[CONF_UUID].hex
     uuid_arr = [RawExpression('0x{}'.format(uuid[i:i + 2])) for i in range(0, len(uuid), 2)]
-    rhs = App.make_esp32_ble_beacon(ArrayInitializer(*uuid_arr, multiline=False))
+    rhs = App.make_esp32_ble_beacon(uuid_arr)
     ble = Pvariable(config[CONF_ID], rhs)
     if CONF_MAJOR in config:
         add(ble.set_major(config[CONF_MAJOR]))

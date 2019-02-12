@@ -3,7 +3,6 @@ FROM ${BUILD_FROM}
 MAINTAINER Otto Winter <contact@otto-winter.com>
 
 RUN apt-get update && apt-get install -y \
-        python-pil \
         git \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* && \
     pip install --no-cache-dir --no-binary :all: platformio && \
@@ -18,15 +17,11 @@ VOLUME /config
 WORKDIR /usr/src/app
 
 COPY docker/platformio.ini /pio/platformio.ini
-ARG ESPHOMELIB_VERSION=""
-RUN platformio run -d /pio; rm -rf /pio && \
-    /bin/bash -c "if [ ! -z '$ESPHOMELIB_VERSION']; then \
-        platformio lib -g install '${ESPHOMELIB_VERSION}'; \
-    fi"
+RUN platformio run -d /pio; rm -rf /pio
 
 COPY . .
 RUN pip install --no-cache-dir --no-binary :all: -e . && \
-    pip install --no-cache-dir --no-binary :all: tzlocal
+    pip install --no-cache-dir pillow
 
 WORKDIR /config
 ENTRYPOINT ["esphomeyaml"]

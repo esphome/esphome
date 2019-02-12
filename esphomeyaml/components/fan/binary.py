@@ -3,7 +3,9 @@ import voluptuous as vol
 import esphomeyaml.config_validation as cv
 from esphomeyaml.components import fan, output
 from esphomeyaml.const import CONF_MAKE_ID, CONF_NAME, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT
-from esphomeyaml.helpers import App, add, get_variable, variable, setup_component
+from esphomeyaml.cpp_generator import get_variable, variable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(fan.MakeFan),
@@ -24,7 +26,7 @@ def to_code(config):
             yield
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
-    fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)
+    fan.setup_fan(fan_struct.Pstate, config)
     setup_component(fan_struct.Poutput, config)
 
 

@@ -1,13 +1,14 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display
 from esphomeyaml.components.display import ssd1306_spi
-from esphomeyaml.const import CONF_ADDRESS, CONF_EXTERNAL_VCC, CONF_ID, \
-    CONF_MODEL, CONF_RESET_PIN, CONF_LAMBDA
-from esphomeyaml.helpers import App, Pvariable, add, \
-    gpio_output_pin_expression, process_lambda, setup_component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_ADDRESS, CONF_EXTERNAL_VCC, CONF_ID, CONF_LAMBDA, CONF_MODEL, \
+    CONF_RESET_PIN
+from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, void
 
 DEPENDENCIES = ['i2c']
 
@@ -36,7 +37,7 @@ def to_code(config):
         add(ssd.set_address(config[CONF_ADDRESS]))
     if CONF_LAMBDA in config:
         for lambda_ in process_lambda(config[CONF_LAMBDA],
-                                      [(display.DisplayBufferRef, 'it')]):
+                                      [(display.DisplayBufferRef, 'it')], return_type=void):
             yield
         add(ssd.set_writer(lambda_))
 

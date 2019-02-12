@@ -9,21 +9,23 @@ import uuid as uuid_
 
 import voluptuous as vol
 
-from esphomeyaml import core, helpers
+from esphomeyaml import core
 from esphomeyaml.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
-    CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, CONF_RETAIN, CONF_STATE_TOPIC, CONF_TOPIC, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_INTERNAL, CONF_SETUP_PRIORITY
-from esphomeyaml.core import HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
+    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, \
+    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
+    ESP_PLATFORM_ESP8266
+from esphomeyaml.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
+from esphomeyaml.py_compat import text_type, string_types, integer_types
 
 _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name
 
 port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
-positive_float = vol.All(vol.Coerce(float), vol.Range(min=0))
-zero_to_one_float = vol.All(vol.Coerce(float), vol.Range(min=0, max=1))
+float_ = vol.Coerce(float)
+positive_float = vol.All(float_, vol.Range(min=0))
+zero_to_one_float = vol.All(float_, vol.Range(min=0, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
 
@@ -44,13 +46,14 @@ RESERVED_IDS = [
 
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
+    'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
 ]
 
 
 def alphanumeric(value):
     if value is None:
         raise vol.Invalid("string value is None")
-    value = unicode(value)
+    value = text_type(value)
     if not value.isalnum():
         raise vol.Invalid("string value is not alphanumeric")
     return value
@@ -69,16 +72,16 @@ def string(value):
     if isinstance(value, (dict, list)):
         raise vol.Invalid("string value cannot be dictionary or list.")
     if value is not None:
-        return unicode(value)
+        return text_type(value)
     raise vol.Invalid("string value is None")
 
 
 def string_strict(value):
     """Strictly only allow strings."""
-    if isinstance(value, (str, unicode)):
+    if isinstance(value, string_types):
         return value
-    raise vol.Invalid("Must be string, did you forget putting quotes "
-                      "around the value?")
+    raise vol.Invalid("Must be string, got {}. did you forget putting quotes "
+                      "around the value?".format(type(value)))
 
 
 def icon(value):
@@ -101,13 +104,25 @@ def boolean(value):
     return bool(value)
 
 
-def ensure_list(value):
+def ensure_list(*validators):
     """Wrap value in list if it is not one."""
-    if value is None or (isinstance(value, dict) and not value):
-        return []
-    if isinstance(value, list):
-        return value
-    return [value]
+    user = vol.All(*validators)
+
+    def validator(value):
+        if value is None or (isinstance(value, dict) and not value):
+            return []
+        if not isinstance(value, list):
+            return [user(value)]
+        ret = []
+        for i, val in enumerate(value):
+            try:
+                ret.append(user(val))
+            except vol.Invalid as err:
+                err.prepend([i])
+                raise err
+        return ret
+
+    return validator
 
 
 def ensure_list_not_empty(value):
@@ -125,7 +140,7 @@ def ensure_dict(value):
 
 
 def hex_int_(value):
-    if isinstance(value, (int, long)):
+    if isinstance(value, integer_types):
         return HexInt(value)
     value = string_strict(value).lower()
     if value.startswith('0x'):
@@ -134,7 +149,7 @@ def hex_int_(value):
 
 
 def int_(value):
-    if isinstance(value, (int, long)):
+    if isinstance(value, integer_types):
         return value
     value = string_strict(value).lower()
     if value.startswith('0x'):
@@ -155,8 +170,9 @@ def variable_id_str_(value):
         raise vol.Invalid("Dashes are not supported in IDs, please use underscores instead.")
     for char in value:
         if char != '_' and not char.isalnum():
-            raise vol.Invalid(u"IDs must only consist of upper/lowercase characters and numbers."
-                              u"The character '{}' cannot be used".format(char))
+            raise vol.Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
+                              u"character and numbers. The character '{}' cannot be used"
+                              u"".format(char))
     if value in RESERVED_IDS:
         raise vol.Invalid(u"ID {} is reserved internally and cannot be used".format(value))
     return value
@@ -198,7 +214,7 @@ def only_on(platforms):
         platforms = [platforms]
 
     def validator_(obj):
-        if core.ESP_PLATFORM not in platforms:
+        if CORE.esp_platform not in platforms:
             raise vol.Invalid(u"This feature is only available on {}".format(platforms))
         return obj
 
@@ -258,12 +274,12 @@ TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 
 
 time_period_dict = vol.All(
     dict, vol.Schema({
-        'days': vol.Coerce(float),
-        'hours': vol.Coerce(float),
-        'minutes': vol.Coerce(float),
-        'seconds': vol.Coerce(float),
-        'milliseconds': vol.Coerce(float),
-        'microseconds': vol.Coerce(float),
+        'days': float_,
+        'hours': float_,
+        'minutes': float_,
+        'seconds': float_,
+        'milliseconds': float_,
+        'microseconds': float_,
     }),
     has_at_least_one_key('days', 'hours', 'minutes',
                          'seconds', 'milliseconds', 'microseconds'),
@@ -296,9 +312,9 @@ def time_period_str_colon(value):
 def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
     if isinstance(value, int):
-        raise vol.Invalid("Don't know what '{}' means as it has no time *unit*! Did you mean "
-                          "'{}s'?".format(value, value))
-    elif not isinstance(value, (str, unicode)):
+        raise vol.Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
+                          "'{0}s'?".format(value))
+    elif not isinstance(value, string_types):
         raise vol.Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
@@ -319,11 +335,11 @@ def time_period_str_unit(value):
 
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
-    if match is None or match.group(2) not in unit_to_kwarg:
+    if match is None:
         raise vol.Invalid(u"Expected time period with unit, "
                           u"got {}".format(value))
+    kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
-    kwarg = unit_to_kwarg[match.group(2)]
     return TimePeriod(**{kwarg: float(match.group(1))})
 
 
@@ -441,8 +457,20 @@ def hostname(value):
     return value
 
 
-def domain_name(value):
+def domain(value):
     value = string(value)
+    if re.match(vol.DOMAIN_REGEX, value) is not None:
+        return value
+    try:
+        return str(ipv4(value))
+    except vol.Invalid:
+        raise vol.Invalid("Invalid domain: {}".format(value))
+
+
+def domain_name(value):
+    value = string_strict(value)
+    if not value:
+        return value
     if not value.startswith('.'):
         raise vol.Invalid("Domain name must start with .")
     if value.startswith('..'):
@@ -454,22 +482,21 @@ def domain_name(value):
 
 
 def ssid(value):
-    if value is None:
-        raise vol.Invalid("SSID can not be None")
-    if not isinstance(value, str):
-        raise vol.Invalid("SSID must be a string. Did you wrap it in quotes?")
+    value = string_strict(value)
     if not value:
         raise vol.Invalid("SSID can't be empty.")
-    if len(value) > 31:
-        raise vol.Invalid("SSID can't be longer than 31 characters")
+    if len(value) > 32:
+        raise vol.Invalid("SSID can't be longer than 32 characters")
     return value
 
 
 def ipv4(value):
     if isinstance(value, list):
         parts = value
-    elif isinstance(value, str):
+    elif isinstance(value, string_types):
         parts = value.split('.')
+    elif isinstance(value, IPAddress):
+        return value
     else:
         raise vol.Invalid("IPv4 address must consist of either string or "
                           "integer list")
@@ -546,6 +573,14 @@ def mqtt_qos(value):
     return one_of(0, 1, 2)(value)
 
 
+def requires_component(comp):
+    def validator(value):
+        if comp not in CORE.raw_config:
+            raise vol.Invalid("This option requires component {}".format(comp))
+        return value
+    return validator
+
+
 uint8_t = vol.All(int_, vol.Range(min=0, max=255))
 uint16_t = vol.All(int_, vol.Range(min=0, max=65535))
 uint32_t = vol.All(int_, vol.Range(min=0, max=4294967295))
@@ -556,7 +591,7 @@ i2c_address = hex_uint8_t
 
 
 def percentage(value):
-    has_percent_sign = isinstance(value, (str, unicode)) and value.endswith('%')
+    has_percent_sign = isinstance(value, string_types) and value.endswith('%')
     if has_percent_sign:
         value = float(value[:-1].rstrip()) / 100.0
     if value > 1:
@@ -568,7 +603,7 @@ def percentage(value):
 
 
 def percentage_int(value):
-    if isinstance(value, (str, unicode)) and value.endswith('%'):
+    if isinstance(value, string_types) and value.endswith('%'):
         value = int(value[:-1].rstrip())
     return value
 
@@ -590,10 +625,12 @@ def one_of(*values, **kwargs):
     upper = kwargs.get('upper', False)
     string_ = kwargs.get('string', False) or lower or upper
     to_int = kwargs.get('int', False)
+    space = kwargs.get('space', ' ')
 
     def validator(value):
         if string_:
             value = string(value)
+            value = value.replace(' ', space)
         if to_int:
             value = int_(value)
         if lower:
@@ -633,7 +670,7 @@ def dimensions(value):
 
 def directory(value):
     value = string(value)
-    path = helpers.relative_path(value)
+    path = CORE.relative_path(value)
     if not os.path.exists(path):
         raise vol.Invalid(u"Could not find directory '{}'. Please make sure it exists.".format(
             path))
@@ -644,12 +681,26 @@ def directory(value):
 
 def file_(value):
     value = string(value)
-    path = helpers.relative_path(value)
+    path = CORE.relative_path(value)
     if not os.path.exists(path):
         raise vol.Invalid(u"Could not find file '{}'. Please make sure it exists.".format(
             path))
     if not os.path.isfile(path):
         raise vol.Invalid(u"Path '{}' is not a file.".format(path))
+    return value
+
+
+ENTITY_ID_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
+
+
+def entity_id(value):
+    value = string_strict(value).lower()
+    if value.count('.') != 1:
+        raise vol.Invalid("Entity ID must have exactly one dot in it")
+    for x in value.split('.'):
+        for c in x:
+            if c not in ENTITY_ID_CHARACTERS:
+                raise vol.Invalid("Invalid character for entity ID: {}".format(c))
     return value
 
 
@@ -687,17 +738,18 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = vol.Schema({
 
 MQTT_COMPONENT_SCHEMA = vol.Schema({
     vol.Optional(CONF_NAME): string,
-    vol.Optional(CONF_RETAIN): boolean,
-    vol.Optional(CONF_DISCOVERY): boolean,
-    vol.Optional(CONF_STATE_TOPIC): publish_topic,
-    vol.Optional(CONF_AVAILABILITY): vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA),
+    vol.Optional(CONF_RETAIN): vol.All(requires_component('mqtt'), boolean),
+    vol.Optional(CONF_DISCOVERY): vol.All(requires_component('mqtt'), boolean),
+    vol.Optional(CONF_STATE_TOPIC): vol.All(requires_component('mqtt'), publish_topic),
+    vol.Optional(CONF_AVAILABILITY): vol.All(requires_component('mqtt'),
+                                             vol.Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
     vol.Optional(CONF_INTERNAL): boolean,
 })
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
-    vol.Optional(CONF_COMMAND_TOPIC): subscribe_topic,
+    vol.Optional(CONF_COMMAND_TOPIC): vol.All(requires_component('mqtt'), subscribe_topic),
 })
 
 COMPONENT_SCHEMA = vol.Schema({
-    vol.Optional(CONF_SETUP_PRIORITY): vol.Coerce(float)
+    vol.Optional(CONF_SETUP_PRIORITY): float_
 })

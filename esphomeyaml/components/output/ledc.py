@@ -1,11 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import output
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import APB_CLOCK_FREQ, CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
     CONF_ID, CONF_PIN, ESP_PLATFORM_ESP32
-from esphomeyaml.helpers import App, Pvariable, add, setup_component, Component
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, Component
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 

@@ -1,12 +1,13 @@
+from __future__ import division
+
 import logging
 
 import voluptuous as vol
 
-from esphomeyaml import core
 import esphomeyaml.config_validation as cv
-from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphomeyaml.helpers import Component, esphomelib_ns, io_ns
+from esphomeyaml.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_types import Component, esphomelib_ns, io_ns
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -56,6 +57,58 @@ ESP8266_BOARD_PINS = {
     'wio_link': {'LED': 2, 'GROVE': 15},
     'wio_node': 'nodemcu',
     'xinabox_cw01': {'SDA': 2, 'SCL': 14, 'LED': 5, 'LED_RED': 12, 'LED_GREEN': 13}
+}
+
+FLASH_SIZE_1_MB = 2**20
+FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
+FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB
+FLASH_SIZE_4_MB = 4 * FLASH_SIZE_1_MB
+FLASH_SIZE_16_MB = 16 * FLASH_SIZE_1_MB
+
+ESP8266_FLASH_SIZES = {
+    'd1': FLASH_SIZE_4_MB,
+    'd1_mini': FLASH_SIZE_4_MB,
+    'd1_mini_lite': FLASH_SIZE_1_MB,
+    'd1_mini_pro': FLASH_SIZE_16_MB,
+    'esp01': FLASH_SIZE_512_KB,
+    'esp01_1m': FLASH_SIZE_1_MB,
+    'esp07': FLASH_SIZE_4_MB,
+    'esp12e': FLASH_SIZE_4_MB,
+    'esp210': FLASH_SIZE_4_MB,
+    'esp8285': FLASH_SIZE_1_MB,
+    'esp_wroom_02': FLASH_SIZE_2_MB,
+    'espduino': FLASH_SIZE_4_MB,
+    'espectro': FLASH_SIZE_4_MB,
+    'espino': FLASH_SIZE_4_MB,
+    'espinotee': FLASH_SIZE_4_MB,
+    'espresso_lite_v1': FLASH_SIZE_4_MB,
+    'espresso_lite_v2': FLASH_SIZE_4_MB,
+    'gen4iod': FLASH_SIZE_512_KB,
+    'heltec_wifi_kit_8': FLASH_SIZE_4_MB,
+    'huzzah': FLASH_SIZE_4_MB,
+    'modwifi': FLASH_SIZE_2_MB,
+    'nodemcu': FLASH_SIZE_4_MB,
+    'nodemcuv2': FLASH_SIZE_4_MB,
+    'oak': FLASH_SIZE_4_MB,
+    'phoenix_v1': FLASH_SIZE_4_MB,
+    'phoenix_v2': FLASH_SIZE_4_MB,
+    'sparkfunBlynk': FLASH_SIZE_4_MB,
+    'thing': FLASH_SIZE_512_KB,
+    'thingdev': FLASH_SIZE_512_KB,
+    'wifi_slot': FLASH_SIZE_1_MB,
+    'wifiduino': FLASH_SIZE_4_MB,
+    'wifinfo': FLASH_SIZE_1_MB,
+    'wio_link': FLASH_SIZE_4_MB,
+    'wio_node': FLASH_SIZE_4_MB,
+    'xinabox_cw01': FLASH_SIZE_4_MB,
+}
+
+ESP8266_LD_SCRIPTS = {
+    FLASH_SIZE_512_KB: ('eagle.flash.512k0.ld', 'eagle.flash.512k.ld'),
+    FLASH_SIZE_1_MB: ('eagle.flash.1m0.ld', 'eagle.flash.1m.ld'),
+    FLASH_SIZE_2_MB: ('eagle.flash.2m.ld', 'eagle.flash.2m.ld'),
+    FLASH_SIZE_4_MB: ('eagle.flash.4m.ld', 'eagle.flash.4m.ld'),
+    FLASH_SIZE_16_MB: ('eagle.flash.16m.ld', 'eagle.flash.16m14m.ld'),
 }
 
 ESP32_BASE_PINS = {
@@ -147,23 +200,23 @@ ESP32_BOARD_PINS = {
 }
 
 
-def _lookup_pin(platform, board, value):
-    if platform == ESP_PLATFORM_ESP8266:
-        board_pins = ESP8266_BOARD_PINS.get(board, {})
+def _lookup_pin(value):
+    if CORE.is_esp8266:
+        board_pins = ESP8266_BOARD_PINS.get(CORE.board, {})
         base_pins = ESP8266_BASE_PINS
-    elif platform == ESP_PLATFORM_ESP32:
-        board_pins = ESP32_BOARD_PINS.get(board, {})
+    elif CORE.is_esp32:
+        board_pins = ESP32_BOARD_PINS.get(CORE.board, {})
         base_pins = ESP32_BASE_PINS
     else:
         raise NotImplementedError
 
-    if isinstance(board_pins, str):
-        return _lookup_pin(platform, board_pins, value)
+    while isinstance(board_pins, str):
+        board_pins = ESP8266_BOARD_PINS.get(board_pins, {})
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise vol.Invalid(u"Can't find internal pin number for {}.".format(value))
+    raise vol.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
 
 
 def _translate_pin(value):
@@ -178,12 +231,12 @@ def _translate_pin(value):
         pass
     if value.startswith('GPIO'):
         return vol.Coerce(int)(value[len('GPIO'):].strip())
-    return _lookup_pin(core.ESP_PLATFORM, core.BOARD, value)
+    return _lookup_pin(value)
 
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if value < 0 or value > 39:
             raise vol.Invalid(u"ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
@@ -193,53 +246,60 @@ def validate_gpio_pin(value):
             _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
                             u"Be warned.", value)
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         if 6 <= value <= 11:
             _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
         if value < 0 or value > 17:
             raise vol.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
         return value
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def input_pin(value):
-    value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    return validate_gpio_pin(value)
+
+
+def input_pullup_pin(value):
+    value = input_pin(value)
+    if CORE.is_esp32:
+        return output_pin(value)
+    if CORE.is_esp8266:
+        if value == 0:
+            raise vol.Invalid("GPIO Pin 0 does not support pullup pin mode. "
+                              "Please choose another pin.")
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
-        return value
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def output_pin(value):
     value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if 34 <= value <= 39:
-            raise vol.Invalid(u"ESP32: Pin {} (34-39) can only be used as "
-                              u"input pins.".format(value))
+            raise vol.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
+                              u"input pin.".format(value))
         return value
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         return value
-    raise vol.Invalid("Invalid ESP platform.")
+    raise NotImplementedError
 
 
 def analog_pin(value):
     value = validate_gpio_pin(value)
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         if 32 <= value <= 39:  # ADC1
             return value
         raise vol.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    elif CORE.is_esp8266:
         if value == 17:  # A0
             return value
         raise vol.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
-# pylint: disable=invalid-name
 input_output_pin = vol.All(input_pin, output_pin)
-gpio_pin = vol.Any(input_pin, output_pin)
+
+
 PIN_MODES_ESP8266 = [
     'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',
@@ -254,11 +314,11 @@ PIN_MODES_ESP32 = [
 
 
 def pin_mode(value):
-    if core.ESP_PLATFORM == ESP_PLATFORM_ESP32:
+    if CORE.is_esp32:
         return cv.one_of(*PIN_MODES_ESP32, upper=True)(value)
-    elif core.ESP_PLATFORM == ESP_PLATFORM_ESP8266:
+    if CORE.is_esp8266:
         return cv.one_of(*PIN_MODES_ESP8266, upper=True)(value)
-    raise vol.Invalid(u"Invalid ESP platform.")
+    raise NotImplementedError
 
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
@@ -268,7 +328,7 @@ GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = vol.Schema({
-    vol.Required(CONF_NUMBER): output_pin,
+    vol.Required(CONF_NUMBER): input_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
@@ -281,6 +341,11 @@ def shorthand_output_pin(value):
 
 def shorthand_input_pin(value):
     value = input_pin(value)
+    return {CONF_NUMBER: value}
+
+
+def shorthand_input_pullup_pin(value):
+    value = input_pullup_pin(value)
     return {CONF_NUMBER: value}
 
 
@@ -306,11 +371,9 @@ def internal_gpio_output_pin_schema(value):
 
 
 def gpio_output_pin_schema(value):
-    if isinstance(value, dict):
-        if CONF_PCF8574 in value:
-            return PCF8574_OUTPUT_PIN_SCHEMA(value)
-        return GPIO_FULL_OUTPUT_PIN_SCHEMA(value)
-    return shorthand_output_pin(value)
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_OUTPUT_PIN_SCHEMA(value)
+    return internal_gpio_output_pin_schema(value)
 
 
 def internal_gpio_input_pin_schema(value):
@@ -320,8 +383,18 @@ def internal_gpio_input_pin_schema(value):
 
 
 def gpio_input_pin_schema(value):
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_INPUT_PIN_SCHEMA(value)
+    return internal_gpio_input_pin_schema(value)
+
+
+def internal_gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict):
-        if CONF_PCF8574 in value:
-            return PCF8574_INPUT_PIN_SCHEMA(value)
         return GPIO_FULL_INPUT_PIN_SCHEMA(value)
-    return shorthand_input_pin(value)
+    return shorthand_input_pullup_pin(value)
+
+
+def gpio_input_pullup_pin_schema(value):
+    if isinstance(value, dict) and CONF_PCF8574 in value:
+        return PCF8574_INPUT_PIN_SCHEMA(value)
+    return internal_gpio_input_pin_schema(value)

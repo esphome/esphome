@@ -1,33 +1,40 @@
 {
   "name": "esphomeyaml-beta",
-  "version": "1.9.2",
+  "version": "1.10.1",
   "slug": "esphomeyaml-beta",
-  "description": "Beta version of esphomeyaml HassIO add-on.",
+  "description": "Beta version of esphomeyaml Hass.io add-on.",
   "url": "https://beta.esphomelib.com/esphomeyaml/index.html",
-  "startup": "application",
   "webui": "http://[HOST]:[PORT:6052]",
-  "boot": "auto",
-  "ports": {
-    "6052/tcp": 6052,
-    "6053/tcp": 6053
-  },
-  "auto_uart": true,
-  "map": [
-    "config:rw"
-  ],
+  "startup": "application",
   "arch": [
     "amd64",
     "armhf",
     "i386"
   ],
-  "environment": {
-    "ESPHOMEYAML_OTA_HOST_PORT": "6053"
-  },
+  "hassio_api": true,
+  "auth_api": true,
+  "hassio_role": "default",
+  "homeassistant_api": false,
+  "host_network": true,
+  "boot": "auto",
+  "auto_uart": true,
+  "map": [
+    "ssl",
+    "config:rw"
+  ],
   "options": {
-    "password": ""
+    "ssl": false,
+    "certfile": "fullchain.pem",
+    "keyfile": "privkey.pem",
+    "port": 6052
   },
   "schema": {
-    "password": "str?"
+    "ssl": "bool",
+    "certfile": "str",
+    "keyfile": "str",
+    "port": "int",
+    "leave_front_door_open": "bool?",
+    "esphomeyaml_version": "str?"
   },
   "image": "ottowinter/esphomeyaml-hassio-{arch}"
 }

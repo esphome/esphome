@@ -1,17 +1,18 @@
 from __future__ import print_function
 
 import codecs
+from collections import OrderedDict
 import fnmatch
 import logging
 import os
 import uuid
-from collections import OrderedDict
 
 import yaml
 import yaml.constructor
 
 from esphomeyaml import core
-from esphomeyaml.core import ESPHomeYAMLError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphomeyaml.core import EsphomeyamlError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphomeyaml.py_compat import text_type, string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,13 +25,9 @@ SECRET_YAML = u'secrets.yaml'
 class NodeListClass(list):
     """Wrapper class to be able to add attributes on a list."""
 
-    pass
 
-
-class NodeStrClass(unicode):
+class NodeStrClass(text_type):
     """Wrapper class to be able to add attributes on a string."""
-
-    pass
 
 
 class SafeLineLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
@@ -50,12 +47,12 @@ def load_yaml(fname):
         with codecs.open(fname, encoding='utf-8') as conf_file:
             return yaml.load(conf_file, Loader=SafeLineLoader) or OrderedDict()
     except yaml.YAMLError as exc:
-        raise ESPHomeYAMLError(exc)
+        raise EsphomeyamlError(exc)
     except IOError as exc:
-        raise ESPHomeYAMLError(u"Error accessing file {}: {}".format(fname, exc))
+        raise EsphomeyamlError(u"Error accessing file {}: {}".format(fname, exc))
     except UnicodeDecodeError as exc:
         _LOGGER.error(u"Unable to read file %s: %s", fname, exc)
-        raise ESPHomeYAMLError(exc)
+        raise EsphomeyamlError(exc)
 
 
 def dump(dict_):
@@ -70,9 +67,9 @@ def custom_construct_pairs(loader, node):
         if isinstance(kv, yaml.ScalarNode):
             obj = loader.construct_object(kv)
             if not isinstance(obj, dict):
-                raise ESPHomeYAMLError(
+                raise EsphomeyamlError(
                     "Expected mapping for anchored include tag, got {}".format(type(obj)))
-            for key, value in obj.iteritems():
+            for key, value in obj.items():
                 pairs.append((key, value))
         else:
             key_node, value_node = kv
@@ -153,7 +150,7 @@ def _ordered_dict(loader, node):
 
         if key in seen:
             fname = getattr(loader.stream, 'name', '')
-            raise ESPHomeYAMLError(u'YAML file {} contains duplicate key "{}". '
+            raise EsphomeyamlError(u'YAML file {} contains duplicate key "{}". '
                                    u'Check lines {} and {}.'.format(fname, key, seen[key], line))
         seen[key] = line
 
@@ -168,10 +165,10 @@ def _construct_seq(loader, node):
 
 def _add_reference(obj, loader, node):
     """Add file reference information to an object."""
-    if isinstance(obj, (str, unicode)):
+    if isinstance(obj, string_types):
         obj = NodeStrClass(obj)
     if isinstance(obj, list):
-        return obj
+        obj = NodeListClass(obj)
     setattr(obj, '__config_file__', loader.name)
     setattr(obj, '__line__', node.start_mark.line)
     return obj
@@ -184,9 +181,9 @@ def _env_var_yaml(_, node):
     # Check for a default value
     if len(args) > 1:
         return os.getenv(args[0], u' '.join(args[1:]))
-    elif args[0] in os.environ:
+    if args[0] in os.environ:
         return os.environ[args[0]]
-    raise ESPHomeYAMLError(u"Environment variable {} not defined.".format(node.value))
+    raise EsphomeyamlError(u"Environment variable {} not defined.".format(node.value))
 
 
 def _include_yaml(loader, node):
@@ -263,12 +260,12 @@ def _secret_yaml(loader, node):
     secret_path = os.path.join(os.path.dirname(loader.name), SECRET_YAML)
     secrets = load_yaml(secret_path)
     if node.value not in secrets:
-        raise ESPHomeYAMLError(u"Secret {} not defined".format(node.value))
+        raise EsphomeyamlError(u"Secret {} not defined".format(node.value))
     return secrets[node.value]
 
 
 def _lambda(loader, node):
-    return Lambda(unicode(node.value))
+    return Lambda(text_type(node.value))
 
 
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
@@ -295,7 +292,7 @@ def represent_odict(dump, tag, mapping, flow_style=None):
         dump.represented_objects[dump.alias_key] = node
     best_style = True
     if hasattr(mapping, 'items'):
-        mapping = mapping.items()
+        mapping = list(mapping.items())
     for item_key, item_value in mapping:
         node_key = dump.represent_data(item_key)
         node_value = dump.represent_data(item_value)
@@ -348,7 +345,7 @@ def represent_time_period(dumper, data):
 
 
 def represent_lambda(_, data):
-    node = yaml.ScalarNode(tag='!lambda', value=data.value, style='>')
+    node = yaml.ScalarNode(tag='!lambda', value=data.value, style='|')
     return node
 
 
@@ -369,10 +366,10 @@ yaml.SafeDumper.add_representer(
 yaml.SafeDumper.add_representer(
     NodeListClass,
     lambda dumper, value:
-    dumper.represent_sequence(dumper, 'tag:yaml.org,2002:map', value)
+    dumper.represent_sequence('tag:yaml.org,2002:seq', value)
 )
 
-yaml.SafeDumper.add_representer(unicode, unicode_representer)
+yaml.SafeDumper.add_representer(text_type, unicode_representer)
 yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
 yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
 yaml.SafeDumper.add_representer(MACAddress, stringify_representer)

@@ -1,0 +1,10 @@
+# Gitignore settings for esphomeyaml
+# This is an example and may include too much for your use-case.
+# You can modify this file to suit your needs.
+/.esphomeyaml/
+**/.pioenvs/
+**/.piolibdeps/
+**/lib/
+**/src/
+**/platformio.ini
+/secrets.yaml

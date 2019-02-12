@@ -7,16 +7,17 @@ from esphomeyaml.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     remote_ns
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL, CONF_CODE, \
-    CONF_COMMAND, CONF_DATA, CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_LG, \
-    CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, \
-    CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, \
-    CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
-    CONF_WAIT_TIME
-from esphomeyaml.helpers import ArrayInitializer, Pvariable, add, get_variable
+    CONF_COMMAND, CONF_DATA, CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_JVC, \
+    CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, \
+    CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, \
+    CONF_RC_SWITCH_TYPE_D, CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
+    CONF_WAIT_TIME, CONF_ID
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, progmem_array
+from esphomeyaml.cpp_types import int32
 
 DEPENDENCIES = ['remote_transmitter']
 
-REMOTE_KEYS = [CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
+REMOTE_KEYS = [CONF_JVC, CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
                CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B,
                CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D]
 
@@ -24,6 +25,7 @@ CONF_REMOTE_TRANSMITTER_ID = 'remote_transmitter_id'
 CONF_TRANSMITTER_ID = 'transmitter_id'
 
 RemoteTransmitter = remote_ns.class_('RemoteTransmitter', switch.Switch)
+JVCTransmitter = remote_ns.class_('JVCTransmitter', RemoteTransmitter)
 LGTransmitter = remote_ns.class_('LGTransmitter', RemoteTransmitter)
 NECTransmitter = remote_ns.class_('NECTransmitter', RemoteTransmitter)
 PanasonicTransmitter = remote_ns.class_('PanasonicTransmitter', RemoteTransmitter)
@@ -36,10 +38,24 @@ RCSwitchTypeBTransmitter = remote_ns.class_('RCSwitchTypeBTransmitter', RCSwitch
 RCSwitchTypeCTransmitter = remote_ns.class_('RCSwitchTypeCTransmitter', RCSwitchRawTransmitter)
 RCSwitchTypeDTransmitter = remote_ns.class_('RCSwitchTypeDTransmitter', RCSwitchRawTransmitter)
 
-validate_raw_data = [vol.Any(vol.Coerce(int), cv.time_period_microseconds)]
+
+def validate_raw(value):
+    if isinstance(value, dict):
+        return vol.Schema({
+            cv.GenerateID(): cv.declare_variable_id(int32),
+            vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+            vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
+        })(value)
+    return validate_raw({
+        CONF_DATA: value
+    })
+
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitter),
+    vol.Optional(CONF_JVC): vol.Schema({
+        vol.Required(CONF_DATA): cv.hex_uint32_t,
+    }),
     vol.Optional(CONF_LG): vol.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
@@ -59,10 +75,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RAW): vol.Any(validate_raw_data, vol.Schema({
-        vol.Required(CONF_DATA): validate_raw_data,
-        vol.Optional(CONF_CARRIER_FREQUENCY): vol.All(cv.frequency, vol.Coerce(int)),
-    })),
+    vol.Optional(CONF_RAW): validate_raw,
     vol.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_B): RC_SWITCH_TYPE_B_SCHEMA,
@@ -83,48 +96,45 @@ def transmitter_base(full_config):
     name = full_config[CONF_NAME]
     key, config = next((k, v) for k, v in full_config.items() if k in REMOTE_KEYS)
 
+    if key == CONF_JVC:
+        return JVCTransmitter.new(name, config[CONF_DATA])
     if key == CONF_LG:
         return LGTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_NEC:
+    if key == CONF_NEC:
         return NECTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_PANASONIC:
+    if key == CONF_PANASONIC:
         return PanasonicTransmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
-    elif key == CONF_SAMSUNG:
+    if key == CONF_SAMSUNG:
         return SamsungTransmitter.new(name, config[CONF_DATA])
-    elif key == CONF_SONY:
+    if key == CONF_SONY:
         return SonyTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
-    elif key == CONF_RAW:
-        if isinstance(config, dict):
-            data = config[CONF_DATA]
-            carrier_frequency = config.get(CONF_CARRIER_FREQUENCY)
-        else:
-            data = config
-            carrier_frequency = None
-        return RawTransmitter.new(name, ArrayInitializer(*data, multiline=False),
-                                  carrier_frequency)
-    elif key == CONF_RC_SWITCH_RAW:
+    if key == CONF_RAW:
+        arr = progmem_array(config[CONF_ID], config[CONF_DATA])
+        return RawTransmitter.new(name, arr, len(config[CONF_DATA]),
+                                  config.get(CONF_CARRIER_FREQUENCY))
+    if key == CONF_RC_SWITCH_RAW:
         return RCSwitchRawTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                           binary_code(config[CONF_CODE]), len(config[CONF_CODE]))
-    elif key == CONF_RC_SWITCH_TYPE_A:
+    if key == CONF_RC_SWITCH_TYPE_A:
         return RCSwitchTypeATransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             binary_code(config[CONF_GROUP]),
                                             binary_code(config[CONF_DEVICE]),
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_B:
+    if key == CONF_RC_SWITCH_TYPE_B:
         return RCSwitchTypeBTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             config[CONF_ADDRESS], config[CONF_CHANNEL],
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_C:
+    if key == CONF_RC_SWITCH_TYPE_C:
         return RCSwitchTypeCTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             ord(config[CONF_FAMILY][0]) - ord('a'),
                                             config[CONF_GROUP], config[CONF_DEVICE],
                                             config[CONF_STATE])
-    elif key == CONF_RC_SWITCH_TYPE_D:
+    if key == CONF_RC_SWITCH_TYPE_D:
         return RCSwitchTypeDTransmitter.new(name, build_rc_switch_protocol(config[CONF_PROTOCOL]),
                                             ord(config[CONF_GROUP][0]) - ord('a'),
                                             config[CONF_DEVICE], config[CONF_STATE])
-    else:
-        raise NotImplementedError("Unknown transmitter type {}".format(config))
+
+    raise NotImplementedError("Unknown transmitter type {}".format(config))
 
 
 def to_code(config):

@@ -4,12 +4,14 @@ import math
 
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import automation
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
-from esphomeyaml.helpers import App, NoArg, Pvariable, add, add_job, esphomelib_ns, \
-    ArrayInitializer, Component, Trigger
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_types import App, Component, NoArg, Trigger, esphomelib_ns
+from esphomeyaml.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,9 +31,9 @@ def _tz_timedelta(td):
     offset_second = int(abs(td.total_seconds())) % 60
     if offset_hour == 0 and offset_minute == 0 and offset_second == 0:
         return '0'
-    elif offset_minute == 0 and offset_second == 0:
+    if offset_minute == 0 and offset_second == 0:
         return '{}'.format(offset_hour)
-    elif offset_second == 0:
+    if offset_second == 0:
         return '{}:{}'.format(offset_hour, offset_minute)
     return '{}:{}:{}'.format(offset_hour, offset_minute, offset_second)
 
@@ -118,7 +120,7 @@ def detect_tz():
         import pytz
     except ImportError:
         raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
-                          "detect the timezone please install tzlocal (pip2 install tzlocal)")
+                          "detect the timezone please install tzlocal (pip install tzlocal)")
     try:
         tz = tzlocal.get_localzone()
     except pytz.exceptions.UnknownTimeZoneError:
@@ -130,7 +132,7 @@ def detect_tz():
 
 def _parse_cron_int(value, special_mapping, message):
     special_mapping = special_mapping or {}
-    if isinstance(value, (str, unicode)) and value in special_mapping:
+    if isinstance(value, string_types) and value in special_mapping:
         return special_mapping[value]
     try:
         return int(value)
@@ -139,7 +141,7 @@ def _parse_cron_int(value, special_mapping, message):
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
-    if part == '*' or part == '?':
+    if part in ('*', '?'):
         return set(x for x in range(min_value, max_value + 1))
     if '/' in part:
         data = part.split('/')
@@ -276,28 +278,28 @@ def setup_time_core_(time_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
 
         seconds = conf.get(CONF_SECONDS, [x for x in range(0, 61)])
-        add(trigger.add_seconds(ArrayInitializer(*seconds, multiline=False)))
+        add(trigger.add_seconds(seconds))
 
         minutes = conf.get(CONF_MINUTES, [x for x in range(0, 60)])
-        add(trigger.add_minutes(ArrayInitializer(*minutes, multiline=False)))
+        add(trigger.add_minutes(minutes))
 
         hours = conf.get(CONF_HOURS, [x for x in range(0, 24)])
-        add(trigger.add_hours(ArrayInitializer(*hours, multiline=False)))
+        add(trigger.add_hours(hours))
 
         days_of_month = conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)])
-        add(trigger.add_days_of_month(ArrayInitializer(*days_of_month, multiline=False)))
+        add(trigger.add_days_of_month(days_of_month))
 
         months = conf.get(CONF_MONTHS, [x for x in range(1, 13)])
-        add(trigger.add_months(ArrayInitializer(*months, multiline=False)))
+        add(trigger.add_months(months))
 
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
-        add(trigger.add_days_of_week(ArrayInitializer(*days_of_week, multiline=False)))
+        add(trigger.add_days_of_week(days_of_week))
 
         automation.build_automation(trigger, NoArg, conf)
 
 
 def setup_time(time_var, config):
-    add_job(setup_time_core_, time_var, config)
+    CORE.add_job(setup_time_core_, time_var, config)
 
 
 BUILD_FLAGS = '-DUSE_TIME'

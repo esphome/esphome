@@ -4,8 +4,9 @@ from esphomeyaml.automation import ACTION_REGISTRY
 import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
-from esphomeyaml.helpers import Pvariable, TemplateArguments, add, add_job, esphomelib_ns, \
-    get_variable, int32, templatable, Action
+from esphomeyaml.core import CORE
+from esphomeyaml.cpp_generator import Pvariable, add, get_variable, templatable
+from esphomeyaml.cpp_types import Action, esphomelib_ns, int32
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -78,7 +79,7 @@ def setup_stepper_core_(stepper_var, config):
 
 
 def setup_stepper(stepper_var, config):
-    add_job(setup_stepper_core_, stepper_var, config)
+    CORE.add_job(setup_stepper_core_, stepper_var, config)
 
 
 BUILD_FLAGS = '-DUSE_STEPPER'
@@ -91,8 +92,7 @@ STEPPER_SET_TARGET_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_STEPPER_SET_TARGET, STEPPER_SET_TARGET_ACTION_SCHEMA)
-def stepper_set_target_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def stepper_set_target_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_set_target_action(template_arg)
@@ -112,8 +112,7 @@ STEPPER_REPORT_POSITION_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_STEPPER_REPORT_POSITION, STEPPER_REPORT_POSITION_ACTION_SCHEMA)
-def stepper_report_position_to_code(config, action_id, arg_type):
-    template_arg = TemplateArguments(arg_type)
+def stepper_report_position_to_code(config, action_id, arg_type, template_arg):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_report_position_action(template_arg)
@@ -121,5 +120,5 @@ def stepper_report_position_to_code(config, action_id, arg_type):
     action = Pvariable(action_id, rhs, type=type)
     for template_ in templatable(config[CONF_POSITION], arg_type, int32):
         yield None
-    add(action.set_target(template_))
+    add(action.set_position(template_))
     yield action

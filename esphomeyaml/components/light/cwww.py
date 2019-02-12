@@ -7,7 +7,9 @@ from esphomeyaml.components.light.rgbww import validate_cold_white_colder, \
 from esphomeyaml.const import CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, \
     CONF_NAME, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE
-from esphomeyaml.helpers import App, get_variable, variable, setup_component
+from esphomeyaml.cpp_generator import get_variable, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
@@ -31,7 +33,7 @@ def to_code(config):
                               config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                               cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+    light.setup_light(light_struct.Pstate, config)
     setup_component(light_struct.Pstate, config)
 
 

@@ -5,7 +5,8 @@ from esphomeyaml.components import fan, mqtt, output
 from esphomeyaml.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CONF_NAME, \
     CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, \
     CONF_SPEED_STATE_TOPIC
-from esphomeyaml.helpers import App, add, get_variable, variable
+from esphomeyaml.cpp_generator import get_variable, variable, add
+from esphomeyaml.cpp_types import App
 
 PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(fan.MakeFan),
@@ -40,7 +41,7 @@ def to_code(config):
             yield
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
-    fan.setup_fan(fan_struct.Pstate, fan_struct.Pmqtt, config)
+    fan.setup_fan(fan_struct.Pstate, config)
 
 
 def to_hass_config(data, config):

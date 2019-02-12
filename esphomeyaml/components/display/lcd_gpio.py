@@ -1,12 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import display
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_DATA_PINS, CONF_DIMENSIONS, CONF_ENABLE_PIN, CONF_ID, \
     CONF_LAMBDA, CONF_RS_PIN, CONF_RW_PIN
-from esphomeyaml.helpers import App, Pvariable, add, gpio_output_pin_expression, process_lambda, \
-    setup_component, PollingComponent
+from esphomeyaml.cpp_generator import Pvariable, add, process_lambda
+from esphomeyaml.cpp_helpers import gpio_output_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, PollingComponent, void
 
 LCDDisplay = display.display_ns.class_('LCDDisplay', PollingComponent)
 LCDDisplayRef = LCDDisplay.operator('ref')
@@ -63,7 +64,8 @@ def to_code(config):
         add(lcd.set_rw_pin(rw))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')]):
+        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
+                                      return_type=void):
             yield
         add(lcd.set_writer(lambda_))
 

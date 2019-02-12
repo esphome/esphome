@@ -105,3 +105,4 @@ venv.bak/
 
 config/
 tests/build/
+tests/.esphomeyaml/

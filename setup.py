@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """esphomeyaml setup script."""
 from setuptools import setup, find_packages
+import os
 
 from esphomeyaml import const
 
@@ -23,13 +24,25 @@ DOWNLOAD_URL = '{}/archive/{}.zip'.format(GITHUB_URL, const.__version__)
 
 REQUIRES = [
     'voluptuous>=0.11.1',
-    'platformio>=3.5.3',
     'pyyaml>=3.12',
     'paho-mqtt>=1.3.1',
     'colorlog>=3.1.2',
     'tornado>=5.0.0',
-    'esptool>=2.3.1',
+    'typing>=3.0.0;python_version<"3.5"',
+    'protobuf>=3.4',
+    'tzlocal>=1.4',
+    'pyserial>=3.4,<4',
+    'ifaddr>=0.1.6',
 ]
+
+# If you have problems importing platformio and esptool as modules you can set
+# $ESPHOME_USE_SUBPROCESS to make ESPHome call their executables instead.
+# This means they have to be in your $PATH.
+if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+    REQUIRES.extend([
+        'platformio>=3.5.3',
+        'esptool>=2.3.1',
+    ])
 
 CLASSIFIERS = [
     'Environment :: Console',
@@ -54,7 +67,7 @@ setup(
     zip_safe=False,
     platforms='any',
     test_suite='tests',
-    python_requires='>=2.7,<3',
+    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4.0',
     install_requires=REQUIRES,
     keywords=['home', 'automation'],
     entry_points={

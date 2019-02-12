@@ -1,11 +1,12 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import pins
 from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_GAIN, CONF_MAKE_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_CLK_PIN
-from esphomeyaml.helpers import App, Application, add, gpio_input_pin_expression, variable, \
-    setup_component
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_CLK_PIN, CONF_GAIN, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import gpio_input_pin_expression, setup_component
+from esphomeyaml.cpp_types import App, Application
 
 MakeHX711Sensor = Application.struct('MakeHX711Sensor')
 HX711Sensor = sensor.sensor_ns.class_('HX711Sensor', sensor.PollingSensorComponent)
@@ -21,7 +22,6 @@ GAINS = {
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HX711Sensor),
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeHX711Sensor),
     vol.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
     vol.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_GAIN): cv.one_of(*GAINS, int=True),
@@ -37,13 +37,12 @@ def to_code(config):
 
     rhs = App.make_hx711_sensor(config[CONF_NAME], dout_pin, sck_pin,
                                 config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    hx711 = make.Phx711
+    hx711 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_GAIN in config:
         add(hx711.set_gain(GAINS[config[CONF_GAIN]]))
 
-    sensor.setup_sensor(hx711, make.Pmqtt, config)
+    sensor.setup_sensor(hx711, config)
     setup_component(hx711, config)
 
 

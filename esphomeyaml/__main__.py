@@ -2,25 +2,29 @@ from __future__ import print_function
 
 import argparse
 from collections import OrderedDict
+from datetime import datetime
 import logging
 import os
 import random
 import sys
-from datetime import datetime
 
-from esphomeyaml import const, core, core_config, mqtt, wizard, writer, yaml_util, platformio_api
-from esphomeyaml.config import get_component, iter_components, read_config
-from esphomeyaml.const import CONF_BAUD_RATE, CONF_BUILD_PATH, CONF_DOMAIN, CONF_ESPHOMEYAML, \
-    CONF_HOSTNAME, CONF_LOGGER, CONF_MANUAL_IP, CONF_NAME, CONF_STATIC_IP, CONF_USE_CUSTOM_CODE, \
-    CONF_WIFI, ESP_PLATFORM_ESP8266
-from esphomeyaml.core import ESPHomeYAMLError
-from esphomeyaml.helpers import AssignmentExpression, Expression, RawStatement, \
-    _EXPRESSIONS, add, add_job, color, flush_tasks, indent, statement, relative_path
-from esphomeyaml.util import safe_print, run_external_command
+from esphomeyaml import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
+from esphomeyaml.api.client import run_logs
+from esphomeyaml.config import get_component, iter_components, read_config, strip_default_ids
+from esphomeyaml.const import CONF_BAUD_RATE, CONF_ESPHOMEYAML, CONF_LOGGER, CONF_USE_CUSTOM_CODE, \
+    CONF_BROKER
+from esphomeyaml.core import CORE, EsphomeyamlError
+from esphomeyaml.cpp_generator import Expression, RawStatement, add, statement
+from esphomeyaml.helpers import color, indent
+from esphomeyaml.py_compat import safe_input, text_type, IS_PY2
+from esphomeyaml.storage_json import StorageJSON, esphomeyaml_storage_path, \
+    start_update_check_thread, storage_path
+from esphomeyaml.util import run_external_command, run_external_process, safe_print
 
 _LOGGER = logging.getLogger(__name__)
 
-PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ota', 'mqtt', 'web_server', 'i2c']
+PRE_INITIALIZE = ['esphomeyaml', 'logger', 'wifi', 'ethernet', 'ota', 'mqtt', 'web_server', 'api',
+                  'i2c']
 
 
 def get_serial_ports():
@@ -32,37 +36,64 @@ def get_serial_ports():
             continue
         if "VID:PID" in info:
             result.append((port, desc))
+    result.sort(key=lambda x: x[0])
     return result
 
 
-def choose_serial_port(config):
-    result = get_serial_ports()
+def choose_prompt(options):
+    if not options:
+        raise ValueError
 
-    if not result:
-        return 'OTA'
-    safe_print(u"Found multiple serial port options, please choose one:")
-    for i, (res, desc) in enumerate(result):
-        safe_print(u"  [{}] {} ({})".format(i, res, desc))
-    safe_print(u"  [{}] Over The Air ({})".format(len(result), get_upload_host(config)))
-    safe_print()
+    if len(options) == 1:
+        return options[0][1]
+
+    safe_print(u"Found multiple options, please choose one:")
+    for i, (desc, _) in enumerate(options):
+        safe_print(u"  [{}] {}".format(i + 1, desc))
+
     while True:
-        opt = raw_input('(number): ')
-        if opt in result:
-            opt = result.index(opt)
+        opt = safe_input('(number): ')
+        if opt in options:
+            opt = options.index(opt)
             break
         try:
             opt = int(opt)
-            if opt < 0 or opt > len(result):
+            if opt < 1 or opt > len(options):
                 raise ValueError
             break
         except ValueError:
             safe_print(color('red', u"Invalid option: '{}'".format(opt)))
-    if opt == len(result):
-        return 'OTA'
-    return result[opt][0]
+    return options[opt - 1][1]
 
 
-def run_miniterm(config, port, escape=False):
+def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
+    options = []
+    for res, desc in get_serial_ports():
+        options.append((u"{} ({})".format(res, desc), res))
+    if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
+        options.append((u"Over The Air ({})".format(CORE.address), CORE.address))
+        if default == 'OTA':
+            return CORE.address
+    if show_mqtt and 'mqtt' in CORE.config:
+        options.append((u"MQTT ({})".format(CORE.config['mqtt'][CONF_BROKER]), 'MQTT'))
+        if default == 'OTA':
+            return 'MQTT'
+    if default is not None:
+        return default
+    if check_default is not None and check_default in [opt[1] for opt in options]:
+        return check_default
+    return choose_prompt(options)
+
+
+def get_port_type(port):
+    if port.startswith('/') or port.startswith('COM'):
+        return 'SERIAL'
+    if port == 'MQTT':
+        return 'MQTT'
+    return 'NETWORK'
+
+
+def run_miniterm(config, port):
     import serial
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
@@ -80,11 +111,13 @@ def run_miniterm(config, port, escape=False):
             except serial.SerialException:
                 _LOGGER.error("Serial port closed!")
                 return
-            line = raw.replace('\r', '').replace('\n', '')
+            if IS_PY2:
+                line = raw.replace('\r', '').replace('\n', '')
+            else:
+                line = raw.replace(b'\r', b'').replace(b'\n', b'').decode('utf8',
+                                                                          'backslashreplace')
             time = datetime.now().time().strftime('[%H:%M:%S]')
             message = time + line
-            if escape:
-                message = message.replace('\033', '\\033')
             safe_print(message)
 
             backtrace_state = platformio_api.process_stacktrace(
@@ -94,91 +127,68 @@ def run_miniterm(config, port, escape=False):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    add_job(core_config.to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
+    CORE.add_job(core_config.to_code, config[CONF_ESPHOMEYAML], domain='esphomeyaml')
     for domain in PRE_INITIALIZE:
         if domain == CONF_ESPHOMEYAML or domain not in config:
             continue
-        add_job(get_component(domain).to_code, config[domain], domain=domain)
+        CORE.add_job(get_component(domain).to_code, config[domain], domain=domain)
 
     for domain, component, conf in iter_components(config):
         if domain in PRE_INITIALIZE or not hasattr(component, 'to_code'):
             continue
-        add_job(component.to_code, conf, domain=domain)
+        CORE.add_job(component.to_code, conf, domain=domain)
 
-    flush_tasks()
+    CORE.flush_tasks()
     add(RawStatement(''))
     add(RawStatement(''))
     all_code = []
-    for exp in _EXPRESSIONS:
+    for exp in CORE.expressions:
         if not config[CONF_ESPHOMEYAML][CONF_USE_CUSTOM_CODE]:
             if isinstance(exp, Expression) and not exp.required:
                 continue
-            if isinstance(exp, AssignmentExpression) and not exp.obj.required:
-                if not exp.has_side_effects():
-                    continue
-                exp = exp.rhs
-        all_code.append(unicode(statement(exp)))
+        all_code.append(text_type(statement(exp)))
 
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    writer.write_platformio_project(config, build_path)
+    writer.write_platformio_project()
 
     code_s = indent('\n'.join(line.rstrip() for line in all_code))
-    cpp_path = os.path.join(build_path, 'src', 'main.cpp')
-    writer.write_cpp(code_s, cpp_path)
+    writer.write_cpp(code_s)
     return 0
 
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, args.verbose)
-
-
-def get_upload_host(config):
-    if CONF_MANUAL_IP in config[CONF_WIFI]:
-        host = str(config[CONF_WIFI][CONF_MANUAL_IP][CONF_STATIC_IP])
-    elif CONF_HOSTNAME in config[CONF_WIFI]:
-        host = config[CONF_WIFI][CONF_HOSTNAME] + config[CONF_WIFI][CONF_DOMAIN]
-    else:
-        host = config[CONF_ESPHOMEYAML][CONF_NAME] + config[CONF_WIFI][CONF_DOMAIN]
-    return host
+    update_check = not os.getenv('ESPHOMEYAML_NO_UPDATE_CHECK', '')
+    if update_check:
+        thread = start_update_check_thread(esphomeyaml_storage_path(CORE.config_dir))
+    rc = platformio_api.run_compile(config, args.verbose)
+    if update_check:
+        thread.join()
+    return rc
 
 
 def upload_using_esptool(config, port):
-    import esptool
-
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-    path = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
+    path = os.path.join(CORE.build_path, '.pioenvs', CORE.name, 'firmware.bin')
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
-    # pylint: disable=protected-access
-    return run_external_command(esptool._main, *cmd)
+
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+        import esptool
+        # pylint: disable=protected-access
+        return run_external_command(esptool._main, *cmd)
+
+    return run_external_process(*cmd)
 
 
-def upload_program(config, args, port):
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
-
+def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
-    serial_port = port.startswith('/') or port.startswith('COM')
-    if port != 'OTA' and serial_port:
-        if core.ESP_PLATFORM == ESP_PLATFORM_ESP8266 and args.use_esptoolpy:
-            return upload_using_esptool(config, port)
-        return platformio_api.run_upload(config, args.verbose, port)
-
-    if 'ota' not in config:
-        _LOGGER.error("No serial port found and OTA not enabled. Can't upload!")
-        return -1
-
-    # If hostname/ip is explicitly provided as upload-port argument, use this instead of zeroconf
-    # hostname. This is to support use cases where zeroconf (hostname.local) does not work.
-    if port != 'OTA':
-        host = port
-    else:
-        host = get_upload_host(config)
+    if get_port_type(host) == 'SERIAL':
+        if CORE.is_esp8266:
+            return upload_using_esptool(config, host)
+        return platformio_api.run_upload(config, args.verbose, host)
 
     from esphomeyaml.components import ota
     from esphomeyaml import espota2
 
-    bin_file = os.path.join(build_path, '.pioenvs', core.NAME, 'firmware.bin')
     if args.host_port is not None:
         host_port = args.host_port
     else:
@@ -188,20 +198,33 @@ def upload_program(config, args, port):
     remote_port = ota.get_port(config)
     password = ota.get_auth(config)
 
-    res = espota2.run_ota(host, remote_port, password, bin_file)
+    storage = StorageJSON.load(storage_path())
+    res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
     if res == 0:
+        if storage is not None and storage.use_legacy_ota:
+            storage.use_legacy_ota = False
+            storage.save(storage_path())
         return res
-    _LOGGER.warn("OTA v2 method failed. Trying with legacy OTA...")
-    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password, bin_file)
+    if storage is not None and not storage.use_legacy_ota:
+        return res
+
+    _LOGGER.warning("OTA v2 method failed. Trying with legacy OTA...")
+    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password,
+                                  CORE.firmware_bin)
 
 
-def show_logs(config, args, port, escape=False):
-    serial_port = port.startswith('/') or port.startswith('COM')
-    if port != 'OTA' and serial_port:
-        run_miniterm(config, port, escape=escape)
+def show_logs(config, args, port):
+    if 'logger' not in config:
+        raise EsphomeyamlError("Logger is not configured!")
+    if get_port_type(port) == 'SERIAL':
+        run_miniterm(config, port)
         return 0
-    return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id,
-                          escape=escape)
+    if get_port_type(port) == 'NETWORK' and 'api' in config:
+        return run_logs(config, port)
+    if get_port_type(port) == 'MQTT' and 'mqtt' in config:
+        return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
+
+    raise ValueError
 
 
 def clean_mqtt(config, args):
@@ -239,26 +262,8 @@ def command_wizard(args):
     return wizard.wizard(args.configuration)
 
 
-def strip_default_ids(config):
-    value = config
-    if isinstance(config, list):
-        value = type(config)()
-        for x in config:
-            if isinstance(x, core.ID) and not x.is_manual:
-                continue
-            value.append(strip_default_ids(x))
-        return value
-    elif isinstance(config, dict):
-        value = type(config)()
-        for k, v in config.iteritems():
-            if isinstance(v, core.ID) and not v.is_manual:
-                continue
-            value[k] = strip_default_ids(v)
-        return value
-    return value
-
-
 def command_config(args, config):
+    _LOGGER.info("Configuration is valid!")
     if not args.verbose:
         config = strip_default_ids(config)
     safe_print(yaml_util.dump(config))
@@ -280,7 +285,8 @@ def command_compile(args, config):
 
 
 def command_upload(args, config):
-    port = args.upload_port or choose_serial_port(config)
+    port = choose_upload_log_host(default=args.upload_port, check_default=None,
+                                  show_ota=True, show_mqtt=False, show_api=False)
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
@@ -289,8 +295,9 @@ def command_upload(args, config):
 
 
 def command_logs(args, config):
-    port = args.serial_port or choose_serial_port(config)
-    return show_logs(config, args, port, escape=args.escape)
+    port = choose_upload_log_host(default=args.serial_port, check_default=None,
+                                  show_ota=False, show_mqtt=True, show_api=True)
+    return show_logs(config, args, port)
 
 
 def command_run(args, config):
@@ -301,14 +308,17 @@ def command_run(args, config):
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully compiled program.")
-    port = args.upload_port or choose_serial_port(config)
+    port = choose_upload_log_host(default=args.upload_port, check_default=None,
+                                  show_ota=True, show_mqtt=False, show_api=True)
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
     _LOGGER.info(u"Successfully uploaded program.")
     if args.no_logs:
         return 0
-    return show_logs(config, args, port, escape=args.escape)
+    port = choose_upload_log_host(default=args.upload_port, check_default=port,
+                                  show_ota=False, show_mqtt=True, show_api=True)
+    return show_logs(config, args, port)
 
 
 def command_clean_mqtt(args, config):
@@ -325,9 +335,8 @@ def command_version(args):
 
 
 def command_clean(args, config):
-    build_path = relative_path(config[CONF_ESPHOMEYAML][CONF_BUILD_PATH])
     try:
-        writer.clean_build(build_path)
+        writer.clean_build()
     except OSError as err:
         _LOGGER.error("Error deleting build files: %s", err)
         return 1
@@ -386,6 +395,8 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphomeyaml')
     parser.add_argument('-v', '--verbose', help="Enable verbose esphomeyaml logs.",
                         action='store_true')
+    parser.add_argument('--dashboard', help="Internal flag to set if the command is run from the "
+                                            "dashboard.", action='store_true')
     parser.add_argument('configuration', help='Your YAML configuration file.')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -403,9 +414,6 @@ def parse_args(argv):
     parser_upload.add_argument('--upload-port', help="Manually specify the upload port to use. "
                                                      "For example /dev/cu.SLAB_USBtoUART.")
     parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
-    parser_upload.add_argument('--use-esptoolpy',
-                               help="Use esptool.py for the uploading (only for ESP8266)",
-                               action='store_true')
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
                                                      'and show all MQTT logs.')
@@ -415,8 +423,6 @@ def parse_args(argv):
     parser_logs.add_argument('--client-id', help='Manually set the client id.')
     parser_logs.add_argument('--serial-port', help="Manually specify a serial port to use"
                                                    "For example /dev/cu.SLAB_USBtoUART.")
-    parser_logs.add_argument('--escape', help="Escape ANSI color codes for running in dashboard",
-                             action='store_true')
 
     parser_run = subparsers.add_parser('run', help='Validate the configuration, create a binary, '
                                                    'upload it, and start MQTT logs.')
@@ -429,11 +435,6 @@ def parse_args(argv):
     parser_run.add_argument('--username', help='Manually set the MQTT username for logs.')
     parser_run.add_argument('--password', help='Manually set the MQTT password for logs.')
     parser_run.add_argument('--client-id', help='Manually set the client id for logs.')
-    parser_run.add_argument('--escape', help="Escape ANSI color codes for running in dashboard",
-                            action='store_true')
-    parser_run.add_argument('--use-esptoolpy',
-                            help="Use esptool.py for the uploading (only for ESP8266)",
-                            action='store_true')
 
     parser_clean = subparsers.add_parser('clean-mqtt', help="Helper to clear an MQTT topic from "
                                                             "retain messages.")
@@ -453,39 +454,49 @@ def parse_args(argv):
 
     dashboard = subparsers.add_parser('dashboard',
                                       help="Create a simple web server for a dashboard.")
-    dashboard.add_argument("--port", help="The HTTP port to open connections on.", type=int,
-                           default=6052)
+    dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
+                           type=int, default=6052)
     dashboard.add_argument("--password", help="The optional password to require for all requests.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
+    dashboard.add_argument("--hassio",
+                           help="Internal flag used to tell esphomeyaml is started as a Hass.io "
+                                "add-on.",
+                           action="store_true")
+    dashboard.add_argument("--socket",
+                           help="Make the dashboard serve under a unix socket", type=str)
 
-    subparsers.add_parser('hass-config', help="Dump the configuration entries that should be added"
-                                              "to Home Assistant when not using MQTT discovery.")
+    subparsers.add_parser('hass-config',
+                          help="Dump the configuration entries that should be added "
+                               "to Home Assistant when not using MQTT discovery.")
 
     return parser.parse_args(argv[1:])
 
 
 def run_esphomeyaml(argv):
     args = parse_args(argv)
+    CORE.dashboard = args.dashboard
+
     setup_log(args.verbose)
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
-        except ESPHomeYAMLError as e:
+        except EsphomeyamlError as e:
             _LOGGER.error(e)
             return 1
 
-    core.CONFIG_PATH = args.configuration
+    CORE.config_path = args.configuration
 
-    config = read_config(core.CONFIG_PATH)
+    config = read_config(args.verbose)
     if config is None:
         return 1
+    CORE.config = config
 
     if args.command in POST_CONFIG_ACTIONS:
         try:
             return POST_CONFIG_ACTIONS[args.command](args, config)
-        except ESPHomeYAMLError as e:
+        except EsphomeyamlError as e:
             _LOGGER.error(e)
             return 1
     safe_print(u"Unknown command {}".format(args.command))
@@ -495,7 +506,7 @@ def run_esphomeyaml(argv):
 def main():
     try:
         return run_esphomeyaml(sys.argv)
-    except ESPHomeYAMLError as e:
+    except EsphomeyamlError as e:
         _LOGGER.error(e)
         return 1
     except KeyboardInterrupt:

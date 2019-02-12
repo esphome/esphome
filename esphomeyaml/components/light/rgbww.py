@@ -1,11 +1,13 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml.components import light, output
+import esphomeyaml.config_validation as cv
 from esphomeyaml.const import CONF_BLUE, CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_MAKE_ID, \
     CONF_NAME, CONF_RED, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE
-from esphomeyaml.helpers import App, get_variable, variable, setup_component
+from esphomeyaml.cpp_generator import get_variable, variable
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App
 
 
 def validate_color_temperature(value):
@@ -59,7 +61,7 @@ def to_code(config):
                                config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                                red, green, blue, cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, light_struct.Pmqtt, config)
+    light.setup_light(light_struct.Pstate, config)
     setup_component(light_struct.Pstate, config)
 
 

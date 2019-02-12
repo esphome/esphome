@@ -1,12 +1,14 @@
 import voluptuous as vol
 
-import esphomeyaml.config_validation as cv
 from esphomeyaml import core
-from esphomeyaml.components import sensor
-from esphomeyaml.const import CONF_ADDRESS, CONF_GAS_RESISTANCE, CONF_HUMIDITY, CONF_IIR_FILTER, \
-    CONF_MAKE_ID, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, CONF_TEMPERATURE, \
-    CONF_UPDATE_INTERVAL, CONF_HEATER, CONF_DURATION
-from esphomeyaml.helpers import App, Application, add, variable, setup_component
+from esphomeyaml.components import i2c, sensor
+import esphomeyaml.config_validation as cv
+from esphomeyaml.const import CONF_ADDRESS, CONF_DURATION, CONF_GAS_RESISTANCE, CONF_HEATER, \
+    CONF_HUMIDITY, CONF_ID, CONF_IIR_FILTER, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, \
+    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
+from esphomeyaml.cpp_generator import Pvariable, add
+from esphomeyaml.cpp_helpers import setup_component
+from esphomeyaml.cpp_types import App, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
@@ -36,7 +38,7 @@ BME680_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     vol.Optional(CONF_OVERSAMPLING): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
 })
 
-MakeBME680Sensor = Application.struct('MakeBME680Sensor')
+BME680Component = sensor.sensor_ns.class_('BME680Component', PollingComponent, i2c.I2CDevice)
 BME680TemperatureSensor = sensor.sensor_ns.class_('BME680TemperatureSensor',
                                                   sensor.EmptyPollingParentSensor)
 BME680PressureSensor = sensor.sensor_ns.class_('BME680PressureSensor',
@@ -47,7 +49,7 @@ BME680GasResistanceSensor = sensor.sensor_ns.class_('BME680GasResistanceSensor',
                                                     sensor.EmptyPollingParentSensor)
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeBME680Sensor),
+    cv.GenerateID(): cv.declare_variable_id(BME680Component),
     vol.Optional(CONF_ADDRESS, default=0x76): cv.i2c_address,
     vol.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680TemperatureSensor),
@@ -78,8 +80,7 @@ def to_code(config):
                                  config[CONF_GAS_RESISTANCE][CONF_NAME],
                                  config[CONF_ADDRESS],
                                  config.get(CONF_UPDATE_INTERVAL))
-    make = variable(config[CONF_MAKE_ID], rhs)
-    bme680 = make.Pbme680
+    bme680 = Pvariable(config[CONF_ID], rhs)
     if CONF_OVERSAMPLING in config[CONF_TEMPERATURE]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_TEMPERATURE][CONF_OVERSAMPLING]]
         add(bme680.set_temperature_oversampling(constant))
@@ -99,14 +100,10 @@ def to_code(config):
         else:
             add(bme680.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
 
-    sensor.setup_sensor(bme680.Pget_temperature_sensor(), make.Pmqtt_temperature,
-                        config[CONF_TEMPERATURE])
-    sensor.setup_sensor(bme680.Pget_pressure_sensor(), make.Pmqtt_pressure,
-                        config[CONF_PRESSURE])
-    sensor.setup_sensor(bme680.Pget_humidity_sensor(), make.Pmqtt_humidity,
-                        config[CONF_HUMIDITY])
-    sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), make.Pmqtt_gas_resistance,
-                        config[CONF_GAS_RESISTANCE])
+    sensor.setup_sensor(bme680.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
+    sensor.setup_sensor(bme680.Pget_pressure_sensor(), config[CONF_PRESSURE])
+    sensor.setup_sensor(bme680.Pget_humidity_sensor(), config[CONF_HUMIDITY])
+    sensor.setup_sensor(bme680.Pget_gas_resistance_sensor(), config[CONF_GAS_RESISTANCE])
     setup_component(bme680, config)
 
 
