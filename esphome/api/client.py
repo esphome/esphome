@@ -6,8 +6,8 @@ import threading
 import time
 
 # pylint: disable=unused-import
-from google.protobuf import message  # noqa
 from typing import Optional  # noqa
+from google.protobuf import message  # noqa
 
 from esphome import const
 import esphome.api.api_pb2 as pb
