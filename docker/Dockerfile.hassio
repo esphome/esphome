@@ -1,73 +1,29 @@
-ARG BUILD_FROM=hassioaddons/ubuntu-base:2.2.1
-# hadolint ignore=DL3006
+ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.0.0
 FROM ${BUILD_FROM}
 
-# Set shell
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# Copy root filesystem
-COPY esphomeyaml-edge/rootfs /
-COPY setup.py setup.cfg MANIFEST.in /opt/esphomeyaml/
-COPY esphomeyaml /opt/esphomeyaml/esphomeyaml
-
 RUN \
-    # Temporarily move nginx.conf (otherwise dpkg fails)
-    mv /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bkp \
-    # Install add-on dependencies
-    && apt-get update \
+    apt-get update \
     && apt-get install -y --no-install-recommends \
-        # Python for esphomeyaml
-        python \
-        python-pip \
-        python-setuptools \
-        # Python Pillow for display component
         python-pil \
-        # Git for esphomelib downloads
-        git \
-        # NGINX proxy
-        nginx \
-    \
-    && mv /etc/nginx/nginx.conf.bkp /etc/nginx/nginx.conf \
-    \
-    && pip2 install --no-cache-dir --no-binary :all: -e /opt/esphomeyaml \
-    \
-    # Change some platformio settings
-    && platformio settings set enable_telemetry No \
-    && platformio settings set check_libraries_interval 1000000 \
-    && platformio settings set check_platformio_interval 1000000 \
-    && platformio settings set check_platforms_interval 1000000 \
-    \
-    # Build an empty platformio project to force platformio to install all fw build dependencies
-    # The return-code will be non-zero since there's nothing to build.
-    && (platformio run -d /opt/pio; echo "Done") \
-    \
-    # Cleanup
-    && rm -fr \
+    && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
-        /var/lib/apt/lists/* \
-        /opt/pio/
+        /var/lib/apt/lists/*
 
-# Build arugments
-ARG BUILD_ARCH=amd64
-ARG BUILD_DATE
-ARG BUILD_REF
-ARG BUILD_VERSION
+# Copy root filesystem
+COPY docker/rootfs/ /
+COPY setup.py setup.cfg MANIFEST.in /opt/esphome/
+COPY esphome /opt/esphome/esphome
+
+RUN \
+    pip2 install --no-cache-dir --no-binary :all: -e /opt/esphome
+
+# Build arguments
+ARG BUILD_VERSION=dev
 
 # Labels
 LABEL \
-    io.hass.name="esphomeyaml" \
+    io.hass.name="ESPHome" \
     io.hass.description="Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files" \
-    io.hass.arch="${BUILD_ARCH}" \
     io.hass.type="addon" \
-    io.hass.version=${BUILD_VERSION} \
-    maintainer="Otto Winter <contact@otto-winter.com>" \
-    org.label-schema.description="Manage and program ESP8266/ESP32 microcontrollers through YAML configuration files" \
-    org.label-schema.build-date=${BUILD_DATE} \
-    org.label-schema.name="esphomeyaml" \
-    org.label-schema.schema-version="1.0" \
-    org.label-schema.url="https://esphomelib.com" \
-    org.label-schema.usage="https://github.com/OttoWinter/esphomeyaml/tree/dev/esphomeyaml/README.md" \
-    org.label-schema.vcs-ref=${BUILD_REF} \
-    org.label-schema.vcs-url="https://github.com/OttoWinter/esphomeyaml" \
-    org.label-schema.vendor="esphomelib"
+    io.hass.version=${BUILD_VERSION}

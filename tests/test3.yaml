@@ -1,10 +1,12 @@
-esphomeyaml:
+esphome:
   name: $devicename
   platform: ESP8266
   board: esp07
-  # Use this for testing while developing:
-  # esphomelib_version:
-  #   local: ~/path/to/esphomelib
+    # Use this for testing while developing:
+    # Note the travis check for esphome PRs will fail until the
+    # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
   build_path: build/test3
 
 substitutions:
@@ -127,7 +129,7 @@ status_led:
 
 text_sensor:
   - platform: version
-    name: "Esphomelib Version"
+    name: "ESPHome Version"
     icon: mdi:icon
     id: version_sensor
     on_value:
