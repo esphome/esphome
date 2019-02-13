@@ -1,10 +1,12 @@
-esphomeyaml:
+esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s
   # Use this for testing while developing:
-  # esphomelib_version:
-  #   local: ~/path/to/esphomelib
+  # Note the travis check for esphome PRs will fail until the
+  # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
   use_custom_code: false
   on_boot:
     priority: 150.0
@@ -123,8 +125,8 @@ logger:
 
 web_server:
   port: 8080
-  css_url: https://esphomelib.com/_static/webserver-v1.min.css
-  js_url: https://esphomelib.com/_static/webserver-v1.min.js
+  css_url: https://esphome.io/_static/webserver-v1.min.css
+  js_url: https://esphome.io/_static/webserver-v1.min.js
 
 power_supply:
   id: 'atx_power_supply'

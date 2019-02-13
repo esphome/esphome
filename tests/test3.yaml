@@ -1,0 +1,179 @@
+esphome:
+  name: $devicename
+  platform: ESP8266
+  board: esp07
+    # Use this for testing while developing:
+    # Note the travis check for esphome PRs will fail until the
+    # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
+  build_path: build/test3
+
+substitutions:
+  devicename: test3
+
+api:
+
+i2c:
+  sda: 4
+  scl: 5
+  scan: False
+
+spi:
+  clk_pin: GPIO12
+  mosi_pin: GPIO13
+  miso_pin: GPIO14
+
+uart:
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+  baud_rate: 115200
+
+ota:
+  safe_mode: True
+  port: 3286
+
+logger:
+  hardware_uart: UART1
+  level: DEBUG
+
+web_server:
+
+deep_sleep:
+  run_duration: 20s
+  sleep_duration: 50s
+
+sensor:
+  - platform: pmsx003
+    type: PMSX003
+    pm_1_0:
+      name: "PM 1.0 Concentration"
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+  - platform: pmsx003
+    type: PMS5003T
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+  - platform: pmsx003
+    type: PMS5003ST
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+    formaldehyde:
+      name: "PMS Formaldehyde Concentration"
+  - platform: cse7766
+    voltage:
+      name: "CSE7766 Voltage"
+    current:
+      name: "CSE7766 Current"
+    power:
+      name: "CSE776 Power"
+  - platform: apds9960
+    type: proximity
+    name: APDS9960 Proximity
+  - platform: apds9960
+    type: clear
+    name: APDS9960 Clear
+  - platform: apds9960
+    type: red
+    name: APDS9960 Red
+  - platform: apds9960
+    type: green
+    name: APDS9960 Green
+  - platform: apds9960
+    type: blue
+    name: APDS9960 Blue
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+
+time:
+- platform: homeassistant
+
+apds9960:
+  address: 0x20
+  update_interval: 60s
+
+binary_sensor:
+  - platform: apds9960
+    direction: up
+    name: APDS9960 Up
+  - platform: apds9960
+    direction: down
+    name: APDS9960 Down
+  - platform: apds9960
+    direction: left
+    name: APDS9960 Left
+  - platform: apds9960
+    direction: right
+    name: APDS9960 Right
+  - platform: homeassistant
+    entity_id: binary_sensor.hello_world
+    id: ha_hello_world_binary
+
+remote_receiver:
+  pin: GPIO12
+  dump: []
+
+status_led:
+  pin: GPIO2
+
+text_sensor:
+  - platform: version
+    name: "ESPHome Version"
+    icon: mdi:icon
+    id: version_sensor
+    on_value:
+      - lambda: !lambda |-
+          ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
+      - script.execute: my_script
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            title: New Humidity
+          data_template:
+            message: The humidity is {{ my_variable }}%.
+          variables:
+            my_variable: |-
+              return id(version_sensor).state;
+  - platform: template
+    name: "Template Text Sensor"
+    lambda: |-
+      return {"Hello World"};
+  - platform: homeassistant
+    entity_id: sensor.hello_world2
+    id: ha_hello_world2
+
+script:
+  - id: my_script
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+
+stepper:
+  - platform: uln2003
+    id: my_stepper
+    pin_a: GPIO12
+    pin_b: GPIO13
+    pin_c: GPIO14
+    pin_d: GPIO15
+    sleep_when_done: no
+    step_mode: HALF_STEP
+    max_speed: 250 steps/s
+
+    # Optional:
+    acceleration: inf
+    deceleration: inf
+
+interval:
+  interval: 5s
+  then:
+    - logger.log: "Interval Run"
