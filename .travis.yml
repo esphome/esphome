@@ -8,24 +8,24 @@ matrix:
       env: TARGET=Lint2.7
       install: pip install -e . && pip install flake8==3.6.0 pylint==1.9.4 pillow
       script:
-        - flake8 esphomeyaml
-        - pylint esphomeyaml
+        - flake8 esphome
+        - pylint esphome
     - python: "3.5.3"
       env: TARGET=Lint3.5
       install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
       script:
-        - flake8 esphomeyaml
-        - pylint esphomeyaml
+        - flake8 esphome
+        - pylint esphome
     - python: "2.7"
       env: TARGET=Test2.7
       install: pip install -e . && pip install flake8==3.6.0 pylint==1.9.4 pillow
       script:
-        - esphomeyaml tests/test1.yaml compile
-        - esphomeyaml tests/test2.yaml compile
-        - esphomeyaml tests/test3.yaml compile
+        - esphome tests/test1.yaml compile
+        - esphome tests/test2.yaml compile
+        - esphome tests/test3.yaml compile
     #- python: "3.5.3"
     #  env: TARGET=Test3.5
     #  install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
     #  script:
-    #    - esphomeyaml tests/test1.yaml compile
-    #    - esphomeyaml tests/test2.yaml compile
+    #    - esphome tests/test1.yaml compile
+    #    - esphome tests/test2.yaml compile

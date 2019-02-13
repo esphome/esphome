@@ -134,8 +134,9 @@
     </div>
   </div>
   <div class="modal-footer">
-    <a href="https://esphomelib.com/esphomeyaml/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
-       class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
+      <a href="https://esphome.io/guides/faq.html#i-can-t-get-flashing-over-usb-to-work"
+         target="_blank"
+         class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
       <i class="material-icons flash-using-esphomeflasher">help_outline</i>
     </a>
     <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
@@ -171,10 +172,13 @@
               their successors (the <a href="https://www.espressif.com/en/products/hardware/esp32/overview" target="_blank">ESP32s</a>)
               are great low-cost microcontrollers that can communicate with the outside world using WiFi.
               They're found in many devices such as the popular Sonoff/iTead, but also exist as development boards
-              such as the <a href="https://esphomelib.com/esphomeyaml/devices/nodemcu_esp8266.html" target="_blank" rel="noreferrer">NodeMCU</a>.
+              such as the <a
+                  href="https://esphome.io/devices/nodemcu_esp8266.html"
+                  rel="noreferrer" target="_blank">NodeMCU</a>.
             <p>
             </p>
-              <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank" rel="noreferrer">ESPHome</a>,
+              <a href="https://esphome.io/index.html" rel="noreferrer"
+                 target="_blank">ESPHome</a>,
               the tool you're using here, creates custom firmwares for these devices using YAML configuration
               files (similar to the ones you might be used to with Home Assistant).
             <p>
@@ -343,7 +347,8 @@
           <p>
             Hooray! 🎉🎉🎉 You've successfully created your first ESPHome configuration file.
             When you click Submit, I will save this configuration file under
-            <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphomeyaml/&lt;NAME_OF_NODE&gt;.yaml</code> and
+              <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphome/&lt;NAME_OF_NODE&gt;.yaml</code>
+              and
             you will be able to edit this file with the
             <a href="https://www.home-assistant.io/addons/configurator/" target="_blank">HASS Configuratior add-on</a>.
           </p>
@@ -351,19 +356,22 @@
           <ul class="browser-default">
             <li>
               Flash the firmware. This can be done using the “UPLOAD” option in the dashboard. See
-              <a href="https://esphomelib.com/esphomeyaml/index.html#devices" target="_blank" rel="noreferrer">this</a>
+                <a href="https://esphome.io/index.html#devices" rel="noreferrer"
+                   target="_blank">this</a>
               for guides on how to flash different types of devices. Note that you need to restart this add-on
               for newly plugged in serial devices to be detected.
             </li>
             <li>
               With the current configuration, your node will only connect to WiFi and MQTT. To make it actually <i>do</i>
               stuff, follow
-              <a href="https://esphomelib.com/esphomeyaml/guides/getting_started_hassio.html#adding-some-basic-features" rel="noreferrer">
+                <a href="https://esphome.io/guides/getting_started_hassio.html#adding-some-basic-features"
+                   rel="noreferrer">
                 the rest of the getting started guide
               </a>.
             </li>
             <li>
-              See the <a href="https://esphomelib.com/esphomeyaml/index.html" target="_blank" rel="noreferrer">ESPHome index</a>
+                See the <a href="https://esphome.io/index.html" rel="noreferrer"
+                           target="_blank">ESPHome index</a>
               for a list of supported sensors/devices.
             </li>
             <li>
@@ -371,8 +379,8 @@
               have time, I would be happy to help with issues and discuss new features.
             </li>
             <li>
-              Star <a href="https://github.com/OttoWinter/esphomelib" target="_blank">ESPHome Core</a> and
-              <a href="https://github.com/OttoWinter/esphomeyaml" target="_blank">ESPHome</a> on GitHub
+                Star <a href="https://github.com/esphome/esphome"
+                        target="_blank">ESPHome</a> on GitHub
               if you find this software awesome and report issues using the bug trackers there.
             </li>
           </ul>

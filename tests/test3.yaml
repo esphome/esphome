@@ -129,7 +129,7 @@ status_led:
 
 text_sensor:
   - platform: version
-    name: "Esphomelib Version"
+    name: "ESPHome Version"
     icon: mdi:icon
     id: version_sensor
     on_value:

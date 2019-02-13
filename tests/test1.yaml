@@ -125,8 +125,8 @@ logger:
 
 web_server:
   port: 8080
-  css_url: https://esphomelib.com/_static/webserver-v1.min.css
-  js_url: https://esphomelib.com/_static/webserver-v1.min.js
+  css_url: https://esphome.io/_static/webserver-v1.min.css
+  js_url: https://esphome.io/_static/webserver-v1.min.js
 
 power_supply:
   id: 'atx_power_supply'

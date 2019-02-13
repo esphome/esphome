@@ -22,5 +22,5 @@ RUN pip install --no-cache-dir --no-binary :all: -e . && \
     pip install --no-cache-dir pillow
 
 WORKDIR /config
-ENTRYPOINT ["esphomeyaml"]
+ENTRYPOINT ["esphome"]
 CMD ["/config", "dashboard"]
