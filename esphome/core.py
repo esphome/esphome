@@ -322,7 +322,7 @@ class EsphomeCore(object):
         if 'ethernet' in self.config:
             return self.config['ethernet'][CONF_USE_ADDRESS]
 
-        raise EsphomeError("No network configured")
+        return None
 
     @property
     def esphome_core_version(self):  # type: () -> Dict[str, str]
