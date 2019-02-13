@@ -6,7 +6,7 @@ import os
 import socket
 import subprocess
 
-from esphome.py_compat import text_type, char_to_byte
+from esphome.py_compat import char_to_byte, text_type
 from esphome.zeroconf import Zeroconf
 
 _LOGGER = logging.getLogger(__name__)

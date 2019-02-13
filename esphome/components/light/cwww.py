@@ -1,9 +1,9 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome.components import light, output
 from esphome.components.light.rgbww import validate_cold_white_colder, \
     validate_color_temperature
+import esphome.config_validation as cv
 from esphome.const import CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
     CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, \
     CONF_NAME, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE

@@ -6,7 +6,7 @@ from esphome.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESP32BLETrac
 import esphome.config_validation as cv
 from esphome.const import CONF_BATTERY_LEVEL, CONF_CONDUCTIVITY, CONF_ID, CONF_ILLUMINANCE, \
     CONF_MAC_ADDRESS, CONF_MOISTURE, CONF_NAME, CONF_TEMPERATURE
-from esphome.cpp_generator import get_variable, Pvariable
+from esphome.cpp_generator import Pvariable, get_variable
 
 DEPENDENCIES = ['esp32_ble_tracker']
 

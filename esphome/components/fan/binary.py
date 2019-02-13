@@ -1,9 +1,9 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome.components import fan, output
+import esphome.config_validation as cv
 from esphome.const import CONF_MAKE_ID, CONF_NAME, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT
-from esphome.cpp_generator import get_variable, variable, add
+from esphome.cpp_generator import add, get_variable, variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App
 

@@ -11,12 +11,12 @@ import sys
 from esphome import const, core_config, mqtt, platformio_api, wizard, writer, yaml_util
 from esphome.api.client import run_logs
 from esphome.config import get_component, iter_components, read_config, strip_default_ids
-from esphome.const import CONF_BAUD_RATE, CONF_ESPHOME, CONF_LOGGER, CONF_USE_CUSTOM_CODE, \
-    CONF_BROKER
+from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_ESPHOME, CONF_LOGGER, \
+    CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Expression, RawStatement, add, statement
 from esphome.helpers import color, indent
-from esphome.py_compat import safe_input, text_type, IS_PY2
+from esphome.py_compat import IS_PY2, safe_input, text_type
 from esphome.storage_json import StorageJSON, esphome_storage_path, \
     start_update_check_thread, storage_path
 from esphome.util import run_external_command, run_external_process, safe_print

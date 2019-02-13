@@ -1,8 +1,8 @@
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_COMPONENTS
-from esphome.cpp_generator import process_lambda, variable, Pvariable
+from esphome.const import CONF_COMPONENTS, CONF_ID, CONF_LAMBDA
+from esphome.cpp_generator import Pvariable, process_lambda, variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import Component, ComponentPtr, esphome_ns, std_vector
 

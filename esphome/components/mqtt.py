@@ -15,8 +15,8 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, CONF_STATE_TOPIC, CONF_TOPIC, \
     CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, CONF_WILL_MESSAGE
 from esphome.core import EsphomeError
-from esphome.cpp_generator import Pvariable, RawExpression, StructInitializer, \
-    TemplateArguments, add, process_lambda, templatable, get_variable
+from esphome.cpp_generator import Pvariable, RawExpression, StructInitializer, TemplateArguments, \
+    add, get_variable, process_lambda, templatable
 from esphome.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
     Trigger, bool_, esphome_ns, optional, std_string, uint8, void
 

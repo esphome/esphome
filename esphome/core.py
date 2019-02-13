@@ -6,14 +6,14 @@ import math
 import os
 import re
 
-from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME_CORE_VERSION, CONF_ESPHOME, \
-    CONF_LOCAL, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_USE_ADDRESS
-from esphome.helpers import ensure_unique_string
-
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List  # noqa
 
-from esphome.py_compat import integer_types, IS_PY2
+from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
+    CONF_LOCAL, \
+    CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphome.helpers import ensure_unique_string
+from esphome.py_compat import IS_PY2, integer_types
 
 _LOGGER = logging.getLogger(__name__)
 

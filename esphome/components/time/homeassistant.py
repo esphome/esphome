@@ -5,7 +5,6 @@ from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App
 
-
 DEPENDENCIES = ['api']
 
 HomeAssistantTime = time_.time_ns.class_('HomeAssistantTime', time_.RealTimeClockComponent)

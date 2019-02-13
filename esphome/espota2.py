@@ -6,7 +6,7 @@ import sys
 import time
 
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address, is_ip_address
+from esphome.helpers import is_ip_address, resolve_ip_address
 from esphome.py_compat import IS_PY2, char_to_byte
 
 RESPONSE_OK = 0

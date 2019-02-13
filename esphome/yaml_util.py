@@ -12,7 +12,7 @@ import yaml.constructor
 
 from esphome import core
 from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
-from esphome.py_compat import text_type, string_types
+from esphome.py_compat import string_types, text_type
 
 _LOGGER = logging.getLogger(__name__)
 

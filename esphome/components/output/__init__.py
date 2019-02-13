@@ -1,12 +1,12 @@
 import voluptuous as vol
 
-from esphome.automation import maybe_simple_id, ACTION_REGISTRY
-import esphome.config_validation as cv
+from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components.power_supply import PowerSupplyComponent
-from esphome.const import CONF_INVERTED, CONF_MAX_POWER, CONF_POWER_SUPPLY, CONF_ID, CONF_LEVEL
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE
-from esphome.cpp_generator import add, get_variable, Pvariable, templatable
-from esphome.cpp_types import esphome_ns, Action, float_
+from esphome.cpp_generator import Pvariable, add, get_variable, templatable
+from esphome.cpp_types import Action, esphome_ns, float_
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -59,7 +59,6 @@ def register_output(var, config):
 
 
 BUILD_FLAGS = '-DUSE_OUTPUT'
-
 
 CONF_OUTPUT_TURN_ON = 'output.turn_on'
 OUTPUT_TURN_ON_ACTION = maybe_simple_id({

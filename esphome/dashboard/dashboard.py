@@ -11,12 +11,12 @@ import threading
 
 import tornado
 import tornado.concurrent
-import tornado.httpserver
-import tornado.netutil
 import tornado.gen
+import tornado.httpserver
 import tornado.ioloop
 import tornado.iostream
 from tornado.log import access_log
+import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
@@ -32,7 +32,7 @@ from esphome.util import shlex_quote
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
 
-from esphome.zeroconf import Zeroconf, DashboardStatus
+from esphome.zeroconf import DashboardStatus, Zeroconf
 
 _LOGGER = logging.getLogger(__name__)
 CONFIG_DIR = ''

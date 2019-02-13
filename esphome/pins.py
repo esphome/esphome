@@ -299,7 +299,6 @@ def analog_pin(value):
 
 input_output_pin = vol.All(input_pin, output_pin)
 
-
 PIN_MODES_ESP8266 = [
     'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
     'FUNCTION_2', 'FUNCTION_3', 'FUNCTION_4',

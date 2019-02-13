@@ -1,7 +1,7 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, rdm6300
+import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_UID
 from esphome.cpp_generator import get_variable
 

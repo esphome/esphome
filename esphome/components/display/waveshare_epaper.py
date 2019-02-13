@@ -1,22 +1,21 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
 from esphome.components.spi import SPIComponent
+import esphome.config_validation as cv
 from esphome.const import CONF_BUSY_PIN, CONF_CS_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
     CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID
-from esphome.cpp_generator import get_variable, Pvariable, process_lambda, add
-from esphome.cpp_helpers import gpio_output_pin_expression, gpio_input_pin_expression, \
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda
+from esphome.cpp_helpers import gpio_input_pin_expression, gpio_output_pin_expression, \
     setup_component
-from esphome.cpp_types import PollingComponent, App, void
+from esphome.cpp_types import App, PollingComponent, void
 
 DEPENDENCIES = ['spi']
 
 WaveshareEPaperTypeA = display.display_ns.WaveshareEPaperTypeA
 WaveshareEPaper = display.display_ns.class_('WaveshareEPaper',
                                             PollingComponent, spi.SPIDevice, display.DisplayBuffer)
-
 
 WaveshareEPaperTypeAModel = display.display_ns.enum('WaveshareEPaperTypeAModel')
 WaveshareEPaperTypeBModel = display.display_ns.enum('WaveshareEPaperTypeBModel')

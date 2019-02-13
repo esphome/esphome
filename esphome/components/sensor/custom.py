@@ -2,8 +2,8 @@ import voluptuous as vol
 
 from esphome.components import sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_SENSORS, CONF_NAME
-from esphome.cpp_generator import process_lambda, variable, Pvariable, add
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_SENSORS
+from esphome.cpp_generator import Pvariable, add, process_lambda, variable
 from esphome.cpp_types import std_vector
 
 CustomSensorConstructor = sensor.sensor_ns.class_('CustomSensorConstructor')

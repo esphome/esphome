@@ -13,8 +13,7 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
     CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
     CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
 from esphome.core import CORE
-from esphome.cpp_generator import ArrayInitializer, Pvariable, add, process_lambda, \
-    templatable, get_variable
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
     esphome_ns, float_, optional
 

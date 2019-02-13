@@ -5,7 +5,7 @@ from esphome.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import esphome_ns, StoringController, Component, App
+from esphome.cpp_types import App, Component, StoringController, esphome_ns
 
 WebServer = esphome_ns.class_('WebServer', Component, StoringController)
 

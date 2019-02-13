@@ -1,11 +1,11 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome.components import fan, mqtt, output
+import esphome.config_validation as cv
 from esphome.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CONF_NAME, \
     CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, \
     CONF_SPEED_STATE_TOPIC
-from esphome.cpp_generator import get_variable, variable, add
+from esphome.cpp_generator import add, get_variable, variable
 from esphome.cpp_types import App
 
 PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({

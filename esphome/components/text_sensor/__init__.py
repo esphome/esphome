@@ -8,7 +8,7 @@ from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_
     CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_types import esphome_ns, Nameable, Trigger, std_string, App
+from esphome.cpp_types import App, Nameable, Trigger, esphome_ns, std_string
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 

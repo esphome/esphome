@@ -4,13 +4,13 @@ import math
 
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.config_validation as cv
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
 from esphome.core import CORE
-from esphome.cpp_generator import add, Pvariable, ArrayInitializer
-from esphome.cpp_types import esphome_ns, Component, NoArg, Trigger, App
+from esphome.cpp_generator import Pvariable, add
+from esphome.cpp_types import App, Component, NoArg, Trigger, esphome_ns
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)

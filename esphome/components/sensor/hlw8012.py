@@ -8,7 +8,7 @@ from esphome.const import CONF_CF1_PIN, CONF_CF_PIN, CONF_CHANGE_MODE_EVERY, CON
     CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import gpio_output_pin_expression, setup_component
-from esphome.cpp_types import PollingComponent, App
+from esphome.cpp_types import App, PollingComponent
 
 HLW8012Component = sensor.sensor_ns.class_('HLW8012Component', PollingComponent)
 HLW8012VoltageSensor = sensor.sensor_ns.class_('HLW8012VoltageSensor', sensor.EmptySensor)

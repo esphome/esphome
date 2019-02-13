@@ -1,8 +1,8 @@
 import voluptuous as vol
 
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.components.esp32_touch import ESP32TouchComponent
+import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_PIN, CONF_THRESHOLD, ESP_PLATFORM_ESP32
 from esphome.cpp_generator import get_variable
 from esphome.cpp_types import global_ns

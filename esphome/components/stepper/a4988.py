@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import gpio_output_pin_expression, setup_component
-from esphome.cpp_types import Component, App
+from esphome.cpp_types import App, Component
 
 A4988 = stepper.stepper_ns.class_('A4988', stepper.Stepper, Component)
 

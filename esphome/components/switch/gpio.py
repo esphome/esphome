@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome import pins
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_PIN, CONF_RESTORE_MODE, CONF_INTERLOCK
+from esphome.const import CONF_ID, CONF_INTERLOCK, CONF_NAME, CONF_PIN, CONF_RESTORE_MODE
 from esphome.cpp_generator import Pvariable, add, get_variable
 from esphome.cpp_helpers import gpio_output_pin_expression, setup_component
 from esphome.cpp_types import App, Component

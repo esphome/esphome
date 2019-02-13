@@ -1,20 +1,18 @@
 import voluptuous as vol
 
 from esphome import automation, core
-from esphome.automation import maybe_simple_id, CONDITION_REGISTRY, Condition
+from esphome.automation import CONDITION_REGISTRY, Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
-    CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_STATE, \
-    CONF_TIMING, CONF_TRIGGER_ID, CONF_ON_STATE
+    CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID
 from esphome.core import CORE
-from esphome.cpp_generator import process_lambda, ArrayInitializer, add, Pvariable, \
-    StructInitializer, get_variable
-from esphome.cpp_types import esphome_ns, Nameable, Trigger, NoArg, Component, App, bool_, \
-    optional
+from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda
+from esphome.cpp_types import App, Component, Nameable, NoArg, Trigger, bool_, esphome_ns, optional
 from esphome.py_compat import string_types
 
 DEVICE_CLASSES = [

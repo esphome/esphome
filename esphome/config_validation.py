@@ -16,7 +16,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
     ESP_PLATFORM_ESP8266
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
-from esphome.py_compat import text_type, string_types, integer_types
+from esphome.py_compat import integer_types, string_types, text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -578,6 +578,7 @@ def requires_component(comp):
         if comp not in CORE.raw_config:
             raise vol.Invalid("This option requires component {}".format(comp))
         return value
+
     return validator
 
 

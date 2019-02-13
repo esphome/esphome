@@ -1,12 +1,12 @@
 # coding=utf-8
 import voluptuous as vol
 
+from esphome.components import i2c, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, i2c
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_RANGE
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_RANGE, CONF_UPDATE_INTERVAL
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import PollingComponent, App
+from esphome.cpp_types import App, PollingComponent
 
 DEPENDENCIES = ['i2c']
 
@@ -20,7 +20,6 @@ HMC5883LFieldStrengthSensor = sensor.sensor_ns.class_('HMC5883LFieldStrengthSens
                                                       sensor.EmptyPollingParentSensor)
 HMC5883LHeadingSensor = sensor.sensor_ns.class_('HMC5883LHeadingSensor',
                                                 sensor.EmptyPollingParentSensor)
-
 
 HMC5883LRange = sensor.sensor_ns.enum('HMC5883LRange')
 HMC5883L_RANGES = {

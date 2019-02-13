@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome.automation import ACTION_REGISTRY
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
-    CONF_SERVICE, CONF_VARIABLES, CONF_REBOOT_TIMEOUT
+    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda
 from esphome.cpp_helpers import setup_component
