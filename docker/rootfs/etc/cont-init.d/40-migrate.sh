@@ -6,7 +6,7 @@
 # shellcheck disable=SC1091
 source /usr/lib/hassio-addons/base.sh
 
-if [[ ! -d /config/esphome -a -d /config/esphomeyaml ]]; then
+if [[ ! -d /config/esphome && -d /config/esphomeyaml ]]; then
     echo "Moving config directory from /config/esphomeyaml to /config/esphome"
     mv /config/esphomeyaml /config/esphome
     mv /config/esphome/.esphomeyaml /config/esphome/.esphome
