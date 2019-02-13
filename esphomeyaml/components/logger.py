@@ -43,6 +43,13 @@ HARDWARE_UART_TO_UART_SELECTION = {
     'UART2': global_ns.UART_SELECTION_UART2,
 }
 
+HARDWARE_UART_TO_SERIAL = {
+    'UART0': 'Serial',
+    'UART0_SWAP': 'Serial',
+    'UART1': 'Serial1',
+    'UART2': 'Serial2',
+}
+
 # pylint: disable=invalid-name
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
@@ -98,7 +105,8 @@ def required_build_flags(config):
         is_at_least_verbose = this_severity >= verbose_severity
         has_serial_logging = config.get(CONF_BAUD_RATE) != 0
         if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
-            flags.append(u"-DDEBUG_ESP_PORT=Serial")
+            debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
+            flags.append(u"-DDEBUG_ESP_PORT={}".format(debug_serial_port))
             flags.append(u"-DLWIP_DEBUG")
             DEBUG_COMPONENTS = {
                 'HTTP_CLIENT',
