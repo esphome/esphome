@@ -48,8 +48,6 @@ RUN \
 
 # Build arugments
 ARG BUILD_ARCH=amd64
-ARG BUILD_DATE
-ARG BUILD_REF
 ARG BUILD_VERSION
 
 # Labels
