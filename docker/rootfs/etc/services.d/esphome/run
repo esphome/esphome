@@ -1,0 +1,14 @@
+#!/usr/bin/with-contenv bash
+# ==============================================================================
+# Community Hass.io Add-ons: ESPHome
+# Runs the ESPHome dashboard
+# ==============================================================================
+# shellcheck disable=SC1091
+source /usr/lib/hassio-addons/base.sh
+
+if hass.config.true 'leave_front_door_open'; then
+    export DISABLE_HA_AUTHENTICATION=true
+fi
+
+hass.log.info "Starting ESPHome dashboard..."
+exec esphome /config/esphome dashboard --socket /var/run/esphome.sock --hassio
