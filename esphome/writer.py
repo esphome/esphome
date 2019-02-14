@@ -141,6 +141,9 @@ def migrate_src_version_0_to_1():
     with codecs.open(main_cpp, 'r', encoding='utf-8') as f_handle:
         content = orig_content = f_handle.read()
 
+    if CPP_INCLUDE_BEGIN in content:
+        return
+
     content, count = replace_file_content(content, r'\s*delay\((?:16|20)\);', '')
     if count != 0:
         _LOGGER.info("Migration: Removed %s occurrence of 'delay(16);' in %s", count, main_cpp)
@@ -311,6 +314,30 @@ def gather_build_flags():
         build_flags.add("-Wno-sign-compare")
     build_flags |= get_build_flags('required_build_flags')
     build_flags |= get_build_flags('REQUIRED_BUILD_FLAGS')
+
+    if not CORE.config[CONF_ESPHOME][CONF_USE_CUSTOM_CODE]:
+        # For new users, include common components out of the box.
+        # So that first impression is improved and user doesn't need to wait
+        # an eternity.
+        # It's not a perfect solution but shouldn't cause any issues I think
+        # Common components determined through Google Analytics page views
+        # and only components that are lightweight (e.g. not lights because they
+        # take up memory)
+        build_flags |= {
+            '-DUSE_BINARY_SENSOR',
+            '-DUSE_DALLAS_SENSOR',
+            '-DUSE_DHT_SENSOR',
+            '-DUSE_GPIO_BINARY_SENSOR',
+            '-DUSE_GPIO_SWITCH',
+            '-DUSE_SENSOR',
+            '-DUSE_STATUS_BINARY_SENSOR',
+            '-DUSE_STATUS_LED',
+            '-DUSE_SWITCH',
+            '-DUSE_TEMPLATE_BINARY_SENSOR',
+            '-DUSE_TEMPLATE_SENSOR',
+            '-DUSE_TEMPLATE_SWITCH',
+            '-DUSE_WIFI_SIGNAL_SENSOR',
+        }
 
     # avoid changing build flags order
     return list(sorted(list(build_flags)))
