@@ -1,4 +1,4 @@
-ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.0.0
+ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.1.0
 FROM ${BUILD_FROM}
 
 RUN \

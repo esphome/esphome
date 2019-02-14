@@ -41,11 +41,11 @@ stages:
 
     - |
       if [[ "${IS_HASSIO}" == "YES" ]]; then
-        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:1.0.0
+        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:1.1.0
         BUILD_TO=esphome/esphome-hassio-${BUILD_ARCH}
         DOCKERFILE=docker/Dockerfile.hassio
       else
-        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:1.0.0
+        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:1.1.0
         if [[ "${BUILD_ARCH}" == "amd64" ]]; then
           BUILD_TO=esphome/esphome
         else
@@ -183,14 +183,12 @@ aarch64-beta-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: aarch64
-    BUILD_FROM: esphome/esphome-hassio-base-aarch64:1.0.0
     RELEASE: "YES"
     IS_HASSIO: "YES"
 #aarch64-dev-hassio:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: aarch64
-#    BUILD_FROM: esphome/esphome-hassio-base-aarch64:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "YES"
 aarch64-latest-hassio:
@@ -198,7 +196,6 @@ aarch64-latest-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: aarch64
-    BUILD_FROM: esphome/esphome-hassio-base-aarch64:1.0.0
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
@@ -207,7 +204,6 @@ amd64-beta-docker:
   variables:
     BETA: "YES"
     BUILD_ARCH: amd64
-    BUILD_FROM: esphome/esphome-hassio-base-amd64:1.0.0
     IS_HASSIO: "NO"
     RELEASE: "YES"
 amd64-beta-hassio:
@@ -215,21 +211,18 @@ amd64-beta-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: amd64
-    BUILD_FROM: esphome/esphome-hassio-base-amd64:1.0.0
     IS_HASSIO: "YES"
     RELEASE: "YES"
 #amd64-dev-docker:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: amd64
-#    BUILD_FROM: esphome/esphome-base-amd64:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "NO"
 #amd64-dev-hassio:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: amd64
-#    BUILD_FROM: esphome/esphome-hassio-base-amd64:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "YES"
 amd64-latest-docker:
@@ -237,7 +230,6 @@ amd64-latest-docker:
   variables:
     BETA: "YES"
     BUILD_ARCH: amd64
-    BUILD_FROM: esphome/esphome-hassio-base-amd64:1.0.0
     IS_HASSIO: "NO"
     LATEST: "YES"
     RELEASE: "YES"
@@ -246,7 +238,6 @@ amd64-latest-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: amd64
-    BUILD_FROM: esphome/esphome-hassio-base-amd64:1.0.0
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
@@ -255,14 +246,12 @@ armhf-beta-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: armhf
-    BUILD_FROM: esphome/esphome-hassio-base-armhf:1.0.0
     IS_HASSIO: "YES"
     RELEASE: "YES"
 #armhf-dev-hassio:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: armhf
-#    BUILD_FROM: esphome/esphome-hassio-base-armhf:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "YES"
 armhf-latest-hassio:
@@ -270,7 +259,6 @@ armhf-latest-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: armhf
-    BUILD_FROM: esphome/esphome-hassio-base-armhf:1.0.0
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
@@ -279,7 +267,6 @@ i386-beta-docker:
   variables:
     BETA: "YES"
     BUILD_ARCH: i386
-    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
     IS_HASSIO: "NO"
     RELEASE: "YES"
 i386-beta-hassio:
@@ -287,21 +274,18 @@ i386-beta-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: i386
-    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
     IS_HASSIO: "YES"
     RELEASE: "YES"
 #i386-dev-docker:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: i386
-#    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "NO"
 #i386-dev-hassio:
 #  <<: *dev
 #  variables:
 #    BUILD_ARCH: i386
-#    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
 #    DEV: "YES"
 #    IS_HASSIO: "YES"
 i386-latest-docker:
@@ -309,7 +293,6 @@ i386-latest-docker:
   variables:
     BETA: "YES"
     BUILD_ARCH: i386
-    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
     IS_HASSIO: "NO"
     LATEST: "YES"
     RELEASE: "YES"
@@ -318,7 +301,6 @@ i386-latest-hassio:
   variables:
     BETA: "YES"
     BUILD_ARCH: i386
-    BUILD_FROM: esphome/esphome-hassio-base-i386:1.0.0
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
