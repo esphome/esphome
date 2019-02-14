@@ -8,7 +8,7 @@ from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_
     CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_types import App, Nameable, Trigger, esphome_ns, std_string
+from esphome.cpp_types import App, Nameable, Trigger, esphome_ns, std_string, Action
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -22,6 +22,7 @@ MQTTTextSensor = text_sensor_ns.class_('MQTTTextSensor', mqtt.MQTTComponent)
 
 TextSensorStateTrigger = text_sensor_ns.class_('TextSensorStateTrigger',
                                                Trigger.template(std_string))
+TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', Action)
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTTextSensor),
