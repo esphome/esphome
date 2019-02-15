@@ -897,6 +897,11 @@ switch:
       state: True
   - platform: remote_transmitter
     name: "Panasonic TV Off"
+    rc5:
+      address: 0x00
+      command: 0x0B
+  - platform: remote_transmitter
+    name: "Panasonic TV Off"
     id: living_room_lights_off
     raw:
       carrier_frequency: 35kHz

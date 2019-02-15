@@ -28,6 +28,7 @@ DUMPERS = {
     'samsung': remote_ns.class_('SamsungDumper', RemoteReceiveDumper),
     'sony': remote_ns.class_('SonyDumper', RemoteReceiveDumper),
     'rc_switch': remote_ns.class_('RCSwitchDumper', RemoteReceiveDumper),
+    'rc5': remote_ns.class_('RC5Dumper', RemoteReceiveDumper),
 }
 
 
