@@ -14,7 +14,7 @@ TemplateTextSensor = text_sensor.text_sensor_ns.class_('TemplateTextSensor',
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
-    vol.Required(CONF_LAMBDA): cv.lambda_,
+    vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
@@ -25,10 +25,11 @@ def to_code(config):
     text_sensor.setup_text_sensor(template, config)
     setup_component(template, config)
 
-    for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                    return_type=optional.template(std_string)):
-        yield
-    add(template.set_template(template_))
+    if CONF_LAMBDA in config:
+        for template_ in process_lambda(config[CONF_LAMBDA], [],
+                                        return_type=optional.template(std_string)):
+            yield
+        add(template.set_template(template_))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_TEXT_SENSOR'

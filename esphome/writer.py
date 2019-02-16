@@ -324,6 +324,7 @@ def gather_build_flags():
         # and only components that are lightweight (e.g. not lights because they
         # take up memory)
         build_flags |= {
+            '-DUSE_ADC_SENSOR',
             '-DUSE_BINARY_SENSOR',
             '-DUSE_DALLAS_SENSOR',
             '-DUSE_DHT_SENSOR',
