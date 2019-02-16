@@ -5,7 +5,7 @@ from esphome.components import display, spi
 from esphome.components.spi import SPIComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_CS_PIN, CONF_DC_PIN, CONF_EXTERNAL_VCC, CONF_ID, CONF_LAMBDA, \
-    CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID
+    CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID, CONF_PAGES
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda
 from esphome.cpp_helpers import gpio_output_pin_expression, setup_component
 from esphome.cpp_types import App, PollingComponent, void
@@ -29,7 +29,7 @@ MODELS = {
 
 SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
 
-PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
@@ -37,7 +37,7 @@ PLATFORM_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
     vol.Required(CONF_MODEL): SSD1306_MODEL,
     vol.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_EXTERNAL_VCC): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA.schema)
+}).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):
