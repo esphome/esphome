@@ -12,7 +12,7 @@ from esphome.const import CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL, CO
     CONF_LG, CONF_NAME, CONF_NBITS, CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, \
     CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, \
     CONF_RC_SWITCH_TYPE_D, CONF_REPEAT, CONF_SAMSUNG, CONF_SONY, CONF_STATE, CONF_TIMES, \
-    CONF_WAIT_TIME
+    CONF_WAIT_TIME, CONF_RC5
 from esphome.cpp_generator import Pvariable, add, get_variable, progmem_array
 from esphome.cpp_types import int32
 
@@ -20,7 +20,7 @@ DEPENDENCIES = ['remote_transmitter']
 
 REMOTE_KEYS = [CONF_JVC, CONF_NEC, CONF_LG, CONF_SAMSUNG, CONF_SONY, CONF_PANASONIC, CONF_RAW,
                CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, CONF_RC_SWITCH_TYPE_B,
-               CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D]
+               CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_RC5]
 
 CONF_REMOTE_TRANSMITTER_ID = 'remote_transmitter_id'
 CONF_TRANSMITTER_ID = 'transmitter_id'
@@ -31,6 +31,7 @@ LGTransmitter = remote_ns.class_('LGTransmitter', RemoteTransmitter)
 NECTransmitter = remote_ns.class_('NECTransmitter', RemoteTransmitter)
 PanasonicTransmitter = remote_ns.class_('PanasonicTransmitter', RemoteTransmitter)
 RawTransmitter = remote_ns.class_('RawTransmitter', RemoteTransmitter)
+RC5Transmitter = remote_ns.class_('RC5Transmitter', RemoteTransmitter)
 SamsungTransmitter = remote_ns.class_('SamsungTransmitter', RemoteTransmitter)
 SonyTransmitter = remote_ns.class_('SonyTransmitter', RemoteTransmitter)
 RCSwitchRawTransmitter = remote_ns.class_('RCSwitchRawTransmitter', RemoteTransmitter)
@@ -76,6 +77,10 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
+    vol.Optional(CONF_RC5): vol.Schema({
+        vol.Required(CONF_ADDRESS): vol.All(cv.hex_int, vol.Range(min=0, max=0x1F)),
+        vol.Required(CONF_COMMAND): vol.All(cv.hex_int, vol.Range(min=0, max=0x3F)),
+    }),
     vol.Optional(CONF_RAW): validate_raw,
     vol.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
     vol.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
@@ -109,6 +114,8 @@ def transmitter_base(full_config):
         return SamsungTransmitter.new(name, config[CONF_DATA])
     if key == CONF_SONY:
         return SonyTransmitter.new(name, config[CONF_DATA], config[CONF_NBITS])
+    if key == CONF_RC5:
+        return RC5Transmitter.new(name, config[CONF_ADDRESS], config[CONF_COMMAND])
     if key == CONF_RAW:
         arr = progmem_array(config[CONF_ID], config[CONF_DATA])
         return RawTransmitter.new(name, arr, len(config[CONF_DATA]),
