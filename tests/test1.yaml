@@ -1130,3 +1130,14 @@ text_sensor:
   name: "MQTT Subscribe Text"
   topic: "the/topic"
   qos: 2
+  on_value:
+  - text_sensor.template.publish:
+      id: template_text
+      state: Hello World
+  - text_sensor.template.publish:
+      id: template_text
+      state: |-
+        return "Hello World2";
+- platform: template
+  name: Template Text Sensor
+  id: template_text
