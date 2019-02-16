@@ -22,6 +22,8 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 # Base
 light_ns = esphome_ns.namespace('light')
 LightState = light_ns.class_('LightState', Nameable, Component)
+# Fake class for addressable lights
+AddressableLightState = light_ns.class_('LightState', LightState)
 MakeLight = Application.struct('MakeLight')
 LightOutput = light_ns.class_('LightOutput')
 AddressableLight = light_ns.class_('AddressableLight')

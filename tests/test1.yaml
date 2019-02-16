@@ -738,6 +738,7 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
   - platform: fastled_clockless
+    id: addr1
     chipset: WS2811
     pin: GPIO23
     num_leds: 60
@@ -788,6 +789,7 @@ light:
         update_interval: 16ms
         intensity: 5%
   - platform: fastled_spi
+    id: addr2
     chipset: WS2801
     data_pin: GPIO23
     clock_pin: GPIO22
@@ -795,6 +797,7 @@ light:
     rgb_order: BRG
     name: "FastLED SPI Light"
   - platform: neopixelbus
+    id: addr3
     name: "Neopixelbus Light"
     gamma_correct: 2.8
     color_correct: [0.0, 0.0, 0.0, 0.0]
@@ -810,6 +813,18 @@ light:
     method: ESP32_I2S_0
     num_leds: 60
     pin: GPIO23
+  - platform: partition
+    name: "Partition Light"
+    segments:
+      - id: addr1
+        from: 0
+        to: 0
+      - id: addr2
+        from: 1
+        to: 10
+      - id: addr2
+        from: 20
+        to: 25
 
 remote_transmitter:
   - pin: 32

@@ -34,6 +34,7 @@ RGB_ORDERS = [
 MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
     vol.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
