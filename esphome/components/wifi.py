@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, \
     CONF_DOMAIN, CONF_FAST_CONNECT, CONF_GATEWAY, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS
+    CONF_SUBNET, CONF_USE_ADDRESS, CONF_HIDDEN
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import Pvariable, StructInitializer, add, variable
 from esphome.cpp_types import App, Component, esphome_ns, global_ns
@@ -67,6 +67,7 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
     vol.Optional(CONF_BSSID): cv.mac_address,
+    vol.Optional(CONF_HIDDEN): cv.boolean,
 })
 
 
@@ -150,6 +151,8 @@ def wifi_network(config, static_ip):
         add(ap.set_password(config[CONF_PASSWORD]))
     if CONF_BSSID in config:
         add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
+    if CONF_HIDDEN in config:
+        add(ap.set_hidden(config[CONF_HIDDEN]))
     if CONF_CHANNEL in config:
         add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
