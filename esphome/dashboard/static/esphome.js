@@ -665,6 +665,77 @@ editor.commands.addCommand({
 
 saveButton.addEventListener('click', saveEditor);
 
+jQuery(".undo-button").click(function() {
+    console.log("undo");
+    const card = jQuery(this).closest(".card");
+    card.removeClass("deleted");
+    card.parent().find('.dividerx').removeClass('active');
+    const stacked = card.find(".card-stacked");
+    console.log(stacked);
+    stacked.addClass("restored");
+    card.find(".card-undo").hide('slow');
+    stacked.show();
+    const node = jQuery(card).parent().parent();
+    console.log(node);
+    node.hide();
+    node.removeClass("animated bounceOutLeft");
+    node.show();
+    node.stop( true, true ).animate({
+        opacity: 1
+    }, 0, function() {
+    });
+    node.addClass("animated flipInX");
+    node.zIndex(node.next(".col").zIndex()+1);
+    node.css("position", "relative");
+});
+
+jQuery(".action-delete").click(function() {
+    console.log("action-delete !");
+    const configuration = jQuery(this).attr('data-node');
+    console.log(configuration);
+    const card = jQuery(this).closest(".card");
+    console.log(card);
+    card.parent().find('.dividerx').addClass('active');
+    card.addClass("deleted");
+    const stacked = card.find(".card-stacked");
+    console.log(stacked);
+    stacked.hide();
+    card.find(".card-undo").show('slow');
+    const node = jQuery(card).parent().parent();
+    console.log(node);
+    node.removeClass("animated flipInX");
+    node.animate({
+        opacity: 0.75
+    }, 5000, function() {
+        if (!stacked.hasClass('restored')) {
+            node.addClass("animated bounceFadeOutLeft");
+        }
+        setTimeout(function() {
+            if (!stacked.hasClass('restored')) {
+                node.css("opacity","0.33");
+                node.hide("slow");
+            }
+        }, 500);
+    });
+    node.promise().done(function() {
+        deleted = false;
+        if(card.hasClass("deleted")) {
+          console.log("REALLY DELETE");
+          fetch(`/delete?configuration=${configuration}`, {credentials: "same-origin"})
+            .then(res => res.text()).then(response => {
+              
+                if (response != "Deleted"){
+                    M.toast({html: 'Deletion failed.'});
+                    card.find(".card-undo").hide();
+                    card.find(".undo-button").click();
+                } else {
+                    node.remove();
+                }
+          });
+        }
+    });
+});
+
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     configuration = e.target.getAttribute('data-node');
