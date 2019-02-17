@@ -194,6 +194,8 @@ sensor:
       then:
         - lambda: >-
             ESP_LOGD("main", "Got value range %f", x);
+        - wait_until:
+            binary_sensor.is_on: binary_sensor1
     on_raw_value:
       - lambda: >-
           ESP_LOGD("main", "Got raw value %f", x);
