@@ -7,6 +7,8 @@
   <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('materialize-stepper.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('esphome.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('animate.css') }}">
+
   <link rel="shortcut icon" href="{{ get_static_file_url('favicon.ico') }}">
 
   <script src="{{ get_static_file_url('jquery.min.js') }}"></script>
@@ -48,6 +50,7 @@
   {% for i, entry in enumerate(entries) %}
   <div class="row">
     <div class="col s12 m10 offset-m1 l12">
+      <div class='dividerx'></div>
       <div class="card horizontal">
         <div class="card-image center-align hide-on-small-only">
           <i class="material-icons very-large icon-grey">memory</i>
@@ -78,11 +81,21 @@
             <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
           <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action">
+            <li><a class="action-delete" data-node="{{ entry.filename }}"> Delete</a></li>
             <li><a class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
             <li><a class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
             <li><a class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
             <li><a class="action-hass-config" data-node="{{ entry.filename }}">HASS MQTT Configuration</a></li>
           </ul>
+        </div>
+        <div class='card-undo'>
+          <span class="card-title">
+            {{ escape(entry.name) }}
+          </span>
+          <div class='undo-button'>
+            <span class='txt'>Undo</span>
+            <i class="material-icons right undo-ico" data-target="">undo</i>
+          </div>
         </div>
       </div>
     </div>
