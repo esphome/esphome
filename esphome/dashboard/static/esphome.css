@@ -244,13 +244,18 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 
 .card-undo{
     display:none;
-}.dividerx.active {
+}
+
+.dividerx.active {
     margin-bottom: -27px;
-}.card.deleted {
+}
+
+.card.deleted {
     position: relative;
     width: 100%;
     left: 0px;
 }
+
 .card-undo .card-title {
     position: absolute;
     left: 102px;
@@ -258,26 +263,31 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
     font-weight: bold;
     color: #f13e81;
 }
+
 .deleted i.material-icons.very-large.icon-grey {
     font-size: 59px;
     padding: 16px;
     color: #f13e81;
 }
+
 .undo-ico {
     position: absolute;
     right: 9px;
     top: 4px;
 }
+
 .deleted {
     border-bottom: 11px solid #f13e81;
     border-radius: 59px;
-} 
+}
+
 .undo-button:hover {
     background: white;
     color: #f13d81;
     cursor:pointer;
 
 }
+
 .undo-button {
     position: absolute;
     right: 8px;
@@ -293,13 +303,14 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
     box-shadow: 2px 2px 17px #f13c8154;
     border: 2px solid #d43d77;
 }
+
 .txt {
     position: relative;
     left: -8px;
 }
 
 
-@-webkit-keyframes bounceFadeOutLeft {
+@-webkit-keyframes bounce-out-left {
   0% {
      -webkit-transform: translateX(0);
   }
@@ -313,7 +324,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   }
 }
 
-@keyframes bounceFadeOutLeft {
+@keyframes bounce-out-left {
   0% {
      transform: translateX(0);
   }
@@ -327,7 +338,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   }
 }
 
-.bounceOutLeft {
-  -webkit-animation-name: bounceFadeOutLeft;
-  animation-name: bounceFadeOutLeft;
+.bounce-out-left {
+  -webkit-animation-name: bounce-out-left;
+  animation-name: bounce-out-left;
 }
