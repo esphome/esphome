@@ -142,13 +142,13 @@ class EsphomeValidateHandler(EsphomeCommandWebSocket):
         return ["esphome", "--dashboard", config_file, "config"]
 
 class EsphomeDeleteHandler(BaseHandler):
-    def get(self):
+    def post(self):
         if not self.is_authenticated():
             self.redirect('/login')
             return
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
-            self.set_status(401)
+            self.set_status(500)
             return
         config_file = os.path.join(CONFIG_DIR, configuration)
         if not os.path.exists(config_file):
@@ -163,7 +163,6 @@ class EsphomeDeleteHandler(BaseHandler):
         try:
             if not os.path.exists(trash):
                 mkdir_p(trash)
-            shutil.move(config_file,os.path.join(trash, configuration))
             shutil.move(config_file,os.path.join(trash, configuration))
             if (name is not None):
                 build_folder = os.path.join(CONFIG_DIR, name)
