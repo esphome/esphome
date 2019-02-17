@@ -6,6 +6,7 @@ import hmac
 import json
 import logging
 import os
+import shutil
 import subprocess
 import threading
 
@@ -140,6 +141,39 @@ class EsphomeValidateHandler(EsphomeCommandWebSocket):
         config_file = os.path.join(CONFIG_DIR, js['configuration'])
         return ["esphome", "--dashboard", config_file, "config"]
 
+class EsphomeDeleteHandler(BaseHandler):
+    def get(self):
+        if not self.is_authenticated():
+            self.redirect('/login')
+            return
+        configuration = self.get_argument('configuration')
+        if not is_allowed(configuration):
+            self.set_status(401)
+            return
+        config_file = os.path.join(CONFIG_DIR, configuration)
+        if not os.path.exists(config_file):
+            self.write('Deleted') # Already deleted
+            return
+        storage_path = ext_storage_path(CONFIG_DIR, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        name = None
+        if storage_json is not None:
+            name = storage_json.name
+        trash = os.path.join(CONFIG_DIR, '.trash')
+        try:
+            if not os.path.exists(trash):
+                mkdir_p(trash)
+            shutil.move(config_file,os.path.join(trash, configuration))
+            shutil.move(config_file,os.path.join(trash, configuration))
+            if (name is not None):
+                build_folder = os.path.join(CONFIG_DIR, name)
+                if(os.path.exists(build_folder)):
+                    shutil.move(build_folder,os.path.join(trash, name))
+        except OSError as e:
+             self.write(str(e))
+             _LOGGER.error(e)
+             return
+        self.write('Deleted')
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
     def build_command(self, message):
@@ -494,6 +528,7 @@ def make_app(debug=False):
         (r"/run", EsphomeRunHandler),
         (r"/compile", EsphomeCompileHandler),
         (r"/validate", EsphomeValidateHandler),
+        (r"/delete", EsphomeDeleteHandler),
         (r"/clean-mqtt", EsphomeCleanMqttHandler),
         (r"/clean", EsphomeCleanHandler),
         (r"/hass-config", EsphomeHassConfigHandler),
