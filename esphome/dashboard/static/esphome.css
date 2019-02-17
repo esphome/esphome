@@ -118,6 +118,7 @@ body {
   display: flex;
   min-height: 100vh;
   flex-direction: column;
+  overflow: hidden;
 }
 
 main {
@@ -142,6 +143,14 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   margin-top: 8px;
   margin-right: 24px;
   width: 350px;
+}
+
+.select-port-container .select-dropdown {
+  color: #fff;
+}
+
+.select-port-container .caret {
+  fill: #fff;
 }
 
 .dropdown-trigger {
