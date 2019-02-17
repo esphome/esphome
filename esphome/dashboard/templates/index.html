@@ -29,6 +29,7 @@
   </div>
 </nav>
 
+{% if begin %}
 <div class="tap-target pink lighten-1 select-port" data-target="select-port-target">
   <div class="tap-target-content">
     <h5>Select Upload Port</h5>
@@ -39,6 +40,7 @@
     </p>
   </div>
 </div>
+{% end %}
 
 <div class="ribbon"></div>
 </header>
@@ -454,6 +456,7 @@
   <i class="material-icons">add</i>
 </a>
 
+{% if len(entries) == 0 %}
 <div class="tap-target pink lighten-1 setup-wizard" data-target="setup-wizard-start">
   <div class="tap-target-content">
     <h5>Set up your first Node</h5>
@@ -463,6 +466,8 @@
     </p>
   </div>
 </div>
+{% end %}
+
 </main>
 
 <footer class="page-footer indigo darken-1">
