@@ -5,7 +5,7 @@ import voluptuous as vol
 import esphome.config_validation as cv
 from esphome.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, \
     CONF_BELOW, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, \
-    CONF_LAMBDA, CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WHILE
+    CONF_LAMBDA, CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WHILE, CONF_WAIT_UNTIL
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, TemplateArguments, add, get_variable, \
     process_lambda, templatable
@@ -102,6 +102,7 @@ DelayAction = esphome_ns.class_('DelayAction', Action, Component)
 LambdaAction = esphome_ns.class_('LambdaAction', Action)
 IfAction = esphome_ns.class_('IfAction', Action)
 WhileAction = esphome_ns.class_('WhileAction', Action)
+WaitUntilAction = esphome_ns.class_('WaitUntilAction', Action, Component)
 UpdateComponentAction = esphome_ns.class_('UpdateComponentAction', Action)
 Automation = esphome_ns.class_('Automation')
 
@@ -265,6 +266,29 @@ def while_action_to_code(config, action_id, arg_type, template_arg):
     for actions in build_actions(config[CONF_THEN], arg_type):
         yield None
     add(action.add_then(actions))
+    yield action
+
+
+def validate_wait_until(value):
+    schema = vol.Schema({
+        vol.Required(CONF_CONDITION): validate_recursive_condition
+    })
+    if isinstance(value, dict) and CONF_CONDITION in value:
+        return schema(value)
+    return validate_wait_until({CONF_CONDITION: value})
+
+
+WAIT_UNTIL_ACTION_SCHEMA = validate_wait_until
+
+
+@ACTION_REGISTRY.register(CONF_WAIT_UNTIL, WAIT_UNTIL_ACTION_SCHEMA)
+def wait_until_action_to_code(config, action_id, arg_type, template_arg):
+    for conditions in build_conditions(config[CONF_CONDITION], arg_type):
+        yield None
+    rhs = WaitUntilAction.new(template_arg, conditions)
+    type = WaitUntilAction.template(template_arg)
+    action = Pvariable(action_id, rhs, type=type)
+    add(App.register_component(action))
     yield action
 
 
