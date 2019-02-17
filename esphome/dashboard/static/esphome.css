@@ -241,3 +241,93 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   vertical-align: middle;
   color: #666 !important;
 }
+
+.card-undo{
+    display:none;
+}.dividerx.active {
+    margin-bottom: -27px;
+}.card.deleted {
+    position: relative;
+    width: 100%;
+    left: 0px;
+}
+.card-undo .card-title {
+    position: absolute;
+    left: 102px;
+    top: 17px;
+    font-weight: bold;
+    color: #f13e81;
+}
+.deleted i.material-icons.very-large.icon-grey {
+    font-size: 59px;
+    padding: 16px;
+    color: #f13e81;
+}
+.undo-ico {
+    position: absolute;
+    right: 9px;
+    top: 4px;
+}
+.deleted {
+    border-bottom: 11px solid #f13e81;
+    border-radius: 59px;
+} 
+.undo-button:hover {
+    background: white;
+    color: #f13d81;
+    cursor:pointer;
+
+}
+.undo-button {
+    position: absolute;
+    right: 8px;
+    top: 29px;
+    color: #ffffff;
+    margin-right: 24px;
+    -webkit-transition: color .3s ease;
+    transition: color .3s ease;
+    text-transform: uppercase;
+    background: #f13d81;
+    padding: 5px 32px;
+    border-radius: 10px;
+    box-shadow: 2px 2px 17px #f13c8154;
+    border: 2px solid #d43d77;
+}
+.txt {
+    position: relative;
+    left: -8px;
+}
+
+
+@-webkit-keyframes bounceFadeOutLeft {
+  0% {
+     -webkit-transform: translateX(0);
+  }
+  20% {
+     opacity: 0.75;
+     -webkit-transform: translateX(20px);
+  }
+  100% {
+     opacity: 0;
+     -webkit-transform: translateX(-2000px);
+  }
+}
+
+@keyframes bounceFadeOutLeft {
+  0% {
+     transform: translateX(0);
+  }
+  20% {
+     opacity: 0.5;
+     transform: translateX(20px);
+  }
+  100% {
+     opacity: 0;
+     transform: translateX(-2000px);
+  }
+}
+
+.bounceOutLeft {
+  -webkit-animation-name: bounceFadeOutLeft;
+  animation-name: bounceFadeOutLeft;
+}
