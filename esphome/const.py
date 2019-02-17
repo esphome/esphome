@@ -2,10 +2,10 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 11
-PATCH_VERSION = '0-dev'
+PATCH_VERSION = '0b1'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
-ESPHOME_CORE_VERSION = 'dev'
+ESPHOME_CORE_VERSION = '1.11.0b1'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
