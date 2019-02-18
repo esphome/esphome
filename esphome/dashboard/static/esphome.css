@@ -223,9 +223,8 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 #editor {
   margin-top: 0;
   margin-bottom: 0;
-  padding: 16px;
   border-radius: 3px;
-  height: 100%
+  height: calc(100% - 56px);
 }
 
 .update-available i {
