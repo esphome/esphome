@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_BINARY_SENSORS, CONF_ID, CONF_LAMBDA, CONF_NAME
-from esphome.cpp_generator import Pvariable, add, process_lambda, variable
+from esphome.cpp_generator import add, process_lambda, variable
 from esphome.cpp_types import std_vector
 
 CustomBinarySensorConstructor = binary_sensor.binary_sensor_ns.class_(
@@ -27,9 +27,9 @@ def to_code(config):
     rhs = CustomBinarySensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_BINARY_SENSORS]):
-        var = Pvariable(conf[CONF_ID], custom.get_binary_sensor(i))
-        add(var.set_name(conf[CONF_NAME]))
-        binary_sensor.setup_binary_sensor(var, conf)
+        rhs = custom.Pget_binary_sensor(i)
+        add(rhs.set_name(conf[CONF_NAME]))
+        binary_sensor.register_binary_sensor(rhs, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_BINARY_SENSOR'
