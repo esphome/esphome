@@ -264,7 +264,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
     color: #f13e81;
 }
 
-.deleted-icon {
+.deleted .very-large {
     font-size: 59px;
     padding: 16px;
     color: #f13e81;
