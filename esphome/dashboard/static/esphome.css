@@ -264,13 +264,13 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
     color: #f13e81;
 }
 
-.deleted i.material-icons.very-large.icon-grey {
+.deleted-icon {
     font-size: 59px;
     padding: 16px;
     color: #f13e81;
 }
 
-.undo-ico {
+.undo-icon {
     position: absolute;
     right: 9px;
     top: 4px;
@@ -304,7 +304,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
     border: 2px solid #d43d77;
 }
 
-.txt {
+.undo-text {
     position: relative;
     left: -8px;
 }
