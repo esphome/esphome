@@ -131,6 +131,7 @@ def validate(config):
 MakeNeoPixelBusLight = Application.struct('MakeNeoPixelBusLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeNeoPixelBusLight),
 
     vol.Optional(CONF_TYPE, default='GRB'): validate_type,

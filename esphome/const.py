@@ -1,7 +1,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 10
+MINOR_VERSION = 12
 PATCH_VERSION = '0-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
@@ -93,6 +93,7 @@ CONF_BELOW = 'below'
 CONF_ON = 'on'
 CONF_IF = 'if'
 CONF_WHILE = 'while'
+CONF_WAIT_UNTIL = 'wait_until'
 CONF_THEN = 'then'
 CONF_BINARY = 'binary'
 CONF_WHITE = 'white'
@@ -162,6 +163,7 @@ CONF_COMMAND = 'command'
 CONF_DATA = 'data'
 CONF_NBITS = 'nbits'
 CONF_JVC = 'jvc'
+CONF_RC5 = 'rc5'
 CONF_LG = 'lg'
 CONF_SAMSUNG = 'samsung'
 CONF_SONY = 'sony'
@@ -335,9 +337,11 @@ CONF_CHANGE_MODE_EVERY = 'change_mode_every'
 CONF_PAGE_ID = 'page_id'
 CONF_COMPONENT_ID = 'component_id'
 CONF_COLD_WHITE = 'cold_white'
+CONF_PAGES = 'pages'
 CONF_WARM_WHITE = 'warm_white'
 CONF_COLD_WHITE_COLOR_TEMPERATURE = 'cold_white_color_temperature'
 CONF_WARM_WHITE_COLOR_TEMPERATURE = 'warm_white_color_temperature'
+CONF_HIDDEN = 'hidden'
 CONF_ON_LOOP = 'on_loop'
 CONF_ON_TIME = 'on_time'
 CONF_SECONDS = 'seconds'
@@ -405,6 +409,9 @@ CONF_INTERLOCK = 'interlock'
 CONF_ON_TURN_ON = 'on_turn_on'
 CONF_ON_TURN_OFF = 'on_turn_off'
 CONF_USE_ADDRESS = 'use_address'
+CONF_FROM = 'from'
+CONF_TO = 'to'
+CONF_SEGMENTS = 'segments'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

@@ -13,7 +13,7 @@ SensorPublishAction = sensor.sensor_ns.class_('SensorPublishAction', Action)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),
-    vol.Required(CONF_LAMBDA): cv.lambda_,
+    vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
@@ -25,10 +25,11 @@ def to_code(config):
     sensor.setup_sensor(template, config)
     setup_component(template, config)
 
-    for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                    return_type=optional.template(float_)):
-        yield
-    add(template.set_template(template_))
+    if CONF_LAMBDA in config:
+        for template_ in process_lambda(config[CONF_LAMBDA], [],
+                                        return_type=optional.template(float_)):
+            yield
+        add(template.set_template(template_))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_SENSOR'

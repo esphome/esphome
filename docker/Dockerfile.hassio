@@ -1,14 +1,5 @@
-ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.0.0
+ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.2.1
 FROM ${BUILD_FROM}
-
-RUN \
-    apt-get update \
-    && apt-get install -y --no-install-recommends \
-        python-pil \
-    && rm -rf \
-        /tmp/* \
-        /var/{cache,log}/* \
-        /var/lib/apt/lists/*
 
 # Copy root filesystem
 COPY docker/rootfs/ /

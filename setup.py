@@ -8,10 +8,10 @@ from esphome import const
 PROJECT_NAME = 'esphome'
 PROJECT_PACKAGE_NAME = 'esphome'
 PROJECT_LICENSE = 'MIT'
-PROJECT_AUTHOR = 'Otto Winter'
-PROJECT_COPYRIGHT = '2018, Otto Winter'
+PROJECT_AUTHOR = 'ESPHome'
+PROJECT_COPYRIGHT = '2019, ESPHome'
 PROJECT_URL = 'https://esphome.io/'
-PROJECT_EMAIL = 'contact@otto-winter.com'
+PROJECT_EMAIL = 'contact@esphome.io'
 
 PROJECT_GITHUB_USERNAME = 'esphome'
 PROJECT_GITHUB_REPOSITORY = 'esphome'
@@ -50,7 +50,8 @@ CLASSIFIERS = [
     'Intended Audience :: End Users/Desktop',
     'License :: OSI Approved :: MIT License',
     'Programming Language :: C++',
-    'Programming Language :: Python :: 2 :: Only',
+    'Programming Language :: Python :: 2',
+    'Programming Language :: Python :: 3',
     'Topic :: Home Automation',
 ]
 
@@ -72,7 +73,8 @@ setup(
     keywords=['home', 'automation'],
     entry_points={
         'console_scripts': [
-            'esphome = esphome.__main__:main'
+            'esphome = esphome.__main__:main',
+            'esphomeyaml = esphome.legacy:main'
         ]
     },
     packages=find_packages()
