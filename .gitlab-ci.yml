@@ -177,48 +177,48 @@ deploy-beta:pypi:
 .dev-vars: &dev-vars
   DEV: YES
 
-aarch64-beta-docker:
-  <<: *beta
-  variables:
-    BETA: "YES"
-    BUILD_ARCH: aarch64
-    IS_HASSIO: "NO"
-    RELEASE: "YES"
-aarch64-beta-hassio:
-  <<: *beta
-  variables:
-    BETA: "YES"
-    BUILD_ARCH: aarch64
-    IS_HASSIO: "YES"
-    RELEASE: "YES"
-aarch64-dev-docker:
-  <<: *dev
-  variables:
-    BUILD_ARCH: aarch64
-    DEV: "YES"
-    IS_HASSIO: "NO"
-aarch64-dev-hassio:
-  <<: *dev
-  variables:
-    BUILD_ARCH: aarch64
-    DEV: "YES"
-    IS_HASSIO: "YES"
-aarch64-latest-docker:
-  <<: *latest
-  variables:
-    BETA: "YES"
-    BUILD_ARCH: aarch64
-    IS_HASSIO: "NO"
-    LATEST: "YES"
-    RELEASE: "YES"
-aarch64-latest-hassio:
-  <<: *latest
-  variables:
-    BETA: "YES"
-    BUILD_ARCH: aarch64
-    IS_HASSIO: "YES"
-    LATEST: "YES"
-    RELEASE: "YES"
+#aarch64-beta-docker:
+#  <<: *beta
+#  variables:
+#    BETA: "YES"
+#    BUILD_ARCH: aarch64
+#    IS_HASSIO: "NO"
+#    RELEASE: "YES"
+#aarch64-beta-hassio:
+#  <<: *beta
+#  variables:
+#    BETA: "YES"
+#    BUILD_ARCH: aarch64
+#    IS_HASSIO: "YES"
+#    RELEASE: "YES"
+#aarch64-dev-docker:
+#  <<: *dev
+#  variables:
+#    BUILD_ARCH: aarch64
+#    DEV: "YES"
+#    IS_HASSIO: "NO"
+#aarch64-dev-hassio:
+#  <<: *dev
+#  variables:
+#    BUILD_ARCH: aarch64
+#    DEV: "YES"
+#    IS_HASSIO: "YES"
+#aarch64-latest-docker:
+#  <<: *latest
+#  variables:
+#    BETA: "YES"
+#    BUILD_ARCH: aarch64
+#    IS_HASSIO: "NO"
+#    LATEST: "YES"
+#    RELEASE: "YES"
+#aarch64-latest-hassio:
+#  <<: *latest
+#  variables:
+#    BETA: "YES"
+#    BUILD_ARCH: aarch64
+#    IS_HASSIO: "YES"
+#    LATEST: "YES"
+#    RELEASE: "YES"
 amd64-beta-docker:
   <<: *beta
   variables:
