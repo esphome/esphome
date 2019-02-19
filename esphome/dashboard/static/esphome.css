@@ -46,17 +46,8 @@ i.very-large {
   font-family: "SFMono-Regular",Consolas,"Liberation Mono",Menlo,Courier,monospace;
 }
 
-.autoscroll {
-  display: flex;
-  flex-direction: column-reverse;
-  flex-basis: auto;
-}
-
-.autoscroll div {
-  flex-basis: 100%;
-}
-
 .log {
+  max-height: calc(100% - 56px);
   background-color: #1c1c1c;
   margin-top: 0;
   margin-bottom: 0;
@@ -161,6 +152,10 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   height: auto !important;
 }
 
+.tap-target-wrapper {
+  position: fixed !important;
+}
+
 /* https://github.com/tnhu/status-indicator/blob/master/styles.css */
 .status-indicator .status-indicator-icon {
   display: inline-block;
@@ -223,9 +218,8 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 #editor {
   margin-top: 0;
   margin-bottom: 0;
-  padding: 16px;
   border-radius: 3px;
-  height: 100%
+  height: calc(100% - 56px);
 }
 
 .update-available i {
