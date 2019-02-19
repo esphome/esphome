@@ -168,6 +168,7 @@ const colorReplace = (pre, state, text) => {
     }
   }
   addSpan(text.substring(i));
+  scrollToBottomOfElement(pre);
 };
 
 const removeUpdateAvailable = (filename) => {
@@ -699,5 +700,16 @@ const startWizard = () => {
     parallel: false
   });
 };
+
+const scrollToBottomOfElement = (element) => {
+  var atBottom = false;
+  if (element.scrollTop + 30 >= (element.scrollHeight - element.offsetHeight)) {
+    atBottom = true;
+  }
+
+  if (atBottom) {
+    element.scrollTop = element.scrollHeight;
+  }
+}
 
 setupWizardStart.addEventListener('click', startWizard);
