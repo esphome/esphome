@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_TEXT_SENSORS
-from esphome.cpp_generator import Pvariable, add, process_lambda, variable
+from esphome.cpp_generator import add, process_lambda, variable
 from esphome.cpp_types import std_vector
 
 CustomTextSensorConstructor = text_sensor.text_sensor_ns.class_('CustomTextSensorConstructor')
@@ -26,9 +26,9 @@ def to_code(config):
     rhs = CustomTextSensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
-        var = Pvariable(conf[CONF_ID], custom.get_text_sensor(i))
-        add(var.set_name(conf[CONF_NAME]))
-        text_sensor.setup_text_sensor(var, conf)
+        rhs = custom.Pget_text_sensor(i)
+        add(rhs.set_name(conf[CONF_NAME]))
+        text_sensor.register_text_sensor(rhs, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_TEXT_SENSOR'

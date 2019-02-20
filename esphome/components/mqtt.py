@@ -163,8 +163,8 @@ def to_code(config):
         else:
             add(mqtt.set_log_message_template(exp_mqtt_message(log_topic)))
 
-            if CONF_LEVEL in config:
-                add(mqtt.set_log_level(logger.LOG_LEVELS[config[CONF_LEVEL]]))
+            if CONF_LEVEL in log_topic:
+                add(mqtt.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:

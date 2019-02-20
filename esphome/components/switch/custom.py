@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome.components import switch
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_SWITCHES
-from esphome.cpp_generator import Pvariable, add, process_lambda, variable
+from esphome.cpp_generator import add, process_lambda, variable
 from esphome.cpp_types import std_vector
 
 CustomSwitchConstructor = switch.switch_ns.class_('CustomSwitchConstructor')
@@ -26,9 +26,9 @@ def to_code(config):
     rhs = CustomSwitchConstructor(template_)
     custom = variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_SWITCHES]):
-        var = Pvariable(conf[CONF_ID], custom.get_switch(i))
-        add(var.set_name(conf[CONF_NAME]))
-        switch.setup_switch(var, conf)
+        rhs = custom.Pget_switch(i)
+        add(rhs.set_name(conf[CONF_NAME]))
+        switch.register_switch(rhs, conf)
 
 
 BUILD_FLAGS = '-DUSE_CUSTOM_SWITCH'
