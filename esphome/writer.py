@@ -10,8 +10,8 @@ import shutil
 from esphome.config import iter_components
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, \
-    CONF_LOCAL, \
-    CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
+    CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE, \
+    ARDUINO_VERSION_ESP32_1_0_1, ARDUINO_VERSION_ESP8266_2_5_0
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
 from esphome.helpers import mkdir_p, run_system_command
@@ -285,7 +285,7 @@ def gather_lib_deps():
         lib_deps.discard('AsyncTCP@1.0.3')
 
         # Manual fix for AsyncTCP
-        if CORE.config[CONF_ESPHOME].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
+        if CORE.arduino_version in (ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP32_1_0_1):
             lib_deps.add('AsyncTCP@1.0.3')
             lib_deps.discard('AsyncTCP@1.0.1')
     elif CORE.is_esp8266:
@@ -356,7 +356,7 @@ def get_ini_content():
         if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
                                     'espressif8266@1.6.0', 'espressif8266@1.5.0'):
             ld_script = ld_scripts[0]
-        elif CORE.arduino_version == ARDUINO_VERSION_ESP8266_DEV:
+        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
