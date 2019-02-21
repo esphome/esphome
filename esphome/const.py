@@ -415,5 +415,7 @@ CONF_SEGMENTS = 'segments'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
+ARDUINO_VERSION_ESP32_1_0_1 = 'espressif32@1.6.0'
 ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8266.git#feature' \
                               '/stage'
+ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
