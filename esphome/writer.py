@@ -8,10 +8,10 @@ import re
 import shutil
 
 from esphome.config import iter_components
-from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
-    CONF_ARDUINO_VERSION, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, \
-    CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE, \
-    ARDUINO_VERSION_ESP32_1_0_1, ARDUINO_VERSION_ESP8266_2_5_0
+from esphome.const import ARDUINO_VERSION_ESP32_1_0_1, ARDUINO_VERSION_ESP32_DEV, \
+    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_DEV, CONF_BOARD_FLASH_MODE, \
+    CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, \
+    CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
 from esphome.helpers import mkdir_p, run_system_command
@@ -363,7 +363,7 @@ def get_ini_content():
             build_flags.append('-Wl,-T{}'.format(ld_script))
 
     data = {
-        'platform': CORE.config[CONF_ESPHOME][CONF_ARDUINO_VERSION],
+        'platform': CORE.arduino_version,
         'board': CORE.board,
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
