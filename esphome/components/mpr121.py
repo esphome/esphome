@@ -16,11 +16,12 @@ MPR121 = sensor.sensor_ns.class_('MPR121_Sensor', PollingComponent, i2c.I2CDevic
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(MPR121),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
+    vol.Optional(CONF_CHANNELS): vol.All(vol.Coerce(int), vol.Range(min=1, max=11))
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 
 def to_code(config):
-    rhs = App.make_mpr121(config.get(CONF_ADDRESS))
+    rhs = App.make_mpr121(config.get(CONF_ADDRESS),config.get(CONF_CHANNELS))
     var = Pvariable(config[CONF_ID], rhs)
 
     setup_component(var, config)
