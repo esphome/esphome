@@ -3,7 +3,8 @@ import voluptuous as vol
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, CONF_MIN_POWER, CONF_POWER_SUPPLY
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
+    CONF_MIN_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, templatable
 from esphome.cpp_types import Action, esphome_ns, float_
