@@ -1,19 +1,20 @@
 #!/usr/bin/env python
-"""esphomeyaml setup script."""
+"""esphome setup script."""
 from setuptools import setup, find_packages
+import os
 
-from esphomeyaml import const
+from esphome import const
 
-PROJECT_NAME = 'esphomeyaml'
-PROJECT_PACKAGE_NAME = 'esphomeyaml'
+PROJECT_NAME = 'esphome'
+PROJECT_PACKAGE_NAME = 'esphome'
 PROJECT_LICENSE = 'MIT'
-PROJECT_AUTHOR = 'Otto Winter'
-PROJECT_COPYRIGHT = '2018, Otto Winter'
-PROJECT_URL = 'https://esphomelib.com/esphomeyaml/index.html'
-PROJECT_EMAIL = 'contact@otto-winter.com'
+PROJECT_AUTHOR = 'ESPHome'
+PROJECT_COPYRIGHT = '2019, ESPHome'
+PROJECT_URL = 'https://esphome.io/'
+PROJECT_EMAIL = 'contact@esphome.io'
 
-PROJECT_GITHUB_USERNAME = 'OttoWinter'
-PROJECT_GITHUB_REPOSITORY = 'esphomeyaml'
+PROJECT_GITHUB_USERNAME = 'esphome'
+PROJECT_GITHUB_REPOSITORY = 'esphome'
 
 PYPI_URL = 'https://pypi.python.org/pypi/{}'.format(PROJECT_PACKAGE_NAME)
 GITHUB_PATH = '{}/{}'.format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
@@ -23,16 +24,25 @@ DOWNLOAD_URL = '{}/archive/{}.zip'.format(GITHUB_URL, const.__version__)
 
 REQUIRES = [
     'voluptuous>=0.11.1',
-    'platformio>=3.5.3',
     'pyyaml>=3.12',
     'paho-mqtt>=1.3.1',
     'colorlog>=3.1.2',
     'tornado>=5.0.0',
-    'esptool>=2.3.1',
-    'typing>=3.0.0',
+    'typing>=3.0.0;python_version<"3.5"',
     'protobuf>=3.4',
     'tzlocal>=1.4',
+    'pyserial>=3.4,<4',
+    'ifaddr>=0.1.6',
 ]
+
+# If you have problems importing platformio and esptool as modules you can set
+# $ESPHOME_USE_SUBPROCESS to make ESPHome call their executables instead.
+# This means they have to be in your $PATH.
+if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+    REQUIRES.extend([
+        'platformio>=3.5.3',
+        'esptool>=2.3.1',
+    ])
 
 CLASSIFIERS = [
     'Environment :: Console',
@@ -40,7 +50,8 @@ CLASSIFIERS = [
     'Intended Audience :: End Users/Desktop',
     'License :: OSI Approved :: MIT License',
     'Programming Language :: C++',
-    'Programming Language :: Python :: 2 :: Only',
+    'Programming Language :: Python :: 2',
+    'Programming Language :: Python :: 3',
     'Topic :: Home Automation',
 ]
 
@@ -62,7 +73,8 @@ setup(
     keywords=['home', 'automation'],
     entry_points={
         'console_scripts': [
-            'esphomeyaml = esphomeyaml.__main__:main'
+            'esphome = esphome.__main__:main',
+            'esphomeyaml = esphome.legacy:main'
         ]
     },
     packages=find_packages()

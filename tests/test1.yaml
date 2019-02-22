@@ -1,10 +1,12 @@
-esphomeyaml:
+esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s
   # Use this for testing while developing:
-  # esphomelib_version:
-  #   local: ~/path/to/esphomelib
+  # Note the travis check for esphome PRs will fail until the
+  # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
   use_custom_code: false
   on_boot:
     priority: 150.0
@@ -35,7 +37,6 @@ wifi:
     subnet: 255.255.255.0
     dns1: 1.1.1.1
     dns2: 1.2.2.1
-  hostname: myverylonghostname
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
@@ -124,8 +125,8 @@ logger:
 
 web_server:
   port: 8080
-  css_url: https://esphomelib.com/_static/webserver-v1.min.css
-  js_url: https://esphomelib.com/_static/webserver-v1.min.js
+  css_url: https://esphome.io/_static/webserver-v1.min.css
+  js_url: https://esphome.io/_static/webserver-v1.min.js
 
 power_supply:
   id: 'atx_power_supply'
@@ -137,7 +138,6 @@ power_supply:
 
 deep_sleep:
   run_duration: 20s
-  run_cycles: 500
   sleep_duration: 50s
   wakeup_pin: GPIO39
   wakeup_pin_mode: INVERT_WAKEUP
@@ -194,6 +194,8 @@ sensor:
       then:
         - lambda: >-
             ESP_LOGD("main", "Got value range %f", x);
+        - wait_until:
+            binary_sensor.is_on: binary_sensor1
     on_raw_value:
       - lambda: >-
           ESP_LOGD("main", "Got raw value %f", x);
@@ -435,13 +437,21 @@ sensor:
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
-    lambda: >-
+    id: template_sensor
+    lambda: |-
       if (id(ultrasonic_sensor1).state > 1) {
         return 42.0;
       } else {
         return {};
       }
     update_interval: 15s
+    on_value:
+      - sensor.template.publish:
+          id: template_sensor
+          state: 43.0
+      - sensor.template.publish:
+          id: template_sensor
+          state: !lambda 'return NAN;'
   - platform: tsl2561
     name: "TSL2561 Ambient Light"
     address: 0x39
@@ -462,6 +472,17 @@ sensor:
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 15s
+  - platform: mqtt_subscribe
+    name: "MQTT Subscribe Sensor 1"
+    topic: "mqtt/topic"
+    id: the_sensor
+    qos: 2
+    on_value:
+      - mqtt.publish_json:
+          topic: the/topic
+          payload: |-
+            root["key"] = id(the_sensor).value;
+            root["greeting"] = "Hello World";
 
 
 esp32_touch:
@@ -482,7 +503,6 @@ binary_sensor:
       - invert:
       - delayed_on: 40ms
       - delayed_off: 40ms
-      - heartbeat: 1s
     on_press:
       then:
         - lambda: >-
@@ -552,7 +572,8 @@ binary_sensor:
     name: "Nextion Component 2 Touch"
   - platform: template
     name: "Garage Door Open"
-    lambda: >-
+    id: garage_door
+    lambda: |-
       if (isnan(id(my_sensor).state)) {
         // isnan checks if the ultrasonic sensor echo
         // has timed out, resulting in a NaN (not a number) state
@@ -565,6 +586,10 @@ binary_sensor:
         // Garage Door is closed.
         return false;
       }
+    on_press:
+      - binary_sensor.template.publish:
+          id: garage_door
+          state: OFF
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -715,6 +740,7 @@ light:
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
   - platform: fastled_clockless
+    id: addr1
     chipset: WS2811
     pin: GPIO23
     num_leds: 60
@@ -765,6 +791,7 @@ light:
         update_interval: 16ms
         intensity: 5%
   - platform: fastled_spi
+    id: addr2
     chipset: WS2801
     data_pin: GPIO23
     clock_pin: GPIO22
@@ -772,6 +799,7 @@ light:
     rgb_order: BRG
     name: "FastLED SPI Light"
   - platform: neopixelbus
+    id: addr3
     name: "Neopixelbus Light"
     gamma_correct: 2.8
     color_correct: [0.0, 0.0, 0.0, 0.0]
@@ -787,6 +815,18 @@ light:
     method: ESP32_I2S_0
     num_leds: 60
     pin: GPIO23
+  - platform: partition
+    name: "Partition Light"
+    segments:
+      - id: addr1
+        from: 0
+        to: 0
+      - id: addr2
+        from: 1
+        to: 10
+      - id: addr2
+        from: 20
+        to: 25
 
 remote_transmitter:
   - pin: 32
@@ -799,6 +839,11 @@ switch:
     inverted: True
     command_topic: custom_command_topic
     restore_mode: ALWAYS_OFF
+  - platform: remote_transmitter
+    name: "JVC Off"
+    jvc:
+      data: 0x10EF
+    repeat: 25
   - platform: remote_transmitter
     name: "Panasonic TV Off"
     nec:
@@ -869,6 +914,11 @@ switch:
       state: True
   - platform: remote_transmitter
     name: "Panasonic TV Off"
+    rc5:
+      address: 0x00
+      command: 0x0B
+  - platform: remote_transmitter
+    name: "Panasonic TV Off"
     id: living_room_lights_off
     raw:
       carrier_frequency: 35kHz
@@ -877,7 +927,9 @@ switch:
       - -1000
   - platform: template
     name: Living Room Lights
+    id: livingroom_lights
     optimistic: True
+    assumed_state: yes
     turn_on_action:
     - switch.turn_on: living_room_lights_on
     - output.set_level:
@@ -889,6 +941,10 @@ switch:
     turn_off_action:
     - switch.turn_on: living_room_lights_off
     restore_state: False
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: restart
     name: "Living Room Restart"
   - platform: shutdown
@@ -915,7 +971,12 @@ switch:
         // Switch is OFF, do something else here
       }
     optimistic: true
+    assumed_state: no
     restore_state: True
+    on_turn_off:
+      - switch.template.publish:
+          id: my_switch
+          state: !lambda 'return false;'
   - platform: uart
     name: "UART String Output"
     data: 'DataToSend'
@@ -923,7 +984,7 @@ switch:
     name: "UART Bytes Output"
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: template
-    optimistic: true
+    assumed_state: yes
     name: Stepper Switch
     turn_on_action:
     - stepper.set_target:
@@ -947,6 +1008,14 @@ fan:
       low: 0.45
       medium: 0.75
       high: 1.0
+
+interval:
+  - interval: 10s
+    then:
+    - display.page.show: !lambda |-
+        if (true) return id(page1); else return id(page2);
+    -  display.page.show_next: display
+    -  display.page.show_previous: display
 
 display:
 - platform: lcd_gpio
@@ -978,8 +1047,14 @@ display:
   model: "SSD1306 128x64"
   reset_pin: GPIO23
   address: 0x3C
-  lambda: |-
-    it.rectangle(0, 0, it.get_width(), it.get_height());
+  id: display
+  pages:
+    - id: page1
+      lambda: |-
+        it.rectangle(0, 0, it.get_width(), it.get_height());
+    - id: page2
+      lambda: |-
+        // Nothing
 - platform: ssd1306_spi
   model: "SSD1306 128x64"
   cs_pin: GPIO23
@@ -1022,7 +1097,7 @@ time:
   servers:
   - 0.pool.ntp.org
   - 1.pool.ntp.org
-  - 2.pool.ntp.org
+  - 192.168.178.1
   on_time:
     cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
     then:
@@ -1031,13 +1106,19 @@ time:
 cover:
   - platform: template
     name: "Template Cover"
-    lambda: >-
+    id: template_cover
+    lambda: |-
       if (id(binary_sensor1).state) {
         return cover::COVER_OPEN;
       } else {
         return {};
       }
     optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
+    assumed_state: no
 
 debug:
 
@@ -1074,3 +1155,20 @@ globals:
   type: std::string
   restore_value: no
   # initial_value: ""
+
+text_sensor:
+- platform: mqtt_subscribe
+  name: "MQTT Subscribe Text"
+  topic: "the/topic"
+  qos: 2
+  on_value:
+  - text_sensor.template.publish:
+      id: template_text
+      state: Hello World
+  - text_sensor.template.publish:
+      id: template_text
+      state: |-
+        return "Hello World2";
+- platform: template
+  name: Template Text Sensor
+  id: template_text

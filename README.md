@@ -1,38 +1,9 @@
-# esphomeyaml for [esphomelib](https://github.com/OttoWinter/esphomelib)
+# ESPHome [![Build Status](https://travis-ci.org/esphome/esphome.svg?branch=master)](https://travis-ci.org/esphome/esphome) [![Discord Chat](https://img.shields.io/discord/429907082951524364.svg)](https://discord.gg/KhAMKrd) [![GitHub release](https://img.shields.io/github/release/esphome/esphome.svg)](https://GitHub.com/esphome/esphome/releases/)
 
-### Getting Started Guide: https://esphomelib.com/esphomeyaml/guides/getting_started_command_line.html
+[![ESPHome Logo](https://esphome.io/_images/logo-text.png)](https://esphome.io/)
 
-### Available Components: https://esphomelib.com/esphomeyaml/index.html
+**Documentation:** https://esphome.io/
 
-esphomeyaml is the solution for your ESP8266/ESP32 projects with Home Assistant. It allows you to create **custom firmwares** for your microcontrollers with no programming experience required. All you need to know is the YAML configuration format which is also used by [Home Assistant](https://www.home-assistant.io).
+For issues, please go to [the issue tracker](https://github.com/esphome/issues/issues).
 
-esphomeyaml will:
-
- * Read your configuration file and warn you about potential errors (like using the invalid pins.)
- * Create a custom C++ sketch file for you using esphomeyaml's powerful C++ generation engine.
- * Compile the sketch file for you using [platformio](http://platformio.org/).
- * Upload the binary to your ESP via Over the Air updates.
- * Automatically start remote logs via MQTT.
-
-And all of that with a single command 🎉:
-
-```bash
-esphomeyaml configuration.yaml run
-```
-
-## Features
-
- * **No programming experience required:** just edit YAML configuration
-    files like you're used to with Home Assistant.
- * **Flexible:** Use [esphomelib](https://github.com/OttoWinter/esphomelib)'s powerful core to create custom sensors/outputs.
- * **Fast and efficient:** Written in C++ and keeps memory consumption to a minimum.
- * **Made for [Home Assistant](https://www.home-assistant.io):** Almost all [Home Assistant](https://www.home-assistant.io) features are supported out of the box. Including RGB lights and many more.
- * **Easy reproducible configuration:** No need to go through a long setup process for every single node. Just copy a configuration file and run a single command.
- * **Smart Over The Air Updates:** esphomeyaml has OTA updates deeply integrated into the system. It even automatically enters a recovery mode if a boot loop is detected.
- * **Powerful logging engine:** View colorful logs and debug issues remotely.
- * **Open Source**
- * For me: Makes documenting esphomelib's features a lot easier.
-
-## Special Thanks
-
-Special Thanks to the Home Assistant project. Lots of the code base of esphomeyaml is based off of Home Assistant, for example the loading and config validation code.
+For feature requests, please see [feature requests](https://github.com/esphome/feature-requests/issues).

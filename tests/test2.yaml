@@ -1,11 +1,12 @@
-esphomeyaml:
+esphome:
   name: $devicename
   platform: ESP32
   board: nodemcu-32s
   # Use this for testing while developing:
-  # esphomelib_version:
-  #   local: ~/path/to/esphomelib
-  use_custom_code: true
+  # Note the travis check for esphome PRs will fail until the
+  # esphome-core PR has been merged.
+  # esphome_core_version:
+  #   local: ~/path/to/esphome-core
   build_path: build/test2
 
 substitutions:
@@ -22,14 +23,9 @@ ethernet:
     static_ip: 192.168.178.56
     gateway: 192.168.178.1
     subnet: 255.255.255.0
-  hostname: helloworld
   domain: .local
 
-mqtt:
-  broker: '192.168.178.84'
-  port: 1883
-  username: 'debug'
-  password: 'debug'
+api:
 
 api:
 
@@ -85,17 +81,6 @@ sensor:
       name: "Xiaomi MiJia Humidity"
     battery_level:
       name: "Xiaomi MiJia Battery Level"
-  - platform: mqtt_subscribe
-    name: "MQTT Subscribe Sensor 1"
-    topic: "mqtt/topic"
-    id: the_sensor
-    qos: 2
-    on_value:
-    - mqtt.publish_json:
-        topic: the/topic
-        payload: |-
-          root["key"] = id(the_sensor).value;
-          root["greeting"] = "Hello World";
   - platform: pmsx003
     type: PMSX003
     pm_1_0:
@@ -178,6 +163,9 @@ binary_sensor:
   - platform: apds9960
     direction: right
     name: APDS9960 Right
+  - platform: homeassistant
+    entity_id: binary_sensor.hello_world
+    id: ha_hello_world_binary
 
 remote_receiver:
   pin: GPIO32
@@ -195,17 +183,22 @@ status_led:
 
 text_sensor:
   - platform: version
-    name: "Esphomelib Version"
+    name: "ESPHome Version"
     icon: mdi:icon
     id: version_sensor
     on_value:
       - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
-  - platform: mqtt_subscribe
-    name: "MQTT Subscribe Text"
-    topic: "the/topic"
-    qos: 2
+      - homeassistant.service:
+          service: notify.html5
+          data:
+            title: New Humidity
+          data_template:
+            message: The humidity is {{ my_variable }}%.
+          variables:
+            my_variable: |-
+              return id(version_sensor).state;
   - platform: template
     name: "Template Text Sensor"
     lambda: |-
