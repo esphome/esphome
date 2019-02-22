@@ -247,30 +247,6 @@ def sensor_in_range_to_code(config, condition_id, arg_type, template_arg):
     yield cond
 
 
-CONF_SENSOR_IN_RANGE = 'sensor.in_range'
-SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({
-    vol.Required(CONF_ID): cv.use_variable_id(Sensor),
-    vol.Optional(CONF_ABOVE): cv.float_,
-    vol.Optional(CONF_BELOW): cv.float_,
-}, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
-
-
-@CONDITION_REGISTRY.register(CONF_SENSOR_IN_RANGE, SENSOR_IN_RANGE_CONDITION_SCHEMA)
-def sensor_in_range_to_code(config, condition_id, arg_type, template_arg):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_sensor_in_range_condition(template_arg)
-    type = SensorInRangeCondition.template(arg_type)
-    cond = Pvariable(condition_id, rhs, type=type)
-
-    if CONF_ABOVE in config:
-        add(cond.set_min(config[CONF_ABOVE]))
-    if CONF_BELOW in config:
-        add(cond.set_max(config[CONF_BELOW]))
-
-    yield cond
-
-
 def core_to_hass_config(data, config):
     ret = mqtt.build_hass_config(data, 'sensor', config, include_state=True, include_command=False)
     if ret is None:

@@ -27,8 +27,6 @@ ethernet:
 
 api:
 
-api:
-
 i2c:
   sda: 21
   scl: 22
