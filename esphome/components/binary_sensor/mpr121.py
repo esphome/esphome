@@ -7,7 +7,7 @@ from esphome.const import CONF_CHANNEL, CONF_NAME
 from esphome.cpp_generator import get_variable
 
 DEPENDENCIES = ['mpr121']
-MPR121_Channel = sensor.sensor_ns.class_(
+MPR121_Channel = binary_sensor.binary_sensor_ns.class_(
     'MPR121_Channel', binary_sensor.BinarySensor)
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({

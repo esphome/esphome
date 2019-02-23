@@ -1,17 +1,17 @@
 import voluptuous as vol
 
-from esphome.components import i2c, sensor
+from esphome.components import i2c, binary_sensor, sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID,  CONF_CHANNELS
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_CHANNELS
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import App, PollingComponent
+from esphome.cpp_types import App, Component
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
 CONF_MPR121_ID = 'mpr121_id'
-MPR121 = sensor.sensor_ns.class_('MPR121_Sensor', PollingComponent, i2c.I2CDevice)
+MPR121 = binary_sensor.binary_sensor_ns.class_('MPR121_Sensor', Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = vol.Schema({
     cv.GenerateID(): cv.declare_variable_id(MPR121),
