@@ -996,6 +996,9 @@ switch:
             i = -5000;
           }
           return i;
+    - stepper.report_position:
+        id: my_stepper
+        position: 0
 
 fan:
   - platform: binary

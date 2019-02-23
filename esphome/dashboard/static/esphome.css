@@ -150,6 +150,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 .select-action {
   width: auto !important;
   height: auto !important;
+  white-space: nowrap;
 }
 
 .tap-target-wrapper {
