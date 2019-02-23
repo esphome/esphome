@@ -22,7 +22,7 @@ def func(full_config):
 def to_code(config):
     for hub in get_variable(config[CONF_MPR121_ID]):
         yield
-    rhs = func(config)
+    rhs = MPR121_Channel.new(config[CONF_NAME], config[CONF_CHANNEL])
     binary_sensor.register_binary_sensor(hub.add_channel(rhs), config)
 
 
