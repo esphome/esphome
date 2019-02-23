@@ -11,10 +11,10 @@ DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
 CONF_MPR121_ID = 'mpr121_id'
-MPR121 = binary_sensor.binary_sensor_ns.class_('MPR121_Sensor', Component, i2c.I2CDevice)
+MPR121Component = binary_sensor.binary_sensor_ns.class_('MPR121Component', Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = vol.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MPR121),
+    cv.GenerateID(): cv.declare_variable_id(MPR121Component),
     vol.Optional(CONF_ADDRESS): cv.i2c_address
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
