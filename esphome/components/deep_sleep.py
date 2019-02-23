@@ -95,11 +95,11 @@ DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_ENTER, DEEP_SLEEP_ENTER_ACTION_SCHEMA)
-def deep_sleep_enter_to_code(config, action_id, arg_type, template_arg):
+def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_enter_deep_sleep_action(template_arg)
-    type = EnterDeepSleepAction.template(arg_type)
+    type = EnterDeepSleepAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -110,9 +110,9 @@ DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_PREVENT, DEEP_SLEEP_PREVENT_ACTION_SCHEMA)
-def deep_sleep_prevent_to_code(config, action_id, arg_type, template_arg):
+def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_prevent_deep_sleep_action(template_arg)
-    type = PreventDeepSleepAction.template(arg_type)
+    type = PreventDeepSleepAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)

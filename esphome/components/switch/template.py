@@ -8,7 +8,7 @@ from esphome.const import CONF_ASSUMED_STATE, CONF_ID, CONF_LAMBDA, CONF_NAME, C
     CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import Action, App, Component, NoArg, bool_, optional
+from esphome.cpp_types import Action, App, Component, bool_, optional
 
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 SwitchPublishAction = switch.switch_ns.class_('SwitchPublishAction', Action)
@@ -36,11 +36,11 @@ def to_code(config):
             yield
         add(template.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:
-        automation.build_automation(template.get_turn_off_trigger(), NoArg,
-                                    config[CONF_TURN_OFF_ACTION])
+        automation.build_automations(template.get_turn_off_trigger(), [],
+                                     config[CONF_TURN_OFF_ACTION])
     if CONF_TURN_ON_ACTION in config:
-        automation.build_automation(template.get_turn_on_trigger(), NoArg,
-                                    config[CONF_TURN_ON_ACTION])
+        automation.build_automations(template.get_turn_on_trigger(), [],
+                                     config[CONF_TURN_ON_ACTION])
     if CONF_OPTIMISTIC in config:
         add(template.set_optimistic(config[CONF_OPTIMISTIC]))
     if CONF_ASSUMED_STATE in config:
@@ -62,13 +62,13 @@ SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TEMPLATE_PUBLISH, SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA)
-def switch_template_publish_to_code(config, action_id, arg_type, template_arg):
+def switch_template_publish_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_switch_publish_action(template_arg)
-    type = SwitchPublishAction.template(arg_type)
+    type = SwitchPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], arg_type, bool_):
+    for template_ in templatable(config[CONF_STATE], args, bool_):
         yield None
     add(action.set_state(template_))
     yield action

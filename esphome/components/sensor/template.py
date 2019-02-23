@@ -42,13 +42,13 @@ SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_SENSOR_TEMPLATE_PUBLISH, SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA)
-def sensor_template_publish_to_code(config, action_id, arg_type, template_arg):
+def sensor_template_publish_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_sensor_publish_action(template_arg)
-    type = SensorPublishAction.template(arg_type)
+    type = SensorPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], arg_type, float_):
+    for template_ in templatable(config[CONF_STATE], args, float_):
         yield None
     add(action.set_state(template_))
     yield action

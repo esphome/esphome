@@ -67,11 +67,11 @@ OUTPUT_TURN_ON_ACTION = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_ON_ACTION)
-def output_turn_on_to_code(config, action_id, arg_type, template_arg):
+def output_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(arg_type)
+    type = TurnOnAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -82,11 +82,11 @@ OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_OFF_ACTION)
-def output_turn_off_to_code(config, action_id, arg_type, template_arg):
+def output_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(arg_type)
+    type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -98,13 +98,13 @@ OUTPUT_SET_LEVEL_ACTION = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_SET_LEVEL, OUTPUT_SET_LEVEL_ACTION)
-def output_set_level_to_code(config, action_id, arg_type, template_arg):
+def output_set_level_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_set_level_action(template_arg)
-    type = SetLevelAction.template(arg_type)
+    type = SetLevelAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], arg_type, float_):
+    for template_ in templatable(config[CONF_LEVEL], args, float_):
         yield None
     add(action.set_level(template_))
     yield action
