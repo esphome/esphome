@@ -1,6 +1,6 @@
 import voluptuous as vol
 
-from esphome.components import binary_sensor, sensor
+from esphome.components import binary_sensor
 from esphome.components.mpr121 import MPR121Component, CONF_MPR121_ID
 import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_NAME
@@ -15,6 +15,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
     cv.GenerateID(CONF_MPR121_ID): cv.use_variable_id(MPR121Component),
     vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=11))
 }))
+
 
 def to_code(config):
     for hub in get_variable(config[CONF_MPR121_ID]):

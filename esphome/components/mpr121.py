@@ -1,9 +1,9 @@
 import voluptuous as vol
 
-from esphome.components import i2c, binary_sensor, sensor
+from esphome.components import i2c, binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_CHANNELS
-from esphome.cpp_generator import Pvariable, add
+from esphome.const import CONF_ADDRESS, CONF_ID
+from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component
 
