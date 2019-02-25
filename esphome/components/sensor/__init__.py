@@ -9,7 +9,7 @@ from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_CALIBRATE_LINEAR, CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, \
-    CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_FROM, \
+    CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_OUT, CONF_FROM, \
     CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, \
     CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_OR, \
     CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
@@ -38,9 +38,9 @@ def validate_send_first_at(value):
     return value
 
 
-FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT, CONF_FILTER_NAN,
+FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT,
                CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_LAMBDA,
-               CONF_THROTTLE, CONF_DELTA, CONF_UNIQUE, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR,
+               CONF_THROTTLE, CONF_DELTA, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR,
                CONF_CALIBRATE_LINEAR]
 
 
@@ -65,7 +65,8 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_OFFSET): cv.float_,
     vol.Optional(CONF_MULTIPLY): cv.float_,
     vol.Optional(CONF_FILTER_OUT): cv.float_,
-    vol.Optional(CONF_FILTER_NAN): None,
+    vol.Optional('filter_nan'): cv.invalid("The filter_nan filter has been removed. Please use "
+                                           "'filter_out: nan' instead"),
     vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
         vol.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
@@ -110,7 +111,6 @@ LambdaFilter = sensor_ns.class_('LambdaFilter', Filter)
 OffsetFilter = sensor_ns.class_('OffsetFilter', Filter)
 MultiplyFilter = sensor_ns.class_('MultiplyFilter', Filter)
 FilterOutValueFilter = sensor_ns.class_('FilterOutValueFilter', Filter)
-FilterOutNANFilter = sensor_ns.class_('FilterOutNANFilter', Filter)
 ThrottleFilter = sensor_ns.class_('ThrottleFilter', Filter)
 DebounceFilter = sensor_ns.class_('DebounceFilter', Filter, Component)
 HeartbeatFilter = sensor_ns.class_('HeartbeatFilter', Filter, Component)
@@ -150,8 +150,6 @@ def setup_filter(config):
         yield MultiplyFilter.new(config[CONF_MULTIPLY])
     elif CONF_FILTER_OUT in config:
         yield FilterOutValueFilter.new(config[CONF_FILTER_OUT])
-    elif CONF_FILTER_NAN in config:
-        yield FilterOutNANFilter.new()
     elif CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
         conf = config[CONF_SLIDING_WINDOW_MOVING_AVERAGE]
         yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY],
@@ -313,4 +311,3 @@ def fit_linear(x, y):
     k = r * (_std(y) / _std(x))
     b = m_y - k * m_x
     return k, b
-
