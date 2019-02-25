@@ -163,8 +163,11 @@ sensor:
     filters:
       - offset: 2.0
       - multiply: 1.2
+      - calibrate_linear:
+        - 0.0 -> 0.0
+        - 40.0 -> 45.0
+        - 100.0 -> 102.5
       - filter_out: 42.0
-      - filter_nan:
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -176,7 +179,6 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
-      - unique:
       - or:
         - throttle: 1s
         - delta: 5.0
