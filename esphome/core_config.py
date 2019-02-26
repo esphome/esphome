@@ -13,7 +13,7 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, \
     CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, \
-    ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ESP8266_RESTORE_FROM_FLASH
 from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Pvariable, RawExpression, add
 from esphome.cpp_types import App, NoArg, const_char_ptr, esphome_ns
@@ -171,6 +171,7 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Optional(CONF_PLATFORMIO_OPTIONS): cv.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
+    vol.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): vol.All(cv.only_on_esp8266, cv.boolean),
 
     vol.Optional(CONF_BOARD_FLASH_MODE, default='dout'): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
@@ -247,3 +248,9 @@ def includes(config):
         res = os.path.relpath(path, CORE.relative_build_path('src'))
         ret.append(u'#include "{}"'.format(res))
     return ret
+
+
+def required_build_flags(config):
+    if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
+        return ['-DUSE_ESP8266_PREFERENCES_FLASH']
+    return []

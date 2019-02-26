@@ -18,6 +18,7 @@ from esphome.util import safe_print
 # pylint: disable=unused-import, wrong-import-order
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
+from esphome.yaml_util import is_secret
 from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
@@ -405,8 +406,9 @@ def humanize_error(config, validation_error):
     validation_error = validation_error.strip()
     if not validation_error.endswith(u'.'):
         validation_error += u'.'
-    if offending_item_summary is None:
+    if offending_item_summary is None or is_secret(offending_item_summary):
         return validation_error
+
     return u"{} Got '{}'".format(validation_error, offending_item_summary)
 
 
@@ -538,6 +540,8 @@ def dump_dict(config, path, at_root=True):
                     msg = msg + u' ' + inf
             ret += st + msg + u'\n'
     elif isinstance(conf, str):
+        if is_secret(conf):
+            conf = u'!secret {}'.format(is_secret(conf))
         if not conf:
             conf += u"''"
 
@@ -547,6 +551,9 @@ def dump_dict(config, path, at_root=True):
         col = 'bold_red' if error else 'white'
         ret += color(col, text_type(conf))
     elif isinstance(conf, core.Lambda):
+        if is_secret(conf):
+            conf = u'!secret {}'.format(is_secret(conf))
+
         conf = u'!lambda |-\n' + indent(text_type(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
