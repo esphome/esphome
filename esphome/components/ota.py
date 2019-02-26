@@ -51,7 +51,7 @@ REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 
 def lib_deps(config):
     if CORE.is_esp32:
-        return ['Update', 'ESPmDNS']
+        return ['Update']
     if CORE.is_esp8266:
-        return ['Hash', 'ESP8266mDNS']
+        return ['Hash']
     raise NotImplementedError
