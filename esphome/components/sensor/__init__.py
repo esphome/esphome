@@ -1,3 +1,5 @@
+import math
+
 import voluptuous as vol
 
 from esphome import automation
@@ -6,12 +8,13 @@ from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
-    CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, \
-    CONF_FILTER_NAN, CONF_FILTER_OUT, CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, \
-    CONF_LAMBDA, CONF_MQTT_ID, CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, \
-    CONF_ON_VALUE_RANGE, CONF_OR, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
-    CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_THROTTLE, CONF_TRIGGER_ID, CONF_UNIQUE, \
-    CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE
+    CONF_CALIBRATE_LINEAR, CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, \
+    CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_FILTERS, CONF_FILTER_OUT, CONF_FROM, \
+    CONF_HEARTBEAT, CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, \
+    CONF_MULTIPLY, CONF_OFFSET, CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_OR, \
+    CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
+    CONF_THROTTLE, CONF_TO, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, \
+    CONF_WINDOW_SIZE
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
@@ -35,16 +38,36 @@ def validate_send_first_at(value):
     return value
 
 
-FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT, CONF_FILTER_NAN,
+FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT,
                CONF_SLIDING_WINDOW_MOVING_AVERAGE, CONF_EXPONENTIAL_MOVING_AVERAGE, CONF_LAMBDA,
-               CONF_THROTTLE, CONF_DELTA, CONF_UNIQUE, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR]
+               CONF_THROTTLE, CONF_DELTA, CONF_HEARTBEAT, CONF_DEBOUNCE, CONF_OR,
+               CONF_CALIBRATE_LINEAR]
+
+
+def validate_datapoint(value):
+    if isinstance(value, dict):
+        return vol.Schema({
+            vol.Required(CONF_FROM): cv.float_,
+            vol.Required(CONF_TO): cv.float_,
+        })(value)
+    value = cv.string(value)
+    if '->' not in value:
+        raise vol.Invalid("Datapoint mapping must contain '->'")
+    a, b = value.split('->', 1)
+    a, b = a.strip(), b.strip()
+    return validate_datapoint({
+        CONF_FROM: cv.float_(a),
+        CONF_TO: cv.float_(b)
+    })
+
 
 FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_OFFSET): cv.float_,
     vol.Optional(CONF_MULTIPLY): cv.float_,
     vol.Optional(CONF_FILTER_OUT): cv.float_,
-    vol.Optional(CONF_FILTER_NAN): None,
-    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(cv.Schema({
+    vol.Optional('filter_nan'): cv.invalid("The filter_nan filter has been removed. Please use "
+                                           "'filter_out: nan' instead"),
+    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
         vol.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
@@ -53,10 +76,13 @@ FILTERS_SCHEMA = cv.ensure_list({
         vol.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
     }),
+    vol.Optional(CONF_CALIBRATE_LINEAR): vol.All(
+        cv.ensure_list(validate_datapoint), vol.Length(min=2)),
     vol.Optional(CONF_LAMBDA): cv.lambda_,
     vol.Optional(CONF_THROTTLE): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DELTA): cv.float_,
-    vol.Optional(CONF_UNIQUE): None,
+    vol.Optional(CONF_UNIQUE): cv.invalid("The unique filter has been removed in 1.12, please "
+                                          "replace with a delta filter with small value."),
     vol.Optional(CONF_HEARTBEAT): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_DEBOUNCE): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_OR): validate_recursive_filter,
@@ -85,13 +111,12 @@ LambdaFilter = sensor_ns.class_('LambdaFilter', Filter)
 OffsetFilter = sensor_ns.class_('OffsetFilter', Filter)
 MultiplyFilter = sensor_ns.class_('MultiplyFilter', Filter)
 FilterOutValueFilter = sensor_ns.class_('FilterOutValueFilter', Filter)
-FilterOutNANFilter = sensor_ns.class_('FilterOutNANFilter', Filter)
 ThrottleFilter = sensor_ns.class_('ThrottleFilter', Filter)
 DebounceFilter = sensor_ns.class_('DebounceFilter', Filter, Component)
 HeartbeatFilter = sensor_ns.class_('HeartbeatFilter', Filter, Component)
 DeltaFilter = sensor_ns.class_('DeltaFilter', Filter)
 OrFilter = sensor_ns.class_('OrFilter', Filter)
-UniqueFilter = sensor_ns.class_('UniqueFilter', Filter)
+CalibrateLinearFilter = sensor_ns.class_('CalibrateLinearFilter', Filter)
 SensorInRangeCondition = sensor_ns.class_('SensorInRangeCondition', Filter)
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
@@ -125,8 +150,6 @@ def setup_filter(config):
         yield MultiplyFilter.new(config[CONF_MULTIPLY])
     elif CONF_FILTER_OUT in config:
         yield FilterOutValueFilter.new(config[CONF_FILTER_OUT])
-    elif CONF_FILTER_NAN in config:
-        yield FilterOutNANFilter.new()
     elif CONF_SLIDING_WINDOW_MOVING_AVERAGE in config:
         conf = config[CONF_SLIDING_WINDOW_MOVING_AVERAGE]
         yield SlidingWindowMovingAverageFilter.new(conf[CONF_WINDOW_SIZE], conf[CONF_SEND_EVERY],
@@ -151,8 +174,11 @@ def setup_filter(config):
         yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
     elif CONF_DEBOUNCE in config:
         yield App.register_component(DebounceFilter.new(config[CONF_DEBOUNCE]))
-    elif CONF_UNIQUE in config:
-        yield UniqueFilter.new()
+    elif CONF_CALIBRATE_LINEAR in config:
+        x = [conf[CONF_FROM] for conf in config[CONF_CALIBRATE_LINEAR]]
+        y = [conf[CONF_TO] for conf in config[CONF_CALIBRATE_LINEAR]]
+        k, b = fit_linear(x, y)
+        yield CalibrateLinearFilter.new(k, b)
 
 
 def setup_filters(config):
@@ -260,3 +286,28 @@ def core_to_hass_config(data, config):
     if CONF_ICON in config:
         ret['icon'] = config[CONF_ICON]
     return ret
+
+
+def _mean(xs):
+    return sum(xs) / len(xs)
+
+
+def _std(x):
+    return math.sqrt(sum((x_ - _mean(x))**2 for x_ in x) / (len(x) - 1))
+
+
+def _correlation_coeff(x, y):
+    m_x, m_y = _mean(x), _mean(y)
+    s_xy = sum((x_ - m_x) * (y_ - m_y) for x_, y_ in zip(x, y))
+    s_sq_x = sum((x_ - m_x)**2 for x_ in x)
+    s_sq_y = sum((y_ - m_y)**2 for y_ in y)
+    return s_xy / math.sqrt(s_sq_x * s_sq_y)
+
+
+def fit_linear(x, y):
+    assert len(x) == len(y)
+    m_x, m_y = _mean(x), _mean(y)
+    r = _correlation_coeff(x, y)
+    k = r * (_std(y) / _std(x))
+    b = m_y - k * m_x
+    return k, b

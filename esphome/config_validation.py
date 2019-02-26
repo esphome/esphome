@@ -66,7 +66,7 @@ def valid_name(value):
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise vol.Invalid(u"'{}' is an invalid character for names. Valid characters are: {}"
-                              u"".format(c, ALLOWED_NAME_CHARS))
+                              u" (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
     return value
 
 
