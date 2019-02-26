@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 from esphome.components import binary_sensor, uart
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_UART_ID

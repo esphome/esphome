@@ -116,7 +116,7 @@ LambdaCondition = esphome_ns.class_('LambdaCondition', Condition)
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
     if extra_schema is None:
         extra_schema = {}
-    if isinstance(extra_schema, cv.Schema):
+    if isinstance(extra_schema, vol.Schema):
         extra_schema = extra_schema.schema
     schema = AUTOMATION_SCHEMA.extend(extra_schema)
 
