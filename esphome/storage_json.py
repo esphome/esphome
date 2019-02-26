@@ -1,10 +1,9 @@
 import binascii
 import codecs
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import logging
 import os
-import threading
 
 from esphome import const
 from esphome.core import CORE
@@ -226,72 +225,3 @@ class EsphomeStorageJSON(object):
 
     def __eq__(self, o):  # type: (Any) -> bool
         return isinstance(o, EsphomeStorageJSON) and self.as_dict() == o.as_dict()
-
-    @property
-    def should_do_esphome_update_check(self):  # type: () -> bool
-        if self.last_update_check is None:
-            return True
-        return self.last_update_check + timedelta(days=3) < datetime.utcnow()
-
-
-class CheckForUpdateThread(threading.Thread):
-    def __init__(self, path):
-        threading.Thread.__init__(self)
-        self._path = path
-
-    @property
-    def docs_base(self):
-        return 'https://beta.esphome.io' if 'b' in const.__version__ else \
-            'https://esphome.io'
-
-    def fetch_remote_version(self):
-        import requests
-
-        storage = EsphomeStorageJSON.load(self._path) or \
-            EsphomeStorageJSON.get_default()
-        if not storage.should_do_esphome_update_check:
-            return storage
-
-        req = requests.get('{}/_static/version'.format(self.docs_base))
-        req.raise_for_status()
-        storage.remote_version = req.text.strip()
-        storage.last_update_check = datetime.utcnow()
-        storage.save(self._path)
-        return storage
-
-    @staticmethod
-    def format_version(ver):
-        vstr = '.'.join(map(str, ver.version))
-        if ver.prerelease:
-            vstr += ver.prerelease[0] + str(ver.prerelease[1])
-        return vstr
-
-    def cmp_versions(self, storage):
-        # pylint: disable=no-name-in-module, import-error
-        from distutils.version import StrictVersion
-
-        remote_version = StrictVersion(storage.remote_version)
-        self_version = StrictVersion(const.__version__)
-        if remote_version > self_version:
-            _LOGGER.warning("*" * 80)
-            _LOGGER.warning("A new version of ESPHome is available: %s (this is %s)",
-                            self.format_version(remote_version), self.format_version(self_version))
-            _LOGGER.warning("Changelog: %s/changelog/index.html", self.docs_base)
-            _LOGGER.warning("Update Instructions: %s/guides/faq.html"
-                            "#how-do-i-update-to-the-latest-version", self.docs_base)
-            _LOGGER.warning("*" * 80)
-
-    def run(self):
-        try:
-            storage = self.fetch_remote_version()
-            self.cmp_versions(storage)
-        except Exception:  # pylint: disable=broad-except
-            pass
-
-
-def start_update_check_thread(path):
-    # dummy call to strptime as python 2.7 has a bug with strptime when importing from threads
-    datetime.strptime('20180101', '%Y%m%d')
-    thread = CheckForUpdateThread(os.path.abspath(path))
-    thread.start()
-    return thread
