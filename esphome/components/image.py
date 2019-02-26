@@ -20,7 +20,7 @@ Image_ = display.display_ns.class_('Image')
 
 CONF_RAW_DATA_ID = 'raw_data_id'
 
-IMAGE_SCHEMA = vol.Schema({
+IMAGE_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Image_),
     vol.Required(CONF_FILE): cv.file_,
     vol.Optional(CONF_RESIZE): cv.dimensions,

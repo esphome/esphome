@@ -19,6 +19,7 @@ from esphome.util import safe_print
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
 from esphome.yaml_util import is_secret
+from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -414,17 +415,21 @@ def humanize_error(config, validation_error):
 def _format_vol_invalid(ex, config, path, domain):
     # type: (vol.Invalid, ConfigType, ConfigPath, basestring) -> unicode
     message = u''
-    if u'extra keys not allowed' in ex.error_message:
-        try:
-            paren = ex.path[-2]
-        except IndexError:
-            paren = domain
+    try:
+        paren = ex.path[-2]
+    except IndexError:
+        paren = domain
+
+    if isinstance(ex, ExtraKeysInvalid):
+        if ex.candidates:
+            message += u'[{}] is an invalid option for [{}]. Did you mean {}?'.format(
+                ex.path[-1], paren, u', '.join(u'[{}]'.format(x) for x in ex.candidates))
+        else:
+            message += u'[{}] is an invalid option for [{}]. Please check the indentation.'.format(
+                ex.path[-1], paren)
+    elif u'extra keys not allowed' in ex.error_message:
         message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
     elif u'required key not provided' in ex.error_message:
-        try:
-            paren = ex.path[-2]
-        except IndexError:
-            paren = domain
         message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(_nested_getitem(config, path), ex)

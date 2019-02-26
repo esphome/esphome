@@ -35,7 +35,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_TEXT_SENSOR'
 
 CONF_TEXT_SENSOR_TEMPLATE_PUBLISH = 'text_sensor.template.publish'
-TEXT_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+TEXT_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(text_sensor.TextSensor),
     vol.Required(CONF_STATE): cv.templatable(cv.string_strict),
 })

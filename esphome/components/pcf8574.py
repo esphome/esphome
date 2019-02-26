@@ -20,7 +20,7 @@ PCF8675_GPIO_MODES = {
 PCF8574GPIOInputPin = io_ns.class_('PCF8574GPIOInputPin', GPIOInputPin)
 PCF8574GPIOOutputPin = io_ns.class_('PCF8574GPIOOutputPin', GPIOOutputPin)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(pins.PCF8574Component),
     vol.Optional(CONF_ADDRESS, default=0x21): cv.i2c_address,
     vol.Optional(CONF_PCF8575, default=False): cv.boolean,

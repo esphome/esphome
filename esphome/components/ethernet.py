@@ -46,7 +46,7 @@ def validate(config):
     return config
 
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(EthernetComponent),
     vol.Required(CONF_TYPE): cv.one_of(*ETHERNET_TYPES, upper=True),
     vol.Required(CONF_MDC_PIN): pins.output_pin,

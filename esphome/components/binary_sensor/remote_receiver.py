@@ -41,7 +41,7 @@ RCSwitchTypeDReceiver = remote_ns.class_('RCSwitchTypeDReceiver', RCSwitchRawRec
 
 def validate_raw(value):
     if isinstance(value, dict):
-        return vol.Schema({
+        return cv.Schema({
             cv.GenerateID(): cv.declare_variable_id(int32),
             vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
         })(value)
@@ -52,29 +52,29 @@ def validate_raw(value):
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
-    vol.Optional(CONF_JVC): vol.Schema({
+    vol.Optional(CONF_JVC): cv.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_LG): vol.Schema({
+    vol.Optional(CONF_LG): cv.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
     }),
-    vol.Optional(CONF_NEC): vol.Schema({
+    vol.Optional(CONF_NEC): cv.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint16_t,
     }),
-    vol.Optional(CONF_SAMSUNG): vol.Schema({
+    vol.Optional(CONF_SAMSUNG): cv.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_SONY): vol.Schema({
+    vol.Optional(CONF_SONY): cv.Schema({
         vol.Required(CONF_DATA): cv.hex_uint32_t,
         vol.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
     }),
-    vol.Optional(CONF_PANASONIC): vol.Schema({
+    vol.Optional(CONF_PANASONIC): cv.Schema({
         vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
         vol.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RC5): vol.Schema({
+    vol.Optional(CONF_RC5): cv.Schema({
         vol.Required(CONF_ADDRESS): vol.All(cv.hex_int, vol.Range(min=0, max=0x1F)),
         vol.Required(CONF_COMMAND): vol.All(cv.hex_int, vol.Range(min=0, max=0x3F)),
     }),

@@ -26,7 +26,7 @@ def validate_message_just_topic(value):
     return MQTT_MESSAGE_BASE({CONF_TOPIC: value})
 
 
-MQTT_MESSAGE_BASE = vol.Schema({
+MQTT_MESSAGE_BASE = cv.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
     vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     vol.Optional(CONF_RETAIN, default=True): cv.boolean,
@@ -67,7 +67,7 @@ def validate_fingerprint(value):
     return value
 
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
     vol.Required(CONF_BROKER): cv.string_strict,
     vol.Optional(CONF_PORT): cv.port,
@@ -193,7 +193,7 @@ def to_code(config):
 
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
-MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
+MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
@@ -228,7 +228,7 @@ def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
 
 
 CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
-MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
+MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.lambda_,

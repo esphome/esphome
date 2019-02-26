@@ -44,12 +44,12 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_MULTIPLY): cv.float_,
     vol.Optional(CONF_FILTER_OUT): cv.float_,
     vol.Optional(CONF_FILTER_NAN): None,
-    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
+    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(cv.Schema({
         vol.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
     }), validate_send_first_at),
-    vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): vol.Schema({
+    vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): cv.Schema({
         vol.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
     }),

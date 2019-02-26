@@ -11,7 +11,7 @@ PowerSupplyComponent = esphome_ns.class_('PowerSupplyComponent', Component)
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(PowerSupplyComponent),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_ENABLE_TIME): cv.positive_time_period_milliseconds,

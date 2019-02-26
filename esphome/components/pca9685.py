@@ -13,7 +13,7 @@ MULTI_CONF = True
 PCA9685OutputComponent = output.output_ns.class_('PCA9685OutputComponent',
                                                  Component, i2c.I2CDevice)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(PCA9685OutputComponent),
     vol.Required(CONF_FREQUENCY): vol.All(cv.frequency,
                                           vol.Range(min=23.84, max=1525.88)),

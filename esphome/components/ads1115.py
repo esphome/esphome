@@ -12,7 +12,7 @@ MULTI_CONF = True
 
 ADS1115Component = sensor.sensor_ns.class_('ADS1115Component', Component, i2c.I2CDevice)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Component),
     vol.Required(CONF_ADDRESS): cv.i2c_address,
 }).extend(cv.COMPONENT_SCHEMA.schema)

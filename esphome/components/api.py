@@ -15,7 +15,7 @@ HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction',
 KeyValuePair = api_ns.class_('KeyValuePair')
 TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(APIServer),
     vol.Optional(CONF_PORT, default=6053): cv.port,
     vol.Optional(CONF_PASSWORD, default=''): cv.string_strict,
@@ -49,16 +49,16 @@ def lib_deps(config):
 
 
 CONF_HOMEASSISTANT_SERVICE = 'homeassistant.service'
-HOMEASSISTANT_SERVIC_ACTION_SCHEMA = vol.Schema({
+HOMEASSISTANT_SERVIC_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(APIServer),
     vol.Required(CONF_SERVICE): cv.string,
-    vol.Optional(CONF_DATA): vol.Schema({
+    vol.Optional(CONF_DATA): cv.Schema({
         cv.string: cv.string,
     }),
-    vol.Optional(CONF_DATA_TEMPLATE): vol.Schema({
+    vol.Optional(CONF_DATA_TEMPLATE): cv.Schema({
         cv.string: cv.string,
     }),
-    vol.Optional(CONF_VARIABLES): vol.Schema({
+    vol.Optional(CONF_VARIABLES): cv.Schema({
         cv.string: cv.lambda_,
     }),
 })

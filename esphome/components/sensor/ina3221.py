@@ -24,7 +24,7 @@ INA3221PowerSensor = sensor.sensor_ns.class_('INA3221PowerSensor', sensor.EmptyP
 
 SENSOR_KEYS = [CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT, CONF_POWER]
 
-INA3221_CHANNEL_SCHEMA = vol.All(vol.Schema({
+INA3221_CHANNEL_SCHEMA = vol.All(cv.Schema({
     vol.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(INA3221VoltageSensor),
     })),

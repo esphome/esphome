@@ -14,7 +14,7 @@ PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_SPEED_STATE_TOPIC): cv.publish_topic,
     vol.Optional(CONF_SPEED_COMMAND_TOPIC): cv.subscribe_topic,
     vol.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-    vol.Optional(CONF_SPEED): vol.Schema({
+    vol.Optional(CONF_SPEED): cv.Schema({
         vol.Required(CONF_LOW): cv.percentage,
         vol.Required(CONF_MEDIUM): cv.percentage,
         vol.Required(CONF_HIGH): cv.percentage,

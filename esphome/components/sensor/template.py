@@ -35,7 +35,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_SENSOR'
 
 CONF_SENSOR_TEMPLATE_PUBLISH = 'sensor.template.publish'
-SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(sensor.Sensor),
     vol.Required(CONF_STATE): cv.templatable(cv.float_),
 })

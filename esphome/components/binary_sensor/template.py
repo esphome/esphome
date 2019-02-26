@@ -36,7 +36,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_BINARY_SENSOR'
 
 CONF_BINARY_SENSOR_TEMPLATE_PUBLISH = 'binary_sensor.template.publish'
-BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(binary_sensor.BinarySensor),
     vol.Required(CONF_STATE): cv.templatable(cv.boolean),
 })

@@ -60,7 +60,7 @@ def validate_speed(value):
     return value
 
 
-STEPPER_SCHEMA = vol.Schema({
+STEPPER_SCHEMA = cv.Schema({
     vol.Required(CONF_MAX_SPEED): validate_speed,
     vol.Optional(CONF_ACCELERATION): validate_acceleration,
     vol.Optional(CONF_DECELERATION): validate_acceleration,
@@ -85,7 +85,7 @@ def setup_stepper(stepper_var, config):
 BUILD_FLAGS = '-DUSE_STEPPER'
 
 CONF_STEPPER_SET_TARGET = 'stepper.set_target'
-STEPPER_SET_TARGET_ACTION_SCHEMA = vol.Schema({
+STEPPER_SET_TARGET_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(Stepper),
     vol.Required(CONF_TARGET): cv.templatable(cv.int_),
 })
@@ -105,7 +105,7 @@ def stepper_set_target_to_code(config, action_id, arg_type, template_arg):
 
 
 CONF_STEPPER_REPORT_POSITION = 'stepper.report_position'
-STEPPER_REPORT_POSITION_ACTION_SCHEMA = vol.Schema({
+STEPPER_REPORT_POSITION_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(Stepper),
     vol.Required(CONF_POSITION): cv.templatable(cv.int_),
 })

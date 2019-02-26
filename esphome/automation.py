@@ -131,7 +131,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 
                 # Next try as a sequence of automations
                 try:
-                    return vol.Schema([schema])(value)
+                    return cv.Schema([schema])(value)
                 except vol.Invalid as err2:
                     if 'Unable to find action' in str(err):
                         raise err2
@@ -146,7 +146,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
     def validator(value):
         value = validator_(value)
         if extra_validators is not None:
-            value = vol.Schema([extra_validators])(value)
+            value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
                 raise vol.Invalid("Cannot have more than 1 automation for templates")
@@ -156,7 +156,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
     return validator
 
 
-AUTOMATION_SCHEMA = vol.Schema({
+AUTOMATION_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
     cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
     vol.Optional(CONF_IF): validate_recursive_condition,
@@ -187,7 +187,7 @@ def or_condition_to_code(config, condition_id, arg_type, template_arg):
     yield Pvariable(condition_id, rhs, type=type)
 
 
-RANGE_CONDITION_SCHEMA = vol.All(vol.Schema({
+RANGE_CONDITION_SCHEMA = vol.All(cv.Schema({
     vol.Optional(CONF_ABOVE): cv.templatable(cv.float_),
     vol.Optional(CONF_BELOW): cv.templatable(cv.float_),
 }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
@@ -250,7 +250,7 @@ def if_action_to_code(config, action_id, arg_type, template_arg):
     yield action
 
 
-WHILE_ACTION_SCHEMA = vol.Schema({
+WHILE_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_CONDITION): validate_recursive_condition,
     vol.Required(CONF_THEN): validate_recursive_action,
 })
@@ -270,7 +270,7 @@ def while_action_to_code(config, action_id, arg_type, template_arg):
 
 
 def validate_wait_until(value):
-    schema = vol.Schema({
+    schema = cv.Schema({
         vol.Required(CONF_CONDITION): validate_recursive_condition
     })
     if isinstance(value, dict) and CONF_CONDITION in value:
