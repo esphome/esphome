@@ -11,7 +11,7 @@ from esphome.cpp_types import App, Component, esphome_ns
 I2CComponent = esphome_ns.class_('I2CComponent', Component)
 I2CDevice = pins.I2CDevice
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),
     vol.Optional(CONF_SDA, default='SDA'): pins.input_pin,
     vol.Optional(CONF_SCL, default='SCL'): pins.input_pin,

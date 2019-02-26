@@ -12,7 +12,7 @@ from esphome.cpp_types import App, Component
 MY9231OutputComponent = output.output_ns.class_('MY9231OutputComponent', Component)
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MY9231OutputComponent),
     vol.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
     vol.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,

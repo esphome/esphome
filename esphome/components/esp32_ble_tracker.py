@@ -18,7 +18,7 @@ XIAOMI_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(XiaomiSensor)
 })
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
     vol.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_seconds,
 }).extend(cv.COMPONENT_SCHEMA.schema)

@@ -38,14 +38,14 @@ EXT1_WAKEUP_MODES = {
 CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
 CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                            validate_pin_number),
     vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32,
                                                 cv.one_of(*WAKEUP_PIN_MODES), upper=True),
-    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, vol.Schema({
+    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, cv.Schema({
         vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
         vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),

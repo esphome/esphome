@@ -31,7 +31,7 @@ def validate_substitution_key(value):
     return value
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     validate_substitution_key: cv.string_strict,
 })
 

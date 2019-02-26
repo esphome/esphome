@@ -64,7 +64,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680GasResistanceSensor),
     })),
     vol.Optional(CONF_IIR_FILTER): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
-    vol.Optional(CONF_HEATER): vol.Any(None, vol.All(vol.Schema({
+    vol.Optional(CONF_HEATER): vol.Any(None, vol.All(cv.Schema({
         vol.Optional(CONF_TEMPERATURE, default=320): vol.All(vol.Coerce(int), vol.Range(200, 400)),
         vol.Optional(CONF_DURATION, default='150ms'): vol.All(
             cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))

@@ -73,13 +73,13 @@ def validate_local_no_higher_than_global(value):
 
 LogComponent = esphome_ns.class_('LogComponent', Component)
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(LogComponent),
     vol.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
     vol.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
     vol.Optional(CONF_HARDWARE_UART, default='UART0'): uart_selection,
     vol.Optional(CONF_LEVEL): is_log_level,
-    vol.Optional(CONF_LOGS): vol.Schema({
+    vol.Optional(CONF_LOGS): cv.Schema({
         cv.string: is_log_level,
     })
 }), validate_local_no_higher_than_global)
@@ -129,8 +129,8 @@ def required_build_flags(config):
 def maybe_simple_message(schema):
     def validator(value):
         if isinstance(value, dict):
-            return vol.Schema(schema)(value)
-        return vol.Schema(schema)({CONF_FORMAT: value})
+            return cv.Schema(schema)(value)
+        return cv.Schema(schema)({CONF_FORMAT: value})
 
     return validator
 

@@ -42,7 +42,7 @@ def validate_channel(value):
     return value
 
 
-AP_MANUAL_IP_SCHEMA = vol.Schema({
+AP_MANUAL_IP_SCHEMA = cv.Schema({
     vol.Required(CONF_STATIC_IP): cv.ipv4,
     vol.Required(CONF_GATEWAY): cv.ipv4,
     vol.Required(CONF_SUBNET): cv.ipv4,
@@ -53,7 +53,7 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     vol.Optional(CONF_DNS2, default="1.0.0.1"): cv.ipv4,
 })
 
-WIFI_NETWORK_BASE = vol.Schema({
+WIFI_NETWORK_BASE = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiAP),
     vol.Optional(CONF_SSID): cv.ssid,
     vol.Optional(CONF_PASSWORD): validate_password,
@@ -105,7 +105,7 @@ def validate(config):
     return config
 
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
     vol.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
 

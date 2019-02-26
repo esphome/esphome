@@ -88,22 +88,22 @@ ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_R
                                      CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
                                      CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
 
-EFFECTS_SCHEMA = vol.Schema({
-    vol.Optional(CONF_LAMBDA): vol.Schema({
+EFFECTS_SCHEMA = cv.Schema({
+    vol.Optional(CONF_LAMBDA): cv.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
         vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_RANDOM): vol.Schema({
+    vol.Optional(CONF_RANDOM): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(RandomLightEffect),
         vol.Optional(CONF_NAME, default="Random"): cv.string,
         vol.Optional(CONF_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_STROBE): vol.Schema({
+    vol.Optional(CONF_STROBE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(StrobeLightEffect),
         vol.Optional(CONF_NAME, default="Strobe"): cv.string,
-        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(vol.Schema({
+        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(cv.Schema({
             vol.Optional(CONF_STATE, default=True): cv.boolean,
             vol.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             vol.Optional(CONF_RED, default=1.0): cv.percentage,
@@ -114,24 +114,24 @@ EFFECTS_SCHEMA = vol.Schema({
         }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
                                     CONF_WHITE)), vol.Length(min=2)),
     }),
-    vol.Optional(CONF_FLICKER): vol.Schema({
+    vol.Optional(CONF_FLICKER): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FlickerLightEffect),
         vol.Optional(CONF_NAME, default="Flicker"): cv.string,
         vol.Optional(CONF_ALPHA): cv.percentage,
         vol.Optional(CONF_INTENSITY): cv.percentage,
     }),
-    vol.Optional(CONF_ADDRESSABLE_LAMBDA): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_LAMBDA): cv.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
         vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_RAINBOW): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_RAINBOW): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRainbowLightEffect),
         vol.Optional(CONF_NAME, default="Rainbow"): cv.string,
         vol.Optional(CONF_SPEED): cv.uint32_t,
         vol.Optional(CONF_WIDTH): cv.uint32_t,
     }),
-    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableColorWipeEffect),
         vol.Optional(CONF_NAME, default="Color Wipe"): cv.string,
         vol.Optional(CONF_COLORS): cv.ensure_list({
@@ -145,24 +145,24 @@ EFFECTS_SCHEMA = vol.Schema({
         vol.Optional(CONF_ADD_LED_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_REVERSE): cv.boolean,
     }),
-    vol.Optional(CONF_ADDRESSABLE_SCAN): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_SCAN): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableScanEffect),
         vol.Optional(CONF_NAME, default="Scan"): cv.string,
         vol.Optional(CONF_MOVE_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_TWINKLE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_TWINKLE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableTwinkleEffect),
         vol.Optional(CONF_NAME, default="Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRandomTwinkleEffect),
         vol.Optional(CONF_NAME, default="Random Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFireworksEffect),
         vol.Optional(CONF_NAME, default="Fireworks"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
@@ -170,7 +170,7 @@ EFFECTS_SCHEMA = vol.Schema({
         vol.Optional(CONF_USE_RANDOM_COLOR): cv.boolean,
         vol.Optional(CONF_FADE_OUT_RATE): cv.uint8_t,
     }),
-    vol.Optional(CONF_ADDRESSABLE_FLICKER): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_FLICKER): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFlickerEffect),
         vol.Optional(CONF_NAME, default="Addressable Flicker"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,

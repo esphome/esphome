@@ -39,7 +39,7 @@ RC_SWITCH_TIMING_SCHEMA = vol.All([cv.uint8_t], vol.Length(min=2, max=2))
 
 RC_SWITCH_PROTOCOL_SCHEMA = vol.Any(
     vol.All(vol.Coerce(int), vol.Range(min=1, max=7)),
-    vol.Schema({
+    cv.Schema({
         vol.Required(CONF_PULSE_LENGTH): cv.uint32_t,
         vol.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
         vol.Optional(CONF_ZERO, default=[1, 3]): RC_SWITCH_TIMING_SCHEMA,
@@ -48,23 +48,23 @@ RC_SWITCH_PROTOCOL_SCHEMA = vol.Any(
     })
 )
 
-RC_SWITCH_RAW_SCHEMA = vol.Schema({
+RC_SWITCH_RAW_SCHEMA = cv.Schema({
     vol.Required(CONF_CODE): validate_rc_switch_code,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
-RC_SWITCH_TYPE_A_SCHEMA = vol.Schema({
+RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
     vol.Required(CONF_GROUP): vol.All(validate_rc_switch_code, vol.Length(min=5, max=5)),
     vol.Required(CONF_DEVICE): vol.All(validate_rc_switch_code, vol.Length(min=5, max=5)),
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
-RC_SWITCH_TYPE_B_SCHEMA = vol.Schema({
+RC_SWITCH_TYPE_B_SCHEMA = cv.Schema({
     vol.Required(CONF_ADDRESS): vol.All(cv.uint8_t, vol.Range(min=1, max=4)),
     vol.Required(CONF_CHANNEL): vol.All(cv.uint8_t, vol.Range(min=1, max=4)),
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
-RC_SWITCH_TYPE_C_SCHEMA = vol.Schema({
+RC_SWITCH_TYPE_C_SCHEMA = cv.Schema({
     vol.Required(CONF_FAMILY): cv.one_of('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
                                          'l', 'm', 'n', 'o', 'p', lower=True),
     vol.Required(CONF_GROUP): vol.All(cv.uint8_t, vol.Range(min=1, max=4)),
@@ -72,14 +72,14 @@ RC_SWITCH_TYPE_C_SCHEMA = vol.Schema({
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
-RC_SWITCH_TYPE_D_SCHEMA = vol.Schema({
+RC_SWITCH_TYPE_D_SCHEMA = cv.Schema({
     vol.Required(CONF_GROUP): cv.one_of('a', 'b', 'c', 'd', lower=True),
     vol.Required(CONF_DEVICE): vol.All(cv.uint8_t, vol.Range(min=1, max=3)),
     vol.Required(CONF_STATE): cv.boolean,
     vol.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteTransmitterComponent),
     vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_CARRIER_DUTY_PERCENT): vol.All(cv.percentage_int,

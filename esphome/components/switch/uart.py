@@ -20,7 +20,7 @@ def validate_data(value):
     if isinstance(value, str):
         return value
     if isinstance(value, list):
-        return vol.Schema([cv.hex_uint8_t])(value)
+        return cv.Schema([cv.hex_uint8_t])(value)
     raise vol.Invalid("data must either be a string wrapped in quotes or a list of bytes")
 
 

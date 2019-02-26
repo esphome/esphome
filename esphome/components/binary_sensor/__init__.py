@@ -62,7 +62,7 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_HEARTBEAT): cv.invalid("The heartbeat filter has been removed in 1.11.0"),
 }, cv.has_exactly_one_key(*FILTER_KEYS))
 
-MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
+MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
     vol.Optional(CONF_STATE): cv.boolean,
     vol.Optional(CONF_MIN_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_MAX_LENGTH): cv.positive_time_period_milliseconds,

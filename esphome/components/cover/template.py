@@ -55,7 +55,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'
 
 CONF_COVER_TEMPLATE_PUBLISH = 'cover.template.publish'
-COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(cover.Cover),
     vol.Required(CONF_STATE): cv.templatable(cover.validate_cover_state),
 })

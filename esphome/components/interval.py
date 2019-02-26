@@ -9,7 +9,7 @@ from esphome.cpp_types import App, PollingComponent, Trigger, esphome_ns
 
 IntervalTrigger = esphome_ns.class_('IntervalTrigger', Trigger.template(), PollingComponent)
 
-CONFIG_SCHEMA = automation.validate_automation(vol.Schema({
+CONFIG_SCHEMA = automation.validate_automation(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(IntervalTrigger),
     vol.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA.schema))
