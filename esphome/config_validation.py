@@ -162,7 +162,7 @@ def int_(value):
 hex_int = vol.Coerce(hex_int_)
 
 
-def variable_id_str_(value):
+def validate_id_name(value):
     value = string(value)
     if not value:
         raise vol.Invalid("ID must not be empty")
@@ -185,7 +185,7 @@ def use_variable_id(type):
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
 
-        return core.ID(variable_id_str_(value), is_declaration=False, type=type)
+        return core.ID(validate_id_name(value), is_declaration=False, type=type)
 
     return validator
 
@@ -195,7 +195,7 @@ def declare_variable_id(type):
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
 
-        return core.ID(variable_id_str_(value), is_declaration=True, type=type)
+        return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
     return validator
 
