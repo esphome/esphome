@@ -1,10 +1,9 @@
 import binascii
 import codecs
-from datetime import datetime, timedelta
+from datetime import datetime
 import json
 import logging
 import os
-import threading
 
 from esphome import const
 from esphome.core import CORE

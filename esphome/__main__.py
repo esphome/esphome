@@ -17,7 +17,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Expression, RawStatement, add, statement
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input, text_type
-from esphome.storage_json import StorageJSON, esphome_storage_path, storage_path
+from esphome.storage_json import StorageJSON, storage_path
 from esphome.util import run_external_command, run_external_process, safe_print
 
 _LOGGER = logging.getLogger(__name__)
