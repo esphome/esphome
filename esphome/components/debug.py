@@ -1,5 +1,4 @@
-import voluptuous as vol
-
+import esphome.config_validation as cv
 from esphome.cpp_generator import add
 from esphome.cpp_types import App
 

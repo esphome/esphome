@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from collections import OrderedDict
 import importlib
-import json
 import logging
 import re
 
@@ -406,9 +405,8 @@ def humanize_error(config, validation_error):
     validation_error = validation_error.strip()
     if not validation_error.endswith(u'.'):
         validation_error += u'.'
-    if offending_item_summary is None or is_secret(offending_item_summary):
+    if offending_item_summary is None:
         return validation_error
-
     return u"{} Got '{}'".format(validation_error, offending_item_summary)
 
 

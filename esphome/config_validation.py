@@ -2,8 +2,6 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
-import difflib
-import itertools
 import logging
 import os
 import re
@@ -207,7 +205,7 @@ def templatable(other_validators):
         if isinstance(value, Lambda):
             return value
         if isinstance(other_validators, dict):
-            return cv.Schema(other_validators)(value)
+            return Schema(other_validators)(value)
         return other_validators(value)
 
     return validator

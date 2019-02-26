@@ -12,6 +12,7 @@ class ExtraKeysInvalid(vol.Invalid):
         vol.Invalid.__init__(self, *arg, **kwargs)
 
 
+# pylint: disable=protected-access, unidiomatic-typecheck
 class _Schema(vol.Schema):
     """Custom cv.Schema that prints similar keys on error."""
     def _compile_mapping(self, schema, invalid_msg=None):
@@ -25,8 +26,7 @@ class _Schema(vol.Schema):
 
         # Keys that may have defaults
         all_default_keys = set(key for key in schema
-                               if isinstance(key, vol.Required) or
-                               isinstance(key, vol.Optional))
+                               if isinstance(key, (vol.Required, vol.Optional)))
 
         _compiled_schema = {}
         for skey, svalue in vol.iteritems(schema):
