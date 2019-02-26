@@ -320,13 +320,13 @@ def pin_mode(value):
     raise NotImplementedError
 
 
-GPIO_FULL_OUTPUT_PIN_SCHEMA = vol.Schema({
+GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): output_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
-GPIO_FULL_INPUT_PIN_SCHEMA = vol.Schema({
+GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): input_pin,
     vol.Optional(CONF_MODE): pin_mode,
     vol.Optional(CONF_INVERTED): cv.boolean,
@@ -351,7 +351,7 @@ def shorthand_input_pullup_pin(value):
 I2CDevice = esphome_ns.class_('I2CDevice')
 PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
 
-PCF8574_OUTPUT_PIN_SCHEMA = vol.Schema({
+PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
     vol.Required(CONF_NUMBER): vol.Coerce(int),
     vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),

@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 OTAComponent = esphome_ns.class_('OTAComponent', Component)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(OTAComponent),
     vol.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
     vol.Optional(CONF_PORT): cv.port,

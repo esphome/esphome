@@ -11,7 +11,7 @@ UARTComponent = esphome_ns.class_('UARTComponent', Component)
 UARTDevice = esphome_ns.class_('UARTDevice')
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(UARTComponent),
     vol.Optional(CONF_TX_PIN): pins.output_pin,
     vol.Optional(CONF_RX_PIN): pins.input_pin,

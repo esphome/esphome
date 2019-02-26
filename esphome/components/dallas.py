@@ -11,7 +11,7 @@ from esphome.cpp_types import App, PollingComponent
 DallasComponent = sensor.sensor_ns.class_('DallasComponent', PollingComponent)
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DallasComponent),
     vol.Required(CONF_PIN): pins.input_pullup_pin,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,

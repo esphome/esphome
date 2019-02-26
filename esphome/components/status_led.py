@@ -8,7 +8,7 @@ from esphome.cpp_types import App, Component, esphome_ns
 
 StatusLEDComponent = esphome_ns.class_('StatusLEDComponent', Component)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(StatusLEDComponent),
     vol.Optional(CONF_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA.schema)

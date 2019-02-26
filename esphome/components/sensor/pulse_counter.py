@@ -41,7 +41,7 @@ def validate_internal_filter(value):
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensorComponent),
     vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
-    vol.Optional(CONF_COUNT_MODE): vol.Schema({
+    vol.Optional(CONF_COUNT_MODE): cv.Schema({
         vol.Required(CONF_RISING_EDGE): COUNT_MODE_SCHEMA,
         vol.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
     }),

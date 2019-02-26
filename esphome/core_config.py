@@ -87,11 +87,11 @@ def validate_commit(value):
 
 ESPHOME_CORE_VERSION_SCHEMA = vol.Any(
     validate_simple_esphome_core_version,
-    vol.Schema({
+    cv.Schema({
         vol.Required(CONF_LOCAL): validate_local_esphome_core_version,
     }),
     vol.All(
-        vol.Schema({
+        cv.Schema({
             vol.Optional(CONF_REPOSITORY, default=LIBRARY_URI_REPO): cv.string,
             vol.Optional(CONF_COMMIT): validate_commit,
             vol.Optional(CONF_BRANCH): cv.string,
@@ -159,7 +159,7 @@ def default_build_path():
     return CORE.name
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
     vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
                                            upper=True),
@@ -168,7 +168,7 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    vol.Optional(CONF_PLATFORMIO_OPTIONS): vol.Schema({
+    vol.Optional(CONF_PLATFORMIO_OPTIONS): cv.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
 

@@ -40,7 +40,7 @@ def validate_dumpers_all(value):
     raise vol.Invalid("Not valid dumpers")
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiverComponent),
     vol.Required(CONF_PIN): pins.gpio_input_pin_schema,
     vol.Optional(CONF_DUMP, default=[]):

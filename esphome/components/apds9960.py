@@ -13,7 +13,7 @@ MULTI_CONF = True
 CONF_APDS9960_ID = 'apds9960_id'
 APDS9960 = sensor.sensor_ns.class_('APDS9960', PollingComponent, i2c.I2CDevice)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(APDS9960),
     vol.Optional(CONF_ADDRESS): cv.i2c_address,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,

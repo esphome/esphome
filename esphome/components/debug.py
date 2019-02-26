@@ -5,7 +5,7 @@ from esphome.cpp_types import App
 
 DEPENDENCIES = ['logger']
 
-CONFIG_SCHEMA = vol.Schema({})
+CONFIG_SCHEMA = cv.Schema({})
 
 
 def to_code(config):

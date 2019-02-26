@@ -55,7 +55,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_SWITCH'
 
 CONF_SWITCH_TEMPLATE_PUBLISH = 'switch.template.publish'
-SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(switch.Switch),
     vol.Required(CONF_STATE): cv.templatable(cv.boolean),
 })
