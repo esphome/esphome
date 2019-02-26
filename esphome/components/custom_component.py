@@ -9,10 +9,10 @@ from esphome.cpp_types import Component, ComponentPtr, esphome_ns, std_vector
 CustomComponentConstructor = esphome_ns.class_('CustomComponentConstructor')
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomComponentConstructor),
     vol.Required(CONF_LAMBDA): cv.lambda_,
-    vol.Optional(CONF_COMPONENTS): cv.ensure_list(vol.Schema({
+    vol.Optional(CONF_COMPONENTS): cv.ensure_list(cv.Schema({
         cv.GenerateID(): cv.declare_variable_id(Component)
     }).extend(cv.COMPONENT_SCHEMA.schema)),
 })

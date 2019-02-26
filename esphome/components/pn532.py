@@ -17,7 +17,7 @@ PN532Component = binary_sensor.binary_sensor_ns.class_('PN532Component', Polling
                                                        spi.SPIDevice)
 PN532Trigger = binary_sensor.binary_sensor_ns.class_('PN532Trigger', Trigger.template(std_string))
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(PN532Component),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
@@ -38,7 +38,7 @@ def to_code(config):
 
     for conf_ in config.get(CONF_ON_TAG, []):
         trigger = Pvariable(conf_[CONF_TRIGGER_ID], pn532.make_trigger())
-        automation.build_automation(trigger, std_string, conf_)
+        automation.build_automations(trigger, [(std_string, 'x')], conf_)
 
     setup_component(pn532, config)
 

@@ -72,7 +72,7 @@ FILTERS_SCHEMA = cv.ensure_list({
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
     }), validate_send_first_at),
-    vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): vol.Schema({
+    vol.Optional(CONF_EXPONENTIAL_MOVING_AVERAGE): cv.Schema({
         vol.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
     }),
@@ -207,11 +207,11 @@ def setup_sensor_core_(sensor_var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         rhs = sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, float_, conf)
+        automation.build_automations(trigger, [(float_, 'x')], conf)
     for conf in config.get(CONF_ON_RAW_VALUE, []):
         rhs = sensor_var.make_raw_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, float_, conf)
+        automation.build_automations(trigger, [(float_, 'x')], conf)
     for conf in config.get(CONF_ON_VALUE_RANGE, []):
         rhs = sensor_var.make_value_range_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
@@ -224,7 +224,7 @@ def setup_sensor_core_(sensor_var, config):
             for template_ in templatable(conf[CONF_BELOW], float_, float_):
                 yield
             add(trigger.set_max(template_))
-        automation.build_automation(trigger, float_, conf)
+        automation.build_automations(trigger, [(float_, 'x')], conf)
 
     mqtt_ = sensor_var.Pget_mqtt()
     if CONF_EXPIRE_AFTER in config:
@@ -258,11 +258,11 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({
 
 
 @CONDITION_REGISTRY.register(CONF_SENSOR_IN_RANGE, SENSOR_IN_RANGE_CONDITION_SCHEMA)
-def sensor_in_range_to_code(config, condition_id, arg_type, template_arg):
+def sensor_in_range_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_sensor_in_range_condition(template_arg)
-    type = SensorInRangeCondition.template(arg_type)
+    type = SensorInRangeCondition.template(template_arg)
     cond = Pvariable(condition_id, rhs, type=type)
 
     if CONF_ABOVE in config:

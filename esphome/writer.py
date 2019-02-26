@@ -288,8 +288,10 @@ def gather_lib_deps():
         if CORE.arduino_version in (ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP32_1_0_1):
             lib_deps.add('AsyncTCP@1.0.3')
             lib_deps.discard('AsyncTCP@1.0.1')
+        lib_deps.add('ESPmDNS')
     elif CORE.is_esp8266:
         lib_deps.add('ESPAsyncTCP@1.1.3')
+        lib_deps.add('ESP8266mDNS')
     # avoid changing build flags order
     lib_deps_l = list(lib_deps)
     lib_deps_l.sort()
@@ -393,7 +395,6 @@ def get_ini_content():
         data['lib_ldf_mode'] = 'chain'
         REMOVABLE_LIBRARIES = [
             'ArduinoOTA',
-            'ESPmDNS',
             'Update',
             'Wire',
             'FastLED',

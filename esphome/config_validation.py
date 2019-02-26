@@ -17,11 +17,13 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds
 from esphome.py_compat import integer_types, string_types, text_type
+from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name
 
+Schema = _Schema
 port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 float_ = vol.Coerce(float)
 positive_float = vol.All(float_, vol.Range(min=0))
@@ -203,7 +205,7 @@ def templatable(other_validators):
         if isinstance(value, Lambda):
             return value
         if isinstance(other_validators, dict):
-            return vol.Schema(other_validators)(value)
+            return Schema(other_validators)(value)
         return other_validators(value)
 
     return validator
@@ -273,7 +275,7 @@ def has_at_most_one_key(*keys):
 TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 
 time_period_dict = vol.All(
-    dict, vol.Schema({
+    dict, Schema({
         'days': float_,
         'hours': float_,
         'minutes': float_,
@@ -727,17 +729,17 @@ def nameable(*schemas):
     return validator
 
 
-PLATFORM_SCHEMA = vol.Schema({
+PLATFORM_SCHEMA = Schema({
     vol.Required(CONF_PLATFORM): valid,
 })
 
-MQTT_COMPONENT_AVAILABILITY_SCHEMA = vol.Schema({
+MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema({
     vol.Required(CONF_TOPIC): subscribe_topic,
     vol.Optional(CONF_PAYLOAD_AVAILABLE, default='online'): mqtt_payload,
     vol.Optional(CONF_PAYLOAD_NOT_AVAILABLE, default='offline'): mqtt_payload,
 })
 
-MQTT_COMPONENT_SCHEMA = vol.Schema({
+MQTT_COMPONENT_SCHEMA = Schema({
     vol.Optional(CONF_NAME): string,
     vol.Optional(CONF_RETAIN): vol.All(requires_component('mqtt'), boolean),
     vol.Optional(CONF_DISCOVERY): vol.All(requires_component('mqtt'), boolean),
@@ -751,6 +753,6 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_COMMAND_TOPIC): vol.All(requires_component('mqtt'), subscribe_topic),
 })
 
-COMPONENT_SCHEMA = vol.Schema({
+COMPONENT_SCHEMA = Schema({
     vol.Optional(CONF_SETUP_PRIORITY): float_
 })

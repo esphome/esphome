@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from collections import OrderedDict
 import importlib
-import json
 import logging
 import re
 
@@ -19,6 +18,8 @@ from esphome.util import safe_print
 # pylint: disable=unused-import, wrong-import-order
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
+from esphome.yaml_util import is_secret
+from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -397,10 +398,7 @@ def _nested_getitem(data, path):
 def humanize_error(config, validation_error):
     offending_item_summary = _nested_getitem(config, validation_error.path)
     if isinstance(offending_item_summary, dict):
-        try:
-            offending_item_summary = json.dumps(offending_item_summary)
-        except (TypeError, ValueError):
-            pass
+        offending_item_summary = None
     validation_error = text_type(validation_error)
     m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
     if m is not None:
@@ -408,25 +406,30 @@ def humanize_error(config, validation_error):
     validation_error = validation_error.strip()
     if not validation_error.endswith(u'.'):
         validation_error += u'.'
-    if offending_item_summary is None:
+    if offending_item_summary is None or is_secret(offending_item_summary):
         return validation_error
+
     return u"{} Got '{}'".format(validation_error, offending_item_summary)
 
 
 def _format_vol_invalid(ex, config, path, domain):
     # type: (vol.Invalid, ConfigType, ConfigPath, basestring) -> unicode
     message = u''
-    if u'extra keys not allowed' in ex.error_message:
-        try:
-            paren = ex.path[-2]
-        except IndexError:
-            paren = domain
+    try:
+        paren = ex.path[-2]
+    except IndexError:
+        paren = domain
+
+    if isinstance(ex, ExtraKeysInvalid):
+        if ex.candidates:
+            message += u'[{}] is an invalid option for [{}]. Did you mean {}?'.format(
+                ex.path[-1], paren, u', '.join(u'[{}]'.format(x) for x in ex.candidates))
+        else:
+            message += u'[{}] is an invalid option for [{}]. Please check the indentation.'.format(
+                ex.path[-1], paren)
+    elif u'extra keys not allowed' in ex.error_message:
         message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
     elif u'required key not provided' in ex.error_message:
-        try:
-            paren = ex.path[-2]
-        except IndexError:
-            paren = domain
         message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(_nested_getitem(config, path), ex)
@@ -438,7 +441,8 @@ def load_config():
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except OSError:
-        raise EsphomeError(u"Invalid YAML at {}".format(CORE.config_path))
+        raise EsphomeError(u"Invalid YAML at {}. Please see YAML syntax reference or use an online "
+                           u"YAML syntax validator".format(CORE.config_path))
     CORE.raw_config = config
     config = substitutions.do_substitution_pass(config)
     core_config.preload_core_config(config)
@@ -536,6 +540,8 @@ def dump_dict(config, path, at_root=True):
                     msg = msg + u' ' + inf
             ret += st + msg + u'\n'
     elif isinstance(conf, str):
+        if is_secret(conf):
+            conf = u'!secret {}'.format(is_secret(conf))
         if not conf:
             conf += u"''"
 
@@ -545,6 +551,9 @@ def dump_dict(config, path, at_root=True):
         col = 'bold_red' if error else 'white'
         ret += color(col, text_type(conf))
     elif isinstance(conf, core.Lambda):
+        if is_secret(conf):
+            conf = u'!secret {}'.format(is_secret(conf))
+
         conf = u'!lambda |-\n' + indent(text_type(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'

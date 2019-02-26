@@ -10,7 +10,7 @@ GlobalVariableComponent = esphome_ns.class_('GlobalVariableComponent', Component
 
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(GlobalVariableComponent),
     vol.Required(CONF_TYPE): cv.string_strict,
     vol.Optional(CONF_INITIAL_VALUE): cv.string_strict,

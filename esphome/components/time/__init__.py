@@ -10,7 +10,7 @@ from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_types import App, Component, NoArg, Trigger, esphome_ns
+from esphome.cpp_types import App, Component, Trigger, esphome_ns
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 time_ns = esphome_ns.namespace('time')
 RealTimeClockComponent = time_ns.class_('RealTimeClockComponent', Component)
-CronTrigger = time_ns.class_('CronTrigger', Trigger.template(NoArg), Component)
+CronTrigger = time_ns.class_('CronTrigger', Trigger.template(), Component)
 ESPTime = time_ns.struct('ESPTime')
 
 
@@ -295,7 +295,7 @@ def setup_time_core_(time_var, config):
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
         add(trigger.add_days_of_week(days_of_week))
 
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
 
 def setup_time(time_var, config):

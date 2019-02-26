@@ -12,7 +12,7 @@ from esphome.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, 
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda
-from esphome.cpp_types import App, Component, Nameable, NoArg, Trigger, bool_, esphome_ns, optional
+from esphome.cpp_types import App, Component, Nameable, Trigger, bool_, esphome_ns, optional
 from esphome.py_compat import string_types
 
 DEVICE_CLASSES = [
@@ -32,11 +32,11 @@ BinarySensorPtr = BinarySensor.operator('ptr')
 MQTTBinarySensorComponent = binary_sensor_ns.class_('MQTTBinarySensorComponent', mqtt.MQTTComponent)
 
 # Triggers
-PressTrigger = binary_sensor_ns.class_('PressTrigger', Trigger.template(NoArg))
-ReleaseTrigger = binary_sensor_ns.class_('ReleaseTrigger', Trigger.template(NoArg))
-ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template(NoArg))
-DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template(NoArg))
-MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(NoArg), Component)
+PressTrigger = binary_sensor_ns.class_('PressTrigger', Trigger.template())
+ReleaseTrigger = binary_sensor_ns.class_('ReleaseTrigger', Trigger.template())
+ClickTrigger = binary_sensor_ns.class_('ClickTrigger', Trigger.template())
+DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', Trigger.template())
+MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', Trigger.template(), Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
 StateTrigger = binary_sensor_ns.class_('StateTrigger', Trigger.template(bool_))
 
@@ -62,7 +62,7 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_HEARTBEAT): cv.invalid("The heartbeat filter has been removed in 1.11.0"),
 }, cv.has_exactly_one_key(*FILTER_KEYS))
 
-MULTI_CLICK_TIMING_SCHEMA = vol.Schema({
+MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
     vol.Optional(CONF_STATE): cv.boolean,
     vol.Optional(CONF_MIN_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_MAX_LENGTH): cv.positive_time_period_milliseconds,
@@ -234,23 +234,23 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
     for conf in config.get(CONF_ON_PRESS, []):
         rhs = binary_sensor_var.make_press_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_RELEASE, []):
         rhs = binary_sensor_var.make_release_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_CLICK, []):
         rhs = binary_sensor_var.make_click_trigger(conf[CONF_MIN_LENGTH], conf[CONF_MAX_LENGTH])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_DOUBLE_CLICK, []):
         rhs = binary_sensor_var.make_double_click_trigger(conf[CONF_MIN_LENGTH],
                                                           conf[CONF_MAX_LENGTH])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_MULTI_CLICK, []):
         timings = []
@@ -265,12 +265,12 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_INVALID_COOLDOWN in conf:
             add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_STATE, []):
         rhs = binary_sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, bool_, conf)
+        automation.build_automations(trigger, [(bool_, 'x')], conf)
 
     setup_mqtt_component(binary_sensor_var.Pget_mqtt(), config)
 
@@ -306,11 +306,11 @@ BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
 
 
 @CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_ON, BINARY_SENSOR_IS_ON_CONDITION_SCHEMA)
-def binary_sensor_is_on_to_code(config, condition_id, arg_type, template_arg):
+def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_binary_sensor_is_on_condition(template_arg)
-    type = BinarySensorCondition.template(arg_type)
+    type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
 
@@ -321,9 +321,9 @@ BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
 
 
 @CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_OFF, BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA)
-def binary_sensor_is_off_to_code(config, condition_id, arg_type, template_arg):
+def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_binary_sensor_is_off_condition(template_arg)
-    type = BinarySensorCondition.template(arg_type)
+    type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)

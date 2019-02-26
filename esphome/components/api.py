@@ -15,7 +15,7 @@ HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction',
 KeyValuePair = api_ns.class_('KeyValuePair')
 TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(APIServer),
     vol.Optional(CONF_PORT, default=6053): cv.port,
     vol.Optional(CONF_PASSWORD, default=''): cv.string_strict,
@@ -49,27 +49,27 @@ def lib_deps(config):
 
 
 CONF_HOMEASSISTANT_SERVICE = 'homeassistant.service'
-HOMEASSISTANT_SERVIC_ACTION_SCHEMA = vol.Schema({
+HOMEASSISTANT_SERVIC_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(APIServer),
     vol.Required(CONF_SERVICE): cv.string,
-    vol.Optional(CONF_DATA): vol.Schema({
+    vol.Optional(CONF_DATA): cv.Schema({
         cv.string: cv.string,
     }),
-    vol.Optional(CONF_DATA_TEMPLATE): vol.Schema({
+    vol.Optional(CONF_DATA_TEMPLATE): cv.Schema({
         cv.string: cv.string,
     }),
-    vol.Optional(CONF_VARIABLES): vol.Schema({
+    vol.Optional(CONF_VARIABLES): cv.Schema({
         cv.string: cv.lambda_,
     }),
 })
 
 
 @ACTION_REGISTRY.register(CONF_HOMEASSISTANT_SERVICE, HOMEASSISTANT_SERVIC_ACTION_SCHEMA)
-def homeassistant_service_to_code(config, action_id, arg_type, template_arg):
+def homeassistant_service_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_home_assistant_service_call_action(template_arg)
-    type = HomeAssistantServiceCallAction.template(arg_type)
+    type = HomeAssistantServiceCallAction.template(template_arg)
     act = Pvariable(action_id, rhs, type=type)
     add(act.set_service(config[CONF_SERVICE]))
     if CONF_DATA in config:

@@ -3,7 +3,8 @@ import voluptuous as vol
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, CONF_POWER_SUPPLY
+from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
+    CONF_MIN_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, templatable
 from esphome.cpp_types import Action, esphome_ns, float_
@@ -12,7 +13,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-BINARY_OUTPUT_SCHEMA = vol.Schema({
+BINARY_OUTPUT_SCHEMA = cv.Schema({
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
@@ -21,6 +22,7 @@ BINARY_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_OUTPUT_SCHEMA.sche
 
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
     vol.Optional(CONF_MAX_POWER): cv.percentage,
+    vol.Optional(CONF_MIN_POWER): cv.percentage,
 })
 
 FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
@@ -47,6 +49,8 @@ def setup_output_platform_(obj, config, skip_power_supply=False):
         add(obj.set_power_supply(power_supply))
     if CONF_MAX_POWER in config:
         add(obj.set_max_power(config[CONF_MAX_POWER]))
+    if CONF_MIN_POWER in config:
+        add(obj.set_min_power(config[CONF_MIN_POWER]))
 
 
 def setup_output_platform(obj, config, skip_power_supply=False):
@@ -67,11 +71,11 @@ OUTPUT_TURN_ON_ACTION = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_ON_ACTION)
-def output_turn_on_to_code(config, action_id, arg_type, template_arg):
+def output_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(arg_type)
+    type = TurnOnAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -82,29 +86,29 @@ OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_OFF_ACTION)
-def output_turn_off_to_code(config, action_id, arg_type, template_arg):
+def output_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(arg_type)
+    type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
 CONF_OUTPUT_SET_LEVEL = 'output.set_level'
-OUTPUT_SET_LEVEL_ACTION = vol.Schema({
+OUTPUT_SET_LEVEL_ACTION = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(FloatOutput),
     vol.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 })
 
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_SET_LEVEL, OUTPUT_SET_LEVEL_ACTION)
-def output_set_level_to_code(config, action_id, arg_type, template_arg):
+def output_set_level_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_set_level_action(template_arg)
-    type = SetLevelAction.template(arg_type)
+    type = SetLevelAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], arg_type, float_):
+    for template_ in templatable(config[CONF_LEVEL], args, float_):
         yield None
     add(action.set_level(template_))
     yield action

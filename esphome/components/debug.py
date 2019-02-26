@@ -1,11 +1,10 @@
-import voluptuous as vol
-
+import esphome.config_validation as cv
 from esphome.cpp_generator import add
 from esphome.cpp_types import App
 
 DEPENDENCIES = ['logger']
 
-CONFIG_SCHEMA = vol.Schema({})
+CONFIG_SCHEMA = cv.Schema({})
 
 
 def to_code(config):

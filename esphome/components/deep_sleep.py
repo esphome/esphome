@@ -38,14 +38,14 @@ EXT1_WAKEUP_MODES = {
 CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
 CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
     vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                            validate_pin_number),
     vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32,
                                                 cv.one_of(*WAKEUP_PIN_MODES), upper=True),
-    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, vol.Schema({
+    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, cv.Schema({
         vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
         vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),
@@ -95,11 +95,11 @@ DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_ENTER, DEEP_SLEEP_ENTER_ACTION_SCHEMA)
-def deep_sleep_enter_to_code(config, action_id, arg_type, template_arg):
+def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_enter_deep_sleep_action(template_arg)
-    type = EnterDeepSleepAction.template(arg_type)
+    type = EnterDeepSleepAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -110,9 +110,9 @@ DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DEEP_SLEEP_PREVENT, DEEP_SLEEP_PREVENT_ACTION_SCHEMA)
-def deep_sleep_prevent_to_code(config, action_id, arg_type, template_arg):
+def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_prevent_deep_sleep_action(template_arg)
-    type = PreventDeepSleepAction.template(arg_type)
+    type = PreventDeepSleepAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)

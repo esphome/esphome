@@ -88,22 +88,22 @@ ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_R
                                      CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
                                      CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
 
-EFFECTS_SCHEMA = vol.Schema({
-    vol.Optional(CONF_LAMBDA): vol.Schema({
+EFFECTS_SCHEMA = cv.Schema({
+    vol.Optional(CONF_LAMBDA): cv.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
         vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_RANDOM): vol.Schema({
+    vol.Optional(CONF_RANDOM): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(RandomLightEffect),
         vol.Optional(CONF_NAME, default="Random"): cv.string,
         vol.Optional(CONF_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_STROBE): vol.Schema({
+    vol.Optional(CONF_STROBE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(StrobeLightEffect),
         vol.Optional(CONF_NAME, default="Strobe"): cv.string,
-        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(vol.Schema({
+        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(cv.Schema({
             vol.Optional(CONF_STATE, default=True): cv.boolean,
             vol.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
             vol.Optional(CONF_RED, default=1.0): cv.percentage,
@@ -114,24 +114,24 @@ EFFECTS_SCHEMA = vol.Schema({
         }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
                                     CONF_WHITE)), vol.Length(min=2)),
     }),
-    vol.Optional(CONF_FLICKER): vol.Schema({
+    vol.Optional(CONF_FLICKER): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FlickerLightEffect),
         vol.Optional(CONF_NAME, default="Flicker"): cv.string,
         vol.Optional(CONF_ALPHA): cv.percentage,
         vol.Optional(CONF_INTENSITY): cv.percentage,
     }),
-    vol.Optional(CONF_ADDRESSABLE_LAMBDA): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_LAMBDA): cv.Schema({
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_LAMBDA): cv.lambda_,
         vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_RAINBOW): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_RAINBOW): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRainbowLightEffect),
         vol.Optional(CONF_NAME, default="Rainbow"): cv.string,
         vol.Optional(CONF_SPEED): cv.uint32_t,
         vol.Optional(CONF_WIDTH): cv.uint32_t,
     }),
-    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableColorWipeEffect),
         vol.Optional(CONF_NAME, default="Color Wipe"): cv.string,
         vol.Optional(CONF_COLORS): cv.ensure_list({
@@ -145,24 +145,24 @@ EFFECTS_SCHEMA = vol.Schema({
         vol.Optional(CONF_ADD_LED_INTERVAL): cv.positive_time_period_milliseconds,
         vol.Optional(CONF_REVERSE): cv.boolean,
     }),
-    vol.Optional(CONF_ADDRESSABLE_SCAN): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_SCAN): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableScanEffect),
         vol.Optional(CONF_NAME, default="Scan"): cv.string,
         vol.Optional(CONF_MOVE_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_TWINKLE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_TWINKLE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableTwinkleEffect),
         vol.Optional(CONF_NAME, default="Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRandomTwinkleEffect),
         vol.Optional(CONF_NAME, default="Random Twinkle"): cv.string,
         vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
         vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFireworksEffect),
         vol.Optional(CONF_NAME, default="Fireworks"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
@@ -170,7 +170,7 @@ EFFECTS_SCHEMA = vol.Schema({
         vol.Optional(CONF_USE_RANDOM_COLOR): cv.boolean,
         vol.Optional(CONF_FADE_OUT_RATE): cv.uint8_t,
     }),
-    vol.Optional(CONF_ADDRESSABLE_FLICKER): vol.Schema({
+    vol.Optional(CONF_ADDRESSABLE_FLICKER): cv.Schema({
         cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFlickerEffect),
         vol.Optional(CONF_NAME, default="Addressable Flicker"): cv.string,
         vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
@@ -404,14 +404,14 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
-def light_toggle_to_code(config, action_id, arg_type, template_arg):
+def light_toggle_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
     type = ToggleAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     yield action
@@ -425,14 +425,14 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
-def light_turn_off_to_code(config, action_id, arg_type, template_arg):
+def light_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
     type = TurnOffAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     yield action
@@ -456,46 +456,46 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, arg_type, template_arg):
+def light_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     if CONF_FLASH_LENGTH in config:
-        for template_ in templatable(config[CONF_FLASH_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_FLASH_LENGTH], args, uint32):
             yield None
         add(action.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
-        for template_ in templatable(config[CONF_BRIGHTNESS], arg_type, float_):
+        for template_ in templatable(config[CONF_BRIGHTNESS], args, float_):
             yield None
         add(action.set_brightness(template_))
     if CONF_RED in config:
-        for template_ in templatable(config[CONF_RED], arg_type, float_):
+        for template_ in templatable(config[CONF_RED], args, float_):
             yield None
         add(action.set_red(template_))
     if CONF_GREEN in config:
-        for template_ in templatable(config[CONF_GREEN], arg_type, float_):
+        for template_ in templatable(config[CONF_GREEN], args, float_):
             yield None
         add(action.set_green(template_))
     if CONF_BLUE in config:
-        for template_ in templatable(config[CONF_BLUE], arg_type, float_):
+        for template_ in templatable(config[CONF_BLUE], args, float_):
             yield None
         add(action.set_blue(template_))
     if CONF_WHITE in config:
-        for template_ in templatable(config[CONF_WHITE], arg_type, float_):
+        for template_ in templatable(config[CONF_WHITE], args, float_):
             yield None
         add(action.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], arg_type, float_):
+        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float_):
             yield None
         add(action.set_color_temperature(template_))
     if CONF_EFFECT in config:
-        for template_ in templatable(config[CONF_EFFECT], arg_type, std_string):
+        for template_ in templatable(config[CONF_EFFECT], args, std_string):
             yield None
         add(action.set_effect(template_))
     yield action

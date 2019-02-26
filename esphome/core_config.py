@@ -9,14 +9,12 @@ import esphome.config_validation as cv
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_BUILD_PATH, \
     CONF_COMMIT, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_LOCAL, \
-    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PLATFORMIO_OPTIONS, \
-    CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, \
-    ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
+    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, \
+    CONF_USE_CUSTOM_CODE, ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ESP8266_RESTORE_FROM_FLASH
 from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Pvariable, RawExpression, add
-from esphome.cpp_types import App, NoArg, const_char_ptr, esphome_ns
+from esphome.cpp_types import App, const_char_ptr, esphome_ns
 from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,11 +85,11 @@ def validate_commit(value):
 
 ESPHOME_CORE_VERSION_SCHEMA = vol.Any(
     validate_simple_esphome_core_version,
-    vol.Schema({
+    cv.Schema({
         vol.Required(CONF_LOCAL): validate_local_esphome_core_version,
     }),
     vol.All(
-        vol.Schema({
+        cv.Schema({
             vol.Optional(CONF_REPOSITORY, default=LIBRARY_URI_REPO): cv.string,
             vol.Optional(CONF_COMMIT): validate_commit,
             vol.Optional(CONF_BRANCH): cv.string,
@@ -159,7 +157,7 @@ def default_build_path():
     return CORE.name
 
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
     vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
                                            upper=True),
@@ -168,9 +166,10 @@ CONFIG_SCHEMA = vol.Schema({
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    vol.Optional(CONF_PLATFORMIO_OPTIONS): vol.Schema({
+    vol.Optional(CONF_PLATFORMIO_OPTIONS): cv.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
+    vol.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): vol.All(cv.only_on_esp8266, cv.boolean),
 
     vol.Optional(CONF_BOARD_FLASH_MODE, default='dout'): cv.one_of(*BUILD_FLASH_MODES, lower=True),
     vol.Optional(CONF_ON_BOOT): automation.validate_automation({
@@ -222,16 +221,16 @@ def to_code(config):
     for conf in config.get(CONF_ON_BOOT, []):
         rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
-        automation.build_automation(trigger, const_char_ptr, conf)
+        automation.build_automations(trigger, [(const_char_ptr, 'x')], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         rhs = App.register_component(LoopTrigger.new())
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     add(App.set_compilation_datetime(RawExpression('__DATE__ ", " __TIME__')))
 
@@ -247,3 +246,9 @@ def includes(config):
         res = os.path.relpath(path, CORE.relative_build_path('src'))
         ret.append(u'#include "{}"'.format(res))
     return ret
+
+
+def required_build_flags(config):
+    if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
+        return ['-DUSE_ESP8266_PREFERENCES_FLASH']
+    return []

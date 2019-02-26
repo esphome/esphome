@@ -13,7 +13,7 @@ ESP32BLEBeacon = esphome_ns.class_('ESP32BLEBeacon', Component)
 CONF_MAJOR = 'major'
 CONF_MINOR = 'minor'
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLEBeacon),
     vol.Required(CONF_TYPE): cv.one_of('IBEACON', upper=True),
     vol.Required(CONF_UUID): cv.uuid,

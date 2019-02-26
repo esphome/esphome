@@ -26,7 +26,7 @@ def validate_message_just_topic(value):
     return MQTT_MESSAGE_BASE({CONF_TOPIC: value})
 
 
-MQTT_MESSAGE_BASE = vol.Schema({
+MQTT_MESSAGE_BASE = cv.Schema({
     vol.Required(CONF_TOPIC): cv.publish_topic,
     vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     vol.Optional(CONF_RETAIN, default=True): cv.boolean,
@@ -67,7 +67,7 @@ def validate_fingerprint(value):
     return value
 
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
     vol.Required(CONF_BROKER): cv.string_strict,
     vol.Optional(CONF_PORT): cv.port,
@@ -184,16 +184,16 @@ def to_code(config):
             add(trigger.set_qos(conf[CONF_QOS]))
         if CONF_PAYLOAD in conf:
             add(trigger.set_payload(conf[CONF_PAYLOAD]))
-        automation.build_automation(trigger, std_string, conf)
+        automation.build_automations(trigger, [(std_string, 'x')], conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         rhs = mqtt.make_json_message_trigger(conf[CONF_TOPIC], conf[CONF_QOS])
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, JsonObjectConstRef, conf)
+        automation.build_automations(trigger, [(JsonObjectConstRef, 'x')], conf)
 
 
 CONF_MQTT_PUBLISH = 'mqtt.publish'
-MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
+MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
@@ -203,32 +203,32 @@ MQTT_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
-def mqtt_publish_action_to_code(config, action_id, arg_type, template_arg):
+def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
+    for template_ in templatable(config[CONF_TOPIC], args, std_string):
         yield None
     add(action.set_topic(template_))
 
-    for template_ in templatable(config[CONF_PAYLOAD], arg_type, std_string):
+    for template_ in templatable(config[CONF_PAYLOAD], args, std_string):
         yield None
     add(action.set_payload(template_))
     if CONF_QOS in config:
-        for template_ in templatable(config[CONF_QOS], arg_type, uint8):
+        for template_ in templatable(config[CONF_QOS], args, uint8):
             yield
         add(action.set_qos(template_))
     if CONF_RETAIN in config:
-        for template_ in templatable(config[CONF_RETAIN], arg_type, bool_):
+        for template_ in templatable(config[CONF_RETAIN], args, bool_):
             yield None
         add(action.set_retain(template_))
     yield action
 
 
 CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
-MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
+MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
     vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     vol.Required(CONF_PAYLOAD): cv.lambda_,
@@ -238,18 +238,18 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = vol.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
-def mqtt_publish_json_action_to_code(config, action_id, arg_type, template_arg):
+def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_TOPIC], arg_type, std_string):
+    for template_ in templatable(config[CONF_TOPIC], args, std_string):
         yield None
     add(action.set_topic(template_))
 
-    for lambda_ in process_lambda(config[CONF_PAYLOAD], [(arg_type, 'x'), (JsonObjectRef, 'root')],
-                                  return_type=void):
+    args_ = args + [(JsonObjectRef, 'root')]
+    for lambda_ in process_lambda(config[CONF_PAYLOAD], args_, return_type=void):
         yield None
     add(action.set_payload(lambda_))
     if CONF_QOS in config:
