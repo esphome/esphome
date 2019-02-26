@@ -78,11 +78,11 @@ DISPLAY_PAGE_SHOW_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW, DISPLAY_PAGE_SHOW_ACTION_SCHEMA)
-def display_page_show_to_code(config, action_id, arg_type, template_arg):
-    type = DisplayPageShowAction.template(arg_type)
+def display_page_show_to_code(config, action_id, template_arg, args):
+    type = DisplayPageShowAction.template(template_arg)
     action = Pvariable(action_id, type.new(), type=type)
     if isinstance(config[CONF_ID], core.Lambda):
-        for template_ in templatable(config[CONF_ID], arg_type, DisplayPagePtr):
+        for template_ in templatable(config[CONF_ID], args, DisplayPagePtr):
             yield None
         add(action.set_page(template_))
     else:
@@ -99,10 +99,10 @@ DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_NEXT, DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA)
-def display_page_show_next_to_code(config, action_id, arg_type, template_arg):
+def display_page_show_next_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    type = DisplayPageShowNextAction.template(arg_type)
+    type = DisplayPageShowNextAction.template(template_arg)
     yield Pvariable(action_id, type.new(var), type=type)
 
 
@@ -113,10 +113,10 @@ DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_PREVIOUS, DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA)
-def display_page_show_previous_to_code(config, action_id, arg_type, template_arg):
+def display_page_show_previous_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    type = DisplayPageShowPrevAction.template(arg_type)
+    type = DisplayPageShowPrevAction.template(template_arg)
     yield Pvariable(action_id, type.new(var), type=type)
 
 

@@ -9,7 +9,7 @@ from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF
     CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_OPTIMISTIC, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable
-from esphome.cpp_types import Action, App, Nameable, NoArg, Trigger, esphome_ns
+from esphome.cpp_types import Action, App, Nameable, Trigger, esphome_ns
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -25,8 +25,8 @@ TurnOffAction = switch_ns.class_('TurnOffAction', Action)
 TurnOnAction = switch_ns.class_('TurnOnAction', Action)
 
 SwitchCondition = switch_ns.class_('SwitchCondition', Condition)
-SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', Trigger.template(NoArg))
-SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', Trigger.template(NoArg))
+SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', Trigger.template())
+SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', Trigger.template())
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
@@ -53,11 +53,11 @@ def setup_switch_core_(switch_var, config):
     for conf in config.get(CONF_ON_TURN_ON, []):
         rhs = switch_var.make_switch_turn_on_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
         rhs = switch_var.make_switch_turn_off_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     setup_mqtt_component(switch_var.Pget_mqtt(), config)
 
@@ -83,11 +83,11 @@ SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TOGGLE, SWITCH_TOGGLE_ACTION_SCHEMA)
-def switch_toggle_to_code(config, action_id, arg_type, template_arg):
+def switch_toggle_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
-    type = ToggleAction.template(arg_type)
+    type = ToggleAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -98,11 +98,11 @@ SWITCH_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TURN_OFF, SWITCH_TURN_OFF_ACTION_SCHEMA)
-def switch_turn_off_to_code(config, action_id, arg_type, template_arg):
+def switch_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(arg_type)
+    type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -113,11 +113,11 @@ SWITCH_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TURN_ON, SWITCH_TURN_ON_ACTION_SCHEMA)
-def switch_turn_on_to_code(config, action_id, arg_type, template_arg):
+def switch_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(arg_type)
+    type = TurnOnAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -128,11 +128,11 @@ SWITCH_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
 
 
 @CONDITION_REGISTRY.register(CONF_SWITCH_IS_ON, SWITCH_IS_ON_CONDITION_SCHEMA)
-def switch_is_on_to_code(config, condition_id, arg_type, template_arg):
+def switch_is_on_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_switch_is_on_condition(template_arg)
-    type = SwitchCondition.template(arg_type)
+    type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
 
@@ -143,11 +143,11 @@ SWITCH_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
 
 
 @CONDITION_REGISTRY.register(CONF_SWITCH_IS_OFF, SWITCH_IS_OFF_CONDITION_SCHEMA)
-def switch_is_off_to_code(config, condition_id, arg_type, template_arg):
+def switch_is_off_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_switch_is_off_condition(template_arg)
-    type = SwitchCondition.template(arg_type)
+    type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
 

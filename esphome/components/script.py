@@ -5,9 +5,9 @@ from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_types import Action, NoArg, Trigger, esphome_ns
+from esphome.cpp_types import Action, Trigger, esphome_ns
 
-Script = esphome_ns.class_('Script', Trigger.template(NoArg))
+Script = esphome_ns.class_('Script', Trigger.template())
 ScriptExecuteAction = esphome_ns.class_('ScriptExecuteAction', Action)
 ScriptStopAction = esphome_ns.class_('ScriptStopAction', Action)
 
@@ -19,7 +19,7 @@ CONFIG_SCHEMA = automation.validate_automation({
 def to_code(config):
     for conf in config:
         trigger = Pvariable(conf[CONF_ID], Script.new())
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
 
 CONF_SCRIPT_EXECUTE = 'script.execute'
@@ -29,11 +29,11 @@ SCRIPT_EXECUTE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_SCRIPT_EXECUTE, SCRIPT_EXECUTE_ACTION_SCHEMA)
-def script_execute_action_to_code(config, action_id, arg_type, template_arg):
+def script_execute_action_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_execute_action(template_arg)
-    type = ScriptExecuteAction.template(arg_type)
+    type = ScriptExecuteAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -44,9 +44,9 @@ SCRIPT_STOP_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_SCRIPT_STOP, SCRIPT_STOP_ACTION_SCHEMA)
-def script_stop_action_to_code(config, action_id, arg_type, template_arg):
+def script_stop_action_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_stop_action(template_arg)
-    type = ScriptStopAction.template(arg_type)
+    type = ScriptStopAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)

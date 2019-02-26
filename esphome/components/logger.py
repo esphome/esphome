@@ -167,13 +167,13 @@ LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, arg_type, template_arg):
+def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
+    args_ = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
 
-    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
+    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
-    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')], return_type=void):
+    for lambda_ in process_lambda(Lambda(text), args, return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)

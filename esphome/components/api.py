@@ -65,11 +65,11 @@ HOMEASSISTANT_SERVIC_ACTION_SCHEMA = cv.Schema({
 
 
 @ACTION_REGISTRY.register(CONF_HOMEASSISTANT_SERVICE, HOMEASSISTANT_SERVIC_ACTION_SCHEMA)
-def homeassistant_service_to_code(config, action_id, arg_type, template_arg):
+def homeassistant_service_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_home_assistant_service_call_action(template_arg)
-    type = HomeAssistantServiceCallAction.template(arg_type)
+    type = HomeAssistantServiceCallAction.template(template_arg)
     act = Pvariable(action_id, rhs, type=type)
     add(act.set_service(config[CONF_SERVICE]))
     if CONF_DATA in config:

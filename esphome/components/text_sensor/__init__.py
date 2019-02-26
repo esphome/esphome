@@ -44,7 +44,7 @@ def setup_text_sensor_core_(text_sensor_var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         rhs = text_sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, std_string, conf)
+        automation.build_automations(trigger, [(std_string, 'x')], conf)
 
     setup_mqtt_component(text_sensor_var.get_mqtt(), config)
 

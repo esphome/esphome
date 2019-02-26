@@ -8,7 +8,7 @@ from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_L
     CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import Action, App, NoArg, optional
+from esphome.cpp_types import Action, App, optional
 from esphome.py_compat import string_types
 
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
@@ -38,14 +38,14 @@ def to_code(config):
             yield
         add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
-        automation.build_automation(var.get_open_trigger(), NoArg,
-                                    config[CONF_OPEN_ACTION])
+        automation.build_automations(var.get_open_trigger(), [],
+                                     config[CONF_OPEN_ACTION])
     if CONF_CLOSE_ACTION in config:
-        automation.build_automation(var.get_close_trigger(), NoArg,
-                                    config[CONF_CLOSE_ACTION])
+        automation.build_automations(var.get_close_trigger(), [],
+                                     config[CONF_CLOSE_ACTION])
     if CONF_STOP_ACTION in config:
-        automation.build_automation(var.get_stop_trigger(), NoArg,
-                                    config[CONF_STOP_ACTION])
+        automation.build_automations(var.get_stop_trigger(), [],
+                                     config[CONF_STOP_ACTION])
     if CONF_OPTIMISTIC in config:
         add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     if CONF_ASSUMED_STATE in config:
@@ -63,17 +63,17 @@ COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_COVER_TEMPLATE_PUBLISH,
                           COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA)
-def cover_template_publish_to_code(config, action_id, arg_type, template_arg):
+def cover_template_publish_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_cover_publish_action(template_arg)
-    type = CoverPublishAction.template(arg_type)
+    type = CoverPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     state = config[CONF_STATE]
     if isinstance(state, string_types):
         template_ = cover.COVER_STATES[state]
     else:
-        for template_ in templatable(state, arg_type, cover.CoverState):
+        for template_ in templatable(state, args, cover.CoverState):
             yield None
     add(action.set_state(template_))
     yield action

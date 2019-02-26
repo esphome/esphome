@@ -81,11 +81,11 @@ FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TOGGLE, FAN_TOGGLE_ACTION_SCHEMA)
-def fan_toggle_to_code(config, action_id, arg_type, template_arg):
+def fan_toggle_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
-    type = ToggleAction.template(arg_type)
+    type = ToggleAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -96,11 +96,11 @@ FAN_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_OFF, FAN_TURN_OFF_ACTION_SCHEMA)
-def fan_turn_off_to_code(config, action_id, arg_type, template_arg):
+def fan_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(arg_type)
+    type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -113,18 +113,18 @@ FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_ON, FAN_TURN_ON_ACTION_SCHEMA)
-def fan_turn_on_to_code(config, action_id, arg_type, template_arg):
+def fan_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(arg_type)
+    type = TurnOnAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_OSCILLATING in config:
-        for template_ in templatable(config[CONF_OSCILLATING], arg_type, bool_):
+        for template_ in templatable(config[CONF_OSCILLATING], args, bool_):
             yield None
         add(action.set_oscillating(template_))
     if CONF_SPEED in config:
-        for template_ in templatable(config[CONF_SPEED], arg_type, FanSpeed):
+        for template_ in templatable(config[CONF_SPEED], args, FanSpeed):
             yield None
         if isinstance(template_, string_types):
             template_ = FAN_SPEEDS[template_]

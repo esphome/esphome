@@ -9,14 +9,12 @@ import esphome.config_validation as cv
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_BUILD_PATH, \
     CONF_COMMIT, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_LOCAL, \
-    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PLATFORMIO_OPTIONS, \
-    CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, CONF_USE_CUSTOM_CODE, \
-    ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ESP8266_RESTORE_FROM_FLASH
+    CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
+    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, \
+    CONF_USE_CUSTOM_CODE, ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, CONF_ESP8266_RESTORE_FROM_FLASH
 from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Pvariable, RawExpression, add
-from esphome.cpp_types import App, NoArg, const_char_ptr, esphome_ns
+from esphome.cpp_types import App, const_char_ptr, esphome_ns
 from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
@@ -223,16 +221,16 @@ def to_code(config):
     for conf in config.get(CONF_ON_BOOT, []):
         rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
-        automation.build_automation(trigger, const_char_ptr, conf)
+        automation.build_automations(trigger, [(const_char_ptr, 'x')], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         rhs = App.register_component(LoopTrigger.new())
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, NoArg, conf)
+        automation.build_automations(trigger, [], conf)
 
     add(App.set_compilation_datetime(RawExpression('__DATE__ ", " __TIME__')))
 

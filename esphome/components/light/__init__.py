@@ -404,14 +404,14 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
-def light_toggle_to_code(config, action_id, arg_type, template_arg):
+def light_toggle_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_toggle_action(template_arg)
     type = ToggleAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     yield action
@@ -425,14 +425,14 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
-def light_turn_off_to_code(config, action_id, arg_type, template_arg):
+def light_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_off_action(template_arg)
     type = TurnOffAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     yield action
@@ -456,46 +456,46 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, arg_type, template_arg):
+def light_turn_on_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
         add(action.set_transition_length(template_))
     if CONF_FLASH_LENGTH in config:
-        for template_ in templatable(config[CONF_FLASH_LENGTH], arg_type, uint32):
+        for template_ in templatable(config[CONF_FLASH_LENGTH], args, uint32):
             yield None
         add(action.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
-        for template_ in templatable(config[CONF_BRIGHTNESS], arg_type, float_):
+        for template_ in templatable(config[CONF_BRIGHTNESS], args, float_):
             yield None
         add(action.set_brightness(template_))
     if CONF_RED in config:
-        for template_ in templatable(config[CONF_RED], arg_type, float_):
+        for template_ in templatable(config[CONF_RED], args, float_):
             yield None
         add(action.set_red(template_))
     if CONF_GREEN in config:
-        for template_ in templatable(config[CONF_GREEN], arg_type, float_):
+        for template_ in templatable(config[CONF_GREEN], args, float_):
             yield None
         add(action.set_green(template_))
     if CONF_BLUE in config:
-        for template_ in templatable(config[CONF_BLUE], arg_type, float_):
+        for template_ in templatable(config[CONF_BLUE], args, float_):
             yield None
         add(action.set_blue(template_))
     if CONF_WHITE in config:
-        for template_ in templatable(config[CONF_WHITE], arg_type, float_):
+        for template_ in templatable(config[CONF_WHITE], args, float_):
             yield None
         add(action.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], arg_type, float_):
+        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float_):
             yield None
         add(action.set_color_temperature(template_))
     if CONF_EFFECT in config:
-        for template_ in templatable(config[CONF_EFFECT], arg_type, std_string):
+        for template_ in templatable(config[CONF_EFFECT], args, std_string):
             yield None
         add(action.set_effect(template_))
     yield action
