@@ -7,6 +7,7 @@ import re
 import subprocess
 
 from esphome.core import CORE
+from esphome.helpers import mkdir_p
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -14,6 +15,8 @@ _LOGGER = logging.getLogger(__name__)
 
 def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
+    os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
+    os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:

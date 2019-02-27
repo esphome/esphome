@@ -161,7 +161,7 @@ def compile_program(args, config):
 
 
 def upload_using_esptool(config, port):
-    path = os.path.join(CORE.build_path, '.pioenvs', CORE.name, 'firmware.bin')
+    path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 

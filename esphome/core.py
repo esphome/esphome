@@ -10,9 +10,8 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
-    CONF_LOCAL, \
-    CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphome.helpers import ensure_unique_string
+    CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+from esphome.helpers import ensure_unique_string, get_bool_env, is_hassio
 from esphome.py_compat import IS_PY2, integer_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -352,9 +351,19 @@ class EsphomeCore(object):
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
+    def relative_pioenvs_path(self, *path):
+        if is_hassio():
+            return os.path.join('/data', self.name, '.pioenvs', *path)
+        return self.relative_build_path('.pioenvs', *path)
+
+    def relative_piolibdeps_path(self, *path):
+        if is_hassio():
+            return os.path.join('/data', self.name, '.piolibdeps', *path)
+        return self.relative_build_path('.piolibdeps', *path)
+
     @property
     def firmware_bin(self):
-        return self.relative_build_path('.pioenvs', self.name, 'firmware.bin')
+        return self.relative_pioenvs_path(self.name, 'firmware.bin')
 
     @property
     def is_esp8266(self):

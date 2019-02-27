@@ -1,3 +1,5 @@
+// Disclaimer: This file was written in a hurry and by someone
+// who does not know JS at all. This file desperately needs cleanup.
 document.addEventListener('DOMContentLoaded', () => {
   M.AutoInit(document.body);
 });
@@ -183,7 +185,7 @@ let wsProtocol = "ws:";
 if (window.location.protocol === "https:") {
   wsProtocol = 'wss:';
 }
-const wsUrl = wsProtocol + '//' + window.location.hostname + ':' + window.location.port;
+const wsUrl = `${wsProtocol}//${window.location.hostname}:${window.location.port}${relative_url}`;
 
 let isFetchingPing = false;
 const fetchPing = () => {
@@ -191,7 +193,7 @@ const fetchPing = () => {
       return;
   isFetchingPing = true;
 
-  fetch('/ping', {credentials: "same-origin"}).then(res => res.json())
+  fetch(`${relative_url}ping`, {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
       for (let filename in response) {
         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
@@ -233,7 +235,7 @@ const portSelect = document.querySelector('.nav-wrapper select');
 let ports = [];
 
 const fetchSerialPorts = (begin=false) => {
-  fetch('/serial-ports', {credentials: "same-origin"}).then(res => res.json())
+  fetch(`${relative_url}serial-ports`, {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
       if (ports.length === response.length) {
         let allEqual = true;
@@ -301,7 +303,7 @@ document.querySelectorAll(".action-show-logs").forEach((showLogs) => {
     const filenameField = logsModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/logs");
+    const logSocket = new WebSocket(wsUrl + "logs");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -350,7 +352,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
     const filenameField = uploadModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/run");
+    const logSocket = new WebSocket(wsUrl + "run");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -399,7 +401,7 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
     const filenameField = validateModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/validate");
+    const logSocket = new WebSocket(wsUrl + "validate");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -457,7 +459,7 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
     const filenameField = compileModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/compile");
+    const logSocket = new WebSocket(wsUrl + "compile");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -492,7 +494,7 @@ document.querySelectorAll(".action-compile").forEach((upload) => {
 downloadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
-  link.href = '/download.bin?configuration=' + encodeURIComponent(configuration);
+  link.href = `${relative_url}download.bin?configuration=${encodeURIComponent(configuration)}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -515,7 +517,7 @@ document.querySelectorAll(".action-clean-mqtt").forEach((btn) => {
     const filenameField = cleanMqttModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/clean-mqtt");
+    const logSocket = new WebSocket(wsUrl + "clean-mqtt");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -557,7 +559,7 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
     const filenameField = cleanModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/clean");
+    const logSocket = new WebSocket(wsUrl + "clean");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -605,7 +607,7 @@ document.querySelectorAll(".action-hass-config").forEach((btn) => {
     const filenameField = hassConfigModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    const logSocket = new WebSocket(wsUrl + "/hass-config");
+    const logSocket = new WebSocket(wsUrl + "hass-config");
     logSocket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
@@ -646,7 +648,7 @@ editor.session.setOption('tabSize', 2);
 
 const saveButton = editModalElem.querySelector(".save-button");
 const saveEditor = () => {
-  fetch(`/edit?configuration=${configuration}`, {
+  fetch(`${relative_url}edit?configuration=${configuration}`, {
       credentials: "same-origin",
       method: "POST",
       body: editor.getValue()
@@ -673,7 +675,7 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     const filenameField = editModalElem.querySelector('.filename');
     filenameField.innerHTML = configuration;
 
-    fetch(`/edit?configuration=${configuration}`, {credentials: "same-origin"})
+    fetch(`${relative_url}edit?configuration=${configuration}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
     });

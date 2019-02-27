@@ -132,3 +132,11 @@ def resolve_ip_address(host):
             raise EsphomeError("Error resolving IP address: {}".format(err))
 
     return ip
+
+
+def get_bool_env(var, default=False):
+    return bool(os.getenv(var, default))
+
+
+def is_hassio():
+    return get_bool_env('ESPHOME_IS_HASSIO')

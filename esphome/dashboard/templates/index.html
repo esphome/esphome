@@ -16,6 +16,15 @@
 
   <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script>const relative_url = "{{ relative_url }}";</script>
+
+  {% if streamer_mode %}
+    <style>
+      .log-secret {
+        visibility: hidden !important;
+      }
+    </style>
+  {% end %}
 </head>
 <body>
 
