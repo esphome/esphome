@@ -8,8 +8,8 @@ from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD,
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import Action, App, Component, StoringController, esphome_ns, Trigger, bool_, \
-    int32, float_, std_string
+from esphome.cpp_types import Action, App, Component, StoringController, esphome_ns, Trigger, \
+    bool_, int32, float_, std_string
 
 api_ns = esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', Component, StoringController)
