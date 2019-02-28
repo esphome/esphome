@@ -430,6 +430,9 @@ sensor:
       - or:
         - debounce: 0.1s
         - delta: 10
+    resolution: 4
+    min_value: -10
+    max_value: 30
   - platform: sht3xd
     temperature:
       name: "Living Room Temperature 8"
