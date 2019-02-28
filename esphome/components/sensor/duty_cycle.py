@@ -12,7 +12,8 @@ DutyCycleSensor = sensor.sensor_ns.class_('DutyCycleSensor', sensor.PollingSenso
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(DutyCycleSensor),
-    vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+    vol.Required(CONF_PIN): vol.All(pins.internal_gpio_input_pin_schema,
+                                    pins.validate_has_interrupt),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema))
 

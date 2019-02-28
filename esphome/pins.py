@@ -348,6 +348,14 @@ def shorthand_input_pullup_pin(value):
     return {CONF_NUMBER: value}
 
 
+def validate_has_interrupt(value):
+    if CORE.is_esp8266:
+        if value[CONF_NUMBER] >= 16:
+            raise vol.Invalid("Pins GPIO16 and GPIO17 do not support interrupts and cannot be used "
+                              "here, got {}".format(value[CONF_NUMBER]))
+    return value
+
+
 I2CDevice = esphome_ns.class_('I2CDevice')
 PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
 

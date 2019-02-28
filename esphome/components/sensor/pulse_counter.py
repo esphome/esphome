@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL
+    CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, CONF_NUMBER
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import gpio_input_pin_expression, setup_component
@@ -38,9 +38,16 @@ def validate_internal_filter(value):
     return cv.positive_time_period_microseconds(value)
 
 
+def validate_pulse_counter_pin(value):
+    value = pins.internal_gpio_input_pin_schema(value)
+    if CORE.is_esp8266 and value[CONF_NUMBER] >= 16:
+        raise vol.Invalid("Pins GPIO16 and GPIO17 cannot be used as pulse counters on ESP8266.")
+    return value
+
+
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensorComponent),
-    vol.Required(CONF_PIN): pins.internal_gpio_input_pin_schema,
+    vol.Required(CONF_PIN): validate_pulse_counter_pin,
     vol.Optional(CONF_COUNT_MODE): cv.Schema({
         vol.Required(CONF_RISING_EDGE): COUNT_MODE_SCHEMA,
         vol.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
