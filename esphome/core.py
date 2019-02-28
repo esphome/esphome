@@ -10,7 +10,8 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
-    CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
+    CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
+    CONF_REPOSITORY, CONF_BRANCH
 from esphome.helpers import ensure_unique_string, get_bool_env, is_hassio
 from esphome.py_compat import IS_PY2, integer_types
 
@@ -287,7 +288,7 @@ class ID(object):
         return hash(self.id)
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,too-many-public-methods
 class EsphomeCore(object):
     def __init__(self):
         # True if command is run from dashboard
@@ -326,6 +327,12 @@ class EsphomeCore(object):
     @property
     def esphome_core_version(self):  # type: () -> Dict[str, str]
         return self.config[CONF_ESPHOME][CONF_ESPHOME_CORE_VERSION]
+
+    @property
+    def is_dev_esphome_core_version(self):
+        if CONF_REPOSITORY not in self.esphome_core_version:
+            return False
+        return self.esphome_core_version.get(CONF_BRANCH) == 'dev'
 
     @property
     def is_local_esphome_core_copy(self):

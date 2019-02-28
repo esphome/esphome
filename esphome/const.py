@@ -416,6 +416,9 @@ CONF_FROM = 'from'
 CONF_TO = 'to'
 CONF_SEGMENTS = 'segments'
 CONF_MIN_POWER = 'min_power'
+CONF_MIN_VALUE = 'min_value'
+CONF_MAX_VALUE = 'max_value'
+
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'

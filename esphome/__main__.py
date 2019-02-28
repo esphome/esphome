@@ -18,7 +18,8 @@ from esphome.cpp_generator import Expression, RawStatement, add, statement
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input, text_type
 from esphome.storage_json import StorageJSON, storage_path
-from esphome.util import run_external_command, run_external_process, safe_print
+from esphome.util import run_external_command, run_external_process, safe_print, \
+    is_dev_esphome_version
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,6 +158,15 @@ def write_cpp(config):
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
     rc = platformio_api.run_compile(config, args.verbose)
+    if rc != 0 and CORE.is_dev_esphome_core_version and not is_dev_esphome_version():
+        _LOGGER.warning("You're using 'esphome_core_version: dev' but not using the "
+                        "dev version of the ESPHome tool.")
+        _LOGGER.warning("Expect compile errors if these versions are out of sync.")
+        _LOGGER.warning("Please install the dev version of ESPHome too when using "
+                        "'esphome_core_version: dev'.")
+        _LOGGER.warning(" - Hass.io: Install 'ESPHome (dev)' addon")
+        _LOGGER.warning(" - Docker: docker run [...] esphome/esphome:dev [...]")
+        _LOGGER.warning(" - PIP: pip install -U https://github.com/esphome/esphome/archive/dev.zip")
     return rc
 
 
