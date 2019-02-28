@@ -292,7 +292,7 @@ def time_period_str_colon(value):
     """Validate and transform time offset with format HH:MM[:SS]."""
     if isinstance(value, int):
         raise vol.Invalid('Make sure you wrap time values in quotes')
-    elif not isinstance(value, str):
+    if not isinstance(value, str):
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
     try:
@@ -316,7 +316,7 @@ def time_period_str_unit(value):
     if isinstance(value, int):
         raise vol.Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
                           "'{0}s'?".format(value))
-    elif not isinstance(value, string_types):
+    if not isinstance(value, string_types):
         raise vol.Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
