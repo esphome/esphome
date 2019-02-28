@@ -1,5 +1,5 @@
 from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    CONF_SETUP_PRIORITY
+    CONF_SETUP_PRIORITY, CONF_MCP23017
 from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import IntLiteral, RawExpression
 from esphome.cpp_types import GPIOInputPin, GPIOOutputPin
@@ -18,6 +18,21 @@ def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
 
         if default_mode == u'INPUT':
             mode = pcf8574.PCF8675_GPIO_MODES[conf.get(CONF_MODE, u'INPUT')]
+            yield hub.make_input_pin(number, mode, inverted)
+            return
+        if default_mode == u'OUTPUT':
+            yield hub.make_output_pin(number, inverted)
+            return
+
+        raise EsphomeError(u"Unknown default mode {}".format(default_mode))
+    if CONF_MCP23017 in conf:
+        from esphome.components import mcp23017
+
+        for hub in CORE.get_variable(conf[CONF_MCP23017]):
+            yield None
+
+        if default_mode == u'INPUT':
+            mode = mcp23017.MCP23017_GPIO_MODES[conf.get(CONF_MODE, u'INPUT')]
             yield hub.make_input_pin(number, mode, inverted)
             return
         if default_mode == u'OUTPUT':
