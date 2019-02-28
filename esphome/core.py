@@ -12,7 +12,7 @@ from typing import Any, Dict, List  # noqa
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
     CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
     CONF_REPOSITORY, CONF_BRANCH
-from esphome.helpers import ensure_unique_string, get_bool_env, is_hassio
+from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types
 
 _LOGGER = logging.getLogger(__name__)
