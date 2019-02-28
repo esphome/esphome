@@ -132,3 +132,16 @@ def resolve_ip_address(host):
             raise EsphomeError("Error resolving IP address: {}".format(err))
 
     return ip
+
+
+def symlink(src, dst):
+    if hasattr(os, 'symlink'):
+        os.symlink(src, dst)
+    else:
+        import ctypes
+        csl = ctypes.windll.kernel32.CreateSymbolicLinkW
+        csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
+        csl.restype = ctypes.c_ubyte
+        flags = 1 if os.path.isdir(src) else 0
+        if csl(dst, src, flags) == 0:
+            raise ctypes.WinError()

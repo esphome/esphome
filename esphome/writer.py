@@ -14,7 +14,7 @@ from esphome.const import ARDUINO_VERSION_ESP32_1_0_1, ARDUINO_VERSION_ESP32_DEV
     CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
-from esphome.helpers import mkdir_p, run_system_command
+from esphome.helpers import mkdir_p, run_system_command, symlink
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import IS_PY3, string_types
 from esphome.storage_json import StorageJSON, storage_path
@@ -229,7 +229,7 @@ def symlink_esphome_core_version(esphome_core_version):
                 do_write = False
         if do_write:
             mkdir_p(lib_path)
-            os.symlink(src_path, dst_path)
+            symlink(src_path, dst_path)
     else:
         # Remove symlink when changing back from local version
         if os.path.islink(dst_path):
