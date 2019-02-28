@@ -6,6 +6,8 @@ import re
 import subprocess
 import sys
 
+from esphome import const
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -147,3 +149,7 @@ def run_external_process(*cmd, **kwargs):
         if capture_stdout:
             # pylint: disable=lost-exception
             return sub_stdout.getvalue()
+
+
+def is_dev_esphome_version():
+    return 'dev' in const.__version__
