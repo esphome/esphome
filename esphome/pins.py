@@ -290,7 +290,7 @@ def analog_pin(value):
         if 32 <= value <= 39:  # ADC1
             return value
         raise vol.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
-    elif CORE.is_esp8266:
+    if CORE.is_esp8266:
         if value == 17:  # A0
             return value
         raise vol.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
