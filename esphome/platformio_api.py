@@ -7,7 +7,6 @@ import re
 import subprocess
 
 from esphome.core import CORE
-from esphome.helpers import mkdir_p
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
