@@ -16,8 +16,7 @@ SDS011Sensor = sensor.sensor_ns.class_('SDS011Sensor', sensor.EmptySensor)
 
 
 def validate_sds011_rx_mode(value):
-    if (CONF_QUERY_MODE in value and CONF_RX_ONLY in value
-            and value[CONF_RX_ONLY] and value[CONF_QUERY_MODE]):
+    if value.get(CONF_QUERY_MODE) and value.get(CONF_RX_ONLY):
         raise vol.Invalid(u"{} and {} can not be enabled on the same time!".format(
             CONF_QUERY_MODE, CONF_RX_ONLY))
     return value
