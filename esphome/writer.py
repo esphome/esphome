@@ -105,7 +105,7 @@ def update_esphome_core_repo():
         # Git commit hash or tag cannot be updated
         return
 
-    esphome_core_path = CORE.relative_build_path('.piolibdeps', 'esphome-core')
+    esphome_core_path = CORE.relative_piolibdeps_path('esphome-core')
 
     rc, _, _ = run_system_command('git', '-C', esphome_core_path, '--help')
     if rc != 0:
@@ -503,12 +503,14 @@ def write_cpp(code_s):
 
 
 def clean_build():
-    for directory in ('.piolibdeps', '.pioenvs'):
-        dir_path = CORE.relative_build_path(directory)
-        if not os.path.isdir(dir_path):
-            continue
-        _LOGGER.info("Deleting %s", dir_path)
-        shutil.rmtree(dir_path)
+    pioenvs = CORE.relative_pioenvs_path()
+    if os.path.isdir(pioenvs):
+        _LOGGER.info("Deleting %s", pioenvs)
+        shutil.rmtree(pioenvs)
+    piolibdeps = CORE.relative_piolibdeps_path()
+    if os.path.isdir(piolibdeps):
+        _LOGGER.info("Deleting %s", piolibdeps)
+        shutil.rmtree(piolibdeps)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
