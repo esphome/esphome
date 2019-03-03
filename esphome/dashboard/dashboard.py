@@ -201,6 +201,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.redirect('/login')
             return
 
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         storage_path = ext_storage_path(CONFIG_DIR, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -355,6 +356,7 @@ class EditRequestHandler(BaseHandler):
         if not self.is_authenticated():
             self.redirect('/login')
             return
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
             self.set_status(401)
@@ -368,6 +370,7 @@ class EditRequestHandler(BaseHandler):
         if not self.is_authenticated():
             self.redirect('/login')
             return
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
             self.set_status(401)
