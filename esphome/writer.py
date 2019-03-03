@@ -11,7 +11,7 @@ from esphome.config import iter_components
 from esphome.const import ARDUINO_VERSION_ESP32_1_0_1, ARDUINO_VERSION_ESP32_DEV, \
     ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_DEV, CONF_BOARD_FLASH_MODE, \
     CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, \
-    CONF_TAG, CONF_USE_CUSTOM_CODE
+    CONF_TAG, CONF_USE_CUSTOM_CODE, ARDUINO_VERSION_ESP32_1_0_0
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
 from esphome.helpers import mkdir_p, run_system_command, symlink
@@ -280,29 +280,19 @@ def gather_lib_deps():
     if CORE.is_esp32:
         lib_deps |= {
             'Preferences',  # Preferences helper
-            'AsyncTCP@1.0.1',  # Pin AsyncTCP version
+            'AsyncTCP@1.0.3',  # Pin AsyncTCP version
         }
-        lib_deps.discard('AsyncTCP@1.0.3')
 
         # Manual fix for AsyncTCP
-        if CORE.arduino_version in (ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP32_1_0_1):
-            lib_deps.add('AsyncTCP@1.0.3')
-            lib_deps.discard('AsyncTCP@1.0.1')
+        if CORE.arduino_version == ARDUINO_VERSION_ESP32_1_0_0:
+            lib_deps.discard('AsyncTCP@1.0.3')
+            lib_deps.add('AsyncTCP@1.0.1')
         lib_deps.add('ESPmDNS')
     elif CORE.is_esp8266:
         lib_deps.add('ESPAsyncTCP@1.1.3')
         lib_deps.add('ESP8266mDNS')
     # avoid changing build flags order
-    lib_deps_l = list(lib_deps)
-    lib_deps_l.sort()
-
-    # Move AsyncTCP to front, see https://github.com/platformio/platformio-core/issues/2115
-    if 'AsyncTCP@1.0.3' in lib_deps_l:
-        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.3')))
-    if 'AsyncTCP@1.0.1' in lib_deps_l:
-        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.1')))
-
-    return lib_deps_l
+    return list(sorted(x for x in lib_deps if x))
 
 
 def gather_build_flags():

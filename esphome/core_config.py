@@ -126,7 +126,7 @@ PLATFORMIO_ESP8266_LUT = {
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
-    'RECOMMENDED': 'espressif32@1.5.0',
+    'RECOMMENDED': 'espressif32@1.6.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
