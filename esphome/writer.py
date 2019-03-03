@@ -291,8 +291,18 @@ def gather_lib_deps():
     elif CORE.is_esp8266:
         lib_deps.add('ESPAsyncTCP@1.1.3')
         lib_deps.add('ESP8266mDNS')
+
     # avoid changing build flags order
-    return list(sorted(x for x in lib_deps if x))
+    lib_deps_l = list(lib_deps)
+    lib_deps_l.sort()
+
+    # Move AsyncTCP to front, see https://github.com/platformio/platformio-core/issues/2115
+    if 'AsyncTCP@1.0.3' in lib_deps_l:
+        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.3')))
+    if 'AsyncTCP@1.0.1' in lib_deps_l:
+        lib_deps_l.insert(0, lib_deps_l.pop(lib_deps_l.index('AsyncTCP@1.0.1')))
+
+    return lib_deps_l
 
 
 def gather_build_flags():
