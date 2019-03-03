@@ -342,14 +342,6 @@ def gather_build_flags():
             '-DUSE_WIFI_SIGNAL_SENSOR',
         }
 
-    # avoid changing build flags order
-    return list(sorted(list(build_flags)))
-
-
-def get_ini_content():
-    lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags()
-
     if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
         flash_size = ESP8266_FLASH_SIZES[CORE.board]
         ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
@@ -362,7 +354,19 @@ def get_ini_content():
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            build_flags.append('-Wl,-T{}'.format(ld_script))
+            build_flags.add('-Wl,-T{}'.format(ld_script))
+
+    if CORE.is_esp8266 and CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV,
+                                                    ARDUINO_VERSION_ESP8266_2_5_0):
+        build_flags.add('-fno-exceptions')
+
+    # avoid changing build flags order
+    return list(sorted(list(build_flags)))
+
+
+def get_ini_content():
+    lib_deps = gather_lib_deps()
+    build_flags = gather_build_flags()
 
     data = {
         'platform': CORE.arduino_version,
