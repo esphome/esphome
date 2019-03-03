@@ -1,7 +1,7 @@
 import voluptuous as vol
 
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
+from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
 import esphome.config_validation as cv
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID
@@ -16,6 +16,7 @@ APIServer = api_ns.class_('APIServer', Component, StoringController)
 HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', Action)
 KeyValuePair = api_ns.class_('KeyValuePair')
 TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
+APIConnectedCondition = esphome_ns.class_('APIConnectedCondition', Condition)
 
 UserService = api_ns.class_('UserService', Trigger)
 ServiceTypeArgument = api_ns.class_('ServiceTypeArgument')
@@ -127,3 +128,14 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
             datas.append(TemplatableKeyValuePair(key, value_))
         add(act.set_variables(datas))
     yield act
+
+
+CONF_API_CONNECTED = 'api.connected'
+API_CONNECTED_CONDITION_SCHEMA = vol.Schema({})
+
+
+@CONDITION_REGISTRY.register(CONF_API_CONNECTED, API_CONNECTED_CONDITION_SCHEMA)
+def api_connected_to_code(config, condition_id, template_arg, args):
+    rhs = APIConnectedCondition.new(template_arg)
+    type = APIConnectedCondition.template(template_arg)
+    yield Pvariable(condition_id, rhs, type=type)

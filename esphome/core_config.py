@@ -194,7 +194,7 @@ CONFIG_SCHEMA = cv.Schema({
 def preload_core_config(config):
     if 'esphomeyaml' in config:
         _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
-                        "Please replace 'esphomeyaml:' in your configuration by 'esphome:'.")
+                        "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
         config[CONF_ESPHOME] = config.pop('esphomeyaml')
     if CONF_ESPHOME not in config:
         raise EsphomeError(u"No esphome section in config")

@@ -42,7 +42,8 @@ def validate_dumpers_all(value):
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiverComponent),
-    vol.Required(CONF_PIN): pins.gpio_input_pin_schema,
+    vol.Required(CONF_PIN): vol.All(pins.internal_gpio_input_pin_schema,
+                                    pins.validate_has_interrupt),
     vol.Optional(CONF_DUMP, default=[]):
         vol.Any(validate_dumpers_all, cv.ensure_list(cv.one_of(*DUMPERS, lower=True))),
     vol.Optional(CONF_TOLERANCE): vol.All(cv.percentage_int, vol.Range(min=0)),
