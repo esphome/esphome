@@ -613,6 +613,13 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: gpio
+    name: "MCP binary sensor"
+    pin:
+      mcp23017: mcp23017_hub
+      number: 1
+      mode: INPUT
+      inverted: True
 
 pca9685:
   frequency: 500
@@ -666,6 +673,13 @@ output:
     id: id2
     pin:
       pcf8574: pcf8574_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id22
+    pin:
+      mcp23017: mcp23017_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1139,6 +1153,9 @@ pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
     pcf8575: False
+
+mcp23017:
+  - id: 'mcp23017_hub'
 
 stepper:
 - platform: a4988

@@ -5,7 +5,7 @@ import logging
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, CONF_MCP23017
 from esphome.core import CORE
 from esphome.cpp_types import Component, esphome_ns, io_ns
 
@@ -358,6 +358,7 @@ def validate_has_interrupt(value):
 
 I2CDevice = esphome_ns.class_('I2CDevice')
 PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
+MCP23017 = io_ns.class_('MCP23017', Component, I2CDevice)
 
 PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
@@ -367,6 +368,17 @@ PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
 })
 
 PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
+    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
+})
+
+MCP23017_OUTPUT_PIN_SCHEMA = cv.Schema({
+    vol.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
+    vol.Required(CONF_NUMBER): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
+    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
+    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+MCP23017_INPUT_PIN_SCHEMA = MCP23017_OUTPUT_PIN_SCHEMA.extend({
     vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
 })
 
@@ -380,6 +392,8 @@ def internal_gpio_output_pin_schema(value):
 def gpio_output_pin_schema(value):
     if isinstance(value, dict) and CONF_PCF8574 in value:
         return PCF8574_OUTPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict) and CONF_MCP23017 in value:
+        return MCP23017_OUTPUT_PIN_SCHEMA(value)
     return internal_gpio_output_pin_schema(value)
 
 
@@ -392,6 +406,8 @@ def internal_gpio_input_pin_schema(value):
 def gpio_input_pin_schema(value):
     if isinstance(value, dict) and CONF_PCF8574 in value:
         return PCF8574_INPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict) and CONF_MCP23017 in value:
+        return MCP23017_INPUT_PIN_SCHEMA(value)
     return internal_gpio_input_pin_schema(value)
 
 
@@ -404,4 +420,6 @@ def internal_gpio_input_pullup_pin_schema(value):
 def gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict) and CONF_PCF8574 in value:
         return PCF8574_INPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict) and CONF_MCP23017 in value:
+        return MCP23017_INPUT_PIN_SCHEMA(value)
     return internal_gpio_input_pin_schema(value)
