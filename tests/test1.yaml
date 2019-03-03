@@ -78,21 +78,26 @@ mqtt:
   on_json_message:
     topic: the/topic
     then:
-      - lambda: |-
-          int data = x["my_data"];
-          ESP_LOGD("main", "The data is: %d", data);
-      - light.turn_on:
-          id: living_room_lights
-          transition_length: !lambda |-
-            int length = 1000;
-            if (x.containsKey("length"))
-              length = x["length"];
-            return length;
-          effect: !lambda |-
-            const char *effect = "None";
-            if (x.containsKey("effect"))
-              effect = x["effect"];
-            return effect;
+    - if:
+        condition:
+          - wifi.connected:
+          - mqtt.connected:
+        then:
+        - lambda: |-
+            int data = x["my_data"];
+            ESP_LOGD("main", "The data is: %d", data);
+        - light.turn_on:
+            id: living_room_lights
+            transition_length: !lambda |-
+              int length = 1000;
+              if (x.containsKey("length"))
+                length = x["length"];
+              return length;
+            effect: !lambda |-
+              const char *effect = "None";
+              if (x.containsKey("effect"))
+                effect = x["effect"];
+              return effect;
 
 i2c:
   sda: 21
