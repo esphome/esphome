@@ -47,7 +47,7 @@ MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger', Trigger.template(std_s
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
                                         Trigger.template(JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', Component)
-MQTTConnectedCondition = esphome_ns.class_('MQTTConnectedCondition', Condition)
+MQTTConnectedCondition = mqtt_ns.class_('MQTTConnectedCondition', Condition)
 
 
 def validate_config(value):
