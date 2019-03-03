@@ -2,7 +2,7 @@ import voluptuous as vol
 
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME, CONF_SSID, CONF_BSSID, CONF_IP_ADDRESS
+from esphome.const import CONF_BSSID, CONF_ID, CONF_IP_ADDRESS, CONF_NAME, CONF_SSID
 from esphome.cpp_generator import Pvariable
 from esphome.cpp_types import App, Component
 
