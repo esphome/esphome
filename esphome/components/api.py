@@ -16,7 +16,7 @@ APIServer = api_ns.class_('APIServer', Component, StoringController)
 HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', Action)
 KeyValuePair = api_ns.class_('KeyValuePair')
 TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
-APIConnectedCondition = esphome_ns.class_('APIConnectedCondition', Condition)
+APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
 UserService = api_ns.class_('UserService', Trigger)
 ServiceTypeArgument = api_ns.class_('ServiceTypeArgument')
