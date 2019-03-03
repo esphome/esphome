@@ -34,8 +34,10 @@ def validate_min_max_value(config):
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RotaryEncoderSensor),
-    vol.Required(CONF_PIN_A): pins.internal_gpio_input_pin_schema,
-    vol.Required(CONF_PIN_B): pins.internal_gpio_input_pin_schema,
+    vol.Required(CONF_PIN_A): vol.All(pins.internal_gpio_input_pin_schema,
+                                      pins.validate_has_interrupt),
+    vol.Required(CONF_PIN_B): vol.All(pins.internal_gpio_input_pin_schema,
+                                      pins.validate_has_interrupt),
     vol.Optional(CONF_PIN_RESET): pins.internal_gpio_input_pin_schema,
     vol.Optional(CONF_RESOLUTION): cv.one_of(*RESOLUTIONS, int=True),
     vol.Optional(CONF_MIN_VALUE): cv.int_,

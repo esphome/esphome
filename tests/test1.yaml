@@ -475,7 +475,7 @@ sensor:
       number: GPIO23
       inverted: true
     name: "Ultrasonic Sensor"
-    timeout_meter: 5.5
+    timeout: 5.5m
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
