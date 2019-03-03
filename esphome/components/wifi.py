@@ -1,10 +1,11 @@
 import voluptuous as vol
 
+from esphome.automation import CONDITION_REGISTRY, Condition
 import esphome.config_validation as cv
-from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, \
-    CONF_DOMAIN, CONF_FAST_CONNECT, CONF_GATEWAY, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
+from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
+    CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS, CONF_HIDDEN
+    CONF_SUBNET, CONF_USE_ADDRESS
 from esphome.core import CORE, HexInt
 from esphome.cpp_generator import Pvariable, StructInitializer, add, variable
 from esphome.cpp_types import App, Component, esphome_ns, global_ns
@@ -20,6 +21,7 @@ WIFI_POWER_SAVE_MODES = {
     'LIGHT': WiFiPowerSaveMode.WIFI_POWER_SAVE_LIGHT,
     'HIGH': WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
+WiFiConnectedCondition = esphome_ns.class_('WiFiConnectedCondition', Condition)
 
 
 def validate_password(value):
@@ -188,3 +190,14 @@ def lib_deps(config):
     if CORE.is_esp32:
         return None
     raise NotImplementedError
+
+
+CONF_WIFI_CONNECTED = 'wifi.connected'
+WIFI_CONNECTED_CONDITION_SCHEMA = vol.Schema({})
+
+
+@CONDITION_REGISTRY.register(CONF_WIFI_CONNECTED, WIFI_CONNECTED_CONDITION_SCHEMA)
+def wifi_connected_to_code(config, condition_id, template_arg, args):
+    rhs = WiFiConnectedCondition.new(template_arg)
+    type = WiFiConnectedCondition.template(template_arg)
+    yield Pvariable(condition_id, rhs, type=type)

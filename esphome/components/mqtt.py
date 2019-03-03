@@ -4,7 +4,7 @@ import re
 import voluptuous as vol
 
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
+from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
 from esphome.components import logger
 import esphome.config_validation as cv
 from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, \
@@ -47,6 +47,7 @@ MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger', Trigger.template(std_s
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
                                         Trigger.template(JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', Component)
+MQTTConnectedCondition = mqtt_ns.class_('MQTTConnectedCondition', Condition)
 
 
 def validate_config(value):
@@ -347,3 +348,13 @@ def setup_mqtt_component(obj, config):
 
 LIB_DEPS = 'AsyncMqttClient@0.8.2'
 BUILD_FLAGS = '-DUSE_MQTT'
+
+CONF_MQTT_CONNECTED = 'mqtt.connected'
+MQTT_CONNECTED_CONDITION_SCHEMA = vol.Schema({})
+
+
+@CONDITION_REGISTRY.register(CONF_MQTT_CONNECTED, MQTT_CONNECTED_CONDITION_SCHEMA)
+def mqtt_connected_to_code(config, condition_id, template_arg, args):
+    rhs = MQTTConnectedCondition.new(template_arg)
+    type = MQTTConnectedCondition.template(template_arg)
+    yield Pvariable(condition_id, rhs, type=type)

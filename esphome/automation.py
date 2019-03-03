@@ -48,7 +48,7 @@ def validate_recursive_condition(value):
                               u"".format(key, key2), path)
         validator = CONDITION_REGISTRY[key][0]
         try:
-            condition = validator(item[key])
+            condition = validator(item[key] or {})
         except vol.Invalid as err:
             err.prepend(path)
             raise err
@@ -83,7 +83,7 @@ def validate_recursive_action(value):
                               u"".format(key, key2), path)
         validator = ACTION_REGISTRY[key][0]
         try:
-            action = validator(item[key])
+            action = validator(item[key] or {})
         except vol.Invalid as err:
             err.prepend(path)
             raise err
@@ -159,7 +159,6 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 AUTOMATION_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
     cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
-    vol.Optional(CONF_IF): validate_recursive_condition,
     vol.Required(CONF_THEN): validate_recursive_action,
 })
 
@@ -375,10 +374,6 @@ def build_automation_(trigger, args, config):
     rhs = App.make_automation(templ, trigger)
     type = Automation.template(templ)
     obj = Pvariable(config[CONF_AUTOMATION_ID], rhs, type=type)
-    if CONF_IF in config:
-        for conditions in build_conditions(config[CONF_IF], templ, args):
-            yield None
-        add(obj.add_conditions(conditions))
     for actions in build_actions(config[CONF_THEN], templ, args):
         yield None
     add(obj.add_actions(actions))
