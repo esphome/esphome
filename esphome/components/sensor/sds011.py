@@ -5,6 +5,7 @@ from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
 from esphome.const import (CONF_ID, CONF_NAME, CONF_PM_10_0, CONF_PM_2_5, CONF_UART_ID,
                            CONF_UPDATE_INTERVAL, CONF_QUERY_MODE, CONF_RX_ONLY)
+from esphome.core import TimePeriod
 from esphome.cpp_generator import Pvariable, get_variable, add
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component
@@ -17,8 +18,14 @@ SDS011Sensor = sensor.sensor_ns.class_('SDS011Sensor', sensor.EmptySensor)
 
 def validate_sds011_rx_mode(value):
     if value.get(CONF_QUERY_MODE) and value.get(CONF_RX_ONLY):
-        raise vol.Invalid(u"{} and {} can not be enabled on the same time!".format(
-            CONF_QUERY_MODE, CONF_RX_ONLY))
+        raise vol.Invalid(u"query_mode and rx_only can not be enabled on the same time!")
+    if CONF_UPDATE_INTERVAL in value and not value.get(CONF_RX_ONLY):
+        update_interval = value[CONF_UPDATE_INTERVAL]
+        if isinstance(update_interval, TimePeriod):
+            # Check for TimePeriod instance ('never' update interval)
+            if (update_interval.milliseconds or 0) != 0 or (update_interval.seconds or 0) != 0:
+                # Check if time period is multiple of minutes
+                raise vol.Invalid("Maximum update interval precision in non-rx_only mode is 1min")
     return value
 
 
