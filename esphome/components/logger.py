@@ -102,7 +102,9 @@ def required_build_flags(config):
         flags.append(u'-DESPHOME_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]])))
         this_severity = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
         verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
+        very_verbose_severity = LOG_LEVEL_SEVERITY.index('VERY_VERBOSE')
         is_at_least_verbose = this_severity >= verbose_severity
+        is_at_least_very_verbose = this_severity >= very_verbose_severity
         has_serial_logging = config.get(CONF_BAUD_RATE) != 0
         if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
             debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
@@ -122,6 +124,8 @@ def required_build_flags(config):
                 flags.append(u"-DDEBUG_ESP_{}".format(comp))
         if CORE.is_esp32 and is_at_least_verbose:
             flags.append('-DCORE_DEBUG_LEVEL=5')
+        if CORE.is_esp32 and is_at_least_very_verbose:
+            flags.append('-DENABLE_I2C_DEBUG_BUFFER')
 
     return flags
 
