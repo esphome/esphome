@@ -26,6 +26,8 @@ def validate_sds011_rx_mode(value):
             if (update_interval.milliseconds or 0) != 0 or (update_interval.seconds or 0) != 0:
                 # Check if time period is multiple of minutes
                 raise vol.Invalid("Maximum update interval precision in non-rx_only mode is 1min")
+            if update_interval.total_minutes > 30:
+                raise vol.Invalid("Maximum update interval is 30min")
     return value
 
 
