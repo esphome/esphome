@@ -131,7 +131,7 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
 
 
 CONF_API_CONNECTED = 'api.connected'
-API_CONNECTED_CONDITION_SCHEMA = vol.Schema({})
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema({})
 
 
 @CONDITION_REGISTRY.register(CONF_API_CONNECTED, API_CONNECTED_CONDITION_SCHEMA)
