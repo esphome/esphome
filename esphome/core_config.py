@@ -113,7 +113,7 @@ def validate_platform(value):
 
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.5.0': 'espressif8266@2.0.0',
+    '2.5.0': 'espressif8266@2.0.1',
     '2.4.2': 'espressif8266@1.8.0',
     '2.4.1': 'espressif8266@1.7.3',
     '2.4.0': 'espressif8266@1.6.0',
