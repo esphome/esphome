@@ -701,6 +701,18 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: copy
+    id: my_copy1
+    outputs:
+      - my_1
+      - my_2
+      - my_3
+  - platform: copy
+    id: my_copy2
+    type: binary
+    outputs:
+      - id22
+      - id2
 
 light:
   - platform: binary
