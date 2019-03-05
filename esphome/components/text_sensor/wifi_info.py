@@ -31,9 +31,9 @@ PLATFORM_SCHEMA = text_sensor.PLATFORM_SCHEMA.extend({
 def setup_conf(config, key, klass):
     if key in config:
         conf = config[key]
-        rhs = App.register_text_sensor(App.register_component(klass.new(conf[CONF_NAME])))
+        rhs = App.register_component(klass.new(conf[CONF_NAME]))
         sensor_ = Pvariable(conf[CONF_ID], rhs)
-        text_sensor.setup_text_sensor(sensor_, conf)
+        text_sensor.register_text_sensor(sensor_, conf)
 
 
 def to_code(config):
