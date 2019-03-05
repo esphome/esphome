@@ -1214,3 +1214,10 @@ text_sensor:
 - platform: template
   name: Template Text Sensor
   id: template_text
+- platform: wifi_info
+  ip_address:
+    name: "IP Address"
+  ssid:
+    name: "SSID"
+  bssid:
+    name: "BSSID"
