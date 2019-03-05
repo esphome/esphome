@@ -431,6 +431,7 @@ resistance = float_with_unit("resistance", r"(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", r"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
 voltage = float_with_unit("voltage", r"(v|V|volt|Volts)?")
 distance = float_with_unit("distance", r"(m)")
+framerate = float_with_unit("framerate", r"(FPS|fps|Fps|FpS|Hz)")
 
 
 def validate_bytes(value):
