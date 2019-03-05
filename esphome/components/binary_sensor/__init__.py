@@ -9,7 +9,7 @@ from esphome.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, 
     CONF_HEARTBEAT, CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERT, CONF_INVERTED, \
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
-    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda
 from esphome.cpp_types import App, Component, Nameable, Trigger, bool_, esphome_ns, optional
@@ -302,6 +302,7 @@ BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
 CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'
 BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
     vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+    vol.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
 })
 
 
@@ -309,7 +310,7 @@ BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
 def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_binary_sensor_is_on_condition(template_arg)
+    rhs = var.make_binary_sensor_is_on_condition(template_arg, config.get(CONF_FOR))
     type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
@@ -317,6 +318,7 @@ def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
 CONF_BINARY_SENSOR_IS_OFF = 'binary_sensor.is_off'
 BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
     vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+    vol.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
 })
 
 
@@ -324,6 +326,6 @@ BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
 def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_binary_sensor_is_off_condition(template_arg)
+    rhs = var.make_binary_sensor_is_off_condition(template_arg, config.get(CONF_FOR))
     type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
