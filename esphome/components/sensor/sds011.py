@@ -31,7 +31,7 @@ def validate_sds011_rx_mode(value):
     return value
 
 
-PMSX003_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
+SDS011_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SDS011Sensor),
 })
 
@@ -42,8 +42,8 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_QUERY_MODE): cv.boolean,
     vol.Optional(CONF_RX_ONLY): cv.boolean,
 
-    vol.Optional(CONF_PM_2_5): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_10_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    vol.Optional(CONF_PM_2_5): cv.nameable(SDS011_SENSOR_SCHEMA),
+    vol.Optional(CONF_PM_10_0): cv.nameable(SDS011_SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_PM_2_5, CONF_PM_10_0),
                           validate_sds011_rx_mode)
