@@ -495,7 +495,6 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
-    query_mode: false
 
 
 esp32_touch:
