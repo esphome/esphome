@@ -26,6 +26,11 @@ def validate_sds011_rx_mode(value):
                 raise vol.Invalid("Maximum update interval precision in non-rx_only mode is 1min")
             if update_interval.total_minutes > 30:
                 raise vol.Invalid("Maximum update interval is 30min")
+    elif value.get(CONF_RX_ONLY) and CONF_UPDATE_INTERVAL in value:
+        # update_interval does not affect anything in rx-only mode, let's warn user about
+        # that
+        raise vol.Invalid("update_interval has no effect in rx_only mode. Please remove it.",
+                          path=['update_interval'])
     return value
 
 
