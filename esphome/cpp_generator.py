@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from esphome.core import CORE, HexInt, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 
 # pylint: disable=unused-import, wrong-import-order
@@ -286,6 +286,8 @@ def safe_exp(
         return IntLiteral(int(obj.total_milliseconds))
     if isinstance(obj, TimePeriodSeconds):
         return IntLiteral(int(obj.total_seconds))
+    if isinstance(obj, TimePeriodMinutes):
+        return IntLiteral(int(obj.total_minutes))
     if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     raise ValueError(u"Object is not an expression", obj)

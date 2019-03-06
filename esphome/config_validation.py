@@ -15,7 +15,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
     ESP_PLATFORM_ESP8266
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type
 from esphome.voluptuous_schema import _Schema
 
@@ -363,6 +363,16 @@ def time_period_in_seconds_(value):
     return TimePeriodSeconds(**value.as_dict())
 
 
+def time_period_in_minutes_(value):
+    if value.microseconds is not None and value.microseconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    if value.milliseconds is not None and value.milliseconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    if value.seconds is not None and value.seconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    return TimePeriodMinutes(**value.as_dict())
+
+
 def update_interval(value):
     if value == 'never':
         return 4294967295  # uint32_t max
@@ -373,6 +383,7 @@ time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_d
 positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
 positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds_)
 positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds_)
+positive_time_period_minutes = vol.All(positive_time_period, time_period_in_minutes_)
 time_period_microseconds = vol.All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
