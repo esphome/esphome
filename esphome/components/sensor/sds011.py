@@ -53,7 +53,7 @@ def to_code(config):
     sds011 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_UPDATE_INTERVAL in config:
-        add(sds011.set_update_interval_min(config.get(CONF_UPDATE_INTERVAL)))
+        add(sds011.set_update_interval_min(config[CONF_UPDATE_INTERVAL].total_minutes))
     if CONF_RX_ONLY in config:
         add(sds011.set_rx_mode_only(config[CONF_RX_ONLY]))
 
