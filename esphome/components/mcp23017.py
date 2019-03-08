@@ -5,12 +5,12 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ADDRESS, CONF_ID
 from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import setup_component
-from esphome.cpp_types import App, GPIOInputPin, GPIOOutputPin, io_ns
+from esphome.cpp_types import App, GPIOInputPin, GPIOOutputPin, io_ns, esphome_ns
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
-MCP23017GPIOMode = io_ns.enum('MCP23017GPIOMode')
+MCP23017GPIOMode = esphome_ns.enum('MCP23017GPIOMode')
 MCP23017_GPIO_MODES = {
     'INPUT': MCP23017GPIOMode.MCP23017_INPUT,
     'INPUT_PULLUP': MCP23017GPIOMode.MCP23017_INPUT_PULLUP,

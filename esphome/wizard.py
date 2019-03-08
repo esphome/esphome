@@ -50,8 +50,8 @@ BASE_CONFIG = u"""esphome:
   board: {board}
 
 wifi:
-  ssid: '{ssid}'
-  password: '{psk}'
+  ssid: "{ssid}"
+  password: "{psk}"
 
 # Enable logging
 logger:

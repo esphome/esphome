@@ -491,8 +491,15 @@ sensor:
       - mqtt.publish_json:
           topic: the/topic
           payload: |-
-            root["key"] = id(the_sensor).value;
+            root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
+  - platform: sds011
+    pm_2_5:
+      name: "SDS011 PM2.5"
+    pm_10_0:
+      name: "SDS011 PM10.0"
+    update_interval: 5min
+    rx_only: false
 
 
 esp32_touch:
@@ -701,6 +708,18 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: copy
+    id: my_copy1
+    outputs:
+      - my_1
+      - my_2
+      - my_3
+  - platform: copy
+    id: my_copy2
+    type: binary
+    outputs:
+      - id22
+      - id2
 
 light:
   - platform: binary
@@ -1202,3 +1221,10 @@ text_sensor:
 - platform: template
   name: Template Text Sensor
   id: template_text
+- platform: wifi_info
+  ip_address:
+    name: "IP Address"
+  ssid:
+    name: "SSID"
+  bssid:
+    name: "BSSID"

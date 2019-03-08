@@ -215,6 +215,10 @@ class TimePeriodSeconds(TimePeriod):
     pass
 
 
+class TimePeriodMinutes(TimePeriod):
+    pass
+
+
 LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 

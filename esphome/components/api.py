@@ -84,7 +84,7 @@ BUILD_FLAGS = '-DUSE_API'
 
 def lib_deps(config):
     if CORE.is_esp32:
-        return 'AsyncTCP@1.0.1'
+        return 'AsyncTCP@1.0.3'
     if CORE.is_esp8266:
         return 'ESPAsyncTCP@1.1.3'
     raise NotImplementedError
@@ -131,7 +131,7 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
 
 
 CONF_API_CONNECTED = 'api.connected'
-API_CONNECTED_CONDITION_SCHEMA = vol.Schema({})
+API_CONNECTED_CONDITION_SCHEMA = cv.Schema({})
 
 
 @CONDITION_REGISTRY.register(CONF_API_CONNECTED, API_CONNECTED_CONDITION_SCHEMA)

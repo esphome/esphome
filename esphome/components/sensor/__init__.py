@@ -46,7 +46,7 @@ FILTER_KEYS = [CONF_OFFSET, CONF_MULTIPLY, CONF_FILTER_OUT,
 
 def validate_datapoint(value):
     if isinstance(value, dict):
-        return vol.Schema({
+        return cv.Schema({
             vol.Required(CONF_FROM): cv.float_,
             vol.Required(CONF_TO): cv.float_,
         })(value)
@@ -67,7 +67,7 @@ FILTERS_SCHEMA = cv.ensure_list({
     vol.Optional(CONF_FILTER_OUT): cv.float_,
     vol.Optional('filter_nan'): cv.invalid("The filter_nan filter has been removed. Please use "
                                            "'filter_out: nan' instead"),
-    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(vol.Schema({
+    vol.Optional(CONF_SLIDING_WINDOW_MOVING_AVERAGE): vol.All(cv.Schema({
         vol.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
         vol.Optional(CONF_SEND_FIRST_AT): cv.positive_not_null_int,
