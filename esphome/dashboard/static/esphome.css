@@ -235,3 +235,10 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   vertical-align: middle;
   color: #666 !important;
 }
+
+.error {
+  background: #e53935;
+  color: #fff;
+  padding: 10px 15px;
+  margin-top: 15px;
+}
