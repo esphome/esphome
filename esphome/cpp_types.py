@@ -14,7 +14,6 @@ int32 = global_ns.namespace('int32_t')
 const_char_ptr = global_ns.namespace('const char *')
 NAN = global_ns.namespace('NAN')
 esphome_ns = global_ns  # using namespace esphome;
-NoArg = esphome_ns.class_('NoArg')
 App = esphome_ns.App
 io_ns = esphome_ns.namespace('io')
 Nameable = esphome_ns.class_('Nameable')

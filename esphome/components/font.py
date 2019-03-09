@@ -19,8 +19,8 @@ Glyph = display.display_ns.class_('Glyph')
 
 def validate_glyphs(value):
     if isinstance(value, list):
-        value = vol.Schema([cv.string])(value)
-    value = vol.Schema([cv.string])(list(value))
+        value = cv.Schema([cv.string])(value)
+    value = cv.Schema([cv.string])(list(value))
 
     def comparator(x, y):
         x_ = x.encode('utf-8')
@@ -69,7 +69,7 @@ def validate_truetype_file(value):
 DEFAULT_GLYPHS = u' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 CONF_RAW_DATA_ID = 'raw_data_id'
 
-FONT_SCHEMA = vol.Schema({
+FONT_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.declare_variable_id(Font),
     vol.Required(CONF_FILE): validate_truetype_file,
     vol.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,

@@ -16,6 +16,15 @@
 
   <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <script>const relative_url = "{{ relative_url }}";</script>
+
+  {% if streamer_mode %}
+    <style>
+      .log-secret {
+        visibility: hidden !important;
+      }
+    </style>
+  {% end %}
 </head>
 <body>
 
@@ -35,8 +44,9 @@
     <h5>Select Upload Port</h5>
     <p>
       Here you can select where ESPHome will attempt to show logs and upload firmwares to.
-      By default, this is "OTA", or Over-The-Air. Note that you might have to restart the Hass.io add-on
-      for new serial ports to be detected.
+      For newly plugged in serial devices to be detected, restart the add-on.
+      (Also see <a href="https://esphome.io/guides/faq#i-can-t-get-flashing-over-usb-to-work" target="_blank">
+      esphomeflasher</a>)
     </p>
   </div>
 </div>
@@ -151,27 +161,24 @@
         <div class="step-content">
           <div class="row">
             <p>
-              Hi there! I'm the ESPHome setup wizard and will guide you through setting up
+              Hi there! This is the ESPHome setup wizard. It will guide you through setting up
               your first ESP8266 or ESP32-powered device using ESPHome.
             </p>
               <a href="https://www.espressif.com/en/products/hardware/esp8266ex/overview" target="_blank">ESP8266s</a> and
               their successors (the <a href="https://www.espressif.com/en/products/hardware/esp32/overview" target="_blank">ESP32s</a>)
               are great low-cost microcontrollers that can communicate with the outside world using WiFi.
               They're found in many devices such as the popular Sonoff/iTead, but also exist as development boards
-              such as the <a
-                  href="https://esphome.io/devices/nodemcu_esp8266.html"
-                  rel="noreferrer" target="_blank">NodeMCU</a>.
+              such as the <a href="https://esphome.io/devices/nodemcu_esp8266.html" rel="noreferrer" target="_blank">NodeMCU</a>.
             <p>
             </p>
-              <a href="https://esphome.io/index.html" rel="noreferrer"
-                 target="_blank">ESPHome</a>,
+              <a href="https://esphome.io/index.html" rel="noreferrer" target="_blank">ESPHome</a>,
               the tool you're using here, creates custom firmwares for these devices using YAML configuration
               files (similar to the ones you might be used to with Home Assistant).
             <p>
             </p>
               This wizard will create a basic YAML configuration file for your "node" (the microcontroller).
-              Later, you will be able to customize this file and add some of ESPHome's
-              many integrations.
+              Later, you will be able to customize this file and add some of ESPHome's many
+              integrations.
             <p>
             <p>
               First, I need to know what this node should be called. Choose this name wisely, it should be unique among
@@ -196,8 +203,11 @@
           <div class="row">
             <p>
               Great! Now I need to know what type of microcontroller you're using so that I can compile firmware for them.
-              Please choose the board you're using below. If you're not sure you can also use similar ones
-              or even the "Generic" option. In most cases that will work too.
+              Please choose the board you're using below.
+            </p>
+            <p>
+              If you're not sure you can also use similar ones or even the
+              "Generic" option. In most cases that will work too.
             </p>
             <div class="input-field col s12">
               <select id="board" name="board" required>
@@ -285,6 +295,16 @@
                   <option value="iotbusio">oddWires IoT-Bus Io</option>
                   <option value="iotbusproteus">oddWires Proteus IoT-Bus</option>
                   <option value="nina_w10">u-blox NINA-W10 series</option>
+                  <option value="bpi-bit">BananaPi-Bit</option>
+                  <option value="d-duino-32">DSTIKE D-duino-32</option>
+                  <option value="fm-devkit">ESP32 FM DevKit</option>
+                  <option value="esp32-poe">OLIMEX ESP32-PoE</option>
+                  <option value="oroca_edubot">OROCA EduBot</option>
+                  <option value="lopy">Pycom LoPy</option>
+                  <option value="lopy4">Pycom LoPy4</option>
+                  <option value="wesp32">Silicognition wESP32</option>
+                  <option value="ttgo-t-beam">TTGO T-Beam</option>
+                  <option value="turta_iot_node">Turta IoT Node</option>
                 </optgroup>
               </select>
             </div>
@@ -332,41 +352,36 @@
         <div class="step-content">
           <p>
             Hooray! 🎉🎉🎉 You've successfully created your first ESPHome configuration file.
-            When you click Submit, I will save this configuration file under
-              <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphome/&lt;NAME_OF_NODE&gt;.yaml</code>
-              and
-            you will be able to edit this file with the
-            <a href="https://www.home-assistant.io/addons/configurator/" target="_blank">HASS Configuratior add-on</a>.
+            When you click Submit, the wizard will save a configuration file under
+            <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphome/&lt;NAME_OF_NODE&gt;.yaml</code>.
           </p>
           <h5>Next steps</h5>
           <ul class="browser-default">
             <li>
               Flash the firmware. This can be done using the “UPLOAD” option in the dashboard. See
-                <a href="https://esphome.io/index.html#devices" rel="noreferrer"
-                   target="_blank">this</a>
-              for guides on how to flash different types of devices. Note that you need to restart this add-on
-              for newly plugged in serial devices to be detected.
+              <a href="https://esphome.io/index.html#devices" rel="noreferrer" target="_blank">this</a>
+              for guides on how to flash different types of devices. For newly plugged in serial
+              devices to be detected, restart the add-on.
             </li>
             <li>
-              With the current configuration, your node will only connect to WiFi and MQTT. To make it actually <i>do</i>
-              stuff, follow
-                <a href="https://esphome.io/guides/getting_started_hassio.html#adding-some-basic-features"
-                   rel="noreferrer">
+              With the current configuration, your node will only connect to WiFi. To make it
+              actually <i>do</i> stuff, follow
+              <a href="https://esphome.io/guides/getting_started_hassio.html#adding-some-basic-features"
+                 rel="noreferrer">
                 the rest of the getting started guide
               </a>.
             </li>
             <li>
-                See the <a href="https://esphome.io/index.html" rel="noreferrer"
-                           target="_blank">ESPHome index</a>
+              See the <a href="https://esphome.io/index.html" rel="noreferrer"
+                         target="_blank">ESPHome index</a>
               for a list of supported sensors/devices.
             </li>
             <li>
-              Join the <a href="https://discord.gg/KhAMKrd" target="_blank">Discord server</a> and say hi! When I
-              have time, I would be happy to help with issues and discuss new features.
+              Join the <a href="https://discord.gg/KhAMKrd" target="_blank">Discord server</a> and
+              say hi! Discord's the best place to ask if you have issues/ideas.
             </li>
             <li>
-                Star <a href="https://github.com/esphome/esphome"
-                        target="_blank">ESPHome</a> on GitHub
+              Star <a href="https://github.com/esphome/esphome" target="_blank">ESPHome</a> on GitHub
               if you find this software awesome and report issues using the bug trackers there.
             </li>
           </ul>

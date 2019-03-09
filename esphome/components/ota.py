@@ -12,7 +12,7 @@ _LOGGER = logging.getLogger(__name__)
 
 OTAComponent = esphome_ns.class_('OTAComponent', Component)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(OTAComponent),
     vol.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
     vol.Optional(CONF_PORT): cv.port,
@@ -51,7 +51,7 @@ REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 
 def lib_deps(config):
     if CORE.is_esp32:
-        return ['Update', 'ESPmDNS']
+        return ['Update']
     if CORE.is_esp8266:
-        return ['Hash', 'ESP8266mDNS']
+        return ['Hash']
     raise NotImplementedError

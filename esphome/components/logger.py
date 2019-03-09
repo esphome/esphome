@@ -73,13 +73,13 @@ def validate_local_no_higher_than_global(value):
 
 LogComponent = esphome_ns.class_('LogComponent', Component)
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(LogComponent),
     vol.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
     vol.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
     vol.Optional(CONF_HARDWARE_UART, default='UART0'): uart_selection,
     vol.Optional(CONF_LEVEL): is_log_level,
-    vol.Optional(CONF_LOGS): vol.Schema({
+    vol.Optional(CONF_LOGS): cv.Schema({
         cv.string: is_log_level,
     })
 }), validate_local_no_higher_than_global)
@@ -102,7 +102,9 @@ def required_build_flags(config):
         flags.append(u'-DESPHOME_LOG_LEVEL={}'.format(str(LOG_LEVELS[config[CONF_LEVEL]])))
         this_severity = LOG_LEVEL_SEVERITY.index(config[CONF_LEVEL])
         verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
+        very_verbose_severity = LOG_LEVEL_SEVERITY.index('VERY_VERBOSE')
         is_at_least_verbose = this_severity >= verbose_severity
+        is_at_least_very_verbose = this_severity >= very_verbose_severity
         has_serial_logging = config.get(CONF_BAUD_RATE) != 0
         if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
             debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
@@ -122,6 +124,8 @@ def required_build_flags(config):
                 flags.append(u"-DDEBUG_ESP_{}".format(comp))
         if CORE.is_esp32 and is_at_least_verbose:
             flags.append('-DCORE_DEBUG_LEVEL=5')
+        if CORE.is_esp32 and is_at_least_very_verbose:
+            flags.append('-DENABLE_I2C_DEBUG_BUFFER')
 
     return flags
 
@@ -129,8 +133,8 @@ def required_build_flags(config):
 def maybe_simple_message(schema):
     def validator(value):
         if isinstance(value, dict):
-            return vol.Schema(schema)(value)
-        return vol.Schema(schema)({CONF_FORMAT: value})
+            return cv.Schema(schema)(value)
+        return cv.Schema(schema)({CONF_FORMAT: value})
 
     return validator
 
@@ -167,13 +171,13 @@ LOGGER_LOG_ACTION_SCHEMA = vol.All(maybe_simple_message({
 
 
 @ACTION_REGISTRY.register(CONF_LOGGER_LOG, LOGGER_LOG_ACTION_SCHEMA)
-def logger_log_action_to_code(config, action_id, arg_type, template_arg):
+def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
+    args_ = [RawExpression(text_type(x)) for x in config[CONF_ARGS]]
 
-    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args)))
+    text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
-    for lambda_ in process_lambda(Lambda(text), [(arg_type, 'x')], return_type=void):
+    for lambda_ in process_lambda(Lambda(text), args, return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)

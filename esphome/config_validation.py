@@ -15,13 +15,15 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
     ESP_PLATFORM_ESP8266
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type
+from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name
 
+Schema = _Schema
 port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 float_ = vol.Coerce(float)
 positive_float = vol.All(float_, vol.Range(min=0))
@@ -64,7 +66,7 @@ def valid_name(value):
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise vol.Invalid(u"'{}' is an invalid character for names. Valid characters are: {}"
-                              u"".format(c, ALLOWED_NAME_CHARS))
+                              u" (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
     return value
 
 
@@ -160,7 +162,7 @@ def int_(value):
 hex_int = vol.Coerce(hex_int_)
 
 
-def variable_id_str_(value):
+def validate_id_name(value):
     value = string(value)
     if not value:
         raise vol.Invalid("ID must not be empty")
@@ -183,7 +185,7 @@ def use_variable_id(type):
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
 
-        return core.ID(variable_id_str_(value), is_declaration=False, type=type)
+        return core.ID(validate_id_name(value), is_declaration=False, type=type)
 
     return validator
 
@@ -193,7 +195,7 @@ def declare_variable_id(type):
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
 
-        return core.ID(variable_id_str_(value), is_declaration=True, type=type)
+        return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
     return validator
 
@@ -203,7 +205,7 @@ def templatable(other_validators):
         if isinstance(value, Lambda):
             return value
         if isinstance(other_validators, dict):
-            return vol.Schema(other_validators)(value)
+            return Schema(other_validators)(value)
         return other_validators(value)
 
     return validator
@@ -273,7 +275,7 @@ def has_at_most_one_key(*keys):
 TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 
 time_period_dict = vol.All(
-    dict, vol.Schema({
+    dict, Schema({
         'days': float_,
         'hours': float_,
         'minutes': float_,
@@ -290,7 +292,7 @@ def time_period_str_colon(value):
     """Validate and transform time offset with format HH:MM[:SS]."""
     if isinstance(value, int):
         raise vol.Invalid('Make sure you wrap time values in quotes')
-    elif not isinstance(value, str):
+    if not isinstance(value, str):
         raise vol.Invalid(TIME_PERIOD_ERROR.format(value))
 
     try:
@@ -314,7 +316,7 @@ def time_period_str_unit(value):
     if isinstance(value, int):
         raise vol.Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
                           "'{0}s'?".format(value))
-    elif not isinstance(value, string_types):
+    if not isinstance(value, string_types):
         raise vol.Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
@@ -361,6 +363,16 @@ def time_period_in_seconds_(value):
     return TimePeriodSeconds(**value.as_dict())
 
 
+def time_period_in_minutes_(value):
+    if value.microseconds is not None and value.microseconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    if value.milliseconds is not None and value.milliseconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    if value.seconds is not None and value.seconds != 0:
+        raise vol.Invalid("Maximum precision is minutes")
+    return TimePeriodMinutes(**value.as_dict())
+
+
 def update_interval(value):
     if value == 'never':
         return 4294967295  # uint32_t max
@@ -371,6 +383,7 @@ time_period = vol.Any(time_period_str_unit, time_period_str_colon, time_period_d
 positive_time_period = vol.All(time_period, vol.Range(min=TimePeriod()))
 positive_time_period_milliseconds = vol.All(positive_time_period, time_period_in_milliseconds_)
 positive_time_period_seconds = vol.All(positive_time_period, time_period_in_seconds_)
+positive_time_period_minutes = vol.All(positive_time_period, time_period_in_minutes_)
 time_period_microseconds = vol.All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
@@ -428,6 +441,7 @@ frequency = float_with_unit("frequency", r"(Hz|HZ|hz)?")
 resistance = float_with_unit("resistance", r"(Ω|Ω|ohm|Ohm|OHM)?")
 current = float_with_unit("current", r"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
 voltage = float_with_unit("voltage", r"(v|V|volt|Volts)?")
+distance = float_with_unit("distance", r"(m)")
 
 
 def validate_bytes(value):
@@ -727,17 +741,17 @@ def nameable(*schemas):
     return validator
 
 
-PLATFORM_SCHEMA = vol.Schema({
+PLATFORM_SCHEMA = Schema({
     vol.Required(CONF_PLATFORM): valid,
 })
 
-MQTT_COMPONENT_AVAILABILITY_SCHEMA = vol.Schema({
+MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema({
     vol.Required(CONF_TOPIC): subscribe_topic,
     vol.Optional(CONF_PAYLOAD_AVAILABLE, default='online'): mqtt_payload,
     vol.Optional(CONF_PAYLOAD_NOT_AVAILABLE, default='offline'): mqtt_payload,
 })
 
-MQTT_COMPONENT_SCHEMA = vol.Schema({
+MQTT_COMPONENT_SCHEMA = Schema({
     vol.Optional(CONF_NAME): string,
     vol.Optional(CONF_RETAIN): vol.All(requires_component('mqtt'), boolean),
     vol.Optional(CONF_DISCOVERY): vol.All(requires_component('mqtt'), boolean),
@@ -751,6 +765,6 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
     vol.Optional(CONF_COMMAND_TOPIC): vol.All(requires_component('mqtt'), subscribe_topic),
 })
 
-COMPONENT_SCHEMA = vol.Schema({
+COMPONENT_SCHEMA = Schema({
     vol.Optional(CONF_SETUP_PRIORITY): float_
 })

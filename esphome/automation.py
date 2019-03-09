@@ -3,9 +3,9 @@ import copy
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, \
-    CONF_BELOW, CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, \
-    CONF_LAMBDA, CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WHILE, CONF_WAIT_UNTIL
+from esphome.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, CONF_BELOW, \
+    CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, CONF_LAMBDA, \
+    CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WAIT_UNTIL, CONF_WHILE
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, TemplateArguments, add, get_variable, \
     process_lambda, templatable
@@ -48,7 +48,7 @@ def validate_recursive_condition(value):
                               u"".format(key, key2), path)
         validator = CONDITION_REGISTRY[key][0]
         try:
-            condition = validator(item[key])
+            condition = validator(item[key] or {})
         except vol.Invalid as err:
             err.prepend(path)
             raise err
@@ -83,7 +83,7 @@ def validate_recursive_action(value):
                               u"".format(key, key2), path)
         validator = ACTION_REGISTRY[key][0]
         try:
-            action = validator(item[key])
+            action = validator(item[key] or {})
         except vol.Invalid as err:
             err.prepend(path)
             raise err
@@ -131,7 +131,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 
                 # Next try as a sequence of automations
                 try:
-                    return vol.Schema([schema])(value)
+                    return cv.Schema([schema])(value)
                 except vol.Invalid as err2:
                     if 'Unable to find action' in str(err):
                         raise err2
@@ -146,7 +146,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
     def validator(value):
         value = validator_(value)
         if extra_validators is not None:
-            value = vol.Schema([extra_validators])(value)
+            value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
                 raise vol.Invalid("Cannot have more than 1 automation for templates")
@@ -156,10 +156,9 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
     return validator
 
 
-AUTOMATION_SCHEMA = vol.Schema({
+AUTOMATION_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
     cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
-    vol.Optional(CONF_IF): validate_recursive_condition,
     vol.Required(CONF_THEN): validate_recursive_action,
 })
 
@@ -167,8 +166,8 @@ AND_CONDITION_SCHEMA = validate_recursive_condition
 
 
 @CONDITION_REGISTRY.register(CONF_AND, AND_CONDITION_SCHEMA)
-def and_condition_to_code(config, condition_id, arg_type, template_arg):
-    for conditions in build_conditions(config, arg_type):
+def and_condition_to_code(config, condition_id, template_arg, args):
+    for conditions in build_conditions(config, template_arg, args):
         yield
     rhs = AndCondition.new(template_arg, conditions)
     type = AndCondition.template(template_arg)
@@ -179,33 +178,33 @@ OR_CONDITION_SCHEMA = validate_recursive_condition
 
 
 @CONDITION_REGISTRY.register(CONF_OR, OR_CONDITION_SCHEMA)
-def or_condition_to_code(config, condition_id, arg_type, template_arg):
-    for conditions in build_conditions(config, arg_type):
+def or_condition_to_code(config, condition_id, template_arg, args):
+    for conditions in build_conditions(config, template_arg, args):
         yield
     rhs = OrCondition.new(template_arg, conditions)
     type = OrCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
 
 
-RANGE_CONDITION_SCHEMA = vol.All(vol.Schema({
+RANGE_CONDITION_SCHEMA = vol.All(cv.Schema({
     vol.Optional(CONF_ABOVE): cv.templatable(cv.float_),
     vol.Optional(CONF_BELOW): cv.templatable(cv.float_),
 }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
 
 
 @CONDITION_REGISTRY.register(CONF_RANGE, RANGE_CONDITION_SCHEMA)
-def range_condition_to_code(config, condition_id, arg_type, template_arg):
-    for conditions in build_conditions(config, arg_type):
+def range_condition_to_code(config, condition_id, template_arg, args):
+    for conditions in build_conditions(config, template_arg, args):
         yield
     rhs = RangeCondition.new(template_arg, conditions)
     type = RangeCondition.template(template_arg)
     condition = Pvariable(condition_id, rhs, type=type)
     if CONF_ABOVE in config:
-        for template_ in templatable(config[CONF_ABOVE], arg_type, float_):
+        for template_ in templatable(config[CONF_ABOVE], args, float_):
             yield
         condition.set_min(template_)
     if CONF_BELOW in config:
-        for template_ in templatable(config[CONF_BELOW], arg_type, float_):
+        for template_ in templatable(config[CONF_BELOW], args, float_):
             yield
         condition.set_max(template_)
     yield condition
@@ -215,11 +214,11 @@ DELAY_ACTION_SCHEMA = cv.templatable(cv.positive_time_period_milliseconds)
 
 
 @ACTION_REGISTRY.register(CONF_DELAY, DELAY_ACTION_SCHEMA)
-def delay_action_to_code(config, action_id, arg_type, template_arg):
+def delay_action_to_code(config, action_id, template_arg, args):
     rhs = App.register_component(DelayAction.new(template_arg))
     type = DelayAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config, arg_type, uint32):
+    for template_ in templatable(config, args, uint32):
         yield
     add(action.set_delay(template_))
     yield action
@@ -233,44 +232,44 @@ IF_ACTION_SCHEMA = vol.All({
 
 
 @ACTION_REGISTRY.register(CONF_IF, IF_ACTION_SCHEMA)
-def if_action_to_code(config, action_id, arg_type, template_arg):
-    for conditions in build_conditions(config[CONF_CONDITION], arg_type):
+def if_action_to_code(config, action_id, template_arg, args):
+    for conditions in build_conditions(config[CONF_CONDITION], template_arg, args):
         yield None
     rhs = IfAction.new(template_arg, conditions)
     type = IfAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_THEN in config:
-        for actions in build_actions(config[CONF_THEN], arg_type):
+        for actions in build_actions(config[CONF_THEN], template_arg, args):
             yield None
         add(action.add_then(actions))
     if CONF_ELSE in config:
-        for actions in build_actions(config[CONF_ELSE], arg_type):
+        for actions in build_actions(config[CONF_ELSE], template_arg, args):
             yield None
         add(action.add_else(actions))
     yield action
 
 
-WHILE_ACTION_SCHEMA = vol.Schema({
+WHILE_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_CONDITION): validate_recursive_condition,
     vol.Required(CONF_THEN): validate_recursive_action,
 })
 
 
 @ACTION_REGISTRY.register(CONF_WHILE, WHILE_ACTION_SCHEMA)
-def while_action_to_code(config, action_id, arg_type, template_arg):
-    for conditions in build_conditions(config[CONF_CONDITION], arg_type):
+def while_action_to_code(config, action_id, template_arg, args):
+    for conditions in build_conditions(config[CONF_CONDITION], template_arg, args):
         yield None
     rhs = WhileAction.new(template_arg, conditions)
     type = WhileAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for actions in build_actions(config[CONF_THEN], arg_type):
+    for actions in build_actions(config[CONF_THEN], template_arg, args):
         yield None
     add(action.add_then(actions))
     yield action
 
 
 def validate_wait_until(value):
-    schema = vol.Schema({
+    schema = cv.Schema({
         vol.Required(CONF_CONDITION): validate_recursive_condition
     })
     if isinstance(value, dict) and CONF_CONDITION in value:
@@ -282,8 +281,8 @@ WAIT_UNTIL_ACTION_SCHEMA = validate_wait_until
 
 
 @ACTION_REGISTRY.register(CONF_WAIT_UNTIL, WAIT_UNTIL_ACTION_SCHEMA)
-def wait_until_action_to_code(config, action_id, arg_type, template_arg):
-    for conditions in build_conditions(config[CONF_CONDITION], arg_type):
+def wait_until_action_to_code(config, action_id, template_arg, args):
+    for conditions in build_conditions(config[CONF_CONDITION], template_arg, args):
         yield None
     rhs = WaitUntilAction.new(template_arg, conditions)
     type = WaitUntilAction.template(template_arg)
@@ -296,8 +295,8 @@ LAMBDA_ACTION_SCHEMA = cv.lambda_
 
 
 @ACTION_REGISTRY.register(CONF_LAMBDA, LAMBDA_ACTION_SCHEMA)
-def lambda_action_to_code(config, action_id, arg_type, template_arg):
-    for lambda_ in process_lambda(config, [(arg_type, 'x')], return_type=void):
+def lambda_action_to_code(config, action_id, template_arg, args):
+    for lambda_ in process_lambda(config, args, return_type=void):
         yield None
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)
@@ -308,8 +307,8 @@ LAMBDA_CONDITION_SCHEMA = cv.lambda_
 
 
 @CONDITION_REGISTRY.register(CONF_LAMBDA, LAMBDA_CONDITION_SCHEMA)
-def lambda_condition_to_code(config, condition_id, arg_type, template_arg):
-    for lambda_ in process_lambda(config, [(arg_type, 'x')], return_type=bool_):
+def lambda_condition_to_code(config, condition_id, template_arg, args):
+    for lambda_ in process_lambda(config, args, return_type=bool_):
         yield
     rhs = LambdaCondition.new(template_arg, lambda_)
     type = LambdaCondition.template(template_arg)
@@ -323,7 +322,7 @@ COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
 
 
 @ACTION_REGISTRY.register(CONF_COMPONENT_UPDATE, COMPONENT_UPDATE_ACTION_SCHEMA)
-def component_update_action_to_code(config, action_id, arg_type, template_arg):
+def component_update_action_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = UpdateComponentAction.new(template_arg, var)
@@ -331,61 +330,55 @@ def component_update_action_to_code(config, action_id, arg_type, template_arg):
     yield Pvariable(action_id, rhs, type=type)
 
 
-def build_action(full_config, arg_type):
+def build_action(full_config, template_arg, args):
     action_id = full_config[CONF_ACTION_ID]
     key, config = next((k, v) for k, v in full_config.items() if k in ACTION_REGISTRY)
 
     builder = ACTION_REGISTRY[key][1]
-    template_arg = TemplateArguments(arg_type)
-    for result in builder(config, action_id, arg_type, template_arg):
+    for result in builder(config, action_id, template_arg, args):
         yield None
     yield result
 
 
-def build_actions(config, arg_type):
+def build_actions(config, templ, arg_type):
     actions = []
     for conf in config:
-        for action in build_action(conf, arg_type):
+        for action in build_action(conf, templ, arg_type):
             yield None
         actions.append(action)
     yield actions
 
 
-def build_condition(full_config, arg_type):
+def build_condition(full_config, template_arg, args):
     action_id = full_config[CONF_CONDITION_ID]
     key, config = next((k, v) for k, v in full_config.items() if k in CONDITION_REGISTRY)
 
     builder = CONDITION_REGISTRY[key][1]
-    template_arg = TemplateArguments(arg_type)
-    for result in builder(config, action_id, arg_type, template_arg):
+    for result in builder(config, action_id, template_arg, args):
         yield None
     yield result
 
 
-def build_conditions(config, arg_type):
+def build_conditions(config, templ, args):
     conditions = []
     for conf in config:
-        for condition in build_condition(conf, arg_type):
+        for condition in build_condition(conf, templ, args):
             yield None
         conditions.append(condition)
     yield conditions
 
 
-def build_automation_(trigger, arg_type, config):
-    rhs = App.make_automation(TemplateArguments(arg_type), trigger)
-    type = Automation.template(arg_type)
+def build_automation_(trigger, args, config):
+    arg_types = [arg[0] for arg in args]
+    templ = TemplateArguments(*arg_types)
+    rhs = App.make_automation(templ, trigger)
+    type = Automation.template(templ)
     obj = Pvariable(config[CONF_AUTOMATION_ID], rhs, type=type)
-    if CONF_IF in config:
-        conditions = None
-        for conditions in build_conditions(config[CONF_IF], arg_type):
-            yield None
-        add(obj.add_conditions(conditions))
-    actions = None
-    for actions in build_actions(config[CONF_THEN], arg_type):
+    for actions in build_actions(config[CONF_THEN], templ, args):
         yield None
     add(obj.add_actions(actions))
     yield obj
 
 
-def build_automation(trigger, arg_type, config):
-    CORE.add_job(build_automation_, trigger, arg_type, config)
+def build_automations(trigger, args, config):
+    CORE.add_job(build_automation_, trigger, args, config)

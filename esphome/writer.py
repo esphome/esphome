@@ -8,13 +8,12 @@ import re
 import shutil
 
 from esphome.config import iter_components
-from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
-    CONF_ARDUINO_VERSION, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, \
-    CONF_LOCAL, \
-    CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
+from esphome.const import ARDUINO_VERSION_ESP32_1_0_0, ARDUINO_VERSION_ESP8266_2_5_0, \
+    ARDUINO_VERSION_ESP8266_DEV, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_COMMIT, CONF_ESPHOME, \
+    CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
-from esphome.helpers import mkdir_p, run_system_command
+from esphome.helpers import mkdir_p, run_system_command, symlink
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import IS_PY3, string_types
 from esphome.storage_json import StorageJSON, storage_path
@@ -105,7 +104,7 @@ def update_esphome_core_repo():
         # Git commit hash or tag cannot be updated
         return
 
-    esphome_core_path = CORE.relative_build_path('.piolibdeps', 'esphome-core')
+    esphome_core_path = CORE.relative_piolibdeps_path('esphome-core')
 
     rc, _, _ = run_system_command('git', '-C', esphome_core_path, '--help')
     if rc != 0:
@@ -229,7 +228,7 @@ def symlink_esphome_core_version(esphome_core_version):
                 do_write = False
         if do_write:
             mkdir_p(lib_path)
-            os.symlink(src_path, dst_path)
+            symlink(src_path, dst_path)
     else:
         # Remove symlink when changing back from local version
         if os.path.islink(dst_path):
@@ -280,16 +279,18 @@ def gather_lib_deps():
     if CORE.is_esp32:
         lib_deps |= {
             'Preferences',  # Preferences helper
-            'AsyncTCP@1.0.1',  # Pin AsyncTCP version
+            'AsyncTCP@1.0.3',  # Pin AsyncTCP version
         }
-        lib_deps.discard('AsyncTCP@1.0.3')
 
         # Manual fix for AsyncTCP
-        if CORE.config[CONF_ESPHOME].get(CONF_ARDUINO_VERSION) == ARDUINO_VERSION_ESP32_DEV:
-            lib_deps.add('AsyncTCP@1.0.3')
-            lib_deps.discard('AsyncTCP@1.0.1')
+        if CORE.arduino_version == ARDUINO_VERSION_ESP32_1_0_0:
+            lib_deps.discard('AsyncTCP@1.0.3')
+            lib_deps.add('AsyncTCP@1.0.1')
+        lib_deps.add('ESPmDNS')
     elif CORE.is_esp8266:
         lib_deps.add('ESPAsyncTCP@1.1.3')
+        lib_deps.add('ESP8266mDNS')
+
     # avoid changing build flags order
     lib_deps_l = list(lib_deps)
     lib_deps_l.sort()
@@ -340,14 +341,6 @@ def gather_build_flags():
             '-DUSE_WIFI_SIGNAL_SENSOR',
         }
 
-    # avoid changing build flags order
-    return list(sorted(list(build_flags)))
-
-
-def get_ini_content():
-    lib_deps = gather_lib_deps()
-    build_flags = gather_build_flags()
-
     if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
         flash_size = ESP8266_FLASH_SIZES[CORE.board]
         ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
@@ -356,14 +349,26 @@ def get_ini_content():
         if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
                                     'espressif8266@1.6.0', 'espressif8266@1.5.0'):
             ld_script = ld_scripts[0]
-        elif CORE.arduino_version == ARDUINO_VERSION_ESP8266_DEV:
+        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            build_flags.append('-Wl,-T{}'.format(ld_script))
+            build_flags.add('-Wl,-T{}'.format(ld_script))
+
+    if CORE.is_esp8266 and CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV,
+                                                    ARDUINO_VERSION_ESP8266_2_5_0):
+        build_flags.add('-fno-exceptions')
+
+    # avoid changing build flags order
+    return list(sorted(list(build_flags)))
+
+
+def get_ini_content():
+    lib_deps = gather_lib_deps()
+    build_flags = gather_build_flags()
 
     data = {
-        'platform': CORE.config[CONF_ESPHOME][CONF_ARDUINO_VERSION],
+        'platform': CORE.arduino_version,
         'board': CORE.board,
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
@@ -393,7 +398,6 @@ def get_ini_content():
         data['lib_ldf_mode'] = 'chain'
         REMOVABLE_LIBRARIES = [
             'ArduinoOTA',
-            'ESPmDNS',
             'Update',
             'Wire',
             'FastLED',
@@ -502,12 +506,14 @@ def write_cpp(code_s):
 
 
 def clean_build():
-    for directory in ('.piolibdeps', '.pioenvs'):
-        dir_path = CORE.relative_build_path(directory)
-        if not os.path.isdir(dir_path):
-            continue
-        _LOGGER.info("Deleting %s", dir_path)
-        shutil.rmtree(dir_path)
+    pioenvs = CORE.relative_pioenvs_path()
+    if os.path.isdir(pioenvs):
+        _LOGGER.info("Deleting %s", pioenvs)
+        shutil.rmtree(pioenvs)
+    piolibdeps = CORE.relative_piolibdeps_path()
+    if os.path.isdir(piolibdeps):
+        _LOGGER.info("Deleting %s", piolibdeps)
+        shutil.rmtree(piolibdeps)
 
 
 GITIGNORE_CONTENT = """# Gitignore settings for ESPHome

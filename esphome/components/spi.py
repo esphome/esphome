@@ -12,7 +12,7 @@ SPIComponent = esphome_ns.class_('SPIComponent', Component)
 SPIDevice = esphome_ns.class_('SPIDevice')
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(SPIComponent),
     vol.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
     vol.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,

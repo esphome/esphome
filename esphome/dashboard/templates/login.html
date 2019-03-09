@@ -28,14 +28,14 @@
 <div class="container">
   <div class="row">
     <div class="col card s10 offset-s1 m10 offset-m1 l8 offset-l2">
-      <form action="/login" method="post">
+      <form action="{{ relative_url }}login" method="post">
         <div class="card-content">
           <span class="card-title">Enter credentials</span>
           <p>
             Please login using your Home Assistant credentials.
           </p>
           {% if error is not None %}
-            <p>
+            <p class="error">
               {{ escape(error) }}
             </p>
           {% end %}

@@ -8,7 +8,7 @@ import voluptuous as vol
 
 import esphome.config_validation as cv
 from esphome.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphome.helpers import color
+from esphome.helpers import color, get_bool_env
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.py_compat import safe_input, text_type
@@ -50,8 +50,8 @@ BASE_CONFIG = u"""esphome:
   board: {board}
 
 wifi:
-  ssid: '{ssid}'
-  password: '{psk}'
+  ssid: "{ssid}"
+  password: "{psk}"
 
 # Enable logging
 logger:
@@ -86,7 +86,7 @@ def wizard_write(path, **kwargs):
     storage.save(storage_path)
 
 
-if os.getenv('ESPHOME_QUICKWIZARD', ''):
+if get_bool_env('ESPHOME_QUICKWIZARD'):
     def sleep(time):
         pass
 else:

@@ -11,12 +11,12 @@ from esphome.cpp_types import App, Component, esphome_ns
 I2CComponent = esphome_ns.class_('I2CComponent', Component)
 I2CDevice = pins.I2CDevice
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(I2CComponent),
-    vol.Optional(CONF_SDA, default='SDA'): pins.input_pullup_pin,
-    vol.Optional(CONF_SCL, default='SCL'): pins.input_pullup_pin,
+    vol.Optional(CONF_SDA, default='SDA'): pins.input_pin,
+    vol.Optional(CONF_SCL, default='SCL'): pins.input_pin,
     vol.Optional(CONF_FREQUENCY): vol.All(cv.frequency, vol.Range(min=0, min_included=False)),
-    vol.Optional(CONF_SCAN): cv.boolean,
+    vol.Optional(CONF_SCAN, default=True): cv.boolean,
 
     vol.Optional(CONF_RECEIVE_TIMEOUT): cv.invalid("The receive_timeout option has been removed "
                                                    "because timeouts are already handled by the "

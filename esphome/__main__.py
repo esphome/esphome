@@ -17,9 +17,9 @@ from esphome.core import CORE, EsphomeError
 from esphome.cpp_generator import Expression, RawStatement, add, statement
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input, text_type
-from esphome.storage_json import StorageJSON, esphome_storage_path, \
-    start_update_check_thread, storage_path
-from esphome.util import run_external_command, run_external_process, safe_print
+from esphome.storage_json import StorageJSON, storage_path
+from esphome.util import run_external_command, run_external_process, safe_print, \
+    is_dev_esphome_version
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -157,17 +157,21 @@ def write_cpp(config):
 
 def compile_program(args, config):
     _LOGGER.info("Compiling app...")
-    update_check = not os.getenv('ESPHOME_NO_UPDATE_CHECK', '')
-    if update_check:
-        thread = start_update_check_thread(esphome_storage_path(CORE.config_dir))
     rc = platformio_api.run_compile(config, args.verbose)
-    if update_check:
-        thread.join()
+    if rc != 0 and CORE.is_dev_esphome_core_version and not is_dev_esphome_version():
+        _LOGGER.warning("You're using 'esphome_core_version: dev' but not using the "
+                        "dev version of the ESPHome tool.")
+        _LOGGER.warning("Expect compile errors if these versions are out of sync.")
+        _LOGGER.warning("Please install the dev version of ESPHome too when using "
+                        "'esphome_core_version: dev'.")
+        _LOGGER.warning(" - Hass.io: Install 'ESPHome (dev)' addon")
+        _LOGGER.warning(" - Docker: docker run [...] esphome/esphome:dev [...]")
+        _LOGGER.warning(" - PIP: pip install -U https://github.com/esphome/esphome/archive/dev.zip")
     return rc
 
 
 def upload_using_esptool(config, port):
-    path = os.path.join(CORE.build_path, '.pioenvs', CORE.name, 'firmware.bin')
+    path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 

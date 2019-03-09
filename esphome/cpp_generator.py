@@ -1,7 +1,7 @@
 from collections import OrderedDict
 
 from esphome.core import CORE, HexInt, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds
+    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 
 # pylint: disable=unused-import, wrong-import-order
@@ -286,6 +286,8 @@ def safe_exp(
         return IntLiteral(int(obj.total_milliseconds))
     if isinstance(obj, TimePeriodSeconds):
         return IntLiteral(int(obj.total_seconds))
+    if isinstance(obj, TimePeriodMinutes):
+        return IntLiteral(int(obj.total_minutes))
     if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
     raise ValueError(u"Object is not an expression", obj)
@@ -420,12 +422,11 @@ def process_lambda(value,  # type: Lambda
 
 
 def templatable(value,  # type: Any
-                input_type,  # type: Expression
+                args,  # type: List[Tuple[Expression, str]]
                 output_type  # type: Optional[Expression]
                 ):
     if isinstance(value, Lambda):
-        lambda_ = None
-        for lambda_ in process_lambda(value, [(input_type, 'x')], return_type=output_type):
+        for lambda_ in process_lambda(value, args, return_type=output_type):
             yield None
         yield lambda_
     else:
@@ -475,9 +476,11 @@ class MockObj(Expression):
                 continue
             require.require()
 
-    def template(self, args):  # type: (Union[TemplateArguments, Expression]) -> MockObj
-        if not isinstance(args, TemplateArguments):
-            args = TemplateArguments(args)
+    def template(self, *args):  # type: (Tuple[Union[TemplateArguments, Expression]]) -> MockObj
+        if len(args) != 1 or not isinstance(args[0], TemplateArguments):
+            args = TemplateArguments(*args)
+        else:
+            args = args[0]
         obj = MockObj(u'{}{}'.format(self.base, args))
         obj.requires.append(self)
         obj.requires.append(args)
@@ -553,9 +556,14 @@ class MockObjClass(MockObj):
                 return True
         return False
 
-    def template(self, args):  # type: (Union[TemplateArguments, Expression]) -> MockObjClass
-        if not isinstance(args, TemplateArguments):
-            args = TemplateArguments(args)
+    def template(self,
+                 *args  # type: Tuple[Union[TemplateArguments, Expression]]
+                 ):
+        # type: (...) -> MockObjClass
+        if len(args) != 1 or not isinstance(args[0], TemplateArguments):
+            args = TemplateArguments(*args)
+        else:
+            args = args[0]
         new_parents = self._parents[:]
         new_parents.append(self)
         obj = MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)

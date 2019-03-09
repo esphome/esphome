@@ -46,7 +46,7 @@ VOLTAGE_ATTENUATION = {
 
 ESP32TouchComponent = binary_sensor.binary_sensor_ns.class_('ESP32TouchComponent', Component)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32TouchComponent),
     vol.Optional(CONF_SETUP_MODE): cv.boolean,
     vol.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,

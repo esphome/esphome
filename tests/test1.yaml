@@ -78,21 +78,26 @@ mqtt:
   on_json_message:
     topic: the/topic
     then:
-      - lambda: |-
-          int data = x["my_data"];
-          ESP_LOGD("main", "The data is: %d", data);
-      - light.turn_on:
-          id: living_room_lights
-          transition_length: !lambda |-
-            int length = 1000;
-            if (x.containsKey("length"))
-              length = x["length"];
-            return length;
-          effect: !lambda |-
-            const char *effect = "None";
-            if (x.containsKey("effect"))
-              effect = x["effect"];
-            return effect;
+    - if:
+        condition:
+          - wifi.connected:
+          - mqtt.connected:
+        then:
+        - lambda: |-
+            int data = x["my_data"];
+            ESP_LOGD("main", "The data is: %d", data);
+        - light.turn_on:
+            id: living_room_lights
+            transition_length: !lambda |-
+              int length = 1000;
+              if (x.containsKey("length"))
+                length = x["length"];
+              return length;
+            effect: !lambda |-
+              const char *effect = "None";
+              if (x.containsKey("effect"))
+                effect = x["effect"];
+              return effect;
 
 i2c:
   sda: 21
@@ -163,8 +168,11 @@ sensor:
     filters:
       - offset: 2.0
       - multiply: 1.2
+      - calibrate_linear:
+        - 0.0 -> 0.0
+        - 40.0 -> 45.0
+        - 100.0 -> 102.5
       - filter_out: 42.0
-      - filter_nan:
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -176,7 +184,6 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
-      - unique:
       - or:
         - throttle: 1s
         - delta: 5.0
@@ -428,6 +435,9 @@ sensor:
       - or:
         - debounce: 0.1s
         - delta: 10
+    resolution: 4
+    min_value: -10
+    max_value: 30
   - platform: sht3xd
     temperature:
       name: "Living Room Temperature 8"
@@ -465,7 +475,7 @@ sensor:
       number: GPIO23
       inverted: true
     name: "Ultrasonic Sensor"
-    timeout_meter: 5.5
+    timeout: 5.5m
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
@@ -481,8 +491,15 @@ sensor:
       - mqtt.publish_json:
           topic: the/topic
           payload: |-
-            root["key"] = id(the_sensor).value;
+            root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
+  - platform: sds011
+    pm_2_5:
+      name: "SDS011 PM2.5"
+    pm_10_0:
+      name: "SDS011 PM10.0"
+    update_interval: 5min
+    rx_only: false
 
 
 esp32_touch:
@@ -603,6 +620,13 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: gpio
+    name: "MCP binary sensor"
+    pin:
+      mcp23017: mcp23017_hub
+      number: 1
+      mode: INPUT
+      inverted: True
 
 pca9685:
   frequency: 500
@@ -659,6 +683,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: gpio
+    id: id22
+    pin:
+      mcp23017: mcp23017_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
   - platform: my9231
     id: my_0
     channel: 0
@@ -677,6 +708,18 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: copy
+    id: my_copy1
+    outputs:
+      - my_1
+      - my_2
+      - my_3
+  - platform: copy
+    id: my_copy2
+    type: binary
+    outputs:
+      - id22
+      - id2
 
 light:
   - platform: binary
@@ -996,6 +1039,9 @@ switch:
             i = -5000;
           }
           return i;
+    - stepper.report_position:
+        id: my_stepper
+        position: 0
 
 fan:
   - platform: binary
@@ -1127,6 +1173,9 @@ pcf8574:
     address: 0x21
     pcf8575: False
 
+mcp23017:
+  - id: 'mcp23017_hub'
+
 stepper:
 - platform: a4988
   id: my_stepper
@@ -1172,3 +1221,10 @@ text_sensor:
 - platform: template
   name: Template Text Sensor
   id: template_text
+- platform: wifi_info
+  ip_address:
+    name: "IP Address"
+  ssid:
+    name: "SSID"
+  bssid:
+    name: "BSSID"

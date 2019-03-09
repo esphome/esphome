@@ -3,6 +3,7 @@ import voluptuous as vol
 from esphome import pins
 import esphome.config_validation as cv
 from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN
+from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component, esphome_ns
@@ -11,10 +12,18 @@ UARTComponent = esphome_ns.class_('UARTComponent', Component)
 UARTDevice = esphome_ns.class_('UARTDevice')
 MULTI_CONF = True
 
-CONFIG_SCHEMA = vol.All(vol.Schema({
+
+def validate_rx_pin(value):
+    value = pins.input_pin(value)
+    if CORE.is_esp8266 and value >= 16:
+        raise vol.Invalid("Pins GPIO16 and GPIO17 cannot be used as RX pins on ESP8266.")
+    return value
+
+
+CONFIG_SCHEMA = vol.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(UARTComponent),
     vol.Optional(CONF_TX_PIN): pins.output_pin,
-    vol.Optional(CONF_RX_PIN): pins.input_pin,
+    vol.Optional(CONF_RX_PIN): validate_rx_pin,
     vol.Required(CONF_BAUD_RATE): cv.positive_int,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))
 

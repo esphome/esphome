@@ -10,9 +10,9 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
-    CONF_LOCAL, \
-    CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
-from esphome.helpers import ensure_unique_string
+    CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
+    CONF_REPOSITORY, CONF_BRANCH
+from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -215,6 +215,10 @@ class TimePeriodSeconds(TimePeriod):
     pass
 
 
+class TimePeriodMinutes(TimePeriod):
+    pass
+
+
 LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 
@@ -288,7 +292,7 @@ class ID(object):
         return hash(self.id)
 
 
-# pylint: disable=too-many-instance-attributes
+# pylint: disable=too-many-instance-attributes,too-many-public-methods
 class EsphomeCore(object):
     def __init__(self):
         # True if command is run from dashboard
@@ -329,6 +333,12 @@ class EsphomeCore(object):
         return self.config[CONF_ESPHOME][CONF_ESPHOME_CORE_VERSION]
 
     @property
+    def is_dev_esphome_core_version(self):
+        if CONF_REPOSITORY not in self.esphome_core_version:
+            return False
+        return self.esphome_core_version.get(CONF_BRANCH) == 'dev'
+
+    @property
     def is_local_esphome_core_copy(self):
         return CONF_LOCAL in self.esphome_core_version
 
@@ -352,9 +362,19 @@ class EsphomeCore(object):
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
+    def relative_pioenvs_path(self, *path):
+        if is_hassio():
+            return os.path.join('/data', self.name, '.pioenvs', *path)
+        return self.relative_build_path('.pioenvs', *path)
+
+    def relative_piolibdeps_path(self, *path):
+        if is_hassio():
+            return os.path.join('/data', self.name, '.piolibdeps', *path)
+        return self.relative_build_path('.piolibdeps', *path)
+
     @property
     def firmware_bin(self):
-        return self.relative_build_path('.pioenvs', self.name, 'firmware.bin')
+        return self.relative_pioenvs_path(self.name, 'firmware.bin')
 
     @property
     def is_esp8266(self):

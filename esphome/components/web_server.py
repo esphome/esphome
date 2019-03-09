@@ -9,7 +9,7 @@ from esphome.cpp_types import App, Component, StoringController, esphome_ns
 
 WebServer = esphome_ns.class_('WebServer', Component, StoringController)
 
-CONFIG_SCHEMA = vol.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(WebServer),
     vol.Optional(CONF_PORT): cv.port,
     vol.Optional(CONF_CSS_URL): cv.string,

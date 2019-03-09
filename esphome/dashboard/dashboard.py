@@ -2,9 +2,11 @@
 from __future__ import print_function
 
 import codecs
+import collections
 import hmac
 import json
 import logging
+import multiprocessing
 import os
 import subprocess
 import threading
@@ -23,7 +25,7 @@ import tornado.websocket
 
 from esphome import const
 from esphome.__main__ import get_serial_ports
-from esphome.helpers import mkdir_p
+from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.py_compat import IS_PY2
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path
@@ -42,11 +44,24 @@ USING_PASSWORD = False
 ON_HASSIO = False
 USING_HASSIO_AUTH = True
 HASSIO_MQTT_CONFIG = None
+RELATIVE_URL = os.getenv('ESPHOME_DASHBOARD_RELATIVE_URL', '/')
+STATUS_USE_PING = get_bool_env('ESPHOME_DASHBOARD_USE_PING')
 
 if IS_PY2:
     cookie_authenticated_yes = 'yes'
 else:
     cookie_authenticated_yes = b'yes'
+
+
+def template_args():
+    version = const.__version__
+    return {
+        'version': version,
+        'docs_link': 'https://beta.esphome.io/' if 'b' in version else 'https://esphome.io/',
+        'get_static_file_url': get_static_file_url,
+        'relative_url': RELATIVE_URL,
+        'streamer_mode': get_bool_env('ESPHOME_STREAMER_MODE'),
+    }
 
 
 # pylint: disable=abstract-method
@@ -165,7 +180,7 @@ class EsphomeHassConfigHandler(EsphomeCommandWebSocket):
 class SerialPortRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
         ports = get_serial_ports()
         data = []
@@ -187,7 +202,7 @@ class WizardRequestHandler(BaseHandler):
         from esphome import wizard
 
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
         kwargs = {k: ''.join(v) for k, v in self.request.arguments.items()}
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
@@ -198,9 +213,10 @@ class WizardRequestHandler(BaseHandler):
 class DownloadBinaryRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
 
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         storage_path = ext_storage_path(CONFIG_DIR, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -213,8 +229,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
         filename = '{}.bin'.format(storage_json.name)
         self.set_header("Content-Disposition", 'attachment; filename="{}"'.format(filename))
         with open(path, 'rb') as f:
-            while 1:
-                data = f.read(16384)  # or some other nice-sized chunk
+            while True:
+                data = f.read(16384)
                 if not data:
                     break
                 self.write(data)
@@ -301,21 +317,26 @@ class DashboardEntry(object):
 class MainRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
 
         begin = bool(self.get_argument('begin', False))
         entries = _list_dashboard_entries()
-        version = const.__version__
-        docs_link = 'https://beta.esphome.io/' if 'b' in version else \
-            'https://esphome.io/'
 
-        self.render("templates/index.html", entries=entries,
-                    version=version, begin=begin, docs_link=docs_link,
-                    get_static_file_url=get_static_file_url)
+        self.render("templates/index.html", entries=entries, begin=begin,
+                    **template_args())
 
 
-class PingThread(threading.Thread):
+def _ping_func(filename, address):
+    if os.name == 'nt':
+        command = ['ping', '-n', '1', address]
+    else:
+        command = ['ping', '-c', '1', address]
+    rc, _, _ = run_system_command(*command)
+    return filename, rc == 0
+
+
+class MDNSStatusThread(threading.Thread):
     def run(self):
         zc = Zeroconf()
 
@@ -336,10 +357,52 @@ class PingThread(threading.Thread):
         zc.close()
 
 
+class PingStatusThread(threading.Thread):
+    def run(self):
+        pool = multiprocessing.Pool(processes=8)
+        while not STOP_EVENT.is_set():
+            # Only do pings if somebody has the dashboard open
+
+            def callback(ret):
+                PING_RESULT[ret[0]] = ret[1]
+
+            entries = _list_dashboard_entries()
+            queue = collections.deque()
+            for entry in entries:
+                if entry.address is None:
+                    PING_RESULT[entry.filename] = None
+                    continue
+
+                result = pool.apply_async(_ping_func, (entry.filename, entry.address),
+                                          callback=callback)
+                queue.append(result)
+
+            while queue:
+                item = queue[0]
+                if item.ready():
+                    queue.popleft()
+                    continue
+
+                try:
+                    item.get(0.1)
+                except OSError:
+                    # ping not installed
+                    pass
+                except multiprocessing.TimeoutError:
+                    pass
+
+                if STOP_EVENT.is_set():
+                    pool.terminate()
+                    return
+
+            PING_REQUEST.wait()
+            PING_REQUEST.clear()
+
+
 class PingRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
 
         PING_REQUEST.set()
@@ -353,8 +416,9 @@ def is_allowed(configuration):
 class EditRequestHandler(BaseHandler):
     def get(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
             self.set_status(401)
@@ -366,8 +430,9 @@ class EditRequestHandler(BaseHandler):
 
     def post(self):
         if not self.is_authenticated():
-            self.redirect('/login')
+            self.redirect(RELATIVE_URL + 'login')
             return
+        # pylint: disable=no-value-for-parameter
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
             self.set_status(401)
@@ -389,18 +454,13 @@ class LoginHandler(BaseHandler):
         if USING_HASSIO_AUTH:
             self.render_hassio_login()
             return
-        self.write('<html><body><form action="/login" method="post">'
+        self.write('<html><body><form action="' + RELATIVE_URL + 'login" method="post">'
                    'Password: <input type="password" name="password">'
                    '<input type="submit" value="Sign in">'
                    '</form></body></html>')
 
     def render_hassio_login(self, error=None):
-        version = const.__version__
-        docs_link = 'https://beta.esphome.io/' if 'b' in version else \
-            'https://esphome.io/'
-
-        self.render("templates/login.html", version=version, docs_link=docs_link, error=error,
-                    get_static_file_url=get_static_file_url)
+        self.render("templates/login.html", error=error, **template_args())
 
     def post_hassio_login(self):
         import requests
@@ -451,9 +511,9 @@ def get_static_file_url(name):
     else:
         path = os.path.join(static_path, name)
         with open(path, 'rb') as f_handle:
-            hash_ = hash(f_handle.read())
+            hash_ = hash(f_handle.read()) & (2**32-1)
         _STATIC_FILE_HASHES[name] = hash_
-    return u'/static/{}?hash={}'.format(name, hash_)
+    return RELATIVE_URL + u'static/{}?hash={:08X}'.format(name, hash_)
 
 
 def make_app(debug=False):
@@ -488,21 +548,21 @@ def make_app(debug=False):
         'websocket_ping_interval': 30.0,
     }
     app = tornado.web.Application([
-        (r"/", MainRequestHandler),
-        (r"/login", LoginHandler),
-        (r"/logs", EsphomeLogsHandler),
-        (r"/run", EsphomeRunHandler),
-        (r"/compile", EsphomeCompileHandler),
-        (r"/validate", EsphomeValidateHandler),
-        (r"/clean-mqtt", EsphomeCleanMqttHandler),
-        (r"/clean", EsphomeCleanHandler),
-        (r"/hass-config", EsphomeHassConfigHandler),
-        (r"/edit", EditRequestHandler),
-        (r"/download.bin", DownloadBinaryRequestHandler),
-        (r"/serial-ports", SerialPortRequestHandler),
-        (r"/ping", PingRequestHandler),
-        (r"/wizard.html", WizardRequestHandler),
-        (r'/static/(.*)', StaticFileHandler, {'path': static_path}),
+        (RELATIVE_URL + "", MainRequestHandler),
+        (RELATIVE_URL + "login", LoginHandler),
+        (RELATIVE_URL + "logs", EsphomeLogsHandler),
+        (RELATIVE_URL + "run", EsphomeRunHandler),
+        (RELATIVE_URL + "compile", EsphomeCompileHandler),
+        (RELATIVE_URL + "validate", EsphomeValidateHandler),
+        (RELATIVE_URL + "clean-mqtt", EsphomeCleanMqttHandler),
+        (RELATIVE_URL + "clean", EsphomeCleanHandler),
+        (RELATIVE_URL + "hass-config", EsphomeHassConfigHandler),
+        (RELATIVE_URL + "edit", EditRequestHandler),
+        (RELATIVE_URL + "download.bin", DownloadBinaryRequestHandler),
+        (RELATIVE_URL + "serial-ports", SerialPortRequestHandler),
+        (RELATIVE_URL + "ping", PingRequestHandler),
+        (RELATIVE_URL + "wizard.html", WizardRequestHandler),
+        (RELATIVE_URL + r"static/(.*)", StaticFileHandler, {'path': static_path}),
     ], **settings)
 
     if debug:
@@ -525,7 +585,7 @@ def start_web_server(args):
 
     ON_HASSIO = args.hassio
     if ON_HASSIO:
-        USING_HASSIO_AUTH = not bool(os.getenv('DISABLE_HA_AUTHENTICATION'))
+        USING_HASSIO_AUTH = not get_bool_env('DISABLE_HA_AUTHENTICATION')
         USING_PASSWORD = False
     else:
         USING_HASSIO_AUTH = False
@@ -562,14 +622,17 @@ def start_web_server(args):
 
             webbrowser.open('localhost:{}'.format(args.port))
 
-    ping_thread = PingThread()
-    ping_thread.start()
+    if STATUS_USE_PING:
+        status_thread = PingStatusThread()
+    else:
+        status_thread = MDNSStatusThread()
+    status_thread.start()
     try:
         tornado.ioloop.IOLoop.current().start()
     except KeyboardInterrupt:
         _LOGGER.info("Shutting down...")
         STOP_EVENT.set()
         PING_REQUEST.set()
-        ping_thread.join()
+        status_thread.join()
         if args.socket is not None:
             os.remove(args.socket)

@@ -44,7 +44,7 @@ def setup_text_sensor_core_(text_sensor_var, config):
     for conf in config.get(CONF_ON_VALUE, []):
         rhs = text_sensor_var.make_state_trigger()
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automation(trigger, std_string, conf)
+        automation.build_automations(trigger, [(std_string, 'x')], conf)
 
     setup_mqtt_component(text_sensor_var.get_mqtt(), config)
 
@@ -56,9 +56,10 @@ def setup_text_sensor(text_sensor_obj, config):
 
 
 def register_text_sensor(var, config):
-    text_sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    add(App.register_text_sensor(text_sensor_var))
-    CORE.add_job(setup_text_sensor_core_, text_sensor_var, config)
+    if not CORE.has_id(config[CONF_ID]):
+        var = Pvariable(config[CONF_ID], var, has_side_effects=True)
+    add(App.register_text_sensor(var))
+    CORE.add_job(setup_text_sensor_core_, var, config)
 
 
 BUILD_FLAGS = '-DUSE_TEXT_SENSOR'

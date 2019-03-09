@@ -1,6 +1,13 @@
 sudo: false
 language: python
 
+cache:
+  directories:
+    - "~/.platformio"
+    - "$TRAVIS_BUILD_DIR/tests/build/test1/.piolibdeps"
+    - "$TRAVIS_BUILD_DIR/tests/build/test2/.piolibdeps"
+    - "$TRAVIS_BUILD_DIR/tests/build/test3/.piolibdeps"
+
 matrix:
   fast_finish: true
   include:
@@ -12,7 +19,7 @@ matrix:
         - pylint esphome
     - python: "3.5.3"
       env: TARGET=Lint3.5
-      install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
+      install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.3.0 pillow
       script:
         - flake8 esphome
         - pylint esphome
@@ -25,7 +32,7 @@ matrix:
         - esphome tests/test3.yaml compile
     #- python: "3.5.3"
     #  env: TARGET=Test3.5
-    #  install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.2.2 pillow
+    #  install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.3.0 pillow
     #  script:
     #    - esphome tests/test1.yaml compile
     #    - esphome tests/test2.yaml compile

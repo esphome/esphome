@@ -36,7 +36,7 @@ def to_code(config):
 BUILD_FLAGS = '-DUSE_TEMPLATE_BINARY_SENSOR'
 
 CONF_BINARY_SENSOR_TEMPLATE_PUBLISH = 'binary_sensor.template.publish'
-BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
+BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(binary_sensor.BinarySensor),
     vol.Required(CONF_STATE): cv.templatable(cv.boolean),
 })
@@ -44,13 +44,13 @@ BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = vol.Schema({
 
 @ACTION_REGISTRY.register(CONF_BINARY_SENSOR_TEMPLATE_PUBLISH,
                           BINARY_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA)
-def binary_sensor_template_publish_to_code(config, action_id, arg_type, template_arg):
+def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
     rhs = var.make_binary_sensor_publish_action(template_arg)
-    type = BinarySensorPublishAction.template(arg_type)
+    type = BinarySensorPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], arg_type, bool_):
+    for template_ in templatable(config[CONF_STATE], args, bool_):
         yield None
     add(action.set_state(template_))
     yield action
