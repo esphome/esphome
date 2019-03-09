@@ -45,14 +45,15 @@ CONF_RESET_PIN = 'reset_pin'
 CONF_POWER_DOWN_PIN = 'power_down_pin'
 
 CONF_MAX_FRAMERATE = 'max_framerate'
+CONF_IDLE_FRAMERATE = 'idle_framerate'
 CONF_RESOLUTION = 'resolution'
 CONF_JPEG_QUALITY = 'jpeg_quality'
-CONF_FRAMEBUFFER_COUNT = 'framebuffer_count'
 CONF_VERTICAL_FLIP = 'vertical_flip'
 CONF_HORIZONTAL_MIRROR = 'horizontal_mirror'
 CONF_CONTRAST = 'contrast'
 CONF_BRIGHTNESS = 'brightness'
 CONF_SATURATION = 'saturation'
+CONF_TEST_PATTERN = 'test_pattern'
 
 camera_range_param = vol.All(cv.int_, vol.Range(min=-2, max=2))
 
@@ -65,7 +66,7 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
     vol.Required(CONF_EXTERNAL_CLOCK): vol.Schema({
         vol.Required(CONF_PIN): pins.output_pin,
-        vol.Optional(CONF_FREQUENCY, default='20kHz'): vol.All(cv.frequency, vol.In([20e3, 10e3])),
+        vol.Optional(CONF_FREQUENCY, default='20MHz'): vol.All(cv.frequency, vol.In([20e6, 10e6])),
     }),
     vol.Required(CONF_I2C_PINS): vol.Schema({
         vol.Required(CONF_SDA): pins.output_pin,
@@ -77,6 +78,8 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Optional(CONF_MAX_FRAMERATE, default='30 fps'): vol.All(cv.framerate,
                                                                 vol.Range(min=0, min_included=False,
                                                                           max=60)),
+    vol.Optional(CONF_IDLE_FRAMERATE, default='0 fps'): vol.All(cv.framerate,
+                                                                vol.Range(min=0, max=1)),
     vol.Optional(CONF_RESOLUTION, default='640X480'): cv.one_of(*FRAME_SIZES, upper=True),
     vol.Optional(CONF_JPEG_QUALITY, default=10): vol.All(cv.int_, vol.Range(min=10, max=63)),
     vol.Optional(CONF_CONTRAST, default=0): camera_range_param,
@@ -84,7 +87,7 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Optional(CONF_SATURATION, default=0): camera_range_param,
     vol.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
     vol.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
-    vol.Optional(CONF_FRAMEBUFFER_COUNT, default=1): cv.int_,
+    vol.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 SETTERS = {
@@ -92,7 +95,6 @@ SETTERS = {
     CONF_VSYNC_PIN: 'set_vsync_pin',
     CONF_HREF_PIN: 'set_href_pin',
     CONF_PIXEL_CLOCK_PIN: 'set_pixel_clock_pin',
-    CONF_FRAMEBUFFER_COUNT: 'set_framebuffer_count',
     CONF_RESET_PIN: 'set_reset_pin',
     CONF_POWER_DOWN_PIN: 'set_power_down_pin',
     CONF_JPEG_QUALITY: 'set_jpeg_quality',
@@ -101,6 +103,7 @@ SETTERS = {
     CONF_CONTRAST: 'set_contrast',
     CONF_BRIGHTNESS: 'set_brightness',
     CONF_SATURATION: 'set_saturation',
+    CONF_TEST_PATTERN: 'set_test_pattern',
 }
 
 
@@ -116,7 +119,12 @@ def to_code(config):
     add(cam.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     i2c_pins = config[CONF_I2C_PINS]
     add(cam.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
-    add(cam.set_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
+    add(cam.set_max_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
+    if config[CONF_IDLE_FRAMERATE] == 0:
+        add(cam.set_idle_update_interval(0))
+    else:
+        add(cam.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
+    add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
 
 
 BUILD_FLAGS = '-DUSE_ESP32_CAMERA'
