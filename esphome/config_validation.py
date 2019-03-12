@@ -28,6 +28,7 @@ port = vol.All(vol.Coerce(int), vol.Range(min=1, max=65535))
 float_ = vol.Coerce(float)
 positive_float = vol.All(float_, vol.Range(min=0))
 zero_to_one_float = vol.All(float_, vol.Range(min=0, max=1))
+negative_one_to_one_float = vol.All(float_, vol.Range(min=-1, max=1))
 positive_int = vol.All(vol.Coerce(int), vol.Range(min=0))
 positive_not_null_int = vol.All(vol.Coerce(int), vol.Range(min=0, min_included=False))
 
@@ -607,6 +608,11 @@ i2c_address = hex_uint8_t
 
 
 def percentage(value):
+    value = possibly_negative_percentage(value)
+    return zero_to_one_float(value)
+
+
+def possibly_negative_percentage(value):
     has_percent_sign = isinstance(value, string_types) and value.endswith('%')
     if has_percent_sign:
         value = float(value[:-1].rstrip()) / 100.0
@@ -615,7 +621,12 @@ def percentage(value):
         if not has_percent_sign:
             msg += " Please put a percent sign after the number!"
         raise vol.Invalid(msg)
-    return zero_to_one_float(value)
+    if value < -1:
+        msg = "Percentage must not be smaller than -100%."
+        if not has_percent_sign:
+            msg += " Please put a percent sign after the number!"
+        raise vol.Invalid(msg)
+    return negative_one_to_one_float(value)
 
 
 def percentage_int(value):
