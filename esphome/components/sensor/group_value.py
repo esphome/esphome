@@ -1,38 +1,48 @@
 import voluptuous as vol
 
-from esphome.components import sensor
-from esphome.components.mpr121 import MPR121Component, CONF_MPR121_ID
+from esphome.components import sensor, binary_sensor
 import esphome.config_validation as cv
-from esphome.const import  CONF_NAME, CONF_CHANNELS, CONF_CHANNEL, CONF_VALUE, CONF_TYPE, CONF_STEP_SIZE
-from esphome.cpp_generator import Pvariable, get_variable, add
+from esphome.const import  CONF_ID,CONF_NAME, CONF_CHANNELS, CONF_CHANNEL, CONF_VALUE
+from esphome.cpp_generator import Pvariable, get_variable, variable, add
 from esphome.cpp_types import App, Component
 from array import array
 from const import CONF_ID
+from test.test_multiprocessing import get_value
+from esphome.components.sensor import setup_sensor
+
+DEPENDENCIES = ['binary_sensor']
+MULTI_CONF = True
 
 GroupSensorComponent = sensor.sensor_ns.class_('GroupSensorComponent', sensor.Sensor)
 
 entry = {
-    cv.GenerateID(): cv.declare_variable_id(CONF_MPR121_ID),
-    vol.Required(CONF_CHANNEL): vol.All(cv.positive_int, vol.Range(min=0, max=11)),
+    vol.Required(CONF_CHANNEL): cv.use_variable_id(binary_sensor.BinarySensor),
     vol.Optional(CONF_VALUE): vol.All(cv.positive_int, vol.Range(min=0, max=255)),
 }
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GroupSensorComponent),
-    cv.GenerateID(CONF_MPR121_ID): cv.use_variable_id(MPR121Component),
-    vol.Required(CONF_CHANNELS): vol.All([entry], vol.Length(min=1, max=12))
+    vol.Required(CONF_CHANNELS): vol.All([entry])
 }))
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_MPR121_ID]):
-        yield
-    sensh = hub.make_sensor(config[CONF_NAME])    
-    mysensor = Pvariable(config[CONF_ID], sensh)
+    rhs = App.make_group_sensor(config[CONF_NAME])
+    var = Pvariable(config[CONF_ID], rhs)
+    setup_sensor(var, config)
+#    grsens_struct = variable(config[CONF_ID], rhs)
+
     for ch in config[CONF_CHANNELS]:
-        add(mysensor.add_sensor_channel(ch[CONF_CHANNEL], ch[CONF_VALUE]))
-    add(App.register_sensor(mysensor))
+        for input_var in  get_variable(ch[CONF_CHANNEL]):
+            yield
+        add(var.add_sensor(input_var,ch[CONF_VALUE]))
+
+#          add(grsens_struct.add_sensor_channel(ch[CONF_CHANNEL], ch[CONF_VALUE]))
+    
+    add(App.register_sensor(var))
 
 
 def to_hass_config(data, config):
     return sensor.core_to_hass_config(data, config)
+
+BUILD_FLAGS = '-DUSE_GROUP_SENSOR'

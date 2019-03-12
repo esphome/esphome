@@ -421,6 +421,7 @@ CONF_MIN_POWER = 'min_power'
 CONF_MIN_VALUE = 'min_value'
 CONF_MAX_VALUE = 'max_value'
 CONF_RX_ONLY = 'rx_only'
+CONF_VALUE = 'value'
 
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
