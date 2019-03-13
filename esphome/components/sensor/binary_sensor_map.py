@@ -2,7 +2,7 @@ import voluptuous as vol
 
 from esphome.components import sensor, binary_sensor
 import esphome.config_validation as cv
-from esphome.const import  CONF_ID, CONF_NAME, CONF_CHANNELS, CONF_CHANNEL, CONF_VALUE, CONF_TYPE
+from esphome.const import CONF_ID, CONF_NAME, CONF_CHANNELS, CONF_CHANNEL, CONF_VALUE, CONF_TYPE
 from esphome.cpp_generator import Pvariable, get_variable, add
 from esphome.cpp_types import App
 from esphome.components.sensor import setup_sensor
@@ -13,7 +13,7 @@ BinarySensorMap = sensor.sensor_ns.class_('BinarySensorMap', sensor.Sensor)
 
 SensorMapType = sensor.sensor_ns.enum('SensorMapType')
 SENSOR_MAP_TYPES = {
-    'GROUP' : SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
+    'GROUP': SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
     'SLIDER': SensorMapType.BINARY_SENSOR_MAP_TYPE_SLIDER,
     'WHEEL': SensorMapType.BINARY_SENSOR_MAP_TYPE_WHEEL,
 }
