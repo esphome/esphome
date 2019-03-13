@@ -423,7 +423,6 @@ CONF_MAX_VALUE = 'max_value'
 CONF_RX_ONLY = 'rx_only'
 CONF_VALUE = 'value'
 
-
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
 ARDUINO_VERSION_ESP32_1_0_0 = 'espressif32@1.5.0'
