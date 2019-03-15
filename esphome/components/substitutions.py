@@ -6,6 +6,7 @@ import voluptuous as vol
 from esphome import core
 import esphome.config_validation as cv
 from esphome.core import EsphomeError
+from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ def _substitute_item(substitutions, item, path):
         for old, new in replace_keys:
             item[new] = item[old]
             del item[old]
-    elif isinstance(item, str):
+    elif isinstance(item, string_types):
         sub = _expand_substitutions(substitutions, item, path)
         if sub != item:
             return sub
