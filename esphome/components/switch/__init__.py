@@ -6,7 +6,7 @@ from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_MQTT_ID, \
-    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_OPTIMISTIC, CONF_TRIGGER_ID
+    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable
 from esphome.cpp_types import Action, App, Nameable, Trigger, esphome_ns
