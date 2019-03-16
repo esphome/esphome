@@ -21,8 +21,3 @@ def to_code(config):
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, config)
     setup_component(light_struct.Pstate, config)
-
-
-def to_hass_config(data, config):
-    return light.core_to_hass_config(data, config, brightness=False, rgb=False, color_temp=False,
-                                     white_value=False)

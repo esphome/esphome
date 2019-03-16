@@ -273,21 +273,6 @@ def sensor_in_range_to_code(config, condition_id, template_arg, args):
     yield cond
 
 
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'sensor', config, include_state=True, include_command=False)
-    if ret is None:
-        return None
-    if CONF_UNIT_OF_MEASUREMENT in config:
-        ret['unit_of_measurement'] = config[CONF_UNIT_OF_MEASUREMENT]
-    if CONF_EXPIRE_AFTER in config:
-        expire = config[CONF_EXPIRE_AFTER]
-        if expire is not None:
-            ret['expire_after'] = expire.total_seconds
-    if CONF_ICON in config:
-        ret['icon'] = config[CONF_ICON]
-    return ret
-
-
 def _mean(xs):
     return sum(xs) / len(xs)
 

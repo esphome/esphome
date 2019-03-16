@@ -86,8 +86,3 @@ def to_code(config):
 REQUIRED_BUILD_FLAGS = '-DUSE_FAST_LED_LIGHT'
 
 LIB_DEPS = 'FastLED@3.2.0'
-
-
-def to_hass_config(data, config):
-    return light.core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=False,
-                                     white_value=False)

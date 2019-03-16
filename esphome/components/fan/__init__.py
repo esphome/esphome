@@ -130,15 +130,3 @@ def fan_turn_on_to_code(config, action_id, template_arg, args):
             template_ = FAN_SPEEDS[template_]
         add(action.set_speed(template_))
     yield action
-
-
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'fan', config, include_state=True, include_command=True)
-    if ret is None:
-        return None
-    if CONF_OSCILLATION_OUTPUT in config:
-        default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'oscillation/state')
-        ret['oscillation_state_topic'] = config.get(CONF_OSCILLATION_STATE_TOPIC, default)
-        default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'oscillation/command')
-        ret['oscillation_command__topic'] = config.get(CONF_OSCILLATION_COMMAND_TOPIC, default)
-    return ret

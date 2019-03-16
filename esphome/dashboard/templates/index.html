@@ -58,7 +58,7 @@
 <main>
 <div class="container">
   {% for i, entry in enumerate(entries) %}
-  <div class="row">
+  <div class="row entry-row" data-node="{{ entry.filename }}">
     <div class="col s12 m10 offset-m1 l12">
       <div class="card horizontal">
         <div class="card-image center-align hide-on-small-only">
@@ -93,7 +93,7 @@
             <li><a class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
             <li><a class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
             <li><a class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
-            <li><a class="action-hass-config" data-node="{{ entry.filename }}">HASS MQTT Configuration</a></li>
+            <li><a class="action-delete" data-node="{{ entry.filename }}">Delete</a></li>
           </ul>
         </div>
       </div>
@@ -416,16 +416,6 @@
       <h4>Clean Build Files <code class="inlinecode filename"></code></h4>
       <pre class="log"></pre>
     </div>
-  </div>
-  <div class="modal-footer">
-    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
-  </div>
-</div>
-
-<div id="modal-hass-config" class="modal modal-fixed-footer">
-  <div class="modal-content">
-    <h4>Generate Home Assistant Configuration <code class="inlinecode filename"></code></h4>
-    <pre class="log"></pre>
   </div>
   <div class="modal-footer">
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>

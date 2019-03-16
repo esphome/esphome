@@ -287,16 +287,6 @@ def register_binary_sensor(var, config):
     CORE.add_job(setup_binary_sensor_core_, binary_sensor_var, config)
 
 
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'binary_sensor', config,
-                                 include_state=True, include_command=False)
-    if ret is None:
-        return None
-    if CONF_DEVICE_CLASS in config:
-        ret['device_class'] = config[CONF_DEVICE_CLASS]
-    return ret
-
-
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR'
 
 CONF_BINARY_SENSOR_IS_ON = 'binary_sensor.is_on'

@@ -42,14 +42,3 @@ def to_code(config):
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
     fan.setup_fan(fan_struct.Pstate, config)
-
-
-def to_hass_config(data, config):
-    ret = fan.core_to_hass_config(data, config)
-    if ret is None:
-        return None
-    default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'speed/state')
-    ret['speed_state_topic'] = config.get(CONF_SPEED_STATE_TOPIC, default)
-    default = mqtt.get_default_topic_for(data, 'fan', config[CONF_NAME], 'speed/command')
-    ret['speed_command__topic'] = config.get(CONF_SPEED_COMMAND_TOPIC, default)
-    return ret
