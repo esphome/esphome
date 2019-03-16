@@ -70,7 +70,7 @@ def authenticated(func):
     def decorator(self, *args, **kwargs):
         if not self.is_authenticated():
             self.redirect(RELATIVE_URL + 'login')
-            return
+            return None
         return func(self, *args, **kwargs)
     return decorator
 
@@ -80,7 +80,7 @@ def bind_config(func):
         configuration = self.get_argument('configuration')
         if not is_allowed(configuration):
             self.set_status(500)
-            return
+            return None
         kwargs = kwargs.copy()
         kwargs['configuration'] = configuration
         return func(self, *args, **kwargs)

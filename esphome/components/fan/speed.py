@@ -1,6 +1,6 @@
 import voluptuous as vol
 
-from esphome.components import fan, mqtt, output
+from esphome.components import fan, output
 import esphome.config_validation as cv
 from esphome.const import CONF_HIGH, CONF_LOW, CONF_MAKE_ID, CONF_MEDIUM, CONF_NAME, \
     CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_SPEED, CONF_SPEED_COMMAND_TOPIC, \
