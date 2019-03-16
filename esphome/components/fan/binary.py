@@ -28,7 +28,3 @@ def to_code(config):
 
     fan.setup_fan(fan_struct.Pstate, config)
     setup_component(fan_struct.Poutput, config)
-
-
-def to_hass_config(data, config):
-    return fan.core_to_hass_config(data, config)

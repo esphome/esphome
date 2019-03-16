@@ -126,7 +126,7 @@ test3:
   - pip install -e .
   - pip install twine
   script:
-  - python setup.py sdist
+  - python setup.py sdist bdist_wheel
   - twine upload dist/*
   tags:
   - docker

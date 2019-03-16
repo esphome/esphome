@@ -24,7 +24,3 @@ def to_code(config):
         yield
     rhs = hub.make_card(config[CONF_NAME], config[CONF_UID])
     binary_sensor.register_binary_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)
