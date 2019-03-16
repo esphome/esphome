@@ -22,7 +22,3 @@ def to_code(config):
         yield
     rhs = MPR121Channel.new(config[CONF_NAME], config[CONF_CHANNEL])
     binary_sensor.register_binary_sensor(hub.add_channel(rhs), config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)

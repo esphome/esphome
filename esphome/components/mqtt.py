@@ -273,61 +273,6 @@ def get_default_topic_for(data, component_type, name, suffix):
                                 sanitized_name, suffix)
 
 
-def build_hass_config(data, component_type, config, include_state=True, include_command=True):
-    if config.get(CONF_INTERNAL, False):
-        return None
-    ret = OrderedDict()
-    ret['platform'] = 'mqtt'
-    ret['name'] = config[CONF_NAME]
-    if include_state:
-        default = get_default_topic_for(data, component_type, config[CONF_NAME], 'state')
-        ret['state_topic'] = config.get(CONF_STATE_TOPIC, default)
-    if include_command:
-        default = get_default_topic_for(data, component_type, config[CONF_NAME], 'command')
-        ret['command_topic'] = config.get(CONF_STATE_TOPIC, default)
-    avail = config.get(CONF_AVAILABILITY, data.availability)
-    if avail:
-        ret['availability_topic'] = avail[CONF_TOPIC]
-        payload_available = avail[CONF_PAYLOAD_AVAILABLE]
-        if payload_available != 'online':
-            ret['payload_available'] = payload_available
-        payload_not_available = avail[CONF_PAYLOAD_NOT_AVAILABLE]
-        if payload_not_available != 'offline':
-            ret['payload_not_available'] = payload_not_available
-    return ret
-
-
-class GenerateHassConfigData(object):
-    def __init__(self, config):
-        if 'mqtt' not in config:
-            raise EsphomeError("Cannot generate Home Assistant MQTT config if MQTT is not "
-                               "used!")
-        mqtt = config[CONF_MQTT]
-        self.topic_prefix = mqtt.get(CONF_TOPIC_PREFIX, config[CONF_ESPHOME][CONF_NAME])
-        birth_message = mqtt.get(CONF_BIRTH_MESSAGE)
-        if CONF_BIRTH_MESSAGE not in mqtt:
-            birth_message = {
-                CONF_TOPIC: self.topic_prefix + '/status',
-                CONF_PAYLOAD: 'online',
-            }
-        will_message = mqtt.get(CONF_WILL_MESSAGE)
-        if CONF_WILL_MESSAGE not in mqtt:
-            will_message = {
-                CONF_TOPIC: self.topic_prefix + '/status',
-                CONF_PAYLOAD: 'offline'
-            }
-        if not birth_message or not will_message:
-            self.availability = None
-        elif birth_message[CONF_TOPIC] != will_message[CONF_TOPIC]:
-            self.availability = None
-        else:
-            self.availability = {
-                CONF_TOPIC: birth_message[CONF_TOPIC],
-                CONF_PAYLOAD_AVAILABLE: birth_message[CONF_PAYLOAD],
-                CONF_PAYLOAD_NOT_AVAILABLE: will_message[CONF_PAYLOAD],
-            }
-
-
 def setup_mqtt_component(obj, config):
     if CONF_RETAIN in config:
         add(obj.set_retain(config[CONF_RETAIN]))

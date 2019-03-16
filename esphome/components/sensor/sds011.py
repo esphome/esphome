@@ -68,11 +68,3 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_SDS011'
-
-
-def to_hass_config(data, config):
-    ret = []
-    for key in (CONF_PM_2_5, CONF_PM_10_0):
-        if key in config:
-            ret.append(sensor.core_to_hass_config(data, config[key]))
-    return ret

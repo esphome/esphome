@@ -87,11 +87,3 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_HMC5883L'
-
-
-def to_hass_config(data, config):
-    ret = []
-    for key in (CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z, CONF_HEADING):
-        if key in config:
-            ret.append(sensor.core_to_hass_config(data, config[key]))
-    return ret

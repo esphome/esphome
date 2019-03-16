@@ -149,14 +149,3 @@ def switch_is_off_to_code(config, condition_id, template_arg, args):
     rhs = var.make_switch_is_off_condition(template_arg)
     type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
-
-
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'switch', config, include_state=True, include_command=True)
-    if ret is None:
-        return None
-    if CONF_ICON in config:
-        ret['icon'] = config[CONF_ICON]
-    if CONF_OPTIMISTIC in config:
-        ret['optimistic'] = config[CONF_OPTIMISTIC]
-    return ret

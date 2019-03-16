@@ -348,28 +348,6 @@ def command_clean(args, config):
     return 0
 
 
-def command_hass_config(args, config):
-    from esphome.components import mqtt as mqtt_component
-
-    _LOGGER.info("This is what you should put in your Home Assistant YAML configuration.")
-    _LOGGER.info("Please note this is only necessary if you're not using MQTT discovery.")
-    data = mqtt_component.GenerateHassConfigData(config)
-    hass_config = OrderedDict()
-    for domain, component, conf in iter_components(config):
-        if not hasattr(component, 'to_hass_config'):
-            continue
-        func = getattr(component, 'to_hass_config')
-        ret = func(data, conf)
-        if not isinstance(ret, (list, tuple)):
-            ret = [ret]
-        ret = [x for x in ret if x is not None]
-        domain_conf = hass_config.setdefault(domain.split('.')[0], [])
-        domain_conf += ret
-
-    safe_print(yaml_util.dump(hass_config))
-    return 0
-
-
 def command_dashboard(args):
     from esphome.dashboard import dashboard
 
@@ -391,7 +369,6 @@ POST_CONFIG_ACTIONS = {
     'clean-mqtt': command_clean_mqtt,
     'mqtt-fingerprint': command_mqtt_fingerprint,
     'clean': command_clean,
-    'hass-config': command_hass_config,
 }
 
 
@@ -470,10 +447,6 @@ def parse_args(argv):
                            action="store_true")
     dashboard.add_argument("--socket",
                            help="Make the dashboard serve under a unix socket", type=str)
-
-    subparsers.add_parser('hass-config',
-                          help="Dump the configuration entries that should be added "
-                               "to Home Assistant when not using MQTT discovery.")
 
     return parser.parse_args(argv[1:])
 

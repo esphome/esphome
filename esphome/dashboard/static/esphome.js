@@ -590,52 +590,31 @@ document.querySelectorAll(".action-clean").forEach((btn) => {
   });
 });
 
-const hassConfigModalElem = document.getElementById("modal-hass-config");
-
-document.querySelectorAll(".action-hass-config").forEach((btn) => {
+document.querySelectorAll(".action-delete").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     configuration = e.target.getAttribute('data-node');
-    const modalInstance = M.Modal.getInstance(hassConfigModalElem);
-    const log = hassConfigModalElem.querySelector(".log");
-    log.innerHTML = "";
-    const colorState = initializeColorState();
-    const stopLogsButton = hassConfigModalElem.querySelector(".stop-logs");
-    let stopped = false;
-    stopLogsButton.innerHTML = "Stop";
-    modalInstance.open();
 
-    const filenameField = hassConfigModalElem.querySelector('.filename');
-    filenameField.innerHTML = configuration;
+    fetch(`${relative_url}delete?configuration=${configuration}`, {
+      credentials: "same-origin",
+      method: "POST",
+    }).then(res => res.text()).then(() => {
+        const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
+                           <button class="btn-flat toast-action">Undo</button></button>`;
+        const toast = M.toast({html: toastHtml});
+        const undoButton = toast.el.querySelector('.toast-action');
 
-    const logSocket = new WebSocket(wsUrl + "hass-config");
-    logSocket.addEventListener('message', (event) => {
-      const data = JSON.parse(event.data);
-      if (data.event === "line") {
-        colorReplace(log, colorState, data.data);
-      } else if (data.event === "exit") {
-        if (data.code === 0) {
-          M.toast({html: "Program exited successfully."});
-          downloadButton.classList.remove('disabled');
-        } else {
-          M.toast({html: `Program failed with code ${data.code}`});
-        }
-        stopLogsButton.innerHTML = "Close";
-        stopped = true;
-      }
+        document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
+
+        undoButton.addEventListener('click', () => {
+          fetch(`${relative_url}undo-delete?configuration=${configuration}`, {
+            credentials: "same-origin",
+            method: "POST",
+          }).then(res => res.text()).then(() => {
+              window.location.reload(false);
+          });
+        });
     });
-    logSocket.addEventListener('open', () => {
-      const msg = JSON.stringify({configuration: configuration});
-      logSocket.send(msg);
-    });
-    logSocket.addEventListener('close', () => {
-      if (!stopped) {
-        M.toast({html: 'Terminated process.'});
-      }
-    });
-    modalInstance.options.onCloseStart = () => {
-      logSocket.close();
-    };
-  });
+  })
 });
 
 const editModalElem = document.getElementById("modal-editor");
