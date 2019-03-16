@@ -614,7 +614,7 @@ document.querySelectorAll(".action-delete").forEach((btn) => {
           });
         });
     });
-  })
+  });
 });
 
 const editModalElem = document.getElementById("modal-editor");
