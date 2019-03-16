@@ -77,15 +77,3 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_INA3221'
-
-
-def to_hass_config(data, config):
-    ret = []
-    for channel in (CONF_CHANNEL_1, CONF_CHANNEL_2, CONF_CHANNEL_3):
-        if channel not in config:
-            continue
-        conf = config[channel]
-        for key in (CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT, CONF_POWER):
-            if key in conf:
-                ret.append(sensor.core_to_hass_config(data, conf[key]))
-    return ret

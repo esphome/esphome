@@ -27,7 +27,3 @@ def to_code(config):
     rhs = hub.make_touch_component(config[CONF_NAME], config[CONF_PAGE_ID],
                                    config[CONF_COMPONENT_ID])
     binary_sensor.register_binary_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)

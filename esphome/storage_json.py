@@ -29,6 +29,10 @@ def esphome_storage_path(base_path):  # type: (str) -> str
     return os.path.join(base_path, '.esphome', 'esphome.json')
 
 
+def trash_storage_path(base_path):  # type: (str) -> str
+    return os.path.join(base_path, '.esphome', 'trash')
+
+
 # pylint: disable=too-many-instance-attributes
 class StorageJSON(object):
     def __init__(self, storage_version, name, esphome_core_version, esphome_version,

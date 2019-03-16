@@ -29,7 +29,3 @@ def to_code(config):
     func = getattr(hub, TYPES[config[CONF_TYPE]])
     rhs = func(config[CONF_NAME])
     sensor.register_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return sensor.core_to_hass_config(data, config)
