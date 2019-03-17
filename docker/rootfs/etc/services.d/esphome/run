@@ -1,28 +1,26 @@
-#!/usr/bin/with-contenv bash
+#!/usr/bin/with-contenv bashio
 # ==============================================================================
 # Community Hass.io Add-ons: ESPHome
 # Runs the ESPHome dashboard
 # ==============================================================================
-# shellcheck disable=SC1091
-source /usr/lib/hassio-addons/base.sh
 
 export ESPHOME_IS_HASSIO=true
 
-if hass.config.true 'leave_front_door_open'; then
+if bashio::config.true 'leave_front_door_open'; then
     export DISABLE_HA_AUTHENTICATION=true
 fi
 
-if hass.config.true 'streamer_mode'; then
+if bashio::config.true 'streamer_mode'; then
     export ESPHOME_STREAMER_MODE=true
 fi
 
-if hass.config.true 'status_use_ping'; then
+if bashio::config.true 'status_use_ping'; then
     export ESPHOME_DASHBOARD_USE_PING=true
 fi
 
-if hass.config.has_value 'relative_url'; then
-    export ESPHOME_DASHBOARD_RELATIVE_URL=$(hass.config.get 'relative_url')
+if bashio::config.has_value 'relative_url'; then
+    export ESPHOME_DASHBOARD_RELATIVE_URL=$(bashio::config 'relative_url')
 fi
 
-hass.log.info "Starting ESPHome dashboard..."
+bashio::log.info "Starting ESPHome dashboard..."
 exec esphome /config/esphome dashboard --socket /var/run/esphome.sock --hassio

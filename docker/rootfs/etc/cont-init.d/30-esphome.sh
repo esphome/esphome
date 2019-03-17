@@ -1,14 +1,15 @@
-#!/usr/bin/with-contenv bash
+#!/usr/bin/with-contenv bashio
 # ==============================================================================
 # Community Hass.io Add-ons: ESPHome
 # This files installs the user ESPHome version if specified
 # ==============================================================================
-# shellcheck disable=SC1091
-source /usr/lib/hassio-addons/base.sh
 
 declare esphome_version
 
-if hass.config.has_value 'esphome_version'; then
-    esphome_version=$(hass.config.get 'esphome_version')
-    pip2 install --no-cache-dir --no-binary :all: "https://github.com/esphome/esphome/archive/${esphome_version}.zip"
+if bashio::config.has_value 'esphome_version'; then
+    esphome_version=$(bashio::config 'esphome_version')
+    full_url="https://github.com/esphome/esphome/archive/${esphome_version}.zip"
+    bashio::log.info "Installing esphome version '${esphome_version}' (${full_url})..."
+    pip2 install --no-cache-dir --no-binary :all: "${full_url}" \
+      || bashio::exit.nok "Failed installing esphome pinned version."
 fi
