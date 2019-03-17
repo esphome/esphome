@@ -127,4 +127,4 @@ def to_code(config):
     add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
 
 
-BUILD_FLAGS = '-DUSE_ESP32_CAMERA'
+BUILD_FLAGS = ['-DUSE_ESP32_CAMERA', '-DBOARD_HAS_PSRAM']
