@@ -64,11 +64,11 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_VSYNC_PIN): pins.input_pin,
     vol.Required(CONF_HREF_PIN): pins.input_pin,
     vol.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
-    vol.Required(CONF_EXTERNAL_CLOCK): vol.Schema({
+    vol.Required(CONF_EXTERNAL_CLOCK): cv.Schema({
         vol.Required(CONF_PIN): pins.output_pin,
         vol.Optional(CONF_FREQUENCY, default='20MHz'): vol.All(cv.frequency, vol.In([20e6, 10e6])),
     }),
-    vol.Required(CONF_I2C_PINS): vol.Schema({
+    vol.Required(CONF_I2C_PINS): cv.Schema({
         vol.Required(CONF_SDA): pins.output_pin,
         vol.Required(CONF_SCL): pins.output_pin,
     }),
@@ -127,4 +127,4 @@ def to_code(config):
     add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
 
 
-BUILD_FLAGS = '-DUSE_ESP32_CAMERA'
+BUILD_FLAGS = ['-DUSE_ESP32_CAMERA', '-DBOARD_HAS_PSRAM']
