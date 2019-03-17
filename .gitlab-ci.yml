@@ -41,11 +41,11 @@ stages:
 
     - |
       if [[ "${IS_HASSIO}" == "YES" ]]; then
-        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:1.3.0
+        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:1.4.1
         BUILD_TO=esphome/esphome-hassio-${BUILD_ARCH}
         DOCKERFILE=docker/Dockerfile.hassio
       else
-        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:1.3.0
+        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:1.4.1
         if [[ "${BUILD_ARCH}" == "amd64" ]]; then
           BUILD_TO=esphome/esphome
         else
