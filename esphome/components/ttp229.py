@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    rhs = App.make_ttp229(config.get(CONF_ADDRESS))
+    rhs = App.make_ttp229(config[CONF_SCL], config[CONF_SDO], config[CONF_ADDRESS])
     var = Pvariable(config[CONF_ID], rhs)
 
     setup_component(var, config)
