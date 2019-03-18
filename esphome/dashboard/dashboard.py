@@ -68,11 +68,17 @@ def template_args():
 
 def authenticated(func):
     def decorator(self, *args, **kwargs):
-        if not self.is_authenticated():
+        if not is_authenticated(self):
             self.redirect(RELATIVE_URL + 'login')
             return None
         return func(self, *args, **kwargs)
     return decorator
+
+
+def is_authenticated(request_handler):
+    if USING_HASSIO_AUTH or USING_PASSWORD:
+        return request_handler.get_secure_cookie('authenticated') == cookie_authenticated_yes
+    return True
 
 
 def bind_config(func):
@@ -89,115 +95,148 @@ def bind_config(func):
 
 # pylint: disable=abstract-method
 class BaseHandler(tornado.web.RequestHandler):
-    def is_authenticated(self):
-        if USING_HASSIO_AUTH or USING_PASSWORD:
-            return self.get_secure_cookie('authenticated') == cookie_authenticated_yes
+    pass
 
-        return True
+
+def websocket_class(cls):
+    if not hasattr(cls, '_message_handlers'):
+        cls._message_handlers = {}
+
+    for name, method in cls.__dict__.iteritems():
+        if hasattr(method, "_message_handler"):
+            cls._message_handlers[method._message_handler] = method
+
+    return cls
+
+
+def websocket_method(name):
+    def wrap(fn):
+        fn._message_handler = name
+        return fn
+    return wrap
 
 
 # pylint: disable=abstract-method, arguments-differ
+@websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super(EsphomeCommandWebSocket, self).__init__(application, request, **kwargs)
-        self.proc = None
-        self.closed = False
+        self._proc = None
+        self._is_closed = False
 
     def on_message(self, message):
         if USING_HASSIO_AUTH or USING_PASSWORD:
             if self.get_secure_cookie('authenticated') != cookie_authenticated_yes:
                 return
-        if self.proc is not None:
+        # Messages are always JSON, 500 when not
+        json_message = json.loads(message)
+        type_ = json_message['type']
+        handlers = type(self)._message_handlers
+        if type_ not in handlers:
+            _LOGGER.warning("Requested unknown message type %s", type_)
             return
-        command = self.build_command(message)
+
+        handlers[type_](self, json_message)
+
+    @websocket_method('spawn')
+    def handle_spawn(self, json_message):
+        if self._proc is not None:
+            # spawn can only be called once
+            return
+        command = self.build_command(json_message)
         _LOGGER.info(u"Running command '%s'", ' '.join(shlex_quote(x) for x in command))
-        self.proc = tornado.process.Subprocess(command,
-                                               stdout=tornado.process.Subprocess.STREAM,
-                                               stderr=subprocess.STDOUT)
-        self.proc.set_exit_callback(self.proc_on_exit)
-        tornado.ioloop.IOLoop.current().spawn_callback(self.redirect_stream)
+        self._proc = tornado.process.Subprocess(command,
+                                                stdout=tornado.process.Subprocess.STREAM,
+                                                stderr=subprocess.STDOUT,
+                                                stdin=tornado.process.Subprocess.STREAM,
+                                                )
+        self._proc.set_exit_callback(self._proc_on_exit)
+        tornado.ioloop.IOLoop.current().spawn_callback(self._redirect_stdout)
+
+    @property
+    def is_process_active(self):
+        return self._proc is not None and self._proc.returncode is None
+
+    @websocket_method('stdin')
+    def handle_stdin(self, json_message):
+        if not self.is_process_active:
+            return
+        data = json_message['data']
+        data = codecs.encode(data, 'utf8', 'replace')
+        _LOGGER.debug("< stdin: %s", data)
+        self._proc.stdin.write(data)
 
     @tornado.gen.coroutine
-    def redirect_stream(self):
+    def _redirect_stdout(self):
+        if IS_PY2:
+            reg = '[\n\r]'
+        else:
+            reg = b'[\n\r]'
+
         while True:
             try:
-                if IS_PY2:
-                    reg = '[\n\r]'
-                else:
-                    reg = b'[\n\r]'
-                data = yield self.proc.stdout.read_until_regex(reg)
-                if not IS_PY2:
-                    data = data.decode('utf-8', 'backslashreplace')
+                data = yield self._proc.stdout.read_until_regex(reg)
             except tornado.iostream.StreamClosedError:
                 break
-            try:
-                self.write_message({'event': 'line', 'data': data})
-            except UnicodeDecodeError:
-                data = codecs.decode(data, 'utf8', 'replace')
-                self.write_message({'event': 'line', 'data': data})
+            data = codecs.decode(data, 'utf8', 'replace')
 
-    def proc_on_exit(self, returncode):
-        if not self.closed:
+            _LOGGER.debug("> stdout: %s", data)
+            self.write_message({'event': 'line', 'data': data})
+
+    def _proc_on_exit(self, returncode):
+        if not self._is_closed:
+            # Check if the proc was not forcibly closed
             _LOGGER.debug("Process exited with return code %s", returncode)
             self.write_message({'event': 'exit', 'code': returncode})
 
     def on_close(self):
-        self.closed = True
-        if self.proc is not None and self.proc.returncode is None:
+        # Shutdown proc on WS close
+        self._is_closed = True
+        # Check if proc exists (if 'start' has been run)
+        if self.is_process_active:
             _LOGGER.debug("Terminating process")
-            self.proc.proc.terminate()
+            self._proc.proc.terminate()
 
-    def build_command(self, message):
+    def build_command(self, json_message):
         raise NotImplementedError
 
 
 class EsphomeLogsHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = CONFIG_DIR + '/' + js['configuration']
-        return ["esphome", "--dashboard", config_file, "logs", '--serial-port', js["port"]]
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
+        return ["esphome", "--dashboard", config_file, "logs", '--serial-port',
+                json_message["port"]]
 
 
-class EsphomeRunHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphome", "--dashboard", config_file, "run", '--upload-port', js["port"]]
+class EsphomeUploadHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
+        return ["esphome", "--dashboard", config_file, "run", '--upload-port',
+                json_message["port"]]
 
 
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
         return ["esphome", "--dashboard", config_file, "compile"]
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
         return ["esphome", "--dashboard", config_file, "config"]
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
         return ["esphome", "--dashboard", config_file, "clean-mqtt"]
 
 
 class EsphomeCleanHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
+    def build_command(self, json_message):
+        config_file = os.path.join(CONFIG_DIR, json_message['configuration'])
         return ["esphome", "--dashboard", config_file, "clean"]
-
-
-class EsphomeHassConfigHandler(EsphomeCommandWebSocket):
-    def build_command(self, message):
-        js = json.loads(message)
-        config_file = os.path.join(CONFIG_DIR, js['configuration'])
-        return ["esphome", "--dashboard", config_file, "hass-config"]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -579,12 +618,11 @@ def make_app(debug=False):
         (RELATIVE_URL + "", MainRequestHandler),
         (RELATIVE_URL + "login", LoginHandler),
         (RELATIVE_URL + "logs", EsphomeLogsHandler),
-        (RELATIVE_URL + "run", EsphomeRunHandler),
+        (RELATIVE_URL + "upload", EsphomeUploadHandler),
         (RELATIVE_URL + "compile", EsphomeCompileHandler),
         (RELATIVE_URL + "validate", EsphomeValidateHandler),
         (RELATIVE_URL + "clean-mqtt", EsphomeCleanMqttHandler),
         (RELATIVE_URL + "clean", EsphomeCleanHandler),
-        (RELATIVE_URL + "hass-config", EsphomeHassConfigHandler),
         (RELATIVE_URL + "edit", EditRequestHandler),
         (RELATIVE_URL + "download.bin", DownloadBinaryRequestHandler),
         (RELATIVE_URL + "serial-ports", SerialPortRequestHandler),
