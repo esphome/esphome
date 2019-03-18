@@ -23,7 +23,3 @@ def to_code(config):
         yield
     rhs = hub.make_presence_sensor(config[CONF_NAME], make_address_array(config[CONF_MAC_ADDRESS]))
     binary_sensor.register_binary_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)

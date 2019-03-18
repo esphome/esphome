@@ -63,14 +63,10 @@ def to_code(config):
     if CONF_MIN_VALUE in config:
         add(encoder.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:
-        add(encoder.set_min_value(config[CONF_MAX_VALUE]))
+        add(encoder.set_max_value(config[CONF_MAX_VALUE]))
 
     sensor.setup_sensor(encoder, config)
     setup_component(encoder, config)
 
 
 BUILD_FLAGS = '-DUSE_ROTARY_ENCODER_SENSOR'
-
-
-def to_hass_config(data, config):
-    return sensor.core_to_hass_config(data, config)

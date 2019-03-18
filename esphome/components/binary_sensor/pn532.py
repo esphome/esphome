@@ -43,7 +43,3 @@ def to_code(config):
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
     rhs = hub.make_tag(config[CONF_NAME], addr)
     binary_sensor.register_binary_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)

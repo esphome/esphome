@@ -30,7 +30,3 @@ def to_code(config):
     func = getattr(hub, DIRECTIONS[config[CONF_DIRECTION]])
     rhs = func(config[CONF_NAME])
     binary_sensor.register_binary_sensor(rhs, config)
-
-
-def to_hass_config(data, config):
-    return binary_sensor.core_to_hass_config(data, config)

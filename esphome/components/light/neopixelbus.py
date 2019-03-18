@@ -188,8 +188,3 @@ def to_code(config):
 REQUIRED_BUILD_FLAGS = '-DUSE_NEO_PIXEL_BUS_LIGHT'
 
 LIB_DEPS = 'NeoPixelBus@2.4.1'
-
-
-def to_hass_config(data, config):
-    return light.core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=False,
-                                     white_value='W' in config[CONF_TYPE])

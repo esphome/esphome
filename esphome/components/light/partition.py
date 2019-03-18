@@ -46,7 +46,3 @@ def to_code(config):
     rhs = App.make_partition_light(config[CONF_NAME], segments)
     make = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(make.Pstate, config)
-
-
-def to_hass_config(data, config):
-    return light.core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=False)
