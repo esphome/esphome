@@ -3,8 +3,8 @@ import voluptuous as vol
 from esphome.components import light
 from esphome.components.light import AddressableLight
 import esphome.config_validation as cv
-from esphome.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_FROM, CONF_ID, \
-    CONF_MAKE_ID, CONF_NAME, CONF_SEGMENTS, CONF_TO
+from esphome.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_FROM, \
+    CONF_GAMMA_CORRECT, CONF_ID, CONF_MAKE_ID, CONF_NAME, CONF_SEGMENTS, CONF_TO
 from esphome.cpp_generator import get_variable, variable
 from esphome.cpp_types import App, Application
 
@@ -30,6 +30,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_TO): cv.positive_int,
     }, validate_from_to), vol.Length(min=1)),
 
+    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
     vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
 }))
