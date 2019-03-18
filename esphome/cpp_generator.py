@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import math
 
 from esphome.core import CORE, HexInt, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
@@ -260,6 +261,8 @@ class FloatLiteral(Literal):
         self.float_ = value
 
     def __str__(self):
+        if math.isnan(self.float_):
+            return u"NAN"
         return u"{:f}f".format(self.float_)
 
 
