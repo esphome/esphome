@@ -15,7 +15,8 @@ if hasattr(os, 'symlink'):
 else:
     import ctypes
     from ctypes import wintypes
-    # Code taken from https://stackoverflow.com/questions/27972776/having-trouble-implementing-a-readlink-function
+    # Code taken from
+    # https://stackoverflow.com/questions/27972776/having-trouble-implementing-a-readlink-function
 
     kernel32 = ctypes.WinDLL('kernel32', use_last_error=True)
 
