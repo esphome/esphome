@@ -13,7 +13,7 @@ TTP229Channel = binary_sensor.binary_sensor_ns.class_(
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TTP229Channel),
     cv.GenerateID(CONF_TTP229_ID): cv.use_variable_id(TTP229LSFComponent),
-    vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=11))
+    vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))
 }))
 
 
