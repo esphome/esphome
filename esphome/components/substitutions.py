@@ -107,30 +107,24 @@ def _substitute_item(substitutions, item, path):
 
 def do_substitution_pass(config):
     if CONF_SUBSTITUTIONS not in config:
-        return config
+        return
 
     substitutions = config[CONF_SUBSTITUTIONS]
-    if not isinstance(substitutions, dict):
-        raise EsphomeError(u"Substitutions must be a key to value mapping, got {}"
-                           u"".format(type(substitutions)))
+    with cv.prepend_path('substitutions'):
+        if not isinstance(substitutions, dict):
+            raise vol.Invalid(u"Substitutions must be a key to value mapping, got {}"
+                              u"".format(type(substitutions)))
 
-    key = ''
-    try:
         replace_keys = []
         for key, value in substitutions.items():
-            sub = validate_substitution_key(key)
-            if sub != key:
-                replace_keys.append((key, sub))
-            substitutions[key] = cv.string_strict(value)
+            with cv.prepend_path(key):
+                sub = validate_substitution_key(key)
+                if sub != key:
+                    replace_keys.append((key, sub))
+                substitutions[key] = cv.string_strict(value)
         for old, new in replace_keys:
             substitutions[new] = substitutions[old]
             del substitutions[old]
-    except vol.Invalid as err:
-        err.path.append(key)
-
-        raise EsphomeError(u"Error while parsing substitutions: {}".format(err))
 
     config[CONF_SUBSTITUTIONS] = substitutions
     _substitute_item(substitutions, config, [])
-
-    return config

@@ -7,11 +7,15 @@ IS_PY3 = PYTHON_MAJOR == 3
 
 
 # pylint: disable=no-else-return
-def safe_input(line):
+def safe_input(prompt=None):
     if IS_PY2:
-        return raw_input(line)
+        if prompt is None:
+            return raw_input()
+        return raw_input(prompt)
     else:
-        return input(line)
+        if prompt is None:
+            return input()
+        return input(prompt)
 
 
 if IS_PY2:

@@ -2,6 +2,7 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
+from contextlib import contextmanager
 import logging
 import os
 import re
@@ -644,6 +645,17 @@ def invalid(message):
 
 def valid(value):
     return value
+
+
+@contextmanager
+def prepend_path(path):
+    if not isinstance(path, (list, tuple)):
+        path = [path]
+    try:
+        yield
+    except vol.Invalid as e:
+        e.prepend(path)
+        raise e
 
 
 def one_of(*values, **kwargs):

@@ -297,6 +297,8 @@ class EsphomeCore(object):
     def __init__(self):
         # True if command is run from dashboard
         self.dashboard = False
+        # True if command is run from vscode api
+        self.vscode = False
         # The name of the node
         self.name = None  # type: str
         # The relative path to the configuration YAML

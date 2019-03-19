@@ -160,8 +160,7 @@ def default_build_path():
 
 CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_NAME): cv.valid_name,
-    vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
-                                           upper=True),
+    vol.Required(CONF_PLATFORM): validate_platform,
     vol.Required(CONF_BOARD): validate_board,
     vol.Optional(CONF_ESPHOME_CORE_VERSION, default='latest'): ESPHOME_CORE_VERSION_SCHEMA,
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
@@ -190,30 +189,34 @@ CONFIG_SCHEMA = cv.Schema({
                                                    "esphome_core_version in 1.11.0"),
 })
 
+PRELOAD_CONFIG_SCHEMA = cv.Schema({
+    vol.Required(CONF_NAME): cv.valid_name,
+    vol.Required(CONF_PLATFORM): validate_platform,
+}, extra=vol.ALLOW_EXTRA)
+
+PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
+    vol.Required(CONF_BOARD): validate_board,
+    vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+})
+
 
 def preload_core_config(config):
+    core_key = 'esphome'
     if 'esphomeyaml' in config:
         _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
                         "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
         config[CONF_ESPHOME] = config.pop('esphomeyaml')
+        core_key = 'esphomeyaml'
     if CONF_ESPHOME not in config:
-        raise EsphomeError(u"No esphome section in config")
-    core_conf = config[CONF_ESPHOME]
-    if CONF_PLATFORM not in core_conf:
-        raise EsphomeError("esphome.platform not specified.")
-    if CONF_BOARD not in core_conf:
-        raise EsphomeError("esphome.board not specified.")
-    if CONF_NAME not in core_conf:
-        raise EsphomeError("esphome.name not specified.")
-
-    try:
-        CORE.esp_platform = validate_platform(core_conf[CONF_PLATFORM])
-        CORE.board = validate_board(core_conf[CONF_BOARD])
-        CORE.name = cv.valid_name(core_conf[CONF_NAME])
-        CORE.build_path = CORE.relative_path(
-            cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
-    except vol.Invalid as e:
-        raise EsphomeError(text_type(e))
+        raise vol.RequiredFieldInvalid("required key not provided", CONF_ESPHOME)
+    with cv.prepend_path(core_key):
+        out = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
+    CORE.name = out[CONF_NAME]
+    CORE.esp_platform = out[CONF_PLATFORM]
+    with cv.prepend_path(core_key):
+        out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])
+    CORE.board = out2[CONF_BOARD]
+    CORE.build_path = out2[CONF_BUILD_PATH]
 
 
 def to_code(config):

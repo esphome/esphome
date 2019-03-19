@@ -1,9 +1,7 @@
 from __future__ import print_function
 
-import codecs
 from collections import OrderedDict
 import fnmatch
-import logging
 import os
 import uuid
 
@@ -11,10 +9,9 @@ import yaml
 import yaml.constructor
 
 from esphome import core
+from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
-from esphome.py_compat import string_types, text_type, IS_PY2
-
-_LOGGER = logging.getLogger(__name__)
+from esphome.py_compat import IS_PY2, string_types, text_type
 
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
@@ -50,17 +47,15 @@ def load_yaml(fname):
 
 
 def _load_yaml_internal(fname):
-    """Load a YAML file."""
+    content = read_config_file(fname)
+    loader = SafeLineLoader(content)
+    loader.name = fname
     try:
-        with codecs.open(fname, encoding='utf-8') as conf_file:
-            return yaml.load(conf_file, Loader=SafeLineLoader) or OrderedDict()
+        return loader.get_single_data() or OrderedDict()
     except yaml.YAMLError as exc:
         raise EsphomeError(exc)
-    except IOError as exc:
-        raise EsphomeError(u"Error accessing file {}: {}".format(fname, exc))
-    except UnicodeDecodeError as exc:
-        _LOGGER.error(u"Unable to read file %s: %s", fname, exc)
-        raise EsphomeError(exc)
+    finally:
+        loader.dispose()
 
 
 def dump(dict_):
@@ -168,6 +163,11 @@ def _ordered_dict(loader, node):
 def _construct_seq(loader, node):
     """Add line number and file name to Load YAML sequence."""
     obj, = loader.construct_yaml_seq(node)
+    return _add_reference(obj, loader, node)
+
+
+def _construct_scalar(loader, node):
+    obj = loader.construct_scalar(node)
     return _add_reference(obj, loader, node)
 
 
@@ -287,6 +287,7 @@ def _lambda(loader, node):
 
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _ordered_dict)
 yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_SEQUENCE_TAG, _construct_seq)
+yaml.SafeLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_SCALAR_TAG, _construct_scalar)
 yaml.SafeLoader.add_constructor('!env_var', _env_var_yaml)
 yaml.SafeLoader.add_constructor('!secret', _secret_yaml)
 yaml.SafeLoader.add_constructor('!include', _include_yaml)
@@ -396,12 +397,10 @@ yaml.SafeDumper.add_representer(
     dumper.represent_sequence('tag:yaml.org,2002:seq', value)
 )
 
-yaml.SafeDumper.add_representer(str, unicode_representer)
-if IS_PY2:
-    yaml.SafeDumper.add_representer(unicode, unicode_representer)
-yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
-yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
-yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
+yaml.SafeDumper.add_multi_representer(basestring, unicode_representer)
+yaml.SafeDumper.add_multi_representer(HexInt, hex_int_representer)
+yaml.SafeDumper.add_multi_representer(IPAddress, stringify_representer)
+yaml.SafeDumper.add_multi_representer(MACAddress, stringify_representer)
 yaml.SafeDumper.add_multi_representer(TimePeriod, represent_time_period)
 yaml.SafeDumper.add_multi_representer(Lambda, represent_lambda)
 yaml.SafeDumper.add_multi_representer(core.ID, represent_id)
