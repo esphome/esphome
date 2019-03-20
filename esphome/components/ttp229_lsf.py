@@ -1,9 +1,6 @@
-import voluptuous as vol
-
-from esphome import pins
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_SCL, CONF_SDO
+from esphome.const import CONF_ID
 from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component
