@@ -14,8 +14,6 @@ BinarySensorMap = sensor.sensor_ns.class_('BinarySensorMap', sensor.Sensor)
 SensorMapType = sensor.sensor_ns.enum('SensorMapType')
 SENSOR_MAP_TYPES = {
     'GROUP': SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
-    'SLIDER': SensorMapType.BINARY_SENSOR_MAP_TYPE_SLIDER,
-    'WHEEL': SensorMapType.BINARY_SENSOR_MAP_TYPE_WHEEL,
 }
 
 entry = {
@@ -25,7 +23,7 @@ entry = {
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(BinarySensorMap),
-    vol.Optional(CONF_TYPE): cv.one_of(*SENSOR_MAP_TYPES, upper=True),
+    vol.Required(CONF_TYPE): cv.one_of(*SENSOR_MAP_TYPES, upper=True),
     vol.Required(CONF_CHANNELS): cv.ensure_list(entry),
 }))
 
