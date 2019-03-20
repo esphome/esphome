@@ -1,6 +1,8 @@
 from __future__ import print_function
 
+import collections
 from collections import OrderedDict
+from contextlib import contextmanager
 import fnmatch
 import os
 import uuid
@@ -10,7 +12,8 @@ import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod, \
+    DocumentRange
 from esphome.py_compat import IS_PY2, string_types, text_type
 
 # Mostly copied from Home Assistant because that code works fine and
@@ -22,22 +25,135 @@ _SECRET_VALUES = {}
 
 
 class NodeListClass(list):
-    """Wrapper class to be able to add attributes on a list."""
+    pass
 
 
 class NodeStrClass(text_type):
-    """Wrapper class to be able to add attributes on a string."""
+    pass
 
 
-class SafeLineLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
+class ESPHomeDataBase(object):
+    def __init__(self, *args, **kwargs):
+        self._range = None  # type: DocumentRange
+
+    @property
+    def range(self):
+        return self._range
+
+    def from_node(self, node):
+        self._range = DocumentRange.from_marks(node.start_mark, node.end_mark)
+
+
+class ESPInt(int, ESPHomeDataBase):
+    pass
+
+
+class ESPFloat(float, ESPHomeDataBase):
+    pass
+
+
+class ESPStr(str, ESPHomeDataBase):
+    pass
+
+
+class ESPUnicode(unicode, ESPHomeDataBase):
+    pass
+
+
+class ESPDict(collections.OrderedDict, ESPHomeDataBase):
+    def __repr__(self):
+        return u'{' + u', '.join(u'{!r}: {!r}'.format(k, v) for k, v in self.iteritems()) + u'}'
+
+
+class ESPList(list, ESPHomeDataBase):
+    pass
+
+
+ESP_TYPES = {
+    int: ESPInt,
+    float: ESPFloat,
+    str: ESPStr,
+    unicode: ESPUnicode,
+    dict: ESPUnicode,
+    list: ESPList,
+}
+
+
+def _add_data_ref(fn):
+    def wrapped(loader, node):
+        res = fn(loader, node)
+        for typ, cons in ESP_TYPES.items():
+            if isinstance(res, typ):
+                res_ = cons(res)
+                res_.from_node(node)
+                return res_
+        return res
+    return wrapped
+
+
+class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     """Loader class that keeps track of line numbers."""
 
-    def compose_node(self, parent, index):
-        """Annotate a node with the first line it was seen."""
-        last_line = self.line  # type: int
-        node = super(SafeLineLoader, self).compose_node(parent, index)  # type: yaml.nodes.Node
-        node.__line__ = last_line + 1
-        return node
+    @_add_data_ref
+    def construct_yaml_int(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_int(node)
+
+    @_add_data_ref
+    def construct_yaml_float(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_float(node)
+
+    @_add_data_ref
+    def construct_yaml_binary(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_binary(node)
+
+    @_add_data_ref
+    def construct_yaml_omap(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_omap(node)
+
+    @_add_data_ref
+    def construct_yaml_str(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_str(node)
+
+    @_add_data_ref
+    def construct_yaml_seq(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_seq(node)
+
+    @_add_data_ref
+    def construct_yaml_seq(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_seq(node)
+
+    @_add_data_ref
+    def construct_yaml_map(self, node):
+        return super(ESPHomeLoader, self).construct_yaml_map(node)
+
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:int',
+        ESPHomeLoader.construct_yaml_int)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:float',
+        ESPHomeLoader.construct_yaml_float)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:binary',
+        ESPHomeLoader.construct_yaml_binary)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:omap',
+        ESPHomeLoader.construct_yaml_omap)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:str',
+        ESPHomeLoader.construct_yaml_str)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:seq',
+        ESPHomeLoader.construct_yaml_seq)
+
+ESPHomeLoader.add_constructor(
+        u'tag:yaml.org,2002:map',
+        ESPHomeLoader.construct_yaml_map)
 
 
 def load_yaml(fname):
@@ -48,7 +164,7 @@ def load_yaml(fname):
 
 def _load_yaml_internal(fname):
     content = read_config_file(fname)
-    loader = SafeLineLoader(content)
+    loader = ESPHomeLoader(content)
     loader.name = fname
     try:
         return loader.get_single_data() or OrderedDict()
@@ -64,7 +180,7 @@ def dump(dict_):
         dict_, default_flow_style=False, allow_unicode=True)
 
 
-def custom_construct_pairs(loader, node):
+def _custom_construct_pairs(loader, node):
     pairs = []
     for kv in node.value:
         if isinstance(kv, yaml.ScalarNode):
@@ -83,7 +199,7 @@ def custom_construct_pairs(loader, node):
     return pairs
 
 
-def custom_flatten_mapping(loader, node):
+def _custom_flatten_mapping(loader, node):
     pre_merge = []
     post_merge = []
     index = 0
@@ -97,7 +213,7 @@ def custom_flatten_mapping(loader, node):
             del node.value[index]
 
             if isinstance(value_node, yaml.MappingNode):
-                custom_flatten_mapping(loader, value_node)
+                _custom_flatten_mapping(loader, value_node)
                 node.value = node.value[:index] + value_node.value + node.value[index:]
             elif isinstance(value_node, yaml.SequenceNode):
                 submerge = []
@@ -107,7 +223,7 @@ def custom_flatten_mapping(loader, node):
                             "while constructing a mapping", node.start_mark,
                             "expected a mapping for merging, but found %{}".format(subnode.id),
                             subnode.start_mark)
-                    custom_flatten_mapping(loader, subnode)
+                    _custom_flatten_mapping(loader, subnode)
                     submerge.append(subnode.value)
                 # submerge.reverse()
                 node.value = node.value[:index] + submerge + node.value[index:]
@@ -132,8 +248,8 @@ def custom_flatten_mapping(loader, node):
 
 def _ordered_dict(loader, node):
     """Load YAML mappings into an ordered dictionary to preserve key order."""
-    custom_flatten_mapping(loader, node)
-    nodes = custom_construct_pairs(loader, node)
+    _custom_flatten_mapping(loader, node)
+    nodes = _custom_construct_pairs(loader, node)
 
     seen = {}
     for (key, _), nv in zip(nodes, node.value):
@@ -153,8 +269,10 @@ def _ordered_dict(loader, node):
 
         if key in seen:
             fname = getattr(loader.stream, 'name', '')
-            raise EsphomeError(u'YAML file {} contains duplicate key "{}". '
-                               u'Check lines {} and {}.'.format(fname, key, seen[key], line))
+            raise yaml.MarkedYAMLError(
+                context="duplicate key: \"{}\"".format(key),
+                context_mark=yaml.Mark(fname, 0, line, -1, None, None)
+            )
         seen[key] = line
 
     return _add_reference(OrderedDict(nodes), loader, node)
@@ -173,12 +291,12 @@ def _construct_scalar(loader, node):
 
 def _add_reference(obj, loader, node):
     """Add file reference information to an object."""
-    if isinstance(obj, string_types):
-        obj = NodeStrClass(obj)
-    if isinstance(obj, list):
-        obj = NodeListClass(obj)
-    setattr(obj, '__config_file__', loader.name)
-    setattr(obj, '__line__', node.start_mark.line)
+    #if isinstance(obj, string_types):
+    #    obj = NodeStrClass(obj)
+    #if isinstance(obj, list):
+    #    obj = NodeListClass(obj)
+    #setattr(obj, '__config_file__', loader.name)
+    #setattr(obj, '__line__', node.start_mark.line)
     return obj
 
 

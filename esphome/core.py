@@ -292,6 +292,48 @@ class ID(object):
         return hash(self.id)
 
 
+class DocumentLocation(object):
+    def __init__(self, document, line, column):
+        # type: (basestring, int, int) -> None
+        self.document = document  # type: basestring
+        self.line = line  # type: int
+        self.column = column  # type: int
+
+    @classmethod
+    def from_mark(cls, mark):
+        return cls(
+            mark.name,
+            mark.line,
+            mark.column
+        )
+
+    def __repr__(self):
+        return u'[{} {}:{}]'.format(self.document, self.line, self.column)
+
+    def __str__(self):
+        return u'{} {}:{}'.format(self.document, self.line, self.column)
+
+
+class DocumentRange(object):
+    def __init__(self, start_mark, end_mark):
+        # type: (DocumentLocation, DocumentLocation) -> None
+        self.start_mark = start_mark  # type: DocumentLocation
+        self.end_mark = end_mark  # type: DocumentLocation
+
+    @classmethod
+    def from_marks(cls, start_mark, end_mark):
+        return cls(
+            DocumentLocation.from_mark(start_mark),
+            DocumentLocation.from_mark(end_mark)
+        )
+
+    def __repr__(self):
+        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
+
+    def __str__(self):
+        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
+
+
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
 class EsphomeCore(object):
     def __init__(self):
