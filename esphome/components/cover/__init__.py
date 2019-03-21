@@ -96,10 +96,3 @@ def cover_stop_to_code(config, action_id, template_arg, args):
     rhs = var.make_stop_action(template_arg)
     type = StopAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
-
-
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'cover', config, include_state=True, include_command=True)
-    if ret is None:
-        return None
-    return ret

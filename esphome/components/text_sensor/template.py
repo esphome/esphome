@@ -53,7 +53,3 @@ def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
         yield None
     add(action.set_state(template_))
     yield action
-
-
-def to_hass_config(data, config):
-    return text_sensor.core_to_hass_config(data, config)

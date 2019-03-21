@@ -32,7 +32,3 @@ def to_code(config):
 
 
 BUILD_FLAGS = '-DUSE_DALLAS_SENSOR'
-
-
-def to_hass_config(data, config):
-    return sensor.core_to_hass_config(data, config)

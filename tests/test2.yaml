@@ -172,9 +172,9 @@ remote_receiver:
 esp32_ble_tracker:
   scan_interval: 300s
 
-esp32_ble_beacon:
-  type: iBeacon
-  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
+#esp32_ble_beacon:
+#  type: iBeacon
+#  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
 
 status_led:
   pin: GPIO2

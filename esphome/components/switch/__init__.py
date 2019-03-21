@@ -6,7 +6,7 @@ from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_MQTT_ID, \
-    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_OPTIMISTIC, CONF_TRIGGER_ID
+    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable
 from esphome.cpp_types import Action, App, Nameable, Trigger, esphome_ns
@@ -149,14 +149,3 @@ def switch_is_off_to_code(config, condition_id, template_arg, args):
     rhs = var.make_switch_is_off_condition(template_arg)
     type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
-
-
-def core_to_hass_config(data, config):
-    ret = mqtt.build_hass_config(data, 'switch', config, include_state=True, include_command=True)
-    if ret is None:
-        return None
-    if CONF_ICON in config:
-        ret['icon'] = config[CONF_ICON]
-    if CONF_OPTIMISTIC in config:
-        ret['optimistic'] = config[CONF_OPTIMISTIC]
-    return ret

@@ -328,7 +328,7 @@ def represent_odict(dump, tag, mapping, flow_style=None):
 
 
 def represent_secret(value):
-    return yaml.ScalarNode(tag=u'!secret', value=_SECRET_VALUES[value])
+    return yaml.ScalarNode(tag=u'!secret', value=_SECRET_VALUES[text_type(value)])
 
 
 def unicode_representer(_, uni):

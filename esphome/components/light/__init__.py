@@ -499,24 +499,3 @@ def light_turn_on_to_code(config, action_id, template_arg, args):
             yield None
         add(action.set_effect(template_))
     yield action
-
-
-def core_to_hass_config(data, config, brightness=True, rgb=True, color_temp=True,
-                        white_value=True):
-    ret = mqtt.build_hass_config(data, 'light', config, include_state=True, include_command=True)
-    if ret is None:
-        return None
-    ret['schema'] = 'json'
-    if brightness:
-        ret['brightness'] = True
-    if rgb:
-        ret['rgb'] = True
-    if color_temp:
-        ret['color_temp'] = True
-    if white_value:
-        ret['white_value'] = True
-    for effect in config.get(CONF_EFFECTS, []):
-        ret["effect"] = True
-        effects = ret.setdefault("effect_list", [])
-        effects.append(next(x for x in effect.values())[CONF_NAME])
-    return ret
