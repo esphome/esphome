@@ -96,21 +96,19 @@ sensor:
     entity_id: sensor.hello_world
     id: ha_hello_world
 #group_value sensor
-   - platform: group_value
-     id: slider_0
-     name: 'Slider 1'
-     channels:
-        - channel: touchkey0
-          value: 0
-        - channel: touchkey1
-          value: 10
-        - channel: touchkey2
-          value: 20
-        - channel: touchkey3
-          value: 30
-        - channel: flash_button0
-          value: 80    
-
+  - platform: binary_sensor_map
+    id: slider_0
+    type: GROUP
+    name: 'Group 1'
+    channels:
+      - channel: touchkey0
+        value: 0
+      - channel: touchkey1
+        value: 10
+      - channel: touchkey2
+        value: 20
+      - channel: touchkey3
+        value: 30
 time:
 - platform: homeassistant
 
@@ -158,12 +156,6 @@ binary_sensor:
     on_press:
       then:
         - switch.toggle: mpr121_toggle
-#flash button on gpio0        
-  - platform: gpio
-    pin:
-      number: D3
-      inverted: True
-    id: flash_button0
 
 remote_receiver:
   pin: GPIO12
