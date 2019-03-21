@@ -44,8 +44,4 @@ def to_code(config):
     add(App.register_sensor(var))
 
 
-def to_hass_config(data, config):
-    return sensor.core_to_hass_config(data, config)
-
-
 BUILD_FLAGS = '-DUSE_BINARY_SENSOR_MAP'
