@@ -123,6 +123,7 @@ else:
         flags = 1 if os.path.isdir(src) else 0
         if csl(dst, src, flags) == 0:
             error = ctypes.WinError()
+            # pylint: disable=no-member
             if error.winerror == 1314 and error.errno == 22:
                 from esphome.core import EsphomeError
                 raise EsphomeError("Cannot create symlink from '%s' to '%s'. Try running tool \
