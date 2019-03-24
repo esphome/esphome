@@ -3,11 +3,13 @@ from __future__ import print_function
 
 import codecs
 import collections
+import hashlib
 import hmac
 import json
 import logging
 import multiprocessing
 import os
+import shutil
 import subprocess
 import threading
 
@@ -28,7 +30,7 @@ from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.py_compat import IS_PY2
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
-    esphome_storage_path, ext_storage_path
+    esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote
 
 # pylint: disable=unused-import, wrong-import-order
@@ -62,6 +64,27 @@ def template_args():
         'relative_url': RELATIVE_URL,
         'streamer_mode': get_bool_env('ESPHOME_STREAMER_MODE'),
     }
+
+
+def authenticated(func):
+    def decorator(self, *args, **kwargs):
+        if not self.is_authenticated():
+            self.redirect(RELATIVE_URL + 'login')
+            return None
+        return func(self, *args, **kwargs)
+    return decorator
+
+
+def bind_config(func):
+    def decorator(self, *args, **kwargs):
+        configuration = self.get_argument('configuration')
+        if not is_allowed(configuration):
+            self.set_status(500)
+            return None
+        kwargs = kwargs.copy()
+        kwargs['configuration'] = configuration
+        return func(self, *args, **kwargs)
+    return decorator
 
 
 # pylint: disable=abstract-method
@@ -178,10 +201,8 @@ class EsphomeHassConfigHandler(EsphomeCommandWebSocket):
 
 
 class SerialPortRequestHandler(BaseHandler):
+    @authenticated
     def get(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
         ports = get_serial_ports()
         data = []
         for port, desc in ports:
@@ -198,12 +219,10 @@ class SerialPortRequestHandler(BaseHandler):
 
 
 class WizardRequestHandler(BaseHandler):
+    @authenticated
     def post(self):
         from esphome import wizard
 
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
         kwargs = {k: ''.join(v) for k, v in self.request.arguments.items()}
         destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
@@ -211,13 +230,10 @@ class WizardRequestHandler(BaseHandler):
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
-    def get(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
-
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        configuration = self.get_argument('configuration')
         storage_path = ext_storage_path(CONFIG_DIR, configuration)
         storage_json = StorageJSON.load(storage_path)
         if storage_json is None:
@@ -315,11 +331,8 @@ class DashboardEntry(object):
 
 
 class MainRequestHandler(BaseHandler):
+    @authenticated
     def get(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
-
         begin = bool(self.get_argument('begin', False))
         entries = _list_dashboard_entries()
 
@@ -400,11 +413,8 @@ class PingStatusThread(threading.Thread):
 
 
 class PingRequestHandler(BaseHandler):
+    @authenticated
     def get(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
-
         PING_REQUEST.set()
         self.write(json.dumps(PING_RESULT))
 
@@ -414,34 +424,52 @@ def is_allowed(configuration):
 
 
 class EditRequestHandler(BaseHandler):
-    def get(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        configuration = self.get_argument('configuration')
-        if not is_allowed(configuration):
-            self.set_status(401)
-            return
-
         with open(os.path.join(CONFIG_DIR, configuration), 'r') as f:
             content = f.read()
         self.write(content)
 
-    def post(self):
-        if not self.is_authenticated():
-            self.redirect(RELATIVE_URL + 'login')
-            return
+    @authenticated
+    @bind_config
+    def post(self, configuration=None):
         # pylint: disable=no-value-for-parameter
-        configuration = self.get_argument('configuration')
-        if not is_allowed(configuration):
-            self.set_status(401)
-            return
-
         with open(os.path.join(CONFIG_DIR, configuration), 'wb') as f:
             f.write(self.request.body)
         self.set_status(200)
-        return
+
+
+class DeleteRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def post(self, configuration=None):
+        config_file = os.path.join(CONFIG_DIR, configuration)
+        storage_path = ext_storage_path(CONFIG_DIR, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.set_status(500)
+            return
+
+        name = storage_json.name
+        trash_path = trash_storage_path(CONFIG_DIR)
+        mkdir_p(trash_path)
+        shutil.move(config_file, os.path.join(trash_path, configuration))
+
+        # Delete build folder (if exists)
+        build_folder = os.path.join(CONFIG_DIR, name)
+        if build_folder is not None:
+            shutil.rmtree(build_folder, os.path.join(trash_path, name))
+
+
+class UndoDeleteRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def post(self, configuration=None):
+        config_file = os.path.join(CONFIG_DIR, configuration)
+        trash_path = trash_storage_path(CONFIG_DIR)
+        shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
 PING_RESULT = {}  # type: dict
@@ -511,9 +539,9 @@ def get_static_file_url(name):
     else:
         path = os.path.join(static_path, name)
         with open(path, 'rb') as f_handle:
-            hash_ = hash(f_handle.read()) & (2**32-1)
+            hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
-    return RELATIVE_URL + u'static/{}?hash={:08X}'.format(name, hash_)
+    return RELATIVE_URL + u'static/{}?hash={}'.format(name, hash_)
 
 
 def make_app(debug=False):
@@ -561,6 +589,8 @@ def make_app(debug=False):
         (RELATIVE_URL + "download.bin", DownloadBinaryRequestHandler),
         (RELATIVE_URL + "serial-ports", SerialPortRequestHandler),
         (RELATIVE_URL + "ping", PingRequestHandler),
+        (RELATIVE_URL + "delete", DeleteRequestHandler),
+        (RELATIVE_URL + "undo-delete", UndoDeleteRequestHandler),
         (RELATIVE_URL + "wizard.html", WizardRequestHandler),
         (RELATIVE_URL + r"static/(.*)", StaticFileHandler, {'path': static_path}),
     ], **settings)

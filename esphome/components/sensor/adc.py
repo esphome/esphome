@@ -56,10 +56,6 @@ def required_build_flags(config):
     return None
 
 
-def to_hass_config(data, config):
-    return sensor.core_to_hass_config(data, config)
-
-
 def includes(config):
     if config[CONF_PIN] == 'VCC':
         return 'ADC_MODE(ADC_VCC);'

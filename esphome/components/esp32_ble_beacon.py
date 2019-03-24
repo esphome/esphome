@@ -7,6 +7,7 @@ from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component, esphome_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+CONFLICTS_WITH = ['esp32_ble_tracker']
 
 ESP32BLEBeacon = esphome_ns.class_('ESP32BLEBeacon', Component)
 

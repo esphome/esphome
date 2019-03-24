@@ -13,7 +13,8 @@ from esphome.const import ARDUINO_VERSION_ESP32_1_0_0, ARDUINO_VERSION_ESP8266_2
     CONF_LOCAL, CONF_PLATFORMIO_OPTIONS, CONF_REPOSITORY, CONF_TAG, CONF_USE_CUSTOM_CODE
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
-from esphome.helpers import mkdir_p, run_system_command, symlink
+from esphome.helpers import mkdir_p, run_system_command
+from esphome.symlink_ops import symlink, islink, readlink, unlink
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import IS_PY3, string_types
 from esphome.storage_json import StorageJSON, storage_path
@@ -220,10 +221,10 @@ def symlink_esphome_core_version(esphome_core_version):
     if CORE.is_local_esphome_core_copy:
         src_path = CORE.relative_path(esphome_core_version[CONF_LOCAL])
         do_write = True
-        if os.path.islink(dst_path):
-            old_path = os.path.join(os.readlink(dst_path), lib_path)
+        if islink(dst_path):
+            old_path = os.path.join(readlink(dst_path), lib_path)
             if old_path != lib_path:
-                os.unlink(dst_path)
+                unlink(dst_path)
             else:
                 do_write = False
         if do_write:
@@ -231,8 +232,8 @@ def symlink_esphome_core_version(esphome_core_version):
             symlink(src_path, dst_path)
     else:
         # Remove symlink when changing back from local version
-        if os.path.islink(dst_path):
-            os.unlink(dst_path)
+        if islink(dst_path):
+            unlink(dst_path)
 
 
 def format_ini(data):

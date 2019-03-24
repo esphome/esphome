@@ -20,19 +20,19 @@ PYPI_URL = 'https://pypi.python.org/pypi/{}'.format(PROJECT_PACKAGE_NAME)
 GITHUB_PATH = '{}/{}'.format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
 GITHUB_URL = 'https://github.com/{}'.format(GITHUB_PATH)
 
-DOWNLOAD_URL = '{}/archive/{}.zip'.format(GITHUB_URL, const.__version__)
+DOWNLOAD_URL = '{}/archive/v{}.zip'.format(GITHUB_URL, const.__version__)
 
 REQUIRES = [
-    'voluptuous>=0.11.1',
-    'pyyaml>=3.12',
-    'paho-mqtt>=1.3.1',
-    'colorlog>=3.1.2',
-    'tornado>=5.0.0',
-    'typing>=3.0.0;python_version<"3.5"',
-    'protobuf>=3.4',
-    'tzlocal>=1.4',
+    'voluptuous>=0.11.5,<0.12',
+    'PyYAML>=5.1,<6',
+    'paho-mqtt>=1.4,<2',
+    'colorlog>=4.0.2',
+    'tornado>=5.1.1,<6',
+    'typing>=3.6.6;python_version<"3.5"',
+    'protobuf>=3.7,<3.8',
+    'tzlocal>=1.5.1',
     'pyserial>=3.4,<4',
-    'ifaddr>=0.1.6',
+    'ifaddr>=0.1.6,<1',
 ]
 
 # If you have problems importing platformio and esptool as modules you can set
@@ -40,8 +40,8 @@ REQUIRES = [
 # This means they have to be in your $PATH.
 if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
     REQUIRES.extend([
-        'platformio>=3.5.3',
-        'esptool>=2.3.1',
+        'platformio>=3.6.5',
+        'esptool>=2.6,<3',
     ])
 
 CLASSIFIERS = [
