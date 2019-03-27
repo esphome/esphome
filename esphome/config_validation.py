@@ -16,7 +16,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
     ESP_PLATFORM_ESP8266
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
-from esphome.py_compat import integer_types, string_types, text_type
+from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -420,7 +420,7 @@ METRIC_SUFFIXES = {
 
 
 def float_with_unit(quantity, regex_suffix):
-    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + "$")
+    pattern = re.compile(ur"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + ur"$", re.UNICODE)
 
     def validator(value):
         match = pattern.match(string(value))
@@ -438,12 +438,49 @@ def float_with_unit(quantity, regex_suffix):
     return validator
 
 
-frequency = float_with_unit("frequency", r"(Hz|HZ|hz)?")
-resistance = float_with_unit("resistance", r"(Ω|Ω|ohm|Ohm|OHM)?")
-current = float_with_unit("current", r"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
-voltage = float_with_unit("voltage", r"(v|V|volt|Volts)?")
-distance = float_with_unit("distance", r"(m)")
-framerate = float_with_unit("framerate", r"(FPS|fps|Fps|FpS|Hz)")
+frequency = float_with_unit("frequency", ur"(Hz|HZ|hz)?")
+resistance = float_with_unit("resistance", ur"(Ω|Ω|ohm|Ohm|OHM)?")
+current = float_with_unit("current", ur"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", ur"(v|V|volt|Volts)?")
+distance = float_with_unit("distance", ur"(m)")
+framerate = float_with_unit("framerate", ur"(FPS|fps|Fps|FpS|Hz)")
+_temperature_c = float_with_unit("temperature", ur"(°C|° C|°|C)?")
+_temperature_k = float_with_unit("temperature", ur"(° K|° K|K)?")
+_temperature_f = float_with_unit("temperature", ur"(°F|° F|F)?")
+
+if IS_PY2:
+    # Override voluptuous invalid to unicode for py2
+    def _vol_invalid_unicode(self):
+        path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
+            if self.path else ''
+        output = Exception.__unicode__(self)
+        if self.error_type:
+            output += u' for ' + self.error_type
+        return output + path
+
+
+    vol.Invalid.__unicode__ = _vol_invalid_unicode
+
+
+def temperature(value):
+    try:
+        return _temperature_c(value)
+    except vol.Invalid as orig_err:
+        pass
+
+    try:
+        kelvin = _temperature_k(value)
+        return kelvin - 273.15
+    except vol.Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return (fahrenheit - 32) * (5/9)
+    except vol.Invalid:
+        pass
+
+    raise orig_err
 
 
 def validate_bytes(value):
