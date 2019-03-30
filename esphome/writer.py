@@ -290,7 +290,7 @@ def gather_lib_deps():
             lib_deps.add('AsyncTCP@1.0.1')
         lib_deps.add('ESPmDNS')
     elif CORE.is_esp8266:
-        lib_deps.add('ESPAsyncTCP@1.2.0')
+        lib_deps.add('ESPAsyncTCP@1.1.3')
         lib_deps.add('ESP8266mDNS')
 
     # avoid changing build flags order
