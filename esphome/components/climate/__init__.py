@@ -88,10 +88,6 @@ def climate_control_to_code(config, action_id, template_arg, args):
         yield None
     rhs = var.make_control_action(template_arg)
     type = ControlAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
-
-    rhs = var.make_control_action(template_arg)
-    type = ControlAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_MODE in config:
         if isinstance(config[CONF_MODE], core.Lambda):

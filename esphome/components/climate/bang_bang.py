@@ -62,4 +62,5 @@ def to_code(config):
         )
         add(control.set_away_config(away_config))
 
+
 BUILD_FLAGS = '-DUSE_BANG_BANG_CLIMATE'
