@@ -2,6 +2,7 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
+from datetime import datetime
 import logging
 import os
 import re
@@ -13,7 +14,7 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266
+    ESP_PLATFORM_ESP8266, CONF_HOURS, CONF_HOUR, CONF_MINUTE, CONF_SECOND
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type
@@ -389,6 +390,23 @@ time_period_microseconds = vol.All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = vol.All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = vol.All(time_period,
                                         vol.Range(min=TimePeriod(), min_included=False))
+
+
+def time_of_day(value):
+    value = string(value)
+    try:
+        date = datetime.strptime(value, '%H:%M:%S')
+    except ValueError as err:
+        try:
+            date = datetime.strptime(value, '%H:%M:%S %p')
+        except ValueError:
+            raise vol.Invalid("Invalid time of day: {}".format(err))
+
+    return {
+        CONF_HOUR: date.hour,
+        CONF_MINUTE: date.minute,
+        CONF_SECOND: date.second,
+    }
 
 
 def mac_address(value):
