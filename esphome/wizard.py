@@ -79,7 +79,7 @@ def wizard_write(path, **kwargs):
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
 
-    with codecs.open(path, 'w') as f_handle:
+    with codecs.open(path, 'w', 'utf-8') as f_handle:
         f_handle.write(wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))

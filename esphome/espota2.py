@@ -195,7 +195,7 @@ def perform_ota(sock, password, file_handle, filename):
         send_check(sock, cnonce, 'auth cnonce')
 
         result_md5 = hashlib.md5()
-        result_md5.update(password.encode())
+        result_md5.update(password.encode('utf-8'))
         result_md5.update(nonce.encode())
         result_md5.update(cnonce.encode())
         result = result_md5.hexdigest()
