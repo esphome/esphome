@@ -503,12 +503,14 @@ sensor:
     rx_only: false
 
   - platform: ppd42x
-    timeout: 30000 # mandatory
     pm_2_5:
-      name: "SDS011 PM2.5"
+      pin: GPIO32
+      name: "ppd42 PM2.5"
     pm_10_0:
-      name: "SDS011 PM10.0"
+      pin: GPIO35
+      name: "ppd42 PM10.0"
     update_interval: 5min
+    timeout: 30000us # default value
 
 
 
