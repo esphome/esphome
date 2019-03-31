@@ -30,12 +30,12 @@ def to_code(config):
 
     if CONF_PM_2_5 in config:
         conf_02_5 = config[CONF_PM_2_5]
-        for auto pm_02_5 in gpio_input_pin_expression(conf_02_5[CONF_PIN]):
+        for pm_02_5 in gpio_input_pin_expression(conf_02_5[CONF_PIN]):
             yield
         sensor.register_sensor(ppd42x.make_pm_02_5_sensor(conf_02_5[CONF_NAME]), conf_02_5)
     if CONF_PM_10_0 in config:
         conf_10_0 = config[CONF_PM_10_0]
-        for auto pm_10_0 in gpio_input_pin_expression(conf_10_0[CONF_PIN]):
+        for pm_10_0 in gpio_input_pin_expression(conf_10_0[CONF_PIN]):
             yield
         sensor.register_sensor(ppd42x.make_pm_10_0_sensor(conf_10_0[CONF_NAME]), conf_10_0)
 
