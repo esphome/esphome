@@ -27,8 +27,6 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
-// pins.internal_gpio_input_pin_schema,
-
 def to_code(config):
     if CONF_TIMEOUT in config:
         add(ppd42x.set_timeout_us(config[CONF_TIMEOUT]))
