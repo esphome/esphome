@@ -15,7 +15,7 @@ Ppd42xSensorComponent = sensor.sensor_ns.class_('Ppd42xSensorComponent',
                                                 sensor.PollingSensorComponent)
 
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(Ppd42xSensorComponent),
     vol.Optional(CONF_PM_10_0): vol.All(pins.internal_gpio_input_pin_schema,
                                         pins.validate_has_interrupt),
