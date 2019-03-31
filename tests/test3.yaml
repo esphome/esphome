@@ -5,8 +5,8 @@ esphome:
   # Use this for testing while developing:
   # Note the travis check for esphome PRs will fail until the
   # esphome-core PR has been merged.
-  # esphome_core_version:
-  #   local: ~/path/to/esphome-core
+  esphome_core_version:
+     local: /home/pi4homez/github2/esphome-core
   build_path: build/test3
 
 substitutions:

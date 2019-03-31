@@ -5,8 +5,8 @@ esphome:
   # Use this for testing while developing:
   # Note the travis check for esphome PRs will fail until the
   # esphome-core PR has been merged.
-  # esphome_core_version:
-  #   local: ~/path/to/esphome-core
+  esphome_core_version:
+    local: /home/pi4homez/github2/esphome-core
   use_custom_code: false
   on_boot:
     priority: 150.0
@@ -501,6 +501,15 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
+
+  - platform: ppd42x
+    timeout: 30000 # mandatory
+    pm_2_5:
+      name: "SDS011 PM2.5"
+    pm_10_0:
+      name: "SDS011 PM10.0"
+    update_interval: 5min
+
 
 
 esp32_touch:
