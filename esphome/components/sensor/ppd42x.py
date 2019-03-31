@@ -25,9 +25,9 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for auto pm_10_0 in gpio_input_pin_expression(config[CONF_PM_10_0]):
+    for pm_10_0 in gpio_input_pin_expression(config[CONF_PM_10_0]):
         yield
-    for auto pm_02_5 in gpio_input_pin_expression(config[CONF_PM_2_5]):
+    for pm_02_5 in gpio_input_pin_expression(config[CONF_PM_2_5]):
         yield
     rhs = App.make_ppd42x_sensor(config[CONF_NAME], pm_10_0, pm_02_5,
                                  config.get(CONF_UPDATE_INTERVAL))
