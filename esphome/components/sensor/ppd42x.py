@@ -17,12 +17,17 @@ Ppd42xSensorComponent = sensor.sensor_ns.class_('Ppd42xSensorComponent',
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(Ppd42xSensorComponent),
-    vol.Optional(CONF_PM_10_0): pins.internal_gpio_input_pin_schema,
-    vol.Optional(CONF_PM_2_5):  pins.internal_gpio_input_pin_schema,
+    vol.Optional(CONF_PM_10_0): sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(PPD42X10_0Sensor),
+    }),
+    vol.Optional(CONF_PM_2_5): sensor.SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_variable_id(PPD42X02_5Sensor),
+    }),
     vol.Required(CONF_TIMEOUT): cv.positive_time_period_microseconds,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 })
 
+// pins.internal_gpio_input_pin_schema,
 
 def to_code(config):
     if CONF_TIMEOUT in config:
