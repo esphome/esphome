@@ -6,7 +6,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_PM_10_0, CONF_PM_2_5, CONF_NAME, \
     CONF_UPDATE_INTERVAL, CONF_TIMEOUT
 from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import gpio_input_pin_expression, gpio_output_pin_expression, \
+from esphome.cpp_helpers import gpio_input_pin_expression,  \
     setup_component
 from esphome.cpp_types import App
 
