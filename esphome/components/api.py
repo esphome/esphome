@@ -86,7 +86,7 @@ def lib_deps(config):
     if CORE.is_esp32:
         return 'AsyncTCP@1.0.3'
     if CORE.is_esp8266:
-        return 'ESPAsyncTCP@1.1.3'
+        return 'ESPAsyncTCP@1.2.0'
     raise NotImplementedError
 
 
