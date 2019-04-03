@@ -1,5 +1,4 @@
 import voluptuous as vol
-
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SCL, CONF_SDO

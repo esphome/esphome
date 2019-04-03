@@ -1,5 +1,4 @@
 import voluptuous as vol
-
 from esphome.components import binary_sensor
 from esphome.components.ttp229_bsf import TTP229BSFComponent, CONF_TTP229_BSF_ID
 import esphome.config_validation as cv
