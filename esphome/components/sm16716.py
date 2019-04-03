@@ -25,11 +25,11 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for mosi in gpio_output_pin_expression(config[CONF_DATA_PIN]):
+    for data in gpio_output_pin_expression(config[CONF_DATA_PIN]):
         yield
-    for sclk in gpio_output_pin_expression(config[CONF_CLOCK_PIN]):
+    for clock in gpio_output_pin_expression(config[CONF_CLOCK_PIN]):
         yield
-    rhs = App.make_sm16716_component(mosi, sclk)
+    rhs = App.make_sm16716_component(data, clock)
     sm16716 = Pvariable(config[CONF_ID], rhs)
     if CONF_NUM_CHANNELS in config:
         add(sm16716.set_num_channels(config[CONF_NUM_CHANNELS]))
