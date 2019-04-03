@@ -640,6 +640,12 @@ my9231:
   num_chips: 2
   bit_depth: 16
 
+sm16716:
+  data_pin: GPIO14
+  clock_pin: GPIO4
+  num_channels: 3
+  num_chips: 1
+
 output:
   - platform: gpio
     pin: GPIO26
@@ -709,6 +715,15 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: sm16716
+    id: sm_0
+    channel: 0
+  - platform: sm16716
+    id: sm_1
+    channel: 1
+  - platform: sm16716
+    id: sm_2
+    channel: 2
   - platform: copy
     id: my_copy1
     outputs:
