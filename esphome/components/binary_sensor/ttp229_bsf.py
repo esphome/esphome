@@ -22,4 +22,3 @@ def to_code(config):
         yield
     rhs = TTP229BSFChannel.new(config[CONF_NAME], config[CONF_CHANNEL])
     binary_sensor.register_binary_sensor(hub.add_channel(rhs), config)
-    
