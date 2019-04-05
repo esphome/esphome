@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
-from esphome.const import  CONF_ID, CONF_NAME, CONF_PM_10_0, \
+from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_PIN, CONF_TYPE
 from esphome.cpp_generator import Pvariable, get_variable
 from esphome.cpp_helpers import setup_component
@@ -52,21 +52,17 @@ PLATFORM_SCHEMA = vol.nameable(sensor.PLATFORM_SCHEMA.extend({
 def to_code(config):
     rhs = App.make_ppd42x(config[CONF_NAME], PPD42X_TYPES[config[CONF_TYPE]])
     pms = Pvariable(config[CONF_ID], rhs)
-
     if CONF_PM_2_5 in config:
         conf = config[CONF_PM_2_5]
         for pm_02_5 in get_variable(conf[CONF_PIN]):
             yield
         sensor.register_sensor(pms.make_pm_2_5_sensor(conf[CONF_NAME]), conf)
-
-
     if CONF_PM_10_0 in config:
         conf = config[CONF_PM_10_0]
         for pm_10_0 in get_variable(conf[CONF_PIN]):
             yield
         sensor.register_sensor(pms.make_pm_10_0_sensor(conf[CONF_NAME]), conf)
-
-
     setup_component(pms, config)
+
 
 BUILD_FLAGS = '-DUSE_PPD42X'
