@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
-    CONF_PM_2_5, CONF_PIN, CONF_TYPE
+    CONF_PM_2_5, CONF_PIN, CONF_TYPE, CONF_UPDATE_INTERVAL, CONF_TIMEOUT
 from esphome.cpp_generator import Pvariable, get_variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App, Component
@@ -45,6 +45,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_TYPE): cv.one_of(*PPD42X_TYPES, upper=True),
     vol.Optional(CONF_PM_2_5): cv.nameable(PPD42X_SENSOR_SCHEMA),
     vol.Optional(CONF_PM_10_0): cv.nameable(PPD42X_SENSOR_SCHEMA),
+    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    vol.Optional(CONF_TIMEOUT): cv.positive_time_period_microseconds,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
 
 
