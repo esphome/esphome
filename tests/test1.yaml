@@ -503,6 +503,7 @@ sensor:
     rx_only: false
 
   - platform: ppd42x
+    type: PPD42
     pm_2_5:
       pin: GPIO32
       name: "ppd42 PM2.5"
