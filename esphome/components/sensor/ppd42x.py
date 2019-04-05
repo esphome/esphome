@@ -1,8 +1,6 @@
 import voluptuous as vol
 
 from esphome import pins
-from esphome.components import sensor, uart
-from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_PIN, CONF_TYPE
