@@ -55,7 +55,7 @@ def to_code(config):
     ppd = Pvariable(config[CONF_ID], rhs)
     if CONF_PM_2_5 in config:
         conf_02_5 = config[CONF_PM_2_5]
-        for pm_02_5 in get_variable(config[[CONF_PM_2_5][CONF_PIN]]):
+        for pm_02_5 in get_variable(conf_10_0[CONF_PIN]):
             yield
         sensor.register_sensor(ppd.make_pm_02_5_sensor(conf_02_5[CONF_NAME]), pm_02_5)
     if CONF_PM_10_0 in config:
