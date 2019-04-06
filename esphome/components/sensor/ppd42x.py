@@ -37,9 +37,10 @@ def validate_PPD42X_sensors(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PPD42XComponent),
     vol.Required(CONF_TYPE): cv.one_of(*PPD42X_TYPES, upper=True),
+
     vol.Optional(CONF_PIN_02_5): pins.gpio_input_pin_schema,
     vol.Optional(CONF_PIN_10_0): pins.gpio_input_pin_schema,
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
@@ -51,14 +52,14 @@ def to_code(config):
     rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]])
     ppd = Pvariable(config[CONF_ID], rhs)
     if CONF_PM_2_5 in config:
-        for pl_02_5 in get_variable(config.get(CONF_PIN_02_5)):
+        for pl_02_5 in get_variable(config[CONF_PIN_02_5]):
             yield
         sensor.register_sensor(ppd.make_pl_02_5_sensor(config[CONF_NAME], pl_02_5), config)
     if CONF_PM_10_0 in config:
-        for pl_10_0 in get_variable(config.get(CONF_PM_10_0)):
+        for pl_10_0 in get_variable(config[CONF_PM_10_0]):
             yield
         sensor.register_sensor(ppd.make_pl_10_0_sensor(config[CONF_NAME], pl_10_0), config)
-        
+
     setup_component(ppd, config)
 
 
