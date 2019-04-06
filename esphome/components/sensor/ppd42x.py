@@ -13,18 +13,18 @@ from esphome.cpp_types import App, Component
 PPD42XComponent = sensor.sensor_ns.class_('PPD42XComponent', Component)
 PPD42XSensor = sensor.sensor_ns.class_('PPD42XSensor', sensor.Sensor)
 
-CONF_PPD42__ = 'PPD42'
+CONF_PPD42 = 'PPD42'
 CONF_PPD42NS = 'PPD42NS'
 
 PPD42XType = sensor.sensor_ns.enum('PPD42XType')
 PPD42X_TYPES = {
-    CONF_PPD42__: PPD42XType.PPD42X_TYPE___,
+    CONF_PPD42: PPD42XType.PPD42X_TYPE,
     CONF_PPD42NS: PPD42XType.PPD42X_TYPE_NS,
 }
 
 SENSORS_TO_TYPE = {
-    CONF_PM_2_5:  [CONF_PPD42__, CONF_PPD42NS],
-    CONF_PM_10_0: [CONF_PPD42__, CONF_PPD42NS],
+    CONF_PM_2_5:  [CONF_PPD42, CONF_PPD42NS],
+    CONF_PM_10_0: [CONF_PPD42, CONF_PPD42NS],
 }
 
 
