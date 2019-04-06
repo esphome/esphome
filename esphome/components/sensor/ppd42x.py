@@ -37,7 +37,8 @@ def validate_PPD42X_sensors(value):
 
 PPD42X_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PPD42XSensor),
-    vol.Required(CONF_PIN): pins.gpio_input_pin_schema
+    vol.Required(CONF_NAME): cv.string,
+    vol.Required(CONF_PIN): pins.gpio_input_pin_schema,
 })
 
 PLATFORM_SCHEMA = cv.nameable(sensor.PLATFORM_SCHEMA.extend({
