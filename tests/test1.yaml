@@ -503,7 +503,7 @@ sensor:
     rx_only: false
 
   - platform: ppd42x
-    name: my ppd42
+    name: "my ppd42"
     type: PPD42
     pm_2_5:
       pin: GPIO32
