@@ -51,13 +51,14 @@ def to_code(config):
     rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]])
     ppd = Pvariable(config[CONF_ID], rhs)
     if CONF_PM_2_5 in config:
-        for pm_02_5 in get_variable(config.get(CONF_PIN_02_5)):
+        for pl_02_5 in get_variable(config.get(CONF_PIN_02_5)):
             yield
-        sensor.register_sensor(ppd.make_pm_02_5_sensor(config[CONF_NAME]), pm_02_5)
+        sensor.register_sensor(ppd.make_pl_02_5_sensor(config[CONF_NAME], pl_02_5), config)
     if CONF_PM_10_0 in config:
-        for pm_10_0 in get_variable(config.get(CONF_PM_10_0)):
+        for pl_10_0 in get_variable(config.get(CONF_PM_10_0)):
             yield
-        sensor.register_sensor(ppd.make_pm_10_0_sensor(config[CONF_NAME]), pm_10_0)
+        sensor.register_sensor(ppd.make_pl_10_0_sensor(config[CONF_NAME], pl_10_0), config)
+        
     setup_component(ppd, config)
 
 
