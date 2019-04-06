@@ -51,7 +51,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = App.make_ppd42x(config[CONF_NAME], PPD42X_TYPES[config[CONF_TYPE]])
+    rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]])
     ppd = Pvariable(config[CONF_ID], rhs)
     if CONF_PM_2_5 in config:
         conf = config[CONF_PM_2_5]
