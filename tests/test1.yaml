@@ -505,12 +505,8 @@ sensor:
   - platform: ppd42x
     id: my_office_ppd42
     type: PPD42
-    pm_2_5:
-      pin: GPIO32
-      name: "ppd42 PM2.5"
-    pm_10_0:
-      pin: GPIO35
-      name: "ppd42 PM10.0"
+    pin_2_5: GPIO32
+    pin_10_0: GPIO35
     update_interval: 5min
     timeout: 30000us # default value
 
