@@ -4,8 +4,7 @@ from esphome import pins
 from esphome.components import light
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_CHIPSET, CONF_COLOR_CORRECT, CONF_DEFAULT_TRANSITION_LENGTH, \
-    CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, \
+from esphome.const import CONF_CHIPSET, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, \
     CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, CONF_RGB_ORDER
 from esphome.cpp_generator import RawExpression, TemplateArguments, add, get_variable, variable
 from esphome.cpp_helpers import setup_component
@@ -57,7 +56,6 @@ def validate(value):
 MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
     vol.Required(CONF_CHIPSET): cv.one_of(*TYPES, upper=True),
@@ -68,7 +66,7 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
 
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-}).extend(light.RGB_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema), validate)
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema), validate)
 
 
 def to_code(config):
@@ -91,7 +89,7 @@ def to_code(config):
             yield
         add(fast_led.set_power_supply(power_supply))
 
-    light.setup_light(make.Pstate, config)
+    light.setup_light(make.Pstate, make.Pfast_led, config)
     setup_component(fast_led, config)
 
 

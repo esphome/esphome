@@ -483,6 +483,20 @@ def temperature(value):
     raise orig_err
 
 
+_color_temperature_mireds = float_with_unit('Color Temperature', ur'(mireds|Mireds)')
+_color_temperature_kelvin = float_with_unit('Color Temperature', ur'(K|Kelvin)')
+
+
+def color_temperature(value):
+    try:
+        val = _color_temperature_mireds(value)
+    except vol.Invalid:
+        val = 1000000.0 / _color_temperature_kelvin(value)
+    if val < 0:
+        raise vol.Invalid("Color temperature cannot be negative")
+    return val
+
+
 def validate_bytes(value):
     value = string(value)
     match = re.match(r"^([0-9]+)\s*(\w*?)(?:byte|B|b)?s?$", value)

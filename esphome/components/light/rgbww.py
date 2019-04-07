@@ -3,21 +3,11 @@ import voluptuous as vol
 from esphome.components import light, output
 import esphome.config_validation as cv
 from esphome.const import CONF_BLUE, CONF_COLD_WHITE, CONF_COLD_WHITE_COLOR_TEMPERATURE, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_MAKE_ID, \
-    CONF_NAME, CONF_RED, CONF_WARM_WHITE, CONF_WARM_WHITE_COLOR_TEMPERATURE
+    CONF_GREEN, CONF_MAKE_ID, CONF_NAME, CONF_RED, CONF_WARM_WHITE, \
+    CONF_WARM_WHITE_COLOR_TEMPERATURE
 from esphome.cpp_generator import get_variable, variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App
-
-
-def validate_color_temperature(value):
-    try:
-        val = cv.float_with_unit('Color Temperature', 'mireds')(value)
-    except vol.Invalid:
-        val = 1000000.0 / cv.float_with_unit('Color Temperature', 'K')(value)
-    if val < 0:
-        raise vol.Invalid("Color temperature cannot be negative")
-    return val
 
 
 def validate_cold_white_colder(value):
@@ -37,9 +27,10 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_BLUE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_COLD_WHITE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_WARM_WHITE): cv.use_variable_id(output.FloatOutput),
-    vol.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
-    vol.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
-}).extend(light.RGB_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema), validate_cold_white_colder)
+    vol.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+    vol.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): cv.color_temperature,
+}).extend(light.RGB_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema),
+                              validate_cold_white_colder)
 
 
 def to_code(config):
@@ -57,5 +48,5 @@ def to_code(config):
                                config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                                red, green, blue, cold_white, warm_white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, config)
+    light.setup_light(light_struct.Pstate, light_struct.Poutput, config)
     setup_component(light_struct.Pstate, config)

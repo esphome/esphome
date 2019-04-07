@@ -32,8 +32,7 @@ AddressableLightRef = AddressableLight.operator('ref')
 
 # Actions
 ToggleAction = light_ns.class_('ToggleAction', Action)
-TurnOffAction = light_ns.class_('TurnOffAction', Action)
-TurnOnAction = light_ns.class_('TurnOnAction', Action)
+LightControlAction = light_ns.class_('LightControlAction', Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
 
@@ -265,6 +264,7 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
 })
 
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(AddressableLightState),
     vol.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
     vol.Optional(CONF_COLOR_CORRECT): vol.All([cv.percentage], vol.Length(min=3, max=4)),
 })
@@ -389,7 +389,7 @@ def build_effect(full_config):
         raise NotImplementedError("Effect {} not implemented".format(next(config.keys())))
 
 
-def setup_light_core_(light_var, config):
+def setup_light_core_(light_var, output_var, config):
     if CONF_INTERNAL in config:
         add(light_var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEFAULT_TRANSITION_LENGTH in config:
@@ -405,14 +405,14 @@ def setup_light_core_(light_var, config):
         add(light_var.add_effects(effects))
 
     if CONF_COLOR_CORRECT in config:
-        add(light_var.set_correction(*config[CONF_COLOR_CORRECT]))
+        add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
 
     setup_mqtt_component(light_var.Pget_mqtt(), config)
 
 
-def setup_light(light_obj, config):
+def setup_light(light_obj, output_var, config):
     light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
-    CORE.add_job(setup_light_core_, light_var, config)
+    CORE.add_job(setup_light_core_, light_var, output_var, config)
 
 
 BUILD_FLAGS = '-DUSE_LIGHT'
@@ -428,8 +428,8 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 def light_toggle_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_toggle_action(template_arg)
     type = ToggleAction.template(template_arg)
+    rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
         for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
@@ -449,8 +449,8 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 def light_turn_off_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(template_arg)
+    type = LightControlAction.template(template_arg)
+    rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
         for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
@@ -459,30 +459,47 @@ def light_turn_off_to_code(config, action_id, template_arg, args):
     yield action
 
 
-CONF_LIGHT_TURN_ON = 'light.turn_on'
-LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
+CONF_LIGHT_CONTROL = 'light.control'
+LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(LightState),
+    vol.Optional(CONF_STATE): cv.templatable(cv.boolean),
     vol.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
         cv.templatable(cv.positive_time_period_milliseconds),
     vol.Exclusive(CONF_FLASH_LENGTH, 'transformer'):
         cv.templatable(cv.positive_time_period_milliseconds),
+    vol.Exclusive(CONF_EFFECT, 'transformer'): cv.templatable(cv.string),
     vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
     vol.Optional(CONF_RED): cv.templatable(cv.percentage),
     vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
     vol.Optional(CONF_BLUE): cv.templatable(cv.percentage),
     vol.Optional(CONF_WHITE): cv.templatable(cv.percentage),
-    vol.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.positive_float),
-    vol.Optional(CONF_EFFECT): cv.templatable(cv.string),
+    vol.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
 })
+CONF_LIGHT_TURN_OFF = 'light.turn_off'
+LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
+    vol.Required(CONF_ID): cv.use_variable_id(LightState),
+    vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
+    vol.Optional(CONF_STATE, default=False): False,
+})
+CONF_LIGHT_TURN_ON = 'light.turn_on'
+LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id(LIGHT_CONTROL_ACTION_SCHEMA.extend({
+    vol.Optional(CONF_STATE, default=True): True,
+}))
 
 
+@ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, template_arg, args):
+@ACTION_REGISTRY.register(CONF_LIGHT_CONTROL, LIGHT_CONTROL_ACTION_SCHEMA)
+def light_control_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(template_arg)
+    type = LightControlAction.template(template_arg)
+    rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
+    if CONF_STATE in config:
+        for template_ in templatable(config[CONF_STATE], args, bool):
+            yield None
+        add(action.set_state(template_))
     if CONF_TRANSITION_LENGTH in config:
         for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
             yield None
@@ -492,27 +509,27 @@ def light_turn_on_to_code(config, action_id, template_arg, args):
             yield None
         add(action.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
-        for template_ in templatable(config[CONF_BRIGHTNESS], args, float_):
+        for template_ in templatable(config[CONF_BRIGHTNESS], args, float):
             yield None
         add(action.set_brightness(template_))
     if CONF_RED in config:
-        for template_ in templatable(config[CONF_RED], args, float_):
+        for template_ in templatable(config[CONF_RED], args, float):
             yield None
         add(action.set_red(template_))
     if CONF_GREEN in config:
-        for template_ in templatable(config[CONF_GREEN], args, float_):
+        for template_ in templatable(config[CONF_GREEN], args, float):
             yield None
         add(action.set_green(template_))
     if CONF_BLUE in config:
-        for template_ in templatable(config[CONF_BLUE], args, float_):
+        for template_ in templatable(config[CONF_BLUE], args, float):
             yield None
         add(action.set_blue(template_))
     if CONF_WHITE in config:
-        for template_ in templatable(config[CONF_WHITE], args, float_):
+        for template_ in templatable(config[CONF_WHITE], args, float):
             yield None
         add(action.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float_):
+        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float):
             yield None
         add(action.set_color_temperature(template_))
     if CONF_EFFECT in config:

@@ -13,7 +13,7 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_GREEN): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_BLUE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_WHITE): cv.use_variable_id(output.FloatOutput),
-}).extend(light.RGB_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema))
+}).extend(light.RGB_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -27,5 +27,5 @@ def to_code(config):
         yield
     rhs = App.make_rgbw_light(config[CONF_NAME], red, green, blue, white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(light_struct.Pstate, config)
+    light.setup_light(light_struct.Pstate, light_struct.Poutput, config)
     setup_component(light_struct.Pstate, config)

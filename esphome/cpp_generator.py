@@ -190,9 +190,9 @@ class LambdaExpression(Expression):
         self.parameters = parameters
         self.requires.append(self.parameters)
         self.capture = capture
-        self.return_type = safe_exp(return_type)
+        self.return_type = safe_exp(return_type) if return_type is not None else None
         if return_type is not None:
-            self.requires.append(return_type)
+            self.requires.append(self.return_type)
         for i in range(1, len(parts), 3):
             self.requires.append(parts[i])
 

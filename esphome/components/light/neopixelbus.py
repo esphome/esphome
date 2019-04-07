@@ -5,9 +5,8 @@ from esphome.components import light
 from esphome.components.light import AddressableLight
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_CLOCK_PIN, CONF_COLOR_CORRECT, CONF_DATA_PIN, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_METHOD, \
-    CONF_NAME, CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, CONF_TYPE, CONF_VARIANT
+from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_MAKE_ID, CONF_METHOD, CONF_NAME, \
+    CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, CONF_TYPE, CONF_VARIANT
 from esphome.core import CORE
 from esphome.cpp_generator import TemplateArguments, add, get_variable, variable
 from esphome.cpp_helpers import setup_component
@@ -131,7 +130,6 @@ def validate(config):
 MakeNeoPixelBusLight = Application.struct('MakeNeoPixelBusLight')
 
 PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeNeoPixelBusLight),
 
     vol.Optional(CONF_TYPE, default='GRB'): validate_type,
@@ -144,7 +142,7 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     vol.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
 
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-}).extend(light.ADDRESSABLE_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema),
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema),
                               validate, validate_method_pin)
 
 
@@ -175,7 +173,7 @@ def to_code(config):
             yield
         add(output.set_power_supply(power_supply))
 
-    light.setup_light(make.Pstate, config)
+    light.setup_light(make.Pstate, output, config)
     setup_component(output, config)
 
 

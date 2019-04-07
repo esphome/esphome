@@ -24,15 +24,22 @@ cover_ns = esphome_ns.namespace('cover')
 Cover = cover_ns.class_('Cover', Nameable)
 MQTTCoverComponent = cover_ns.class_('MQTTCoverComponent', mqtt.MQTTComponent)
 
-CoverState = cover_ns.class_('CoverState')
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
 
-validate_cover_state = cv.one_of('OPEN', 'CLOSED', upper=True)
 COVER_STATES = {
     'OPEN': COVER_OPEN,
     'CLOSED': COVER_CLOSED,
 }
+validate_cover_state = cv.one_of(*COVER_STATES, upper=True)
+
+CoverOperation = cover_ns.enum('CoverOperation')
+COVER_OPERATIONS = {
+    'IDLE': CoverOperation.COVER_OPERATION_IDLE,
+    'OPENING': CoverOperation.COVER_OPERATION_OPENING,
+    'CLOSING': CoverOperation.COVER_OPERATION_CLOSING,
+}
+validate_cover_operation = cv.one_of(*COVER_OPERATIONS, upper=True)
 
 # Actions
 OpenAction = cover_ns.class_('OpenAction', Action)
@@ -82,8 +89,8 @@ COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
 def cover_open_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_open_action(template_arg)
     type = OpenAction.template(template_arg)
+    rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -97,8 +104,8 @@ COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
 def cover_close_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_close_action(template_arg)
     type = CloseAction.template(template_arg)
+    rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
 
 
@@ -112,8 +119,8 @@ COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
 def cover_stop_to_code(config, action_id, template_arg, args):
     for var in get_variable(config[CONF_ID]):
         yield None
-    rhs = var.make_stop_action(template_arg)
     type = StopAction.template(template_arg)
+    rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
 
 
