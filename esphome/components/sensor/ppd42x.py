@@ -71,7 +71,7 @@ def to_code(config):
     if CONF_PM_10_0 in config:
         for pl_10_0_ in gpio_input_pin_expression(config[CONF_PIN_10_0]):
             yield
-       conf = config[CONF_PM_10_0]
+        conf = config[CONF_PM_10_0]
         sensor.register_sensor(ppd.make_pl_10_0_sensor(conf[CONF_NAME], pl_10_0_.copy()), conf)
 
     setup_component(ppd, config)
