@@ -30,6 +30,7 @@ SENSORS_TO_TYPE = {
     CONF_PM_10_0: [CONF_PPD42, CONF_PPD42NJ, CONF_PPD42NS],
 }
 
+
 def validate_ppd42x_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
