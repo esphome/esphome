@@ -46,8 +46,6 @@ deep_sleep:
 sensor:
   - platform: ppd42x
     type: PPD42X
-    pm_1_0:
-      name: "PM 1.0 Concentration"
     pm_2_5:
       name: "PM 2.5 Concentration"
     pm_10_0:
@@ -56,20 +54,10 @@ sensor:
     type: PMS5003T
     pm_2_5:
       name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
   - platform: ppd42x
     type: PMS5003ST
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-    formaldehyde:
-      name: "PMS Formaldehyde Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
 
   - platform: pmsx003
     type: PMSX003
