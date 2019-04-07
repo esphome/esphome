@@ -48,8 +48,8 @@ PPD42X_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
 PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PPD42XComponent),
     vol.Required(CONF_TYPE): cv.one_of(*PPD42X_TYPES, upper=True),
-    vol.Required(CONF_PIN_02_5): pins.gpio_input_pin_schema,
-    vol.Required(CONF_PIN_10_0): pins.gpio_input_pin_schema,
+    vol.Optional(CONF_PIN_02_5): pins.gpio_input_pin_schema,
+    vol.Optional(CONF_PIN_10_0): pins.gpio_input_pin_schema,
 
     vol.Optional(CONF_PM_2_5): cv.nameable(PPD42X_SENSOR_SCHEMA),
     vol.Optional(CONF_PM_10_0): cv.nameable(PPD42X_SENSOR_SCHEMA),
