@@ -3,7 +3,7 @@ import voluptuous as vol
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_PM_10_0, \
+from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_TYPE, CONF_UART_ID
 from esphome.cpp_generator import Pvariable, get_variable
 from esphome.cpp_helpers import setup_component
@@ -27,7 +27,7 @@ PPD42X_TYPES = {
 
 SENSORS_TO_TYPE = {
     CONF_PM_2_5: [CONF_PPD42, CONF_PPD42NJ, CONF_PPD42NS],
-    CONF_PM_10_0: [CONF_PPD42],
+    CONF_PM_10_0: [CONF_PPD42, CONF_PPD42NJ, CONF_PPD42NS],
 }
 
 def validate_ppd42x_sensors(value):
