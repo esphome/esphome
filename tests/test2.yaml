@@ -89,13 +89,13 @@ sensor:
     pm_10_0:
       name: "PM 10.0 Concentration"
   - platform: ppd42x
-    pin_10_0: GPIO32
     pin_2_5: GPIO27
     type: PPD42NJ
     pm_2_5:
       name: "PM 2.5 Concentration"
   - platform: ppd42x
     type: PPD42NS
+    pin_10_0: GPIO32    
     pm_10_0:
       name: "PM 10.0 Concentration"
       
