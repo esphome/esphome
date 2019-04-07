@@ -242,9 +242,10 @@ def setup_sensor(sensor_obj, config):
 
 
 def register_sensor(var, config):
-    sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    add(App.register_sensor(sensor_var))
-    CORE.add_job(setup_sensor_core_, sensor_var, config)
+    if not CORE.has_id(config[CONF_ID]):
+        var = Pvariable(config[CONF_ID], var, has_side_effects=True)
+    add(App.register_sensor(var))
+    CORE.add_job(setup_sensor_core_, var, config)
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'

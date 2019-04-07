@@ -20,7 +20,7 @@ def validate_from_to(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakePartitionLight),
 
@@ -29,11 +29,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_FROM): cv.positive_int,
         vol.Required(CONF_TO): cv.positive_int,
     }, validate_from_to), vol.Length(min=1)),
-
-    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}))
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA))
 
 
 def to_code(config):

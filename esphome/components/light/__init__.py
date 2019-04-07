@@ -8,7 +8,8 @@ from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
     CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
     CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
     CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
-    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
+    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, \
+    CONF_COLOR_CORRECT
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda, \
     templatable
@@ -249,7 +250,24 @@ LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTJSONLightComponent),
 })
 
-LIGHT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(LIGHT_SCHEMA.schema)
+BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
+    vol.Optional(CONF_EFFECTS): validate_effects(BINARY_EFFECTS),
+})
+
+BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
+    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
+    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
+    vol.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
+})
+
+RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
+    vol.Optional(CONF_EFFECTS): validate_effects(RGB_EFFECTS),
+})
+
+ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
+    vol.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
+    vol.Optional(CONF_COLOR_CORRECT): vol.All([cv.percentage], vol.Length(min=3, max=4)),
+})
 
 
 def build_effect(full_config):
@@ -385,6 +403,9 @@ def setup_light_core_(light_var, config):
         effects.append(effect)
     if effects:
         add(light_var.add_effects(effects))
+
+    if CONF_COLOR_CORRECT in config:
+        add(light_var.set_correction(*config[CONF_COLOR_CORRECT]))
 
     setup_mqtt_component(light_var.Pget_mqtt(), config)
 

@@ -33,7 +33,7 @@ RGB_ORDERS = [
 
 MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
@@ -45,12 +45,9 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
     vol.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
-    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_COLOR_CORRECT): vol.All([cv.percentage], vol.Length(min=3, max=3)),
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
     vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}).extend(cv.COMPONENT_SCHEMA.schema))
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -74,10 +71,6 @@ def to_code(config):
         for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
             yield
         add(fast_led.set_power_supply(power_supply))
-
-    if CONF_COLOR_CORRECT in config:
-        r, g, b = config[CONF_COLOR_CORRECT]
-        add(fast_led.set_correction(r, g, b))
 
     light.setup_light(make.Pstate, config)
     setup_component(fast_led, config)

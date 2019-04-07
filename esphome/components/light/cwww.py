@@ -11,17 +11,14 @@ from esphome.cpp_generator import get_variable, variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
     vol.Required(CONF_COLD_WHITE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_WARM_WHITE): cv.use_variable_id(output.FloatOutput),
     vol.Required(CONF_COLD_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
     vol.Required(CONF_WARM_WHITE_COLOR_TEMPERATURE): validate_color_temperature,
-
-    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.MONOCHROMATIC_EFFECTS),
-}).extend(cv.COMPONENT_SCHEMA.schema), validate_cold_white_colder)
+}).extend(light.BRIGHTNESS_ONLY_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema),
+                              validate_cold_white_colder)
 
 
 def to_code(config):

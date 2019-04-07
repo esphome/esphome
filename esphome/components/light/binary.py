@@ -7,11 +7,10 @@ from esphome.cpp_generator import get_variable, variable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import App
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(light.MakeLight),
     vol.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.BINARY_EFFECTS),
-}).extend(cv.COMPONENT_SCHEMA.schema))
+}).extend(light.BINARY_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
