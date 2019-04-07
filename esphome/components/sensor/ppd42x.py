@@ -5,7 +5,7 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_TYPE, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, get_variable
+from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import gpio_input_pin_expression, setup_component
 from esphome.cpp_types import App, Component
 
@@ -68,11 +68,11 @@ def to_code(config):
 
     if CONF_PM_2_5 in config:
         conf = config[CONF_PM_2_5]
-        sensor.register_sensor(ppd.make_pl_02_5_sensor(conf[CONF_NAME],pl_02_5_.copy()), conf)
+        sensor.register_sensor(ppd.make_pl_02_5_sensor(conf[CONF_NAME], pl_02_5_.copy()), conf)
 
     if CONF_PM_10_0 in config:
         conf = config[CONF_PM_10_0]
-        sensor.register_sensor(ppd.make_pl_10_0_sensor(conf[CONF_NAME],pl_10_0_.copy()), conf)
+        sensor.register_sensor(ppd.make_pl_10_0_sensor(conf[CONF_NAME], pl_10_0_.copy()), conf)
 
     setup_component(ppd, config)
 
