@@ -45,17 +45,17 @@ deep_sleep:
 
 sensor:
   - platform: ppd42x
-    type: PPD42X
+    type: PPD42
     pm_2_5:
       name: "PM 2.5 Concentration"
     pm_10_0:
       name: "PM 10.0 Concentration"
   - platform: ppd42x
-    type: PMS5003T
+    type: PPD42NJ
     pm_2_5:
       name: "PM 2.5 Concentration"
   - platform: ppd42x
-    type: PMS5003ST
+    type: PPD42NS
     pm_10_0:
       name: "PM 10.0 Concentration"
 
