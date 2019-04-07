@@ -58,20 +58,20 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for pl_02_5_ in gpio_input_pin_expression(config[CONF_PIN_02_5]):
-        yield
-    for pl_10_0_ in gpio_input_pin_expression(config[CONF_PIN_10_0]):
-        yield
 
     rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]], config.get(CONF_UPDATE_INTERVAL))
     ppd = Pvariable(config[CONF_ID], rhs)
 
     if CONF_PM_2_5 in config:
+        for pl_02_5_ in gpio_input_pin_expression(config[CONF_PIN_02_5]):
+            yield
         conf = config[CONF_PM_2_5]
         sensor.register_sensor(ppd.make_pl_02_5_sensor(conf[CONF_NAME], pl_02_5_.copy()), conf)
 
     if CONF_PM_10_0 in config:
-        conf = config[CONF_PM_10_0]
+        for pl_10_0_ in gpio_input_pin_expression(config[CONF_PIN_10_0]):
+            yield
+       conf = config[CONF_PM_10_0]
         sensor.register_sensor(ppd.make_pl_10_0_sensor(conf[CONF_NAME], pl_10_0_.copy()), conf)
 
     setup_component(ppd, config)
