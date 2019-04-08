@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_TYPE, CONF_UPDATE_INTERVAL
 from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import gpio_input_pin_expression, setup_component
-from esphome.cpp_types import App, PollingComponent
+from esphome.cpp_types import App, Component
 
 
 PPD42XComponent = sensor.sensor_ns.class_('PPD42XComponent', Component)
