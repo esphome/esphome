@@ -7,8 +7,8 @@ import voluptuous as vol
 from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, CONF_AT, \
-    CONF_SECOND, CONF_HOUR, CONF_MINUTE
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
+    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_types import App, Component, Trigger, esphome_ns
