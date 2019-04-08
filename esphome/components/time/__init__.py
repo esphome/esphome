@@ -256,7 +256,7 @@ def validate_cron_keys(value):
         value = {x: value[x] for x in value if x != CONF_CRON}
         value.update(cron_)
         return value
-    elif CONF_AT in value:
+    if CONF_AT in value:
         for key in value.keys():
             if key in CRON_KEYS:
                 raise vol.Invalid("Cannot use option {} when at: is specified.".format(key))
