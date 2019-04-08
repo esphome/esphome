@@ -4,8 +4,9 @@ import math
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Callable  # noqa
 
-from esphome.core import CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds  # noqa
+from esphome.core import (  # noqa
+    CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
 

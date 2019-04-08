@@ -458,7 +458,6 @@ if IS_PY2:
             output += u' for ' + self.error_type
         return output + path
 
-
     vol.Invalid.__unicode__ = _vol_invalid_unicode
 
 

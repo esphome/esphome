@@ -4,8 +4,7 @@ from esphome import pins
 from esphome.components import light
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_COLOR_CORRECT, CONF_DATA_PIN, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, \
+from esphome.const import CONF_CHIPSET, CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_EFFECTS, CONF_MAKE_ID, \
     CONF_MAX_REFRESH_RATE, CONF_NAME, CONF_NUM_LEDS, CONF_POWER_SUPPLY, CONF_RGB_ORDER
 from esphome.cpp_generator import RawExpression, TemplateArguments, add, get_variable, variable
 from esphome.cpp_helpers import setup_component
@@ -45,8 +44,10 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema))
+    vol.Optional(CONF_EFFECTS): light.validate_effects(
+        light.ADDRESSABLE_EFFECTS),
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(
+    cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
