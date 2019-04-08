@@ -46,7 +46,6 @@ def get_auth(config):
 
 
 BUILD_FLAGS = '-DUSE_OTA'
-REQUIRED_BUILD_FLAGS = '-DUSE_NEW_OTA'
 
 
 def lib_deps(config):

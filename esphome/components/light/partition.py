@@ -3,8 +3,7 @@ import voluptuous as vol
 from esphome.components import light
 from esphome.components.light import AddressableLight
 import esphome.config_validation as cv
-from esphome.const import CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_FROM, \
-    CONF_GAMMA_CORRECT, CONF_ID, CONF_MAKE_ID, CONF_NAME, CONF_SEGMENTS, CONF_TO
+from esphome.const import CONF_FROM, CONF_ID, CONF_MAKE_ID, CONF_NAME, CONF_SEGMENTS, CONF_TO
 from esphome.cpp_generator import get_variable, variable
 from esphome.cpp_types import App, Application
 
@@ -20,7 +19,7 @@ def validate_from_to(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakePartitionLight),
 
@@ -29,11 +28,7 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
         vol.Required(CONF_FROM): cv.positive_int,
         vol.Required(CONF_TO): cv.positive_int,
     }, validate_from_to), vol.Length(min=1)),
-
-    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}))
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema))
 
 
 def to_code(config):
@@ -46,4 +41,4 @@ def to_code(config):
 
     rhs = App.make_partition_light(config[CONF_NAME], segments)
     make = variable(config[CONF_MAKE_ID], rhs)
-    light.setup_light(make.Pstate, config)
+    light.setup_light(make.Pstate, make.Ppartition, config)
