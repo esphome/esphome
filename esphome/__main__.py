@@ -7,7 +7,7 @@ import os
 import random
 import sys
 
-from esphome import const, core_config, platformio_api, wizard, writer, yaml_util
+from esphome import const, core_config, writer, yaml_util
 from esphome.config import get_component, iter_components, read_config, strip_default_ids
 from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_ESPHOME, CONF_LOGGER, \
     CONF_USE_CUSTOM_CODE
@@ -92,6 +92,8 @@ def get_port_type(port):
 
 def run_miniterm(config, port):
     import serial
+    from esphome import platformio_api
+
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
         return
@@ -155,6 +157,8 @@ def write_cpp(config):
 
 
 def compile_program(args, config):
+    from esphome import platformio_api
+
     _LOGGER.info("Compiling app...")
     rc = platformio_api.run_compile(config, args.verbose)
     if rc != 0 and CORE.is_dev_esphome_core_version and not is_dev_esphome_version():
@@ -185,6 +189,8 @@ def upload_using_esptool(config, port):
 def upload_program(config, args, host):
     # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == 'SERIAL':
+        from esphome import platformio_api
+
         if CORE.is_esp8266:
             return upload_using_esptool(config, host)
         return platformio_api.run_upload(config, args.verbose, host)
@@ -268,6 +274,8 @@ def setup_log(debug=False):
 
 
 def command_wizard(args):
+    from esphome import wizard
+
     return wizard.wizard(args.configuration)
 
 

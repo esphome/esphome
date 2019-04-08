@@ -1,11 +1,9 @@
 from __future__ import print_function
 
 import codecs
-import json
 import logging
 import os
 import re
-import shutil
 
 from esphome.config import iter_components
 from esphome.const import ARDUINO_VERSION_ESP32_1_0_0, ARDUINO_VERSION_ESP8266_2_5_0, \
@@ -15,7 +13,6 @@ from esphome.const import ARDUINO_VERSION_ESP32_1_0_0, ARDUINO_VERSION_ESP8266_2
 from esphome.core import CORE, EsphomeError
 from esphome.core_config import GITHUB_ARCHIVE_ZIP, LIBRARY_URI_REPO, VERSION_REGEX
 from esphome.helpers import mkdir_p, run_system_command
-from esphome.symlink_ops import symlink, islink, readlink, unlink
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import IS_PY3, string_types
 from esphome.storage_json import StorageJSON, storage_path
@@ -217,6 +214,8 @@ def update_storage_json():
 
 
 def symlink_esphome_core_version(esphome_core_version):
+    from esphome.symlink_ops import symlink, islink, readlink, unlink
+
     lib_path = CORE.relative_build_path('lib')
     dst_path = CORE.relative_build_path('lib', 'esphome-core')
     if CORE.is_local_esphome_core_copy:
@@ -250,6 +249,8 @@ def format_ini(data):
 
 
 def gather_lib_deps():
+    import json
+
     lib_deps = set()
     if CONF_REPOSITORY in CORE.esphome_core_version:
         repo = CORE.esphome_core_version[CONF_REPOSITORY]
@@ -509,6 +510,8 @@ def write_cpp(code_s):
 
 
 def clean_build():
+    import shutil
+
     pioenvs = CORE.relative_pioenvs_path()
     if os.path.isdir(pioenvs):
         _LOGGER.info("Deleting %s", pioenvs)
