@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_2_5, CONF_TYPE, CONF_UPDATE_INTERVAL
 from esphome.cpp_generator import Pvariable
 from esphome.cpp_helpers import gpio_input_pin_expression, setup_component
-from esphome.cpp_types import App, Component
+from esphome.cpp_types import App, PollingComponent
 
 
 PPD42XComponent = sensor.sensor_ns.class_('PPD42XComponent', Component)
@@ -20,6 +20,7 @@ CONF_PPD42NS = 'PPD42NS'
 CONF_PIN_02_5 = 'pin_02_5'
 CONF_PIN_10_0 = 'pin_10_0'
 
+CONF_TIME_OUT = 'time_out'
 
 PPD42XType = sensor.sensor_ns.enum('PPD42XType')
 PPD42X_TYPES = {
@@ -54,11 +55,12 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_PM_2_5): cv.nameable(PPD42X_SENSOR_SCHEMA),
     vol.Optional(CONF_PM_10_0): cv.nameable(PPD42X_SENSOR_SCHEMA),
     vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    vol.Optional(CONF_TIME_OUT): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA.schema), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
 
 
 def to_code(config):
-    rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]], config.get(CONF_UPDATE_INTERVAL))
+    rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]], config[CONF_UPDATE_INTERVAL], config[CONF_TIME_OUT])
     ppd = Pvariable(config[CONF_ID], rhs)
 
     if CONF_PM_2_5 in config:

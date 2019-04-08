@@ -501,6 +501,15 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
+    
+  - platform: ppd42x
+    type: PPD42
+    pin_10_0: GPIO32
+    pin_02_5: GPIO27
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
 
 
 esp32_touch:
