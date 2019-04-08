@@ -61,7 +61,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 def to_code(config):
     rhs = App.make_ppd42x(PPD42X_TYPES[config[CONF_TYPE]], config.get(CONF_UPDATE_INTERVAL),
-                          config.get(CONF_TIME_OUT)
+                          config.get(CONF_TIME_OUT))
     ppd = Pvariable(config[CONF_ID], rhs)
 
     if CONF_PM_2_5 in config:
