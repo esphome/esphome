@@ -420,7 +420,7 @@ METRIC_SUFFIXES = {
 
 
 def float_with_unit(quantity, regex_suffix):
-    pattern = re.compile(ur"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + ur"$", re.UNICODE)
+    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
 
     def validator(value):
         match = pattern.match(string(value))
@@ -438,21 +438,22 @@ def float_with_unit(quantity, regex_suffix):
     return validator
 
 
-frequency = float_with_unit("frequency", ur"(Hz|HZ|hz)?")
-resistance = float_with_unit("resistance", ur"(Ω|Ω|ohm|Ohm|OHM)?")
-current = float_with_unit("current", ur"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
-voltage = float_with_unit("voltage", ur"(v|V|volt|Volts)?")
-distance = float_with_unit("distance", ur"(m)")
-framerate = float_with_unit("framerate", ur"(FPS|fps|Fps|FpS|Hz)")
-_temperature_c = float_with_unit("temperature", ur"(°C|° C|°|C)?")
-_temperature_k = float_with_unit("temperature", ur"(° K|° K|K)?")
-_temperature_f = float_with_unit("temperature", ur"(°F|° F|F)?")
+frequency = float_with_unit("frequency", u"(Hz|HZ|hz)?")
+resistance = float_with_unit("resistance", u"(Ω|Ω|ohm|Ohm|OHM)?")
+current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
+distance = float_with_unit("distance", u"(m)")
+framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
+_temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
+_temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
+_temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
 
 if IS_PY2:
     # Override voluptuous invalid to unicode for py2
     def _vol_invalid_unicode(self):
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
             if self.path else ''
+        # pylint: disable=no-member
         output = Exception.__unicode__(self)
         if self.error_type:
             output += u' for ' + self.error_type
@@ -482,8 +483,8 @@ def temperature(value):
     raise orig_err
 
 
-_color_temperature_mireds = float_with_unit('Color Temperature', ur'(mireds|Mireds)')
-_color_temperature_kelvin = float_with_unit('Color Temperature', ur'(K|Kelvin)')
+_color_temperature_mireds = float_with_unit('Color Temperature', r'(mireds|Mireds)')
+_color_temperature_kelvin = float_with_unit('Color Temperature', r'(K|Kelvin)')
 
 
 def color_temperature(value):
