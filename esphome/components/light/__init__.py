@@ -9,7 +9,7 @@ from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, C
     CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
     CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
     CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
-from esphome.core import CORE
+from esphome.core import CORE, coroutine
 from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda, \
     templatable
 from esphome.cpp_types import Action, Application, Component, Nameable, esphome_ns, std_string, \
@@ -269,12 +269,11 @@ ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
 })
 
 
+@coroutine
 def build_effect(full_config):
     key, config = next(iter(full_config.items()))
     if key == CONF_LAMBDA:
-        lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [], return_type=void):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [], return_type=void)
         yield LambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
     elif key == CONF_RANDOM:
         rhs = RandomLightEffect.new(config[CONF_NAME])
@@ -309,8 +308,7 @@ def build_effect(full_config):
         yield effect
     elif key == CONF_ADDRESSABLE_LAMBDA:
         args = [(AddressableLightRef, 'it')]
-        for lambda_ in process_lambda(config[CONF_LAMBDA], args, return_type=void):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], args, return_type=void)
         yield AddressableLambdaLightEffect.new(config[CONF_NAME], lambda_,
                                                config[CONF_UPDATE_INTERVAL])
     elif key == CONF_ADDRESSABLE_RAINBOW:
@@ -388,6 +386,7 @@ def build_effect(full_config):
         raise NotImplementedError("Effect {} not implemented".format(next(config.keys())))
 
 
+@coroutine
 def setup_light_core_(light_var, output_var, config):
     if CONF_INTERNAL in config:
         add(light_var.set_internal(config[CONF_INTERNAL]))
@@ -397,8 +396,7 @@ def setup_light_core_(light_var, output_var, config):
         add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
     effects = []
     for conf in config.get(CONF_EFFECTS, []):
-        for effect in build_effect(conf):
-            yield
+        effect = yield build_effect(conf)
         effects.append(effect)
     if effects:
         add(light_var.add_effects(effects))
@@ -425,14 +423,12 @@ LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
 def light_toggle_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = ToggleAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
+        template_ = yield templatable(config[CONF_TRANSITION_LENGTH], args, uint32)
         add(action.set_transition_length(template_))
     yield action
 
@@ -446,14 +442,12 @@ LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
 def light_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = LightControlAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
+        template_ = yield templatable(config[CONF_TRANSITION_LENGTH], args, uint32)
         add(action.set_transition_length(template_))
     yield action
 
@@ -490,49 +484,38 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id(LIGHT_CONTROL_ACTION_SCHEMA.extend
 @ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
 @ACTION_REGISTRY.register(CONF_LIGHT_CONTROL, LIGHT_CONTROL_ACTION_SCHEMA)
 def light_control_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = LightControlAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_STATE in config:
-        for template_ in templatable(config[CONF_STATE], args, bool):
-            yield None
+        template_ = yield templatable(config[CONF_STATE], args, bool)
         add(action.set_state(template_))
     if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
+        template_ = yield templatable(config[CONF_TRANSITION_LENGTH], args, uint32)
         add(action.set_transition_length(template_))
     if CONF_FLASH_LENGTH in config:
-        for template_ in templatable(config[CONF_FLASH_LENGTH], args, uint32):
-            yield None
+        template_ = yield templatable(config[CONF_FLASH_LENGTH], args, uint32)
         add(action.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
-        for template_ in templatable(config[CONF_BRIGHTNESS], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_BRIGHTNESS], args, float)
         add(action.set_brightness(template_))
     if CONF_RED in config:
-        for template_ in templatable(config[CONF_RED], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_RED], args, float)
         add(action.set_red(template_))
     if CONF_GREEN in config:
-        for template_ in templatable(config[CONF_GREEN], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_GREEN], args, float)
         add(action.set_green(template_))
     if CONF_BLUE in config:
-        for template_ in templatable(config[CONF_BLUE], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_BLUE], args, float)
         add(action.set_blue(template_))
     if CONF_WHITE in config:
-        for template_ in templatable(config[CONF_WHITE], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_WHITE], args, float)
         add(action.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_COLOR_TEMPERATURE], args, float)
         add(action.set_color_temperature(template_))
     if CONF_EFFECT in config:
-        for template_ in templatable(config[CONF_EFFECT], args, std_string):
-            yield None
+        template_ = yield templatable(config[CONF_EFFECT], args, std_string)
         add(action.set_effect(template_))
     yield action

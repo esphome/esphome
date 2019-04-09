@@ -34,8 +34,7 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
 def to_code(config):
     segments = []
     for conf in config[CONF_SEGMENTS]:
-        for var in get_variable(conf[CONF_ID]):
-            yield
+        var = yield get_variable(conf[CONF_ID])
         segments.append(AddressableSegment(var, conf[CONF_FROM],
                                            conf[CONF_TO] - conf[CONF_FROM] + 1))
 

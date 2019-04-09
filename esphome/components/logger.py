@@ -177,8 +177,7 @@ def logger_log_action_to_code(config, action_id, template_arg, args):
 
     text = text_type(statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
-    for lambda_ in process_lambda(Lambda(text), args, return_type=void):
-        yield None
+    lambda_ = yield process_lambda(Lambda(text), args, return_type=void)
     rhs = LambdaAction.new(template_arg, lambda_)
     type = LambdaAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)

@@ -36,15 +36,13 @@ def to_code(config):
     automation.build_automations(var.get_stop_trigger(), [],
                                  config[CONF_STOP_ACTION])
 
-    for bin in get_variable(config[CONF_OPEN_ENDSTOP]):
-        yield
+    bin = yield get_variable(config[CONF_OPEN_ENDSTOP])
     add(var.set_open_endstop(bin))
     add(var.set_open_duration(config[CONF_OPEN_DURATION]))
     automation.build_automations(var.get_open_trigger(), [],
                                  config[CONF_OPEN_ACTION])
 
-    for bin in get_variable(config[CONF_CLOSE_ENDSTOP]):
-        yield
+    bin = yield get_variable(config[CONF_CLOSE_ENDSTOP])
     add(var.set_close_endstop(bin))
     add(var.set_close_duration(config[CONF_CLOSE_DURATION]))
     automation.build_automations(var.get_close_trigger(), [],

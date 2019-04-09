@@ -106,8 +106,7 @@ def binary_code(value):
 
 
 def to_code(config):
-    for pin in gpio_output_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_output_pin_expression(config[CONF_PIN])
     rhs = App.make_remote_transmitter_component(pin)
     transmitter = Pvariable(config[CONF_ID], rhs)
 

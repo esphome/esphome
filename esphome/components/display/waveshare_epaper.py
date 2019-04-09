@@ -53,12 +53,9 @@ PLATFORM_SCHEMA = vol.All(display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi_ in get_variable(config[CONF_SPI_ID]):
-        yield
-    for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
-        yield
-    for dc in gpio_output_pin_expression(config[CONF_DC_PIN]):
-        yield
+    spi_ = yield get_variable(config[CONF_SPI_ID])
+    cs = yield gpio_output_pin_expression(config[CONF_CS_PIN])
+    dc = yield gpio_output_pin_expression(config[CONF_DC_PIN])
 
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
@@ -71,17 +68,14 @@ def to_code(config):
         raise NotImplementedError()
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],
-                                      return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],
+                                       return_type=void)
         add(epaper.set_writer(lambda_))
     if CONF_RESET_PIN in config:
-        for reset in gpio_output_pin_expression(config[CONF_RESET_PIN]):
-            yield
+        reset = yield gpio_output_pin_expression(config[CONF_RESET_PIN])
         add(epaper.set_reset_pin(reset))
     if CONF_BUSY_PIN in config:
-        for reset in gpio_input_pin_expression(config[CONF_BUSY_PIN]):
-            yield
+        reset = yield gpio_input_pin_expression(config[CONF_BUSY_PIN])
         add(epaper.set_busy_pin(reset))
     if CONF_FULL_UPDATE_EVERY in config:
         add(epaper.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))

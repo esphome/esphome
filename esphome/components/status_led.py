@@ -15,8 +15,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for pin in gpio_output_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_output_pin_expression(config[CONF_PIN])
     rhs = App.make_status_led(pin)
     var = Pvariable(config[CONF_ID], rhs)
 

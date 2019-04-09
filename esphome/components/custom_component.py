@@ -19,9 +19,8 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                    return_type=std_vector.template(ComponentPtr)):
-        yield
+    template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                     return_type=std_vector.template(ComponentPtr))
 
     rhs = CustomComponentConstructor(template_)
     custom = variable(config[CONF_ID], rhs)

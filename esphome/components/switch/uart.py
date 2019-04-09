@@ -33,8 +33,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart_ in get_variable(config[CONF_UART_ID]):
-        yield
+    uart_ = yield get_variable(config[CONF_UART_ID])
     data = config[CONF_DATA]
     if isinstance(data, str):
         data = [HexInt(ord(x)) for x in data]

@@ -21,17 +21,14 @@ CONFIG_SCHEMA = vol.All(cv.Schema({
 
 
 def to_code(config):
-    for clk in gpio_output_pin_expression(config[CONF_CLK_PIN]):
-        yield
+    clk = yield gpio_output_pin_expression(config[CONF_CLK_PIN])
     rhs = App.init_spi(clk)
     spi = Pvariable(config[CONF_ID], rhs)
     if CONF_MISO_PIN in config:
-        for miso in gpio_input_pin_expression(config[CONF_MISO_PIN]):
-            yield
+        miso = yield gpio_input_pin_expression(config[CONF_MISO_PIN])
         add(spi.set_miso(miso))
     if CONF_MOSI_PIN in config:
-        for mosi in gpio_input_pin_expression(config[CONF_MOSI_PIN]):
-            yield
+        mosi = yield gpio_input_pin_expression(config[CONF_MOSI_PIN])
         add(spi.set_mosi(mosi))
 
     setup_component(spi, config)

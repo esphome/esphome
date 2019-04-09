@@ -23,8 +23,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_ESP32_BLE_ID]):
-        yield
+    hub = yield get_variable(config[CONF_ESP32_BLE_ID])
     rhs = hub.make_xiaomi_device(make_address_array(config[CONF_MAC_ADDRESS]))
     dev = Pvariable(config[CONF_ID], rhs)
     if CONF_TEMPERATURE in config:

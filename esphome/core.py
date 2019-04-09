@@ -1,5 +1,6 @@
 import collections
 from collections import OrderedDict
+import functools
 import inspect
 import logging
 import math
@@ -292,6 +293,32 @@ class ID(object):
         return hash(self.id)
 
 
+def coroutine(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        if not inspect.isgeneratorfunction(func):
+            yield func(*args, **kwargs)
+            return
+        gen = func(*args, **kwargs)
+        var = None
+        try:
+            while True:
+                var = gen.send(var)
+                if inspect.isgenerator(var):
+                    # Yielded generator, equivalent to 'yield from'
+                    for x in var:
+                        yield None
+                    # Last yield value is the result
+                    var = x
+                else:
+                    yield var
+        except StopIteration:
+            # Stopping iteration
+            yield var
+
+    return wrapper
+
+
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
 class EsphomeCore(object):
     def __init__(self):
@@ -390,16 +417,7 @@ class EsphomeCore(object):
 
     def add_job(self, func, *args, **kwargs):
         domain = kwargs.get('domain')
-        if inspect.isgeneratorfunction(func):
-            def func_():
-                yield
-                for _ in func(*args):
-                    yield
-        else:
-            def func_():
-                yield
-                func(*args)
-        gen = func_()
+        gen = coroutine(func)(*args)
         self.pending_tasks.append((gen, domain))
         return gen
 

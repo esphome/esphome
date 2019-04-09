@@ -35,8 +35,7 @@ def to_code(config):
     climate.register_climate(control, config)
     setup_component(control, config)
 
-    for var in get_variable(config[CONF_SENSOR]):
-        yield
+    var = yield get_variable(config[CONF_SENSOR])
     add(control.set_sensor(var))
 
     normal_config = BangBangClimateTargetTempConfig(

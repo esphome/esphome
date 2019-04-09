@@ -146,8 +146,7 @@ def transmitter_base(full_config):
 
 
 def to_code(config):
-    for remote in get_variable(config[CONF_REMOTE_TRANSMITTER_ID]):
-        yield
+    remote = yield get_variable(config[CONF_REMOTE_TRANSMITTER_ID])
     rhs = transmitter_base(config)
     transmitter = Pvariable(config[CONF_TRANSMITTER_ID], rhs)
 

@@ -203,25 +203,20 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH, MQTT_PUBLISH_ACTION_SCHEMA)
 def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_publish_action(template_arg)
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_TOPIC], args, std_string):
-        yield None
+    template_ = yield templatable(config[CONF_TOPIC], args, std_string)
     add(action.set_topic(template_))
 
-    for template_ in templatable(config[CONF_PAYLOAD], args, std_string):
-        yield None
+    template_ = yield templatable(config[CONF_PAYLOAD], args, std_string)
     add(action.set_payload(template_))
     if CONF_QOS in config:
-        for template_ in templatable(config[CONF_QOS], args, uint8):
-            yield
+        template_ = yield templatable(config[CONF_QOS], args, uint8)
         add(action.set_qos(template_))
     if CONF_RETAIN in config:
-        for template_ in templatable(config[CONF_RETAIN], args, bool_):
-            yield None
+        template_ = yield templatable(config[CONF_RETAIN], args, bool_)
         add(action.set_retain(template_))
     yield action
 
@@ -238,18 +233,15 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_MQTT_PUBLISH_JSON, MQTT_PUBLISH_JSON_ACTION_SCHEMA)
 def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_publish_json_action(template_arg)
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_TOPIC], args, std_string):
-        yield None
+    template_ = yield templatable(config[CONF_TOPIC], args, std_string)
     add(action.set_topic(template_))
 
     args_ = args + [(JsonObjectRef, 'root')]
-    for lambda_ in process_lambda(config[CONF_PAYLOAD], args_, return_type=void):
-        yield None
+    lambda_ = yield process_lambda(config[CONF_PAYLOAD], args_, return_type=void)
     add(action.set_payload(lambda_))
     if CONF_QOS in config:
         add(action.set_qos(config[CONF_QOS]))

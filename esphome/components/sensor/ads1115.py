@@ -60,8 +60,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_ADS1115_ID]):
-        yield
+    hub = yield get_variable(config[CONF_ADS1115_ID])
 
     mux = MUX[config[CONF_MULTIPLEXER]]
     gain = GAIN[config[CONF_GAIN]]

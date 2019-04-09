@@ -136,8 +136,7 @@ def receiver_base(full_config):
 
 
 def to_code(config):
-    for remote in get_variable(config[CONF_REMOTE_RECEIVER_ID]):
-        yield
+    remote = yield get_variable(config[CONF_REMOTE_RECEIVER_ID])
     rhs = receiver_base(config)
     receiver = Pvariable(config[CONF_RECEIVER_ID], rhs)
 

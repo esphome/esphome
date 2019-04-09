@@ -20,7 +20,6 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_ESP32_BLE_ID]):
-        yield
+    hub = yield get_variable(config[CONF_ESP32_BLE_ID])
     rhs = hub.make_rssi_sensor(config[CONF_NAME], make_address_array(config[CONF_MAC_ADDRESS]))
     sensor.register_sensor(rhs, config)

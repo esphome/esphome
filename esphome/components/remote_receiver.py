@@ -54,8 +54,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for pin in gpio_input_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_input_pin_expression(config[CONF_PIN])
     rhs = App.make_remote_receiver_component(pin)
     receiver = Pvariable(config[CONF_ID], rhs)
 

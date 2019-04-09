@@ -30,8 +30,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart_ in get_variable(config[CONF_UART_ID]):
-        yield
+    uart_ = yield get_variable(config[CONF_UART_ID])
     rhs = App.make_mhz19_sensor(uart_, config[CONF_CO2][CONF_NAME],
                                 config.get(CONF_UPDATE_INTERVAL))
     mhz19 = Pvariable(config[CONF_ID], rhs)

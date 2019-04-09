@@ -84,32 +84,26 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_CLIMATE_CONTROL, CLIMATE_CONTROL_ACTION_SCHEMA)
 def climate_control_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = ControlAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_MODE in config:
         if isinstance(config[CONF_MODE], core.Lambda):
-            for template_ in templatable(config[CONF_MODE], args, ClimateMode):
-                yield None
+            template_ = yield templatable(config[CONF_MODE], args, ClimateMode)
             add(action.set_mode(template_))
         else:
             add(action.set_mode(CLIMATE_MODES[config[CONF_MODE]]))
     if CONF_TARGET_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_TARGET_TEMPERATURE], args, float_):
-            yield None
+        template_ = yield templatable(config[CONF_TARGET_TEMPERATURE], args, float_)
         add(action.set_target_temperature(template_))
     if CONF_TARGET_TEMPERATURE_LOW in config:
-        for template_ in templatable(config[CONF_TARGET_TEMPERATURE_LOW], args, float_):
-            yield None
+        template_ = yield templatable(config[CONF_TARGET_TEMPERATURE_LOW], args, float_)
         add(action.set_target_temperature_low(template_))
     if CONF_TARGET_TEMPERATURE_HIGH in config:
-        for template_ in templatable(config[CONF_TARGET_TEMPERATURE_HIGH], args, float_):
-            yield None
+        template_ = yield templatable(config[CONF_TARGET_TEMPERATURE_HIGH], args, float_)
         add(action.set_target_temperature_high(template_))
     if CONF_AWAY in config:
-        for template_ in templatable(config[CONF_AWAY], args, bool_):
-            yield None
+        template_ = yield templatable(config[CONF_AWAY], args, bool_)
         add(action.set_away(template_))
     yield action

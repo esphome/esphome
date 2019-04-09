@@ -46,27 +46,22 @@ def to_code(config):
     lcd = Pvariable(config[CONF_ID], rhs)
     pins_ = []
     for conf in config[CONF_DATA_PINS]:
-        for pin in gpio_output_pin_expression(conf):
-            yield
+        pin = yield gpio_output_pin_expression(conf)
         pins_.append(pin)
     add(lcd.set_data_pins(*pins_))
-    for enable in gpio_output_pin_expression(config[CONF_ENABLE_PIN]):
-        yield
+    enable = yield gpio_output_pin_expression(config[CONF_ENABLE_PIN])
     add(lcd.set_enable_pin(enable))
 
-    for rs in gpio_output_pin_expression(config[CONF_RS_PIN]):
-        yield
+    rs = yield gpio_output_pin_expression(config[CONF_RS_PIN])
     add(lcd.set_rs_pin(rs))
 
     if CONF_RW_PIN in config:
-        for rw in gpio_output_pin_expression(config[CONF_RW_PIN]):
-            yield
+        rw = yield gpio_output_pin_expression(config[CONF_RW_PIN])
         add(lcd.set_rw_pin(rw))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
-                                      return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
+                                       return_type=void)
         add(lcd.set_writer(lambda_))
 
     display.setup_display(lcd, config)

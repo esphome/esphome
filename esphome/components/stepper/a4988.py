@@ -19,16 +19,13 @@ PLATFORM_SCHEMA = stepper.STEPPER_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for step_pin in gpio_output_pin_expression(config[CONF_STEP_PIN]):
-        yield
-    for dir_pin in gpio_output_pin_expression(config[CONF_DIR_PIN]):
-        yield
+    step_pin = yield gpio_output_pin_expression(config[CONF_STEP_PIN])
+    dir_pin = yield gpio_output_pin_expression(config[CONF_DIR_PIN])
     rhs = App.make_a4988(step_pin, dir_pin)
     a4988 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_SLEEP_PIN in config:
-        for sleep_pin in gpio_output_pin_expression(config[CONF_SLEEP_PIN]):
-            yield
+        sleep_pin = yield gpio_output_pin_expression(config[CONF_SLEEP_PIN])
         add(a4988.set_sleep_pin(sleep_pin))
 
     stepper.setup_stepper(a4988, config)

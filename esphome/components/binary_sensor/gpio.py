@@ -20,8 +20,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 def to_code(config):
     pin = None
-    for pin in gpio_input_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_input_pin_expression(config[CONF_PIN])
     rhs = App.make_gpio_binary_sensor(config[CONF_NAME], pin)
     gpio = Pvariable(config[CONF_ID], rhs)
     binary_sensor.setup_binary_sensor(gpio, config)

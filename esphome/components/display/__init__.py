@@ -4,10 +4,10 @@ import voluptuous as vol
 from esphome import core
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 import esphome.config_validation as cv
-from esphome.const import CONF_LAMBDA, CONF_ROTATION, CONF_UPDATE_INTERVAL, CONF_PAGES, CONF_ID
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
-from esphome.cpp_generator import add, process_lambda, Pvariable, templatable, get_variable
-from esphome.cpp_types import esphome_ns, void, Action
+from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
+from esphome.cpp_types import Action, esphome_ns, void
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -63,9 +63,8 @@ def setup_display_core_(display_var, config):
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
-            for lambda_ in process_lambda(conf[CONF_LAMBDA], [(DisplayBufferRef, 'it')],
-                                          return_type=void):
-                yield
+            lambda_ = yield process_lambda(conf[CONF_LAMBDA], [(DisplayBufferRef, 'it')],
+                                           return_type=void)
             var = Pvariable(conf[CONF_ID], DisplayPage.new(lambda_))
             pages.append(var)
         add(display_var.set_pages(pages))
@@ -82,12 +81,10 @@ def display_page_show_to_code(config, action_id, template_arg, args):
     type = DisplayPageShowAction.template(template_arg)
     action = Pvariable(action_id, type.new(), type=type)
     if isinstance(config[CONF_ID], core.Lambda):
-        for template_ in templatable(config[CONF_ID], args, DisplayPagePtr):
-            yield None
+        template_ = yield templatable(config[CONF_ID], args, DisplayPagePtr)
         add(action.set_page(template_))
     else:
-        for var in get_variable(config[CONF_ID]):
-            yield None
+        var = yield get_variable(config[CONF_ID])
         add(action.set_page(var))
     yield action
 
@@ -100,8 +97,7 @@ DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_NEXT, DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA)
 def display_page_show_next_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = DisplayPageShowNextAction.template(template_arg)
     yield Pvariable(action_id, type.new(var), type=type)
 
@@ -114,8 +110,7 @@ DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_PREVIOUS, DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA)
 def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = DisplayPageShowPrevAction.template(template_arg)
     yield Pvariable(action_id, type.new(var), type=type)
 

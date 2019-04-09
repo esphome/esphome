@@ -26,10 +26,8 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for di in gpio_output_pin_expression(config[CONF_DATA_PIN]):
-        yield
-    for dcki in gpio_output_pin_expression(config[CONF_CLOCK_PIN]):
-        yield
+    di = yield gpio_output_pin_expression(config[CONF_DATA_PIN])
+    dcki = yield gpio_output_pin_expression(config[CONF_CLOCK_PIN])
     rhs = App.make_my9231_component(di, dcki)
     my9231 = Pvariable(config[CONF_ID], rhs)
     if CONF_NUM_CHANNELS in config:

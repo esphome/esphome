@@ -18,7 +18,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_TTP229_ID]):
-        yield
+    hub = yield get_variable(config[CONF_TTP229_ID])
     rhs = TTP229Channel.new(config[CONF_NAME], config[CONF_CHANNEL])
     binary_sensor.register_binary_sensor(hub.add_channel(rhs), config)

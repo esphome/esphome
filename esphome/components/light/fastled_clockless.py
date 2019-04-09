@@ -85,8 +85,7 @@ def to_code(config):
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CONF_POWER_SUPPLY in config:
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
+        power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
         add(fast_led.set_power_supply(power_supply))
 
     light.setup_light(make.Pstate, make.Pfast_led, config)

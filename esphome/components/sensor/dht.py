@@ -40,8 +40,7 @@ PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for pin in gpio_output_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_output_pin_expression(config[CONF_PIN])
     rhs = App.make_dht_sensor(config[CONF_TEMPERATURE][CONF_NAME],
                               config[CONF_HUMIDITY][CONF_NAME],
                               pin, config.get(CONF_UPDATE_INTERVAL))

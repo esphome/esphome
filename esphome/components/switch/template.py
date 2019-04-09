@@ -31,9 +31,8 @@ def to_code(config):
     switch.setup_switch(template, config)
 
     if CONF_LAMBDA in config:
-        for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                        return_type=optional.template(bool_)):
-            yield
+        template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                         return_type=optional.template(bool_))
         add(template.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:
         automation.build_automations(template.get_turn_off_trigger(), [],
@@ -63,12 +62,10 @@ SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TEMPLATE_PUBLISH, SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA)
 def switch_template_publish_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_switch_publish_action(template_arg)
     type = SwitchPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], args, bool_):
-        yield None
+    template_ = yield templatable(config[CONF_STATE], args, bool_)
     add(action.set_state(template_))
     yield action

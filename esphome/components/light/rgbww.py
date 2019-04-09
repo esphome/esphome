@@ -34,16 +34,11 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for red in get_variable(config[CONF_RED]):
-        yield
-    for green in get_variable(config[CONF_GREEN]):
-        yield
-    for blue in get_variable(config[CONF_BLUE]):
-        yield
-    for cold_white in get_variable(config[CONF_COLD_WHITE]):
-        yield
-    for warm_white in get_variable(config[CONF_WARM_WHITE]):
-        yield
+    red = yield get_variable(config[CONF_RED])
+    green = yield get_variable(config[CONF_GREEN])
+    blue = yield get_variable(config[CONF_BLUE])
+    cold_white = yield get_variable(config[CONF_COLD_WHITE])
+    warm_white = yield get_variable(config[CONF_WARM_WHITE])
     rhs = App.make_rgbww_light(config[CONF_NAME], config[CONF_COLD_WHITE_COLOR_TEMPERATURE],
                                config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                                red, green, blue, cold_white, warm_white)

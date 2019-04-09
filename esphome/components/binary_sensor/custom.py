@@ -20,9 +20,8 @@ PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                    return_type=std_vector.template(binary_sensor.BinarySensorPtr)):
-        yield
+    template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                     return_type=std_vector.template(binary_sensor.BinarySensorPtr))
 
     rhs = CustomBinarySensorConstructor(template_)
     custom = variable(config[CONF_ID], rhs)

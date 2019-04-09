@@ -38,8 +38,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_PN532_ID]):
-        yield
+    hub = yield get_variable(config[CONF_PN532_ID])
     addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
     rhs = hub.make_tag(config[CONF_NAME], addr)
     binary_sensor.register_binary_sensor(rhs, config)

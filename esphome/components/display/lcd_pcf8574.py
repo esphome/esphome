@@ -28,9 +28,8 @@ def to_code(config):
         add(lcd.set_address(config[CONF_ADDRESS]))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
-                                      return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
+                                       return_type=void)
         add(lcd.set_writer(lambda_))
 
     display.setup_display(lcd, config)

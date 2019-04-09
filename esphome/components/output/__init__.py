@@ -44,8 +44,7 @@ def setup_output_platform_(obj, config, skip_power_supply=False):
         add(obj.set_inverted(config[CONF_INVERTED]))
     if not skip_power_supply and CONF_POWER_SUPPLY in config:
         power_supply = None
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
+        power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
         add(obj.set_power_supply(power_supply))
     if CONF_MAX_POWER in config:
         add(obj.set_max_power(config[CONF_MAX_POWER]))
@@ -72,8 +71,7 @@ OUTPUT_TURN_ON_ACTION = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_ON_ACTION)
 def output_turn_on_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -87,8 +85,7 @@ OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_OFF_ACTION)
 def output_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_off_action(template_arg)
     type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -103,12 +100,10 @@ OUTPUT_SET_LEVEL_ACTION = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_OUTPUT_SET_LEVEL, OUTPUT_SET_LEVEL_ACTION)
 def output_set_level_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_set_level_action(template_arg)
     type = SetLevelAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], args, float_):
-        yield None
+    template_ = yield templatable(config[CONF_LEVEL], args, float_)
     add(action.set_level(template_))
     yield action

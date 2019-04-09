@@ -19,7 +19,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_ESP32_BLE_ID]):
-        yield
+    hub = yield get_variable(config[CONF_ESP32_BLE_ID])
     rhs = hub.make_presence_sensor(config[CONF_NAME], make_address_array(config[CONF_MAC_ADDRESS]))
     binary_sensor.register_binary_sensor(rhs, config)
