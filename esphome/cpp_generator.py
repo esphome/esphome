@@ -433,6 +433,7 @@ def process_lambda(value,  # type: Lambda
     yield LambdaExpression(parts, parameters, capture, return_type)
 
 
+@coroutine
 def templatable(value,  # type: Any
                 args,  # type: List[Tuple[SafeExpType, str]]
                 output_type,  # type: Optional[SafeExpType],
