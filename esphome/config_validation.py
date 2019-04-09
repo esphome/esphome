@@ -483,7 +483,7 @@ if IS_PY2:
 def temperature(value):
     try:
         return _temperature_c(value)
-    except vol.Invalid as orig_err:
+    except vol.Invalid as orig_err:  # noqa
         pass
 
     try:
@@ -498,7 +498,7 @@ def temperature(value):
     except vol.Invalid:
         pass
 
-    raise orig_err
+    raise orig_err  # noqa
 
 
 _color_temperature_mireds = float_with_unit('Color Temperature', r'(mireds|Mireds)')
