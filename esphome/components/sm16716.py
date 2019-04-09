@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import output
 import esphome.config_validation as cv
 from esphome.const import (CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID,
-                           CONF_NUM_CHANNELS, CONF_NUM_CHIPS, CONF_UPDATE_ON_BOOT)
+                           CONF_NUM_CHANNELS, CONF_NUM_CHIPS)
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_helpers import gpio_output_pin_expression, setup_component
 from esphome.cpp_types import App, Component
@@ -20,7 +20,6 @@ CONFIG_SCHEMA = cv.Schema({
                                              vol.Range(3, 255)),
     vol.Optional(CONF_NUM_CHIPS): vol.All(vol.Coerce(int),
                                           vol.Range(1, 85)),
-    vol.Optional(CONF_UPDATE_ON_BOOT): vol.Coerce(bool),
 }).extend(cv.COMPONENT_SCHEMA.schema)
 
 
@@ -35,8 +34,6 @@ def to_code(config):
         add(sm16716.set_num_channels(config[CONF_NUM_CHANNELS]))
     if CONF_NUM_CHIPS in config:
         add(sm16716.set_num_chips(config[CONF_NUM_CHIPS]))
-    if CONF_UPDATE_ON_BOOT in config:
-        add(sm16716.set_update(config[CONF_UPDATE_ON_BOOT]))
     setup_component(sm16716, config)
 
 
