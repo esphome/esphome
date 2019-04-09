@@ -141,9 +141,8 @@ def cover_control_to_code(config, action_id, template_arg, args):
         template_ = yield templatable(config[CONF_STOP], args, bool)
         add(action.set_stop(template_))
     if CONF_STATE in config:
-        for template_ in templatable(config[CONF_STATE], args, float,
-                                     to_exp=COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_STATE], args, float,
+                                      to_exp=COVER_STATES)
         add(action.set_position(template_))
     if CONF_POSITION in config:
         template_ = yield templatable(config[CONF_POSITION], args, float)

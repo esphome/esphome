@@ -205,9 +205,8 @@ def setup_filter(config):
     elif CONF_DELAYED_ON in config:
         yield App.register_component(DelayedOnFilter.new(config[CONF_DELAYED_ON]))
     elif CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
-                                      return_type=optional.template(bool_)):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
+                                       return_type=optional.template(bool_))
         yield LambdaFilter.new(lambda_)
 
 

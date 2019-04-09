@@ -79,18 +79,15 @@ def cover_template_publish_to_code(config, action_id, template_arg, args):
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_STATE in config:
-        for template_ in templatable(config[CONF_STATE], args, float,
-                                     to_exp=cover.COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_STATE], args, float,
+                                      to_exp=cover.COVER_STATES)
         add(action.set_position(template_))
     if CONF_POSITION in config:
-        for template_ in templatable(config[CONF_POSITION], args, float,
-                                     to_exp=cover.COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_POSITION], args, float,
+                                      to_exp=cover.COVER_STATES)
         add(action.set_position(template_))
     if CONF_CURRENT_OPERATION in config:
-        for template_ in templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation,
-                                     to_exp=cover.COVER_OPERATIONS):
-            yield None
+        template_ = yield templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation,
+                                      to_exp=cover.COVER_OPERATIONS)
         add(action.set_current_operation(template_))
     yield action

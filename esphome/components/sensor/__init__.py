@@ -159,9 +159,8 @@ def setup_filter(config):
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
         yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
     elif CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
-                                      return_type=optional.template(float_)):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
+                                       return_type=optional.template(float_))
         yield LambdaFilter.new(lambda_)
     elif CONF_THROTTLE in config:
         yield ThrottleFilter.new(config[CONF_THROTTLE])
