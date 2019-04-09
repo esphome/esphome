@@ -20,8 +20,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_DALLAS_ID]):
-        yield
+    hub = yield get_variable(config[CONF_DALLAS_ID])
     if CONF_ADDRESS in config:
         address = HexIntLiteral(config[CONF_ADDRESS])
         rhs = hub.Pget_sensor_by_address(config[CONF_NAME], address, config.get(CONF_RESOLUTION))

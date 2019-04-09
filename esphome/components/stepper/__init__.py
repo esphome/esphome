@@ -93,13 +93,11 @@ STEPPER_SET_TARGET_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_STEPPER_SET_TARGET, STEPPER_SET_TARGET_ACTION_SCHEMA)
 def stepper_set_target_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_set_target_action(template_arg)
     type = SetTargetAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_TARGET], args, int32):
-        yield None
+    template_ = yield templatable(config[CONF_TARGET], args, int32)
     add(action.set_target(template_))
     yield action
 
@@ -113,12 +111,10 @@ STEPPER_REPORT_POSITION_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_STEPPER_REPORT_POSITION, STEPPER_REPORT_POSITION_ACTION_SCHEMA)
 def stepper_report_position_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_report_position_action(template_arg)
     type = ReportPositionAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_POSITION], args, int32):
-        yield None
+    template_ = yield templatable(config[CONF_POSITION], args, int32)
     add(action.set_position(template_))
     yield action

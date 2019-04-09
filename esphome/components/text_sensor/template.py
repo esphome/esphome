@@ -26,9 +26,8 @@ def to_code(config):
     setup_component(template, config)
 
     if CONF_LAMBDA in config:
-        for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                        return_type=optional.template(std_string)):
-            yield
+        template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                         return_type=optional.template(std_string))
         add(template.set_template(template_))
 
 
@@ -44,12 +43,10 @@ TEXT_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
 @ACTION_REGISTRY.register(CONF_TEXT_SENSOR_TEMPLATE_PUBLISH,
                           TEXT_SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA)
 def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_text_sensor_publish_action(template_arg)
     type = TextSensorPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_STATE], args, std_string):
-        yield None
+    template_ = yield templatable(config[CONF_STATE], args, std_string)
     add(action.set_state(template_))
     yield action

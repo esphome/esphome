@@ -33,10 +33,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for trigger in gpio_output_pin_expression(config[CONF_TRIGGER_PIN]):
-        yield
-    for echo in gpio_input_pin_expression(config[CONF_ECHO_PIN]):
-        yield
+    trigger = yield gpio_output_pin_expression(config[CONF_TRIGGER_PIN])
+    echo = yield gpio_input_pin_expression(config[CONF_ECHO_PIN])
     rhs = App.make_ultrasonic_sensor(config[CONF_NAME], trigger, echo,
                                      config.get(CONF_UPDATE_INTERVAL))
     ultrasonic = Pvariable(config[CONF_ID], rhs)

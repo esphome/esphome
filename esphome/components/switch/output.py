@@ -16,8 +16,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for output_ in get_variable(config[CONF_OUTPUT]):
-        yield
+    output_ = yield get_variable(config[CONF_OUTPUT])
     rhs = App.make_output_switch(config[CONF_NAME], output_)
     switch_ = Pvariable(config[CONF_ID], rhs)
 

@@ -20,10 +20,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for time_ in get_variable(config[CONF_TIME_ID]):
-        yield
-    for sens in get_variable(config[CONF_POWER_ID]):
-        yield
+    time_ = yield get_variable(config[CONF_TIME_ID])
+    sens = yield get_variable(config[CONF_POWER_ID])
     rhs = App.make_total_daily_energy_sensor(config[CONF_NAME], time_, sens)
     total_energy = Pvariable(config[CONF_ID], rhs)
 

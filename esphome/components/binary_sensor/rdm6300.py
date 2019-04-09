@@ -20,7 +20,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_RDM6300_ID]):
-        yield
+    hub = yield get_variable(config[CONF_RDM6300_ID])
     rhs = hub.make_card(config[CONF_NAME], config[CONF_UID])
     binary_sensor.register_binary_sensor(rhs, config)

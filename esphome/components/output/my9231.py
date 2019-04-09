@@ -22,11 +22,8 @@ PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
 def to_code(config):
     power_supply = None
     if CONF_POWER_SUPPLY in config:
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
-    my9231 = None
-    for my9231 in get_variable(config[CONF_MY9231_ID]):
-        yield
+        power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
+    my9231 = yield get_variable(config[CONF_MY9231_ID])
     rhs = my9231.create_channel(config[CONF_CHANNEL], power_supply)
     out = Pvariable(config[CONF_ID], rhs)
     output.setup_output_platform(out, config, skip_power_supply=True)

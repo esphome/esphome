@@ -23,8 +23,7 @@ PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for output_ in get_variable(config[CONF_OUTPUT]):
-        yield
+    output_ = yield get_variable(config[CONF_OUTPUT])
     rhs = App.make_fan(config[CONF_NAME])
     fan_struct = variable(config[CONF_MAKE_ID], rhs)
     if CONF_SPEED in config:
@@ -37,8 +36,7 @@ def to_code(config):
         add(fan_struct.Poutput.set_speed(output_))
 
     if CONF_OSCILLATION_OUTPUT in config:
-        for oscillation_output in get_variable(config[CONF_OSCILLATION_OUTPUT]):
-            yield
+        oscillation_output = yield get_variable(config[CONF_OSCILLATION_OUTPUT])
         add(fan_struct.Poutput.set_oscillation(oscillation_output))
 
     fan.setup_fan(fan_struct.Pstate, config)

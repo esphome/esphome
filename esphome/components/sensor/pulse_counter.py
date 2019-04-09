@@ -58,8 +58,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for pin in gpio_input_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_input_pin_expression(config[CONF_PIN])
     rhs = App.make_pulse_counter_sensor(config[CONF_NAME], pin,
                                         config.get(CONF_UPDATE_INTERVAL))
     pcnt = Pvariable(config[CONF_ID], rhs)

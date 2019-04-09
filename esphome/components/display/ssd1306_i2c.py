@@ -28,17 +28,15 @@ def to_code(config):
     add(ssd.set_model(ssd1306_spi.MODELS[config[CONF_MODEL]]))
 
     if CONF_RESET_PIN in config:
-        for reset in gpio_output_pin_expression(config[CONF_RESET_PIN]):
-            yield
+        reset = yield gpio_output_pin_expression(config[CONF_RESET_PIN])
         add(ssd.set_reset_pin(reset))
     if CONF_EXTERNAL_VCC in config:
         add(ssd.set_external_vcc(config[CONF_EXTERNAL_VCC]))
     if CONF_ADDRESS in config:
         add(ssd.set_address(config[CONF_ADDRESS]))
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA],
-                                      [(display.DisplayBufferRef, 'it')], return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA],
+                                       [(display.DisplayBufferRef, 'it')], return_type=void)
         add(ssd.set_writer(lambda_))
 
     display.setup_display(ssd, config)

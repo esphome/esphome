@@ -84,8 +84,7 @@ SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TOGGLE, SWITCH_TOGGLE_ACTION_SCHEMA)
 def switch_toggle_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_toggle_action(template_arg)
     type = ToggleAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -99,8 +98,7 @@ SWITCH_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TURN_OFF, SWITCH_TURN_OFF_ACTION_SCHEMA)
 def switch_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_off_action(template_arg)
     type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -114,8 +112,7 @@ SWITCH_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_SWITCH_TURN_ON, SWITCH_TURN_ON_ACTION_SCHEMA)
 def switch_turn_on_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -129,8 +126,7 @@ SWITCH_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
 
 @CONDITION_REGISTRY.register(CONF_SWITCH_IS_ON, SWITCH_IS_ON_CONDITION_SCHEMA)
 def switch_is_on_to_code(config, condition_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_switch_is_on_condition(template_arg)
     type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
@@ -144,8 +140,7 @@ SWITCH_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
 
 @CONDITION_REGISTRY.register(CONF_SWITCH_IS_OFF, SWITCH_IS_OFF_CONDITION_SCHEMA)
 def switch_is_off_to_code(config, condition_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_switch_is_off_condition(template_arg)
     type = SwitchCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)

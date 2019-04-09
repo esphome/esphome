@@ -24,8 +24,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for out in get_variable(config[CONF_OUTPUT]):
-        yield
+    out = yield get_variable(config[CONF_OUTPUT])
 
     rhs = App.register_component(Servo.new(out))
     servo = Pvariable(config[CONF_ID], rhs)
@@ -48,12 +47,10 @@ SERVO_WRITE_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_SERVO_WRITE, SERVO_WRITE_ACTION_SCHEMA)
 def servo_write_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = ServoWriteAction.new(template_arg, var)
     type = ServoWriteAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], args, float_):
-        yield None
+    template_ = yield templatable(config[CONF_LEVEL], args, float_)
     add(action.set_value(template_))
     yield action

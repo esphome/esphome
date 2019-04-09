@@ -17,14 +17,10 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for red in get_variable(config[CONF_RED]):
-        yield
-    for green in get_variable(config[CONF_GREEN]):
-        yield
-    for blue in get_variable(config[CONF_BLUE]):
-        yield
-    for white in get_variable(config[CONF_WHITE]):
-        yield
+    red = yield get_variable(config[CONF_RED])
+    green = yield get_variable(config[CONF_GREEN])
+    blue = yield get_variable(config[CONF_BLUE])
+    white = yield get_variable(config[CONF_WHITE])
     rhs = App.make_rgbw_light(config[CONF_NAME], red, green, blue, white)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Poutput, config)

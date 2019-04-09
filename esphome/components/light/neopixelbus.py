@@ -169,8 +169,7 @@ def to_code(config):
     add(output.set_pixel_order(getattr(ESPNeoPixelOrder, type_)))
 
     if CONF_POWER_SUPPLY in config:
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
+        power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
         add(output.set_power_supply(power_supply))
 
     light.setup_light(make.Pstate, output, config)

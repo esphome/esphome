@@ -30,8 +30,7 @@ SCRIPT_EXECUTE_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_SCRIPT_EXECUTE, SCRIPT_EXECUTE_ACTION_SCHEMA)
 def script_execute_action_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_execute_action(template_arg)
     type = ScriptExecuteAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -45,8 +44,7 @@ SCRIPT_STOP_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_SCRIPT_STOP, SCRIPT_STOP_ACTION_SCHEMA)
 def script_stop_action_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_stop_action(template_arg)
     type = ScriptStopAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)

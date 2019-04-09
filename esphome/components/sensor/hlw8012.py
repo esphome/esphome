@@ -40,8 +40,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for sel in gpio_output_pin_expression(config[CONF_SEL_PIN]):
-        yield
+    sel = yield gpio_output_pin_expression(config[CONF_SEL_PIN])
 
     rhs = App.make_hlw8012(sel, config[CONF_CF_PIN], config[CONF_CF1_PIN],
                            config.get(CONF_UPDATE_INTERVAL))

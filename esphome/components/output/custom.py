@@ -55,9 +55,8 @@ def to_code(config):
     else:
         ret_type = output.FloatOutputPtr
         klass = CustomFloatOutputConstructor
-    for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                    return_type=std_vector.template(ret_type)):
-        yield
+    template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                     return_type=std_vector.template(ret_type))
 
     rhs = klass(template_)
     custom = variable(config[CONF_ID], rhs)

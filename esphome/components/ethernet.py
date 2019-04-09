@@ -74,8 +74,7 @@ def to_code(config):
     add(eth.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        for pin in gpio_output_pin_expression(config[CONF_POWER_PIN]):
-            yield
+        pin = yield gpio_output_pin_expression(config[CONF_POWER_PIN])
         add(eth.set_power_pin(pin))
 
     if CONF_MANUAL_IP in config:

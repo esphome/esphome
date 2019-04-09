@@ -4,9 +4,9 @@ from esphome import automation
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import cover
 import esphome.config_validation as cv
-from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION, CONF_POSITION, \
-    CONF_CURRENT_OPERATION, CONF_RESTORE_MODE
+from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
+    CONF_LAMBDA, CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
+    CONF_STATE, CONF_STOP_ACTION
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import Action, App, optional
@@ -40,9 +40,8 @@ def to_code(config):
     setup_component(var, config)
 
     if CONF_LAMBDA in config:
-        for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                        return_type=optional.template(float)):
-            yield
+        template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                         return_type=optional.template(float))
         add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
         automation.build_automations(var.get_open_trigger(), [],
@@ -75,24 +74,20 @@ COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
 @ACTION_REGISTRY.register(CONF_COVER_TEMPLATE_PUBLISH,
                           COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA)
 def cover_template_publish_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = CoverPublishAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_STATE in config:
-        for template_ in templatable(config[CONF_STATE], args, float,
-                                     to_exp=cover.COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_STATE], args, float,
+                                      to_exp=cover.COVER_STATES)
         add(action.set_position(template_))
     if CONF_POSITION in config:
-        for template_ in templatable(config[CONF_POSITION], args, float,
-                                     to_exp=cover.COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_POSITION], args, float,
+                                      to_exp=cover.COVER_STATES)
         add(action.set_position(template_))
     if CONF_CURRENT_OPERATION in config:
-        for template_ in templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation,
-                                     to_exp=cover.COVER_OPERATIONS):
-            yield None
+        template_ = yield templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation,
+                                      to_exp=cover.COVER_OPERATIONS)
         add(action.set_current_operation(template_))
     yield action

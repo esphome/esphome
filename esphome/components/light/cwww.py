@@ -20,10 +20,8 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for cold_white in get_variable(config[CONF_COLD_WHITE]):
-        yield
-    for warm_white in get_variable(config[CONF_WARM_WHITE]):
-        yield
+    cold_white = yield get_variable(config[CONF_COLD_WHITE])
+    warm_white = yield get_variable(config[CONF_WARM_WHITE])
     rhs = App.make_cwww_light(config[CONF_NAME], config[CONF_COLD_WHITE_COLOR_TEMPERATURE],
                               config[CONF_WARM_WHITE_COLOR_TEMPERATURE],
                               cold_white, warm_white)

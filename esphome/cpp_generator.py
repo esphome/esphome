@@ -6,7 +6,7 @@ from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Cal
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds)
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
 
@@ -399,12 +399,13 @@ def add(expression,  # type: Union[Expression, Statement]
     CORE.add(expression, require=require)
 
 
+@coroutine
 def get_variable(id):  # type: (ID) -> Generator[MockObj]
-    for var in CORE.get_variable(id):
-        yield None
+    var = yield CORE.get_variable(id)
     yield var
 
 
+@coroutine
 def process_lambda(value,  # type: Lambda
                    parameters,  # type: List[Tuple[Expression, str]]
                    capture='=',  # type: str
@@ -418,8 +419,7 @@ def process_lambda(value,  # type: Lambda
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        for full_id, var in CORE.get_variable_with_full_id(id):
-            yield
+        full_id, var = yield CORE.get_variable_with_full_id(id)
         if full_id is not None and isinstance(full_id.type, MockObjClass) and \
                 full_id.type.inherits_from(GlobalVariableComponent):
             parts[i * 3 + 1] = var.value()
@@ -433,14 +433,14 @@ def process_lambda(value,  # type: Lambda
     yield LambdaExpression(parts, parameters, capture, return_type)
 
 
+@coroutine
 def templatable(value,  # type: Any
                 args,  # type: List[Tuple[SafeExpType, str]]
                 output_type,  # type: Optional[SafeExpType],
                 to_exp=None  # type: Optional[Any]
                 ):
     if isinstance(value, Lambda):
-        for lambda_ in process_lambda(value, args, return_type=output_type):
-            yield None
+        lambda_ = yield process_lambda(value, args, return_type=output_type)
         yield lambda_
     else:
         if to_exp is None:

@@ -87,8 +87,7 @@ COVER_OPEN_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_COVER_OPEN, COVER_OPEN_ACTION_SCHEMA)
 def cover_open_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = OpenAction.template(template_arg)
     rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
@@ -102,8 +101,7 @@ COVER_CLOSE_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_COVER_CLOSE, COVER_CLOSE_ACTION_SCHEMA)
 def cover_close_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = CloseAction.template(template_arg)
     rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
@@ -117,8 +115,7 @@ COVER_STOP_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_COVER_STOP, COVER_STOP_ACTION_SCHEMA)
 def cover_stop_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = StopAction.template(template_arg)
     rhs = type.new(var)
     yield Pvariable(action_id, rhs, type=type)
@@ -136,26 +133,21 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
 
 @ACTION_REGISTRY.register(CONF_COVER_CONTROL, COVER_CONTROL_ACTION_SCHEMA)
 def cover_control_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     type = StopAction.template(template_arg)
     rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_STOP in config:
-        for template_ in templatable(config[CONF_STOP], args, bool):
-            yield None
+        template_ = yield templatable(config[CONF_STOP], args, bool)
         add(action.set_stop(template_))
     if CONF_STATE in config:
-        for template_ in templatable(config[CONF_STATE], args, float,
-                                     to_exp=COVER_STATES):
-            yield None
+        template_ = yield templatable(config[CONF_STATE], args, float,
+                                      to_exp=COVER_STATES)
         add(action.set_position(template_))
     if CONF_POSITION in config:
-        for template_ in templatable(config[CONF_POSITION], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_POSITION], args, float)
         add(action.set_position(template_))
     if CONF_TILT in config:
-        for template_ in templatable(config[CONF_TILT], args, float):
-            yield None
+        template_ = yield templatable(config[CONF_TILT], args, float)
         add(action.set_tilt(template_))
     yield action

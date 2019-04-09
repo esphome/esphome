@@ -14,8 +14,7 @@ PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for output_ in get_variable(config[CONF_OUTPUT]):
-        yield
+    output_ = yield get_variable(config[CONF_OUTPUT])
     rhs = App.make_monochromatic_light(config[CONF_NAME], output_)
     light_struct = variable(config[CONF_MAKE_ID], rhs)
     light.setup_light(light_struct.Pstate, light_struct.Poutput, config)
