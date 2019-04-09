@@ -184,8 +184,7 @@ def setup_filter(config):
 def setup_filters(config):
     filters = []
     for conf in config:
-        filter = yield setup_filter(conf)
-        filters.append(filter)
+        filters.append((yield setup_filter(conf)))
     yield filters
 
 

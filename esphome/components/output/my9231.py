@@ -23,7 +23,6 @@ def to_code(config):
     power_supply = None
     if CONF_POWER_SUPPLY in config:
         power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
-    my9231 = None
     my9231 = yield get_variable(config[CONF_MY9231_ID])
     rhs = my9231.create_channel(config[CONF_CHANNEL], power_supply)
     out = Pvariable(config[CONF_ID], rhs)

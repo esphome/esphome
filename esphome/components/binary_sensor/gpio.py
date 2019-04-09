@@ -19,7 +19,6 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    pin = None
     pin = yield gpio_input_pin_expression(config[CONF_PIN])
     rhs = App.make_gpio_binary_sensor(config[CONF_NAME], pin)
     gpio = Pvariable(config[CONF_ID], rhs)

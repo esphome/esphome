@@ -120,8 +120,7 @@ def fan_turn_on_to_code(config, action_id, template_arg, args):
         template_ = yield templatable(config[CONF_OSCILLATING], args, bool_)
         add(action.set_oscillating(template_))
     if CONF_SPEED in config:
-        template_ = yield templatable(config[CONF_SPEED], args, FanSpeed)
-        if isinstance(template_, string_types):
-            template_ = FAN_SPEEDS[template_]
+        template_ = yield templatable(config[CONF_SPEED], args, FanSpeed,
+                                      to_exp=FAN_SPEEDS)
         add(action.set_speed(template_))
     yield action
