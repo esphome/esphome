@@ -1,6 +1,5 @@
 import voluptuous as vol
 
-from esphome import core
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import mqtt
 from esphome.components.mqtt import setup_mqtt_component

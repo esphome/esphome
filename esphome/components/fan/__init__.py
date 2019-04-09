@@ -10,7 +10,6 @@ from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, templatable
 from esphome.cpp_types import Action, Application, Component, Nameable, bool_, esphome_ns
-from esphome.py_compat import string_types
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
