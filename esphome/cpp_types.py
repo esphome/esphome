@@ -29,8 +29,5 @@ JsonObject = arduino_json_ns.class_('JsonObject')
 JsonObjectRef = JsonObject.operator('ref')
 JsonObjectConstRef = JsonObjectRef.operator('const')
 Controller = esphome_ns.class_('Controller')
-StoringController = esphome_ns.class_('StoringController', Controller)
 
 GPIOPin = esphome_ns.class_('GPIOPin')
-GPIOOutputPin = esphome_ns.class_('GPIOOutputPin', GPIOPin)
-GPIOInputPin = esphome_ns.class_('GPIOInputPin', GPIOPin)

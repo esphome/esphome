@@ -1,41 +1,40 @@
-import voluptuous as vol
-
+import esphome.codegen as cg
+# from esphome.components import mqtt
+# from esphome.components.mqtt import setup_mqtt_component
+import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition, maybe_simple_id
-from esphome.components import mqtt
-from esphome.components.mqtt import setup_mqtt_component
-import esphome.config_validation as cv
-from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_MQTT_ID, \
-    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_TRIGGER_ID
-from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, add, get_variable
-from esphome.cpp_types import Action, App, Nameable, Trigger, esphome_ns
+from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_ON_TURN_OFF, \
+    CONF_ON_TURN_ON, CONF_TRIGGER_ID
+from esphome.core import CORE, coroutine
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-switch_ns = esphome_ns.namespace('switch_')
-Switch = switch_ns.class_('Switch', Nameable)
+switch_ns = cg.esphome_ns.namespace('switch_')
+Switch = switch_ns.class_('Switch', cg.Nameable)
 SwitchPtr = Switch.operator('ptr')
-MQTTSwitchComponent = switch_ns.class_('MQTTSwitchComponent', mqtt.MQTTComponent)
+# MQTTSwitchComponent = switch_ns.class_('MQTTSwitchComponent', mqtt.MQTTComponent)
 
-ToggleAction = switch_ns.class_('ToggleAction', Action)
-TurnOffAction = switch_ns.class_('TurnOffAction', Action)
-TurnOnAction = switch_ns.class_('TurnOnAction', Action)
+ToggleAction = switch_ns.class_('ToggleAction', cg.Action)
+TurnOffAction = switch_ns.class_('TurnOffAction', cg.Action)
+TurnOnAction = switch_ns.class_('TurnOnAction', cg.Action)
 
 SwitchCondition = switch_ns.class_('SwitchCondition', Condition)
-SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', Trigger.template())
-SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', Trigger.template())
+SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', cg.Trigger.template())
+SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', cg.Trigger.template())
+
+icon = cv.icon
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
-    vol.Optional(CONF_ICON): cv.icon,
-    vol.Optional(CONF_INVERTED): cv.boolean,
-    vol.Optional(CONF_ON_TURN_ON): automation.validate_automation({
+    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
+    cv.Optional(CONF_ICON): icon,
+    cv.Optional(CONF_INVERTED): cv.boolean,
+    cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOnTrigger),
     }),
-    vol.Optional(CONF_ON_TURN_OFF): automation.validate_automation({
+    cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOffTrigger),
     }),
 })
@@ -43,104 +42,75 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 SWITCH_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SWITCH_SCHEMA.schema)
 
 
-def setup_switch_core_(switch_var, config):
+def setup_switch_core_(var, config):
     if CONF_INTERNAL in config:
-        add(switch_var.set_internal(config[CONF_INTERNAL]))
+        cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:
-        add(switch_var.set_icon(config[CONF_ICON]))
+        cg.add(var.set_icon(config[CONF_ICON]))
     if CONF_INVERTED in config:
-        add(switch_var.set_inverted(config[CONF_INVERTED]))
+        cg.add(var.set_inverted(config[CONF_INVERTED]))
     for conf in config.get(CONF_ON_TURN_ON, []):
-        rhs = switch_var.make_switch_turn_on_trigger()
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automations(trigger, [], conf)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_TURN_OFF, []):
-        rhs = switch_var.make_switch_turn_off_trigger()
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automations(trigger, [], conf)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        yield automation.build_automation(trigger, [], conf)
 
-    setup_mqtt_component(switch_var.Pget_mqtt(), config)
-
-
-def setup_switch(switch_obj, config):
-    if not CORE.has_id(config[CONF_ID]):
-        switch_obj = Pvariable(config[CONF_ID], switch_obj, has_side_effects=True)
-    CORE.add_job(setup_switch_core_, switch_obj, config)
+    # setup_mqtt_component(switch_var.Pget_mqtt(), config)
 
 
+@coroutine
 def register_switch(var, config):
-    switch_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    add(App.register_switch(switch_var))
-    CORE.add_job(setup_switch_core_, switch_var, config)
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    cg.add(cg.App.register_switch(var))
+    yield setup_switch_core_(var, config)
 
 
-BUILD_FLAGS = '-DUSE_SWITCH'
-
-CONF_SWITCH_TOGGLE = 'switch.toggle'
-SWITCH_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(Switch),
+SWITCH_ACTION_SCHEMA = maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_variable_id(Switch),
 })
 
 
-@ACTION_REGISTRY.register(CONF_SWITCH_TOGGLE, SWITCH_TOGGLE_ACTION_SCHEMA)
+@ACTION_REGISTRY.register('switch.toggle', SWITCH_ACTION_SCHEMA)
 def switch_toggle_to_code(config, action_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
-    rhs = var.make_toggle_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = ToggleAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
+    rhs = type.new(var)
+    yield cg.Pvariable(action_id, rhs, type=type)
 
 
-CONF_SWITCH_TURN_OFF = 'switch.turn_off'
-SWITCH_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(Switch),
-})
-
-
-@ACTION_REGISTRY.register(CONF_SWITCH_TURN_OFF, SWITCH_TURN_OFF_ACTION_SCHEMA)
+@ACTION_REGISTRY.register('switch.turn_off', SWITCH_ACTION_SCHEMA)
 def switch_turn_off_to_code(config, action_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
-    rhs = var.make_turn_off_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = TurnOffAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
+    rhs = type.new(var)
+    yield cg.Pvariable(action_id, rhs, type=type)
 
 
-CONF_SWITCH_TURN_ON = 'switch.turn_on'
-SWITCH_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(Switch),
-})
-
-
-@ACTION_REGISTRY.register(CONF_SWITCH_TURN_ON, SWITCH_TURN_ON_ACTION_SCHEMA)
+@ACTION_REGISTRY.register('switch.turn_on', SWITCH_ACTION_SCHEMA)
 def switch_turn_on_to_code(config, action_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
-    rhs = var.make_turn_on_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = TurnOnAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
+    rhs = type.new(var)
+    yield cg.Pvariable(action_id, rhs, type=type)
 
 
-CONF_SWITCH_IS_ON = 'switch.is_on'
-SWITCH_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(Switch),
-})
-
-
-@CONDITION_REGISTRY.register(CONF_SWITCH_IS_ON, SWITCH_IS_ON_CONDITION_SCHEMA)
+@CONDITION_REGISTRY.register('switch.is_on', SWITCH_ACTION_SCHEMA)
 def switch_is_on_to_code(config, condition_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
-    rhs = var.make_switch_is_on_condition(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = SwitchCondition.template(template_arg)
-    yield Pvariable(condition_id, rhs, type=type)
+    rhs = type.new(var, True)
+    yield cg.Pvariable(condition_id, rhs, type=type)
 
 
-CONF_SWITCH_IS_OFF = 'switch.is_off'
-SWITCH_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(Switch),
-})
-
-
-@CONDITION_REGISTRY.register(CONF_SWITCH_IS_OFF, SWITCH_IS_OFF_CONDITION_SCHEMA)
+@CONDITION_REGISTRY.register('switch.is_off', SWITCH_ACTION_SCHEMA)
 def switch_is_off_to_code(config, condition_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
-    rhs = var.make_switch_is_off_condition(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = SwitchCondition.template(template_arg)
-    yield Pvariable(condition_id, rhs, type=type)
+    rhs = type.new(var, False)
+    yield cg.Pvariable(condition_id, rhs, type=type)
+
+
+def to_code(config):
+    cg.add_define('USE_SWITCH')

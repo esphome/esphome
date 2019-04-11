@@ -352,7 +352,7 @@ def build_conditions(config, templ, args):
 
 
 @coroutine
-def build_automation_(trigger, args, config):
+def build_automation(trigger, args, config):
     arg_types = [arg[0] for arg in args]
     templ = TemplateArguments(*arg_types)
     rhs = App.make_automation(templ, trigger)
@@ -361,7 +361,3 @@ def build_automation_(trigger, args, config):
     actions = yield build_actions(config[CONF_THEN], templ, args)
     add(obj.add_actions(actions))
     yield obj
-
-
-def build_automations(trigger, args, config):
-    CORE.add_job(build_automation_, trigger, args, config)

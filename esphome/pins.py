@@ -363,20 +363,42 @@ GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
+GPIO_FULL_ANALOG_PIN_SCHEMA = cv.Schema({
+    vol.Required(CONF_NUMBER): analog_pin,
+    vol.Optional(CONF_MODE): pin_mode,
+})
+
 
 def shorthand_output_pin(value):
     value = output_pin(value)
-    return {CONF_NUMBER: value}
+    return {
+        CONF_NUMBER: value,
+        CONF_MODE: 'OUTPUT',
+    }
 
 
 def shorthand_input_pin(value):
     value = input_pin(value)
-    return {CONF_NUMBER: value}
+    return {
+        CONF_NUMBER: value,
+        CONF_MODE: 'INPUT',
+    }
 
 
 def shorthand_input_pullup_pin(value):
     value = input_pullup_pin(value)
-    return {CONF_NUMBER: value}
+    return {
+        CONF_NUMBER: value,
+        CONF_MODE: 'INPUT',
+    }
+
+
+def shorthand_analog_pin(value):
+    value = analog_pin(value)
+    return {
+        CONF_NUMBER: value,
+        CONF_MODE: 'INPUT',
+    }
 
 
 def validate_has_interrupt(value):
@@ -432,6 +454,12 @@ def internal_gpio_input_pin_schema(value):
     if isinstance(value, dict):
         return GPIO_FULL_INPUT_PIN_SCHEMA(value)
     return shorthand_input_pin(value)
+
+
+def internal_gpio_analog_pin_schema(value):
+    if isinstance(value, dict):
+        return GPIO_FULL_ANALOG_PIN_SCHEMA(value)
+    return shorthand_analog_pin(value)
 
 
 def gpio_input_pin_schema(value):

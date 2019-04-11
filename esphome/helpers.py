@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import codecs
 import logging
 import os
 
@@ -143,3 +144,43 @@ def get_bool_env(var, default=False):
 
 def is_hassio():
     return get_bool_env('ESPHOME_IS_HASSIO')
+
+
+def copy_file_if_changed(src, dst):
+    src_text = read_file(src)
+    if os.path.isfile(dst):
+        dst_text = read_file(dst)
+    else:
+        dst_text = None
+    if src_text == dst_text:
+        return
+    write_file(dst, src_text)
+
+
+def read_file(path):
+    try:
+        with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+            return f_handle.read()
+    except OSError:
+        import EsphomeError
+
+        raise EsphomeError(u"Could not read file at {}".format(path))
+
+
+def write_file(path, text):
+    try:
+        mkdir_p(os.path.dirname(path))
+        with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
+            f_handle.write(text)
+    except OSError:
+        import EsphomeError
+
+        raise EsphomeError(u"Could not write file at {}".format(path))
+
+
+def write_file_if_changed(text, dst):
+    src_content = None
+    if os.path.isfile(dst):
+        src_content = read_file(dst)
+    if src_content != text:
+        write_file(dst, text)

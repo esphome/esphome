@@ -35,7 +35,7 @@ def trash_storage_path(base_path):  # type: (str) -> str
 
 # pylint: disable=too-many-instance-attributes
 class StorageJSON(object):
-    def __init__(self, storage_version, name, esphome_core_version, esphome_version,
+    def __init__(self, storage_version, name, esphome_version,
                  src_version, arduino_version, address, esp_platform, board, build_path,
                  firmware_bin_path, use_legacy_ota):
         # Version of the storage JSON schema
@@ -43,9 +43,6 @@ class StorageJSON(object):
         self.storage_version = storage_version  # type: int
         # The name of the node
         self.name = name  # type: str
-        # The esphome-core version in use
-        assert esphome_core_version is None or isinstance(esphome_core_version, dict)
-        self.esphome_core_version = esphome_core_version  # type: Dict[str, str]
         # The esphome version this was compiled with
         self.esphome_version = esphome_version  # type: str
         # The version of the file in src/main.cpp - Used to migrate the file
@@ -71,7 +68,6 @@ class StorageJSON(object):
         return {
             'storage_version': self.storage_version,
             'name': self.name,
-            'esphome_core_version': self.esphome_core_version,
             'esphome_version': self.esphome_version,
             'src_version': self.src_version,
             'arduino_version': self.arduino_version,
@@ -96,7 +92,6 @@ class StorageJSON(object):
         return StorageJSON(
             storage_version=1,
             name=esph.name,
-            esphome_core_version=esph.esphome_core_version,
             esphome_version=const.__version__,
             src_version=1,
             arduino_version=esph.arduino_version,
@@ -114,7 +109,6 @@ class StorageJSON(object):
         return StorageJSON(
             storage_version=1,
             name=name,
-            esphome_core_version=None,
             esphome_version=const.__version__,
             src_version=1,
             arduino_version=None,
@@ -133,8 +127,6 @@ class StorageJSON(object):
         storage = json.loads(text, encoding='utf-8')
         storage_version = storage['storage_version']
         name = storage.get('name')
-        esphome_core_version = storage.get('esphome_core_version',
-                                           storage.get('esphomelib_version'))
         esphome_version = storage.get('esphome_version', storage.get('esphomeyaml_version'))
         src_version = storage.get('src_version')
         arduino_version = storage.get('arduino_version')
@@ -144,7 +136,7 @@ class StorageJSON(object):
         build_path = storage.get('build_path')
         firmware_bin_path = storage.get('firmware_bin_path')
         use_legacy_ota = storage.get('use_legacy_ota')
-        return StorageJSON(storage_version, name, esphome_core_version, esphome_version,
+        return StorageJSON(storage_version, name, esphome_version,
                            src_version, arduino_version, address, esp_platform, board, build_path,
                            firmware_bin_path, use_legacy_ota)
 

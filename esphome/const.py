@@ -1,3 +1,4 @@
+# coding=utf-8
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
@@ -18,13 +19,13 @@ CONF_NAME = 'name'
 CONF_PLATFORM = 'platform'
 CONF_BOARD = 'board'
 CONF_ESPHOME_CORE_VERSION = 'esphome_core_version'
-CONF_USE_CUSTOM_CODE = 'use_custom_code'
 CONF_ARDUINO_VERSION = 'arduino_version'
 CONF_LOCAL = 'local'
 CONF_REPOSITORY = 'repository'
 CONF_COMMIT = 'commit'
 CONF_SERVICES = 'services'
 CONF_TAG = 'tag'
+CONF_OUTPUT_ID = 'output_id'
 CONF_BRANCH = 'branch'
 CONF_LOGGER = 'logger'
 CONF_WIFI = 'wifi'
@@ -270,8 +271,6 @@ CONF_STOP = 'stop'
 CONF_POSITION = 'position'
 CONF_TILT = 'tilt'
 CONF_INVERT = 'invert'
-CONF_DELAYED_ON = 'delayed_on'
-CONF_DELAYED_OFF = 'delayed_off'
 CONF_UUID = 'uuid'
 CONF_TYPE = 'type'
 CONF_SPI_ID = 'spi_id'
@@ -432,6 +431,7 @@ CONF_STEP_MODE = 'step_mode'
 CONF_COMPONENTS = 'components'
 CONF_DATA_TEMPLATE = 'data_template'
 CONF_VARIABLES = 'variables'
+CONF_VALUE = 'value'
 CONF_SERVICE = 'service'
 CONF_ENTITY_ID = 'entity_id'
 CONF_RESTORE_MODE = 'restore_mode'
@@ -461,3 +461,16 @@ ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8
                               '/stage'
 ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
 ARDUINO_VERSION_ESP8266_2_3_0 = 'espressif8266@1.5.0'
+SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
+HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
+
+ICON_FLASH = 'mdi:flash'
+ICON_THERMOMETER = 'mdi:thermometer'
+ICON_WATER_PERCENT = 'mdi:water-percent'
+ICON_TIMER = 'mdi:timer'
+ICON_NEW_BOX = 'mdi:new-box'
+
+UNIT_VOLT = 'V'
+UNIT_CELSIUS = u'°C'
+UNIT_PERCENT = '%'
+UNIT_SECOND = 's'

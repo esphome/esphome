@@ -4,24 +4,24 @@ import re
 
 import voluptuous as vol
 
-from esphome import automation, pins
 import esphome.config_validation as cv
+from esphome import automation, pins, core
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
-    CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BRANCH, CONF_BUILD_PATH, \
-    CONF_COMMIT, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_LOCAL, CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_REPOSITORY, CONF_TAG, CONF_TRIGGER_ID, \
-    CONF_USE_CUSTOM_CODE, ESPHOME_CORE_VERSION, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
-    CONF_ESP8266_RESTORE_FROM_FLASH
+    CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
+    CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
+    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
+    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
+    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
+    CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
+    ARDUINO_VERSION_ESP8266_2_5_0
 from esphome.core import CORE, EsphomeError
-from esphome.cpp_generator import Pvariable, RawExpression, add
-from esphome.cpp_types import App, const_char_ptr, esphome_ns
+from esphome.cpp_generator import Pvariable, RawExpression, add, add_global, add_define, \
+    add_build_flag, add_library
+from esphome.cpp_types import App, const_char_ptr, esphome_ns, global_ns
+from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
-
-LIBRARY_URI_REPO = u'https://github.com/esphome/esphome-core.git'
-GITHUB_ARCHIVE_ZIP = u'https://github.com/esphome/esphome-core/archive/{}.zip'
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
 StartupTrigger = esphome_ns.StartupTrigger
@@ -43,62 +43,6 @@ def validate_board(value):
         raise vol.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
             value, u', '.join(pins.ESP8266_BOARD_PINS.keys())))
     return value
-
-
-def validate_simple_esphome_core_version(value):
-    value = cv.string_strict(value)
-    if value.upper() == 'LATEST':
-        if ESPHOME_CORE_VERSION == 'dev':
-            return validate_simple_esphome_core_version('dev')
-        return {
-            CONF_REPOSITORY: LIBRARY_URI_REPO,
-            CONF_TAG: 'v' + ESPHOME_CORE_VERSION,
-        }
-    if value.upper() == 'DEV':
-        return {
-            CONF_REPOSITORY: LIBRARY_URI_REPO,
-            CONF_BRANCH: 'dev'
-        }
-    if VERSION_REGEX.match(value) is not None:
-        return {
-            CONF_REPOSITORY: LIBRARY_URI_REPO,
-            CONF_TAG: 'v' + value,
-        }
-    raise vol.Invalid("Only simple esphome core versions!")
-
-
-def validate_local_esphome_core_version(value):
-    value = cv.directory(value)
-    path = CORE.relative_path(value)
-    library_json = os.path.join(path, 'library.json')
-    if not os.path.exists(library_json):
-        raise vol.Invalid(u"Could not find '{}' file. '{}' does not seem to point to an "
-                          u"esphome-core copy.".format(library_json, value))
-    return value
-
-
-def validate_commit(value):
-    value = cv.string(value)
-    if re.match(r"^[0-9a-f]{7,}$", value) is None:
-        raise vol.Invalid("Commit option only accepts commit hashes in hex format.")
-    return value
-
-
-ESPHOME_CORE_VERSION_SCHEMA = vol.Any(
-    validate_simple_esphome_core_version,
-    cv.Schema({
-        vol.Required(CONF_LOCAL): validate_local_esphome_core_version,
-    }),
-    vol.All(
-        cv.Schema({
-            vol.Optional(CONF_REPOSITORY, default=LIBRARY_URI_REPO): cv.string,
-            vol.Optional(CONF_COMMIT): validate_commit,
-            vol.Optional(CONF_BRANCH): cv.string,
-            vol.Optional(CONF_TAG): cv.string,
-        }),
-        cv.has_at_most_one_key(CONF_COMMIT, CONF_BRANCH, CONF_TAG)
-    ),
-)
 
 
 def validate_platform(value):
@@ -163,11 +107,9 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
                                            upper=True),
     vol.Required(CONF_BOARD): validate_board,
-    vol.Optional(CONF_ESPHOME_CORE_VERSION, default='latest'): ESPHOME_CORE_VERSION_SCHEMA,
     vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
-    vol.Optional(CONF_USE_CUSTOM_CODE, default=False): cv.boolean,
     vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    vol.Optional(CONF_PLATFORMIO_OPTIONS): cv.Schema({
+    vol.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
         cv.string_strict: vol.Any([cv.string], cv.string),
     }),
     vol.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): vol.All(cv.only_on_esp8266, cv.boolean),
@@ -183,11 +125,8 @@ CONFIG_SCHEMA = cv.Schema({
     vol.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
     }),
-    vol.Optional(CONF_INCLUDES): cv.ensure_list(cv.file_),
-    vol.Optional(CONF_LIBRARIES): cv.ensure_list(cv.string_strict),
-
-    vol.Optional('esphomelib_version'): cv.invalid("The esphomelib_version has been renamed to "
-                                                   "esphome_core_version in 1.11.0"),
+    vol.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
+    vol.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
 })
 
 
@@ -217,7 +156,9 @@ def preload_core_config(config):
 
 
 def to_code(config):
-    add(App.set_name(config[CONF_NAME]))
+    add_global(global_ns.namespace('esphome').using)
+    add_define('ESPHOME_VERSION', __version__)
+    add(App.pre_setup(config[CONF_NAME], RawExpression('__DATE__ ", " __TIME__')))
 
     for conf in config.get(CONF_ON_BOOT, []):
         rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
@@ -233,23 +174,48 @@ def to_code(config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         automation.build_automations(trigger, [], conf)
 
-    add(App.set_compilation_datetime(RawExpression('__DATE__ ", " __TIME__')))
+    # Build flags
+    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES and \
+            CORE.arduino_version != ARDUINO_VERSION_ESP8266_2_3_0:
+        flash_size = ESP8266_FLASH_SIZES[CORE.board]
+        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
+        ld_script = None
 
+        if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
+                                    'espressif8266@1.6.0'):
+            ld_script = ld_scripts[0]
+        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0):
+            ld_script = ld_scripts[1]
 
-def lib_deps(config):
-    return set(config.get(CONF_LIBRARIES, []))
+        if ld_script is not None:
+            add_build_flag('-Wl,-T{}'.format(ld_script))
 
+    if CORE.is_esp8266 and CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV,
+                                                    ARDUINO_VERSION_ESP8266_2_5_0):
+        add_build_flag('-fno-exceptions')
 
-def includes(config):
-    ret = []
-    for include in config.get(CONF_INCLUDES, []):
+    # Libraries
+    if CORE.is_esp32:
+        add_library('Preferences', None)
+        add_library('ESPmDNS', None)
+    elif CORE.is_esp8266:
+        add_library('ESP8266WiFi', None)
+        add_library('ESP8266mDNS', None)
+
+    for lib in config[CONF_LIBRARIES]:
+        if '@' in lib:
+            name, vers = lib.split('@', 1)
+            add_library(name, vers)
+        else:
+            add_library(lib, None)
+
+    add_build_flag('-Wno-unused-variable')
+    add_build_flag('-Wno-unused-but-set-variable')
+    add_build_flag('-Wno-sign-compare')
+    if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
+        add_define('USE_ESP8266_PREFERENCES_FLASH')
+
+    for include in config[CONF_INCLUDES]:
         path = CORE.relative_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src'))
-        ret.append(u'#include "{}"'.format(res))
-    return ret
-
-
-def required_build_flags(config):
-    if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
-        return ['-DUSE_ESP8266_PREFERENCES_FLASH']
-    return []
+        add_global(RawExpression(u'#include "{}"'.format(res)))
