@@ -90,7 +90,8 @@ sensor:
     pin_10_0: GPIO32    
     pm_10_0:
       name: "PM 10.0 Concentration"
-      
+    update_interval: 1min
+    
   - platform: pmsx003
     type: PMSX003
     pm_2_5:
