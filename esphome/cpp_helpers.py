@@ -1,7 +1,7 @@
 from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    CONF_SETUP_PRIORITY, CONF_MCP23017, CONF_ID
-from esphome.core import CORE, EsphomeError, coroutine
-from esphome.cpp_generator import IntLiteral, RawExpression, add, Pvariable
+    CONF_SETUP_PRIORITY, CONF_MCP23017
+from esphome.core import CORE, coroutine
+from esphome.cpp_generator import RawExpression, add
 from esphome.cpp_types import App, GPIOPin
 
 

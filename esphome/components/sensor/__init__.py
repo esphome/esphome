@@ -138,7 +138,7 @@ def filter_out_filter_to_code(config):
         cv.declare_variable_id(SlidingWindowMovingAverageFilter),
     cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
-    cv.Optional(CONF_SEND_FIRST_AT, default=0): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
 }), validate_send_first_at))
 def sliding_window_moving_average_filter_to_code(config):
     yield cg.new_Pvariable(config[CONF_ID], config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
@@ -333,3 +333,4 @@ def fit_linear(x, y):
 
 def to_code(config):
     cg.add_define('USE_SENSOR')
+    cg.add_global(sensor_ns.using)

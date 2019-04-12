@@ -14,6 +14,7 @@
 #define USE_TEXT_SENSOR
 #define USE_FAN
 //#define USE_COVER
-//#define USE_LIGHT
-//#define USE_CLIMATE
+#define USE_LIGHT
+#define USE_CLIMATE
 //#define USE_MQTT
+#define USE_POWER_SUPPLY

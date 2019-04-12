@@ -63,7 +63,7 @@ class APIConnection {
   void send_camera_state(std::shared_ptr<CameraImage> image);
 #endif
 #ifdef USE_CLIMATE
-  bool send_climate_state(climate::ClimateDevice *climate);
+  bool send_climate_state(climate::Climate *climate);
 #endif
   bool send_log_message(int level, const char *tag, const char *line);
   bool send_disconnect_request();
@@ -185,7 +185,7 @@ class APIServer : public Component, public Controller {
   void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
 #endif
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::ClimateDevice *obj) override;
+  void on_climate_update(climate::Climate *obj) override;
 #endif
   void send_service_call(ServiceCallResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) {

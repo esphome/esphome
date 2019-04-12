@@ -196,7 +196,7 @@ void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string 
 #endif
 
 #ifdef USE_CLIMATE
-void APIServer::on_climate_update(climate::ClimateDevice *obj) {
+void APIServer::on_climate_update(climate::Climate *obj) {
   if (obj->is_internal())
     return;
   for (auto *c : this->clients_)
@@ -884,10 +884,10 @@ bool APIConnection::send_light_state(light::LightState *light) {
   // bool state = 2;
   buffer.encode_bool(2, values.get_state() != 0.0f);
   // float brightness = 3;
-  if (traits.has_brightness()) {
+  if (traits.get_supports_brightness()) {
     buffer.encode_float(3, values.get_brightness());
   }
-  if (traits.has_rgb()) {
+  if (traits.get_supports_rgb()) {
     // float red = 4;
     buffer.encode_float(4, values.get_red());
     // float green = 5;
@@ -896,11 +896,11 @@ bool APIConnection::send_light_state(light::LightState *light) {
     buffer.encode_float(6, values.get_blue());
   }
   // float white = 7;
-  if (traits.has_rgb_white_value()) {
+  if (traits.get_supports_rgb_white_value()) {
     buffer.encode_float(7, values.get_white());
   }
   // float color_temperature = 8;
-  if (traits.has_color_temperature()) {
+  if (traits.get_supports_color_temperature()) {
     buffer.encode_float(8, values.get_color_temperature());
   }
   // string effect = 9;
@@ -954,7 +954,7 @@ bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor,
 #endif
 
 #ifdef USE_CLIMATE
-bool APIConnection::send_climate_state(climate::ClimateDevice *climate) {
+bool APIConnection::send_climate_state(climate::Climate *climate) {
   if (!this->state_subscription_)
     return false;
 
@@ -1072,7 +1072,7 @@ void APIConnection::on_fan_command_request_(const FanCommandRequest &req) {
 #ifdef USE_LIGHT
 void APIConnection::on_light_command_request_(const LightCommandRequest &req) {
   ESP_LOGVV(TAG, "on_light_command_request_");
-  light::LightState *light = this->parent_->get_light_by_key(req.get_key());
+  light::LightState *light = App.get_light_by_key(req.get_key());
   if (light == nullptr)
     return;
 
@@ -1109,7 +1109,7 @@ void APIConnection::on_switch_command_request_(const SwitchCommandRequest &req) 
 #ifdef USE_CLIMATE
 void APIConnection::on_climate_command_request_(const ClimateCommandRequest &req) {
   ESP_LOGVV(TAG, "on_climate_command_request_");
-  climate::ClimateDevice *climate = this->parent_->get_climate_by_key(req.get_key());
+  climate::Climate *climate = App.get_climate_by_key(req.get_key());
   if (climate == nullptr)
     return;
 

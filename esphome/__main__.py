@@ -174,28 +174,11 @@ def upload_program(config, args, host):
 
     from esphome import espota2
 
-    verbose = args.verbose
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf[CONF_PASSWORD]
-
-    storage = StorageJSON.load(storage_path())
     res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
-    if res == 0:
-        if storage is not None and storage.use_legacy_ota:
-            storage.use_legacy_ota = False
-            storage.save(storage_path())
-        return res
-    if storage is not None and not storage.use_legacy_ota:
-        return res
-
-    _LOGGER.warning("OTA v2 method failed. Trying with legacy OTA...")
-    if args.host_port is not None:
-        host_port = args.host_port
-    else:
-        host_port = int(os.getenv('ESPHOME_OTA_HOST_PORT', random.randint(10000, 60000)))
-    return espota2.run_legacy_ota(verbose, host_port, host, remote_port, password,
-                                  CORE.firmware_bin)
+    return res
 
 
 def show_logs(config, args, port):
@@ -385,7 +368,6 @@ def parse_args(argv):
                                                          'and upload the latest binary.')
     parser_upload.add_argument('--upload-port', help="Manually specify the upload port to use. "
                                                      "For example /dev/cu.SLAB_USBtoUART.")
-    parser_upload.add_argument('--host-port', help="Specify the host port.", type=int)
 
     parser_logs = subparsers.add_parser('logs', help='Validate the configuration '
                                                      'and show all MQTT logs.')
@@ -400,7 +382,6 @@ def parse_args(argv):
                                                    'upload it, and start MQTT logs.')
     parser_run.add_argument('--upload-port', help="Manually specify the upload port/ip to use. "
                                                   "For example /dev/cu.SLAB_USBtoUART.")
-    parser_run.add_argument('--host-port', help="Specify the host port to use for OTA", type=int)
     parser_run.add_argument('--no-logs', help='Disable starting MQTT logs.',
                             action='store_true')
     parser_run.add_argument('--topic', help='Manually set the topic to subscribe to for logs.')

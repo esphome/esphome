@@ -58,3 +58,4 @@ def register_text_sensor(var, config):
 
 def to_code(config):
     cg.add_define('USE_TEXT_SENSOR')
+    cg.add_global(text_sensor_ns.using)

@@ -22,6 +22,12 @@
 #ifdef USE_FAN
 #include "esphome/components/fan/fan_state.h"
 #endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate.h"
+#endif
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_state.h"
+#endif
 
 namespace esphome {
 
@@ -68,7 +74,15 @@ class Application {
 #endif
 
 #ifdef USE_CLIMATE
-  void register_climate(Climate *climate);
+  void register_climate(climate::Climate *climate) {
+    this->climates_.push_back(climate);
+  }
+#endif
+
+#ifdef USE_LIGHT
+  void register_light(light::LightState *light) {
+    this->lights_.push_back(light);
+  }
 #endif
 
   /// Register the component in this Application instance.
@@ -145,6 +159,11 @@ class Application {
 
   void safe_reboot();
 
+  void run_safe_shutdown_hooks() {
+    for (auto *comp : this->components_)
+      comp->on_safe_shutdown();
+  }
+
   uint32_t get_app_state() const {
     return this->app_state_;
   }
@@ -205,8 +224,17 @@ class Application {
 #endif
 #ifdef USE_LIGHT
   const std::vector<light::LightState *> &get_lights() { return this->lights_; }
-  light::LightState *get_fan_by_key(uint32_t key, bool include_internal = false) {
+  light::LightState *get_light_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->lights_)
+      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_CLIMATE
+  const std::vector<climate::Climate *> &get_climates() { return this->climates_; }
+  climate::Climate *get_climate_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->climates_)
       if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
         return obj;
     return nullptr;

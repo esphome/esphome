@@ -4,6 +4,7 @@ from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 # from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import power_supply
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE, coroutine
@@ -13,7 +14,7 @@ PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 })
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({
-    # vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
+    vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
@@ -39,10 +40,10 @@ SetLevelAction = output_ns.class_('SetLevelAction', cg.Action)
 
 
 @coroutine
-def setup_output_platform_(obj, config, skip_power_supply=False):
+def setup_output_platform_(obj, config):
     if CONF_INVERTED in config:
         cg.add(obj.set_inverted(config[CONF_INVERTED]))
-    if not skip_power_supply and CONF_POWER_SUPPLY in config:
+    if CONF_POWER_SUPPLY in config:
         power_supply = yield cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply))
     if CONF_MAX_POWER in config:

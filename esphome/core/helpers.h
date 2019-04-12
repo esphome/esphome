@@ -73,6 +73,7 @@ class HighFrequencyLoopRequester {
  * @return val clamped in between min and max.
  */
 float clamp(float val, float min, float max);
+// TODO: Check changed clamp signature
 
 /** Linearly interpolate between end start and end by completion.
  *

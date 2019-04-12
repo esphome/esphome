@@ -20,7 +20,7 @@ void Controller::setup_controller() {
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights()) {
     if (!obj->is_internal())
-      obj->add_on_state_callback([this, obj]() { this->on_light_update(obj); });
+      obj->add_new_remote_values_callback([this, obj]() { this->on_light_update(obj); });
   }
 #endif
 #ifdef USE_SENSOR

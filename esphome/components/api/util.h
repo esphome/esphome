@@ -80,7 +80,7 @@ class ComponentIterator {
   virtual bool on_camera(ESP32Camera *camera);
 #endif
 #ifdef USE_CLIMATE
-  virtual bool on_climate(climate::ClimateDevice *climate) = 0;
+  virtual bool on_climate(climate::Climate *climate) = 0;
 #endif
   virtual bool on_end();
 

@@ -35,7 +35,11 @@ extern const float LATE;
 }  // namespace setup_priority
 
 #define LOG_UPDATE_INTERVAL(this) \
-  ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f);
+  if (this->get_update_interval() < 100) { \
+    ESP_LOGCONFIG(TAG, "  Update Interval: %.3fs", this->get_update_interval() / 1000.0f); \
+  } else {\
+    ESP_LOGCONFIG(TAG, "  Update Interval: %.1fs", this->get_update_interval() / 1000.0f); \
+  }
 
 extern const uint32_t COMPONENT_STATE_MASK;
 extern const uint32_t COMPONENT_STATE_CONSTRUCTION;

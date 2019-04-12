@@ -353,52 +353,40 @@ def pin_mode(value):
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): output_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    vol.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
+    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): input_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    vol.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
+    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 GPIO_FULL_ANALOG_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): analog_pin,
-    vol.Optional(CONF_MODE): pin_mode,
+    vol.Optional(CONF_MODE, default='INPUT'): pin_mode,
 })
 
 
 def shorthand_output_pin(value):
     value = output_pin(value)
-    return {
-        CONF_NUMBER: value,
-        CONF_MODE: 'OUTPUT',
-    }
+    return GPIO_FULL_OUTPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def shorthand_input_pin(value):
     value = input_pin(value)
-    return {
-        CONF_NUMBER: value,
-        CONF_MODE: 'INPUT',
-    }
+    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def shorthand_input_pullup_pin(value):
     value = input_pullup_pin(value)
-    return {
-        CONF_NUMBER: value,
-        CONF_MODE: 'INPUT',
-    }
+    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def shorthand_analog_pin(value):
     value = analog_pin(value)
-    return {
-        CONF_NUMBER: value,
-        CONF_MODE: 'INPUT',
-    }
+    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def validate_has_interrupt(value):
@@ -409,7 +397,8 @@ def validate_has_interrupt(value):
     return value
 
 
-I2CDevice = esphome_ns.class_('I2CDevice')
+# TODO: Cleanup, decentralize
+I2CDevice = esphome_ns.namespace('i2c').class_('I2CDevice')
 PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
 MCP23017 = io_ns.class_('MCP23017', Component, I2CDevice)
 

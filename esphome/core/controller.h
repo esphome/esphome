@@ -53,7 +53,7 @@ class Controller {
   virtual void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {};
 #endif
 #ifdef USE_CLIMATE
-  virtual void on_climate_update(climate::ClimateDevice *obj) {};
+  virtual void on_climate_update(climate::Climate *obj) {};
 #endif
 };
 

@@ -355,8 +355,8 @@ def build_conditions(config, templ, args):
 def build_automation(trigger, args, config):
     arg_types = [arg[0] for arg in args]
     templ = TemplateArguments(*arg_types)
-    rhs = App.make_automation(templ, trigger)
     type = Automation.template(templ)
+    rhs = type.new(trigger)
     obj = Pvariable(config[CONF_AUTOMATION_ID], rhs, type=type)
     actions = yield build_actions(config[CONF_THEN], templ, args)
     add(obj.add_actions(actions))

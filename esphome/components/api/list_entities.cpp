@@ -62,17 +62,20 @@ bool ListEntitiesIterator::on_light(light::LightState *light) {
   // string unique_id = 4;
   buffer.encode_string(4, get_default_unique_id("light", light));
   // bool supports_brightness = 5;
-  buffer.encode_bool(5, light->get_traits().has_brightness());
+  auto traits = light->get_traits();
+  buffer.encode_bool(5, traits.get_supports_brightness());
   // bool supports_rgb = 6;
-  buffer.encode_bool(6, light->get_traits().has_rgb());
+  buffer.encode_bool(6, traits.get_supports_rgb());
   // bool supports_white_value = 7;
-  buffer.encode_bool(7, light->get_traits().has_rgb_white_value());
+  buffer.encode_bool(7, traits.get_supports_rgb_white_value());
   // bool supports_color_temperature = 8;
-  buffer.encode_bool(8, light->get_traits().has_color_temperature());
-  // float min_mireds = 9;
-  buffer.encode_float(9, light->get_traits().get_min_mireds());
-  // float max_mireds = 10;
-  buffer.encode_float(10, light->get_traits().get_max_mireds());
+  buffer.encode_bool(8, traits.get_supports_color_temperature());
+  if (traits.get_supports_color_temperature()) {
+    // float min_mireds = 9;
+    buffer.encode_float(9, traits.get_min_mireds());
+    // float max_mireds = 10;
+    buffer.encode_float(10, traits.get_max_mireds());
+  }
   // repeated string effects = 11;
   if (light->supports_effects()) {
     buffer.encode_string(11, "None");
@@ -151,7 +154,7 @@ bool ListEntitiesIterator::on_camera(ESP32Camera *camera) {
 #endif
 
 #ifdef USE_CLIMATE
-bool ListEntitiesIterator::on_climate(climate::ClimateDevice *climate) {
+bool ListEntitiesIterator::on_climate(climate::Climate *climate) {
   auto buffer = this->client_->get_buffer();
   buffer.encode_nameable(climate);
   // string unique_id = 4;

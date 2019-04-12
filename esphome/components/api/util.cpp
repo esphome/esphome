@@ -233,10 +233,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_LIGHT
     case IteratorState::LIGHT:
-      if (this->at_ >= this->server_->lights_.size()) {
+      if (this->at_ >= App.get_lights().size()) {
         advance_platform = true;
       } else {
-        auto *light = this->server_->lights_[this->at_];
+        auto *light = App.get_lights()[this->at_];
         if (light->is_internal()) {
           success = true;
           break;
@@ -315,10 +315,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_CLIMATE
     case IteratorState::CLIMATE:
-      if (this->at_ >= this->server_->climates_.size()) {
+      if (this->at_ >= App.get_climates().size()) {
         advance_platform = true;
       } else {
-        auto *climate = this->server_->climates_[this->at_];
+        auto *climate = App.get_climates()[this->at_];
         if (climate->is_internal()) {
           success = true;
           break;

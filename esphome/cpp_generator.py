@@ -482,6 +482,9 @@ class MockObj(Expression):
     def __str__(self):  # type: () -> unicode
         return text_type(self.base)
 
+    def __repr__(self):
+        return u'MockObj<{}>'.format(text_type(self.base))
+
     @property
     def _(self):
         return MockObj(u'{}{}'.format(self.base, self.op))
@@ -568,3 +571,6 @@ class MockObjClass(MockObj):
         new_parents = self._parents[:]
         new_parents.append(self)
         return MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
+
+    def __repr__(self):
+        return u'MockObjClass<{}, parents={}>'.format(text_type(self.base), self._parents)

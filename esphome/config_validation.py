@@ -31,6 +31,7 @@ All = vol.All
 Coerce = vol.Coerce
 Range = vol.Range
 Invalid = vol.Invalid
+MultipleInvalid = vol.MultipleInvalid
 Any = vol.Any
 Lower = vol.Lower
 Upper = vol.Upper
