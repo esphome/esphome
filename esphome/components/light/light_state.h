@@ -262,11 +262,9 @@ class LightState : public Nameable, public Component {
 
   void current_values_as_rgbw(float *red, float *green, float *blue, float *white);
 
-  void current_values_as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green,
-                               float *blue, float *cold_white, float *warm_white);
+  void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white);
 
-  void current_values_as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white,
-                              float *warm_white);
+  void current_values_as_cwww(float *cold_white, float *warm_white);
 
  protected:
   friend LightOutput;

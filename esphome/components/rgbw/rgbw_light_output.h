@@ -5,32 +5,36 @@
 #include "esphome/components/light/light_output.h"
 
 namespace esphome {
-namespace rgb {
+namespace rgbw {
 
-class RGBLightOutput : public light::LightOutput {
+class RGBWLightOutput : public light::LightOutput {
  public:
-  RGBLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue)
-    : red_(red), green_(green), blue_(blue) {
+  RGBWLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue,
+      output::FloatOutput *white)
+    : red_(red), green_(green), blue_(blue), white_(white) {
 
   }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supports_rgb(true);
+    traits.set_supports_rgb_white_value(true);
     return traits;
   }
   void write_state(light::LightState *state) override {
-    float red, green, blue;
-    state->current_values_as_rgb(&red, &green, &blue);
+    float red, green, blue, white;
+    state->current_values_as_rgbw(&red, &green, &blue, &white);
     this->red_->set_level(red);
     this->green_->set_level(green);
     this->blue_->set_level(blue);
+    this->white_->set_level(white);
   }
  protected:
   output::FloatOutput *red_;
   output::FloatOutput *green_;
   output::FloatOutput *blue_;
+  output::FloatOutput *white_;
 };
 
-}  // namespace rgb
+}  // namespace rgbw
 }  // namespace esphome
