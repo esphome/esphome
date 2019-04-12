@@ -11,7 +11,7 @@
 #include "esphome/components/deeps_sleep/deep_sleep_component.h"
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
-#include "esphome/time/homeassistant_time.h"
+#include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -499,7 +499,7 @@ void APIConnection::read_message_(uint32_t size, uint32_t type, uint8_t *msg) {
       break;
     case APIMessageType::GET_TIME_RESPONSE: {
 #ifdef USE_HOMEASSISTANT_TIME
-      time::GetTimeResponse req;
+      homeassistant::GetTimeResponse req;
       req.decode(msg, size);
 #endif
       break;
@@ -574,7 +574,7 @@ void APIConnection::on_connect_request_(const ConnectRequest &req) {
     this->connection_state_ = ConnectionState::CONNECTED;
 
 #ifdef USE_HOMEASSISTANT_TIME
-    if (time::global_homeassistant_time != nullptr) {
+    if (homeassistant::global_homeassistant_time != nullptr) {
       this->send_time_request();
     }
 #endif

@@ -120,15 +120,17 @@ def _lookup_module(domain, is_platform):
     path = 'esphome.components.{}'.format(domain)
     try:
         module = importlib.import_module(path)
-    except (ImportError, ValueError) as err:
-        _LOGGER.error(err)
+    except ImportError:
+        return None
+    except Exception:
+        import traceback
+        _LOGGER.error("Unable to load component %s:", domain)
+        traceback.print_exc()
+        return None
     else:
         manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
         _COMPONENT_CACHE[domain] = manif
         return manif
-
-    _LOGGER.error("Unable to find component %s", domain)
-    return None
 
 
 def get_component(domain):

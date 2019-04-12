@@ -18,3 +18,4 @@
 #define USE_CLIMATE
 //#define USE_MQTT
 #define USE_POWER_SUPPLY
+#define USE_HOMEASSISTANT_TIME
