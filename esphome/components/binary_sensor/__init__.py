@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core
@@ -8,7 +6,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERTED, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
-    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE, CONF_NAME
 from esphome.core import CORE, coroutine
 from esphome.py_compat import string_types
 from esphome.util import ServiceRegistry
@@ -38,6 +36,7 @@ MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', cg.Trigger.temp
                                             cg.Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
 StateTrigger = binary_sensor_ns.class_('StateTrigger', cg.Trigger.template(bool))
+BinarySensorPublishAction = binary_sensor_ns.class_('BinarySensorPublishAction', cg.Action)
 
 # Condition
 BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Condition)
@@ -101,9 +100,9 @@ def lambda_filter_to_code(config):
 
 
 MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
-    vol.Optional(CONF_STATE): cv.boolean,
-    vol.Optional(CONF_MIN_LENGTH): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_MAX_LENGTH): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_STATE): cv.boolean,
+    cv.Optional(CONF_MIN_LENGTH): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_MAX_LENGTH): cv.positive_time_period_milliseconds,
 })
 
 
@@ -113,15 +112,15 @@ def parse_multi_click_timing_str(value):
 
     parts = value.lower().split(' ')
     if len(parts) != 5:
-        raise vol.Invalid("Multi click timing grammar consists of exactly 5 words, not {}"
+        raise cv.Invalid("Multi click timing grammar consists of exactly 5 words, not {}"
                           "".format(len(parts)))
     try:
         state = cv.boolean(parts[0])
-    except vol.Invalid:
-        raise vol.Invalid(u"First word must either be ON or OFF, not {}".format(parts[0]))
+    except cv.Invalid:
+        raise cv.Invalid(u"First word must either be ON or OFF, not {}".format(parts[0]))
 
     if parts[1] != 'for':
-        raise vol.Invalid(u"Second word must be 'for', got {}".format(parts[1]))
+        raise cv.Invalid(u"Second word must be 'for', got {}".format(parts[1]))
 
     if parts[2] == 'at':
         if parts[3] == 'least':
@@ -129,29 +128,29 @@ def parse_multi_click_timing_str(value):
         elif parts[3] == 'most':
             key = CONF_MAX_LENGTH
         else:
-            raise vol.Invalid(u"Third word after at must either be 'least' or 'most', got {}"
+            raise cv.Invalid(u"Third word after at must either be 'least' or 'most', got {}"
                               u"".format(parts[3]))
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
-        except vol.Invalid as err:
-            raise vol.Invalid(u"Multi Click Grammar Parsing length failed: {}".format(err))
+        except cv.Invalid as err:
+            raise cv.Invalid(u"Multi Click Grammar Parsing length failed: {}".format(err))
         return {
             CONF_STATE: state,
             key: str(length)
         }
 
     if parts[3] != 'to':
-        raise vol.Invalid("Multi click grammar: 4th word must be 'to'")
+        raise cv.Invalid("Multi click grammar: 4th word must be 'to'")
 
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
-    except vol.Invalid as err:
-        raise vol.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+    except cv.Invalid as err:
+        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
-    except vol.Invalid as err:
-        raise vol.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+    except cv.Invalid as err:
+        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
 
     return {
         CONF_STATE: state,
@@ -162,7 +161,7 @@ def parse_multi_click_timing_str(value):
 
 def validate_multi_click_timing(value):
     if not isinstance(value, list):
-        raise vol.Invalid("Timing option must be a *list* of times!")
+        raise cv.Invalid("Timing option must be a *list* of times!")
     timings = []
     state = None
     for i, v_ in enumerate(value):
@@ -170,16 +169,16 @@ def validate_multi_click_timing(value):
         min_length = v_.get(CONF_MIN_LENGTH)
         max_length = v_.get(CONF_MAX_LENGTH)
         if min_length is None and max_length is None:
-            raise vol.Invalid("At least one of min_length and max_length is required!")
+            raise cv.Invalid("At least one of min_length and max_length is required!")
         if min_length is None and max_length is not None:
             min_length = core.TimePeriodMilliseconds(milliseconds=0)
 
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
-            raise vol.Invalid("Timings must have alternating state. Indices {} and {} have "
+            raise cv.Invalid("Timings must have alternating state. Indices {} and {} have "
                               "the same state {}".format(i, i + 1, state))
         if max_length is not None and max_length < min_length:
-            raise vol.Invalid("Max length ({}) must be larger than min length ({})."
+            raise cv.Invalid("Max length ({}) must be larger than min length ({})."
                               "".format(max_length, min_length))
 
         state = new_state
@@ -196,37 +195,37 @@ def validate_multi_click_timing(value):
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space='_')
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_variable_id(BinarySensor),
     # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
-
-    vol.Optional(CONF_DEVICE_CLASS): device_class,
-    vol.Optional(CONF_FILTERS): validate_filters,
-    vol.Optional(CONF_ON_PRESS): automation.validate_automation({
+    cv.Optional(CONF_DEVICE_CLASS): device_class,
+    cv.Optional(CONF_FILTERS): validate_filters,
+    cv.Optional(CONF_ON_PRESS): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
     }),
-    vol.Optional(CONF_ON_RELEASE): automation.validate_automation({
+    cv.Optional(CONF_ON_RELEASE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ReleaseTrigger),
     }),
-    vol.Optional(CONF_ON_CLICK): automation.validate_automation({
+    cv.Optional(CONF_ON_CLICK): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ClickTrigger),
-        vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation({
+    cv.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(DoubleClickTrigger),
-        vol.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation({
+    cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MultiClickTrigger),
-        vol.Required(CONF_TIMING): vol.All([parse_multi_click_timing_str],
+        cv.Required(CONF_TIMING): cv.All([parse_multi_click_timing_str],
                                            validate_multi_click_timing),
-        vol.Optional(CONF_INVALID_COOLDOWN, default='1s'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_INVALID_COOLDOWN, default='1s'): cv.positive_time_period_milliseconds,
     }),
-    vol.Optional(CONF_ON_STATE): automation.validate_automation({
+    cv.Optional(CONF_ON_STATE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StateTrigger),
     }),
 
-    vol.Optional(CONF_INVERTED): cv.invalid(
+    cv.Optional(CONF_INVERTED): cv.invalid(
         "The inverted binary_sensor property has been replaced by the "
         "new 'invert' binary  sensor filter. Please see "
         "https://esphome.io/components/binary_sensor/index.html."
@@ -295,9 +294,16 @@ def register_binary_sensor(var, config):
     yield setup_binary_sensor_core_(var, config)
 
 
+@coroutine
+def new_binary_sensor(config):
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    yield register_binary_sensor(var, config)
+    yield var
+
+
 BINARY_SENSOR_IS_ON_OFF_CONDITION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(BinarySensor),
-    vol.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
+    cv.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+    cv.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
 })
 
 

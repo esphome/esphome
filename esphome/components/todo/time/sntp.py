@@ -1,17 +1,14 @@
-import voluptuous as vol
-
 from esphome.components import time as time_
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_SERVERS
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App
+
 
 SNTPComponent = time_.time_ns.class_('SNTPComponent', time_.RealTimeClockComponent)
 
 PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SNTPComponent),
-    vol.Optional(CONF_SERVERS): vol.All(cv.ensure_list(cv.domain), vol.Length(min=1, max=3)),
+    cv.Optional(CONF_SERVERS): cv.All(cv.ensure_list(cv.domain), cv.Length(min=1, max=3)),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -21,7 +18,7 @@ def to_code(config):
     if CONF_SERVERS in config:
         servers = config[CONF_SERVERS]
         servers += [''] * (3 - len(servers))
-        add(sntp.set_servers(*servers))
+        cg.add(sntp.set_servers(*servers))
 
     time_.setup_time(sntp, config)
     register_component(sntp, config)

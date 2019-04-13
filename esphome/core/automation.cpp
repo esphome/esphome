@@ -18,10 +18,6 @@ void ShutdownTrigger::on_shutdown() {
 void LoopTrigger::loop() { this->trigger(); }
 float LoopTrigger::get_setup_priority() const { return setup_priority::DATA; }
 
-void IntervalTrigger::update() { this->trigger(); }
-float IntervalTrigger::get_setup_priority() const { return setup_priority::DATA; }
-
-IntervalTrigger::IntervalTrigger(uint32_t update_interval) : PollingComponent(update_interval) {}
 
 RangeCondition::RangeCondition() = default;
 
@@ -36,7 +32,5 @@ bool RangeCondition::check(float x) {
     return min <= x && x <= max;
   }
 }
-
-void Script::execute() { this->trigger(); }
 
 }  // namespace esphome

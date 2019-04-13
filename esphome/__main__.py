@@ -3,7 +3,6 @@ from __future__ import print_function
 import argparse
 import logging
 import os
-import random
 import sys
 from datetime import datetime
 
@@ -14,13 +13,9 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
-from esphome.storage_json import StorageJSON, storage_path
 from esphome.util import run_external_command, run_external_process, safe_print
 
 _LOGGER = logging.getLogger(__name__)
-
-PRE_INITIALIZE = ['esphome', 'logger', 'status_led', 'wifi', 'ethernet', 'ota', 'mqtt',
-                  'web_server', 'api', 'i2c']
 
 
 def get_serial_ports():
@@ -125,13 +120,8 @@ def run_miniterm(config, port):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    for target_domain in PRE_INITIALIZE:
-        for domain, component, conf in iter_components(CORE.config):
-            if domain == target_domain:
-                CORE.add_job(component.to_code, conf)
-
     for domain, component, conf in iter_components(CORE.config):
-        if domain not in PRE_INITIALIZE and component.to_code is not None:
+        if component.to_code is not None:
             CORE.add_job(component.to_code, conf)
 
     CORE.flush_tasks()

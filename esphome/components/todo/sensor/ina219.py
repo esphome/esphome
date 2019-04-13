@@ -1,14 +1,11 @@
 # coding=utf-8
-import voluptuous as vol
-
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_BUS_VOLTAGE, CONF_CURRENT, CONF_ID, \
     CONF_MAX_CURRENT, CONF_MAX_VOLTAGE, CONF_NAME, CONF_POWER, CONF_SHUNT_RESISTANCE, \
     CONF_SHUNT_VOLTAGE, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['i2c']
 
@@ -22,26 +19,26 @@ INA219PowerSensor = sensor.sensor_ns.class_('INA219PowerSensor', sensor.EmptyPol
 SENSOR_KEYS = [CONF_BUS_VOLTAGE, CONF_SHUNT_VOLTAGE, CONF_CURRENT,
                CONF_POWER]
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(INA219Component),
-    vol.Optional(CONF_ADDRESS, default=0x40): cv.i2c_address,
-    vol.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_ADDRESS, default=0x40): cv.i2c_address,
+    cv.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(INA219VoltageSensor),
     })),
-    vol.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(INA219VoltageSensor),
     })),
-    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(INA219CurrentSensor),
     })),
-    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(INA219PowerSensor),
     })),
-    vol.Optional(CONF_SHUNT_RESISTANCE, default=0.1): vol.All(cv.resistance,
-                                                              vol.Range(min=0.0, max=32.0)),
-    vol.Optional(CONF_MAX_VOLTAGE, default=32.0): vol.All(cv.voltage, vol.Range(min=0.0, max=32.0)),
-    vol.Optional(CONF_MAX_CURRENT, default=3.2): vol.All(cv.current, vol.Range(min=0.0)),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance,
+                                                              cv.Range(min=0.0, max=32.0)),
+    cv.Optional(CONF_MAX_VOLTAGE, default=32.0): cv.All(cv.voltage, cv.Range(min=0.0, max=32.0)),
+    cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(cv.current, cv.Range(min=0.0)),
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 

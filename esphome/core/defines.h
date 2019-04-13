@@ -3,6 +3,7 @@
 
 #define ESPHOME_VERSION "dev"
 
+#define CLANG_TIDY
 #define ESPHOME_LOG_LEVEL 6
 #define USE_API
 #define USE_LOGGER
@@ -13,7 +14,7 @@
 #define USE_STATUS_LED
 #define USE_TEXT_SENSOR
 #define USE_FAN
-//#define USE_COVER
+#define USE_COVER
 #define USE_LIGHT
 #define USE_CLIMATE
 //#define USE_MQTT

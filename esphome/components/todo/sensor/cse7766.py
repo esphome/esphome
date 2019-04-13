@@ -1,13 +1,10 @@
-import voluptuous as vol
-
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CURRENT, CONF_ID, CONF_NAME, CONF_POWER, CONF_UART_ID, \
     CONF_UPDATE_INTERVAL, CONF_VOLTAGE
-from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['uart']
 
@@ -19,20 +16,20 @@ CSE7766CurrentSensor = sensor.sensor_ns.class_('CSE7766CurrentSensor',
 CSE7766PowerSensor = sensor.sensor_ns.class_('CSE7766PowerSensor',
                                              sensor.EmptySensor)
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CSE7766Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
 
-    vol.Optional(CONF_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_VOLTAGE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(CSE7766VoltageSensor),
     })),
-    vol.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_CURRENT): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(CSE7766CurrentSensor),
     })),
-    vol.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_POWER): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(CSE7766PowerSensor),
     })),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_VOLTAGE, CONF_CURRENT,
                                                                CONF_POWER))
 

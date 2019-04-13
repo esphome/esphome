@@ -7,6 +7,7 @@
 
 #include "esphome/core/optional.h"
 #include "esphome/core/esphal.h"
+#include "esphome/core/defines.h"
 
 #ifdef CLANG_TIDY
 #undef ICACHE_RAM_ATTR

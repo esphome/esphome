@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -46,6 +46,7 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 
+@coroutine_with_priority(40.0)
 def to_code(config):
     rhs = APIServer.new()
     api = cg.Pvariable(config[CONF_ID], rhs)

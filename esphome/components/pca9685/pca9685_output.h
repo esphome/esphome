@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/output/float_output.h"
-#include "esphome/components/i2c/i2c_component.h"
+#include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace pca9685 {

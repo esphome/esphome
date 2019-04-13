@@ -7,7 +7,7 @@ from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
     CONF_SUBNET, CONF_USE_ADDRESS
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, coroutine_with_priority
 
 wifi_ns = cg.esphome_ns.namespace('wifi')
 IPAddress = cg.global_ns.class_('IPAddress')
@@ -164,6 +164,7 @@ def wifi_network(config, static_ip):
     return ap
 
 
+@coroutine_with_priority(60.0)
 def to_code(config):
     rhs = WiFiComponent.new()
     wifi = cg.Pvariable(config[CONF_ID], rhs)

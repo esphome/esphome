@@ -3,7 +3,7 @@ import logging
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_PASSWORD, CONF_PORT, CONF_SAFE_MODE
-from esphome.core import CORE
+from esphome.core import CORE, coroutine_with_priority
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 
+@coroutine_with_priority(50.0)
 def to_code(config):
     ota = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
     cg.add(ota.set_auth_password(config[CONF_PASSWORD]))

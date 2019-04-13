@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome import pins
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_PCF8575
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, GPIOInputPin, GPIOOutputPin, io_ns
+
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -21,9 +18,9 @@ PCF8574GPIOInputPin = io_ns.class_('PCF8574GPIOInputPin', GPIOInputPin)
 PCF8574GPIOOutputPin = io_ns.class_('PCF8574GPIOOutputPin', GPIOOutputPin)
 
 CONFIG_SCHEMA = cv.Schema({
-    vol.Required(CONF_ID): cv.declare_variable_id(pins.PCF8574Component),
-    vol.Optional(CONF_ADDRESS, default=0x21): cv.i2c_address,
-    vol.Optional(CONF_PCF8575, default=False): cv.boolean,
+    cv.Required(CONF_ID): cv.declare_variable_id(pins.PCF8574Component),
+    cv.Optional(CONF_ADDRESS, default=0x21): cv.i2c_address,
+    cv.Optional(CONF_PCF8575, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

@@ -1,11 +1,10 @@
 import re
 
-import voluptuous as vol
-
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
 from esphome.components import logger
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, \
     CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, \
     CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, \
@@ -13,9 +12,8 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
     CONF_STATE_TOPIC, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
     CONF_WILL_MESSAGE
-from esphome.cpp_generator import Pvariable, RawExpression, StructInitializer, TemplateArguments, \
-    add, get_variable, process_lambda, templatable
-from esphome.cpp_types import Action, App, Component, JsonObjectConstRef, JsonObjectRef, \
+add, get_variable, process_lambda, templatable
+
     Trigger, bool_, esphome_ns, optional, std_string, uint8, void
 
 
@@ -25,15 +23,15 @@ def validate_message_just_topic(value):
 
 
 MQTT_MESSAGE_BASE = cv.Schema({
-    vol.Required(CONF_TOPIC): cv.publish_topic,
-    vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
-    vol.Optional(CONF_RETAIN, default=True): cv.boolean,
+    cv.Required(CONF_TOPIC): cv.publish_topic,
+    cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+    cv.Optional(CONF_RETAIN, default=True): cv.boolean,
 })
 
-MQTT_MESSAGE_TEMPLATE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE, validate_message_just_topic)
+MQTT_MESSAGE_TEMPLATE_SCHEMA = cv.Any(None, MQTT_MESSAGE_BASE, validate_message_just_topic)
 
-MQTT_MESSAGE_SCHEMA = vol.Any(None, MQTT_MESSAGE_BASE.extend({
-    vol.Required(CONF_PAYLOAD): cv.mqtt_payload,
+MQTT_MESSAGE_SCHEMA = cv.Any(None, MQTT_MESSAGE_BASE.extend({
+    cv.Required(CONF_PAYLOAD): cv.mqtt_payload,
 }))
 
 mqtt_ns = esphome_ns.namespace('mqtt')
@@ -62,41 +60,41 @@ def validate_config(value):
 def validate_fingerprint(value):
     value = cv.string(value)
     if re.match(r'^[0-9a-f]{40}$', value) is None:
-        raise vol.Invalid(u"fingerprint must be valid SHA1 hash")
+        raise cv.Invalid(u"fingerprint must be valid SHA1 hash")
     return value
 
 
-CONFIG_SCHEMA = vol.All(cv.Schema({
+CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
-    vol.Required(CONF_BROKER): cv.string_strict,
-    vol.Optional(CONF_PORT): cv.port,
-    vol.Optional(CONF_USERNAME, default=''): cv.string,
-    vol.Optional(CONF_PASSWORD, default=''): cv.string,
-    vol.Optional(CONF_CLIENT_ID): vol.All(cv.string, vol.Length(max=23)),
-    vol.Optional(CONF_DISCOVERY): vol.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
-    vol.Optional(CONF_DISCOVERY_RETAIN): cv.boolean,
-    vol.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
-    vol.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
-    vol.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
-    vol.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
-    vol.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
-    vol.Optional(CONF_LOG_TOPIC): vol.Any(None, MQTT_MESSAGE_BASE.extend({
-        vol.Optional(CONF_LEVEL): logger.is_log_level,
+    cv.Required(CONF_BROKER): cv.string_strict,
+    cv.Optional(CONF_PORT): cv.port,
+    cv.Optional(CONF_USERNAME, default=''): cv.string,
+    cv.Optional(CONF_PASSWORD, default=''): cv.string,
+    cv.Optional(CONF_CLIENT_ID): cv.All(cv.string, cv.Length(max=23)),
+    cv.Optional(CONF_DISCOVERY): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
+    cv.Optional(CONF_DISCOVERY_RETAIN): cv.boolean,
+    cv.Optional(CONF_DISCOVERY_PREFIX): cv.publish_topic,
+    cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
+    cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
+    cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
+    cv.Optional(CONF_TOPIC_PREFIX): cv.publish_topic,
+    cv.Optional(CONF_LOG_TOPIC): cv.Any(None, MQTT_MESSAGE_BASE.extend({
+        cv.Optional(CONF_LEVEL): logger.is_log_level,
     }), validate_message_just_topic),
-    vol.Optional(CONF_SSL_FINGERPRINTS): vol.All(cv.only_on_esp8266,
+    cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(cv.only_on_esp8266,
                                                  cv.ensure_list(validate_fingerprint)),
-    vol.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
-    vol.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_ON_MESSAGE): automation.validate_automation({
+    cv.Optional(CONF_KEEPALIVE): cv.positive_time_period_seconds,
+    cv.Optional(CONF_REBOOT_TIMEOUT): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
-        vol.Required(CONF_TOPIC): cv.subscribe_topic,
-        vol.Optional(CONF_QOS): cv.mqtt_qos,
-        vol.Optional(CONF_PAYLOAD): cv.string_strict,
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS): cv.mqtt_qos,
+        cv.Optional(CONF_PAYLOAD): cv.string_strict,
     }),
-    vol.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
+    cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
-        vol.Required(CONF_TOPIC): cv.subscribe_topic,
-        vol.Optional(CONF_QOS, default=0): cv.mqtt_qos,
+        cv.Required(CONF_TOPIC): cv.subscribe_topic,
+        cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     }),
 }), validate_config)
 
@@ -114,6 +112,7 @@ def exp_mqtt_message(config):
     return exp
 
 
+@coroutine_with_priority(40.0)
 def to_code(config):
     rhs = App.init_mqtt(config[CONF_BROKER], config[CONF_PORT],
                         config[CONF_USERNAME], config[CONF_PASSWORD])
@@ -124,65 +123,65 @@ def to_code(config):
     discovery_prefix = config.get(CONF_DISCOVERY_PREFIX, 'homeassistant')
 
     if not discovery:
-        add(mqtt.disable_discovery())
+        cg.add(mqtt.disable_discovery())
     elif discovery == "CLEAN":
-        add(mqtt.set_discovery_info(discovery_prefix, discovery_retain, True))
+        cg.add(mqtt.set_discovery_info(discovery_prefix, discovery_retain, True))
     elif CONF_DISCOVERY_RETAIN in config or CONF_DISCOVERY_PREFIX in config:
-        add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
+        cg.add(mqtt.set_discovery_info(discovery_prefix, discovery_retain))
 
     if CONF_TOPIC_PREFIX in config:
-        add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
+        cg.add(mqtt.set_topic_prefix(config[CONF_TOPIC_PREFIX]))
 
     if CONF_BIRTH_MESSAGE in config:
         birth_message = config[CONF_BIRTH_MESSAGE]
         if not birth_message:
-            add(mqtt.disable_birth_message())
+            cg.add(mqtt.disable_birth_message())
         else:
-            add(mqtt.set_birth_message(exp_mqtt_message(birth_message)))
+            cg.add(mqtt.set_birth_message(exp_mqtt_message(birth_message)))
     if CONF_WILL_MESSAGE in config:
         will_message = config[CONF_WILL_MESSAGE]
         if not will_message:
-            add(mqtt.disable_last_will())
+            cg.add(mqtt.disable_last_will())
         else:
-            add(mqtt.set_last_will(exp_mqtt_message(will_message)))
+            cg.add(mqtt.set_last_will(exp_mqtt_message(will_message)))
     if CONF_SHUTDOWN_MESSAGE in config:
         shutdown_message = config[CONF_SHUTDOWN_MESSAGE]
         if not shutdown_message:
-            add(mqtt.disable_shutdown_message())
+            cg.add(mqtt.disable_shutdown_message())
         else:
-            add(mqtt.set_shutdown_message(exp_mqtt_message(shutdown_message)))
+            cg.add(mqtt.set_shutdown_message(exp_mqtt_message(shutdown_message)))
 
     if CONF_CLIENT_ID in config:
-        add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
+        cg.add(mqtt.set_client_id(config[CONF_CLIENT_ID]))
 
     if CONF_LOG_TOPIC in config:
         log_topic = config[CONF_LOG_TOPIC]
         if not log_topic:
-            add(mqtt.disable_log_message())
+            cg.add(mqtt.disable_log_message())
         else:
-            add(mqtt.set_log_message_template(exp_mqtt_message(log_topic)))
+            cg.add(mqtt.set_log_message_template(exp_mqtt_message(log_topic)))
 
             if CONF_LEVEL in log_topic:
-                add(mqtt.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
+                cg.add(mqtt.set_log_level(logger.LOG_LEVELS[log_topic[CONF_LEVEL]]))
 
     if CONF_SSL_FINGERPRINTS in config:
         for fingerprint in config[CONF_SSL_FINGERPRINTS]:
             arr = [RawExpression("0x{}".format(fingerprint[i:i + 2])) for i in range(0, 40, 2)]
-            add(mqtt.add_ssl_fingerprint(arr))
+            cg.add(mqtt.add_ssl_fingerprint(arr))
 
     if CONF_KEEPALIVE in config:
-        add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
+        cg.add(mqtt.set_keep_alive(config[CONF_KEEPALIVE]))
 
     if CONF_REBOOT_TIMEOUT in config:
-        add(mqtt.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+        cg.add(mqtt.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_ON_MESSAGE, []):
         rhs = App.register_component(mqtt.make_message_trigger(conf[CONF_TOPIC]))
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         if CONF_QOS in conf:
-            add(trigger.set_qos(conf[CONF_QOS]))
+            cg.add(trigger.set_qos(conf[CONF_QOS]))
         if CONF_PAYLOAD in conf:
-            add(trigger.set_payload(conf[CONF_PAYLOAD]))
+            cg.add(trigger.set_payload(conf[CONF_PAYLOAD]))
         automation.build_automations(trigger, [(std_string, 'x')], conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
@@ -194,10 +193,10 @@ def to_code(config):
 CONF_MQTT_PUBLISH = 'mqtt.publish'
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
-    vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
-    vol.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
-    vol.Optional(CONF_QOS): cv.templatable(cv.mqtt_qos),
-    vol.Optional(CONF_RETAIN): cv.templatable(cv.boolean),
+    cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
+    cv.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
+    cv.Optional(CONF_QOS): cv.templatable(cv.mqtt_qos),
+    cv.Optional(CONF_RETAIN): cv.templatable(cv.boolean),
 })
 
 
@@ -208,26 +207,26 @@ def mqtt_publish_action_to_code(config, action_id, template_arg, args):
     type = MQTTPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     template_ = yield templatable(config[CONF_TOPIC], args, std_string)
-    add(action.set_topic(template_))
+    cg.add(action.set_topic(template_))
 
     template_ = yield templatable(config[CONF_PAYLOAD], args, std_string)
-    add(action.set_payload(template_))
+    cg.add(action.set_payload(template_))
     if CONF_QOS in config:
         template_ = yield templatable(config[CONF_QOS], args, uint8)
-        add(action.set_qos(template_))
+        cg.add(action.set_qos(template_))
     if CONF_RETAIN in config:
         template_ = yield templatable(config[CONF_RETAIN], args, bool_)
-        add(action.set_retain(template_))
+        cg.add(action.set_retain(template_))
     yield action
 
 
 CONF_MQTT_PUBLISH_JSON = 'mqtt.publish_json'
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
-    vol.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
-    vol.Required(CONF_PAYLOAD): cv.lambda_,
-    vol.Optional(CONF_QOS): cv.mqtt_qos,
-    vol.Optional(CONF_RETAIN): cv.boolean,
+    cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
+    cv.Required(CONF_PAYLOAD): cv.lambda_,
+    cv.Optional(CONF_QOS): cv.mqtt_qos,
+    cv.Optional(CONF_RETAIN): cv.boolean,
 })
 
 
@@ -238,15 +237,15 @@ def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
     type = MQTTPublishJsonAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     template_ = yield templatable(config[CONF_TOPIC], args, std_string)
-    add(action.set_topic(template_))
+    cg.add(action.set_topic(template_))
 
     args_ = args + [(JsonObjectRef, 'root')]
     lambda_ = yield process_lambda(config[CONF_PAYLOAD], args_, return_type=void)
-    add(action.set_payload(lambda_))
+    cg.add(action.set_payload(lambda_))
     if CONF_QOS in config:
-        add(action.set_qos(config[CONF_QOS]))
+        cg.add(action.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
-        add(action.set_retain(config[CONF_RETAIN]))
+        cg.add(action.set_retain(config[CONF_RETAIN]))
     yield action
 
 
@@ -265,19 +264,19 @@ def get_default_topic_for(data, component_type, name, suffix):
 
 def setup_mqtt_component(obj, config):
     if CONF_RETAIN in config:
-        add(obj.set_retain(config[CONF_RETAIN]))
+        cg.add(obj.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):
-        add(obj.disable_discovery())
+        cg.add(obj.disable_discovery())
     if CONF_STATE_TOPIC in config:
-        add(obj.set_custom_state_topic(config[CONF_STATE_TOPIC]))
+        cg.add(obj.set_custom_state_topic(config[CONF_STATE_TOPIC]))
     if CONF_COMMAND_TOPIC in config:
-        add(obj.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+        cg.add(obj.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
     if CONF_AVAILABILITY in config:
         availability = config[CONF_AVAILABILITY]
         if not availability:
-            add(obj.disable_availability())
+            cg.add(obj.disable_availability())
         else:
-            add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
+            cg.add(obj.set_availability(availability[CONF_TOPIC], availability[CONF_PAYLOAD_AVAILABLE],
                                      availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 

@@ -2,6 +2,7 @@ from esphome.cpp_generator import MockObj
 
 global_ns = MockObj('', '')
 void = global_ns.namespace('void')
+nullptr = global_ns.namespace('nullptr')
 float_ = global_ns.namespace('float')
 bool_ = global_ns.namespace('bool')
 std_ns = global_ns.namespace('std')

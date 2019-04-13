@@ -1,14 +1,11 @@
-import voluptuous as vol
-
 from esphome import pins
 from esphome.components import wifi
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_DOMAIN, CONF_ID, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_TYPE, \
     CONF_USE_ADDRESS, ESP_PLATFORM_ESP32
 from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import gpio_output_pin_expression
-from esphome.cpp_types import App, Component, esphome_ns, global_ns
+
 
 CONFLICTS_WITH = ['wifi']
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
@@ -46,39 +43,40 @@ def validate(config):
     return config
 
 
-CONFIG_SCHEMA = vol.All(cv.Schema({
+CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(EthernetComponent),
-    vol.Required(CONF_TYPE): cv.one_of(*ETHERNET_TYPES, upper=True),
-    vol.Required(CONF_MDC_PIN): pins.output_pin,
-    vol.Required(CONF_MDIO_PIN): pins.input_output_pin,
-    vol.Optional(CONF_CLK_MODE, default='GPIO0_IN'): cv.one_of(*CLK_MODES, upper=True, space='_'),
-    vol.Optional(CONF_PHY_ADDR, default=0): vol.All(cv.int_, vol.Range(min=0, max=31)),
-    vol.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_MANUAL_IP): wifi.STA_MANUAL_IP_SCHEMA,
-    vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
-    vol.Optional(CONF_USE_ADDRESS): cv.string_strict,
+    cv.Required(CONF_TYPE): cv.one_of(*ETHERNET_TYPES, upper=True),
+    cv.Required(CONF_MDC_PIN): pins.output_pin,
+    cv.Required(CONF_MDIO_PIN): pins.input_output_pin,
+    cv.Optional(CONF_CLK_MODE, default='GPIO0_IN'): cv.one_of(*CLK_MODES, upper=True, space='_'),
+    cv.Optional(CONF_PHY_ADDR, default=0): cv.All(cv.int_, cv.Range(min=0, max=31)),
+    cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_MANUAL_IP): wifi.STA_MANUAL_IP_SCHEMA,
+    cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
+    cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
-    vol.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
+    cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
 
 
+@coroutine_with_priority(60.0)
 def to_code(config):
     rhs = App.init_ethernet()
     eth = Pvariable(config[CONF_ID], rhs)
 
-    add(eth.set_phy_addr(config[CONF_PHY_ADDR]))
-    add(eth.set_mdc_pin(config[CONF_MDC_PIN]))
-    add(eth.set_mdio_pin(config[CONF_MDIO_PIN]))
-    add(eth.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
-    add(eth.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
-    add(eth.set_use_address(config[CONF_USE_ADDRESS]))
+    cg.add(eth.set_phy_addr(config[CONF_PHY_ADDR]))
+    cg.add(eth.set_mdc_pin(config[CONF_MDC_PIN]))
+    cg.add(eth.set_mdio_pin(config[CONF_MDIO_PIN]))
+    cg.add(eth.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
+    cg.add(eth.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
+    cg.add(eth.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
         pin = yield gpio_output_pin_expression(config[CONF_POWER_PIN])
-        add(eth.set_power_pin(pin))
+        cg.add(eth.set_power_pin(pin))
 
     if CONF_MANUAL_IP in config:
-        add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))
+        cg.add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))
 
 
 REQUIRED_BUILD_FLAGS = '-DUSE_ETHERNET'

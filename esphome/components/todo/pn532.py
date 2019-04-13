@@ -1,14 +1,11 @@
-import voluptuous as vol
-
 from esphome import automation, pins
 from esphome.components import binary_sensor, spi
 from esphome.components.spi import SPIComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CS_PIN, CONF_ID, CONF_ON_TAG, CONF_SPI_ID, CONF_TRIGGER_ID, \
     CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_helpers import gpio_output_pin_expression, register_component
-from esphome.cpp_types import App, PollingComponent, Trigger, std_string
+
 
 DEPENDENCIES = ['spi']
 MULTI_CONF = True
@@ -20,9 +17,9 @@ PN532Trigger = binary_sensor.binary_sensor_ns.class_('PN532Trigger', Trigger.tem
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(PN532Component),
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
-    vol.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-    vol.Optional(CONF_ON_TAG): automation.validate_automation({
+    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PN532Trigger),
     }),
 }).extend(cv.COMPONENT_SCHEMA)

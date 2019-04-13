@@ -24,9 +24,8 @@ bool AndCondition<Ts...>::check(Ts... x) {
 }
 
 template<typename... Ts>
-AndCondition<Ts...>::AndCondition(const std::vector<Condition < Ts...> *
-> &conditions) :
-conditions_(conditions) {}
+AndCondition<Ts...>::AndCondition(const std::vector<Condition < Ts...> *> &conditions)
+  : conditions_(conditions) {}
 
 template<typename... Ts>
 bool OrCondition<Ts...>::check(Ts... x) {
@@ -39,9 +38,9 @@ bool OrCondition<Ts...>::check(Ts... x) {
 }
 
 template<typename... Ts>
-OrCondition<Ts...>::OrCondition(const std::vector<Condition < Ts...> *
-> &conditions) :
-conditions_(conditions) {}
+OrCondition<Ts...>::OrCondition(const std::vector<Condition < Ts...> *> &conditions)
+  : conditions_(conditions) {}
+
 template<typename... Ts>
 void Trigger<Ts...>::set_parent(Automation<Ts...> *parent) { this->parent_ = parent; }
 
@@ -104,14 +103,10 @@ Condition<Ts...> *Automation<Ts...>::add_condition(Condition<Ts...> *condition) 
   return condition;
 }
 template<typename... Ts>
-void Automation<Ts...>::add_conditions(const std::vector<Condition < Ts...> *
-> &conditions) {
-for (
-auto *condition
-: conditions) {
-this->
-add_condition(condition);
-}
+void Automation<Ts...>::add_conditions(const std::vector<Condition < Ts...> *> &conditions) {
+  for (auto *condition : conditions) {
+    this->add_condition(condition);
+  }
 }
 template<typename... Ts>
 Automation<Ts...>::Automation(Trigger<Ts...> *trigger) : trigger_(trigger) {
@@ -122,10 +117,8 @@ Action<Ts...> *Automation<Ts...>::add_action(Action<Ts...> *action) {
   this->actions_.add_action(action);
 }
 template<typename... Ts>
-void Automation<Ts...>::add_actions(const std::vector<Action < Ts...> *
-> &actions) {
-this->actions_.
-add_actions(actions);
+void Automation<Ts...>::add_actions(const std::vector<Action < Ts...> *> &actions) {
+  this->actions_.add_actions(actions);
 }
 template<typename... Ts>
 void Automation<Ts...>::trigger(Ts... x) {
@@ -161,14 +154,10 @@ Action<Ts...> *ActionList<Ts...>::add_action(Action<Ts...> *action) {
   return this->actions_end_ = action;
 }
 template<typename... Ts>
-void ActionList<Ts...>::add_actions(const std::vector<Action < Ts...> *
-> &actions) {
-for (
-auto *action
-: actions) {
-this->
-add_action(action);
-}
+void ActionList<Ts...>::add_actions(const std::vector<Action < Ts...> *> &actions) {
+  for (auto *action: actions) {
+    this->add_action(action);
+  }
 }
 template<typename... Ts>
 void ActionList<Ts...>::play(Ts... x) {
@@ -210,30 +199,18 @@ void IfAction<Ts...>::play(Ts... x) {
   }
 }
 template<typename... Ts>
-void IfAction<Ts...>::add_then(const std::vector<Action < Ts...> *
-> &actions) {
-this->then_.
-add_actions(actions);
-this->then_.add_action(new LambdaAction<Ts...>([this](
-Ts... x
-) {
-this->
-play_next(x
-...);
-}));
+void IfAction<Ts...>::add_then(const std::vector<Action < Ts...> *> &actions) {
+  this->then_.add_actions(actions);
+  this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
+    this->play_next(x...);
+  }));
 }
 template<typename... Ts>
-void IfAction<Ts...>::add_else(const std::vector<Action < Ts...> *
-> &actions) {
-this->else_.
-add_actions(actions);
-this->else_.add_action(new LambdaAction<Ts...>([this](
-Ts... x
-) {
-this->
-play_next(x
-...);
-}));
+void IfAction<Ts...>::add_else(const std::vector<Action < Ts...> *> &actions) {
+  this->else_.add_actions(actions);
+  this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
+    this->play_next(x...);
+  }));
 }
 template<typename... Ts>
 void IfAction<Ts...>::stop() {
@@ -252,51 +229,15 @@ template<typename... Ts>
 UpdateComponentAction<Ts...>::UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
 template<typename... Ts>
-ScriptExecuteAction<Ts...>::ScriptExecuteAction(Script *script) : script_(script) {}
+WhileAction<Ts...>::WhileAction(const std::vector<Condition < Ts...> *> &conditions) : conditions_(conditions) {}
 
 template<typename... Ts>
-void ScriptExecuteAction<Ts...>::play(Ts... x) {
-  this->script_->trigger();
-  this->play_next(x...);
-}
-
-template<typename... Ts>
-ScriptExecuteAction<Ts...> *Script::make_execute_action() {
-  return new ScriptExecuteAction<Ts...>(this);
-}
-
-template<typename... Ts>
-ScriptStopAction<Ts...>::ScriptStopAction(Script *script) : script_(script) {}
-
-template<typename... Ts>
-void ScriptStopAction<Ts...>::play(Ts... x) {
-  this->script_->stop();
-  this->play_next(x...);
-}
-
-template<typename... Ts>
-ScriptStopAction<Ts...> *Script::make_stop_action() {
-  return new ScriptStopAction<Ts...>(this);
-}
-
-template<typename... Ts>
-WhileAction<Ts...>::WhileAction(const std::vector<Condition < Ts...> *
-> &conditions) :
-conditions_(conditions) {}
-template<typename... Ts>
-void WhileAction<Ts...>::add_then(const std::vector<Action < Ts...> *
-> &actions) {
-this->then_.
-add_actions(actions);
-this->then_.add_action(new LambdaAction<Ts...>([this](
-Ts... x
-) {
-this->
-is_running_ = false;
-this->
-play(x
-...);
-}));
+void WhileAction<Ts...>::add_then(const std::vector<Action < Ts...> *> &actions) {
+  this->then_.add_actions(actions);
+  this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
+    this->is_running_ = false;
+    this->play(x...);
+  }));
 }
 template<typename... Ts>
 void WhileAction<Ts...>::play(Ts... x) {
@@ -321,8 +262,7 @@ void WhileAction<Ts...>::stop() {
 
 template<typename... Ts>
 WaitUntilAction<Ts...>::WaitUntilAction(const std::vector<Condition < Ts...> *
-> &conditions) :
-conditions_(conditions) {}
+> &conditions) : conditions_(conditions) {}
 template<typename... Ts>
 void WaitUntilAction<Ts...>::play(Ts... x) {
   this->var_ = std::make_tuple(x...);

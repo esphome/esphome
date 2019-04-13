@@ -203,10 +203,10 @@ void ComponentIterator::advance() {
 #endif
 #ifdef USE_COVER
     case IteratorState::COVER:
-      if (this->at_ >= this->server_->covers_.size()) {
+      if (this->at_ >= App.get_covers().size()) {
         advance_platform = true;
       } else {
-        auto *cover = this->server_->covers_[this->at_];
+        auto *cover = App.get_covers()[this->at_];
         if (cover->is_internal()) {
           success = true;
           break;

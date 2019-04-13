@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome.components import i2c, binary_sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_ID
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component
+
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -15,7 +12,7 @@ MPR121Component = binary_sensor.binary_sensor_ns.class_('MPR121Component', Compo
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MPR121Component),
-    vol.Optional(CONF_ADDRESS): cv.i2c_address
+    cv.Optional(CONF_ADDRESS): cv.i2c_address
 }).extend(cv.COMPONENT_SCHEMA)
 
 

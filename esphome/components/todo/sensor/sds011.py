@@ -1,13 +1,10 @@
-import voluptuous as vol
-
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import (CONF_ID, CONF_NAME, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY,
                            CONF_UART_ID, CONF_UPDATE_INTERVAL)
-from esphome.cpp_generator import Pvariable, add, get_variable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component
+
 
 DEPENDENCIES = ['uart']
 
@@ -19,11 +16,11 @@ def validate_sds011_rx_mode(value):
     if CONF_UPDATE_INTERVAL in value and not value.get(CONF_RX_ONLY):
         update_interval = value[CONF_UPDATE_INTERVAL]
         if update_interval.total_minutes > 30:
-            raise vol.Invalid("Maximum update interval is 30min")
+            raise cv.Invalid("Maximum update interval is 30min")
     elif value.get(CONF_RX_ONLY) and CONF_UPDATE_INTERVAL in value:
         # update_interval does not affect anything in rx-only mode, let's warn user about
         # that
-        raise vol.Invalid("update_interval has no effect in rx_only mode. Please remove it.",
+        raise cv.Invalid("update_interval has no effect in rx_only mode. Please remove it.",
                           path=['update_interval'])
     return value
 
@@ -32,15 +29,15 @@ SDS011_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SDS011Sensor),
 })
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SDS011Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
 
-    vol.Optional(CONF_RX_ONLY): cv.boolean,
+    cv.Optional(CONF_RX_ONLY): cv.boolean,
 
-    vol.Optional(CONF_PM_2_5): cv.nameable(SDS011_SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_10_0): cv.nameable(SDS011_SENSOR_SCHEMA),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,
+    cv.Optional(CONF_PM_2_5): cv.nameable(SDS011_SENSOR_SCHEMA),
+    cv.Optional(CONF_PM_10_0): cv.nameable(SDS011_SENSOR_SCHEMA),
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_PM_2_5, CONF_PM_10_0),
                           validate_sds011_rx_mode)
 
@@ -52,9 +49,9 @@ def to_code(config):
     sds011 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_UPDATE_INTERVAL in config:
-        add(sds011.set_update_interval_min(config.get(CONF_UPDATE_INTERVAL)))
+        cg.add(sds011.set_update_interval_min(config.get(CONF_UPDATE_INTERVAL)))
     if CONF_RX_ONLY in config:
-        add(sds011.set_rx_mode_only(config[CONF_RX_ONLY]))
+        cg.add(sds011.set_rx_mode_only(config[CONF_RX_ONLY]))
 
     if CONF_PM_2_5 in config:
         conf = config[CONF_PM_2_5]

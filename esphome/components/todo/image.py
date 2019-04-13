@@ -1,16 +1,12 @@
 # coding=utf-8
 import logging
 
-import voluptuous as vol
-
 from esphome import core
 from esphome.components import display, font
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphome.core import CORE, HexInt
-from esphome.cpp_generator import Pvariable, progmem_array, safe_exp
-from esphome.cpp_types import App, uint8
-
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ['display']
@@ -21,13 +17,13 @@ Image_ = display.display_ns.class_('Image')
 CONF_RAW_DATA_ID = 'raw_data_id'
 
 IMAGE_SCHEMA = cv.Schema({
-    vol.Required(CONF_ID): cv.declare_variable_id(Image_),
-    vol.Required(CONF_FILE): cv.file_,
-    vol.Optional(CONF_RESIZE): cv.dimensions,
+    cv.Required(CONF_ID): cv.declare_variable_id(Image_),
+    cv.Required(CONF_FILE): cv.file_,
+    cv.Optional(CONF_RESIZE): cv.dimensions,
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(uint8),
 })
 
-CONFIG_SCHEMA = vol.All(font.validate_pillow_installed, IMAGE_SCHEMA)
+CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
 def to_code(config):

@@ -1020,7 +1020,7 @@ bool APIConnection::send_ping_request() {
 #ifdef USE_COVER
 void APIConnection::on_cover_command_request_(const CoverCommandRequest &req) {
   ESP_LOGVV(TAG, "on_cover_command_request_");
-  cover::Cover *cover = this->parent_->get_cover_by_key(req.get_key());
+  cover::Cover *cover = App.get_cover_by_key(req.get_key());
   if (cover == nullptr)
     return;
 

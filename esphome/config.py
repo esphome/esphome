@@ -71,6 +71,10 @@ class ComponentManifest(object):
     def auto_load(self):
         return getattr(self.module, 'AUTO_LOAD', [])
 
+    @property
+    def to_code_priority(self):
+        return getattr(self.module, 'TO_CODE_PRIORITY', [])
+
     def _get_flags_set(self, name, config):
         if not hasattr(self.module, name):
             return set()

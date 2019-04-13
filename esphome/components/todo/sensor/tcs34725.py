@@ -1,13 +1,10 @@
 # coding=utf-8
-import voluptuous as vol
-
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, \
     CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['i2c']
 
@@ -51,22 +48,22 @@ COLOR_CHANNEL_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
 SENSOR_KEYS = [CONF_RED_CHANNEL, CONF_GREEN_CHANNEL, CONF_BLUE_CHANNEL,
                CONF_CLEAR_CHANNEL, CONF_ILLUMINANCE, CONF_COLOR_TEMPERATURE]
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TCS34725Component),
-    vol.Optional(CONF_ADDRESS): cv.i2c_address,
-    vol.Optional(CONF_RED_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
-    vol.Optional(CONF_GREEN_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
-    vol.Optional(CONF_BLUE_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
-    vol.Optional(CONF_CLEAR_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
-    vol.Optional(CONF_ILLUMINANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_ADDRESS): cv.i2c_address,
+    cv.Optional(CONF_RED_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
+    cv.Optional(CONF_GREEN_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
+    cv.Optional(CONF_BLUE_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
+    cv.Optional(CONF_CLEAR_CHANNEL): cv.nameable(COLOR_CHANNEL_SENSOR_SCHEMA),
+    cv.Optional(CONF_ILLUMINANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(TCS35725IlluminanceSensor),
     })),
-    vol.Optional(CONF_COLOR_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_COLOR_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(TCS35725ColorTemperatureSensor),
     })),
-    vol.Optional(CONF_INTEGRATION_TIME): cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
-    vol.Optional(CONF_GAIN): vol.All(vol.Upper, cv.one_of(*TCS34725_GAINS), upper=True),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_INTEGRATION_TIME): cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
+    cv.Optional(CONF_GAIN): cv.All(cv.Upper, cv.one_of(*TCS34725_GAINS), upper=True),
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
@@ -74,11 +71,11 @@ def to_code(config):
     rhs = App.make_tcs34725(config.get(CONF_UPDATE_INTERVAL))
     tcs = Pvariable(config[CONF_ID], rhs)
     if CONF_ADDRESS in config:
-        add(tcs.set_address(config[CONF_ADDRESS]))
+        cg.add(tcs.set_address(config[CONF_ADDRESS]))
     if CONF_INTEGRATION_TIME in config:
-        add(tcs.set_integration_time(TCS34725_INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
+        cg.add(tcs.set_integration_time(TCS34725_INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
     if CONF_GAIN in config:
-        add(tcs.set_gain(TCS34725_GAINS[config[CONF_GAIN]]))
+        cg.add(tcs.set_gain(TCS34725_GAINS[config[CONF_GAIN]]))
     if CONF_RED_CHANNEL in config:
         conf = config[CONF_RED_CHANNEL]
         sensor.register_sensor(tcs.Pmake_red_sensor(conf[CONF_NAME]), conf)

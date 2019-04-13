@@ -1,18 +1,14 @@
-import voluptuous as vol
-
 from esphome.components import sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_types import App
-
 DEPENDENCIES = ['api']
 
 HomeassistantSensor = sensor.sensor_ns.class_('HomeassistantSensor', sensor.Sensor)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantSensor),
-    vol.Required(CONF_ENTITY_ID): cv.entity_id,
+    cv.Required(CONF_ENTITY_ID): cv.entity_id,
 }))
 
 

@@ -41,7 +41,7 @@ int HOT esp_log_vprintf_(int level, const char *tag, const char *format, va_list
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 int HOT esp_log_vprintf_(int level, const char *tag, const __FlashStringHelper *format, va_list args) {  // NOLINT
 #ifdef USE_LOGGER
-  auto *log = esphome::global_log_component;
+  auto *log = logger::global_logger;
   if (log == nullptr)
     return 0;
 

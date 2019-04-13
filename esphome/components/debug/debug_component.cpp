@@ -1,6 +1,7 @@
 #include "debug_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <rom/rtc.h>

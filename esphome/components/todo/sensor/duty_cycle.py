@@ -1,20 +1,17 @@
-import voluptuous as vol
-
 from esphome import pins
 from esphome.components import sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_NAME, CONF_PIN, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import gpio_input_pin_expression, register_component
-from esphome.cpp_types import App
+
 
 DutyCycleSensor = sensor.sensor_ns.class_('DutyCycleSensor', sensor.PollingSensorComponent)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(DutyCycleSensor),
-    vol.Required(CONF_PIN): vol.All(pins.internal_gpio_input_pin_schema,
+    cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA))
 
 

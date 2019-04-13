@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome.components import binary_sensor
 from esphome.components.mpr121 import MPR121Component, CONF_MPR121_ID
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CHANNEL, CONF_NAME
-from esphome.cpp_generator import get_variable
-
 DEPENDENCIES = ['mpr121']
 MPR121Channel = binary_sensor.binary_sensor_ns.class_(
     'MPR121Channel', binary_sensor.BinarySensor)
@@ -13,7 +10,7 @@ MPR121Channel = binary_sensor.binary_sensor_ns.class_(
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(MPR121Channel),
     cv.GenerateID(CONF_MPR121_ID): cv.use_variable_id(MPR121Component),
-    vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=11))
+    cv.Required(CONF_CHANNEL): cv.All(cv.Coerce(int), cv.Range(min=0, max=11))
 }))
 
 

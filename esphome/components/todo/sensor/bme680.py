@@ -1,14 +1,11 @@
-import voluptuous as vol
-
 from esphome import core
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_DURATION, CONF_GAS_RESISTANCE, CONF_HEATER, \
     CONF_HUMIDITY, CONF_ID, CONF_IIR_FILTER, CONF_NAME, CONF_OVERSAMPLING, CONF_PRESSURE, \
     CONF_TEMPERATURE, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['i2c']
 
@@ -35,7 +32,7 @@ IIR_FILTER_OPTIONS = {
 }
 
 BME680_OVERSAMPLING_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
-    vol.Optional(CONF_OVERSAMPLING): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+    cv.Optional(CONF_OVERSAMPLING): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
 })
 
 BME680Component = sensor.sensor_ns.class_('BME680Component', PollingComponent, i2c.I2CDevice)
@@ -50,26 +47,26 @@ BME680GasResistanceSensor = sensor.sensor_ns.class_('BME680GasResistanceSensor',
 
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(BME680Component),
-    vol.Optional(CONF_ADDRESS, default=0x76): cv.i2c_address,
-    vol.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_ADDRESS, default=0x76): cv.i2c_address,
+    cv.Required(CONF_TEMPERATURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680TemperatureSensor),
     })),
-    vol.Required(CONF_PRESSURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+    cv.Required(CONF_PRESSURE): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680PressureSensor),
     })),
-    vol.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
+    cv.Required(CONF_HUMIDITY): cv.nameable(BME680_OVERSAMPLING_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680HumiditySensor),
     })),
-    vol.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Required(CONF_GAS_RESISTANCE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BME680GasResistanceSensor),
     })),
-    vol.Optional(CONF_IIR_FILTER): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
-    vol.Optional(CONF_HEATER): vol.Any(None, vol.All(cv.Schema({
-        vol.Optional(CONF_TEMPERATURE, default=320): vol.All(vol.Coerce(int), vol.Range(200, 400)),
-        vol.Optional(CONF_DURATION, default='150ms'): vol.All(
-            cv.positive_time_period_milliseconds, vol.Range(max=core.TimePeriod(milliseconds=4032)))
+    cv.Optional(CONF_IIR_FILTER): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
+    cv.Optional(CONF_HEATER): cv.Any(None, cv.All(cv.Schema({
+        cv.Optional(CONF_TEMPERATURE, default=320): cv.All(cv.Coerce(int), cv.Range(200, 400)),
+        cv.Optional(CONF_DURATION, default='150ms'): cv.All(
+            cv.positive_time_period_milliseconds, cv.Range(max=core.TimePeriod(milliseconds=4032)))
     }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -83,22 +80,22 @@ def to_code(config):
     bme680 = Pvariable(config[CONF_ID], rhs)
     if CONF_OVERSAMPLING in config[CONF_TEMPERATURE]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_TEMPERATURE][CONF_OVERSAMPLING]]
-        add(bme680.set_temperature_oversampling(constant))
+        cg.add(bme680.set_temperature_oversampling(constant))
     if CONF_OVERSAMPLING in config[CONF_PRESSURE]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_PRESSURE][CONF_OVERSAMPLING]]
-        add(bme680.set_pressure_oversampling(constant))
+        cg.add(bme680.set_pressure_oversampling(constant))
     if CONF_OVERSAMPLING in config[CONF_HUMIDITY]:
         constant = OVERSAMPLING_OPTIONS[config[CONF_HUMIDITY][CONF_OVERSAMPLING]]
-        add(bme680.set_humidity_oversampling(constant))
+        cg.add(bme680.set_humidity_oversampling(constant))
     if CONF_IIR_FILTER in config:
         constant = IIR_FILTER_OPTIONS[config[CONF_IIR_FILTER]]
-        add(bme680.set_iir_filter(constant))
+        cg.add(bme680.set_iir_filter(constant))
     if CONF_HEATER in config:
         conf = config[CONF_HEATER]
         if not conf:
-            add(bme680.set_heater(0, 0))
+            cg.add(bme680.set_heater(0, 0))
         else:
-            add(bme680.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
+            cg.add(bme680.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
 
     sensor.setup_sensor(bme680.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
     sensor.setup_sensor(bme680.Pget_pressure_sensor(), config[CONF_PRESSURE])

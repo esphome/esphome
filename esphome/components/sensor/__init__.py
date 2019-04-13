@@ -11,7 +11,7 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
     CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_OR, \
     CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_THROTTLE, CONF_TO, CONF_TRIGGER_ID, \
     CONF_UNIT_OF_MEASUREMENT, \
-    CONF_WINDOW_SIZE, CONF_VALUE, CONF_HEARTBEAT
+    CONF_WINDOW_SIZE, CONF_VALUE, CONF_HEARTBEAT, CONF_NAME
 from esphome.core import CORE, coroutine
 from esphome.util import ServiceRegistry
 
@@ -281,6 +281,13 @@ def register_sensor(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_sensor(var))
     yield setup_sensor_core_(var, config)
+
+
+@coroutine
+def new_sensor(config):
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    yield register_sensor(var, config)
+    yield var
 
 
 CONF_SENSOR_IN_RANGE = 'sensor.in_range'

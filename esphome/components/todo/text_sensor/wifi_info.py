@@ -1,11 +1,7 @@
-import voluptuous as vol
-
 from esphome.components import text_sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_BSSID, CONF_ID, CONF_IP_ADDRESS, CONF_NAME, CONF_SSID
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_types import App, Component
-
 DEPENDENCIES = ['wifi']
 
 IPAddressWiFiInfo = text_sensor.text_sensor_ns.class_('IPAddressWiFiInfo',
@@ -16,13 +12,13 @@ BSSIDWiFiInfo = text_sensor.text_sensor_ns.class_('BSSIDWiFiInfo',
                                                   text_sensor.TextSensor, Component)
 
 PLATFORM_SCHEMA = text_sensor.PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_IP_ADDRESS): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_IP_ADDRESS): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(IPAddressWiFiInfo),
     })),
-    vol.Optional(CONF_SSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_SSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(SSIDWiFiInfo),
     })),
-    vol.Optional(CONF_BSSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_BSSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BSSIDWiFiInfo),
     })),
 })

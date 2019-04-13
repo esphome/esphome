@@ -1,14 +1,10 @@
 # coding=utf-8
-import voluptuous as vol
-
 from esphome import core
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
 from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
-from esphome.cpp_types import Action, esphome_ns, void
-
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
@@ -37,29 +33,29 @@ def validate_rotation(value):
     try:
         value = int(value)
     except ValueError:
-        raise vol.Invalid(u"Expected integer for rotation")
+        raise cv.Invalid(u"Expected integer for rotation")
     return cv.one_of(*DISPLAY_ROTATIONS)(value)
 
 
 BASIC_DISPLAY_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
 FULL_DISPLAY_PLATFORM_SCHEMA = BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_ROTATION): validate_rotation,
-    vol.Optional(CONF_PAGES): vol.All(cv.ensure_list({
+    cv.Optional(CONF_ROTATION): validate_rotation,
+    cv.Optional(CONF_PAGES): cv.All(cv.ensure_list({
         cv.GenerateID(): cv.declare_variable_id(DisplayPage),
-        vol.Required(CONF_LAMBDA): cv.lambda_,
-    }), vol.Length(min=1)),
+        cv.Required(CONF_LAMBDA): cv.lambda_,
+    }), cv.Length(min=1)),
 })
 
 
 def setup_display_core_(display_var, config):
     if CONF_UPDATE_INTERVAL in config:
-        add(display_var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+        cg.add(display_var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     if CONF_ROTATION in config:
-        add(display_var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
+        cg.add(display_var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
@@ -67,12 +63,12 @@ def setup_display_core_(display_var, config):
                                            return_type=void)
             var = Pvariable(conf[CONF_ID], DisplayPage.new(lambda_))
             pages.append(var)
-        add(display_var.set_pages(pages))
+        cg.add(display_var.set_pages(pages))
 
 
 CONF_DISPLAY_PAGE_SHOW = 'display.page.show'
 DISPLAY_PAGE_SHOW_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayPage)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayPage)),
 })
 
 
@@ -82,16 +78,16 @@ def display_page_show_to_code(config, action_id, template_arg, args):
     action = Pvariable(action_id, type.new(), type=type)
     if isinstance(config[CONF_ID], core.Lambda):
         template_ = yield templatable(config[CONF_ID], args, DisplayPagePtr)
-        add(action.set_page(template_))
+        cg.add(action.set_page(template_))
     else:
         var = yield get_variable(config[CONF_ID])
-        add(action.set_page(var))
+        cg.add(action.set_page(var))
     yield action
 
 
 CONF_DISPLAY_PAGE_SHOW_NEXT = 'display.page.show_next'
 DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
 })
 
 
@@ -104,7 +100,7 @@ def display_page_show_next_to_code(config, action_id, template_arg, args):
 
 CONF_DISPLAY_PAGE_SHOW_PREVIOUS = 'display.page.show_previous'
 DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
 })
 
 

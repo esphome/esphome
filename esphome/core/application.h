@@ -28,6 +28,9 @@
 #ifdef USE_LIGHT
 #include "esphome/components/light/light_state.h"
 #endif
+#ifdef USE_COVER
+#include "esphome/components/cover/cover.h"
+#endif
 
 namespace esphome {
 
@@ -70,7 +73,9 @@ class Application {
 #endif
 
 #ifdef USE_COVER
-  void register_cover(Cover *cover);
+  void register_cover(cover::Cover *cover) {
+    this->covers_.push_back(cover);
+  }
 #endif
 
 #ifdef USE_CLIMATE

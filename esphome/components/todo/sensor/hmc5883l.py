@@ -1,12 +1,9 @@
 # coding=utf-8
-import voluptuous as vol
-
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_NAME, CONF_RANGE, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['i2c']
 
@@ -44,23 +41,23 @@ def validate_range(value):
 SENSOR_KEYS = [CONF_FIELD_STRENGTH_X, CONF_FIELD_STRENGTH_Y, CONF_FIELD_STRENGTH_Z,
                CONF_HEADING]
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
-    vol.Optional(CONF_ADDRESS): cv.i2c_address,
-    vol.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_ADDRESS): cv.i2c_address,
+    cv.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
     })),
-    vol.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
     })),
-    vol.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(HMC5883LFieldStrengthSensor),
     })),
-    vol.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_HEADING): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(HMC5883LHeadingSensor),
     })),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
-    vol.Optional(CONF_RANGE): validate_range,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_RANGE): validate_range,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(*SENSOR_KEYS))
 
 
@@ -68,9 +65,9 @@ def to_code(config):
     rhs = App.make_hmc5883l(config.get(CONF_UPDATE_INTERVAL))
     hmc = Pvariable(config[CONF_ID], rhs)
     if CONF_ADDRESS in config:
-        add(hmc.set_address(config[CONF_ADDRESS]))
+        cg.add(hmc.set_address(config[CONF_ADDRESS]))
     if CONF_RANGE in config:
-        add(hmc.set_range(HMC5883L_RANGES[config[CONF_RANGE]]))
+        cg.add(hmc.set_range(HMC5883L_RANGES[config[CONF_RANGE]]))
     if CONF_FIELD_STRENGTH_X in config:
         conf = config[CONF_FIELD_STRENGTH_X]
         sensor.register_sensor(hmc.Pmake_x_sensor(conf[CONF_NAME]), conf)

@@ -1,12 +1,8 @@
-import voluptuous as vol
-
 from esphome import config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32
 from esphome.core import HexInt
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component, esphome_ns
+
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -20,7 +16,7 @@ XIAOMI_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
-    vol.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_seconds,
+    cv.Optional(CONF_SCAN_INTERVAL): cv.positive_time_period_seconds,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -32,7 +28,7 @@ def to_code(config):
     rhs = App.make_esp32_ble_tracker()
     ble = Pvariable(config[CONF_ID], rhs)
     if CONF_SCAN_INTERVAL in config:
-        add(ble.set_scan_interval(config[CONF_SCAN_INTERVAL]))
+        cg.add(ble.set_scan_interval(config[CONF_SCAN_INTERVAL]))
 
     register_component(ble, config)
 

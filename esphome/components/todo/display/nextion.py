@@ -1,10 +1,9 @@
 from esphome.components import display, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_UART_ID
-from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent, void
+
 
 DEPENDENCIES = ['uart']
 
@@ -25,7 +24,7 @@ def to_code(config):
     if CONF_LAMBDA in config:
         lambda_ = yield process_lambda(config[CONF_LAMBDA], [(NextionRef, 'it')],
                                        return_type=void)
-        add(nextion.set_writer(lambda_))
+        cg.add(nextion.set_writer(lambda_))
 
     display.setup_display(nextion, config)
     register_component(nextion, config)

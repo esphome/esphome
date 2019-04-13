@@ -1,12 +1,9 @@
-import voluptuous as vol
-
 from esphome.components import i2c, sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, CONF_NAME, \
     CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App
+
 
 DEPENDENCIES = ['i2c']
 
@@ -29,7 +26,7 @@ CONF_IS_CS_PACKAGE = 'is_cs_package'
 def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
     if value not in INTEGRATION_TIMES:
-        raise vol.Invalid(u"Unsupported integration time {}.".format(value))
+        raise cv.Invalid(u"Unsupported integration time {}.".format(value))
     return value
 
 
@@ -38,11 +35,11 @@ TSL2561Sensor = sensor.sensor_ns.class_('TSL2561Sensor', sensor.PollingSensorCom
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TSL2561Sensor),
-    vol.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
-    vol.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
-    vol.Optional(CONF_GAIN): cv.one_of(*GAINS, upper=True),
-    vol.Optional(CONF_IS_CS_PACKAGE): cv.boolean,
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
+    cv.Optional(CONF_INTEGRATION_TIME): validate_integration_time,
+    cv.Optional(CONF_GAIN): cv.one_of(*GAINS, upper=True),
+    cv.Optional(CONF_IS_CS_PACKAGE): cv.boolean,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -52,11 +49,11 @@ def to_code(config):
     tsl2561 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_INTEGRATION_TIME in config:
-        add(tsl2561.set_integration_time(INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
+        cg.add(tsl2561.set_integration_time(INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
     if CONF_GAIN in config:
-        add(tsl2561.set_gain(GAINS[config[CONF_GAIN]]))
+        cg.add(tsl2561.set_gain(GAINS[config[CONF_GAIN]]))
     if CONF_IS_CS_PACKAGE in config:
-        add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
+        cg.add(tsl2561.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))
 
     sensor.setup_sensor(tsl2561, config)
     register_component(tsl2561, config)

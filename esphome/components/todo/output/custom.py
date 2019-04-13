@@ -1,19 +1,15 @@
-import voluptuous as vol
-
 from esphome.components import output
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_OUTPUTS, CONF_TYPE
-from esphome.cpp_generator import process_lambda, variable
-from esphome.cpp_types import std_vector
-
 CustomBinaryOutputConstructor = output.output_ns.class_('CustomBinaryOutputConstructor')
 CustomFloatOutputConstructor = output.output_ns.class_('CustomFloatOutputConstructor')
 
 BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
-    vol.Required(CONF_LAMBDA): cv.lambda_,
-    vol.Required(CONF_TYPE): 'binary',
-    vol.Required(CONF_OUTPUTS):
+    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Required(CONF_TYPE): 'binary',
+    cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.BinaryOutput),
         })),
@@ -21,9 +17,9 @@ BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
 
 FLOAT_SCHEMA = output.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(CustomFloatOutputConstructor),
-    vol.Required(CONF_LAMBDA): cv.lambda_,
-    vol.Required(CONF_TYPE): 'float',
-    vol.Required(CONF_OUTPUTS):
+    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Required(CONF_TYPE): 'float',
+    cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({
             cv.GenerateID(): cv.declare_variable_id(output.FloatOutput),
         })),
@@ -32,16 +28,16 @@ FLOAT_SCHEMA = output.PLATFORM_SCHEMA.extend({
 
 def validate_custom_output(value):
     if not isinstance(value, dict):
-        raise vol.Invalid("Value must be dict")
+        raise cv.Invalid("Value must be dict")
     if CONF_TYPE not in value:
-        raise vol.Invalid("type not specified!")
+        raise cv.Invalid("type not specified!")
     type = cv.string_strict(value[CONF_TYPE]).lower()
     value[CONF_TYPE] = type
     if type == 'binary':
         return BINARY_SCHEMA(value)
     if type == 'float':
         return FLOAT_SCHEMA(value)
-    raise vol.Invalid("type must either be binary or float, not {}!".format(type))
+    raise cv.Invalid("type must either be binary or float, not {}!".format(type))
 
 
 PLATFORM_SCHEMA = validate_custom_output

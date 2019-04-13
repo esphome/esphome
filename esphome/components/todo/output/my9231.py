@@ -1,20 +1,16 @@
-import voluptuous as vol
-
 from esphome.components import output
 from esphome.components.my9231 import MY9231OutputComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CHANNEL, CONF_ID, CONF_MY9231_ID, CONF_POWER_SUPPLY
-from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_helpers import register_component
-
 DEPENDENCIES = ['my9231']
 
 Channel = MY9231OutputComponent.class_('Channel', output.FloatOutput)
 
 PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
-    vol.Required(CONF_ID): cv.declare_variable_id(Channel),
-    vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int),
-                                        vol.Range(min=0, max=65535)),
+    cv.Required(CONF_ID): cv.declare_variable_id(Channel),
+    cv.Required(CONF_CHANNEL): cv.All(cv.Coerce(int),
+                                        cv.Range(min=0, max=65535)),
     cv.GenerateID(CONF_MY9231_ID): cv.use_variable_id(MY9231OutputComponent),
 }).extend(cv.COMPONENT_SCHEMA)
 

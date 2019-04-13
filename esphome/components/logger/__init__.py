@@ -5,7 +5,7 @@ import esphome.codegen as cg
 from esphome.automation import ACTION_REGISTRY, LambdaAction
 from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_UART, CONF_ID, \
     CONF_LEVEL, CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
-from esphome.core import CORE, EsphomeError, Lambda
+from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.py_compat import text_type
 
 logger_ns = cg.esphome_ns.namespace('logger')
@@ -83,6 +83,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA), validate_local_no_higher_than_global)
 
 
+@coroutine_with_priority(90.0)
 def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
     rhs = Logger.new(baud_rate,
@@ -97,7 +98,7 @@ def to_code(config):
     level = config[CONF_LEVEL]
     cg.add_define('USE_LOGGER')
     this_severity = LOG_LEVEL_SEVERITY.index(level)
-    cg.add_define('ESPHOME_LOG_LEVEL', LOG_LEVELS[level])
+    cg.add_build_flag('-DESPHOME_LOG_LEVEL={}'.format(LOG_LEVELS[level]))
 
     verbose_severity = LOG_LEVEL_SEVERITY.index('VERBOSE')
     very_verbose_severity = LOG_LEVEL_SEVERITY.index('VERY_VERBOSE')
@@ -125,6 +126,8 @@ def to_code(config):
         cg.add_build_flag('-DCORE_DEBUG_LEVEL=5')
     if CORE.is_esp32 and is_at_least_very_verbose:
         cg.add_build_flag('-DENABLE_I2C_DEBUG_BUFFER')
+    if CORE.is_esp8266:
+        cg.add_build_flag('-DUSE_STORE_LOG_STR_IN_FLASH')
 
     # Register at end for safe mode
     yield cg.register_component(log, config)

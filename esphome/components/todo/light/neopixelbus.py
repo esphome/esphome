@@ -1,16 +1,13 @@
-import voluptuous as vol
-
 from esphome import pins
 from esphome.components import light
 from esphome.components.light import AddressableLight
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_MAKE_ID, CONF_METHOD, CONF_NAME, \
     CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, CONF_TYPE, CONF_VARIANT
 from esphome.core import CORE
-from esphome.cpp_generator import TemplateArguments, add, get_variable, variable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Application, Component, global_ns
+
 
 NeoPixelBusLightOutputBase = light.light_ns.class_('NeoPixelBusLightOutputBase', Component,
                                                    AddressableLight)
@@ -20,16 +17,16 @@ ESPNeoPixelOrder = light.light_ns.namespace('ESPNeoPixelOrder')
 def validate_type(value):
     value = cv.string(value).upper()
     if 'R' not in value:
-        raise vol.Invalid("Must have R in type")
+        raise cv.Invalid("Must have R in type")
     if 'G' not in value:
-        raise vol.Invalid("Must have G in type")
+        raise cv.Invalid("Must have G in type")
     if 'B' not in value:
-        raise vol.Invalid("Must have B in type")
+        raise cv.Invalid("Must have B in type")
     rest = set(value) - set('RGBW')
     if rest:
-        raise vol.Invalid("Type has invalid color: {}".format(', '.join(rest)))
+        raise cv.Invalid("Type has invalid color: {}".format(', '.join(rest)))
     if len(set(value)) != len(value):
-        raise vol.Invalid("Type has duplicate color!")
+        raise cv.Invalid("Type has duplicate color!")
     return value
 
 
@@ -77,7 +74,7 @@ def validate_method_pin(value):
     pins_ = method_pins[method]
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
-            raise vol.Invalid("Method {} only supports pin(s) {}".format(
+            raise cv.Invalid("Method {} only supports pin(s) {}".format(
                 method, ', '.join('GPIO{}'.format(x) for x in pins_)
             ), path=[CONF_METHOD])
     return value
@@ -118,13 +115,13 @@ def format_method(config):
 def validate(config):
     if CONF_PIN in config:
         if CONF_CLOCK_PIN in config or CONF_DATA_PIN in config:
-            raise vol.Invalid("Cannot specify both 'pin' and 'clock_pin'+'data_pin'")
+            raise cv.Invalid("Cannot specify both 'pin' and 'clock_pin'+'data_pin'")
         return config
     if CONF_CLOCK_PIN in config:
         if CONF_DATA_PIN not in config:
-            raise vol.Invalid("If you give clock_pin, you must also specify data_pin")
+            raise cv.Invalid("If you give clock_pin, you must also specify data_pin")
         return config
-    raise vol.Invalid("Must specify at least one of 'pin' or 'clock_pin'+'data_pin'")
+    raise cv.Invalid("Must specify at least one of 'pin' or 'clock_pin'+'data_pin'")
 
 
 MakeNeoPixelBusLight = Application.struct('MakeNeoPixelBusLight')
@@ -132,16 +129,16 @@ MakeNeoPixelBusLight = Application.struct('MakeNeoPixelBusLight')
 PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeNeoPixelBusLight),
 
-    vol.Optional(CONF_TYPE, default='GRB'): validate_type,
-    vol.Optional(CONF_VARIANT, default='800KBPS'): validate_variant,
-    vol.Optional(CONF_METHOD, default=None): validate_method,
-    vol.Optional(CONF_PIN): pins.output_pin,
-    vol.Optional(CONF_CLOCK_PIN): pins.output_pin,
-    vol.Optional(CONF_DATA_PIN): pins.output_pin,
+    cv.Optional(CONF_TYPE, default='GRB'): validate_type,
+    cv.Optional(CONF_VARIANT, default='800KBPS'): validate_variant,
+    cv.Optional(CONF_METHOD, default=None): validate_method,
+    cv.Optional(CONF_PIN): pins.output_pin,
+    cv.Optional(CONF_CLOCK_PIN): pins.output_pin,
+    cv.Optional(CONF_DATA_PIN): pins.output_pin,
 
-    vol.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
+    cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
 
-    vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
 }).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA),
                               validate, validate_method_pin)
 
@@ -162,15 +159,15 @@ def to_code(config):
     output = make.Poutput
 
     if CONF_PIN in config:
-        add(output.add_leds(config[CONF_NUM_LEDS], config[CONF_PIN]))
+        cg.add(output.add_leds(config[CONF_NUM_LEDS], config[CONF_PIN]))
     else:
-        add(output.add_leds(config[CONF_NUM_LEDS], config[CONF_CLOCK_PIN], config[CONF_DATA_PIN]))
+        cg.add(output.add_leds(config[CONF_NUM_LEDS], config[CONF_CLOCK_PIN], config[CONF_DATA_PIN]))
 
-    add(output.set_pixel_order(getattr(ESPNeoPixelOrder, type_)))
+    cg.add(output.set_pixel_order(getattr(ESPNeoPixelOrder, type_)))
 
     if CONF_POWER_SUPPLY in config:
         power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
-        add(output.set_power_supply(power_supply))
+        cg.add(output.set_power_supply(power_supply))
 
     light.setup_light(make.Pstate, output, config)
     register_component(output, config)

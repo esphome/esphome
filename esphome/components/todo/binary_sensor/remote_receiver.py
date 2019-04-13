@@ -1,19 +1,15 @@
-import voluptuous as vol
-
 from esphome.components import binary_sensor
 from esphome.components.remote_receiver import RemoteReceiverComponent, remote_ns
 from esphome.components.remote_transmitter import RC_SWITCH_RAW_SCHEMA, \
     RC_SWITCH_TYPE_A_SCHEMA, RC_SWITCH_TYPE_B_SCHEMA, RC_SWITCH_TYPE_C_SCHEMA, \
     RC_SWITCH_TYPE_D_SCHEMA, binary_code, build_rc_switch_protocol
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADDRESS, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA, \
     CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_ID, CONF_JVC, CONF_LG, CONF_NAME, CONF_NBITS, \
     CONF_NEC, CONF_PANASONIC, CONF_PROTOCOL, CONF_RAW, CONF_RC_SWITCH_RAW, CONF_RC_SWITCH_TYPE_A, \
     CONF_RC_SWITCH_TYPE_B, CONF_RC_SWITCH_TYPE_C, CONF_RC_SWITCH_TYPE_D, CONF_SAMSUNG, CONF_SONY, \
     CONF_STATE, CONF_RC5
-from esphome.cpp_generator import Pvariable, get_variable, progmem_array
-from esphome.cpp_types import int32
-
 DEPENDENCIES = ['remote_receiver']
 
 REMOTE_KEYS = [CONF_JVC, CONF_NEC, CONF_LG, CONF_SONY, CONF_PANASONIC, CONF_SAMSUNG, CONF_RAW,
@@ -43,7 +39,7 @@ def validate_raw(value):
     if isinstance(value, dict):
         return cv.Schema({
             cv.GenerateID(): cv.declare_variable_id(int32),
-            vol.Required(CONF_DATA): [vol.Any(vol.Coerce(int), cv.time_period_microseconds)],
+            cv.Required(CONF_DATA): [cv.Any(cv.Coerce(int), cv.time_period_microseconds)],
         })(value)
     return validate_raw({
         CONF_DATA: value
@@ -52,38 +48,38 @@ def validate_raw(value):
 
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RemoteReceiver),
-    vol.Optional(CONF_JVC): cv.Schema({
-        vol.Required(CONF_DATA): cv.hex_uint32_t,
+    cv.Optional(CONF_JVC): cv.Schema({
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_LG): cv.Schema({
-        vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
+    cv.Optional(CONF_LG): cv.Schema({
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
+        cv.Optional(CONF_NBITS, default=28): cv.one_of(28, 32, int=True),
     }),
-    vol.Optional(CONF_NEC): cv.Schema({
-        vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        vol.Required(CONF_COMMAND): cv.hex_uint16_t,
+    cv.Optional(CONF_NEC): cv.Schema({
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint16_t,
     }),
-    vol.Optional(CONF_SAMSUNG): cv.Schema({
-        vol.Required(CONF_DATA): cv.hex_uint32_t,
+    cv.Optional(CONF_SAMSUNG): cv.Schema({
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_SONY): cv.Schema({
-        vol.Required(CONF_DATA): cv.hex_uint32_t,
-        vol.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
+    cv.Optional(CONF_SONY): cv.Schema({
+        cv.Required(CONF_DATA): cv.hex_uint32_t,
+        cv.Optional(CONF_NBITS, default=12): cv.one_of(12, 15, 20, int=True),
     }),
-    vol.Optional(CONF_PANASONIC): cv.Schema({
-        vol.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        vol.Required(CONF_COMMAND): cv.hex_uint32_t,
+    cv.Optional(CONF_PANASONIC): cv.Schema({
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint32_t,
     }),
-    vol.Optional(CONF_RC5): cv.Schema({
-        vol.Required(CONF_ADDRESS): vol.All(cv.hex_int, vol.Range(min=0, max=0x1F)),
-        vol.Required(CONF_COMMAND): vol.All(cv.hex_int, vol.Range(min=0, max=0x3F)),
+    cv.Optional(CONF_RC5): cv.Schema({
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F)),
     }),
-    vol.Optional(CONF_RAW): validate_raw,
-    vol.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
-    vol.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
-    vol.Optional(CONF_RC_SWITCH_TYPE_B): RC_SWITCH_TYPE_B_SCHEMA,
-    vol.Optional(CONF_RC_SWITCH_TYPE_C): RC_SWITCH_TYPE_C_SCHEMA,
-    vol.Optional(CONF_RC_SWITCH_TYPE_D): RC_SWITCH_TYPE_D_SCHEMA,
+    cv.Optional(CONF_RAW): validate_raw,
+    cv.Optional(CONF_RC_SWITCH_RAW): RC_SWITCH_RAW_SCHEMA,
+    cv.Optional(CONF_RC_SWITCH_TYPE_A): RC_SWITCH_TYPE_A_SCHEMA,
+    cv.Optional(CONF_RC_SWITCH_TYPE_B): RC_SWITCH_TYPE_B_SCHEMA,
+    cv.Optional(CONF_RC_SWITCH_TYPE_C): RC_SWITCH_TYPE_C_SCHEMA,
+    cv.Optional(CONF_RC_SWITCH_TYPE_D): RC_SWITCH_TYPE_D_SCHEMA,
 
     cv.GenerateID(CONF_REMOTE_RECEIVER_ID): cv.use_variable_id(RemoteReceiverComponent),
     cv.GenerateID(CONF_RECEIVER_ID): cv.declare_variable_id(RemoteReceiver),

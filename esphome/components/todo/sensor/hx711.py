@@ -1,12 +1,9 @@
-import voluptuous as vol
-
 from esphome import pins
 from esphome.components import sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CLK_PIN, CONF_GAIN, CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import gpio_input_pin_expression, register_component
-from esphome.cpp_types import App, Application
+
 
 MakeHX711Sensor = Application.struct('MakeHX711Sensor')
 HX711Sensor = sensor.sensor_ns.class_('HX711Sensor', sensor.PollingSensorComponent)
@@ -22,10 +19,10 @@ GAINS = {
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HX711Sensor),
-    vol.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
-    vol.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_GAIN): cv.one_of(*GAINS, int=True),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
+    cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_GAIN): cv.one_of(*GAINS, int=True),
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -38,7 +35,7 @@ def to_code(config):
     hx711 = Pvariable(config[CONF_ID], rhs)
 
     if CONF_GAIN in config:
-        add(hx711.set_gain(GAINS[config[CONF_GAIN]]))
+        cg.add(hx711.set_gain(GAINS[config[CONF_GAIN]]))
 
     sensor.setup_sensor(hx711, config)
     register_component(hx711, config)

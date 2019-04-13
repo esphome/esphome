@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome.components import text_sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_NAME, CONF_QOS, CONF_TOPIC
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component
+
 
 DEPENDENCIES = ['mqtt']
 
@@ -14,8 +11,8 @@ MQTTSubscribeTextSensor = text_sensor.text_sensor_ns.class_('MQTTSubscribeTextSe
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(MQTTSubscribeTextSensor),
-    vol.Required(CONF_TOPIC): cv.subscribe_topic,
-    vol.Optional(CONF_QOS): cv.mqtt_qos,
+    cv.Required(CONF_TOPIC): cv.subscribe_topic,
+    cv.Optional(CONF_QOS): cv.mqtt_qos,
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -24,7 +21,7 @@ def to_code(config):
     sensor_ = Pvariable(config[CONF_ID], rhs)
 
     if CONF_QOS in config:
-        add(sensor_.set_qos(config[CONF_QOS]))
+        cg.add(sensor_.set_qos(config[CONF_QOS]))
 
     text_sensor.setup_text_sensor(sensor_, config)
     register_component(sensor_, config)

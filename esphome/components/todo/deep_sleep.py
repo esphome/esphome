@@ -1,18 +1,14 @@
-import voluptuous as vol
-
 from esphome import config_validation as cv, pins
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
-from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable
-from esphome.cpp_helpers import gpio_input_pin_expression, register_component
-from esphome.cpp_types import Action, App, Component, esphome_ns, global_ns
+
 
 
 def validate_pin_number(value):
     valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 39]
     if value[CONF_NUMBER] not in valid_pins:
-        raise vol.Invalid(u"Only pins {} support wakeup"
+        raise cv.Invalid(u"Only pins {} support wakeup"
                           u"".format(', '.join(str(x) for x in valid_pins)))
     return value
 
@@ -40,18 +36,18 @@ CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
-    vol.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_WAKEUP_PIN): vol.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
+    cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_WAKEUP_PIN): cv.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                            validate_pin_number),
-    vol.Optional(CONF_WAKEUP_PIN_MODE): vol.All(cv.only_on_esp32,
+    cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(cv.only_on_esp32,
                                                 cv.one_of(*WAKEUP_PIN_MODES), upper=True),
-    vol.Optional(CONF_ESP32_EXT1_WAKEUP): vol.All(cv.only_on_esp32, cv.Schema({
-        vol.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
-        vol.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
+    cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(cv.only_on_esp32, cv.Schema({
+        cv.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
+        cv.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
     })),
-    vol.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 
-    vol.Optional(CONF_RUN_CYCLES): cv.invalid("The run_cycles option has been removed in 1.11.0 as "
+    cv.Optional(CONF_RUN_CYCLES): cv.invalid("The run_cycles option has been removed in 1.11.0 as "
                                               "it was essentially the same as a run_duration of 0s."
                                               "Please use run_duration now.")
 }).extend(cv.COMPONENT_SCHEMA)
@@ -61,14 +57,14 @@ def to_code(config):
     rhs = App.make_deep_sleep_component()
     deep_sleep = Pvariable(config[CONF_ID], rhs)
     if CONF_SLEEP_DURATION in config:
-        add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
+        cg.add(deep_sleep.set_sleep_duration(config[CONF_SLEEP_DURATION]))
     if CONF_WAKEUP_PIN in config:
         pin = yield gpio_input_pin_expression(config[CONF_WAKEUP_PIN])
-        add(deep_sleep.set_wakeup_pin(pin))
+        cg.add(deep_sleep.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
-        add(deep_sleep.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
+        cg.add(deep_sleep.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
     if CONF_RUN_DURATION in config:
-        add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
+        cg.add(deep_sleep.set_run_duration(config[CONF_RUN_DURATION]))
 
     if CONF_ESP32_EXT1_WAKEUP in config:
         conf = config[CONF_ESP32_EXT1_WAKEUP]
@@ -80,7 +76,7 @@ def to_code(config):
             ('mask', mask),
             ('wakeup_mode', EXT1_WAKEUP_MODES[conf[CONF_MODE]])
         )
-        add(deep_sleep.set_ext1_wakeup(struct))
+        cg.add(deep_sleep.set_ext1_wakeup(struct))
 
     register_component(deep_sleep, config)
 
@@ -89,7 +85,7 @@ BUILD_FLAGS = '-DUSE_DEEP_SLEEP'
 
 CONF_DEEP_SLEEP_ENTER = 'deep_sleep.enter'
 DEEP_SLEEP_ENTER_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+    cv.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
 })
 
 
@@ -103,7 +99,7 @@ def deep_sleep_enter_to_code(config, action_id, template_arg, args):
 
 CONF_DEEP_SLEEP_PREVENT = 'deep_sleep.prevent'
 DEEP_SLEEP_PREVENT_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+    cv.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
 })
 
 

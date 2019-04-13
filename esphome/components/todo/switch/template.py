@@ -1,26 +1,23 @@
-import voluptuous as vol
-
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import switch
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ASSUMED_STATE, CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_OPTIMISTIC, \
     CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
-from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import Action, App, Component, bool_, optional
+
 
 TemplateSwitch = switch.switch_ns.class_('TemplateSwitch', switch.Switch, Component)
 SwitchPublishAction = switch.switch_ns.class_('SwitchPublishAction', Action)
 
 PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
-    vol.Optional(CONF_LAMBDA): cv.lambda_,
-    vol.Optional(CONF_OPTIMISTIC): cv.boolean,
-    vol.Optional(CONF_ASSUMED_STATE): cv.boolean,
-    vol.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
-    vol.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
-    vol.Optional(CONF_RESTORE_STATE): cv.boolean,
+    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_OPTIMISTIC): cv.boolean,
+    cv.Optional(CONF_ASSUMED_STATE): cv.boolean,
+    cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_RESTORE_STATE): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -33,7 +30,7 @@ def to_code(config):
     if CONF_LAMBDA in config:
         template_ = yield process_lambda(config[CONF_LAMBDA], [],
                                          return_type=optional.template(bool_))
-        add(template.set_state_lambda(template_))
+        cg.add(template.set_state_lambda(template_))
     if CONF_TURN_OFF_ACTION in config:
         automation.build_automations(template.get_turn_off_trigger(), [],
                                      config[CONF_TURN_OFF_ACTION])
@@ -41,12 +38,12 @@ def to_code(config):
         automation.build_automations(template.get_turn_on_trigger(), [],
                                      config[CONF_TURN_ON_ACTION])
     if CONF_OPTIMISTIC in config:
-        add(template.set_optimistic(config[CONF_OPTIMISTIC]))
+        cg.add(template.set_optimistic(config[CONF_OPTIMISTIC]))
     if CONF_ASSUMED_STATE in config:
-        add(template.set_assumed_state(config[CONF_ASSUMED_STATE]))
+        cg.add(template.set_assumed_state(config[CONF_ASSUMED_STATE]))
 
     if CONF_RESTORE_STATE in config:
-        add(template.set_restore_state(config[CONF_RESTORE_STATE]))
+        cg.add(template.set_restore_state(config[CONF_RESTORE_STATE]))
 
     register_component(template, config)
 
@@ -55,8 +52,8 @@ BUILD_FLAGS = '-DUSE_TEMPLATE_SWITCH'
 
 CONF_SWITCH_TEMPLATE_PUBLISH = 'switch.template.publish'
 SWITCH_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
-    vol.Required(CONF_ID): cv.use_variable_id(switch.Switch),
-    vol.Required(CONF_STATE): cv.templatable(cv.boolean),
+    cv.Required(CONF_ID): cv.use_variable_id(switch.Switch),
+    cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 })
 
 
@@ -67,5 +64,5 @@ def switch_template_publish_to_code(config, action_id, template_arg, args):
     type = SwitchPublishAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     template_ = yield templatable(config[CONF_STATE], args, bool_)
-    add(action.set_state(template_))
+    cg.add(action.set_state(template_))
     yield action

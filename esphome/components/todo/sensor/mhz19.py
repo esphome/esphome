@@ -1,13 +1,10 @@
-import voluptuous as vol
-
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CO2, CONF_ID, CONF_NAME, CONF_TEMPERATURE, CONF_UART_ID, \
     CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, PollingComponent
+
 
 DEPENDENCIES = ['uart']
 
@@ -19,13 +16,13 @@ MHZ19CO2Sensor = sensor.sensor_ns.class_('MHZ19CO2Sensor', sensor.EmptyPollingPa
 PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(MHZ19Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
-    vol.Required(CONF_CO2): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Required(CONF_CO2): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(MHZ19CO2Sensor),
     })),
-    vol.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(MHZ19TemperatureSensor),
     })),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

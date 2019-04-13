@@ -1,13 +1,10 @@
-import voluptuous as vol
-
 from esphome.components import sensor, uart
 from esphome.components.uart import UARTComponent
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_FORMALDEHYDE, CONF_HUMIDITY, CONF_ID, CONF_NAME, CONF_PM_10_0, \
     CONF_PM_1_0, CONF_PM_2_5, CONF_TEMPERATURE, CONF_TYPE, CONF_UART_ID
-from esphome.cpp_generator import Pvariable, get_variable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component
+
 
 DEPENDENCIES = ['uart']
 
@@ -38,7 +35,7 @@ SENSORS_TO_TYPE = {
 def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
-            raise vol.Invalid(u"{} does not have {} sensor!".format(value[CONF_TYPE], key))
+            raise cv.Invalid(u"{} does not have {} sensor!".format(value[CONF_TYPE], key))
     return value
 
 
@@ -46,17 +43,17 @@ PMSX003_SENSOR_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Sensor),
 })
 
-PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
+PLATFORM_SCHEMA = cv.All(sensor.PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PMSX003Component),
     cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
-    vol.Required(CONF_TYPE): cv.one_of(*PMSX003_TYPES, upper=True),
+    cv.Required(CONF_TYPE): cv.one_of(*PMSX003_TYPES, upper=True),
 
-    vol.Optional(CONF_PM_1_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_2_5): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_PM_10_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_TEMPERATURE): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_HUMIDITY): cv.nameable(PMSX003_SENSOR_SCHEMA),
-    vol.Optional(CONF_FORMALDEHYDE): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_PM_1_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_PM_2_5): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_PM_10_0): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_TEMPERATURE): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_HUMIDITY): cv.nameable(PMSX003_SENSOR_SCHEMA),
+    cv.Optional(CONF_FORMALDEHYDE): cv.nameable(PMSX003_SENSOR_SCHEMA),
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(*SENSORS_TO_TYPE))
 
 

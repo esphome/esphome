@@ -1,5 +1,6 @@
 import collections
 import functools
+import heapq
 import inspect
 import logging
 import math
@@ -343,36 +344,43 @@ class Library(object):
 
 
 def coroutine(func):
-    if getattr(func, '_esphome_coroutine', False):
-        # If func is already a coroutine, do not re-wrap it (performance)
-        return func
+    return coroutine_with_priority(0.0)(func)
 
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if not inspect.isgeneratorfunction(func):
-            # If func is not a generator, return result immediately
-            yield func(*args, **kwargs)
-            return
-        gen = func(*args, **kwargs)
-        var = None
-        try:
-            while True:
-                var = gen.send(var)
-                if inspect.isgenerator(var):
-                    # Yielded generator, equivalent to 'yield from'
-                    x = None
-                    for x in var:
-                        yield None
-                    # Last yield value is the result
-                    var = x
-                else:
-                    yield var
-        except StopIteration:
-            # Stopping iteration
-            yield var
 
-    wrapper._esphome_coroutine = True
-    return wrapper
+def coroutine_with_priority(priority):
+    def decorator(func):
+        if getattr(func, '_esphome_coroutine', False):
+            # If func is already a coroutine, do not re-wrap it (performance)
+            return func
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not inspect.isgeneratorfunction(func):
+                # If func is not a generator, return result immediately
+                yield func(*args, **kwargs)
+                return
+            gen = func(*args, **kwargs)
+            var = None
+            try:
+                while True:
+                    var = gen.send(var)
+                    if inspect.isgenerator(var):
+                        # Yielded generator, equivalent to 'yield from'
+                        x = None
+                        for x in var:
+                            yield None
+                        # Last yield value is the result
+                        var = x
+                    else:
+                        yield var
+            except StopIteration:
+                # Stopping iteration
+                yield var
+
+        wrapper._esphome_coroutine = True
+        wrapper.priority = priority
+        return wrapper
+    return decorator
 
 
 def find_source_files(file):
@@ -408,7 +416,11 @@ class EsphomeCore(object):
         # The validated configuration, this is None until the config has been validated
         self.config = {}  # type: ConfigType
         # The pending tasks in the task queue (mostly for C++ generation)
-        self.pending_tasks = collections.deque()
+        # This is a priority queue (with heapq)
+        # Each item is a tuple of form: (-priority, unique number, task)
+        self.pending_tasks = []
+        # Task counter for pending tasks
+        self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
         self.variables = {}  # type: Dict[str, MockObj]
         # A list of statements that go in the main setup() block
@@ -431,7 +443,8 @@ class EsphomeCore(object):
         self.board = None
         self.raw_config = None
         self.config = None
-        self.pending_tasks = collections.deque()
+        self.pending_tasks = []
+        self.task_counter = 0
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
@@ -499,9 +512,12 @@ class EsphomeCore(object):
         return self.esp_platform == ESP_PLATFORM_ESP32
 
     def add_job(self, func, *args, **kwargs):
-        gen = coroutine(func)(*args, **kwargs)
-        self.pending_tasks.append(gen)
-        return gen
+        coro = coroutine(func)
+        task = coro(*args, **kwargs)
+        item = (-coro.priority, self.task_counter, task)
+        self.task_counter += 1
+        heapq.heappush(self.pending_tasks, item)
+        return task
 
     def flush_tasks(self):
         i = 0
@@ -510,10 +526,16 @@ class EsphomeCore(object):
             if i > 1000000:
                 raise EsphomeError("Circular dependency detected!")
 
-            task = self.pending_tasks.popleft()
+            inv_priority, num, task = heapq.heappop(self.pending_tasks)
+            priority = -inv_priority
             try:
                 next(task)
-                self.pending_tasks.append(task)
+                # Decrease priority over time, so that if this task is blocked
+                # due to a dependency others will clear the dependency
+                # This could be improved with a less naive approach
+                priority -= 1
+                item = (-priority, num, task)
+                heapq.heappush(self.pending_tasks, item)
             except StopIteration:
                 _LOGGER.debug(" -> finished")
 

@@ -1,12 +1,9 @@
-import voluptuous as vol
-
 from esphome import pins
 from esphome.components import sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_NAME, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_helpers import gpio_input_pin_expression, register_component
-from esphome.cpp_types import App, Component
+
 
 RotaryEncoderResolution = sensor.sensor_ns.enum('RotaryEncoderResolution')
 RESOLUTIONS = {
@@ -27,21 +24,21 @@ def validate_min_max_value(config):
         min_val = config[CONF_MIN_VALUE]
         max_val = config[CONF_MAX_VALUE]
         if min_val >= max_val:
-            raise vol.Invalid("Max value {} must be smaller than min value {}"
+            raise cv.Invalid("Max value {} must be smaller than min value {}"
                               "".format(max_val, min_val))
     return config
 
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RotaryEncoderSensor),
-    vol.Required(CONF_PIN_A): vol.All(pins.internal_gpio_input_pin_schema,
+    cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema,
                                       pins.validate_has_interrupt),
-    vol.Required(CONF_PIN_B): vol.All(pins.internal_gpio_input_pin_schema,
+    cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema,
                                       pins.validate_has_interrupt),
-    vol.Optional(CONF_PIN_RESET): pins.internal_gpio_input_pin_schema,
-    vol.Optional(CONF_RESOLUTION): cv.one_of(*RESOLUTIONS, int=True),
-    vol.Optional(CONF_MIN_VALUE): cv.int_,
-    vol.Optional(CONF_MAX_VALUE): cv.int_,
+    cv.Optional(CONF_PIN_RESET): pins.internal_gpio_input_pin_schema,
+    cv.Optional(CONF_RESOLUTION): cv.one_of(*RESOLUTIONS, int=True),
+    cv.Optional(CONF_MIN_VALUE): cv.int_,
+    cv.Optional(CONF_MAX_VALUE): cv.int_,
 }).extend(cv.COMPONENT_SCHEMA), validate_min_max_value)
 
 
@@ -53,14 +50,14 @@ def to_code(config):
 
     if CONF_PIN_RESET in config:
         pin_i = yield gpio_input_pin_expression(config[CONF_PIN_RESET])
-        add(encoder.set_reset_pin(pin_i))
+        cg.add(encoder.set_reset_pin(pin_i))
     if CONF_RESOLUTION in config:
         resolution = RESOLUTIONS[config[CONF_RESOLUTION]]
-        add(encoder.set_resolution(resolution))
+        cg.add(encoder.set_resolution(resolution))
     if CONF_MIN_VALUE in config:
-        add(encoder.set_min_value(config[CONF_MIN_VALUE]))
+        cg.add(encoder.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:
-        add(encoder.set_max_value(config[CONF_MAX_VALUE]))
+        cg.add(encoder.set_max_value(config[CONF_MAX_VALUE]))
 
     sensor.setup_sensor(encoder, config)
     register_component(encoder, config)

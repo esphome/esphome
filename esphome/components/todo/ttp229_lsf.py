@@ -1,9 +1,8 @@
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Component
+
 
 DEPENDENCIES = ['i2c']
 

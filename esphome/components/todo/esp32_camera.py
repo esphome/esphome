@@ -1,11 +1,6 @@
-import voluptuous as vol
-
 from esphome import config_validation as cv, pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
     ESP_PLATFORM_ESP32
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_types import App, Nameable, PollingComponent, esphome_ns
-
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 ESP32Camera = esphome_ns.class_('ESP32Camera', PollingComponent, Nameable)
@@ -55,39 +50,39 @@ CONF_BRIGHTNESS = 'brightness'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
 
-camera_range_param = vol.All(cv.int_, vol.Range(min=-2, max=2))
+camera_range_param = cv.All(cv.int_, cv.Range(min=-2, max=2))
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(ESP32Camera),
-    vol.Required(CONF_NAME): cv.string,
-    vol.Required(CONF_DATA_PINS): vol.All([pins.input_pin], vol.Length(min=8, max=8)),
-    vol.Required(CONF_VSYNC_PIN): pins.input_pin,
-    vol.Required(CONF_HREF_PIN): pins.input_pin,
-    vol.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
-    vol.Required(CONF_EXTERNAL_CLOCK): cv.Schema({
-        vol.Required(CONF_PIN): pins.output_pin,
-        vol.Optional(CONF_FREQUENCY, default='20MHz'): vol.All(cv.frequency, vol.In([20e6, 10e6])),
+    cv.Required(CONF_NAME): cv.string,
+    cv.Required(CONF_DATA_PINS): cv.All([pins.input_pin], cv.Length(min=8, max=8)),
+    cv.Required(CONF_VSYNC_PIN): pins.input_pin,
+    cv.Required(CONF_HREF_PIN): pins.input_pin,
+    cv.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
+    cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema({
+        cv.Required(CONF_PIN): pins.output_pin,
+        cv.Optional(CONF_FREQUENCY, default='20MHz'): cv.All(cv.frequency, cv.In([20e6, 10e6])),
     }),
-    vol.Required(CONF_I2C_PINS): cv.Schema({
-        vol.Required(CONF_SDA): pins.output_pin,
-        vol.Required(CONF_SCL): pins.output_pin,
+    cv.Required(CONF_I2C_PINS): cv.Schema({
+        cv.Required(CONF_SDA): pins.output_pin,
+        cv.Required(CONF_SCL): pins.output_pin,
     }),
-    vol.Optional(CONF_RESET_PIN): pins.output_pin,
-    vol.Optional(CONF_POWER_DOWN_PIN): pins.output_pin,
+    cv.Optional(CONF_RESET_PIN): pins.output_pin,
+    cv.Optional(CONF_POWER_DOWN_PIN): pins.output_pin,
 
-    vol.Optional(CONF_MAX_FRAMERATE, default='10 fps'): vol.All(cv.framerate,
-                                                                vol.Range(min=0, min_included=False,
+    cv.Optional(CONF_MAX_FRAMERATE, default='10 fps'): cv.All(cv.framerate,
+                                                                cv.Range(min=0, min_included=False,
                                                                           max=60)),
-    vol.Optional(CONF_IDLE_FRAMERATE, default='0.1 fps'): vol.All(cv.framerate,
-                                                                  vol.Range(min=0, max=1)),
-    vol.Optional(CONF_RESOLUTION, default='640X480'): cv.one_of(*FRAME_SIZES, upper=True),
-    vol.Optional(CONF_JPEG_QUALITY, default=10): vol.All(cv.int_, vol.Range(min=10, max=63)),
-    vol.Optional(CONF_CONTRAST, default=0): camera_range_param,
-    vol.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
-    vol.Optional(CONF_SATURATION, default=0): camera_range_param,
-    vol.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
-    vol.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
-    vol.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
+    cv.Optional(CONF_IDLE_FRAMERATE, default='0.1 fps'): cv.All(cv.framerate,
+                                                                  cv.Range(min=0, max=1)),
+    cv.Optional(CONF_RESOLUTION, default='640X480'): cv.one_of(*FRAME_SIZES, upper=True),
+    cv.Optional(CONF_JPEG_QUALITY, default=10): cv.All(cv.int_, cv.Range(min=10, max=63)),
+    cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
+    cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
+    cv.Optional(CONF_SATURATION, default=0): camera_range_param,
+    cv.Optional(CONF_VERTICAL_FLIP, default=True): cv.boolean,
+    cv.Optional(CONF_HORIZONTAL_MIRROR, default=True): cv.boolean,
+    cv.Optional(CONF_TEST_PATTERN, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA)
 
 SETTERS = {
@@ -113,18 +108,18 @@ def to_code(config):
 
     for key, setter in SETTERS.items():
         if key in config:
-            add(getattr(cam, setter)(config[key]))
+            cg.add(getattr(cam, setter)(config[key]))
 
     extclk = config[CONF_EXTERNAL_CLOCK]
-    add(cam.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
+    cg.add(cam.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     i2c_pins = config[CONF_I2C_PINS]
-    add(cam.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
-    add(cam.set_max_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
+    cg.add(cam.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
+    cg.add(cam.set_max_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
     if config[CONF_IDLE_FRAMERATE] == 0:
-        add(cam.set_idle_update_interval(0))
+        cg.add(cam.set_idle_update_interval(0))
     else:
-        add(cam.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
-    add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
+        cg.add(cam.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
+    cg.add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
 
 
 BUILD_FLAGS = ['-DUSE_ESP32_CAMERA', '-DBOARD_HAS_PSRAM']

@@ -100,27 +100,6 @@ class LoopTrigger : public Trigger<>, public Component {
   float get_setup_priority() const override;
 };
 
-class IntervalTrigger : public Trigger<>, public PollingComponent {
- public:
-  IntervalTrigger(uint32_t update_interval);
-  void update() override;
-  float get_setup_priority() const override;
-};
-
-template<typename... Ts> class ScriptExecuteAction;
-template<typename... Ts> class ScriptStopAction;
-
-template<typename... Ts> class ScriptStopAction;
-
-class Script : public Trigger<> {
- public:
-  void execute();
-
-  template<typename... Ts> ScriptExecuteAction<Ts...> *make_execute_action();
-
-  template<typename... Ts> ScriptStopAction<Ts...> *make_stop_action();
-};
-
 template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
@@ -222,26 +201,6 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
 
  protected:
   PollingComponent *component_;
-};
-
-template<typename... Ts> class ScriptExecuteAction : public Action<Ts...> {
- public:
-  ScriptExecuteAction(Script *script);
-
-  void play(Ts... x) override;
-
- protected:
-  Script *script_;
-};
-
-template<typename... Ts> class ScriptStopAction : public Action<Ts...> {
- public:
-  ScriptStopAction(Script *script);
-
-  void play(Ts... x) override;
-
- protected:
-  Script *script_;
 };
 
 template<typename... Ts> class ActionList {

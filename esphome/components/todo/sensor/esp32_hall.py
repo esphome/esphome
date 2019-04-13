@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome.components import sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, ESP_PLATFORM_ESP32
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_helpers import register_component
-from esphome.cpp_types import App, Application
+
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
@@ -14,7 +11,7 @@ ESP32HallSensor = sensor.sensor_ns.class_('ESP32HallSensor', sensor.PollingSenso
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ESP32HallSensor),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA))
 
 

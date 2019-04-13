@@ -1,11 +1,9 @@
-import voluptuous as vol
-
 from esphome.components import sensor
 from esphome.components.ads1115 import ADS1115Component
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ADS1115_ID, CONF_GAIN, CONF_MULTIPLEXER, CONF_NAME, \
     CONF_UPDATE_INTERVAL
-from esphome.cpp_generator import get_variable
 from esphome.py_compat import string_types
 
 DEPENDENCIES = ['ads1115']
@@ -37,7 +35,7 @@ def validate_gain(value):
     if isinstance(value, float):
         value = u'{:0.03f}'.format(value)
     elif not isinstance(value, string_types):
-        raise vol.Invalid('invalid gain "{}"'.format(value))
+        raise cv.Invalid('invalid gain "{}"'.format(value))
 
     return cv.one_of(*GAIN)(value)
 
@@ -52,10 +50,10 @@ ADS1115Sensor = sensor.sensor_ns.class_('ADS1115Sensor', sensor.EmptySensor)
 
 PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),
-    vol.Required(CONF_MULTIPLEXER): validate_mux,
-    vol.Required(CONF_GAIN): validate_gain,
+    cv.Required(CONF_MULTIPLEXER): validate_mux,
+    cv.Required(CONF_GAIN): validate_gain,
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
-    vol.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
 }))
 
 

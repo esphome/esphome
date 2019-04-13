@@ -1,11 +1,7 @@
-import voluptuous as vol
-
 from esphome.components import text_sensor
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME
-from esphome.cpp_generator import Pvariable
-from esphome.cpp_types import App, Component
-
 DEPENDENCIES = ['api']
 
 HomeassistantTextSensor = text_sensor.text_sensor_ns.class_('HomeassistantTextSensor',
@@ -13,7 +9,7 @@ HomeassistantTextSensor = text_sensor.text_sensor_ns.class_('HomeassistantTextSe
 
 PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantTextSensor),
-    vol.Required(CONF_ENTITY_ID): cv.entity_id,
+    cv.Required(CONF_ENTITY_ID): cv.entity_id,
 }))
 
 

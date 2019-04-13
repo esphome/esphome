@@ -1,11 +1,8 @@
-import voluptuous as vol
-
 from esphome.components import binary_sensor
 from esphome.components.ttp229_lsf import TTP229LSFComponent, CONF_TTP229_ID
 import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_CHANNEL, CONF_NAME
-from esphome.cpp_generator import get_variable
-
 DEPENDENCIES = ['ttp229_lsf']
 TTP229Channel = binary_sensor.binary_sensor_ns.class_(
     'TTP229Channel', binary_sensor.BinarySensor)
@@ -13,7 +10,7 @@ TTP229Channel = binary_sensor.binary_sensor_ns.class_(
 PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TTP229Channel),
     cv.GenerateID(CONF_TTP229_ID): cv.use_variable_id(TTP229LSFComponent),
-    vol.Required(CONF_CHANNEL): vol.All(vol.Coerce(int), vol.Range(min=0, max=15))
+    cv.Required(CONF_CHANNEL): cv.All(cv.Coerce(int), cv.Range(min=0, max=15))
 }))
 
 

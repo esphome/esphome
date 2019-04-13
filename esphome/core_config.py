@@ -4,8 +4,9 @@ import re
 
 import voluptuous as vol
 
+import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins, core
+from esphome import automation, pins
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
     CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
@@ -14,19 +15,16 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0
-from esphome.core import CORE, EsphomeError
-from esphome.cpp_generator import Pvariable, RawExpression, add, add_global, add_define, \
-    add_build_flag, add_library
-from esphome.cpp_types import App, const_char_ptr, esphome_ns, global_ns
+from esphome.core import CORE, EsphomeError, coroutine_with_priority
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = esphome_ns.StartupTrigger
-ShutdownTrigger = esphome_ns.ShutdownTrigger
-LoopTrigger = esphome_ns.LoopTrigger
+StartupTrigger = cg.esphome_ns.StartupTrigger
+ShutdownTrigger = cg.esphome_ns.ShutdownTrigger
+LoopTrigger = cg.esphome_ns.LoopTrigger
 
 VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
 
@@ -155,24 +153,27 @@ def preload_core_config(config):
         raise EsphomeError(text_type(e))
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
-    add_global(global_ns.namespace('esphome').using)
-    add_define('ESPHOME_VERSION', __version__)
-    add(App.pre_setup(config[CONF_NAME], RawExpression('__DATE__ ", " __TIME__')))
+    cg.add_global(cg.global_ns.namespace('esphome').using)
+    cg.add_define('ESPHOME_VERSION', __version__)
+    cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
 
+    # TODO
     for conf in config.get(CONF_ON_BOOT, []):
-        rhs = App.register_component(StartupTrigger.new(conf.get(CONF_PRIORITY)))
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automations(trigger, [], conf)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], ShutdownTrigger.new())
-        automation.build_automations(trigger, [(const_char_ptr, 'x')], conf)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [(cg.const_char_ptr, 'x')], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
-        rhs = App.register_component(LoopTrigger.new())
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
-        automation.build_automations(trigger, [], conf)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
 
     # Build flags
     if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES and \
@@ -188,34 +189,35 @@ def to_code(config):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            add_build_flag('-Wl,-T{}'.format(ld_script))
+            cg.add_build_flag('-Wl,-T{}'.format(ld_script))
 
     if CORE.is_esp8266 and CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV,
                                                     ARDUINO_VERSION_ESP8266_2_5_0):
-        add_build_flag('-fno-exceptions')
+        cg.add_build_flag('-fno-exceptions')
 
     # Libraries
     if CORE.is_esp32:
-        add_library('Preferences', None)
-        add_library('ESPmDNS', None)
+        cg.add_library('Preferences', None)
+        cg.add_library('ESPmDNS', None)
     elif CORE.is_esp8266:
-        add_library('ESP8266WiFi', None)
-        add_library('ESP8266mDNS', None)
+        cg.add_library('ESP8266WiFi', None)
+        cg.add_library('ESP8266mDNS', None)
 
     for lib in config[CONF_LIBRARIES]:
         if '@' in lib:
             name, vers = lib.split('@', 1)
-            add_library(name, vers)
+            cg.add_library(name, vers)
         else:
-            add_library(lib, None)
+            cg.add_library(lib, None)
 
-    add_build_flag('-Wno-unused-variable')
-    add_build_flag('-Wno-unused-but-set-variable')
-    add_build_flag('-Wno-sign-compare')
+    cg.add_build_flag('-Wno-unused-variable')
+    cg.add_build_flag('-Wno-unused-but-set-variable')
+    cg.add_build_flag('-Wno-sign-compare')
     if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
-        add_define('USE_ESP8266_PREFERENCES_FLASH')
+        cg.add_define('USE_ESP8266_PREFERENCES_FLASH')
 
+    # TODO
     for include in config[CONF_INCLUDES]:
         path = CORE.relative_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src'))
-        add_global(RawExpression(u'#include "{}"'.format(res)))
+        cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
