@@ -54,8 +54,8 @@ ESP8266_BOARD_PINS = {
                   'D8': 12, 'D9': 13, 'D10': 15, 'D11': 13, 'D12': 12, 'D13': 14},
     'wifinfo': {'LED': 12, 'D0': 16, 'D1': 5, 'D2': 4, 'D3': 0, 'D4': 2, 'D5': 14, 'D6': 12,
                 'D7': 13, 'D8': 15, 'D9': 3, 'D10': 1},
-    'wio_link': {'LED': 2, 'GROVE': 15},
-    'wio_node': 'nodemcu',
+    'wio_link': {'LED': 2, 'GROVE': 15, 'D0': 14, 'D1': 12, 'D2': 13, 'BUTTON': 0},
+    'wio_node': {'LED': 2, 'GROVE': 15, 'D0': 3, 'D1': 5, 'BUTTON': 0},
     'xinabox_cw01': {'SDA': 2, 'SCL': 14, 'LED': 5, 'LED_RED': 12, 'LED_GREEN': 13}
 }
 
