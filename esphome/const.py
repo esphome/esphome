@@ -481,6 +481,7 @@ ICON_MAGNET = 'mdi:magnet'
 ICON_BATTERY = 'mdi:battery'
 ICON_FLOWER = 'mdi:flower'
 ICON_CHEMICAL_WEAPON = 'mdi:chemical-weapon'
+ICON_SIGNAL = 'mdi:signal'
 
 UNIT_VOLT = 'V'
 UNIT_CELSIUS = u'°C'

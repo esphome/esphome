@@ -55,6 +55,7 @@ class MACAddress(object):
     def __str__(self):
         return ':'.join('{:02X}'.format(part) for part in self.parts)
 
+    @property
     def as_hex(self):
         from esphome.cpp_generator import RawExpression
 
