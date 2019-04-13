@@ -43,6 +43,7 @@ OpenAction = cover_ns.class_('OpenAction', cg.Action)
 CloseAction = cover_ns.class_('CloseAction', cg.Action)
 StopAction = cover_ns.class_('StopAction', cg.Action)
 ControlAction = cover_ns.class_('ControlAction', cg.Action)
+CoverPublishAction = cover_ns.class_('CoverPublishAction', Action)
 CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
 CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 

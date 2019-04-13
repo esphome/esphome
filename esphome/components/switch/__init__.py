@@ -20,6 +20,7 @@ SwitchPtr = Switch.operator('ptr')
 ToggleAction = switch_ns.class_('ToggleAction', cg.Action)
 TurnOffAction = switch_ns.class_('TurnOffAction', cg.Action)
 TurnOnAction = switch_ns.class_('TurnOnAction', cg.Action)
+SwitchPublishAction = switch_ns.class_('SwitchPublishAction', cg.Action)
 
 SwitchCondition = switch_ns.class_('SwitchCondition', Condition)
 SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', cg.Trigger.template())

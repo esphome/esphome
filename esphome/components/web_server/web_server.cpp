@@ -293,7 +293,7 @@ void WebServer::on_text_sensor_update(text_sensor::TextSensor *obj, std::string 
   this->events_.send(this->text_sensor_json(obj, state).c_str(), "state");
 }
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, UrlMatch match) {
-  for (text_sensor::TextSensor *obj : App.get_sensors()) {
+  for (text_sensor::TextSensor *obj : App.get_text_sensors()) {
     if (obj->is_internal())
       continue;
     if (obj->get_object_id() != match.id)

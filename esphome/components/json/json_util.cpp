@@ -107,7 +107,7 @@ void VectorJsonBuffer::reserve(size_t size) {  // NOLINT
   uint32_t target_capacity = this->capacity_;
   if (this->capacity_ == 0) {
     // lazily initialize with a reasonable size
-    target_capacity = JSON_BUFFER_SIZE;
+    target_capacity = JSON_OBJECT_SIZE(16);
   }
   while (target_capacity < size)
     target_capacity *= 2;
