@@ -1,28 +1,27 @@
 from esphome import pins
-from esphome.components import wifi
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_DOMAIN, CONF_ID, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_TYPE, \
-    CONF_USE_ADDRESS, ESP_PLATFORM_ESP32
-from esphome.core import CORE
-
+    CONF_USE_ADDRESS, ESP_PLATFORM_ESP32, CONF_GATEWAY, CONF_SUBNET, CONF_DNS1, CONF_DNS2
+from esphome.core import CORE, coroutine_with_priority
 
 CONFLICTS_WITH = ['wifi']
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
+ethernet_ns = cg.esphome_ns.namespace('ethernet')
 CONF_PHY_ADDR = 'phy_addr'
 CONF_MDC_PIN = 'mdc_pin'
 CONF_MDIO_PIN = 'mdio_pin'
 CONF_CLK_MODE = 'clk_mode'
 CONF_POWER_PIN = 'power_pin'
 
-EthernetType = esphome_ns.enum('EthernetType')
+EthernetType = ethernet_ns.enum('EthernetType')
 ETHERNET_TYPES = {
     'LAN8720': EthernetType.ETHERNET_TYPE_LAN8720,
     'TLK110': EthernetType.ETHERNET_TYPE_TLK110,
 }
 
-eth_clock_mode_t = global_ns.enum('eth_clock_mode_t')
+eth_clock_mode_t = cg.global_ns.enum('eth_clock_mode_t')
 CLK_MODES = {
     'GPIO0_IN': eth_clock_mode_t.ETH_CLOCK_GPIO0_IN,
     'GPIO0_OUT': eth_clock_mode_t.ETH_CLOCK_GPIO0_OUT,
@@ -30,7 +29,18 @@ CLK_MODES = {
     'GPIO17_OUT': eth_clock_mode_t.ETH_CLOCK_GPIO17_OUT,
 }
 
-EthernetComponent = esphome_ns.class_('EthernetComponent', Component)
+
+MANUAL_IP_SCHEMA = cv.Schema({
+    cv.Required(CONF_STATIC_IP): cv.ipv4,
+    cv.Required(CONF_GATEWAY): cv.ipv4,
+    cv.Required(CONF_SUBNET): cv.ipv4,
+    cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
+    cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
+})
+
+EthernetComponent = ethernet_ns.class_('EthernetComponent', cg.Component)
+IPAddress = cg.global_ns.class_('IPAddress')
+ManualIP = ethernet_ns.struct('ManualIP')
 
 
 def validate(config):
@@ -51,7 +61,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_CLK_MODE, default='GPIO0_IN'): cv.one_of(*CLK_MODES, upper=True, space='_'),
     cv.Optional(CONF_PHY_ADDR, default=0): cv.All(cv.int_, cv.Range(min=0, max=31)),
     cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_MANUAL_IP): wifi.STA_MANUAL_IP_SCHEMA,
+    cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
@@ -59,24 +69,33 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 }), validate)
 
 
+def manual_ip(config):
+    return cg.StructInitializer(
+        ManualIP,
+        ('static_ip', IPAddress(*config[CONF_STATIC_IP].args)),
+        ('gateway', IPAddress(*config[CONF_GATEWAY].args)),
+        ('subnet', IPAddress(*config[CONF_SUBNET].args)),
+        ('dns1', IPAddress(*config[CONF_DNS1].args)),
+        ('dns2', IPAddress(*config[CONF_DNS2].args)),
+    )
+
+
 @coroutine_with_priority(60.0)
 def to_code(config):
-    rhs = App.init_ethernet()
-    eth = Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID])
 
-    cg.add(eth.set_phy_addr(config[CONF_PHY_ADDR]))
-    cg.add(eth.set_mdc_pin(config[CONF_MDC_PIN]))
-    cg.add(eth.set_mdio_pin(config[CONF_MDIO_PIN]))
-    cg.add(eth.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
-    cg.add(eth.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
-    cg.add(eth.set_use_address(config[CONF_USE_ADDRESS]))
+    cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
+    cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
+    cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
+    cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
+    cg.add(var.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
+    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        pin = yield gpio_output_pin_expression(config[CONF_POWER_PIN])
-        cg.add(eth.set_power_pin(pin))
+        pin = yield cg.gpio_pin_expression(config[CONF_POWER_PIN])
+        cg.add(var.set_power_pin(pin))
 
     if CONF_MANUAL_IP in config:
-        cg.add(eth.set_manual_ip(wifi.manual_ip(config[CONF_MANUAL_IP])))
+        cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
 
-
-REQUIRED_BUILD_FLAGS = '-DUSE_ETHERNET'
+    cg.add_define('USE_ETHERNET')

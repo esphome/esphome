@@ -60,7 +60,7 @@ class APIConnection {
   bool send_text_sensor_state(text_sensor::TextSensor *text_sensor, std::string state);
 #endif
 #ifdef USE_ESP32_CAMERA
-  void send_camera_state(std::shared_ptr<CameraImage> image);
+  void send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image);
 #endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);
@@ -136,7 +136,7 @@ class APIConnection {
   ListEntitiesIterator list_entities_iterator_;
   InitialStateIterator initial_state_iterator_;
 #ifdef USE_ESP32_CAMERA
-  CameraImageReader image_reader_;
+  esp32_camera::CameraImageReader image_reader_;
 #endif
 
   bool state_subscription_{false};

@@ -144,7 +144,7 @@ bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
 }
 
 #ifdef USE_ESP32_CAMERA
-bool ListEntitiesIterator::on_camera(ESP32Camera *camera) {
+bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {
   auto buffer = this->client_->get_buffer();
   buffer.encode_nameable(camera);
   // string unique_id = 4;

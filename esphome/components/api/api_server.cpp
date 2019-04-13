@@ -56,8 +56,8 @@ void APIServer::setup() {
   this->last_connected_ = millis();
 
 #ifdef USE_ESP32_CAMERA
-  if (global_esp32_camera != nullptr) {
-    global_esp32_camera->add_image_callback([this](std::shared_ptr<CameraImage> image) {
+  if (esp32_camera::global_esp32_camera != nullptr) {
+    esp32_camera::global_esp32_camera->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) {
       for (auto *c : this->clients_)
         if (!c->remove_)
           c->send_camera_state(image);
@@ -778,7 +778,7 @@ void APIConnection::loop() {
       uint32_t to_send = std::min(space - 15, this->image_reader_.available());
       auto buffer = this->get_buffer();
       // fixed32 key = 1;
-      buffer.encode_fixed32(1, global_esp32_camera->get_object_id_hash());
+      buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
       // bytes data = 2;
       buffer.encode_bytes(2, this->image_reader_.peek_data_buffer(), to_send);
       // bool done = 3;
@@ -1174,7 +1174,7 @@ void APIConnection::send_time_request() { this->send_empty_message(APIMessageTyp
 #endif
 
 #ifdef USE_ESP32_CAMERA
-void APIConnection::send_camera_state(std::shared_ptr<CameraImage> image) {
+void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
     return;
   if (this->image_reader_.available())
@@ -1185,15 +1185,15 @@ void APIConnection::send_camera_state(std::shared_ptr<CameraImage> image) {
 
 #ifdef USE_ESP32_CAMERA
 void APIConnection::on_camera_image_request_(const CameraImageRequest &req) {
-  if (global_esp32_camera == nullptr)
+  if (esp32_camera::global_esp32_camera == nullptr)
     return;
 
   ESP_LOGV(TAG, "on_camera_image_request_ stream=%s single=%s", YESNO(req.get_stream()), YESNO(req.get_single()));
   if (req.get_single()) {
-    global_esp32_camera->request_image();
+    esp32_camera::global_esp32_camera->request_image();
   }
   if (req.get_stream()) {
-    global_esp32_camera->request_stream();
+    esp32_camera::global_esp32_camera->request_stream();
   }
 }
 #endif

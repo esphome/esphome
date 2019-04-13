@@ -77,7 +77,7 @@ class ComponentIterator {
 #endif
   virtual bool on_service(UserServiceDescriptor *service);
 #ifdef USE_ESP32_CAMERA
-  virtual bool on_camera(ESP32Camera *camera);
+  virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 #ifdef USE_CLIMATE
   virtual bool on_climate(climate::Climate *climate) = 0;

@@ -40,7 +40,7 @@ class ListEntitiesIterator : public ComponentIterator {
 #endif
   bool on_service(UserServiceDescriptor *service) override;
 #ifdef USE_ESP32_CAMERA
-  bool on_camera(ESP32Camera *camera) override;
+  bool on_camera(esp32_camera::ESP32Camera *camera) override;
 #endif
 #ifdef USE_CLIMATE
   bool on_climate(climate::Climate *climate) override;

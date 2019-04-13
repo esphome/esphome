@@ -1,14 +1,19 @@
-from esphome import config_validation as cv, pins
+from esphome import pins
+import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
     ESP_PLATFORM_ESP32
-ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
-ESP32Camera = esphome_ns.class_('ESP32Camera', PollingComponent, Nameable)
-ESP32CameraFrameSize = esphome_ns.enum('ESP32CameraFrameSize')
+ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+DEPENDENCIES = ['api']
+
+esp32_camera_ns = cg.esphome_ns.namespace('esp32_camera')
+ESP32Camera = esp32_camera_ns.class_('ESP32Camera', cg.PollingComponent, cg.Nameable)
+ESP32CameraFrameSize = esp32_camera_ns.enum('ESP32CameraFrameSize')
 FRAME_SIZES = {
     '160X120': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
     'QQVGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
-    '128x160': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
+    '128X160': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
     'QQVGA2': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_128X160,
     '176X144': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
     'QCIF': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_176X144,
@@ -24,7 +29,7 @@ FRAME_SIZES = {
     'SVGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_800X600,
     '1024X768': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1024X768,
     'XGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1024X768,
-    '1280x1024': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1280X1024,
+    '1280X1024': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1280X1024,
     'SXGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1280X1024,
     '1600X1200': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
     'UXGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
@@ -61,7 +66,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_PIXEL_CLOCK_PIN): pins.input_pin,
     cv.Required(CONF_EXTERNAL_CLOCK): cv.Schema({
         cv.Required(CONF_PIN): pins.output_pin,
-        cv.Optional(CONF_FREQUENCY, default='20MHz'): cv.All(cv.frequency, cv.In([20e6, 10e6])),
+        cv.Optional(CONF_FREQUENCY, default='20MHz'): cv.All(cv.frequency, cv.one_of(20e6, 10e6)),
     }),
     cv.Required(CONF_I2C_PINS): cv.Schema({
         cv.Required(CONF_SDA): pins.output_pin,
@@ -71,10 +76,10 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_POWER_DOWN_PIN): pins.output_pin,
 
     cv.Optional(CONF_MAX_FRAMERATE, default='10 fps'): cv.All(cv.framerate,
-                                                                cv.Range(min=0, min_included=False,
-                                                                          max=60)),
+                                                              cv.Range(min=0, min_included=False,
+                                                                       max=60)),
     cv.Optional(CONF_IDLE_FRAMERATE, default='0.1 fps'): cv.All(cv.framerate,
-                                                                  cv.Range(min=0, max=1)),
+                                                                cv.Range(min=0, max=1)),
     cv.Optional(CONF_RESOLUTION, default='640X480'): cv.one_of(*FRAME_SIZES, upper=True),
     cv.Optional(CONF_JPEG_QUALITY, default=10): cv.All(cv.int_, cv.Range(min=10, max=63)),
     cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
@@ -103,23 +108,24 @@ SETTERS = {
 
 
 def to_code(config):
-    rhs = App.register_component(ESP32Camera.new(config[CONF_NAME]))
-    cam = Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    yield cg.register_component(var, config)
 
     for key, setter in SETTERS.items():
         if key in config:
-            cg.add(getattr(cam, setter)(config[key]))
+            cg.add(getattr(var, setter)(config[key]))
 
     extclk = config[CONF_EXTERNAL_CLOCK]
-    cg.add(cam.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
+    cg.add(var.set_external_clock(extclk[CONF_PIN], extclk[CONF_FREQUENCY]))
     i2c_pins = config[CONF_I2C_PINS]
-    cg.add(cam.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
-    cg.add(cam.set_max_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
+    cg.add(var.set_i2c_pins(i2c_pins[CONF_SDA], i2c_pins[CONF_SCL]))
+    cg.add(var.set_max_update_interval(1000 / config[CONF_MAX_FRAMERATE]))
     if config[CONF_IDLE_FRAMERATE] == 0:
-        cg.add(cam.set_idle_update_interval(0))
+        cg.add(var.set_idle_update_interval(0))
     else:
-        cg.add(cam.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
-    cg.add(cam.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
+        cg.add(var.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
+    cg.add(var.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
 
+    cg.add_define('USE_ESP32_CAMERA')
+    cg.add_build_flag('-DBOARD_HAS_PSRAM')
 
-BUILD_FLAGS = ['-DUSE_ESP32_CAMERA', '-DBOARD_HAS_PSRAM']

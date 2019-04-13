@@ -301,14 +301,14 @@ void ComponentIterator::advance() {
       break;
 #ifdef USE_ESP32_CAMERA
     case IteratorState::CAMERA:
-      if (global_esp32_camera == nullptr) {
+      if (esp32_camera::global_esp32_camera == nullptr) {
         advance_platform = true;
       } else {
-        if (global_esp32_camera->is_internal()) {
+        if (esp32_camera::global_esp32_camera->is_internal()) {
           advance_platform = success = true;
           break;
         } else {
-          advance_platform = success = this->on_camera(global_esp32_camera);
+          advance_platform = success = this->on_camera(esp32_camera::global_esp32_camera);
         }
       }
       break;
@@ -346,7 +346,7 @@ bool ComponentIterator::on_end() { return true; }
 bool ComponentIterator::on_begin() { return true; }
 bool ComponentIterator::on_service(UserServiceDescriptor *service) { return true; }
 #ifdef USE_ESP32_CAMERA
-bool ComponentIterator::on_camera(ESP32Camera *camera) { return true; }
+bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
 #endif
 
 }  // namespace api

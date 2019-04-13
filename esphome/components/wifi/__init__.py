@@ -51,8 +51,8 @@ AP_MANUAL_IP_SCHEMA = cv.Schema({
 })
 
 STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
-    vol.Optional(CONF_DNS1, default="1.1.1.1"): cv.ipv4,
-    vol.Optional(CONF_DNS2, default="1.0.0.1"): cv.ipv4,
+    vol.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
+    vol.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
 })
 
 WIFI_NETWORK_BASE = cv.Schema({
@@ -189,11 +189,7 @@ def to_code(config):
     yield cg.register_component(wifi, config)
 
 
-CONF_WIFI_CONNECTED = 'wifi.connected'
-WIFI_CONNECTED_CONDITION_SCHEMA = cv.Schema({})
-
-
-@CONDITION_REGISTRY.register(CONF_WIFI_CONNECTED, WIFI_CONNECTED_CONDITION_SCHEMA)
+@CONDITION_REGISTRY.register('wifi.connected', cv.Schema({}))
 def wifi_connected_to_code(config, condition_id, template_arg, args):
     rhs = WiFiConnectedCondition.new(template_arg)
     type = WiFiConnectedCondition.template(template_arg)

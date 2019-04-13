@@ -17,7 +17,7 @@ class Expression(object):
 
 
 SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod,
-                    Type[bool], Type[int], Type[float], List]
+                    Type[bool], Type[int], Type[float], List[Any]]
 
 
 class RawExpression(Expression):
