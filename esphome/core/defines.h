@@ -20,3 +20,4 @@
 //#define USE_MQTT
 #define USE_POWER_SUPPLY
 #define USE_HOMEASSISTANT_TIME
+#define USE_JSON
