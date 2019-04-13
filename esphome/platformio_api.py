@@ -12,6 +12,41 @@ from esphome.util import run_external_command, run_external_process
 _LOGGER = logging.getLogger(__name__)
 
 
+def patch_structhash():
+    # Patch platformio's structhash to not recompile the entire project when files are
+    # removed/added. This might have unintended consequences, but this improves compile
+    # times greatly when adding/removing components and a simple clean build solves
+    # all issues
+    from platformio.commands import run
+    from platformio import util
+    from os.path import join, isdir, getmtime, isfile
+    from os import makedirs
+
+    def patched_clean_build_dir(build_dir):
+        structhash_file = join(build_dir, "structure.hash")
+        platformio_ini = join(util.get_project_dir(), "platformio.ini")
+
+        # if project's config is modified
+        if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):
+            util.rmtree_(build_dir)
+
+        if not isdir(build_dir):
+            makedirs(build_dir)
+
+        proj_hash = run.calculate_project_hash()
+
+        # check project structure
+        if isdir(build_dir) and isfile(structhash_file):
+            with open(structhash_file) as f:
+                if f.read() == proj_hash:
+                    return
+
+        with open(structhash_file, "w") as f:
+            f.write(proj_hash)
+
+    run._clean_build_dir = patched_clean_build_dir
+
+
 def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
@@ -20,6 +55,7 @@ def run_platformio_cli(*args, **kwargs):
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
         import platformio.__main__
+        patch_structhash()
         return run_external_command(platformio.__main__.main,
                                     *cmd, **kwargs)
 
