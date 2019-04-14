@@ -88,11 +88,11 @@ mqtt:
             ESP_LOGD("main", "The data is: %d", data);
         - light.turn_on:
             id: living_room_lights
-            brightness: !lambda |-
-              float brightness = 1.0;
-              if (x.containsKey("brightness"))
-                brightness = x["brightness"];
-              return brightness;
+            transition_length: !lambda |-
+              int length = 1000;
+              if (x.containsKey("length"))
+                length = x["length"];
+              return length;
             effect: !lambda |-
               const char *effect = "None";
               if (x.containsKey("effect"))
@@ -501,6 +501,31 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
+
+
+  - platform: ppd42x
+    type: PPD42
+    pin_10_0: GPIO05
+    pin_02_5: GPIO06
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+    update_interval: 1min
+
+  - platform: ppd42x
+    type: PPD42NJ
+    pin_02_5: GPIO05
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    update_interval: 1min
+
+  - platform: ppd42x
+    pin_10_0: GPIO06
+    type: PPD42NS
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+    update_interval: 1min
 
 
 esp32_touch:

@@ -6,7 +6,7 @@ esphome:
   # Note the travis check for esphome PRs will fail until the
   # esphome-core PR has been merged.
   # esphome_core_version:
-  #   local: ~/path/to/esphome-core
+  #  local: /home/pi4homez/github2/esphome-core
   build_path: build/test3
 
 substitutions:
@@ -44,6 +44,30 @@ deep_sleep:
   sleep_duration: 50s
 
 sensor:
+  - platform: ppd42x
+    type: PPD42
+    pin_10_0: GPIO05
+    pin_02_5: GPIO06
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+    update_interval: 1min
+
+  - platform: ppd42x
+    type: PPD42NJ
+    pin_02_5: GPIO05
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    update_interval: 1min
+
+  - platform: ppd42x
+    pin_10_0: GPIO06
+    type: PPD42NS
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+    update_interval: 1min
+
   - platform: pmsx003
     type: PMSX003
     pm_1_0:
