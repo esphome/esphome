@@ -1,5 +1,6 @@
 #include "homeassistant_binary_sensor.h"
 #include "esphome/core/log.h"
+#include "esphome/components/api/api_server.h"
 
 namespace esphome {
 namespace homeassistant {

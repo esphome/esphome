@@ -44,7 +44,7 @@ class ComponentManifest(object):
     @property
     def config_schema(self):
         if self.is_platform:
-            return self.module.PLATFORM_SCHEMA
+            return getattr(self.module, 'PLATFORM_SCHEMA', None)
         return getattr(self.module, 'CONFIG_SCHEMA', None)
 
     @property

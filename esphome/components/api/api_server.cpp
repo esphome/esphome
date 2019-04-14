@@ -8,7 +8,7 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_DEEP_SLEEP
-#include "esphome/components/deeps_sleep/deep_sleep_component.h"
+#include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
@@ -623,7 +623,7 @@ void APIConnection::on_device_info_request_(const DeviceInfoRequest &req) {
 #endif
 #ifdef USE_DEEP_SLEEP
   // bool has_deep_sleep = 7;
-  buffer.encode_bool(7, global_has_deep_sleep);
+  buffer.encode_bool(7, deep_sleep::global_has_deep_sleep);
 #endif
   this->send_buffer(APIMessageType::DEVICE_INFO_RESPONSE);
 }

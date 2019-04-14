@@ -170,8 +170,6 @@ bool I2CComponent::write_byte_16(uint8_t address, uint8_t a_register, uint16_t d
   return this->write_bytes_16(address, a_register, &data, 1);
 }
 
-I2CDevice::I2CDevice(I2CComponent *parent, uint8_t address) : address_(address), parent_(parent) {}
-
 void I2CDevice::set_i2c_address(uint8_t address) { this->address_ = address; }
 bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
   return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);

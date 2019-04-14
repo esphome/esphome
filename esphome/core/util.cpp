@@ -10,9 +10,9 @@
 #include "esphome/components/api/api_server.h"
 #endif
 
-/*#ifdef USE_ETHERNET
-#include
-#endif*/
+#ifdef USE_ETHERNET
+#include "esphome/components/ethernet/ethernet_component.h"
+#endif
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <ESPmDNS.h>
@@ -25,7 +25,7 @@ namespace esphome {
 
 bool network_is_connected() {
 #ifdef USE_ETHERNET
-  if (global_eth_component != nullptr && global_eth_component->is_connected())
+  if (ethernet::global_eth_component != nullptr && ethernet::global_eth_component->is_connected())
     return true;
 #endif
 
@@ -40,8 +40,8 @@ bool network_is_connected() {
 void network_setup() {
   bool ready = true;
 #ifdef USE_ETHERNET
-  if (global_eth_component != nullptr) {
-    global_eth_component->call_setup();
+  if (ethernet::global_eth_component != nullptr) {
+    ethernet::global_eth_component->call_setup();
     ready = false;
   }
 #endif
@@ -55,9 +55,9 @@ void network_setup() {
 
   while (!ready) {
 #ifdef USE_ETHERNET
-    if (global_eth_component != nullptr) {
-      global_eth_component->call_loop();
-      ready = ready || global_eth_component->can_proceed();
+    if (ethernet::global_eth_component != nullptr) {
+      ethernet::global_eth_component->call_loop();
+      ready = ready || ethernet::global_eth_component->can_proceed();
     }
 #endif
 #ifdef USE_WIFI
@@ -72,8 +72,8 @@ void network_setup() {
 }
 void network_tick() {
 #ifdef USE_ETHERNET
-  if (global_eth_component != nullptr)
-    global_eth_component->call_loop();
+  if (ethernet::global_eth_component != nullptr)
+    ethernet::global_eth_component->call_loop();
 #endif
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr)
@@ -107,8 +107,8 @@ void network_tick_mdns() {
 
 std::string network_get_address() {
 #ifdef USE_ETHERNET
-  if (global_eth_component != nullptr)
-    return global_eth_component->get_use_address();
+  if (ethernet::global_eth_component != nullptr)
+    return ethernet::global_eth_component->get_use_address();
 #endif
 #ifdef USE_WIFI
   if (wifi::global_wifi_component != nullptr)

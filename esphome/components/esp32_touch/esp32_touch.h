@@ -31,6 +31,8 @@ class ESP32TouchComponent : public Component {
   void loop() override;
   float get_setup_priority() const override;
 
+  void on_shutdown() override;
+
  protected:
   /// Is the IIR filter enabled?
   bool iir_filter_enabled_() const;

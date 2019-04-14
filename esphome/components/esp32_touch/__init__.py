@@ -49,19 +49,19 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_IIR_FILTER, default='0ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SLEEP_DURATION, default='27306us'):
         cv.All(cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=436906))),
-    cv.Optional(CONF_MEASUREMENT_DURATION, default='524280us'):
+    cv.Optional(CONF_MEASUREMENT_DURATION, default='8192us'):
         cv.All(cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=8192))),
     cv.Optional(CONF_LOW_VOLTAGE_REFERENCE, default='0.5V'):
         validate_voltage(LOW_VOLTAGE_REFERENCE),
     cv.Optional(CONF_HIGH_VOLTAGE_REFERENCE, default='2.7V'):
         validate_voltage(HIGH_VOLTAGE_REFERENCE),
-    cv.Optional(CONF_VOLTAGE_ATTENUATION, '0V'): validate_voltage(VOLTAGE_ATTENUATION),
+    cv.Optional(CONF_VOLTAGE_ATTENUATION, default='0V'): validate_voltage(VOLTAGE_ATTENUATION),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
     touch = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(touch)
+    yield cg.register_component(touch, config)
 
     cg.add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
     cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
@@ -69,7 +69,8 @@ def to_code(config):
     sleep_duration = int(round(config[CONF_SLEEP_DURATION].total_microseconds * 0.15))
     cg.add(touch.set_sleep_duration(sleep_duration))
 
-    measurement_duration = int(round(config[CONF_MEASUREMENT_DURATION].total_microseconds * 0.125))
+    measurement_duration = int(round(config[CONF_MEASUREMENT_DURATION].total_microseconds *
+                                     7.99987793))
     cg.add(touch.set_measurement_duration(measurement_duration))
 
     cg.add(touch.set_low_voltage_reference(

@@ -111,4 +111,8 @@ class GPIOPin {
   const uint32_t gpio_mask_;
 };
 
+template<typename T> void GPIOPin::attach_interrupt(void (*func)(T *), T *arg, int mode) const {
+  this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, mode);
+}
+
 }  // namespace esphome

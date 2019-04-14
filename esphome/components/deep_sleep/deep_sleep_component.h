@@ -47,7 +47,7 @@ class DeepSleepComponent : public Component {
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
-  void set_wakeup_pin(const GPIOInputPin &pin);
+  void set_wakeup_pin(GPIOPin *pin) { this->wakeup_pin_ = pin; }
 
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
 

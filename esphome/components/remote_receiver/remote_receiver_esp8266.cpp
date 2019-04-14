@@ -62,10 +62,6 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);
   ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
   ESP_LOGCONFIG(TAG, "  Signal is done after %u us of no changes", this->idle_us_);
-
-  for (auto *child : this->decoders_) {
-    LOG_BINARY_SENSOR("  ", "Binary Sensor", child);
-  }
 }
 
 void RemoteReceiverComponent::loop() {
@@ -118,8 +114,7 @@ void RemoteReceiverComponent::loop() {
   s.buffer_read_at = (s.buffer_size + s.buffer_read_at - 1) % s.buffer_size;
   this->temp_.push_back(this->idle_us_ * multiplier);
 
-  RemoteReceiveData data(this, &this->temp_);
-  this->process_(&data);
+  this->call_listeners_dumpers_();
 }
 
 }  // namespace remote_receiver

@@ -39,7 +39,6 @@ float DeepSleepComponent::get_loop_priority() const {
 }
 void DeepSleepComponent::set_sleep_duration(uint32_t time_ms) { this->sleep_duration_ = uint64_t(time_ms) * 1000; }
 #ifdef ARDUINO_ARCH_ESP32
-void DeepSleepComponent::set_wakeup_pin(const GPIOInputPin &pin) { this->wakeup_pin_ = pin.copy(); }
 void DeepSleepComponent::set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode) {
   this->wakeup_pin_mode_ = wakeup_pin_mode;
 }
@@ -66,7 +65,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 
   ESP_LOGI(TAG, "Beginning Deep Sleep");
 
-  App.run_safe_shutdown_hooks("deep-sleep");
+  App.run_safe_shutdown_hooks();
 
 #ifdef ARDUINO_ARCH_ESP32
   if (this->sleep_duration_.has_value())
