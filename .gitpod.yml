@@ -1,0 +1,6 @@
+ports:
+- port: 6052
+  onOpen: open-preview
+tasks:
+- before: python setup.py install
+  command: python esphome my_configuration.yaml dashboard
