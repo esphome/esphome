@@ -61,11 +61,16 @@ api:
 """
 
 
+def sanitize_double_quotes(str):
+    str = str.replace('\\', '\\\\').replace('"', '\\"')
+    return str
+
+
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u"  password: '{0}'\n\nota:\n  password: '{0}'\n".format(kwargs['password'])
+        config += u"  password: \"{0}\"\n\nota:\n  password: \"{0}\"\n".format(kwargs['password'])
     else:
         config += u"\nota:\n"
 
@@ -75,6 +80,11 @@ def wizard_file(**kwargs):
 def wizard_write(path, **kwargs):
     name = kwargs['name']
     board = kwargs['board']
+
+    kwargs['ssid'] = sanitize_double_quotes(kwargs['ssid'])
+    kwargs['psk'] = sanitize_double_quotes(kwargs['psk'])
+    kwargs['password'] = sanitize_double_quotes(kwargs['password'])
+
     if 'platform' not in kwargs:
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
@@ -235,7 +245,6 @@ def wizard(path):
     safe_print(u"Thank you very much! You've just chosen \"{}\" as your SSID."
                u"".format(color('cyan', ssid)))
     safe_print()
-    ssid = ssid.replace('\\','\\\\').replace('"','\\"')
     sleep(0.75)
 
     safe_print("Now please state the " + color('green', 'password') +
@@ -245,7 +254,6 @@ def wizard(path):
     sleep(0.5)
     psk = safe_input(color('bold_white', '(PSK): '))
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
-    psk = psk.replace('\\','\\\\').replace('"','\\"')
     sleep(1.5)
 
     safe_print_step(4, OTA_BIG)
