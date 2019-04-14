@@ -1,0 +1,127 @@
+---
+Checks: >-
+  *,
+  -abseil-*,
+  -android-*,
+  -boost-*,
+  -bugprone-macro-parentheses,
+  -cert-dcl50-cpp,
+  -cert-err58-cpp,
+  -clang-analyzer-core.CallAndMessage,
+  -clang-analyzer-osx.*,
+  -clang-analyzer-security.*,
+  -cppcoreguidelines-avoid-goto,
+  -cppcoreguidelines-c-copy-assignment-signature,
+  -cppcoreguidelines-owning-memory,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -cppcoreguidelines-pro-bounds-constant-array-index,
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
+  -cppcoreguidelines-pro-type-const-cast,
+  -cppcoreguidelines-pro-type-cstyle-cast,
+  -cppcoreguidelines-pro-type-member-init,
+  -cppcoreguidelines-pro-type-reinterpret-cast,
+  -cppcoreguidelines-pro-type-static-cast-downcast,
+  -cppcoreguidelines-pro-type-union-access,
+  -cppcoreguidelines-pro-type-vararg,
+  -cppcoreguidelines-special-member-functions,
+  -fuchsia-*,
+  -fuchsia-default-arguments,
+  -fuchsia-multiple-inheritance,
+  -fuchsia-overloaded-operator,
+  -fuchsia-statically-constructed-objects,
+  -google-build-using-namespace,
+  -google-explicit-constructor,
+  -google-readability-braces-around-statements,
+  -google-readability-casting,
+  -google-readability-todo,
+  -google-runtime-int,
+  -google-runtime-references,
+  -hicpp-*,
+  -llvm-header-guard,
+  -llvm-include-order,
+  -misc-unconventional-assign-operator,
+  -misc-unused-parameters,
+  -modernize-deprecated-headers,
+  -modernize-pass-by-value,
+  -modernize-pass-by-value,
+  -modernize-return-braced-init-list,
+  -modernize-use-auto,
+  -modernize-use-default-member-init,
+  -modernize-use-equals-default,
+  -mpi-*,
+  -objc-*,
+  -performance-unnecessary-value-param,
+  -readability-braces-around-statements,
+  -readability-else-after-return,
+  -readability-implicit-bool-conversion,
+  -readability-named-parameter,
+  -readability-redundant-member-init,
+  -warnings-as-errors,
+  -zircon-*
+WarningsAsErrors: '*'
+HeaderFilterRegex: '^.*/src/esphome/.*'
+AnalyzeTemporaryDtors: false
+FormatStyle:     google
+CheckOptions:
+  - key:             google-readability-braces-around-statements.ShortStatementLines
+    value:           '1'
+  - key:             google-readability-function-size.StatementThreshold
+    value:           '800'
+  - key:             google-readability-namespace-comments.ShortNamespaceLines
+    value:           '10'
+  - key:             google-readability-namespace-comments.SpacesBeforeComments
+    value:           '2'
+  - key:             modernize-loop-convert.MaxCopySize
+    value:           '16'
+  - key:             modernize-loop-convert.MinConfidence
+    value:           reasonable
+  - key:             modernize-loop-convert.NamingStyle
+    value:           CamelCase
+  - key:             modernize-pass-by-value.IncludeStyle
+    value:           llvm
+  - key:             modernize-replace-auto-ptr.IncludeStyle
+    value:           llvm
+  - key:             modernize-use-nullptr.NullMacros
+    value:           'NULL'
+  - key:             readability-identifier-naming.LocalVariableCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ClassCase
+    value:           'CamelCase'
+  - key:             readability-identifier-naming.StructCase
+    value:           'CamelCase'
+  - key:             readability-identifier-naming.EnumCase
+    value:           'CamelCase'
+  - key:             readability-identifier-naming.EnumConstantCase
+    value:           'UPPER_CASE'
+  - key:             readability-identifier-naming.StaticConstantCase
+    value:           'UPPER_CASE'
+  - key:             readability-identifier-naming.StaticVariableCase
+    value:           'UPPER_CASE'
+  - key:             readability-identifier-naming.GlobalConstantCase
+    value:           'UPPER_CASE'
+  - key:             readability-identifier-naming.ParameterCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.PrivateMemberPrefix
+    value:           'NO_PRIVATE_MEMBERS_ALWAYS_USE_PROTECTED'
+  - key:             readability-identifier-naming.PrivateMethodPrefix
+    value:           'NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTED'
+  - key:             readability-identifier-naming.ClassMemberCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ClassMemberCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ProtectedMemberCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ProtectedMemberSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.FunctionCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ClassMethodCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ProtectedMethodCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.ProtectedMethodSuffix
+    value:           '_'
+  - key:             readability-identifier-naming.VirtualMethodCase
+    value:           'lower_case'
+  - key:             readability-identifier-naming.VirtualMethodSuffix
+    value:           ''
