@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL, CONF_I2C_ID
+from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['sensor', 'binary_sensor']
@@ -14,15 +14,11 @@ APDS9960 = apds9960_nds.class_('APDS9960', cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(APDS9960),
-    cv.GenerateID(CONF_I2C_ID): cv.declare_variable_id(i2c.I2CComponent),
-
-    cv.Optional(CONF_ADDRESS, default=0x39): cv.i2c_address,
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x39))
 
 
 def to_code(config):
-    i2c_ = yield cg.get_variable(config[CONF_I2C_ID])
-    var = cg.new_Pvariable(config[CONF_ID], i2c_, config[CONF_ADDRESS],
-                           config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
     yield cg.register_component(var, config)
+    yield i2c.register_i2c_device(var, config)

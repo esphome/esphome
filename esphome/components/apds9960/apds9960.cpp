@@ -369,8 +369,6 @@ bool APDS9960::is_gesture_enabled_() const {
   return this->up_direction_ != nullptr || this->left_direction_ != nullptr || this->down_direction_ != nullptr ||
       this->right_direction_ != nullptr;
 }
-APDS9960::APDS9960(i2c::I2CComponent *parent, uint8_t address, uint32_t update_interval)
-    : PollingComponent(update_interval), I2CDevice(parent, address) {}
 
 }  // namespace apds9960
 }  // namespace esphome

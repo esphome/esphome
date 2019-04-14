@@ -335,8 +335,7 @@ bool PN532::wait_ready_() {
   return true;
 }
 
-PN532::PN532(spi::SPIComponent *parent, GPIOPin *cs, uint32_t update_interval)
-    : PollingComponent(update_interval), SPIDevice(parent, cs) {}
+PN532::PN532(uint32_t update_interval) : PollingComponent(update_interval) {}
 bool PN532::is_device_msb_first() { return false; }
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");

@@ -20,7 +20,7 @@ IMAGE_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_variable_id(Image_),
     cv.Required(CONF_FILE): cv.file_,
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(uint8),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(cg.uint8),
 })
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
@@ -52,8 +52,6 @@ def to_code(config):
             pos = x + y * width8
             data[pos // 8] |= 0x80 >> (pos % 8)
 
-    rhs = safe_exp([HexInt(x) for x in data])
-    prog_arr = progmem_array(config[CONF_RAW_DATA_ID], rhs)
-
-    rhs = App.make_image(prog_arr, width, height)
-    Pvariable(config[CONF_ID], rhs)
+    rhs = [HexInt(x) for x in data]
+    prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height)

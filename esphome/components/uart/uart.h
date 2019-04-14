@@ -89,7 +89,10 @@ extern uint8_t next_uart_num;
 
 class UARTDevice : public Stream {
  public:
+  UARTDevice() = default;
   UARTDevice(UARTComponent *parent) : parent_(parent) {}
+
+  void set_uart_parent(UARTComponent *parent) { this->parent_ = parent; }
 
   void write_byte(uint8_t data) { this->parent_->write_byte(data); }
 
@@ -111,7 +114,7 @@ class UARTDevice : public Stream {
   int peek() override {return this->parent_->peek();}
 
  protected:
-  UARTComponent *parent_;
+  UARTComponent *parent_{nullptr};
 };
 
 }  // namespace uart

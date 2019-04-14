@@ -9,7 +9,7 @@ namespace uart {
 
 class UARTSwitch : public switch_::Switch, public UARTDevice, public Component {
  public:
-  UARTSwitch(UARTComponent *parent, const std::string &name, const std::vector<uint8_t> &data);
+  UARTSwitch(const std::string &name, const std::vector<uint8_t> &data);
 
   void dump_config() override;
 

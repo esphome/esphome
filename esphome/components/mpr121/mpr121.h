@@ -58,7 +58,6 @@ class MPR121Channel : public binary_sensor::BinarySensor {
 
 class MPR121Component : public Component, public i2c::I2CDevice {
  public:
-  MPR121Component(i2c::I2CComponent *parent, uint8_t address) : I2CDevice(parent, address) {}
   void register_channel(MPR121Channel *channel) {
     this->channels_.push_back(channel);
   }

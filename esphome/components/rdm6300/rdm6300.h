@@ -13,8 +13,6 @@ class RDM6300Trigger;
 
 class RDM6300Component : public Component, public uart::UARTDevice {
  public:
-  explicit RDM6300Component(uart::UARTComponent *parent) : UARTDevice(parent) {}
-
   void loop() override;
 
   void register_card(RDM6300BinarySensor *obj) {

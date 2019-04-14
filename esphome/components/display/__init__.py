@@ -1,22 +1,23 @@
 # coding=utf-8
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import core
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
-from esphome.core import CORE
+from esphome.core import coroutine
+
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
 })
 
-display_ns = esphome_ns.namespace('display')
+display_ns = cg.esphome_ns.namespace('display')
 DisplayBuffer = display_ns.class_('DisplayBuffer')
 DisplayPage = display_ns.class_('DisplayPage')
 DisplayPagePtr = DisplayPage.operator('ptr')
 DisplayBufferRef = DisplayBuffer.operator('ref')
-DisplayPageShowAction = display_ns.class_('DisplayPageShowAction', Action)
-DisplayPageShowNextAction = display_ns.class_('DisplayPageShowNextAction', Action)
-DisplayPageShowPrevAction = display_ns.class_('DisplayPageShowPrevAction', Action)
+DisplayPageShowAction = display_ns.class_('DisplayPageShowAction', cg.Action)
+DisplayPageShowNextAction = display_ns.class_('DisplayPageShowNextAction', cg.Action)
+DisplayPageShowPrevAction = display_ns.class_('DisplayPageShowPrevAction', cg.Action)
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -51,68 +52,59 @@ FULL_DISPLAY_PLATFORM_SCHEMA = BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 })
 
 
-def setup_display_core_(display_var, config):
+@coroutine
+def setup_display_core_(var, config):
     if CONF_UPDATE_INTERVAL in config:
-        cg.add(display_var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     if CONF_ROTATION in config:
-        cg.add(display_var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
+        cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
     if CONF_PAGES in config:
         pages = []
         for conf in config[CONF_PAGES]:
-            lambda_ = yield process_lambda(conf[CONF_LAMBDA], [(DisplayBufferRef, 'it')],
-                                           return_type=void)
-            var = Pvariable(conf[CONF_ID], DisplayPage.new(lambda_))
-            pages.append(var)
-        cg.add(display_var.set_pages(pages))
+            lambda_ = yield cg.process_lambda(conf[CONF_LAMBDA], [(DisplayBufferRef, 'it')],
+                                              return_type=cg.void)
+            page = cg.new_Pvariable(conf[CONF_ID], lambda_)
+            pages.append(page)
+        cg.add(var.set_pages(pages))
 
 
-CONF_DISPLAY_PAGE_SHOW = 'display.page.show'
-DISPLAY_PAGE_SHOW_ACTION_SCHEMA = maybe_simple_id({
+@coroutine
+def register_display(var, config):
+    yield setup_display_core_(var, config)
+
+
+@ACTION_REGISTRY.register('display.page.show', maybe_simple_id({
     cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayPage)),
-})
-
-
-@ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW, DISPLAY_PAGE_SHOW_ACTION_SCHEMA)
+}))
 def display_page_show_to_code(config, action_id, template_arg, args):
     type = DisplayPageShowAction.template(template_arg)
-    action = Pvariable(action_id, type.new(), type=type)
+    action = cg.Pvariable(action_id, type.new(), type=type)
     if isinstance(config[CONF_ID], core.Lambda):
-        template_ = yield templatable(config[CONF_ID], args, DisplayPagePtr)
+        template_ = yield cg.templatable(config[CONF_ID], args, DisplayPagePtr)
         cg.add(action.set_page(template_))
     else:
-        var = yield get_variable(config[CONF_ID])
+        var = yield cg.get_variable(config[CONF_ID])
         cg.add(action.set_page(var))
     yield action
 
 
-CONF_DISPLAY_PAGE_SHOW_NEXT = 'display.page.show_next'
-DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA = maybe_simple_id({
+@ACTION_REGISTRY.register('display.page.show_next', maybe_simple_id({
     cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
-})
-
-
-@ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_NEXT, DISPLAY_PAGE_SHOW_NEXT_ACTION_SCHEMA)
+}))
 def display_page_show_next_to_code(config, action_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
+    var = yield cg.get_variable(config[CONF_ID])
     type = DisplayPageShowNextAction.template(template_arg)
-    yield Pvariable(action_id, type.new(var), type=type)
+    yield cg.Pvariable(action_id, type.new(var), type=type)
 
 
-CONF_DISPLAY_PAGE_SHOW_PREVIOUS = 'display.page.show_previous'
-DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA = maybe_simple_id({
+@ACTION_REGISTRY.register('display.page.show_previous', maybe_simple_id({
     cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
-})
-
-
-@ACTION_REGISTRY.register(CONF_DISPLAY_PAGE_SHOW_PREVIOUS, DISPLAY_PAGE_SHOW_PREVIOUS_ACTION_SCHEMA)
+}))
 def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    var = yield get_variable(config[CONF_ID])
+    var = yield cg.get_variable(config[CONF_ID])
     type = DisplayPageShowPrevAction.template(template_arg)
-    yield Pvariable(action_id, type.new(var), type=type)
+    yield cg.Pvariable(action_id, type.new(var), type=type)
 
 
-def setup_display(display_var, config):
-    CORE.add_job(setup_display_core_, display_var, config)
-
-
-BUILD_FLAGS = '-DUSE_DISPLAY'
+def to_code(config):
+    cg.add_global(display_ns.using)

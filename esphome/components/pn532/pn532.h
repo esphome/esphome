@@ -13,7 +13,7 @@ class PN532Trigger;
 
 class PN532 : public PollingComponent, public spi::SPIDevice {
  public:
-  PN532(spi::SPIComponent *parent, GPIOPin *cs, uint32_t update_interval);
+  PN532(uint32_t update_interval);
 
   void setup() override;
 

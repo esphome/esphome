@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_UART_ID, CONF_ON_TAG, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
 DEPENDENCIES = ['uart']
 AUTO_LOAD = ['binary_sensor']
@@ -13,17 +13,16 @@ RDM6300Trigger = rdm6300_ns.class_('RDM6300Trigger', cg.Trigger.template(cg.uint
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(RDM6300Component),
-    cv.GenerateID(CONF_UART_ID): cv.use_variable_id(uart.UARTComponent),
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(RDM6300Trigger),
     }),
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 
 def to_code(config):
-    uart_ = yield cg.get_variable(config[CONF_UART_ID])
-    var = cg.new_Pvariable(config[CONF_ID], uart_)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
+    yield uart.register_uart_device(var, config)
 
     for conf in config.get(CONF_ON_TAG, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])

@@ -6,8 +6,8 @@ namespace uart {
 
 static const char *TAG = "uart.switch";
 
-UARTSwitch::UARTSwitch(UARTComponent *parent, const std::string &name, const std::vector<uint8_t> &data)
-    : switch_::Switch(name), UARTDevice(parent), data_(data) {}
+UARTSwitch::UARTSwitch(const std::string &name, const std::vector<uint8_t> &data)
+    : switch_::Switch(name), data_(data) {}
 
 void UARTSwitch::write_state(bool state) {
   if (!state) {

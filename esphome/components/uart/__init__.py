@@ -1,9 +1,8 @@
 from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN
-from esphome.core import CORE
-
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID
+from esphome.core import CORE, coroutine
 
 uart_ns = cg.esphome_ns.namespace('uart')
 UARTComponent = uart_ns.class_('UARTComponent', cg.Component)
@@ -34,3 +33,14 @@ def to_code(config):
         cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
     if CONF_RX_PIN in config:
         cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+
+
+UART_DEVICE_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
+})
+
+
+@coroutine
+def register_uart_device(var, config):
+    parent = yield cg.get_variable(config[CONF_UART_ID])
+    cg.add(var.set_uart_parent(parent))

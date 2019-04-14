@@ -294,3 +294,8 @@ def setup_time_core_(time_var, config):
 @coroutine
 def register_time(time_var, config):
     yield setup_time_core_(time_var, config)
+
+
+def to_code(config):
+    cg.add_define('USE_TIME')
+    cg.add_global(time_ns.using)

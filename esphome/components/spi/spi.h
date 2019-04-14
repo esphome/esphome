@@ -40,8 +40,11 @@ class SPIComponent : public Component {
 
 class SPIDevice {
  public:
-  SPIDevice(SPIComponent *parent, GPIOPin *cs)
-      : parent_(parent), cs_(cs) {}
+  SPIDevice() = default;
+  SPIDevice(SPIComponent *parent, GPIOPin *cs) : parent_(parent), cs_(cs) {}
+
+  void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
+  void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
 
   void spi_setup() {
     this->cs_->setup();
@@ -79,8 +82,8 @@ class SPIDevice {
     return false;
   }
 
-  SPIComponent *parent_;
-  GPIOPin *cs_;
+  SPIComponent *parent_{nullptr};
+  GPIOPin *cs_{nullptr};
 };
 
 }  // namespace spi

@@ -34,9 +34,8 @@ class PCA9685Channel : public output::FloatOutput {
 /// PCA9685 float output component.
 class PCA9685Output : public Component, public i2c::I2CDevice {
  public:
-  PCA9685Output(i2c::I2CComponent *parent, uint8_t address, float frequency,
-                uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE)
-      : I2CDevice(parent, address), frequency_(frequency), mode_(mode) {
+  PCA9685Output(float frequency, uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE)
+      : frequency_(frequency), mode_(mode) {
   }
 
   PCA9685Channel *create_channel(uint8_t channel);

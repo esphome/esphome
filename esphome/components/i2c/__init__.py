@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA
+from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA, CONF_ADDRESS, \
+    CONF_I2C_ID
+from esphome.core import coroutine
 
 i2c_ns = cg.esphome_ns.namespace('i2c')
 I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
@@ -25,3 +27,21 @@ def to_code(config):
 
     cg.add_library('Wire', None)
     cg.add_global(i2c_ns.using)
+
+
+def i2c_device_schema(default_address):
+    schema = {
+        cv.GenerateID(CONF_I2C_ID): cv.use_variable_id(I2CComponent),
+    }
+    if default_address is None:
+        schema[cv.Required(CONF_ADDRESS)] = cv.i2c_address
+    else:
+        schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.i2c_address
+    return cv.Schema(schema)
+
+
+@coroutine
+def register_i2c_device(var, config):
+    parent = yield cg.get_variable(config[CONF_I2C_ID])
+    cg.add(var.set_i2c_parent(parent))
+    cg.add(var.set_i2c_address(config[CONF_ADDRESS]))

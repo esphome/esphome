@@ -64,8 +64,6 @@ struct ESPTime {
   bool operator>(ESPTime other);
 };
 
-using EsphomelibTime = ESPTime;
-
 /// The RealTimeClock class exposes common timekeeping functions via the device's local real-time clock.
 ///
 /// \note

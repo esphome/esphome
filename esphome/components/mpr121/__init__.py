@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_I2C_ID
+from esphome.const import CONF_ID
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']
@@ -13,12 +13,10 @@ MPR121Component = mpr121_ns.class_('MPR121Component', cg.Component, i2c.I2CDevic
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MPR121Component),
-    cv.GenerateID(CONF_I2C_ID): cv.use_variable_id(i2c.I2CComponent),
-    cv.Optional(CONF_ADDRESS, default=0x5A): cv.i2c_address
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x5A))
 
 
 def to_code(config):
-    i2c_ = yield cg.get_variable(CONF_I2C_ID)
-    var = cg.new_Pvariable(config[CONF_ID], i2c_, config[CONF_ADDRESS])
-    yield cg.register_component(var)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+    yield i2c.register_i2c_device(var, config)

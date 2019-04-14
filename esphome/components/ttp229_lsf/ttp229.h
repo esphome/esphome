@@ -20,7 +20,6 @@ class TTP229Channel : public binary_sensor::BinarySensor {
 
 class TTP229LSFComponent : public Component, public i2c::I2CDevice {
  public:
-  TTP229LSFComponent(i2c::I2CComponent *parent, uint8_t address) : I2CDevice(parent, address) {}
   void register_channel(TTP229Channel *channel) {
     this->channels_.push_back(channel);
   }

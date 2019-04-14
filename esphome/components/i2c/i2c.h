@@ -138,13 +138,14 @@ extern uint8_t next_i2c_bus_num_;
  */
 class I2CDevice {
  public:
-  I2CDevice(I2CComponent *parent, uint8_t address);
+  I2CDevice() = default;
+  I2CDevice(I2CComponent *parent, uint8_t address) : address_(address), parent_(parent) {}
 
   /// Manually set the i2c address of this device.
-  void set_address(uint8_t address);
+  void set_i2c_address(uint8_t address);
 
   /// Manually set the parent i2c bus for this device.
-  void set_parent(I2CComponent *parent);
+  void set_i2c_parent(I2CComponent *parent);
 
  protected:
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
@@ -198,8 +199,8 @@ class I2CDevice {
   /// Write a single 16-bit word of data into the specified register. Return true if successful.
   bool write_byte_16(uint8_t a_register, uint16_t data);  // NOLINT
 
-  uint8_t address_;
-  I2CComponent *parent_;
+  uint8_t address_{0x00};
+  I2CComponent *parent_{nullptr};
 };
 
 }  // namespace i2c
