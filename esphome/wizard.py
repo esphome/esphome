@@ -235,6 +235,7 @@ def wizard(path):
     safe_print(u"Thank you very much! You've just chosen \"{}\" as your SSID."
                u"".format(color('cyan', ssid)))
     safe_print()
+    ssid = ssid.replace('\\','\\\\').replace('"','\\"')
     sleep(0.75)
 
     safe_print("Now please state the " + color('green', 'password') +
@@ -244,6 +245,7 @@ def wizard(path):
     sleep(0.5)
     psk = safe_input(color('bold_white', '(PSK): '))
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
+    psk = psk.replace('\\','\\\\').replace('"','\\"')
     sleep(1.5)
 
     safe_print_step(4, OTA_BIG)
