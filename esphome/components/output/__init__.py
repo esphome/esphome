@@ -92,3 +92,8 @@ def output_set_level_to_code(config, action_id, template_arg, args):
     template_ = yield cg.templatable(config[CONF_LEVEL], args, float)
     cg.add(action.set_level(template_))
     yield action
+
+
+def to_code(config):
+    cg.add_global(output_ns.using)
+

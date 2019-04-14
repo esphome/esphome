@@ -19,8 +19,8 @@ namespace text_sensor {
 
 class TextSensor : public Nameable {
  public:
-  explicit TextSensor();
   explicit TextSensor(const std::string &name);
+  explicit TextSensor();
 
   void publish_state(std::string state);
 

@@ -442,13 +442,17 @@ def process_lambda(value,  # type: Lambda
     yield LambdaExpression(parts, parameters, capture, return_type)
 
 
+def is_template(value):
+    return isinstance(value, Lambda)
+
+
 @coroutine
 def templatable(value,  # type: Any
                 args,  # type: List[Tuple[SafeExpType, str]]
                 output_type,  # type: Optional[SafeExpType],
                 to_exp=None  # type: Optional[Any]
                 ):
-    if isinstance(value, Lambda):
+    if is_template(value):
         lambda_ = yield process_lambda(value, args, return_type=output_type)
         yield lambda_
     else:

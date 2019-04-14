@@ -50,13 +50,13 @@ class ISRInternalGPIOPin {
 
  protected:
   const uint8_t pin_;
+  const bool inverted_;
+  volatile uint32_t *const gpio_read_;
+  const uint32_t gpio_mask_;
 #ifdef ARDUINO_ARCH_ESP32
   volatile uint32_t *const gpio_clear_;
   volatile uint32_t *const gpio_set_;
 #endif
-  volatile uint32_t *const gpio_read_;
-  const uint32_t gpio_mask_;
-  const bool inverted_;
 };
 
 /** A high-level abstraction class that can expose a pin together with useful options like pinMode.
@@ -102,13 +102,13 @@ class GPIOPin {
 
   const uint8_t pin_;
   const uint8_t mode_;
+  const bool inverted_;
 #ifdef ARDUINO_ARCH_ESP32
-  volatile uint32_t *const gpio_clear_;
   volatile uint32_t *const gpio_set_;
+  volatile uint32_t *const gpio_clear_;
 #endif
   volatile uint32_t *const gpio_read_;
   const uint32_t gpio_mask_;
-  const bool inverted_;
 };
 
 }  // namespace esphome

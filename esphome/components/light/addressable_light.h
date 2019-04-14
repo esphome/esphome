@@ -420,7 +420,6 @@ class ESPColorView {
 
 class AddressableLight : public LightOutput {
  public:
-  AddressableLight();
   virtual int32_t size() const = 0;
   virtual ESPColorView operator[](int32_t index) const = 0;
   virtual void clear_effect_data() = 0;
@@ -460,80 +459,6 @@ class AddressableLight : public LightOutput {
   bool effect_active_{false};
   bool next_show_{true};
   ESPColorCorrection correction_{};
-};
-
-class AddressableSegment {
- public:
-  AddressableSegment(LightState *src, int32_t src_offset, int32_t size)
-      : src_(static_cast<AddressableLight *>(src->get_output())), src_offset_(src_offset), size_(size) {}
-
-  AddressableLight *get_src() const { return this->src_; }
-  int32_t get_src_offset() const { return this->src_offset_; }
-  int32_t get_size() const { return this->size_; }
-  int32_t get_dst_offset() const { return this->dst_offset_; }
-  void set_dst_offset(int32_t dst_offset) { this->dst_offset_ = dst_offset; }
-
- protected:
-  AddressableLight *src_;
-  int32_t src_offset_;
-  int32_t size_;
-  int32_t dst_offset_;
-};
-
-class PartitionLightOutput : public AddressableLight, public Component {
- public:
-  PartitionLightOutput(const std::vector<AddressableSegment> &segments) : segments_(segments) {
-    int32_t off = 0;
-    for (auto &seg : this->segments_) {
-      seg.set_dst_offset(off);
-      off += seg.get_size();
-    }
-  }
-  int32_t size() const override {
-    auto &last_seg = this->segments_[this->segments_.size() - 1];
-    return last_seg.get_dst_offset() + last_seg.get_size();
-  }
-  ESPColorView operator[](int32_t index) const override {
-    uint32_t lo = 0;
-    uint32_t hi = this->segments_.size() - 1;
-    while (lo < hi) {
-      uint32_t mid = (lo + hi) / 2;
-      int32_t begin = this->segments_[mid].get_dst_offset();
-      int32_t end = begin + this->segments_[mid].get_size();
-      if (index < begin) {
-        hi = mid - 1;
-      } else if (index >= end) {
-        lo = mid + 1;
-      } else {
-        lo = hi = mid;
-      }
-    }
-    auto &seg = this->segments_[lo];
-    // offset within the segment
-    int32_t seg_off = index - seg.get_dst_offset();
-    // offset within the src
-    int32_t src_off = seg.get_src_offset() + seg_off;
-    auto view = (*seg.get_src())[src_off];
-    view.raw_set_color_correction(&this->correction_);
-    return view;
-  }
-  void clear_effect_data() override {
-    for (auto &seg : this->segments_) {
-      seg.get_src()->clear_effect_data();
-    }
-  }
-  LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
-  void loop() override {
-    if (this->should_show_()) {
-      for (auto seg : this->segments_) {
-        seg.get_src()->schedule_show();
-      }
-      this->mark_shown_();
-    }
-  }
-
- protected:
-  std::vector<AddressableSegment> segments_;
 };
 
 }  // namespace light

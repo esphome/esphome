@@ -2,11 +2,11 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
-from datetime import datetime
 import logging
 import os
 import re
 import uuid as uuid_
+from datetime import datetime
 
 import voluptuous as vol
 
@@ -38,6 +38,7 @@ Upper = vol.Upper
 Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
+ALLOW_EXTRA = vol.ALLOW_EXTRA
 
 port = All(Coerce(int), Range(min=1, max=65535))
 float_ = Coerce(float)
@@ -82,7 +83,7 @@ def valid_name(value):
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise Invalid(u"'{}' is an invalid character for names. Valid characters are: {}"
-                              u" (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
+                          u" (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
     return value
 
 
@@ -99,7 +100,7 @@ def string_strict(value):
     if isinstance(value, string_types):
         return value
     raise Invalid("Must be string, got {}. did you forget putting quotes "
-                      "around the value?".format(type(value)))
+                  "around the value?".format(type(value)))
 
 
 def icon(value):
@@ -195,8 +196,8 @@ def validate_id_name(value):
     for char in value:
         if char != '_' and not char.isalnum():
             raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
-                              u"character and numbers. The character '{}' cannot be used"
-                              u"".format(char))
+                          u"character and numbers. The character '{}' cannot be used"
+                          u"".format(char))
     if value in RESERVED_IDS:
         raise Invalid(u"ID {} is reserved internally and cannot be used".format(value))
     return value
@@ -337,7 +338,7 @@ def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
     if isinstance(value, int):
         raise Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
-                          "'{0}s'?".format(value))
+                      "'{0}s'?".format(value))
     if not isinstance(value, string_types):
         raise Invalid("Expected string for time period with unit.")
 
@@ -361,7 +362,7 @@ def time_period_str_unit(value):
 
     if match is None:
         raise Invalid(u"Expected time period with unit, "
-                          u"got {}".format(value))
+                      u"got {}".format(value))
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
     return TimePeriod(**{kwarg: float(match.group(1))})
@@ -409,7 +410,7 @@ positive_time_period_minutes = All(positive_time_period, time_period_in_minutes_
 time_period_microseconds = All(time_period, time_period_in_microseconds_)
 positive_time_period_microseconds = All(positive_time_period, time_period_in_microseconds_)
 positive_not_null_time_period = All(time_period,
-                                        Range(min=TimePeriod(), min_included=False))
+                                    Range(min=TimePeriod(), min_included=False))
 
 
 def time_of_day(value):
@@ -497,6 +498,7 @@ if IS_PY2:
             output += u' for ' + self.error_type
         return output + path
 
+
     Invalid.__unicode__ = _vol_invalid_unicode
 
 
@@ -514,7 +516,7 @@ def temperature(value):
 
     try:
         fahrenheit = _temperature_f(value)
-        return (fahrenheit - 32) * (5/9)
+        return (fahrenheit - 32) * (5 / 9)
     except Invalid:
         pass
 
@@ -548,7 +550,7 @@ def validate_bytes(value):
     multiplier = METRIC_SUFFIXES[match.group(2)]
     if multiplier < 1:
         raise Invalid(u"Only suffixes with positive exponents are supported. "
-                          u"Got {}".format(match.group(2)))
+                      u"Got {}".format(match.group(2)))
     return int(mantissa * multiplier)
 
 
@@ -604,10 +606,10 @@ def ipv4(value):
         return value
     else:
         raise Invalid("IPv4 address must consist of either string or "
-                          "integer list")
+                      "integer list")
     if len(parts) != 4:
         raise Invalid("IPv4 address must consist of four point-separated "
-                          "integers")
+                      "integers")
     parts_ = list(map(int, parts))
     if not all(0 <= x < 256 for x in parts_):
         raise Invalid("IPv4 address parts must be in range from 0 to 255")
@@ -627,10 +629,10 @@ def _valid_topic(value):
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
         raise Invalid("MQTT topic name/filter must not be longer than "
-                          "65535 encoded bytes.")
+                      "65535 encoded bytes.")
     if '\0' in value:
         raise Invalid("MQTT topic name/filter must not contain null "
-                          "character.")
+                      "character.")
     return value
 
 
@@ -641,17 +643,17 @@ def subscribe_topic(value):
         if (i > 0 and value[i - 1] != '/') or \
                 (i < len(value) - 1 and value[i + 1] != '/'):
             raise Invalid("Single-level wildcard must occupy an entire "
-                              "level of the filter")
+                          "level of the filter")
 
     index = value.find('#')
     if index != -1:
         if index != len(value) - 1:
             # If there are multiple wildcards, this will also trigger
             raise Invalid("Multi-level wildcard must be the last "
-                              "character in the topic filter.")
+                          "character in the topic filter.")
         if len(value) > 1 and value[index - 1] != '/':
             raise Invalid("Multi-level wildcard must be after a topic "
-                              "level separator.")
+                          "level separator.")
 
     return value
 
@@ -820,19 +822,50 @@ def entity_id(value):
     return value
 
 
+def extract_keys(schema):
+    if isinstance(schema, Schema):
+        schema = schema.schema
+    assert isinstance(schema, dict)
+    keys = list(schema.keys())
+    keys.sort()
+    return keys
+
+
 class GenerateID(Optional):
     def __init__(self, key=CONF_ID):
         super(GenerateID, self).__init__(key, default=lambda: None)
+
+
+class SplitDefault(Optional):
+    def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
+        super(SplitDefault, self).__init__(key)
+        self._esp8266_default = vol.default_factory(esp8266)
+        self._esp32_default = vol.default_factory(esp32)
+
+    @property
+    def default(self):
+        if CORE.is_esp8266:
+            return self._esp8266_default
+        if CORE.is_esp32:
+            return self._esp32_default
+        raise ValueError
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
 
 
 def nameable(*schemas):
     def validator(config):
         config = All(*schemas)(config)
         if CONF_NAME not in config and CONF_ID not in config:
+            print(config)
             raise Invalid("At least one of 'id:' or 'name:' is required!")
         if CONF_NAME not in config:
             id = config[CONF_ID]
             if not id.is_manual:
+                print(config)
                 raise Invalid("At least one of 'id:' or 'name:' is required!")
             config[CONF_NAME] = id.id
             config[CONF_INTERNAL] = True
@@ -842,8 +875,10 @@ def nameable(*schemas):
     return validator
 
 
-def validate_registry(name, registry, ignore_keys):
+def validate_registry_entry(name, registry, ignore_keys):
     def validator(value):
+        if isinstance(value, string_types):
+            value = {value: {}}
         if not isinstance(value, dict):
             raise Invalid(u"{} must consist of key-value mapping! Got {}"
                           u"".format(name.title(), value))
@@ -865,7 +900,12 @@ def validate_registry(name, registry, ignore_keys):
             err.prepend([key])
             raise err
         return item
-    return ensure_list(validator)
+
+    return validator
+
+
+def validate_registry(name, registry, ignore_keys):
+    return ensure_list(validate_registry_entry(name, registry, ignore_keys))
 
 
 def maybe_simple_value(*validators):
@@ -895,7 +935,7 @@ MQTT_COMPONENT_SCHEMA = Schema({
     Optional(CONF_DISCOVERY): All(requires_component('mqtt'), boolean),
     Optional(CONF_STATE_TOPIC): All(requires_component('mqtt'), publish_topic),
     Optional(CONF_AVAILABILITY): All(requires_component('mqtt'),
-                                             Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
+                                     Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
     Optional(CONF_INTERNAL): boolean,
 })
 

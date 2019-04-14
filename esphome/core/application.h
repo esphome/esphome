@@ -177,7 +177,7 @@ class Application {
   const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }
   binary_sensor::BinarySensor *get_binary_sensor_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->binary_sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -186,7 +186,7 @@ class Application {
   const std::vector<switch_::Switch *> &get_switches() { return this->switches_; }
   switch_::Switch *get_switch_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->switches_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -195,7 +195,7 @@ class Application {
   const std::vector<sensor::Sensor *> &get_sensors() { return this->sensors_; }
   sensor::Sensor *get_sensor_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -204,7 +204,7 @@ class Application {
   const std::vector<text_sensor::TextSensor *> &get_text_sensors() { return this->text_sensors_; }
   text_sensor::TextSensor *get_text_sensor_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->text_sensors_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -213,7 +213,7 @@ class Application {
   const std::vector<fan::FanState *> &get_fans() { return this->fans_; }
   fan::FanState *get_fan_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->fans_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -222,7 +222,7 @@ class Application {
   const std::vector<cover::Cover *> &get_covers() { return this->covers_; }
   cover::Cover *get_cover_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->covers_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -231,7 +231,7 @@ class Application {
   const std::vector<light::LightState *> &get_lights() { return this->lights_; }
   light::LightState *get_light_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->lights_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }
@@ -240,7 +240,7 @@ class Application {
   const std::vector<climate::Climate *> &get_climates() { return this->climates_; }
   climate::Climate *get_climate_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->climates_)
-      if (obj->get_object_id_hash() == key && (include_internal || obj->is_internal()))
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
     return nullptr;
   }

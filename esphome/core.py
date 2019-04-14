@@ -529,6 +529,7 @@ class EsphomeCore(object):
 
             inv_priority, num, task = heapq.heappop(self.pending_tasks)
             priority = -inv_priority
+            _LOGGER.debug("Running %s (num %s)", task, num)
             try:
                 next(task)
                 # Decrease priority over time, so that if this task is blocked
@@ -587,15 +588,17 @@ class EsphomeCore(object):
             raise ValueError(u"Define {} must be string or Define, not {}"
                              u"".format(define, type(define)))
         self.defines.add(define)
-        _LOGGER.debug("Adding define: %s")
+        _LOGGER.debug("Adding define: %s", define)
         return define
 
     def get_variable(self, id):
+        if not isinstance(id, ID):
+            raise ValueError("ID {!r} must be of type ID!".format(id))
         while True:
             if id in self.variables:
                 yield self.variables[id]
                 return
-            _LOGGER.debug("Waiting for variable %s", id)
+            _LOGGER.debug("Waiting for variable %s (%r)", id, id)
             yield None
 
     def get_variable_with_full_id(self, id):

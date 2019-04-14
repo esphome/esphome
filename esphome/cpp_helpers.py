@@ -38,7 +38,7 @@ def register_component(obj, config):
 
 
 @coroutine
-def _build_registry_entry(registry, full_config):
+def build_registry_entry(registry, full_config):
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     builder = coroutine(registry[key][1])
     yield builder(config)
@@ -48,6 +48,6 @@ def _build_registry_entry(registry, full_config):
 def build_registry_list(registry, config):
     actions = []
     for conf in config:
-        action = yield _build_registry_entry(registry, conf)
+        action = yield build_registry_entry(registry, conf)
         actions.append(action)
     yield actions
