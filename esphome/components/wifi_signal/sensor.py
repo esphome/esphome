@@ -8,7 +8,7 @@ DEPENDENCIES = ['wifi']
 wifi_signal_ns = cg.esphome_ns.namespace('wifi_signal')
 WiFiSignalSensor = wifi_signal_ns.class_('WiFiSignalSensor', sensor.PollingSensorComponent)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(WiFiSignalSensor),
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 

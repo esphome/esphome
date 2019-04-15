@@ -17,7 +17,7 @@ CHIPSETS = [
     'DOTSTAR',
 ]
 
-PLATFORM_SCHEMA = cv.nameable(fastled_base.BASE_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(fastled_base.BASE_SCHEMA.extend({
     cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
     cv.Required(CONF_DATA_PIN): pins.output_pin,
     cv.Required(CONF_CLOCK_PIN): pins.output_pin,

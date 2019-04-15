@@ -66,6 +66,8 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'display', 'i2c', 'spi', 'uart', 'sensor', 'binary_sensor', 'climate', 'cover', 'text_sensor',
+    'api', 'fan', 'light', 'gpio', 'mqtt', 'ota', 'power_supply', 'wifi'
 ]
 
 
@@ -743,6 +745,7 @@ def one_of(*values, **kwargs):
     upper = kwargs.get('upper', False)
     string_ = kwargs.get('string', False) or lower or upper
     to_int = kwargs.get('int', False)
+    to_float = kwargs.get('float', False)
     space = kwargs.get('space', ' ')
 
     def validator(value):
@@ -751,6 +754,8 @@ def one_of(*values, **kwargs):
             value = value.replace(' ', space)
         if to_int:
             value = int_(value)
+        if to_float:
+            value = float_(value)
         if lower:
             value = Lower(value)
         if upper:
@@ -856,6 +861,24 @@ class SplitDefault(Optional):
         pass
 
 
+class OnlyWith(Optional):
+    def __init__(self, key, component, default=None):
+        super(OnlyWith, self).__init__(key)
+        self._component = component
+        self._default = vol.default_factory(default)
+
+    @property
+    def default(self):
+        if self._component not in CORE.raw_config:
+            return vol.UNDEFINED
+        return self._default
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
 def nameable(*schemas):
     def validator(config):
         config = All(*schemas)(config)
@@ -918,10 +941,6 @@ def maybe_simple_value(*validators):
 
     return validate
 
-
-PLATFORM_SCHEMA = Schema({
-    Required(CONF_PLATFORM): valid,
-})
 
 MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema({
     Required(CONF_TOPIC): subscribe_topic,

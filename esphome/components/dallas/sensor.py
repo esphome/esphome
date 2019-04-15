@@ -8,7 +8,7 @@ from . import DallasComponent, dallas_ns
 
 DallasTemperatureSensor = dallas_ns.class_('DallasTemperatureSensor', sensor.Sensor)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(DallasTemperatureSensor),
     cv.GenerateID(CONF_DALLAS_ID): cv.use_variable_id(DallasComponent),
 

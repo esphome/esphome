@@ -126,15 +126,11 @@ class APIConnection {
   } connection_state_{ConnectionState::WAITING_FOR_HELLO};
 
   bool remove_{false};
-  AsyncClient *client_;
-  APIServer *parent_;
 
   std::vector<uint8_t> send_buffer_;
   std::vector<uint8_t> recv_buffer_;
 
   std::string client_info_;
-  ListEntitiesIterator list_entities_iterator_;
-  InitialStateIterator initial_state_iterator_;
 #ifdef USE_ESP32_CAMERA
   esp32_camera::CameraImageReader image_reader_;
 #endif
@@ -144,6 +140,10 @@ class APIConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
+  AsyncClient *client_;
+  APIServer *parent_;
+  InitialStateIterator initial_state_iterator_;
+  ListEntitiesIterator list_entities_iterator_;
 };
 
 template<typename... Ts> class HomeAssistantServiceCallAction;

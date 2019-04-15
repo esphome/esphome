@@ -8,7 +8,7 @@ DEPENDENCIES = ['api']
 HomeassistantBinarySensor = homeassistant_ns.class_('HomeassistantBinarySensor',
                                                     binary_sensor.BinarySensor)
 
-PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantBinarySensor),
     cv.Required(CONF_ENTITY_ID): cv.entity_id,
 }).extend(cv.COMPONENT_SCHEMA))

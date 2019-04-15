@@ -8,6 +8,7 @@ namespace remote_base {
 
 class RCSwitchBase {
  public:
+  RCSwitchBase() = default;
   RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, uint32_t one_high,
                uint32_t one_low, bool inverted);
 
@@ -41,18 +42,18 @@ class RCSwitchBase {
   static void type_d_code(uint8_t group, uint8_t device, bool state, uint32_t *out_code, uint8_t *out_nbits);
 
  protected:
-  uint32_t sync_high_;
-  uint32_t sync_low_;
-  uint32_t zero_high_;
-  uint32_t zero_low_;
-  uint32_t one_high_;
-  uint32_t one_low_;
-  bool inverted_;
+  uint32_t sync_high_{};
+  uint32_t sync_low_{};
+  uint32_t zero_high_{};
+  uint32_t zero_low_{};
+  uint32_t one_high_{};
+  uint32_t one_low_{};
+  bool inverted_{};
 };
 
 extern RCSwitchBase rc_switch_protocols[8];
 
-
+uint32_t decode_binary_string(const std::string &data);
 
 
 
@@ -60,6 +61,7 @@ extern RCSwitchBase rc_switch_protocols[8];
 
 template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RCSwitchRawAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, code);
 
@@ -73,10 +75,9 @@ template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActio
   }
 };
 
-uint32_t decode_binary_string(const std::string &data);
-
 template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RCSwitchTypeAAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, group);
   TEMPLATABLE_VALUE(std::string, device);
@@ -100,6 +101,7 @@ template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RCSwitchTypeBAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(uint8_t, address);
   TEMPLATABLE_VALUE(uint8_t, channel);
@@ -121,6 +123,7 @@ template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RCSwitchTypeCAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, family);
   TEMPLATABLE_VALUE(uint8_t, group);
@@ -145,6 +148,7 @@ template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterAct
 };
 template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RCSwitchTypeDAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, group);
   TEMPLATABLE_VALUE(uint8_t, device);

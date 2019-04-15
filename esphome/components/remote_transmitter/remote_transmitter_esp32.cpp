@@ -75,17 +75,17 @@ void RemoteTransmitterComponent::send_internal_(uint32_t send_times, uint32_t se
   if (this->is_failed())
     return;
 
-  if (this->current_carrier_frequency_ != data->get_carrier_frequency()) {
-    this->current_carrier_frequency_ = data->get_carrier_frequency();
+  if (this->current_carrier_frequency_ != this->temp_.get_carrier_frequency()) {
+    this->current_carrier_frequency_ = this->temp_.get_carrier_frequency();
     this->configure_rmt();
   }
 
   this->rmt_temp_.clear();
-  this->rmt_temp_.reserve((this->temp.get_data().size() + 1) / 2);
+  this->rmt_temp_.reserve((this->temp_.get_data().size() + 1) / 2);
   uint32_t rmt_i = 0;
   rmt_item32_t rmt_item;
 
-  for (int32_t val : this->temp.get_data()) {
+  for (int32_t val : this->temp_.get_data()) {
     bool level = val >= 0;
     if (!level)
       val = -val;

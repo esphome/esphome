@@ -1,19 +1,17 @@
 import esphome.codegen as cg
-# from esphome.components import mqtt
-# from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome.components import mqtt
 from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, CONF_COLOR_CORRECT, \
     CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
     CONF_EFFECTS, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
     CONF_INTERNAL, CONF_LAMBDA, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
-    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
+    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, \
+    CONF_MQTT_ID
 from esphome.core import coroutine
 from esphome.util import ServiceRegistry
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 # Base
 light_ns = cg.esphome_ns.namespace('light')
@@ -29,8 +27,6 @@ ToggleAction = light_ns.class_('ToggleAction', cg.Action)
 LightControlAction = light_ns.class_('LightControlAction', cg.Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
-
-# MQTTJSONLightComponent = light_ns.class_('MQTTJSONLightComponent', mqtt.MQTTComponent)
 
 # Effects
 LightEffect = light_ns.class_('LightEffect')
@@ -299,7 +295,7 @@ def validate_effects(allowed_effects):
 
 LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(LightState),
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTJSONLightComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTJSONLightComponent),
 })
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
@@ -337,7 +333,9 @@ def setup_light_core_(light_var, output_var, config):
     if CONF_COLOR_CORRECT in config:
         cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
 
-    # setup_mqtt_component(light_var.Pget_mqtt(), config)
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
 @coroutine

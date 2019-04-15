@@ -7,7 +7,7 @@ from esphome.core import coroutine
 
 i2c_ns = cg.esphome_ns.namespace('i2c')
 I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
-I2CDevice = pins.I2CDevice
+I2CDevice = i2c_ns.class_('I2CDevice')
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({

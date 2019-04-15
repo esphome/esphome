@@ -61,7 +61,7 @@ class SlidingWindowMovingAverageFilter : public Filter {
    *   on startup being published on the first *raw* value, so with no filter applied. Must be less than or equal to
    *   send_every.
    */
-  explicit SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every, size_t send_first_at = 1);
+  explicit SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every, size_t send_first_at);
 
   optional<float> new_value(float value) override;
 
@@ -73,9 +73,9 @@ class SlidingWindowMovingAverageFilter : public Filter {
  protected:
   float sum_{0.0};
   std::queue<float> queue_;
-  size_t window_size_;
   size_t send_every_;
   size_t send_at_;
+  size_t window_size_;
 };
 
 /** Simple exponential moving average filter.
@@ -97,9 +97,9 @@ class ExponentialMovingAverageFilter : public Filter {
  protected:
   bool first_value_{true};
   float accumulator_{0.0f};
-  float alpha_;
   size_t send_every_;
   size_t send_at_;
+  float alpha_;
 };
 
 using lambda_filter_t = std::function<optional<float>(float)>;

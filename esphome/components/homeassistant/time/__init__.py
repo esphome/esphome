@@ -8,7 +8,7 @@ DEPENDENCIES = ['api']
 
 HomeassistantTime = homeassistant_ns.class_('HomeassistantTime', time_.RealTimeClock)
 
-PLATFORM_SCHEMA = time_.TIME_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = time_.TIME_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantTime),
 }).extend(cv.COMPONENT_SCHEMA)
 

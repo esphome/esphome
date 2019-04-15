@@ -11,7 +11,7 @@ CONF_POWER_ID = 'power_id'
 total_daily_energy_ns = cg.esphome_ns.namespace('total_daily_energy')
 TotalDailyEnergy = total_daily_energy_ns.class_('TotalDailyEnergy', sensor.Sensor, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TotalDailyEnergy),
     cv.GenerateID(CONF_TIME_ID): cv.use_variable_id(time.RealTimeClock),
     vol.Required(CONF_POWER_ID): cv.use_variable_id(sensor.Sensor),

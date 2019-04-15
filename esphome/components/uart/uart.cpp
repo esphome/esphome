@@ -238,17 +238,17 @@ void UARTComponent::flush() {
 void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate) {
   this->bit_time_ = F_CPU / baud_rate;
   if (tx_pin != -1) {
-    this->tx_pin_ = new GPIOPin(tx_pin, OUTPUT);
-    this->tx_pin_->setup();
+    auto pin = GPIOPin(tx_pin, OUTPUT);
+    pin.setup();
+    this->tx_pin_ = pin.to_isr();
     this->tx_pin_->digital_write(true);
   }
   if (rx_pin != -1) {
-    auto *pin = new GPIOPin(rx_pin, INPUT);
-    pin->setup();
-    this->rx_pin_ = pin->to_isr();
+    auto pin = GPIOPin(rx_pin, INPUT);
+    pin.setup();
+    this->rx_pin_ = pin.to_isr();
     this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];
-    pin->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
-    delete pin;
+    pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {

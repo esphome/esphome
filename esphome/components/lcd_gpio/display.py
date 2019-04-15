@@ -8,7 +8,7 @@ from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_
 AUTO_LOAD = ['lcd_base']
 
 lcd_gpio_ns = cg.esphome_ns.namespace('lcd_gpio')
-GPIOLCDDisplay = display.display_ns.class_('GPIOLCDDisplay', lcd_base.LCDDisplay)
+GPIOLCDDisplay = lcd_gpio_ns.class_('GPIOLCDDisplay', lcd_base.LCDDisplay)
 
 
 def validate_pin_length(value):
@@ -18,7 +18,7 @@ def validate_pin_length(value):
     return value
 
 
-PLATFORM_SCHEMA = lcd_base.LCD_SCHEMA.extend({
+CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOLCDDisplay),
     cv.Required(CONF_DATA_PINS): cv.All([pins.gpio_output_pin_schema], validate_pin_length),
     cv.Required(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,

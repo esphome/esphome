@@ -9,23 +9,17 @@ from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
 from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
     vol.Optional(CONF_INVERTED): cv.boolean,
 })
 
-BINARY_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_OUTPUT_SCHEMA.schema)
-
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
     vol.Optional(CONF_MAX_POWER): cv.percentage,
     vol.Optional(CONF_MIN_POWER): cv.percentage,
 })
-
-FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
 
 output_ns = cg.esphome_ns.namespace('output')
 BinaryOutput = output_ns.class_('BinaryOutput')
@@ -44,8 +38,8 @@ def setup_output_platform_(obj, config):
     if CONF_INVERTED in config:
         cg.add(obj.set_inverted(config[CONF_INVERTED]))
     if CONF_POWER_SUPPLY in config:
-        power_supply = yield cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(obj.set_power_supply(power_supply))
+        power_supply_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(obj.set_power_supply(power_supply_))
     if CONF_MAX_POWER in config:
         cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
     if CONF_MIN_POWER in config:

@@ -295,7 +295,7 @@ def copy_src_tree():
 
     source_files = {}
     for _, component, conf in iter_components(CORE.config):
-        source_files.update(component.source_files(conf))
+        source_files.update(component.source_files)
 
     # Convert to list and sort
     source_files_l = [it for it in source_files.items()]

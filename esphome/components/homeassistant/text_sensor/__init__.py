@@ -9,7 +9,7 @@ DEPENDENCIES = ['api']
 HomeassistantTextSensor = homeassistant_ns.class_('HomeassistantTextSensor',
                                                   text_sensor.TextSensor, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantTextSensor),
     cv.Required(CONF_ENTITY_ID): cv.entity_id,
 }))

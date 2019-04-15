@@ -120,8 +120,8 @@ class I2CComponent : public Component {
   TwoWire *wire_;
   uint8_t sda_pin_;
   uint8_t scl_pin_;
-  bool scan_;
   uint32_t frequency_;
+  bool scan_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32

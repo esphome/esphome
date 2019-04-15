@@ -10,7 +10,7 @@ DEPENDENCIES = ['spi']
 ssd1306_spi = cg.esphome_ns.namespace('ssd1306_spi')
 SPISSD1306 = ssd1306_spi.class_('SPISSD1306', ssd1306_base.SSD1306, spi.SPIDevice)
 
-PLATFORM_SCHEMA = cv.All(ssd1306_base.SSD1306_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(ssd1306_base.SSD1306_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),

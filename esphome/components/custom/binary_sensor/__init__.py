@@ -6,7 +6,7 @@ from .. import custom_ns
 
 CustomBinarySensorConstructor = custom_ns.class_('CustomBinarySensorConstructor')
 
-PLATFORM_SCHEMA = binary_sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomBinarySensorConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_BINARY_SENSORS):

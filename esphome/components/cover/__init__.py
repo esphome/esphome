@@ -1,15 +1,12 @@
 import esphome.codegen as cg
-# from esphome.components import mqtt
-# from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id, Condition
+from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
-    CONF_POSITION, CONF_TILT, CONF_STOP
+    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [
     '', 'awning', 'blind', 'curtain', 'damper', 'door', 'garage',
@@ -19,7 +16,6 @@ DEVICE_CLASSES = [
 cover_ns = cg.esphome_ns.namespace('cover')
 
 Cover = cover_ns.class_('Cover', cg.Nameable)
-# MQTTCoverComponent = cover_ns.class_('MQTTCoverComponent', mqtt.MQTTComponent)
 
 COVER_OPEN = cover_ns.COVER_OPEN
 COVER_CLOSED = cover_ns.COVER_CLOSED
@@ -49,20 +45,22 @@ CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 
 COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(Cover),
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTCoverComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTCoverComponent),
     cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+    # TODO: MQTT topic options
 })
-
-COVER_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(COVER_SCHEMA.schema)
 
 
 @coroutine
-def setup_cover_core_(cover_var, config):
+def setup_cover_core_(var, config):
     if CONF_INTERNAL in config:
-        cg.add(cover_var.set_internal(config[CONF_INTERNAL]))
+        cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
-        cg.add(cover_var.set_device_class(config[CONF_DEVICE_CLASS]))
-    # setup_mqtt_component(cover_var.Pget_mqtt(), config)
+        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
 @coroutine

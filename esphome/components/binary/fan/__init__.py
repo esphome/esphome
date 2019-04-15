@@ -7,7 +7,7 @@ from .. import binary_ns
 
 BinaryFan = binary_ns.class_('BinaryFan', cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(fan.FAN_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(BinaryFan),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
     cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),

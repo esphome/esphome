@@ -1,21 +1,17 @@
 import esphome.codegen as cg
-# from esphome.components import mqtt
-# from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition, maybe_simple_id
+from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_ON_TURN_OFF, \
-    CONF_ON_TURN_ON, CONF_TRIGGER_ID
+    CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 switch_ns = cg.esphome_ns.namespace('switch_')
 Switch = switch_ns.class_('Switch', cg.Nameable)
 SwitchPtr = Switch.operator('ptr')
-# MQTTSwitchComponent = switch_ns.class_('MQTTSwitchComponent', mqtt.MQTTComponent)
 
 ToggleAction = switch_ns.class_('ToggleAction', cg.Action)
 TurnOffAction = switch_ns.class_('TurnOffAction', cg.Action)
@@ -29,7 +25,8 @@ SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', cg.Trigger.templ
 icon = cv.icon
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSwitchComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTSwitchComponent),
+
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_INVERTED): cv.boolean,
     cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({
@@ -39,8 +36,6 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOffTrigger),
     }),
 })
-
-SWITCH_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SWITCH_SCHEMA.schema)
 
 
 def setup_switch_core_(var, config):
@@ -57,7 +52,9 @@ def setup_switch_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [], conf)
 
-    # setup_mqtt_component(switch_var.Pget_mqtt(), config)
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
 @coroutine

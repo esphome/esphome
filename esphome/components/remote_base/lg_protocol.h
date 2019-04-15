@@ -26,6 +26,7 @@ DECLARE_REMOTE_PROTOCOL(LG)
 
 template<typename... Ts> class LGAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  LGAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(uint32_t, data)
   TEMPLATABLE_VALUE(uint8_t, nbits)
   void encode(RemoteTransmitData *dst, Ts... x) override {

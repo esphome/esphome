@@ -6,12 +6,12 @@ from esphome.const import CONF_BLUE, CONF_GREEN, CONF_RED, CONF_OUTPUT_ID
 rgb_ns = cg.esphome_ns.namespace('rgb')
 RGBLightOutput = rgb_ns.class_('RGBLightOutput', light.LightOutput)
 
-PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(light.RGB_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(RGBLightOutput),
     cv.Required(CONF_RED): cv.use_variable_id(output.FloatOutput),
     cv.Required(CONF_GREEN): cv.use_variable_id(output.FloatOutput),
     cv.Required(CONF_BLUE): cv.use_variable_id(output.FloatOutput),
-}).extend(light.RGB_LIGHT_SCHEMA))
+}))
 
 
 def to_code(config):

@@ -7,7 +7,7 @@ from .. import speed_ns
 
 SpeedFan = speed_ns.class_('SpeedFan', cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(fan.FAN_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(fan.FAN_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(SpeedFan),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.FloatOutput),
     cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),

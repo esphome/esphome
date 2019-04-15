@@ -17,9 +17,7 @@ from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
@@ -252,7 +250,7 @@ def validate_tz(value):
         return value
 
 
-TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+TIME_SCHEMA = cv.Schema({
     cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
     cv.Optional(CONF_ON_TIME): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),

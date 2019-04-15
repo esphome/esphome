@@ -12,7 +12,7 @@ ble_rssi_ns = cg.esphome_ns.namespace('ble_rssi')
 BLERSSISensor = ble_rssi_ns.class_('BLERSSISensor', sensor.Sensor, cg.Component,
                                    ESPBTDeviceListener)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(BLERSSISensor),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
 

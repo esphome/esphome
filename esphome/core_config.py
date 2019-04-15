@@ -153,13 +153,21 @@ def preload_core_config(config):
         raise EsphomeError(text_type(e))
 
 
+@coroutine_with_priority(-1000.0)
+def add_includes(includes):
+    # Add includes at the very end, so that the included files can access global variables
+    for include in includes:
+        path = CORE.relative_path(include)
+        res = os.path.relpath(path, CORE.relative_build_path('src'))
+        cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
+
+
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
     cg.add_define('ESPHOME_VERSION', __version__)
     cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
 
-    # TODO
     for conf in config.get(CONF_ON_BOOT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
         yield cg.register_component(trigger, conf)
@@ -168,7 +176,7 @@ def to_code(config):
     for conf in config.get(CONF_ON_SHUTDOWN, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [(cg.const_char_ptr, 'x')], conf)
+        yield automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_LOOP, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
@@ -216,8 +224,5 @@ def to_code(config):
     if config.get(CONF_ESP8266_RESTORE_FROM_FLASH, False):
         cg.add_define('USE_ESP8266_PREFERENCES_FLASH')
 
-    # TODO
-    for include in config[CONF_INCLUDES]:
-        path = CORE.relative_path(include)
-        res = os.path.relpath(path, CORE.relative_build_path('src'))
-        cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
+    if config[CONF_INCLUDES]:
+        CORE.add_job(add_includes, config[CONF_INCLUDES])

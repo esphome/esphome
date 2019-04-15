@@ -9,7 +9,7 @@ from .. import template_ns
 
 TemplateSwitch = template_ns.class_('TemplateSwitch', switch.Switch, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,

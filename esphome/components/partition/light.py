@@ -15,14 +15,14 @@ def validate_from_to(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(PartitionLightOutput),
     cv.Required(CONF_SEGMENTS): cv.All(cv.ensure_list({
         cv.Required(CONF_ID): cv.use_variable_id(light.AddressableLightState),
         cv.Required(CONF_FROM): cv.positive_int,
         cv.Required(CONF_TO): cv.positive_int,
     }, validate_from_to), cv.Length(min=1)),
-}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema))
+}))
 
 
 def to_code(config):
@@ -32,5 +32,5 @@ def to_code(config):
         segments.append(AddressableSegment(var, conf[CONF_FROM],
                                            conf[CONF_TO] - conf[CONF_FROM] + 1))
 
-    var = cg.new_Pvariable(config[CONF_ID], segments)
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], segments)
     yield light.register_light(var, config)

@@ -10,7 +10,7 @@ AUTO_LOAD = ['binary_sensor']
 Nextion = nextion_ns.class_('Nextion', cg.PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
 
-PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(Nextion),
     cv.Optional(CONF_UPDATE_INTERVAL, default='5s'): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)

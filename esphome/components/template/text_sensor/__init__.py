@@ -10,7 +10,7 @@ from .. import template_ns
 TemplateTextSensor = template_ns.class_('TemplateTextSensor', text_sensor.TextSensor,
                                         cg.PollingComponent)
 
-PLATFORM_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,

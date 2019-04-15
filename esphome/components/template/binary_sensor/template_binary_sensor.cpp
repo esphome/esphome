@@ -1,7 +1,10 @@
 #include "template_binary_sensor.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace template_ {
+
+static const char *TAG = "template.binary_sensor";
 
 void TemplateBinarySensor::loop() {
   if (!this->f_.has_value())

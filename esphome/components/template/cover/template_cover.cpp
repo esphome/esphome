@@ -18,15 +18,15 @@ TemplateCover::TemplateCover(const std::string &name)
 void TemplateCover::setup() {
   ESP_LOGCONFIG(TAG, "Setting up template cover '%s'...", this->name_.c_str());
   switch (this->restore_mode_) {
-    case TemplateCoverRestoreMode::NO_RESTORE:
+    case COVER_NO_RESTORE:
       break;
-    case TemplateCoverRestoreMode::RESTORE: {
+    case COVER_RESTORE: {
       auto restore = this->restore_state_();
       if (restore.has_value())
         restore->apply(this);
       break;
     }
-    case TemplateCoverRestoreMode::RESTORE_AND_CALL: {
+    case COVER_RESTORE_AND_CALL: {
       auto restore = this->restore_state_();
       if (restore.has_value()) {
         restore->to_call(this).perform();

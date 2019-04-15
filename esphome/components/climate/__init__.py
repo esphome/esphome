@@ -1,18 +1,14 @@
 import voluptuous as vol
 
 import esphome.codegen as cg
-# from esphome.components import mqtt
-# from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY
+from esphome.components import mqtt
 from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATURE, \
     CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
-    CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL
+    CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
+    CONF_MQTT_ID
 from esphome.core import CORE, coroutine
-
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
 
 climate_ns = cg.esphome_ns.namespace('climate')
 
@@ -36,29 +32,31 @@ ControlAction = climate_ns.class_('ControlAction', cg.Action)
 
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ClimateDevice),
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTClimateComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTClimateComponent),
     vol.Optional(CONF_VISUAL, default={}): cv.Schema({
         vol.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
         vol.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
         vol.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
-    })
+    }),
+    # TODO: MQTT topic options
 })
-
-CLIMATE_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(CLIMATE_SCHEMA.schema)
 
 
 @coroutine
-def setup_climate_core_(climate_var, config):
+def setup_climate_core_(var, config):
     if CONF_INTERNAL in config:
-        cg.add(climate_var.set_internal(config[CONF_INTERNAL]))
+        cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]
     if CONF_MIN_TEMPERATURE in visual:
-        cg.add(climate_var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE]))
+        cg.add(var.set_visual_min_temperature_override(visual[CONF_MIN_TEMPERATURE]))
     if CONF_MAX_TEMPERATURE in visual:
-        cg.add(climate_var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
+        cg.add(var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
     if CONF_TEMPERATURE_STEP in visual:
-        cg.add(climate_var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
-    # setup_mqtt_component(climate_var.Pget_mqtt(), config)
+        cg.add(var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
+
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
 @coroutine

@@ -110,9 +110,10 @@ def register_dumper(name, type):
 def register_action(name, type_, schema):
     validator = templatize(schema).extend({
         cv.GenerateID(): cv.declare_variable_id(type_),
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_variable_id(RemoteTransmitterDumper),
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_variable_id(RemoteTransmitterBase),
     })
     registerer = ACTION_REGISTRY.register('remote_transmitter.transmit_{}'.format(name), validator)
+    # TODO: repeat
 
     def decorator(func):
         @coroutine
@@ -140,7 +141,6 @@ def declare_protocol(name):
 
 
 BINARY_SENSOR_REGISTRY = ServiceRegistry()
-# cv.validate_registry('remote receiver', BINARY_SENSOR_REGISTRY, cv.extract_keys(BASE_SCHEMA))
 TRIGGER_REGISTRY = ServiceRegistry()
 DUMPER_REGISTRY = ServiceRegistry()
 
@@ -331,7 +331,7 @@ def validate_raw_alternating(value):
     for i, val in enumerate(value):
         this_negative = val < 0
         if i != 0:
-            if this_negative != last_negative:
+            if this_negative == last_negative:
                 raise cv.Invalid("Values must alternate between being positive and negative, "
                                  "please see index {} and {}".format(i, i + 1), [i])
         last_negative = this_negative
@@ -373,7 +373,7 @@ def raw_action(var, config, args):
         cg.add(var.set_code_template(template_))
     else:
         code_ = config[CONF_CODE]
-        arr = cg.progmem_array(config[CONF_ID], code_)
+        arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
         cg.add(var.set_code_static(arr, len(code_)))
 
 

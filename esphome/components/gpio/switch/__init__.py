@@ -15,7 +15,7 @@ RESTORE_MODES = {
     'ALWAYS_ON': GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_ON,
 }
 
-PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE_DEFAULT_OFF'):

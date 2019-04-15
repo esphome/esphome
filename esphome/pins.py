@@ -8,6 +8,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, CONF_MCP23017
 from esphome.core import CORE
 from esphome.cpp_types import Component, esphome_ns, io_ns
+from esphome.util import ServiceRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -359,7 +360,13 @@ GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
 
 GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
     vol.Required(CONF_NUMBER): input_pin,
-    vol.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
+    vol.Optional(CONF_MODE, default='INPUT'): pin_mode,
+    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+GPIO_FULL_INPUT_PULLUP_PIN_SCHEMA = cv.Schema({
+    vol.Required(CONF_NUMBER): input_pin,
+    vol.Optional(CONF_MODE, default='INPUT_PULLUP'): pin_mode,
     vol.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
@@ -381,7 +388,10 @@ def shorthand_input_pin(value):
 
 def shorthand_input_pullup_pin(value):
     value = input_pullup_pin(value)
-    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
+    return GPIO_FULL_INPUT_PIN_SCHEMA({
+        CONF_NUMBER: value,
+        CONF_MODE: 'INPUT_PULLUP',
+    })
 
 
 def shorthand_analog_pin(value):
@@ -397,32 +407,7 @@ def validate_has_interrupt(value):
     return value
 
 
-# TODO: Cleanup, decentralize
-I2CDevice = esphome_ns.namespace('i2c').class_('I2CDevice')
-PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
-MCP23017 = io_ns.class_('MCP23017', Component, I2CDevice)
-
-PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
-    vol.Required(CONF_NUMBER): vol.Coerce(int),
-    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
-    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
-})
-
-PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
-})
-
-MCP23017_OUTPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
-    vol.Required(CONF_NUMBER): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
-    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
-    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
-})
-
-MCP23017_INPUT_PIN_SCHEMA = MCP23017_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
-})
+PIN_SCHEMA_REGISTRY = ServiceRegistry()
 
 
 def internal_gpio_output_pin_schema(value):
@@ -432,10 +417,10 @@ def internal_gpio_output_pin_schema(value):
 
 
 def gpio_output_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_OUTPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_OUTPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict):
+        for key, ((output_validator, input_validator), _) in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return output_validator(value)
     return internal_gpio_output_pin_schema(value)
 
 
@@ -452,22 +437,22 @@ def internal_gpio_analog_pin_schema(value):
 
 
 def gpio_input_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_INPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_INPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict):
+        for key, ((output_validator, input_validator), _) in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return input_validator(value)
     return internal_gpio_input_pin_schema(value)
 
 
 def internal_gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict):
-        return GPIO_FULL_INPUT_PIN_SCHEMA(value)
+        return GPIO_FULL_INPUT_PULLUP_PIN_SCHEMA(value)
     return shorthand_input_pullup_pin(value)
 
 
 def gpio_input_pullup_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_INPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_INPUT_PIN_SCHEMA(value)
-    return internal_gpio_input_pin_schema(value)
+    if isinstance(value, dict):
+        for key, ((output_validator, input_validator), _) in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return input_validator(value)
+    return internal_gpio_input_pullup_pin_schema(value)

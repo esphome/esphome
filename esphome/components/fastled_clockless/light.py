@@ -38,7 +38,7 @@ def validate(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(fastled_base.BASE_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(fastled_base.BASE_SCHEMA.extend({
     cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
     cv.Required(CONF_PIN): pins.output_pin,
 }), validate)

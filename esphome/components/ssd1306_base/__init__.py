@@ -24,7 +24,7 @@ MODELS = {
 
 SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
 
-SSD1306_SCHEMA = display.FULL_DISPLAY_PLATFORM_SCHEMA.extend({
+SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     cv.Required(CONF_MODEL): SSD1306_MODEL,
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,

@@ -6,13 +6,13 @@ from .. import binary_ns
 
 BinaryLightOutput = binary_ns.class_('BinaryLightOutput', light.LightOutput)
 
-PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(light.BINARY_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(BinaryLightOutput),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-}).extend(light.BINARY_LIGHT_SCHEMA))
+}))
 
 
 def to_code(config):
-    out = yield cg.get_variable(config[CONF_RED])
+    out = yield cg.get_variable(config[CONF_OUTPUT])
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID], out)
     yield light.register_light(var, config)

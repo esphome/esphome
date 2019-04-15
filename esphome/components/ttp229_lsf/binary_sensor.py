@@ -7,7 +7,7 @@ from . import ttp229_ns, TTP229LSFComponent, CONF_TTP229_ID
 DEPENDENCIES = ['ttp229_lsf']
 TTP229Channel = ttp229_ns.class_('TTP229Channel', binary_sensor.BinarySensor)
 
-PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TTP229Channel),
     cv.GenerateID(CONF_TTP229_ID): cv.use_variable_id(TTP229LSFComponent),
     cv.Required(CONF_CHANNEL): cv.All(cv.Coerce(int), cv.Range(min=0, max=15))

@@ -10,7 +10,7 @@ bang_bang_ns = cg.esphome_ns.namespace('bang_bang')
 BangBangClimate = bang_bang_ns.class_('BangBangClimate', climate.ClimateDevice)
 BangBangClimateTargetTempConfig = bang_bang_ns.struct('BangBangClimateTargetTempConfig')
 
-PLATFORM_SCHEMA = cv.nameable(climate.CLIMATE_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(BangBangClimate),
     cv.Required(CONF_SENSOR): cv.use_variable_id(sensor.Sensor),
     cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,

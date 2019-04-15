@@ -1,14 +1,13 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import (CONF_BIT_DEPTH, CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID,
-                           CONF_NUM_CHANNELS, CONF_NUM_CHIPS, CONF_UPDATE_ON_BOOT)
-
+                           CONF_NUM_CHANNELS, CONF_NUM_CHIPS)
 
 AUTO_LOAD = ['output']
 my9231_ns = cg.esphome_ns.namespace('my9231')
-MY9231OutputComponent = output.output_ns.class_('MY9231OutputComponent', cg.Component)
+MY9231OutputComponent = my9231_ns.class_('MY9231OutputComponent', cg.Component)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
@@ -30,4 +29,3 @@ def to_code(config):
     cg.add(var.set_num_channels(config[CONF_NUM_CHANNELS]))
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_bit_depth(config[CONF_BIT_DEPTH]))
-    cg.add(var.set_update(config[CONF_UPDATE_ON_BOOT]))

@@ -9,7 +9,7 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 esp32_hall_ns = cg.esphome_ns.namespace('esp32_hall')
 ESP32HallSensor = esp32_hall_ns.class_('ESP32HallSensor', sensor.PollingSensorComponent)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ESP32HallSensor),
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 

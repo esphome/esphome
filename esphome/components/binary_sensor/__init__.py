@@ -2,11 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core
 from esphome.automation import CONDITION_REGISTRY, Condition, maybe_simple_id
+from esphome.components import mqtt
 from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERTED, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
-    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE, CONF_NAME
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 from esphome.py_compat import string_types
 from esphome.util import ServiceRegistry
@@ -18,14 +19,11 @@ DEVICE_CLASSES = [
     'sound', 'vibration', 'window'
 ]
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 binary_sensor_ns = cg.esphome_ns.namespace('binary_sensor')
 BinarySensor = binary_sensor_ns.class_('BinarySensor', cg.Nameable)
 BinarySensorPtr = BinarySensor.operator('ptr')
-# MQTTBinarySensorComponent = binary_sensor_ns.class_('MQTTBinarySensorComponent', mqtt.MQTTComponent)
 
 # Triggers
 PressTrigger = binary_sensor_ns.class_('PressTrigger', cg.Trigger.template())
@@ -196,7 +194,8 @@ device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space='_')
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(BinarySensor),
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTBinarySensorComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTBinarySensorComponent),
+
     cv.Optional(CONF_DEVICE_CLASS): device_class,
     cv.Optional(CONF_FILTERS): validate_filters,
     cv.Optional(CONF_ON_PRESS): automation.validate_automation({
@@ -218,7 +217,7 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MultiClickTrigger),
         cv.Required(CONF_TIMING): cv.All([parse_multi_click_timing_str],
-                                           validate_multi_click_timing),
+                                         validate_multi_click_timing),
         cv.Optional(CONF_INVALID_COOLDOWN, default='1s'): cv.positive_time_period_milliseconds,
     }),
     cv.Optional(CONF_ON_STATE): automation.validate_automation({
@@ -231,8 +230,6 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
         "https://esphome.io/components/binary_sensor/index.html."
     ),
 })
-
-BINARY_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA.schema)
 
 
 @coroutine
@@ -274,7 +271,7 @@ def setup_binary_sensor_core_(var, config):
                 ('min_length', tim[CONF_MIN_LENGTH]),
                 ('max_length', tim.get(CONF_MAX_LENGTH, 4294967294)),
             ))
-        trigger = cg.new_Pvariable(config[CONF_TRIGGER_ID], var, timings)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
         yield automation.build_automation(trigger, [], conf)
@@ -283,7 +280,9 @@ def setup_binary_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         yield automation.build_automation(trigger, [(bool, 'x')], conf)
 
-    # setup_mqtt_component(binary_sensor_var.Pget_mqtt(), config)
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
 @coroutine

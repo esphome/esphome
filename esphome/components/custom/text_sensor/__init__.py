@@ -6,7 +6,7 @@ from .. import custom_ns
 
 CustomTextSensorConstructor = custom_ns.class_('CustomTextSensorConstructor')
 
-PLATFORM_SCHEMA = text_sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomTextSensorConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_TEXT_SENSORS):

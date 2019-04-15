@@ -16,7 +16,7 @@ def valid_pwm_pin(value):
 esp8266_pwm_ns = cg.esphome_ns.namespace('esp8266_pwm')
 ESP8266PWM = esp8266_pwm_ns.class_('ESP8266PWM', output.FloatOutput, cg.Component)
 
-PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_variable_id(ESP8266PWM),
     cv.Required(CONF_PIN): cv.All(pins.internal_gpio_output_pin_schema, valid_pwm_pin),
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.All(cv.frequency, cv.Range(min=1.0e-6)),

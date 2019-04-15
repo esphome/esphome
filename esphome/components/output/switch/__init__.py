@@ -6,7 +6,7 @@ from .. import output_ns
 
 OutputSwitch = output_ns.class_('OutputSwitch', switch.Switch, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(OutputSwitch),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
 }).extend(cv.COMPONENT_SCHEMA))

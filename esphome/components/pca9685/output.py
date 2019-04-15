@@ -9,7 +9,7 @@ DEPENDENCIES = ['pca9685']
 PCA9685Channel = pca9685_ns.class_('PCA9685Channel', output.FloatOutput)
 CONF_PCA9685_ID = 'pca9685_id'
 
-PLATFORM_SCHEMA = output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_variable_id(PCA9685Channel),
     cv.GenerateID(CONF_PCA9685_ID): cv.use_variable_id(PCA9685Output),
 

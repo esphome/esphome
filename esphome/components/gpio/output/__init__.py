@@ -8,7 +8,7 @@ from .. import gpio_ns
 GPIOBinaryOutput = gpio_ns.class_('GPIOBinaryOutput', output.BinaryOutput,
                                   cg.Component)
 
-PLATFORM_SCHEMA = output.BINARY_OUTPUT_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_variable_id(GPIOBinaryOutput),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA)

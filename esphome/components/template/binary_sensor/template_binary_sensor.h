@@ -6,7 +6,7 @@
 namespace esphome {
 namespace template_ {
 
-class TemplateBinarySensor : public Component, public BinarySensor {
+class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
   explicit TemplateBinarySensor(const std::string &name) : BinarySensor(name) {}
 

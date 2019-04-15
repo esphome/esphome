@@ -26,9 +26,8 @@ namespace sensor {
  */
 class Sensor : public Nameable {
  public:
-  explicit Sensor();
-
   explicit Sensor(const std::string &name);
+  explicit Sensor();
 
   /** Manually set the unit of measurement of this sensor. By default the sensor's default defined by
    * unit_of_measurement() is used.

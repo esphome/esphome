@@ -115,7 +115,7 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
 
 class WaveshareEPaper7P5In : public WaveshareEPaper {
  public:
-  WaveshareEPaper7P5In(GPIOPin *dc_pin, uint32_t update_interval);
+  WaveshareEPaper7P5In(GPIOPin *dc_pin);
   void setup() override;
 
   void display() override;

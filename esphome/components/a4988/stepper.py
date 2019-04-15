@@ -8,7 +8,7 @@ from esphome.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
 a4988_ns = cg.esphome_ns.namespace('a4988')
 A4988 = a4988_ns.class_('A4988', stepper.Stepper, cg.Component)
 
-PLATFORM_SCHEMA = stepper.STEPPER_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_variable_id(A4988),
     cv.Required(CONF_STEP_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_DIR_PIN): pins.gpio_output_pin_schema,

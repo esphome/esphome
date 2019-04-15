@@ -7,7 +7,7 @@ from .. import custom_ns
 
 CustomSwitchConstructor = custom_ns.class_('CustomSwitchConstructor')
 
-PLATFORM_SCHEMA = switch.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomSwitchConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_SWITCHES):

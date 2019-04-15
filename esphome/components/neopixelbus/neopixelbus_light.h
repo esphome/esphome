@@ -15,7 +15,6 @@
 
 #include "NeoPixelBus.h"
 
-
 namespace esphome {
 namespace neopixelbus {
 
@@ -102,23 +101,23 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
 
 #ifdef USE_POWER_SUPPLY
     if (this->power_supply_ != nullptr) {
-    bool is_light_on = false;
-    for (int i = 0; i < this->size(); i++) {
-      if ((*this)[i].get().is_on()) {
-        is_light_on = true;
-        break;
+      bool is_light_on = false;
+      for (int i = 0; i < this->size(); i++) {
+        if ((*this)[i].get().is_on()) {
+          is_light_on = true;
+          break;
+        }
+      }
+
+      if (is_light_on && !this->has_requested_high_power_) {
+        this->power_supply_->request_high_power();
+        this->has_requested_high_power_ = true;
+      }
+      if (!is_light_on && this->has_requested_high_power_) {
+        this->power_supply_->unrequest_high_power();
+        this->has_requested_high_power_ = false;
       }
     }
-
-    if (is_light_on && !this->has_requested_high_power_) {
-      this->power_supply_->request_high_power();
-      this->has_requested_high_power_ = true;
-    }
-    if (!is_light_on && this->has_requested_high_power_) {
-      this->power_supply_->unrequest_high_power();
-      this->has_requested_high_power_ = false;
-    }
-  }
 #endif
 
     this->controller_->Show();
@@ -153,8 +152,8 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
  public:
   inline light::ESPColorView operator[](int32_t index) const override {
     uint8_t *base = this->controller_->Pixels() + 3ULL * index;
-    return ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2], nullptr,
-                        this->effect_data_ + index, &this->correction_);
+    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
+                               nullptr, this->effect_data_ + index, &this->correction_);
   }
 
   light::LightTraits get_traits() override {
@@ -170,8 +169,8 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
  public:
   inline light::ESPColorView operator[](int32_t index) const override {
     uint8_t *base = this->controller_->Pixels() + 4ULL * index;
-    return ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                        base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
+    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
+                               base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
   }
 
   light::LightTraits get_traits() override {

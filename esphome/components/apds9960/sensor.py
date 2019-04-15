@@ -15,7 +15,7 @@ TYPES = {
     'PROXIMITY': 'set_proximity',
 }
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.Required(CONF_TYPE): cv.one_of(*TYPES, upper=True),
     cv.GenerateID(CONF_APDS9960_ID): cv.use_variable_id(APDS9960),
 

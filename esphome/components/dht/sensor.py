@@ -19,7 +19,7 @@ DHT_MODELS = {
 }
 DHT = dht_ns.class_('DHT', cg.PollingComponent)
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DHT),
     cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
     cv.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({

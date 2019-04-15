@@ -13,12 +13,12 @@ TemplateCover = template_ns.class_('TemplateCover', cover.Cover)
 
 TemplateCoverRestoreMode = template_ns.enum('TemplateCoverRestoreMode')
 RESTORE_MODES = {
-    'NO_RESTORE': TemplateCoverRestoreMode.NO_RESTORE,
-    'RESTORE': TemplateCoverRestoreMode.RESTORE,
-    'RESTORE_AND_CALL': TemplateCoverRestoreMode.RESTORE_AND_CALL,
+    'NO_RESTORE': TemplateCoverRestoreMode.COVER_NO_RESTORE,
+    'RESTORE': TemplateCoverRestoreMode.COVER_RESTORE,
+    'RESTORE_AND_CALL': TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
 }
 
-PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateCover),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,

@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import math
 
 # pylint: disable=unused-import, wrong-import-order
@@ -9,6 +8,7 @@ from esphome.core import (  # noqa
     TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
+from esphome.util import OrderedDict
 
 
 class Expression(object):

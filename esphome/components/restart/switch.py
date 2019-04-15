@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_INVERTED, CONF_NAME, CONF_ICON, ICON_RES
 restart_ns = cg.esphome_ns.namespace('restart')
 RestartSwitch = restart_ns.class_('RestartSwitch', switch.Switch, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RestartSwitch),
     cv.Optional(CONF_INVERTED): cv.invalid("Restart switches do not support inverted mode!"),
 

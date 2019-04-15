@@ -21,7 +21,7 @@ def validate_frequency_bit_depth(obj):
 ledc_ns = cg.esphome_ns.namespace('ledc')
 LEDCOutput = ledc_ns.class_('LEDCOutput', output.FloatOutput, cg.Component)
 
-PLATFORM_SCHEMA = cv.All(output.FLOAT_OUTPUT_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_variable_id(LEDCOutput),
     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.frequency,

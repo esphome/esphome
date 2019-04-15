@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_UPDATE_INTERVAL, CONF_UNIT_OF
 uptime_ns = cg.esphome_ns.namespace('uptime')
 UptimeSensor = uptime_ns.class_('UptimeSensor', sensor.PollingSensorComponent)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(UptimeSensor),
 
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,

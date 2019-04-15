@@ -25,6 +25,7 @@ DECLARE_REMOTE_PROTOCOL(NEC)
 
 template<typename... Ts> class NECAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  NECAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
  TEMPLATABLE_VALUE(uint16_t, address)
  TEMPLATABLE_VALUE(uint16_t, command)
   void encode(RemoteTransmitData *dst, Ts... x) override {

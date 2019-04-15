@@ -1,6 +1,5 @@
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    CONF_SETUP_PRIORITY, CONF_MCP23017
-from esphome.core import CORE, coroutine
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY
+from esphome.core import coroutine
 from esphome.cpp_generator import RawExpression, add
 from esphome.cpp_types import App, GPIOPin
 
@@ -9,24 +8,15 @@ from esphome.cpp_types import App, GPIOPin
 def gpio_pin_expression(conf):
     if conf is None:
         return
+    from esphome import pins
+    for key, (_, func) in pins.PIN_SCHEMA_REGISTRY.items():
+        if key in conf:
+            yield coroutine(func)(conf)
+            return
+
     number = conf[CONF_NUMBER]
     mode = conf[CONF_MODE]
     inverted = conf.get(CONF_INVERTED)
-    if CONF_PCF8574 in conf:
-        from esphome.components import pcf8574
-
-        hub = yield CORE.get_variable(conf[CONF_PCF8574])
-
-        mode = pcf8574.PCF8675_GPIO_MODES[mode]
-        yield hub.make_pin(number, mode, inverted)
-        return
-    if CONF_MCP23017 in conf:
-        from esphome.components import mcp23017
-
-        hub = yield CORE.get_variable(conf[CONF_MCP23017])
-        mode = mcp23017.MCP23017_GPIO_MODES[mode]
-        yield hub.make_pin(number, mode, inverted)
-        return
     yield GPIOPin.new(number, RawExpression(mode), inverted)
 
 

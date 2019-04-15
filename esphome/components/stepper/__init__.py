@@ -5,9 +5,7 @@ from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MA
     CONF_POSITION, CONF_TARGET
 from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 # pylint: disable=invalid-name
 stepper_ns = cg.esphome_ns.namespace('stepper')
@@ -62,8 +60,6 @@ STEPPER_SCHEMA = cv.Schema({
     cv.Optional(CONF_ACCELERATION, default='inf'): validate_acceleration,
     cv.Optional(CONF_DECELERATION, default='inf'): validate_acceleration,
 })
-
-STEPPER_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(STEPPER_SCHEMA.schema)
 
 
 @coroutine

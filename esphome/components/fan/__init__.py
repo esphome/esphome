@@ -1,20 +1,16 @@
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-# from esphome.components import mqtt
-# from esphome.components.mqtt import setup_mqtt_component
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED, \
     CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_NAME
 from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 fan_ns = cg.esphome_ns.namespace('fan')
 FanState = fan_ns.class_('FanState', cg.Nameable, cg.Component)
-# MQTTFanComponent = fan_ns.class_('MQTTFanComponent', mqtt.MQTTComponent)
 MakeFan = cg.Application.struct('MakeFan')
 
 # Actions
@@ -32,31 +28,32 @@ FAN_SPEEDS = {
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(FanState),
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTFanComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTFanComponent),
     cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(cv.requires_component('mqtt'),
                                                       cv.publish_topic),
     cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(cv.requires_component('mqtt'),
                                                         cv.subscribe_topic),
 })
 
-FAN_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FAN_SCHEMA.schema)
-
 
 @coroutine
-def setup_fan_core_(fan_var, config):
+def setup_fan_core_(var, config):
     if CONF_INTERNAL in config:
-        cg.add(fan_var.set_internal(config[CONF_INTERNAL]))
+        cg.add(var.set_internal(config[CONF_INTERNAL]))
 
-    mqtt_ = fan_var.Pget_mqtt()
-    if CONF_OSCILLATION_STATE_TOPIC in config:
-        cg.add(mqtt_.set_custom_oscillation_state_topic(config[CONF_OSCILLATION_STATE_TOPIC]))
-    if CONF_OSCILLATION_COMMAND_TOPIC in config:
-        cg.add(mqtt_.set_custom_oscillation_command_topic(config[CONF_OSCILLATION_COMMAND_TOPIC]))
-    if CONF_SPEED_STATE_TOPIC in config:
-        cg.add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
-    if CONF_SPEED_COMMAND_TOPIC in config:
-        cg.add(mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC]))
-    # setup_mqtt_component(mqtt_, config)
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
+
+        if CONF_OSCILLATION_STATE_TOPIC in config:
+            cg.add(mqtt_.set_custom_oscillation_state_topic(config[CONF_OSCILLATION_STATE_TOPIC]))
+        if CONF_OSCILLATION_COMMAND_TOPIC in config:
+            cg.add(mqtt_.set_custom_oscillation_command_topic(
+                config[CONF_OSCILLATION_COMMAND_TOPIC]))
+        if CONF_SPEED_STATE_TOPIC in config:
+            cg.add(mqtt_.set_custom_speed_state_topic(config[CONF_SPEED_STATE_TOPIC]))
+        if CONF_SPEED_COMMAND_TOPIC in config:
+            cg.add(mqtt_.set_custom_speed_command_topic(config[CONF_SPEED_COMMAND_TOPIC]))
 
 
 @coroutine

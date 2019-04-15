@@ -38,7 +38,7 @@ def validate_pulse_counter_pin(value):
     return value
 
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={

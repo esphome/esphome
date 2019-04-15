@@ -7,7 +7,7 @@ from .. import custom_ns
 CustomBinaryOutputConstructor = custom_ns.class_('CustomBinaryOutputConstructor')
 CustomFloatOutputConstructor = custom_ns.class_('CustomFloatOutputConstructor')
 
-BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
+BINARY_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_TYPE): 'binary',
@@ -17,7 +17,7 @@ BINARY_SCHEMA = output.PLATFORM_SCHEMA.extend({
         })),
 })
 
-FLOAT_SCHEMA = output.PLATFORM_SCHEMA.extend({
+FLOAT_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomFloatOutputConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_TYPE): 'float',
@@ -42,7 +42,7 @@ def validate_custom_output(value):
     raise cv.Invalid("type must either be binary or float, not {}!".format(type))
 
 
-PLATFORM_SCHEMA = validate_custom_output
+CONFIG_SCHEMA = validate_custom_output
 
 
 def to_code(config):

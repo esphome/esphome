@@ -15,7 +15,7 @@ AUTO_LOAD = ['xiaomi_ble']
 xiaomi_miflora_ns = cg.esphome_ns.namespace('xiaomi_miflora')
 XiaomiMiflora = xiaomi_miflora_ns.class_('XiaomiMiflora', ESPBTDeviceListener, cg.Component)
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(XiaomiMiflora),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({

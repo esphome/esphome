@@ -23,7 +23,7 @@ def validate_adc_pin(value):
 adc_ns = cg.esphome_ns.namespace('adc')
 ADCSensor = adc_ns.class_('ADCSensor', sensor.PollingSensorComponent)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensor),
     cv.Required(CONF_PIN): validate_adc_pin,
     cv.Optional(CONF_ATTENUATION): cv.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES,

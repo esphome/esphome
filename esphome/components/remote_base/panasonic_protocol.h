@@ -26,6 +26,7 @@ DECLARE_REMOTE_PROTOCOL(Panasonic)
 
 template<typename... Ts> class PanasonicAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  PanasonicAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
  TEMPLATABLE_VALUE(uint16_t, address)
  TEMPLATABLE_VALUE(uint32_t, command)
   void encode(RemoteTransmitData *dst, Ts... x) override {

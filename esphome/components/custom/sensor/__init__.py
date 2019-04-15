@@ -6,7 +6,7 @@ from .. import custom_ns
 
 CustomSensorConstructor = custom_ns.class_('CustomSensorConstructor')
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CustomSensorConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_SENSORS): cv.ensure_list(sensor.SENSOR_SCHEMA.extend({

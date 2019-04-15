@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import CONDITION_REGISTRY
+from esphome.components import mqtt
 from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_CALIBRATE_LINEAR, CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, \
     CONF_FILTERS, CONF_FROM, \
@@ -11,13 +12,11 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
     CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_OR, \
     CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_THROTTLE, CONF_TO, CONF_TRIGGER_ID, \
     CONF_UNIT_OF_MEASUREMENT, \
-    CONF_WINDOW_SIZE, CONF_VALUE, CONF_HEARTBEAT, CONF_NAME
+    CONF_WINDOW_SIZE, CONF_VALUE, CONF_HEARTBEAT, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 from esphome.util import ServiceRegistry
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 
 def validate_send_first_at(value):
@@ -85,7 +84,7 @@ accuracy_decimals = cv.int_
 icon = cv.icon
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    # cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTSensorComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTSensorComponent),
     cv.GenerateID(): cv.declare_variable_id(Sensor),
     cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
     cv.Optional(CONF_ICON): icon,
@@ -106,7 +105,14 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
 })
 
-SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SENSOR_SCHEMA.schema)
+
+def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_):
+    # type: (str, str, int) -> cv.Schema
+    return SENSOR_SCHEMA.extend({
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement_): unit_of_measurement,
+        cv.Optional(CONF_ICON, default=icon_): icon,
+        cv.Optional(CONF_ACCURACY_DECIMALS, default=accuracy_decimals_): accuracy_decimals,
+    })
 
 
 @FILTER_REGISTRY.register(CONF_OFFSET, cv.maybe_simple_value(cv.Schema({
@@ -160,7 +166,7 @@ def exponential_moving_average_filter_to_code(config):
     cv.Required(CONF_VALUE): cv.lambda_,
 })))
 def lambda_filter_to_code(config):
-    lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(float, 'x')],
+    lambda_ = yield cg.process_lambda(config[CONF_VALUE], [(float, 'x')],
                                       return_type=cg.optional.template(float))
     yield cg.new_Pvariable(config[CONF_ID], lambda_)
 
@@ -224,8 +230,8 @@ def debounce_filter_to_code(config):
         cv.ensure_list(validate_datapoint), cv.Length(min=2)),
 }).extend(cv.COMPONENT_SCHEMA)))
 def calibrate_linear_filter_to_code(config):
-    x = [conf[CONF_FROM] for conf in config]
-    y = [conf[CONF_TO] for conf in config]
+    x = [conf[CONF_FROM] for conf in config[CONF_VALUE]]
+    y = [conf[CONF_TO] for conf in config[CONF_VALUE]]
     k, b = fit_linear(x, y)
     yield cg.new_Pvariable(config[CONF_ID], k, b)
 
@@ -266,13 +272,15 @@ def setup_sensor_core_(var, config):
             cg.add(trigger.set_max(template_))
         yield automation.build_automation(trigger, [(float, 'x')], conf)
 
-    mqtt_ = var.Pget_mqtt()
-    if CONF_EXPIRE_AFTER in config:
-        if config[CONF_EXPIRE_AFTER] is None:
-            cg.add(mqtt_.disable_expire_after())
-        else:
-            cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
-    # setup_mqtt_component(mqtt_, config)
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
+
+        if CONF_EXPIRE_AFTER in config:
+            if config[CONF_EXPIRE_AFTER] is None:
+                cg.add(mqtt_.disable_expire_after())
+            else:
+                cg.add(mqtt_.set_expire_after(config[CONF_EXPIRE_AFTER]))
 
 
 @coroutine

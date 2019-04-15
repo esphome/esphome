@@ -10,7 +10,7 @@ from .. import gpio_ns
 
 GPIOBinarySensor = gpio_ns.class_('GPIOBinarySensor', binary_sensor.BinarySensor, cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOBinarySensor),
     vol.Required(CONF_PIN): pins.gpio_input_pin_schema
 }).extend(cv.COMPONENT_SCHEMA))

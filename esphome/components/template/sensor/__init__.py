@@ -8,7 +8,7 @@ from .. import template_ns
 
 TemplateSensor = template_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 
-PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
@@ -37,8 +37,8 @@ SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
 @ACTION_REGISTRY.register(CONF_SENSOR_TEMPLATE_PUBLISH, SENSOR_TEMPLATE_PUBLISH_ACTION_SCHEMA)
 def sensor_template_publish_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])
-    rhs = var.make_sensor_publish_action(template_arg)
     type = sensor.SensorPublishAction.template(template_arg)
+    rhs = type.new(var)
     action = cg.Pvariable(action_id, rhs, type=type)
     template_ = yield cg.templatable(config[CONF_STATE], args, float)
     cg.add(action.set_state(template_))

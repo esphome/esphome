@@ -18,7 +18,7 @@ RGB_ORDERS = [
     'BGR',
 ]
 
-BASE_SCHEMA = light.PLATFORM_SCHEMA.extend({
+BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(FastLEDLightOutput),
 
     cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
@@ -26,12 +26,12 @@ BASE_SCHEMA = light.PLATFORM_SCHEMA.extend({
     cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
     cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
-}).extend(light.ADDRESSABLE_LIGHT_SCHEMA).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 @coroutine
 def new_fastled_light(config):
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
 
     if CONF_MAX_REFRESH_RATE in config:

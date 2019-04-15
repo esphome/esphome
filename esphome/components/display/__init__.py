@@ -6,9 +6,7 @@ from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
 from esphome.core import coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 display_ns = cg.esphome_ns.namespace('display')
 DisplayBuffer = display_ns.class_('DisplayBuffer')
@@ -38,12 +36,12 @@ def validate_rotation(value):
     return cv.one_of(*DISPLAY_ROTATIONS)(value)
 
 
-BASIC_DISPLAY_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
+BASIC_DISPLAY_SCHEMA = cv.Schema({
     cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     cv.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
-FULL_DISPLAY_PLATFORM_SCHEMA = BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
+FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_ROTATION): validate_rotation,
     cv.Optional(CONF_PAGES): cv.All(cv.ensure_list({
         cv.GenerateID(): cv.declare_variable_id(DisplayPage),

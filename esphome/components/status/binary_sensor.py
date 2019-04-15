@@ -7,7 +7,7 @@ status_ns = cg.esphome_ns.namespace('status')
 StatusBinarySensor = status_ns.class_('StatusBinarySensor', binary_sensor.BinarySensor,
                                       cg.Component)
 
-PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(StatusBinarySensor),
 
     cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_CONNECTIVITY): binary_sensor.device_class,

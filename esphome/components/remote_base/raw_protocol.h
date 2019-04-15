@@ -42,6 +42,7 @@ class RawTrigger : public Trigger<std::vector<int32_t>>, public Component, publi
 
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
+  RawAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   void set_code_template(std::function<std::vector<int32_t>(Ts...)> func) {
     this->code_func_ = func;
   }

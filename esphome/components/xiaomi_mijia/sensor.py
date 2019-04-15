@@ -13,7 +13,7 @@ AUTO_LOAD = ['xiaomi_ble']
 xiaomi_mijia_ns = cg.esphome_ns.namespace('xiaomi_mijia')
 XiaomiMijia = xiaomi_mijia_ns.class_('XiaomiMijia', ESPBTDeviceListener, cg.Component)
 
-PLATFORM_SCHEMA = sensor.PLATFORM_SCHEMA.extend({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(XiaomiMijia),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({

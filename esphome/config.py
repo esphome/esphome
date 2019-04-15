@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import collections
-from collections import OrderedDict
 import importlib
 import logging
 import re
@@ -14,8 +13,8 @@ from esphome.components import substitutions
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type, string_types
-from esphome.util import safe_print
+from esphome.py_compat import text_type
+from esphome.util import safe_print, OrderedDict
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import List, Optional, Tuple, Union  # noqa
@@ -37,14 +36,10 @@ class ComponentManifest(object):
 
     @property
     def is_platform_component(self):
-        if self.is_platform:
-            return False
-        return hasattr(self.module, 'PLATFORM_SCHEMA')
+        return getattr(self.module, 'IS_PLATFORM_COMPONENT', False)
 
     @property
     def config_schema(self):
-        if self.is_platform:
-            return getattr(self.module, 'PLATFORM_SCHEMA', None)
         return getattr(self.module, 'CONFIG_SCHEMA', None)
 
     @property
@@ -87,7 +82,8 @@ class ComponentManifest(object):
             obj = [obj]
         return set(obj)
 
-    def source_files(self, config):
+    @property
+    def source_files(self):
         if self._is_core:
             core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), 'core'))
             source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
@@ -96,11 +92,7 @@ class ComponentManifest(object):
                 ret['esphome/core/{}'.format(f)] = os.path.join(core_p, f)
             return ret
 
-        source_files = self._get_flags_set('source_files', config) | \
-                       self._get_flags_set('SOURCE_FILES', config)
-        if not source_files:
-            # TODO: Check if attr does not exist instead of whether set is empty
-            source_files = core.find_source_files(self.module.__file__)
+        source_files = core.find_source_files(self.module.__file__)
         ret = {}
         # Make paths absolute
         directory = os.path.abspath(os.path.dirname(self.module.__file__))
@@ -347,7 +339,7 @@ def validate_config(config):
             skip_paths.append([domain])
             continue
 
-        if not isinstance(conf, list) and component.is_multi_conf:
+        if component.is_multi_conf and not isinstance(conf, list):
             result[domain] = conf = [conf]
 
         success = True
@@ -383,6 +375,10 @@ def validate_config(config):
             continue
 
         if not component.is_platform_component:
+            if component.config_schema is None and not isinstance(conf, core.AutoLoad):
+                result.add_error(u"Component {} cannot be loaded via YAML (no CONFIG_SCHEMA)."
+                                 u"".format(domain), [domain])
+                skip_paths.append([domain])
             continue
 
         result.remove_domain([domain], domain)
@@ -440,6 +436,11 @@ def validate_config(config):
                 skip_paths.append([domain, i])
                 continue
 
+            if platform.config_schema is None:
+                result.add_error(u"Platform {} cannot be loaded via YAML (no PLATFORM_SCHEMA)."
+                                 u"".format(p_domain), [domain, i])
+                skip_paths.append([domain])
+
     # Step 2: Validate configuration
     try:
         result[CONF_ESPHOME] = core_config.CONFIG_SCHEMA(result[CONF_ESPHOME])
@@ -479,11 +480,18 @@ def validate_config(config):
             platform = get_platform(domain, p_name)
 
             if platform.config_schema is not None:
+                # Remove 'platform' key for validation
+                input_conf = OrderedDict(p_config)
+                platform_val = input_conf.pop('platform')
                 try:
-                    p_validated = platform.config_schema(p_config)
+                    p_validated = platform.config_schema(input_conf)
                 except vol.Invalid as ex:
                     _comp_error(ex, [domain, i])
                     continue
+                if not isinstance(p_validated, OrderedDict):
+                    p_validated = OrderedDict(p_validated)
+                p_validated['platform'] = platform_val
+                p_validated.move_to_end('platform', last=False)
                 result[domain][i] = p_validated
 
     if not result.errors:
