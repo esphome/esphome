@@ -61,16 +61,15 @@ api:
 """
 
 
-def sanitize_double_quotes(str):
-    str = str.replace('\\', '\\\\').replace('"', '\\"')
-    return str
+def sanitize_double_quotes(value):
+    return value.replace('\\', '\\\\').replace('"', '\\"')
 
 
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u"  password: \"{0}\"\n\nota:\n  password: \"{0}\"\n".format(kwargs['password'])
+        config += u'  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
     else:
         config += u"\nota:\n"
 
