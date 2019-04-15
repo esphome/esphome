@@ -386,9 +386,7 @@ document.querySelectorAll(".action-upload").forEach((upload) => {
 
 const validateModalElem = document.getElementById("modal-validate");
 
-document.querySelectorAll(".action-validate").forEach((upload) => {
-  upload.addEventListener('click', (e) => {
-    configuration = e.target.getAttribute('data-node');
+const validate = (configuration) => {
     const modalInstance = M.Modal.getInstance(validateModalElem);
     const log = validateModalElem.querySelector(".log");
     log.innerHTML = "";
@@ -435,6 +433,12 @@ document.querySelectorAll(".action-validate").forEach((upload) => {
     modalInstance.options.onCloseStart = () => {
       logSocket.close();
     };
+};
+
+document.querySelectorAll(".action-validate").forEach((upload) => {
+  upload.addEventListener('click', (e) => {
+    configuration = e.target.getAttribute('data-node');
+    validate(configuration);
   });
 });
 
@@ -646,6 +650,19 @@ editor.commands.addCommand({
 });
 
 saveButton.addEventListener('click', saveEditor);
+
+const saveValidateButton = editModalElem.querySelector(".save-validate-button");
+const saveValidateEditor = () => {
+  fetch(`${relative_url}edit?configuration=${configuration}`, {
+      credentials: "same-origin",
+      method: "POST",
+      body: editor.getValue()
+    }).then(res => res.text()).then(() => {
+      validate(configuration);
+    });
+};
+
+saveValidateButton.addEventListener('click', saveValidateEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
