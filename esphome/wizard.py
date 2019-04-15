@@ -61,11 +61,15 @@ api:
 """
 
 
+def sanitize_double_quotes(value):
+    return value.replace('\\', '\\\\').replace('"', '\\"')
+
+
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u"  password: '{0}'\n\nota:\n  password: '{0}'\n".format(kwargs['password'])
+        config += u'  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
     else:
         config += u"\nota:\n"
 
@@ -75,6 +79,11 @@ def wizard_file(**kwargs):
 def wizard_write(path, **kwargs):
     name = kwargs['name']
     board = kwargs['board']
+
+    kwargs['ssid'] = sanitize_double_quotes(kwargs['ssid'])
+    kwargs['psk'] = sanitize_double_quotes(kwargs['psk'])
+    kwargs['password'] = sanitize_double_quotes(kwargs['password'])
+
     if 'platform' not in kwargs:
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
