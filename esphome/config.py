@@ -601,6 +601,8 @@ def read_config(verbose):
             res = strip_default_ids(res)
 
         safe_print(color('bold_red', u"Failed config"))
+        for msg, path in res.errors:
+            safe_print(color('bold_red', msg))
         safe_print('')
         for path, domain in res.domains:
             if not res.is_in_error_path(path):
