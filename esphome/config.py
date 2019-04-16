@@ -5,6 +5,7 @@ import importlib
 import logging
 import re
 import os.path
+import sys
 
 import voluptuous as vol
 
@@ -13,7 +14,7 @@ from esphome.components import substitutions
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type
+from esphome.py_compat import text_type, IS_PY2
 from esphome.util import safe_print, OrderedDict
 
 # pylint: disable=unused-import, wrong-import-order
@@ -107,15 +108,60 @@ class ComponentManifest(object):
 
 
 CORE_COMPONENTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'components'))
+_UNDEF = object()
+CUSTOM_COMPONENTS_PATH = _UNDEF
+
+
+def _mount_config_dir():
+    global CUSTOM_COMPONENTS_PATH
+    if CUSTOM_COMPONENTS_PATH is not _UNDEF:
+        return
+    custom_path = os.path.abspath(os.path.join(CORE.config_dir, 'custom_components'))
+    if not os.path.isdir(custom_path):
+        CUSTOM_COMPONENTS_PATH = None
+        return
+    init_path = os.path.join(custom_path, '__init__.py')
+    if IS_PY2 and not os.path.isfile(init_path):
+        _LOGGER.warning("Found 'custom_components' folder, but file __init__.py was not found. "
+                        "Please create an empty file at '%s' in order to use custom components "
+                        "with ESPHome.", init_path)
+        CUSTOM_COMPONENTS_PATH = None
+        return
+    if CORE.config_dir not in sys.path:
+        sys.path.insert(0, CORE.config_dir)
+    CUSTOM_COMPONENTS_PATH = custom_path
 
 
 def _lookup_module(domain, is_platform):
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
-    path = 'esphome.components.{}'.format(domain)
+    _mount_config_dir()
+
+    # First look for custom_components
     try:
-        module = importlib.import_module(path)
+        module = importlib.import_module('custom_components.{}'.format(domain))
+    except ImportError:
+        # ImportError when no such module
+        pass
+    except Exception:  # pylint: disable=broad-except
+        # Other error means component has an issue
+        import traceback
+        _LOGGER.error("Unable to load custom component %s:", domain)
+        traceback.print_exc()
+        return None
+    else:
+        # Found in custom components
+        _LOGGER.info('You are using a custom component for \'%s\' which has not been '
+                     'officially tested. If you experience problems, be sure to try '
+                     'disabling the component.', domain)
+        manif = ComponentManifest(module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
+
+    # Next look in esphome components dir
+    try:
+        module = importlib.import_module('esphome.components.{}'.format(domain))
     except ImportError:
         return None
     except Exception:  # pylint: disable=broad-except
