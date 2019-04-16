@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include <esp_camera.h>
@@ -107,3 +109,5 @@ extern ESP32Camera *global_esp32_camera;
 
 }  // namespace esp32_camera
 }  // namespace esphome
+
+#endif

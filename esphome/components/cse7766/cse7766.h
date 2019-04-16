@@ -11,15 +11,9 @@ class CSE7766Component : public PollingComponent, public uart::UARTDevice {
  public:
   CSE7766Component(uint32_t update_interval) : PollingComponent(update_interval) {}
 
-  void set_voltage_sensor(sensor::Sensor *voltage_sensor) {
-    voltage_sensor_ = voltage_sensor;
-  }
-  void set_current_sensor(sensor::Sensor *current_sensor) {
-    current_sensor_ = current_sensor;
-  }
-  void set_power_sensor(sensor::Sensor *power_sensor) {
-    power_sensor_ = power_sensor;
-  }
+  void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
+  void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
+  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
 
   void loop() override;
   float get_setup_priority() const override;

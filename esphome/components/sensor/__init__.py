@@ -171,14 +171,6 @@ def lambda_filter_to_code(config):
     yield cg.new_Pvariable(config[CONF_ID], lambda_)
 
 
-@FILTER_REGISTRY.register(CONF_THROTTLE, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ThrottleFilter),
-    cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-})))
-def throttle_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
-
-
 @FILTER_REGISTRY.register(CONF_DELTA, cv.maybe_simple_value(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DeltaFilter),
     cv.Required(CONF_VALUE): cv.float_,

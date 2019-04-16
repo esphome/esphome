@@ -11,13 +11,10 @@ float StartupTrigger::get_setup_priority() const {
 }
 StartupTrigger::StartupTrigger(float setup_priority) : setup_priority_(setup_priority) {}
 
-void ShutdownTrigger::on_shutdown() {
-  this->trigger();
-}
+void ShutdownTrigger::on_shutdown() { this->trigger(); }
 
 void LoopTrigger::loop() { this->trigger(); }
 float LoopTrigger::get_setup_priority() const { return setup_priority::DATA; }
-
 
 RangeCondition::RangeCondition() = default;
 

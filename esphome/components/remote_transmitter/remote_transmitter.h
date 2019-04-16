@@ -19,7 +19,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase, pu
   void set_carrier_duty_percent(uint8_t carrier_duty_percent) { this->carrier_duty_percent_ = carrier_duty_percent; }
 
  protected:
-  void send_internal_(uint32_t send_times, uint32_t send_wait) override;
+  void send_internal(uint32_t send_times, uint32_t send_wait) override;
 #ifdef ARDUINO_ARCH_ESP8266
   void calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period, uint32_t *off_time_period);
 

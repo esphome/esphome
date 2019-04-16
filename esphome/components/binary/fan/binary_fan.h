@@ -14,9 +14,8 @@ class BinaryFan : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_oscillating(output::BinaryOutput *oscillating) {
-    this->oscillating_ = oscillating;
-  }
+  void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
+
  protected:
   fan::FanState *fan_;
   output::BinaryOutput *output_;

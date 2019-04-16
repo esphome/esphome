@@ -15,7 +15,7 @@ namespace stepper {
 class Stepper {
  public:
   void set_target(int32_t steps) { this->target_position = steps; }
-  void report_position(int32_t steps) { this->current_position = steps ;}
+  void report_position(int32_t steps) { this->current_position = steps; }
   void set_acceleration(float acceleration) { this->acceleration_ = acceleration; }
   void set_deceleration(float deceleration) { this->deceleration_ = deceleration; }
   void set_max_speed(float max_speed) { this->max_speed_ = max_speed; }

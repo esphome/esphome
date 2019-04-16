@@ -36,10 +36,14 @@ void HLW8012Component::update() {
   float full_cycle_cf1 = this->cf1_store_.get_pulse_width_s() * 2;
   float cf_hz, cf1_hz;
 
-  if (full_cycle_cf == 0.0f) cf_hz = 0.0f;
-  else cf_hz = 1.0f / full_cycle_cf;
-  if (full_cycle_cf1 == 0.0f) cf1_hz = 0.0f;
-  else cf1_hz = 1.0f / full_cycle_cf1;
+  if (full_cycle_cf == 0.0f)
+    cf_hz = 0.0f;
+  else
+    cf_hz = 1.0f / full_cycle_cf;
+  if (full_cycle_cf1 == 0.0f)
+    cf1_hz = 0.0f;
+  else
+    cf1_hz = 1.0f / full_cycle_cf1;
 
   if (this->nth_value_++ < 2) {
     return;

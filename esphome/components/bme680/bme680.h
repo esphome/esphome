@@ -79,15 +79,9 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   /// Set the IIR Filter value. Defaults to no IIR Filter.
   void set_iir_filter(BME680IIRFilter iir_filter);
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    temperature_sensor_ = temperature_sensor;
-  }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) {
-    pressure_sensor_ = pressure_sensor;
-  }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) {
-    humidity_sensor_ = humidity_sensor;
-  }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
   void set_gas_resistance_sensor(sensor::Sensor *gas_resistance_sensor) {
     gas_resistance_sensor_ = gas_resistance_sensor;
   }

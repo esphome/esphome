@@ -7,9 +7,7 @@ namespace script {
 
 class Script : public Trigger<> {
  public:
-  void execute() {
-    this->trigger();
-  }
+  void execute() { this->trigger(); }
 };
 
 template<typename... Ts> class ScriptExecuteAction : public Action<Ts...> {

@@ -15,11 +15,9 @@ class ESPPreferenceObject {
   ESPPreferenceObject();
   ESPPreferenceObject(size_t rtc_offset, size_t length, uint32_t type);
 
-  template<typename T>
-  bool save(T *src);
+  template<typename T> bool save(T *src);
 
-  template<typename T>
-  bool load(T *dest);
+  template<typename T> bool load(T *dest);
 
   bool is_initialized() const;
 
@@ -42,8 +40,7 @@ class ESPPreferences {
   ESPPreferences();
   void begin(const std::string &name);
   ESPPreferenceObject make_preference(size_t length, uint32_t type);
-  template<typename T>
-  ESPPreferenceObject make_preference(uint32_t type);
+  template<typename T> ESPPreferenceObject make_preference(uint32_t type);
 
 #ifdef ARDUINO_ARCH_ESP8266
   /** On the ESP8266, we can't override the first 128 bytes during OTA uploads
@@ -71,13 +68,11 @@ class ESPPreferences {
 
 extern ESPPreferences global_preferences;
 
-template<typename T>
-ESPPreferenceObject ESPPreferences::make_preference(uint32_t type) {
+template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type) {
   return this->make_preference((sizeof(T) + 3) / 4, type);
 }
 
-template<typename T>
-bool ESPPreferenceObject::save(T *src) {
+template<typename T> bool ESPPreferenceObject::save(T *src) {
   if (!this->is_initialized())
     return false;
   memset(this->data_, 0, this->length_words_ * 4);
@@ -85,8 +80,7 @@ bool ESPPreferenceObject::save(T *src) {
   return this->save_();
 }
 
-template<typename T>
-bool ESPPreferenceObject::load(T *dest) {
+template<typename T> bool ESPPreferenceObject::load(T *dest) {
   memset(this->data_, 0, this->length_words_ * 4);
   if (!this->load_())
     return false;

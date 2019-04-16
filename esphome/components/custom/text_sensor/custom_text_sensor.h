@@ -12,9 +12,7 @@ class CustomTextSensorConstructor : public Component {
     this->text_sensors_ = init();
   }
 
-  text_sensor::TextSensor *get_text_sensor(int i) {
-    return this->text_sensors_[i];
-  }
+  text_sensor::TextSensor *get_text_sensor(int i) { return this->text_sensors_[i]; }
 
   void dump_config() override;
 

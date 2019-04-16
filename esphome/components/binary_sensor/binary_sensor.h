@@ -59,7 +59,7 @@ class BinarySensor : public Nameable {
   /// Get the device class for this binary sensor, using the manual override if specified.
   std::string get_device_class();
 
-  void add_filter(Filter * filter);
+  void add_filter(Filter *filter);
   void add_filters(std::vector<Filter *> filters);
 
   // ========== INTERNAL METHODS ==========

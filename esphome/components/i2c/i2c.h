@@ -25,7 +25,7 @@ namespace i2c {
  */
 class I2CComponent : public Component {
  public:
-  I2CComponent(uint8_t sda_pin, uint8_t scl_pin, float frequency, bool scan);
+  I2CComponent(uint8_t sda_pin, uint8_t scl_pin, uint32_t frequency, bool scan);
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.

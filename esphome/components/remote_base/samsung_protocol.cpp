@@ -52,9 +52,7 @@ optional<SamsungData> SamsungProtocol::decode(RemoteReceiveData src) {
     return {};
   return out;
 }
-void SamsungProtocol::dump(const SamsungData &data) {
-  ESP_LOGD(TAG, "Received Samsung: data=0x%08X", data.data);
-}
+void SamsungProtocol::dump(const SamsungData &data) { ESP_LOGD(TAG, "Received Samsung: data=0x%08X", data.data); }
 
 }  // namespace remote_base
 }  // namespace esphome

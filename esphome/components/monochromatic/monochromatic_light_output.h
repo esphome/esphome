@@ -20,6 +20,7 @@ class MonochromaticLightOutput : public light::LightOutput {
     state->current_values_as_brightness(&bright);
     this->output_->set_level(bright);
   }
+
  protected:
   output::FloatOutput *output_;
 };

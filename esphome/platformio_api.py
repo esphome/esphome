@@ -44,7 +44,16 @@ def patch_structhash():
         with open(structhash_file, "w") as f:
             f.write(proj_hash)
 
-    run._clean_build_dir = patched_clean_build_dir
+    # pylint: disable=protected-access
+    orig = run._clean_build_dir
+
+    def patched_safe(*args, **kwargs):
+        try:
+            return patched_clean_build_dir(*args, **kwargs)
+        except Exception:  # pylint: disable=broad-except
+            return orig(*args, **kwargs)
+
+    run._clean_build_dir = patched_safe
 
 
 def run_platformio_cli(*args, **kwargs):
@@ -55,7 +64,11 @@ def run_platformio_cli(*args, **kwargs):
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
         import platformio.__main__
-        patch_structhash()
+        try:
+            patch_structhash()
+        except Exception:  # pylint: disable=broad-except
+            # Ignore when patch fails
+            pass
         return run_external_command(platformio.__main__.main,
                                     *cmd, **kwargs)
 

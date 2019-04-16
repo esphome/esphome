@@ -14,7 +14,7 @@ void CronTrigger::add_month(uint8_t month) { this->months_[month] = true; }
 void CronTrigger::add_day_of_week(uint8_t day_of_week) { this->days_of_week_[day_of_week] = true; }
 bool CronTrigger::matches(const ESPTime &time) {
   return time.is_valid() && this->seconds_[time.second] && this->minutes_[time.minute] && this->hours_[time.hour] &&
-      this->days_of_month_[time.day_of_month] && this->months_[time.month] && this->days_of_week_[time.day_of_week];
+         this->days_of_month_[time.day_of_month] && this->months_[time.month] && this->days_of_week_[time.day_of_week];
 }
 void CronTrigger::loop() {
   ESPTime time = this->rtc_->now();
@@ -74,7 +74,6 @@ void CronTrigger::add_days_of_week(const std::vector<uint8_t> &days_of_week) {
     this->add_day_of_week(it);
 }
 float CronTrigger::get_setup_priority() const { return setup_priority::HARDWARE; }
-
 
 }  // namespace time
 }  // namespace esphome

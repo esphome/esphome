@@ -50,10 +50,9 @@ struct PulseCounterStorage {
 
 class PulseCounterSensor : public sensor::PollingSensorComponent {
  public:
-  explicit PulseCounterSensor(
-      const std::string &name, GPIOPin *pin, uint32_t update_interval,
-      PulseCounterCountMode rising_edge_mode, PulseCounterCountMode falling_edge_mode,
-      uint32_t filter_us)
+  explicit PulseCounterSensor(const std::string &name, GPIOPin *pin, uint32_t update_interval,
+                              PulseCounterCountMode rising_edge_mode, PulseCounterCountMode falling_edge_mode,
+                              uint32_t filter_us)
       : sensor::PollingSensorComponent(name, update_interval), pin_(pin) {
     this->storage_.rising_edge_mode = rising_edge_mode;
     this->storage_.falling_edge_mode = falling_edge_mode;

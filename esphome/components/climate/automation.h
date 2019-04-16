@@ -10,11 +10,11 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
   explicit ControlAction(Climate *climate) : climate_(climate) {}
 
- TEMPLATABLE_VALUE(ClimateMode, mode)
- TEMPLATABLE_VALUE(float, target_temperature)
- TEMPLATABLE_VALUE(float, target_temperature_low)
- TEMPLATABLE_VALUE(float, target_temperature_high)
- TEMPLATABLE_VALUE(bool, away)
+  TEMPLATABLE_VALUE(ClimateMode, mode)
+  TEMPLATABLE_VALUE(float, target_temperature)
+  TEMPLATABLE_VALUE(float, target_temperature_low)
+  TEMPLATABLE_VALUE(float, target_temperature_high)
+  TEMPLATABLE_VALUE(bool, away)
 
   void play(Ts... x) override {
     auto call = this->climate_->make_call();

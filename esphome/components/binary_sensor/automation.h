@@ -98,9 +98,7 @@ class MultiClickTrigger : public Trigger<>, public Component {
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void set_invalid_cooldown(uint32_t invalid_cooldown) {
-    this->invalid_cooldown_ = invalid_cooldown;
-  }
+  void set_invalid_cooldown(uint32_t invalid_cooldown) { this->invalid_cooldown_ = invalid_cooldown; }
 
  protected:
   void on_state_(bool state);
@@ -125,8 +123,7 @@ class StateTrigger : public Trigger<bool> {
   }
 };
 
-template<typename... Ts>
-class BinarySensorCondition : public Condition<Ts...> {
+template<typename... Ts> class BinarySensorCondition : public Condition<Ts...> {
  public:
   BinarySensorCondition(BinarySensor *parent, bool state, uint32_t for_time = 0)
       : parent_(parent), state_(state), for_time_(for_time) {
@@ -146,8 +143,7 @@ class BinarySensorCondition : public Condition<Ts...> {
   uint32_t for_time_{0};
 };
 
-template<typename... Ts>
-class BinarySensorPublishAction : public Action<Ts...> {
+template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> {
  public:
   explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(bool, state)

@@ -10,8 +10,7 @@ template<typename T> class GlobalsComponent : public Component {
  public:
   explicit GlobalsComponent() = default;
   explicit GlobalsComponent(T initial_value) : value_(initial_value) {}
-  explicit GlobalsComponent(
-      std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
+  explicit GlobalsComponent(std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
     memcpy(this->value_, initial_value.data(), sizeof(T));
   }
 

@@ -294,7 +294,7 @@ def copy_src_tree():
     import shutil
 
     source_files = {}
-    for _, component, conf in iter_components(CORE.config):
+    for _, component, _ in iter_components(CORE.config):
         source_files.update(component.source_files)
 
     # Convert to list and sort

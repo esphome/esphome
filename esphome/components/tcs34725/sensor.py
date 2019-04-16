@@ -1,9 +1,9 @@
 # coding=utf-8
-from esphome.components import i2c, sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ADDRESS, CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, \
-    CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, CONF_NAME, CONF_UPDATE_INTERVAL, ICON_LIGHTBULB, \
+import esphome.config_validation as cv
+from esphome.components import i2c, sensor
+from esphome.const import CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, \
+    CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, CONF_UPDATE_INTERVAL, ICON_LIGHTBULB, \
     UNIT_PERCENT, ICON_THERMOMETER, UNIT_KELVIN, ICON_BRIGHTNESS_5, UNIT_LUX
 
 DEPENDENCIES = ['i2c']

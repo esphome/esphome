@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 from esphome.components import sensor, time
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -14,7 +12,7 @@ TotalDailyEnergy = total_daily_energy_ns.class_('TotalDailyEnergy', sensor.Senso
 CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TotalDailyEnergy),
     cv.GenerateID(CONF_TIME_ID): cv.use_variable_id(time.RealTimeClock),
-    vol.Required(CONF_POWER_ID): cv.use_variable_id(sensor.Sensor),
+    cv.Required(CONF_POWER_ID): cv.use_variable_id(sensor.Sensor),
 }).extend(cv.COMPONENT_SCHEMA))
 
 

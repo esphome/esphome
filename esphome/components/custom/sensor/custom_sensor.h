@@ -8,9 +8,7 @@ namespace custom {
 
 class CustomSensorConstructor : public Component {
  public:
-  CustomSensorConstructor(const std::function<std::vector<sensor::Sensor *>()> &init) {
-    this->sensors_ = init();
-  }
+  CustomSensorConstructor(const std::function<std::vector<sensor::Sensor *>()> &init) { this->sensors_ = init(); }
 
   sensor::Sensor *get_sensor(int i) { return this->sensors_[i]; }
 

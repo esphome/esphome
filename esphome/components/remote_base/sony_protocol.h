@@ -10,9 +10,7 @@ struct SonyData {
   uint32_t data;
   uint8_t nbits;
 
-  bool operator==(const SonyData& rhs) const {
-    return data == rhs.data && nbits == rhs.nbits;
-  }
+  bool operator==(const SonyData &rhs) const { return data == rhs.data && nbits == rhs.nbits; }
 };
 
 class SonyProtocol : public RemoteProtocol<SonyData> {
@@ -26,9 +24,8 @@ DECLARE_REMOTE_PROTOCOL(Sony)
 
 template<typename... Ts> class SonyAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  SonyAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
- TEMPLATABLE_VALUE(uint32_t, data)
- TEMPLATABLE_VALUE(uint8_t, nbits)
+  TEMPLATABLE_VALUE(uint32_t, data)
+  TEMPLATABLE_VALUE(uint8_t, nbits)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     SonyData data{};
     data.data = this->data_.value(x...);

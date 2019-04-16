@@ -10,9 +10,7 @@ struct RC5Data {
   uint8_t address;
   uint8_t command;
 
-  bool operator==(const RC5Data& rhs) const {
-    return address == rhs.address && command == rhs.command;
-  }
+  bool operator==(const RC5Data &rhs) const { return address == rhs.address && command == rhs.command; }
 };
 
 class RC5Protocol : public RemoteProtocol<RC5Data> {
@@ -26,9 +24,8 @@ DECLARE_REMOTE_PROTOCOL(RC5)
 
 template<typename... Ts> class RC5Action : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RC5Action(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
- TEMPLATABLE_VALUE(uint8_t, address)
- TEMPLATABLE_VALUE(uint8_t, command)
+  TEMPLATABLE_VALUE(uint8_t, address)
+  TEMPLATABLE_VALUE(uint8_t, command)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     RC5Data data{};
     data.address = this->address_.value(x...);

@@ -17,13 +17,9 @@ void TotalDailyEnergy::setup() {
   }
   this->last_update_ = millis();
 
-  this->parent_->add_on_state_callback([this](float state) {
-    this->process_new_state_(state);
-  });
+  this->parent_->add_on_state_callback([this](float state) { this->process_new_state_(state); });
 }
-void TotalDailyEnergy::dump_config() {
-  LOG_SENSOR("", "Total Daily Energy", this);
-}
+void TotalDailyEnergy::dump_config() { LOG_SENSOR("", "Total Daily Energy", this); }
 void TotalDailyEnergy::loop() {
   auto t = this->time_->now();
   if (!t.is_valid())

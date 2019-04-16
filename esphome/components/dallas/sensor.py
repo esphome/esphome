@@ -1,5 +1,5 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_NAME, \
     CONF_RESOLUTION, CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS, CONF_ICON, ICON_THERMOMETER, \
@@ -25,11 +25,10 @@ CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
 def to_code(config):
     hub = yield cg.get_variable(config[CONF_DALLAS_ID])
     if CONF_ADDRESS in config:
-        address = cg.HexIntLiteral(config[CONF_ADDRESS])
+        address = config[CONF_ADDRESS]
         rhs = hub.Pget_sensor_by_address(config[CONF_NAME], address, config.get(CONF_RESOLUTION))
     else:
         rhs = hub.Pget_sensor_by_index(config[CONF_NAME], config[CONF_INDEX],
                                        config.get(CONF_RESOLUTION))
     var = cg.Pvariable(config[CONF_ID], rhs)
     yield sensor.register_sensor(var, config)
-

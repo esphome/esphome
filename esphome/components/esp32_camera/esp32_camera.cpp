@@ -1,6 +1,8 @@
 #include "esp32_camera.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace esp32_camera {
 
@@ -300,3 +302,5 @@ CameraImage::CameraImage(camera_fb_t *buffer) : buffer_(buffer) {}
 
 }  // namespace esp32_camera
 }  // namespace esphome
+
+#endif

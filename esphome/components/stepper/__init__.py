@@ -1,6 +1,6 @@
-from esphome.automation import ACTION_REGISTRY
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.automation import ACTION_REGISTRY
 from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
 from esphome.core import CORE, coroutine
@@ -109,4 +109,3 @@ def stepper_report_position_to_code(config, action_id, template_arg, args):
 
 def to_code(config):
     cg.add_global(stepper_ns.using)
-

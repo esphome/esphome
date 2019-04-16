@@ -74,8 +74,8 @@ def indexbytes(buf, i):
 if IS_PY2:
     def decode_text(data, encoding='utf-8', errors='strict'):
         # type: (str, str, str) -> unicode
-        return unicode(data, encoding='utf-8', errors=errors)
+        return unicode(data, encoding=encoding, errors=errors)
 else:
     def decode_text(data, encoding='utf-8', errors='strict'):
         # type: (bytes, str, str) -> str
-        return data.decode(encoding='utf-8', errors=errors)
+        return data.decode(encoding=encoding, errors=errors)

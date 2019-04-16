@@ -207,11 +207,6 @@ void RCSwitchBase::type_d_code(uint8_t group, uint8_t device, bool state, uint32
   *out_nbits = 24;
 }
 
-
-
-
-
-
 uint32_t decode_binary_string(const std::string &data) {
   uint32_t ret = 0;
   for (char c : data) {
@@ -220,8 +215,6 @@ uint32_t decode_binary_string(const std::string &data) {
   }
   return ret;
 }
-
-
 
 bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   uint32_t decoded_code;

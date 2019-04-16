@@ -12,12 +12,8 @@ class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
   /// Initialize the component with the provided update interval.
   HDC1080Component(uint32_t update_interval) : PollingComponent(update_interval) {}
 
-  void set_temperature(sensor::Sensor *temperature) {
-    temperature_ = temperature;
-  }
-  void set_humidity(sensor::Sensor *humidity) {
-    humidity_ = humidity;
-  }
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
 
   /// Setup the sensor and check for connection.
   void setup() override;

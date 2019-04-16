@@ -20,9 +20,7 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   float get_setup_priority() const override;
   void dump_config() override;
 
-  void set_type(PMSX003Type type) {
-    type_ = type;
-  }
+  void set_type(PMSX003Type type) { type_ = type; }
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor);
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor);
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor);

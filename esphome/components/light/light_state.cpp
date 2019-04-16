@@ -382,7 +382,7 @@ LightColorValues LightCall::validate_() {
     auto val = *name_##_; \
     if (val < 0.0f || val > 1.0f) { \
       ESP_LOGW(TAG, "'%s' - %s value %.2f is out of range [0.0 - 1.0]!", name, upper_name, val); \
-      name_##_ = clamp(0.0f, 1.0f, val); \
+      name_##_ = clamp(val, 0.0f, 1.0f); \
     } \
   }
 #define VALIDATE_RANGE(name, upper_name) VALIDATE_RANGE_(name, upper_name)
@@ -675,8 +675,8 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white) {
   auto traits = this->get_traits();
-  this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue,
-                                cold_white, warm_white);
+  this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
+                                warm_white);
   *red = gamma_correct(*red, this->gamma_correct_);
   *green = gamma_correct(*green, this->gamma_correct_);
   *blue = gamma_correct(*blue, this->gamma_correct_);

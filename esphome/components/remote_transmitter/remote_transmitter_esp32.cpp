@@ -71,7 +71,7 @@ void RemoteTransmitterComponent::configure_rmt() {
   }
 }
 
-void RemoteTransmitterComponent::send_internal_(uint32_t send_times, uint32_t send_wait) {
+void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   if (this->is_failed())
     return;
 

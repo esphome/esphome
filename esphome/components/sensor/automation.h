@@ -50,9 +50,7 @@ class ValueRangeTrigger : public Trigger<float>, public Component {
 
     this->parent_->add_on_state_callback([this](float state) { this->on_state_(state); });
   }
-  float get_setup_priority() const override {
-    return setup_priority::HARDWARE;
-  }
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
   void on_state_(float state) {

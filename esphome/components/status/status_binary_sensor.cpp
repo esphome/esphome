@@ -36,6 +36,5 @@ void StatusBinarySensor::loop() {
 void StatusBinarySensor::setup() { this->publish_state(false); }
 void StatusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Status Binary Sensor", this); }
 
-
 }  // namespace status
 }  // namespace esphome

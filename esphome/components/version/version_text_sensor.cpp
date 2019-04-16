@@ -7,9 +7,7 @@ namespace version {
 
 static const char *TAG = "version.text_sensor";
 
-void VersionTextSensor::setup() {
-  this->publish_state(ESPHOME_VERSION " " + App.get_compilation_time());
-}
+void VersionTextSensor::setup() { this->publish_state(ESPHOME_VERSION " " + App.get_compilation_time()); }
 float VersionTextSensor::get_setup_priority() const { return setup_priority::DATA; }
 VersionTextSensor::VersionTextSensor(const std::string &name) : text_sensor::TextSensor(name) {}
 

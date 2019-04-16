@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import switch, uart
 from esphome.const import CONF_DATA, CONF_ID, CONF_INVERTED, CONF_NAME
 from esphome.core import HexInt
-from esphome.py_compat import text_type
+from esphome.py_compat import text_type, binary_type, char_to_byte
 from .. import uart_ns
 
 DEPENDENCIES = ['uart']
@@ -30,8 +30,8 @@ CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
 
 def to_code(config):
     data = config[CONF_DATA]
-    if isinstance(data, str):
-        data = [HexInt(ord(x)) for x in data]
+    if isinstance(data, binary_type):
+        data = [HexInt(char_to_byte(x)) for x in data]
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], data)
     yield cg.register_component(var, config)
     yield switch.register_switch(var, config)

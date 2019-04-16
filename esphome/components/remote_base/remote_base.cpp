@@ -14,9 +14,7 @@ RemoteComponentBase::RemoteComponentBase(GPIOPin *pin) : pin_(pin) {
 #endif
 }
 
-void RemoteReceiverBinarySensorBase::dump_config() {
-  LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this);
-}
+void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 
 void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
@@ -55,7 +53,7 @@ void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
     ESP_LOGVV(TAG, "%s", buffer);
   }
 #endif
-  this->send_internal_(send_times, send_wait);
+  this->send_internal(send_times, send_wait);
 }
 }  // namespace remote_base
 }  // namespace esphome

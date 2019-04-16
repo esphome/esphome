@@ -132,7 +132,7 @@ void TimeBasedCover::recompute_position_() {
 
   const uint32_t now = millis();
   this->position += dir * (now - this->last_recompute_time_) / action_dur;
-  this->position = clamp(0.0f, 1.0f, this->position);
+  this->position = clamp(this->position, 0.0f, 1.0f);
 
   this->last_recompute_time_ = now;
 }

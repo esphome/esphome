@@ -32,9 +32,7 @@ class LightTransformer {
 
  protected:
   /// Get the completion of this transformer, 0 to 1.
-  float get_progress_() {
-    return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f);
-  }
+  float get_progress_() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
 
   const LightColorValues &get_start_values_() const { return this->start_values_; }
 

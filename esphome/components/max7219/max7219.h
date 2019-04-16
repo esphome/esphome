@@ -64,5 +64,5 @@ class MAX7219Component : public PollingComponent, public spi::SPIDevice {
   optional<max7219_writer_t> writer_{};
 };
 
-}  // namespace something
+}  // namespace max7219
 }  // namespace esphome

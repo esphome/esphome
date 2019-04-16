@@ -10,12 +10,12 @@ static const uint32_t BIT_TIME_US = 889;
 static const uint8_t NBITS = 14;
 
 void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
-  static bool toggle = false;
+  static bool TOGGLE = false;
   dst->set_carrier_frequency(36000);
 
   uint64_t out_data = 0;
   out_data |= 0b11 << 12;
-  out_data |= toggle << 11;
+  out_data |= TOGGLE << 11;
   out_data |= data.address << 6;
   out_data |= data.command;
 
@@ -28,7 +28,7 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
       dst->space(BIT_TIME_US);
     }
   }
-  toggle = !toggle;
+  TOGGLE = !TOGGLE;
 }
 optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
   RC5Data out{

@@ -2,8 +2,6 @@ import logging
 import os
 import re
 
-import voluptuous as vol
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
@@ -12,7 +10,6 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0
 from esphome.core import CORE, EsphomeError, coroutine_with_priority
@@ -38,20 +35,12 @@ def validate_board(value):
         raise NotImplementedError
 
     if value not in board_pins:
-        raise vol.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
+        raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
             value, u', '.join(pins.ESP8266_BOARD_PINS.keys())))
     return value
 
 
-def validate_platform(value):
-    value = cv.string(value)
-    if value.upper() in ('ESP8266', 'ESPRESSIF8266'):
-        return ESP_PLATFORM_ESP8266
-    if value.upper() in ('ESP32', 'ESPRESSIF32'):
-        return ESP_PLATFORM_ESP32
-    raise vol.Invalid(u"Invalid platform '{}'. Only options are ESP8266 and ESP32. Please note "
-                      u"the old way to use the latest arduino framework version has been split up "
-                      u"into the arduino_version configuration option.".format(value))
+validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 
 PLATFORMIO_ESP8266_LUT = {
@@ -79,17 +68,17 @@ def validate_arduino_version(value):
     value_ = value.upper()
     if CORE.is_esp8266:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
-            raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
-                              "at this time. You can override this by manually using "
-                              "espressif8266@<platformio version>")
+            raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
+                             "at this time. You can override this by manually using "
+                             "espressif8266@<platformio version>")
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
     if CORE.is_esp32:
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
-            raise vol.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
-                              "at this time. You can override this by manually using "
-                              "espressif32@<platformio version>")
+            raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
+                             "at this time. You can override this by manually using "
+                             "espressif32@<platformio version>")
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value
@@ -101,30 +90,32 @@ def default_build_path():
 
 
 CONFIG_SCHEMA = cv.Schema({
-    vol.Required(CONF_NAME): cv.valid_name,
-    vol.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESPRESSIF8266', 'ESP32', 'ESPRESSIF32',
-                                           upper=True),
-    vol.Required(CONF_BOARD): validate_board,
-    vol.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
-    vol.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
-    vol.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
-        cv.string_strict: vol.Any([cv.string], cv.string),
+    cv.Required(CONF_NAME): cv.valid_name,
+    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', 'ESPRESSIF32',
+                                          upper=True),
+    cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
+    cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+    cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
+        cv.string_strict: cv.Any([cv.string], cv.string),
     }),
-    vol.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): vol.All(cv.only_on_esp8266, cv.boolean),
+    cv.SplitDefault(CONF_ESP8266_RESTORE_FROM_FLASH, esp8266=False): cv.All(cv.only_on_esp8266,
+                                                                            cv.boolean),
 
-    vol.Optional(CONF_BOARD_FLASH_MODE, default='dout'): cv.one_of(*BUILD_FLASH_MODES, lower=True),
-    vol.Optional(CONF_ON_BOOT): automation.validate_automation({
+    cv.SplitDefault(CONF_BOARD_FLASH_MODE, esp8266='dout'): cv.one_of(*BUILD_FLASH_MODES,
+                                                                      lower=True),
+    cv.Optional(CONF_ON_BOOT): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
-        vol.Optional(CONF_PRIORITY): cv.float_,
+        cv.Optional(CONF_PRIORITY): cv.float_,
     }),
-    vol.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
+    cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
     }),
-    vol.Optional(CONF_ON_LOOP): automation.validate_automation({
+    cv.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
     }),
-    vol.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
-    vol.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
+    cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
 })
 
 
@@ -149,7 +140,7 @@ def preload_core_config(config):
         CORE.name = cv.valid_name(core_conf[CONF_NAME])
         CORE.build_path = CORE.relative_path(
             cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
-    except vol.Invalid as e:
+    except cv.Invalid as e:
         raise EsphomeError(text_type(e))
 
 

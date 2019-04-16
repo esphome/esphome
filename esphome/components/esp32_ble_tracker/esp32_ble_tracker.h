@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <string>
 #include <array>
 #include <esp_gap_ble_api.h>
@@ -74,6 +76,7 @@ class ESPBTDeviceListener {
   void setup_ble();
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
+
  protected:
   ESP32BLETracker *parent_;
 };
@@ -90,9 +93,7 @@ class ESP32BLETracker : public Component {
 
   void loop() override;
 
-  void add_listener(ESPBTDeviceListener *listener) {
-    this->listeners_.push_back(listener);
-  }
+  void add_listener(ESPBTDeviceListener *listener) { this->listeners_.push_back(listener); }
 
   void print_bt_device_info(const ESPBTDevice &device);
 
@@ -129,3 +130,5 @@ extern ESP32BLETracker *global_esp32_ble_tracker;
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
+
+#endif

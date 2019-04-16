@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_SDA], config[CONF_SCL],
-                           config[CONF_FREQUENCY], config[CONF_SCAN])
+                           int(config[CONF_FREQUENCY]), config[CONF_SCAN])
     yield cg.register_component(var, config)
 
     cg.add_library('Wire', None)

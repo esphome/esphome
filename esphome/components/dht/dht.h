@@ -23,8 +23,7 @@ class DHT : public PollingComponent {
    * @param pin The pin which DHT sensor is connected to.
    * @param update_interval The interval in ms the sensor should be checked.
    */
-  DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin,
-      uint32_t update_interval);
+  DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin, uint32_t update_interval);
 
   /** Manually select the DHT model.
    *

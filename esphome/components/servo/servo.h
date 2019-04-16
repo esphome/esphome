@@ -44,20 +44,12 @@ class Servo : public Component {
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
-  void set_min_level(float min_level) {
-    min_level_ = min_level;
-  }
-  void set_idle_level(float idle_level) {
-    idle_level_ = idle_level;
-  }
-  void set_max_level(float max_level) {
-    max_level_ = max_level;
-  }
+  void set_min_level(float min_level) { min_level_ = min_level; }
+  void set_idle_level(float idle_level) { idle_level_ = idle_level; }
+  void set_max_level(float max_level) { max_level_ = max_level; }
 
  protected:
-  void save_level_(float v) {
-    this->rtc_.save(&v);
-  }
+  void save_level_(float v) { this->rtc_.save(&v); }
 
   output::FloatOutput *output_;
   float min_level_ = 0.0300f;
@@ -67,11 +59,10 @@ class Servo : public Component {
   ESPPreferenceObject rtc_;
 };
 
-template<typename... Ts>
-class ServoWriteAction : public Action<Ts...> {
+template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
- TEMPLATABLE_VALUE(float, value)
+  TEMPLATABLE_VALUE(float, value)
   void play(Ts... x) override {
     this->servo_->write(this->value_.value(x...));
     this->play_next(x...);
@@ -81,8 +72,7 @@ class ServoWriteAction : public Action<Ts...> {
   Servo *servo_;
 };
 
-template<typename... Ts>
-class ServoDetachAction : public Action<Ts...> {
+template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
   void play(Ts... x) override {

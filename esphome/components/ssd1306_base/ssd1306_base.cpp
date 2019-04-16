@@ -137,7 +137,7 @@ void SSD1306::display() {
 }
 bool SSD1306::is_sh1106_() const {
   return this->model_ == SH1106_MODEL_96_16 || this->model_ == SH1106_MODEL_128_32 ||
-      this->model_ == SH1106_MODEL_128_64;
+         this->model_ == SH1106_MODEL_128_64;
 }
 void SSD1306::update() {
   this->do_update_();

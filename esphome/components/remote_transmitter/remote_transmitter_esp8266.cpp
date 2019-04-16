@@ -62,7 +62,7 @@ void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
   delay_microseconds_accurate(usec);
 }
-void RemoteTransmitterComponent::send_internal_(uint32_t send_times, uint32_t send_wait) {
+void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
   for (uint32_t i = 0; i < send_times; i++) {
     uint32_t on_time, off_time;
     this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);

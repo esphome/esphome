@@ -14,7 +14,7 @@ CONFIG_SCHEMA = cv.All(ssd1306_base.SSD1306_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(SPISSD1306),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
-                         cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):

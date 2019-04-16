@@ -7,9 +7,7 @@ namespace shutdown {
 
 static const char *TAG = "shutdown.switch";
 
-void ShutdownSwitch::dump_config() {
-  LOG_SWITCH("", "Shutdown Switch", this);
-}
+void ShutdownSwitch::dump_config() { LOG_SWITCH("", "Shutdown Switch", this); }
 void ShutdownSwitch::write_state(bool state) {
   // Acknowledge
   this->publish_state(false);

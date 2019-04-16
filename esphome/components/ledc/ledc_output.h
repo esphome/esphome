@@ -4,6 +4,8 @@
 #include "esphome/core/esphal.h"
 #include "esphome/components/output/float_output.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace ledc {
 
@@ -11,9 +13,9 @@ class LEDCOutput : public output::FloatOutput, public Component {
  public:
   explicit LEDCOutput(GPIOPin *pin) : pin_(pin) {}
 
-  void set_channel(uint8_t channel) {this->channel_ = channel;}
-  void set_bit_depth(uint8_t bit_depth) { this->bit_depth_=bit_depth;}
-  void set_frequency(float frequency) {this->frequency_=frequency;}
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
+  void set_bit_depth(uint8_t bit_depth) { this->bit_depth_ = bit_depth; }
+  void set_frequency(float frequency) { this->frequency_ = frequency; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -37,3 +39,5 @@ extern uint8_t next_ledc_channel;
 
 }  // namespace ledc
 }  // namespace esphome
+
+#endif

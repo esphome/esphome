@@ -18,15 +18,15 @@ void ICACHE_RAM_ATTR HOT SPIComponent::write_byte(uint8_t data) {
     delayMicroseconds(5);
 
   for (size_t i = 0; i < 8; i++) {
-  if (!this->high_speed_)
-    delayMicroseconds(5);
-  this->clk_->digital_write(false);
+    if (!this->high_speed_)
+      delayMicroseconds(5);
+    this->clk_->digital_write(false);
 
-  // sampling on leading edge
-  this->mosi_->digital_write(send_bits & (1 << i));
-  if (!this->high_speed_)
-    delayMicroseconds(5);
-  this->clk_->digital_write(true);
+    // sampling on leading edge
+    this->mosi_->digital_write(send_bits & (1 << i));
+    if (!this->high_speed_)
+      delayMicroseconds(5);
+    this->clk_->digital_write(true);
   }
 
   ESP_LOGVV(TAG, "    Wrote 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(data), data);

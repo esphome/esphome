@@ -175,7 +175,7 @@ class DisplayBuffer {
    * @param ... The arguments to use for the text formatting.
    */
   void printf(int x, int y, Font *font, int color, TextAlign align, const char *format, ...)
-  __attribute__((format(printf, 7, 8)));
+      __attribute__((format(printf, 7, 8)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
    *
@@ -398,7 +398,6 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
     }
     this->play_next(x...);
   }
-
 };
 
 template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {

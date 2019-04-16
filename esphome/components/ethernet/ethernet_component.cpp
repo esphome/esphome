@@ -3,6 +3,8 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <eth_phy/phy_lan8720.h>
 #include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
@@ -248,3 +250,5 @@ void EthernetComponent::set_use_address(const std::string &use_address) { this->
 
 }  // namespace ethernet
 }  // namespace esphome
+
+#endif

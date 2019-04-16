@@ -1,12 +1,10 @@
 import copy
 
-import voluptuous as vol
-
 import esphome.config_validation as cv
 from esphome.const import CONF_ABOVE, CONF_ACTION_ID, CONF_AND, CONF_AUTOMATION_ID, CONF_BELOW, \
     CONF_CONDITION, CONF_CONDITION_ID, CONF_DELAY, CONF_ELSE, CONF_ID, CONF_IF, CONF_LAMBDA, \
     CONF_OR, CONF_RANGE, CONF_THEN, CONF_TRIGGER_ID, CONF_WAIT_UNTIL, CONF_WHILE
-from esphome.core import CORE, coroutine
+from esphome.core import coroutine
 from esphome.cpp_generator import Pvariable, TemplateArguments, add, get_variable, \
     process_lambda, templatable
 from esphome.cpp_types import Action, App, Component, PollingComponent, Trigger, bool_, \
@@ -15,7 +13,7 @@ from esphome.util import ServiceRegistry
 
 
 def maybe_simple_id(*validators):
-    validator = vol.All(*validators)
+    validator = cv.All(*validators)
 
     def validate(value):
         if isinstance(value, dict):
@@ -32,24 +30,24 @@ def validate_recursive_condition(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item),
-                              path)
+            raise cv.Invalid(u"Condition must consist of key-value mapping! Got {}".format(item),
+                             path)
         key = next((x for x in item if x != CONF_CONDITION_ID), None)
         if key is None:
-            raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
+            raise cv.Invalid(u"Key missing from action! Got {}".format(item), path)
         if key not in CONDITION_REGISTRY:
-            raise vol.Invalid(u"Unable to find condition with the name '{}', is the "
-                              u"component loaded?".format(key), path + [key])
+            raise cv.Invalid(u"Unable to find condition with the name '{}', is the "
+                             u"component loaded?".format(key), path + [key])
         item.setdefault(CONF_CONDITION_ID, None)
         key2 = next((x for x in item if x not in (CONF_CONDITION_ID, key)), None)
         if key2 is not None:
-            raise vol.Invalid(u"Cannot have two conditions in one item. Key '{}' overrides '{}'! "
-                              u"Did you forget to indent the block inside the condition?"
-                              u"".format(key, key2), path)
+            raise cv.Invalid(u"Cannot have two conditions in one item. Key '{}' overrides '{}'! "
+                             u"Did you forget to indent the block inside the condition?"
+                             u"".format(key, key2), path)
         validator = CONDITION_REGISTRY[key][0]
         try:
             condition = validator(item[key] or {})
-        except vol.Invalid as err:
+        except cv.Invalid as err:
             err.prepend(path)
             raise err
         value[i] = {
@@ -67,24 +65,24 @@ def validate_recursive_action(value):
         path = [i] if is_list else []
         item = copy.deepcopy(item)
         if not isinstance(item, dict):
-            raise vol.Invalid(u"Action must consist of key-value mapping! Got {}".format(item),
-                              path)
+            raise cv.Invalid(u"Action must consist of key-value mapping! Got {}".format(item),
+                             path)
         key = next((x for x in item if x != CONF_ACTION_ID), None)
         if key is None:
-            raise vol.Invalid(u"Key missing from action! Got {}".format(item), path)
+            raise cv.Invalid(u"Key missing from action! Got {}".format(item), path)
         if key not in ACTION_REGISTRY:
-            raise vol.Invalid(u"Unable to find action with the name '{}', is the component loaded?"
-                              u"".format(key), path + [key])
+            raise cv.Invalid(u"Unable to find action with the name '{}', is the component loaded?"
+                             u"".format(key), path + [key])
         item.setdefault(CONF_ACTION_ID, None)
         key2 = next((x for x in item if x not in (CONF_ACTION_ID, key)), None)
         if key2 is not None:
-            raise vol.Invalid(u"Cannot have two actions in one item. Key '{}' overrides '{}'! "
-                              u"Did you forget to indent the block inside the action?"
-                              u"".format(key, key2), path)
+            raise cv.Invalid(u"Cannot have two actions in one item. Key '{}' overrides '{}'! "
+                             u"Did you forget to indent the block inside the action?"
+                             u"".format(key, key2), path)
         validator = ACTION_REGISTRY[key][0]
         try:
             action = validator(item[key] or {})
-        except vol.Invalid as err:
+        except cv.Invalid as err:
             err.prepend(path)
             raise err
         value[i] = {
@@ -116,7 +114,7 @@ LambdaCondition = esphome_ns.class_('LambdaCondition', Condition)
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
     if extra_schema is None:
         extra_schema = {}
-    if isinstance(extra_schema, vol.Schema):
+    if isinstance(extra_schema, cv.Schema):
         extra_schema = extra_schema.schema
     schema = AUTOMATION_SCHEMA.extend(extra_schema)
 
@@ -125,17 +123,17 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             try:
                 # First try as a sequence of actions
                 return [schema({CONF_THEN: value})]
-            except vol.Invalid as err:
+            except cv.Invalid as err:
                 if err.path and err.path[0] == CONF_THEN:
                     err.path.pop(0)
 
                 # Next try as a sequence of automations
                 try:
                     return cv.Schema([schema])(value)
-                except vol.Invalid as err2:
+                except cv.Invalid as err2:
                     if 'Unable to find action' in str(err):
                         raise err2
-                    raise vol.MultipleInvalid([err, err2])
+                    raise cv.MultipleInvalid([err, err2])
         elif isinstance(value, dict):
             if CONF_THEN in value:
                 return [schema(value)]
@@ -149,7 +147,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
             value = cv.Schema([extra_validators])(value)
         if single:
             if len(value) != 1:
-                raise vol.Invalid("Cannot have more than 1 automation for templates")
+                raise cv.Invalid("Cannot have more than 1 automation for templates")
             return value[0]
         return value
 
@@ -159,7 +157,7 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 AUTOMATION_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
     cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
-    vol.Required(CONF_THEN): validate_recursive_action,
+    cv.Required(CONF_THEN): validate_recursive_action,
 })
 
 AND_CONDITION_SCHEMA = validate_recursive_condition
@@ -184,9 +182,9 @@ def or_condition_to_code(config, condition_id, template_arg, args):
     yield Pvariable(condition_id, rhs, type=type)
 
 
-RANGE_CONDITION_SCHEMA = vol.All(cv.Schema({
-    vol.Optional(CONF_ABOVE): cv.templatable(cv.float_),
-    vol.Optional(CONF_BELOW): cv.templatable(cv.float_),
+RANGE_CONDITION_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+    cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
 }), cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
 
 
@@ -218,10 +216,10 @@ def delay_action_to_code(config, action_id, template_arg, args):
     yield action
 
 
-IF_ACTION_SCHEMA = vol.All({
-    vol.Required(CONF_CONDITION): validate_recursive_condition,
-    vol.Optional(CONF_THEN): validate_recursive_action,
-    vol.Optional(CONF_ELSE): validate_recursive_action,
+IF_ACTION_SCHEMA = cv.All({
+    cv.Required(CONF_CONDITION): validate_recursive_condition,
+    cv.Optional(CONF_THEN): validate_recursive_action,
+    cv.Optional(CONF_ELSE): validate_recursive_action,
 }, cv.has_at_least_one_key(CONF_THEN, CONF_ELSE))
 
 
@@ -241,8 +239,8 @@ def if_action_to_code(config, action_id, template_arg, args):
 
 
 WHILE_ACTION_SCHEMA = cv.Schema({
-    vol.Required(CONF_CONDITION): validate_recursive_condition,
-    vol.Required(CONF_THEN): validate_recursive_action,
+    cv.Required(CONF_CONDITION): validate_recursive_condition,
+    cv.Required(CONF_THEN): validate_recursive_action,
 })
 
 
@@ -259,7 +257,7 @@ def while_action_to_code(config, action_id, template_arg, args):
 
 def validate_wait_until(value):
     schema = cv.Schema({
-        vol.Required(CONF_CONDITION): validate_recursive_condition
+        cv.Required(CONF_CONDITION): validate_recursive_condition
     })
     if isinstance(value, dict) and CONF_CONDITION in value:
         return schema(value)
@@ -303,7 +301,7 @@ def lambda_condition_to_code(config, condition_id, template_arg, args):
 
 CONF_COMPONENT_UPDATE = 'component.update'
 COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(PollingComponent),
+    cv.Required(CONF_ID): cv.use_variable_id(PollingComponent),
 })
 
 

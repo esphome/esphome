@@ -2,6 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
+
+#ifdef ARDUINO_ARCH_ESP32
+
 #include "esp_eth.h"
 #include <esp_wifi.h>
 #include <WiFiType.h>
@@ -74,3 +77,5 @@ extern EthernetComponent *global_eth_component;
 
 }  // namespace ethernet
 }  // namespace esphome
+
+#endif

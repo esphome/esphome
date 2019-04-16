@@ -3,14 +3,13 @@
 #include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace xiaomi_ble {
 
 struct XiaomiParseResult {
-  enum {
-    TYPE_MIJIA,
-    TYPE_MIFLORA
-  } type;
+  enum { TYPE_MIJIA, TYPE_MIFLORA } type;
   optional<float> temperature;
   optional<float> humidity;
   optional<float> battery_level;
@@ -32,3 +31,5 @@ class XiaomiListener : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
 }  // namespace xiaomi_ble
 }  // namespace esphome
+
+#endif

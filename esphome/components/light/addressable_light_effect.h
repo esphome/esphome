@@ -49,9 +49,7 @@ class AddressableLightEffect : public LightEffect {
   }
 
  protected:
-  AddressableLight *get_addressable_() const {
-    return (AddressableLight *) this->state_->get_output();
-  }
+  AddressableLight *get_addressable_() const { return (AddressableLight *) this->state_->get_output(); }
 
   HighFrequencyLoopRequester high_freq_;
 };
@@ -60,9 +58,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
   AddressableLambdaLightEffect(const std::string &name, const std::function<void(AddressableLight &)> &f,
                                uint32_t update_interval)
-      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {
-
-  }
+      : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
     if (now - this->last_run_ >= this->update_interval_) {
@@ -108,17 +104,10 @@ struct AddressableColorWipeEffectColor {
 
 class AddressableColorWipeEffect : public AddressableLightEffect {
  public:
-  explicit AddressableColorWipeEffect(const std::string &name)
-    : AddressableLightEffect(name) {}
-  void set_colors(const std::vector<AddressableColorWipeEffectColor> &colors) {
-    this->colors_ = colors;
-  }
-  void set_add_led_interval(uint32_t add_led_interval) {
-    this->add_led_interval_ = add_led_interval;
-  }
-  void set_reverse(bool reverse) {
-    this->reverse_ = reverse;
-  }
+  explicit AddressableColorWipeEffect(const std::string &name) : AddressableLightEffect(name) {}
+  void set_colors(const std::vector<AddressableColorWipeEffectColor> &colors) { this->colors_ = colors; }
+  void set_add_led_interval(uint32_t add_led_interval) { this->add_led_interval_ = add_led_interval; }
+  void set_reverse(bool reverse) { this->reverse_ = reverse; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
     if (now - this->last_add_ < this->add_led_interval_)
@@ -227,12 +216,8 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
       addressable[pos].set_effect_data(1);
     }
   }
-  void set_twinkle_probability(float twinkle_probability) {
-    this->twinkle_probability_ = twinkle_probability;
-  }
-  void set_progress_interval(uint32_t progress_interval) {
-    this->progress_interval_ = progress_interval;
-  }
+  void set_twinkle_probability(float twinkle_probability) { this->twinkle_probability_ = twinkle_probability; }
+  void set_progress_interval(uint32_t progress_interval) { this->progress_interval_ = progress_interval; }
 
  protected:
   float twinkle_probability_{0.05f};
@@ -279,12 +264,8 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       it[pos].set_effect_data(0b1000 | color);
     }
   }
-  void set_twinkle_probability(float twinkle_probability) {
-    this->twinkle_probability_ = twinkle_probability;
-  }
-  void set_progress_interval(uint32_t progress_interval) {
-    this->progress_interval_ = progress_interval;
-  }
+  void set_twinkle_probability(float twinkle_probability) { this->twinkle_probability_ = twinkle_probability; }
+  void set_progress_interval(uint32_t progress_interval) { this->progress_interval_ = progress_interval; }
 
  protected:
   float twinkle_probability_{};
@@ -328,18 +309,10 @@ class AddressableFireworksEffect : public AddressableLightEffect {
       }
     }
   }
-  void set_update_interval(uint32_t update_interval) {
-    this->update_interval_ = update_interval;
-  }
-  void set_spark_probability(float spark_probability) {
-    this->spark_probability_ = spark_probability;
-  }
-  void set_use_random_color(bool random_color) {
-    this->use_random_color_ = random_color;
-  }
-  void set_fade_out_rate(uint8_t fade_out_rate) {
-    this->fade_out_rate_ = fade_out_rate;
-  }
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+  void set_spark_probability(float spark_probability) { this->spark_probability_ = spark_probability; }
+  void set_use_random_color(bool random_color) { this->use_random_color_ = random_color; }
+  void set_fade_out_rate(uint8_t fade_out_rate) { this->fade_out_rate_ = fade_out_rate; }
 
  protected:
   uint8_t fade_out_rate_{};
@@ -364,12 +337,8 @@ class AddressableFlickerEffect : public AddressableLightEffect {
       it[i] = (it[i].get() * delta_intensity) + (current_color * flicker);
     }
   }
-  void set_update_interval(uint32_t update_interval) {
-    this->update_interval_ = update_interval;
-  }
-  void set_intensity(float intensity) {
-    this->intensity_ = static_cast<uint8_t>(roundf(intensity * 255.0f));
-  }
+  void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
+  void set_intensity(float intensity) { this->intensity_ = static_cast<uint8_t>(roundf(intensity * 255.0f)); }
 
  protected:
   uint32_t update_interval_{16};

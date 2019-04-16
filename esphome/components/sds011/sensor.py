@@ -1,11 +1,9 @@
-from esphome.components import sensor, uart
-from esphome.components.uart import UARTComponent
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import (CONF_ID, CONF_NAME, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY,
-                           CONF_UART_ID, CONF_UPDATE_INTERVAL, UNIT_MICROGRAMS_PER_CUBIC_METER,
+import esphome.config_validation as cv
+from esphome.components import sensor, uart
+from esphome.const import (CONF_ID, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY,
+                           CONF_UPDATE_INTERVAL, UNIT_MICROGRAMS_PER_CUBIC_METER,
                            ICON_CHEMICAL_WEAPON)
-
 
 DEPENDENCIES = ['uart']
 
@@ -54,4 +52,3 @@ def to_code(config):
     if CONF_PM_10_0 in config:
         sens = yield sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
-

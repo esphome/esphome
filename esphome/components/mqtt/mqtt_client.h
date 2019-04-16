@@ -206,21 +206,11 @@ class MQTTClientComponent : public Component {
 
   void on_shutdown() override;
 
-  void set_broker_address(const std::string &address) {
-    this->credentials_.address = address;
-  }
-  void set_broker_port(uint16_t port) {
-    this->credentials_.port = port;
-  }
-  void set_username(const std::string &username) {
-    this->credentials_.username = username;
-  }
-  void set_password(const std::string &password) {
-    this->credentials_.password = password;
-  }
-  void set_client_id(const std::string &client_id) {
-    this->credentials_.client_id = client_id;
-  }
+  void set_broker_address(const std::string &address) { this->credentials_.address = address; }
+  void set_broker_port(uint16_t port) { this->credentials_.port = port; }
+  void set_username(const std::string &username) { this->credentials_.username = username; }
+  void set_password(const std::string &password) { this->credentials_.password = password; }
+  void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
 
  protected:
   /// Reconnect to the MQTT broker if not already connected.
@@ -296,41 +286,37 @@ class MQTTMessageTrigger : public Trigger<std::string>, public Component {
 class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
  public:
   explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
-    global_mqtt_client->subscribe_json(topic,
-                                       [this](const std::string &topic, JsonObject &root) { this->trigger(root); },
-                                       qos);
+    global_mqtt_client->subscribe_json(
+        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
   }
 };
 
-template<typename... Ts>
-class MQTTPublishAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
  public:
   MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
- TEMPLATABLE_VALUE(std::string, topic)
- TEMPLATABLE_VALUE(std::string, payload)
- TEMPLATABLE_VALUE(uint8_t, qos)
- TEMPLATABLE_VALUE(bool, retain)
+  TEMPLATABLE_VALUE(std::string, topic)
+  TEMPLATABLE_VALUE(std::string, payload)
+  TEMPLATABLE_VALUE(uint8_t, qos)
+  TEMPLATABLE_VALUE(bool, retain)
 
   void play(Ts... x) override {
     this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                            this->retain_.value(x...));
     this->play_next(x...);
   }
+
  protected:
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts>
-class MQTTPublishJsonAction : public Action<Ts...> {
+template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
- TEMPLATABLE_VALUE(std::string, topic)
- TEMPLATABLE_VALUE(uint8_t, qos)
- TEMPLATABLE_VALUE(bool, retain)
+  TEMPLATABLE_VALUE(std::string, topic)
+  TEMPLATABLE_VALUE(uint8_t, qos)
+  TEMPLATABLE_VALUE(bool, retain)
 
-  void set_payload(std::function<void(Ts..., JsonObject &)> payload) {
-    this->payload_ = payload;
-  }
+  void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
@@ -341,20 +327,16 @@ class MQTTPublishJsonAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) {
-    this->payload_(x..., root);
-  }
+  void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject &)> payload_;
   MQTTClientComponent *parent_;
 };
 
-template<typename... Ts>
-class MQTTConnectedCondition : public Condition<Ts...> {
+template<typename... Ts> class MQTTConnectedCondition : public Condition<Ts...> {
  public:
   MQTTConnectedCondition(MQTTClientComponent *parent) : parent_(parent) {}
-  bool check(Ts... x) override {
-    return this->parent_->is_connected();
-  }
+  bool check(Ts... x) override { return this->parent_->is_connected(); }
+
  protected:
   MQTTClientComponent *parent_;
 };

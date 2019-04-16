@@ -8,9 +8,7 @@ namespace custom {
 
 class CustomSwitchConstructor : public Component {
  public:
-  CustomSwitchConstructor(std::function<std::vector<switch_::Switch *>()> init) {
-    this->switches_ = init();
-  }
+  CustomSwitchConstructor(std::function<std::vector<switch_::Switch *>()> init) { this->switches_ = init(); }
 
   switch_::Switch *get_switch(int i) { return this->switches_[i]; }
 

@@ -21,12 +21,9 @@ class RawBinarySensor : public RemoteReceiverBinarySensorBase {
     }
     return true;
   }
-  void set_data(const int32_t *data) {
-    data_ = data;
-  }
-  void set_len(size_t len) {
-    len_ = len;
-  }
+  void set_data(const int32_t *data) { data_ = data; }
+  void set_len(size_t len) { len_ = len; }
+
  protected:
   const int32_t *data_;
   size_t len_;
@@ -42,10 +39,7 @@ class RawTrigger : public Trigger<std::vector<int32_t>>, public Component, publi
 
 template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RawAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
-  void set_code_template(std::function<std::vector<int32_t>(Ts...)> func) {
-    this->code_func_ = func;
-  }
+  void set_code_template(std::function<std::vector<int32_t>(Ts...)> func) { this->code_func_ = func; }
   void set_code_static(const int32_t *code, size_t len) {
     this->code_static_ = code;
     this->code_static_len_ = len;
@@ -65,6 +59,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
       dst->set_data(this->code_func_(x...));
     }
   }
+
  protected:
   std::function<std::vector<int32_t>(Ts...)> code_func_{};
   const int32_t *code_static_{nullptr};

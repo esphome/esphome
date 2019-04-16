@@ -91,10 +91,10 @@ void network_setup_mdns() {
     MDNS.addServiceTxt("esphomelib", "tcp", "address", network_get_address().c_str());
   } else {
 #endif
-  // Publish "http" service if not using native API.
-  // This is just to have *some* mDNS service so that .local resolution works
-  MDNS.addService("http", "tcp", 80);
-  MDNS.addServiceTxt("http", "tcp", "version", ESPHOME_VERSION);
+    // Publish "http" service if not using native API.
+    // This is just to have *some* mDNS service so that .local resolution works
+    MDNS.addService("http", "tcp", 80);
+    MDNS.addServiceTxt("http", "tcp", "version", ESPHOME_VERSION);
 #ifdef USE_API
   }
 #endif

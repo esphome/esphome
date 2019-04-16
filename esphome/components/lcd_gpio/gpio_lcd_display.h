@@ -17,8 +17,8 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
     this->data_pins_[2] = d2;
     this->data_pins_[3] = d3;
   }
-  void set_data_pins(GPIOPin *d0, GPIOPin *d1, GPIOPin *d2, GPIOPin *d3,
-                     GPIOPin *d4, GPIOPin *d5, GPIOPin *d6, GPIOPin *d7) {
+  void set_data_pins(GPIOPin *d0, GPIOPin *d1, GPIOPin *d2, GPIOPin *d3, GPIOPin *d4, GPIOPin *d5, GPIOPin *d6,
+                     GPIOPin *d7) {
     this->data_pins_[0] = d0;
     this->data_pins_[1] = d1;
     this->data_pins_[2] = d2;
@@ -34,9 +34,7 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   void dump_config() override;
 
  protected:
-  bool is_four_bit_mode() override {
-    return this->data_pins_[4] == nullptr;
-  }
+  bool is_four_bit_mode() override { return this->data_pins_[4] == nullptr; }
   void write_n_bits(uint8_t value, uint8_t n) override;
   void send(uint8_t value, bool rs) override;
 

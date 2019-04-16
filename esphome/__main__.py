@@ -120,7 +120,7 @@ def run_miniterm(config, port):
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    for domain, component, conf in iter_components(CORE.config):
+    for _, component, conf in iter_components(CORE.config):
         if component.to_code is not None:
             CORE.add_job(component.to_code, conf)
 
@@ -186,7 +186,7 @@ def show_logs(config, args, port):
 
         return mqtt.show_logs(config, args.topic, args.username, args.password, args.client_id)
 
-    raise ValueError
+    raise EsphomeError("No remote or local logging method configured (api/mqtt/logger)")
 
 
 def clean_mqtt(config, args):

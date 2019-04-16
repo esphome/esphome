@@ -159,9 +159,6 @@ def is_dev_esphome_version():
 
 # Custom OrderedDict with nicer repr method for debugging
 class OrderedDict(collections.OrderedDict):
-    def __init__(self, *args, **kwargs):
-        super(OrderedDict, self).__init__(*args, **kwargs)
-
     def __repr__(self):
         return dict(self).__repr__()
 
@@ -174,9 +171,9 @@ class OrderedDict(collections.OrderedDict):
             else:
                 # When moving to front, use internals here
                 # https://stackoverflow.com/a/16664932
-                root = self._OrderedDict__root
+                root = self._OrderedDict__root  # pylint: disable=no-member
                 first = root[1]
-                link = self._OrderedDict__map[key]
+                link = self._OrderedDict__map[key]  # pylint: disable=no-member
                 link_prev, link_next, _ = link
                 link_prev[1] = link_next
                 link_next[0] = link_prev
@@ -184,4 +181,4 @@ class OrderedDict(collections.OrderedDict):
                 link[1] = first
                 root[1] = first[0] = link
         else:
-            super(self, OrderedDict).move_to_end(key, last=last)
+            super(OrderedDict, self).move_to_end(key, last=last)  # pylint: disable=no-member

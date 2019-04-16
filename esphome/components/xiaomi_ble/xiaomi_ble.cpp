@@ -1,6 +1,8 @@
 #include "xiaomi_ble.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace xiaomi_ble {
 
@@ -136,10 +138,10 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   return true;
 }
-void XiaomiListener::setup() {
-  this->setup_ble();
-}
+void XiaomiListener::setup() { this->setup_ble(); }
 XiaomiListener::XiaomiListener(esp32_ble_tracker::ESP32BLETracker *parent) : ESPBTDeviceListener(parent) {}
 
 }  // namespace xiaomi_ble
 }  // namespace esphome
+
+#endif

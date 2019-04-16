@@ -163,7 +163,7 @@ void CSE7766Component::update() {
 
 uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
   return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
-      uint32_t(this->raw_data_[start_index + 2]);
+         uint32_t(this->raw_data_[start_index + 2]);
 }
 
 void CSE7766Component::dump_config() {

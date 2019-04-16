@@ -454,7 +454,7 @@ bool WiFiComponent::can_proceed() {
 void WiFiComponent::set_reboot_timeout(uint32_t reboot_timeout) { this->reboot_timeout_ = reboot_timeout; }
 bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED && this->wifi_sta_status_() == WL_CONNECTED &&
-      !this->error_from_callback_;
+         !this->error_from_callback_;
 }
 bool WiFiComponent::ready_for_ota() {
   if (this->has_ap())

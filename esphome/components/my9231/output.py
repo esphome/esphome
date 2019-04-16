@@ -2,12 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
 from esphome.components.my9231 import MY9231OutputComponent
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_MY9231_ID
+from esphome.const import CONF_CHANNEL, CONF_ID
 
 DEPENDENCIES = ['my9231']
 
 Channel = MY9231OutputComponent.class_('Channel', output.FloatOutput)
 
+CONF_MY9231_ID = 'my9231_id'
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.GenerateID(CONF_MY9231_ID): cv.use_variable_id(MY9231OutputComponent),
 

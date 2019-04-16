@@ -29,8 +29,8 @@ bool ESPPreferenceObject::load_() {
 
   bool valid = this->data_[this->length_words_] == this->calculate_crc_();
 
-  ESP_LOGVV(TAG, "LOAD %u: valid=%s, 0=0x%08X 1=0x%08X (Type=%u, CRC=0x%08X)", this->rtc_offset_, YESNO(valid),
-            this->data_[0], this->data_[1], this->type_, this->calculate_crc_());
+  ESP_LOGVV(TAG, "LOAD %zu: valid=%s, 0=0x%08X 1=0x%08X (Type=%u, CRC=0x%08X)", this->rtc_offset_,  // NOLINT
+            YESNO(valid), this->data_[0], this->data_[1], this->type_, this->calculate_crc_());
   return valid;
 }
 bool ESPPreferenceObject::save_() {
@@ -42,8 +42,8 @@ bool ESPPreferenceObject::save_() {
   this->data_[this->length_words_] = this->calculate_crc_();
   if (!this->save_internal_())
     return false;
-  ESP_LOGVV(TAG, "SAVE %u: 0=0x%08X 1=0x%08X (Type=%u, CRC=0x%08X)", this->rtc_offset_, this->data_[0], this->data_[1],
-            this->type_, this->calculate_crc_());
+  ESP_LOGVV(TAG, "SAVE %zu: 0=0x%08X 1=0x%08X (Type=%u, CRC=0x%08X)", this->rtc_offset_,  // NOLINT
+            this->data_[0], this->data_[1], this->type_, this->calculate_crc_());
   return true;
 }
 
@@ -139,9 +139,9 @@ bool ESPPreferenceObject::load_internal_() {
   return true;
 }
 ESPPreferences::ESPPreferences()
-// offset starts from start of user RTC mem (64 words before that are reserved for system),
-// an additional 32 words at the start of user RTC are for eboot (OTA, see eboot_command.h),
-// which will be reset each time OTA occurs
+    // offset starts from start of user RTC mem (64 words before that are reserved for system),
+    // an additional 32 words at the start of user RTC are for eboot (OTA, see eboot_command.h),
+    // which will be reset each time OTA occurs
     : current_offset_(0) {}
 
 void ESPPreferences::begin(const std::string &name) {

@@ -17,33 +17,15 @@ class APDS9960 : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void loop() override;
 
-  void set_red_channel(sensor::Sensor *red_channel) {
-    red_channel_ = red_channel;
-  }
-  void set_green_channel(sensor::Sensor *green_channel) {
-    green_channel_ = green_channel;
-  }
-  void set_blue_channel(sensor::Sensor *blue_channel) {
-    blue_channel_ = blue_channel;
-  }
-  void set_clear_channel(sensor::Sensor *clear_channel) {
-    clear_channel_ = clear_channel;
-  }
-  void set_up_direction(binary_sensor::BinarySensor *up_direction) {
-    up_direction_ = up_direction;
-  }
-  void set_right_direction(binary_sensor::BinarySensor *right_direction) {
-    right_direction_ = right_direction;
-  }
-  void set_down_direction(binary_sensor::BinarySensor *down_direction) {
-    down_direction_ = down_direction;
-  }
-  void set_left_direction(binary_sensor::BinarySensor *left_direction) {
-    left_direction_ = left_direction;
-  }
-  void set_proximity(sensor::Sensor *proximity) {
-    proximity_ = proximity;
-  }
+  void set_red_channel(sensor::Sensor *red_channel) { red_channel_ = red_channel; }
+  void set_green_channel(sensor::Sensor *green_channel) { green_channel_ = green_channel; }
+  void set_blue_channel(sensor::Sensor *blue_channel) { blue_channel_ = blue_channel; }
+  void set_clear_channel(sensor::Sensor *clear_channel) { clear_channel_ = clear_channel; }
+  void set_up_direction(binary_sensor::BinarySensor *up_direction) { up_direction_ = up_direction; }
+  void set_right_direction(binary_sensor::BinarySensor *right_direction) { right_direction_ = right_direction; }
+  void set_down_direction(binary_sensor::BinarySensor *down_direction) { down_direction_ = down_direction; }
+  void set_left_direction(binary_sensor::BinarySensor *left_direction) { left_direction_ = left_direction; }
+  void set_proximity(sensor::Sensor *proximity) { proximity_ = proximity; }
 
  protected:
   bool is_color_enabled_() const;

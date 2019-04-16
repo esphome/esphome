@@ -55,9 +55,7 @@ template<typename T_METHOD, typename T_COLOR_FEATURE>
 class NeoPixelBusLightOutputBase : public Component, public light::AddressableLight {
  public:
 #ifdef USE_POWER_SUPPLY
-  void set_power_supply(power_supply::PowerSupply *power_supply) {
-    this->power_supply_ = power_supply;
-  }
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
 #endif
 
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
@@ -74,9 +72,7 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
   void add_leds(uint16_t count_pixels, uint8_t pin_clock, uint8_t pin_data) {
     this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels, pin_clock, pin_data));
   }
-  void add_leds(uint16_t count_pixels) {
-    this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels));
-  }
+  void add_leds(uint16_t count_pixels) { this->add_leds(new NeoPixelBus<T_COLOR_FEATURE, T_METHOD>(count_pixels)); }
   void add_leds(NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller) {
     this->controller_ = controller;
     this->controller_->Begin();
@@ -125,9 +121,7 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  int32_t size() const override {
-    return this->controller_->PixelCount();
-  }
+  int32_t size() const override { return this->controller_->PixelCount(); }
 
   void set_pixel_order(ESPNeoPixelOrder order) {
     uint8_t u_order = static_cast<uint8_t>(order);

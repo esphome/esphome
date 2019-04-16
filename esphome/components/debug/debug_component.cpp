@@ -204,9 +204,7 @@ void DebugComponent::loop() {
     this->status_momentary_warning("heap", 1000);
   }
 }
-float DebugComponent::get_setup_priority() const {
-  return setup_priority::LATE;
-}
+float DebugComponent::get_setup_priority() const { return setup_priority::LATE; }
 
 }  // namespace debug
 }  // namespace esphome

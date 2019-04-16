@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, power_supply
 from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_RGB_ORDER, CONF_MAX_REFRESH_RATE, \
-    CONF_POWER_SUPPLY, CONF_NAME
+    CONF_POWER_SUPPLY
 from esphome.core import coroutine
 
 fastled_base_ns = cg.esphome_ns.namespace('fastled_base')

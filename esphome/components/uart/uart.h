@@ -110,8 +110,8 @@ class UARTDevice : public Stream {
   void flush() override { return this->parent_->flush(); }
 
   size_t write(uint8_t data) override { return this->parent_->write(data); }
-  int read() override { return this->parent_->read();}
-  int peek() override {return this->parent_->peek();}
+  int read() override { return this->parent_->read(); }
+  int peek() override { return this->parent_->peek(); }
 
  protected:
   UARTComponent *parent_{nullptr};

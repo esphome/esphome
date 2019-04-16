@@ -15,9 +15,7 @@ namespace mqtt {
 
 static const char *TAG = "mqtt";
 
-MQTTClientComponent::MQTTClientComponent() {
- global_mqtt_client = this;
-}
+MQTTClientComponent::MQTTClientComponent() { global_mqtt_client = this; }
 
 // Connection
 void MQTTClientComponent::setup() {
@@ -380,7 +378,8 @@ bool MQTTClientComponent::publish(const std::string &topic, const char *payload,
 bool MQTTClientComponent::publish(const MQTTMessage &message) {
   return this->publish(message.topic, message.payload, message.qos, message.retain);
 }
-bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
+bool MQTTClientComponent::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos,
+                                       bool retain) {
   size_t len;
   const char *message = json::build_json(f, &len);
   return this->publish(topic, message, len, qos, retain);
@@ -466,9 +465,7 @@ void MQTTClientComponent::set_log_level(int level) { this->log_level_ = level; }
 void MQTTClientComponent::set_keep_alive(uint16_t keep_alive_s) { this->mqtt_client_.setKeepAlive(keep_alive_s); }
 void MQTTClientComponent::set_log_message_template(MQTTMessage &&message) { this->log_message_ = std::move(message); }
 const MQTTDiscoveryInfo &MQTTClientComponent::get_discovery_info() const { return this->discovery_info_; }
-void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) {
-  this->topic_prefix_ = std::move(topic_prefix);
-}
+void MQTTClientComponent::set_topic_prefix(std::string topic_prefix) { this->topic_prefix_ = std::move(topic_prefix); }
 const std::string &MQTTClientComponent::get_topic_prefix() const { return this->topic_prefix_; }
 void MQTTClientComponent::disable_birth_message() {
   this->birth_message_.topic = "";

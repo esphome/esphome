@@ -104,9 +104,7 @@ float PCF8574Component::get_setup_priority() const { return setup_priority::IO; 
 
 void PCF8574GPIOPin::setup() { this->pin_mode(this->mode_); }
 bool PCF8574GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void PCF8574GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write(this->pin_, value != this->inverted_);
-}
+void PCF8574GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 void PCF8574GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
 PCF8574GPIOPin::PCF8574GPIOPin(PCF8574Component *parent, uint8_t pin, uint8_t mode, bool inverted)
     : GPIOPin(pin, mode, inverted), parent_(parent) {}

@@ -54,12 +54,8 @@ enum BMP280IIRFilter {
 class BMP280Component : public PollingComponent, public i2c::I2CDevice {
  public:
   BMP280Component(uint32_t update_interval);
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    temperature_sensor_ = temperature_sensor;
-  }
-  void set_pressure_sensor(sensor::Sensor *pressure_sensor) {
-    pressure_sensor_ = pressure_sensor;
-  }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 
   /// Set the oversampling value for the temperature sensor. Default is 16x.
   void set_temperature_oversampling(BMP280Oversampling temperature_over_sampling);

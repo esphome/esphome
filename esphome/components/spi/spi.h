@@ -8,8 +8,7 @@ namespace spi {
 
 class SPIComponent : public Component {
  public:
-  SPIComponent(GPIOPin *clk, GPIOPin *miso, GPIOPin *mosi)
-      : clk_(clk), miso_(miso), mosi_(mosi) {}
+  SPIComponent(GPIOPin *clk, GPIOPin *miso, GPIOPin *mosi) : clk_(clk), miso_(miso), mosi_(mosi) {}
 
   void setup() override;
 
@@ -51,36 +50,22 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() {
-    this->parent_->enable(this->cs_, this->is_device_msb_first(), this->is_device_high_speed());
-  }
+  void enable() { this->parent_->enable(this->cs_, this->is_device_msb_first(), this->is_device_high_speed()); }
 
-  void disable() {
-    this->parent_->disable();
-  }
+  void disable() { this->parent_->disable(); }
 
-  uint8_t read_byte() {
-    return this->parent_->read_byte();
-  }
+  uint8_t read_byte() { return this->parent_->read_byte(); }
 
-  void read_array(uint8_t *data, size_t length) {
-    return this->parent_->read_array(data, length);
-  }
+  void read_array(uint8_t *data, size_t length) { return this->parent_->read_array(data, length); }
 
-  void write_byte(uint8_t data) {
-    return this->parent_->write_byte(data);
-  }
+  void write_byte(uint8_t data) { return this->parent_->write_byte(data); }
 
-  void write_array(uint8_t *data, size_t length) {
-    this->parent_->write_array(data, length);
-  }
+  void write_array(uint8_t *data, size_t length) { this->parent_->write_array(data, length); }
 
  protected:
   virtual bool is_device_msb_first() = 0;
 
-  virtual bool is_device_high_speed() {
-    return false;
-  }
+  virtual bool is_device_high_speed() { return false; }
 
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};

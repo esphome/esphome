@@ -7,9 +7,7 @@
 namespace esphome {
 namespace light {
 
-inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) {
-  return (uint16_t(i) * (1 + uint16_t(scale))) / 256;
-}
+inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
 
 struct ESPColor {
   union {
@@ -34,15 +32,15 @@ struct ESPColor {
     uint8_t raw[4];
   };
   inline ESPColor() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE
-      : r(red), g(green), b(blue), w(white) {}
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE
-      : r(red), g(green), b(blue), w(0) {}
-  inline ESPColor(uint32_t colorcode) ALWAYS_INLINE
-      : r((colorcode >> 16) & 0xFF),
-        g((colorcode >> 8) & 0xFF),
-        b((colorcode >> 0) & 0xFF),
-        w((colorcode >> 24) & 0xFF) {}
+  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
+                                                                                           g(green),
+                                                                                           b(blue),
+                                                                                           w(white) {}
+  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
+  inline ESPColor(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
+                                                      g((colorcode >> 8) & 0xFF),
+                                                      b((colorcode >> 0) & 0xFF),
+                                                      w((colorcode >> 24) & 0xFF) {}
   inline ESPColor(const ESPColor &rhs) ALWAYS_INLINE {
     this->r = rhs.r;
     this->g = rhs.g;
@@ -130,15 +128,11 @@ struct ESPColor {
       ret.w = this->w - subtract.w;
     return ret;
   }
-  inline ESPColor &operator-=(const ESPColor &subtract) ALWAYS_INLINE {
-    return *this = (*this) - subtract;
-  }
+  inline ESPColor &operator-=(const ESPColor &subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
   inline ESPColor operator-(uint8_t subtract) const ALWAYS_INLINE {
     return (*this) - ESPColor(subtract, subtract, subtract, subtract);
   }
-  inline ESPColor &operator-=(uint8_t subtract) ALWAYS_INLINE {
-    return *this = (*this) - subtract;
-  }
+  inline ESPColor &operator-=(uint8_t subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
   static ESPColor random_color() {
     uint32_t rand = random_uint32();
     uint8_t w = rand >> 24;
@@ -171,8 +165,9 @@ struct ESPHSVColor {
   };
   inline ESPHSVColor() ALWAYS_INLINE : h(0), s(0), v(0) {  // NOLINT
   }
-  inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ALWAYS_INLINE
-      : hue(hue), saturation(saturation), value(value) {}
+  inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ALWAYS_INLINE : hue(hue),
+                                                                                     saturation(saturation),
+                                                                                     value(value) {}
   ESPColor to_rgb() const {
     // based on FastLED's hsv rainbow to rgb
     const uint8_t hue = this->hue;
@@ -244,12 +239,8 @@ struct ESPHSVColor {
 class ESPColorCorrection {
  public:
   ESPColorCorrection() : max_brightness_(255, 255, 255, 255) {}
-  void set_max_brightness(const ESPColor &max_brightness) {
-    this->max_brightness_ = max_brightness;
-  }
-  void set_local_brightness(uint8_t local_brightness) {
-    this->local_brightness_ = local_brightness;
-  }
+  void set_max_brightness(const ESPColor &max_brightness) { this->max_brightness_ = max_brightness; }
+  void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
   void calculate_gamma_table(float gamma) {
     for (uint16_t i = 0; i < 256; i++) {
       // corrected = val ^ gamma
@@ -333,13 +324,12 @@ class ESPColorCorrection {
 class ESPColorView {
  public:
   inline ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint8_t *effect_data,
-                      const ESPColorCorrection *color_correction) ALWAYS_INLINE
-      : red_(red),
-        green_(green),
-        blue_(blue),
-        white_(white),
-        effect_data_(effect_data),
-        color_correction_(color_correction) {}
+                      const ESPColorCorrection *color_correction) ALWAYS_INLINE : red_(red),
+                                                                                  green_(green),
+                                                                                  blue_(blue),
+                                                                                  white_(white),
+                                                                                  effect_data_(effect_data),
+                                                                                  color_correction_(color_correction) {}
   inline const ESPColorView &operator=(const ESPColor &rhs) const ALWAYS_INLINE {
     this->set(rhs);
     return *this;
@@ -348,9 +338,7 @@ class ESPColorView {
     this->set(rhs);
     return *this;
   }
-  inline void set(const ESPColor &color) const ALWAYS_INLINE {
-    this->set_rgbw(color.r, color.g, color.b, color.w);
-  }
+  inline void set(const ESPColor &color) const ALWAYS_INLINE { this->set_rgbw(color.r, color.g, color.b, color.w); }
   inline void set(const ESPHSVColor &color) const ALWAYS_INLINE {
     ESPColor rgb = color.to_rgb();
     this->set_rgb(rgb.r, rgb.g, rgb.b);
@@ -386,15 +374,11 @@ class ESPColorView {
   inline ESPColor get() const ALWAYS_INLINE {
     return ESPColor(this->get_red(), this->get_green(), this->get_blue(), this->get_white());
   }
-  inline uint8_t get_red() const ALWAYS_INLINE {
-    return this->color_correction_->color_uncorrect_red(*this->red_);
-  }
+  inline uint8_t get_red() const ALWAYS_INLINE { return this->color_correction_->color_uncorrect_red(*this->red_); }
   inline uint8_t get_green() const ALWAYS_INLINE {
     return this->color_correction_->color_uncorrect_green(*this->green_);
   }
-  inline uint8_t get_blue() const ALWAYS_INLINE {
-    return this->color_correction_->color_uncorrect_blue(*this->blue_);
-  }
+  inline uint8_t get_blue() const ALWAYS_INLINE { return this->color_correction_->color_uncorrect_blue(*this->blue_); }
   inline uint8_t get_white() const ALWAYS_INLINE {
     if (this->white_ == nullptr)
       return 0;
@@ -436,7 +420,7 @@ class AddressableLight : public LightOutput {
     // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
     ESPColor color = ESPColor(uint8_t(roundf(val.get_red() * 255.0f)), uint8_t(roundf(val.get_green() * 255.0f)),
                               uint8_t(roundf(val.get_blue() * 255.0f)),
-        // white is not affected by brightness; so manually scale by state
+                              // white is not affected by brightness; so manually scale by state
                               uint8_t(roundf(val.get_white() * val.get_state() * 255.0f)));
 
     for (int i = 0; i < this->size(); i++) {

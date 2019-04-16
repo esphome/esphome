@@ -1,4 +1,3 @@
-import collections
 import functools
 import heapq
 import inspect
@@ -11,7 +10,7 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, SOURCE_FILE_EXTENSIONS
+    SOURCE_FILE_EXTENSIONS
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
@@ -312,14 +311,14 @@ class Define(object):
         return u'#define {} {}'.format(self.name, self.value)
 
     @property
-    def _as_tuple(self):
+    def as_tuple(self):
         return self.name, self.value
 
     def __hash__(self):
-        return hash(self._as_tuple)
+        return hash(self.as_tuple)
 
     def __eq__(self, other):
-        return isinstance(self, type(other)) and self._as_tuple == other._as_tuple
+        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
 
 
 class Library(object):
@@ -334,14 +333,14 @@ class Library(object):
         return u'{}@{}'.format(self.name, self.version)
 
     @property
-    def _as_tuple(self):
+    def as_tuple(self):
         return self.name, self.version
 
     def __hash__(self):
-        return hash(self._as_tuple)
+        return hash(self.as_tuple)
 
     def __eq__(self, other):
-        return isinstance(self, type(other)) and self._as_tuple == other._as_tuple
+        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
 
 
 def coroutine(func):
@@ -378,6 +377,7 @@ def coroutine_with_priority(priority):
                 # Stopping iteration
                 yield var
 
+        # pylint: disable=protected-access
         wrapper._esphome_coroutine = True
         wrapper.priority = priority
         return wrapper
@@ -390,7 +390,7 @@ def find_source_files(file):
     for f in os.listdir(directory):
         if not os.path.isfile(os.path.join(directory, f)):
             continue
-        name, ext = os.path.splitext(f)
+        _, ext = os.path.splitext(f)
         if ext.lower() not in SOURCE_FILE_EXTENSIONS:
             continue
         files.add(f)
@@ -504,13 +504,13 @@ class EsphomeCore(object):
     def is_esp8266(self):
         if self.esp_platform is None:
             raise ValueError
-        return self.esp_platform == ESP_PLATFORM_ESP8266
+        return self.esp_platform == 'ESP8266'
 
     @property
     def is_esp32(self):
         if self.esp_platform is None:
             raise ValueError
-        return self.esp_platform == ESP_PLATFORM_ESP32
+        return self.esp_platform == 'ESP32'
 
     def add_job(self, func, *args, **kwargs):
         coro = coroutine(func)
@@ -645,6 +645,7 @@ class EsphomeCore(object):
 
 class AutoLoad(dict):
     pass
+
 
 CORE = EsphomeCore()
 

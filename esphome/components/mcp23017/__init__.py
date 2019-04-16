@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, \
-    CONF_INVERTED, CONF_MCP23017
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -30,6 +29,7 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
 
+CONF_MCP23017 = 'mcp23017'
 MCP23017_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
     cv.Required(CONF_NUMBER): cv.int_,
@@ -44,7 +44,7 @@ MCP23017_INPUT_PIN_SCHEMA = cv.Schema({
 })
 
 
-@pins.PIN_SCHEMA_REGISTRY.register('mcp23017',
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23017,
                                    (MCP23017_OUTPUT_PIN_SCHEMA, MCP23017_INPUT_PIN_SCHEMA))
 def mcp23017_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_MCP23017])

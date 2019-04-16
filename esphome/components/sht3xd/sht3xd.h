@@ -12,12 +12,8 @@ class SHT3XDComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   SHT3XDComponent(uint32_t update_interval) : PollingComponent(update_interval) {}
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    temperature_sensor_ = temperature_sensor;
-  }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) {
-    humidity_sensor_ = humidity_sensor;
-  }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
 
   void setup() override;
   void dump_config() override;

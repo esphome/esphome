@@ -1,7 +1,6 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_COMPONENTS, CONF_ID, CONF_LAMBDA
-
 
 custom_component_ns = cg.esphome_ns.namespace('custom_component')
 CustomComponentConstructor = custom_component_ns.class_('CustomComponentConstructor')
@@ -25,4 +24,3 @@ def to_code(config):
     for i, conf in enumerate(config.get(CONF_COMPONENTS, [])):
         comp = cg.Pvariable(conf[CONF_ID], var.get_component(i))
         yield cg.register_component(comp, conf)
-

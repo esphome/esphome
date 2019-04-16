@@ -152,7 +152,7 @@ DallasComponent::DallasComponent(ESPOneWire *one_wire, uint32_t update_interval)
     : PollingComponent(update_interval), one_wire_(one_wire) {}
 
 DallasTemperatureSensor::DallasTemperatureSensor(const std::string &name, uint64_t address, uint8_t resolution,
-    DallasComponent *parent)
+                                                 DallasComponent *parent)
     : sensor::Sensor(name), parent_(parent) {
   this->set_address(address);
   this->set_resolution(resolution);

@@ -12,7 +12,7 @@ I2CSSD1306 = ssd1306_i2c.class_('I2CSSD1306', ssd1306_base.SSD1306, i2c.I2CDevic
 CONFIG_SCHEMA = cv.All(ssd1306_base.SSD1306_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(I2CSSD1306),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x3C)),
-                         cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):

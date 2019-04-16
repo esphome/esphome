@@ -111,7 +111,7 @@ def parse_multi_click_timing_str(value):
     parts = value.lower().split(' ')
     if len(parts) != 5:
         raise cv.Invalid("Multi click timing grammar consists of exactly 5 words, not {}"
-                          "".format(len(parts)))
+                         "".format(len(parts)))
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
@@ -127,7 +127,7 @@ def parse_multi_click_timing_str(value):
             key = CONF_MAX_LENGTH
         else:
             raise cv.Invalid(u"Third word after at must either be 'least' or 'most', got {}"
-                              u"".format(parts[3]))
+                             u"".format(parts[3]))
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
@@ -174,10 +174,10 @@ def validate_multi_click_timing(value):
         new_state = v_.get(CONF_STATE, not state)
         if new_state == state:
             raise cv.Invalid("Timings must have alternating state. Indices {} and {} have "
-                              "the same state {}".format(i, i + 1, state))
+                             "the same state {}".format(i, i + 1, state))
         if max_length is not None and max_length < min_length:
             raise cv.Invalid("Max length ({}) must be larger than min length ({})."
-                              "".format(max_length, min_length))
+                             "".format(max_length, min_length))
 
         state = new_state
         tim = {

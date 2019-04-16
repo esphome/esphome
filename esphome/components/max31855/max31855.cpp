@@ -7,7 +7,7 @@ namespace max31855 {
 static const char *TAG = "max31855";
 
 MAX31855Sensor::MAX31855Sensor(const std::string &name, uint32_t update_interval)
-  : PollingSensorComponent(name, update_interval) {}
+    : PollingSensorComponent(name, update_interval) {}
 
 void MAX31855Sensor::update() {
   this->enable();

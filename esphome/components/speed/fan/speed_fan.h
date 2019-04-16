@@ -15,14 +15,13 @@ class SpeedFan : public Component {
   void loop() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_oscillating(output::BinaryOutput *oscillating) {
-    this->oscillating_ = oscillating;
-  }
-  void set_speeds(float low, float medium, float high){
+  void set_oscillating(output::BinaryOutput *oscillating) { this->oscillating_ = oscillating; }
+  void set_speeds(float low, float medium, float high) {
     this->low_speed_ = low;
     this->medium_speed_ = medium;
     this->high_speed_ = high;
   }
+
  protected:
   fan::FanState *fan_;
   output::FloatOutput *output_;

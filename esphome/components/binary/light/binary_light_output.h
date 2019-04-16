@@ -23,6 +23,7 @@ class BinaryLightOutput : public light::LightOutput {
     else
       this->output_->turn_off();
   }
+
  protected:
   output::BinaryOutput *output_;
 };

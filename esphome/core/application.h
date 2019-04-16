@@ -49,50 +49,35 @@ class Application {
 #endif
 
 #ifdef USE_SENSOR
-  void register_sensor(sensor::Sensor *sensor) {
-    this->sensors_.push_back(sensor);
-  }
+  void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
 #endif
 
 #ifdef USE_SWITCH
-  void register_switch(switch_::Switch *a_switch) {
-    this->switches_.push_back(a_switch);
-  }
+  void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void register_text_sensor(text_sensor::TextSensor *sensor) {
-    this->text_sensors_.push_back(sensor);
-  }
+  void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
 #endif
 
 #ifdef USE_FAN
-  void register_fan(fan::FanState *state) {
-    this->fans_.push_back(state);
-  }
+  void register_fan(fan::FanState *state) { this->fans_.push_back(state); }
 #endif
 
 #ifdef USE_COVER
-  void register_cover(cover::Cover *cover) {
-    this->covers_.push_back(cover);
-  }
+  void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
 #endif
 
 #ifdef USE_CLIMATE
-  void register_climate(climate::Climate *climate) {
-    this->climates_.push_back(climate);
-  }
+  void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
 #endif
 
 #ifdef USE_LIGHT
-  void register_light(light::LightState *light) {
-    this->lights_.push_back(light);
-  }
+  void register_light(light::LightState *light) { this->lights_.push_back(light); }
 #endif
 
   /// Register the component in this Application instance.
-  template<class C>
-  C *register_component(C *c) {
+  template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
     this->register_component_((Component *) c);
     return c;
@@ -149,14 +134,10 @@ class Application {
    *
    * @param loop_interval The interval in milliseconds to run the core loop at. Defaults to 16 milliseconds.
    */
-  void set_loop_interval(uint32_t loop_interval) {
-    this->loop_interval_ = loop_interval;
-  }
+  void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
 
   void dump_config();
-  void schedule_dump_config() {
-    this->dump_config_scheduled_ = true;
-  }
+  void schedule_dump_config() { this->dump_config_scheduled_ = true; }
 
   void feed_wdt();
 
@@ -169,9 +150,7 @@ class Application {
       comp->on_safe_shutdown();
   }
 
-  uint32_t get_app_state() const {
-    return this->app_state_;
-  }
+  uint32_t get_app_state() const { return this->app_state_; }
 
 #ifdef USE_BINARY_SENSOR
   const std::vector<binary_sensor::BinarySensor *> &get_binary_sensors() { return this->binary_sensors_; }

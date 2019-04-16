@@ -21,10 +21,10 @@ static const uint8_t BME680_REGISTER_CHIPID = 0xD0;
 
 static const uint8_t BME680_REGISTER_FIELD0 = 0x1D;
 
-const float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, -0.8,
+const float BME680_GAS_LOOKUP_TABLE_1[16] PROGMEM = {0.0, 0.0, 0.0,  0.0,  0.0, -1.0, 0.0, -0.8,
                                                      0.0, 0.0, -0.2, -0.5, 0.0, -1.0, 0.0, 0.0};
 
-const float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0, 0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
+const float BME680_GAS_LOOKUP_TABLE_2[16] PROGMEM = {0.0,  0.0, 0.0, 0.0, 0.1, 0.7, 0.0, -0.8,
                                                      -0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
 
 static const char *oversampling_to_str(BME680Oversampling oversampling) {
@@ -268,8 +268,8 @@ uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
   var3 = var1 + (var2 / 2);
   var4 = (var3 / (res_heat_range + 4));
   var5 = (131 * res_heat_val) + 65536;
-  heatr_res_x100 = (int32_t) (((var4 / var5) - 250) * 34);
-  heatr_res = (uint8_t) ((heatr_res_x100 + 50) / 100);
+  heatr_res_x100 = (int32_t)(((var4 / var5) - 250) * 34);
+  heatr_res = (uint8_t)((heatr_res_x100 + 50) / 100);
 
   return heatr_res;
 }
@@ -413,7 +413,7 @@ float BME680Component::calc_humidity_(uint16_t raw_humidity) {
 
   var1 = float(raw_humidity) - (h1 * 16.0f + ((h3 / 2.0f) * temp_comp));
   var2 = var1 *
-      (((h2 / 262144.0f) * (1.0f + ((h4 / 16384.0f) * temp_comp) + ((h5 / 1048576.0f) * temp_comp * temp_comp))));
+         (((h2 / 262144.0f) * (1.0f + ((h4 / 16384.0f) * temp_comp) + ((h5 / 1048576.0f) * temp_comp * temp_comp))));
   var3 = h6 / 16384.0f;
   var4 = h7 / 2097152.0f;
 

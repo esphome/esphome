@@ -28,19 +28,13 @@ class PulseWidthSensorStore {
 
 class PulseWidthSensor : public sensor::PollingSensorComponent {
  public:
-  PulseWidthSensor(const std::string &name, uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval) {}
-  void set_pin(GPIOPin *pin) {
-    pin_ = pin;
-  }
-  void setup() override {
-    this->store_.setup(this->pin_);
-  }
+  PulseWidthSensor(const std::string &name, uint32_t update_interval) : PollingSensorComponent(name, update_interval) {}
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void setup() override { this->store_.setup(this->pin_); }
   void dump_config() override;
-  float get_setup_priority() const override {
-    return setup_priority::DATA;
-  }
+  float get_setup_priority() const override { return setup_priority::DATA; }
   void update() override;
+
  protected:
   PulseWidthSensorStore store_;
   GPIOPin *pin_;

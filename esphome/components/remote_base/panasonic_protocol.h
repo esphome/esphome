@@ -10,9 +10,7 @@ struct PanasonicData {
   uint16_t address;
   uint32_t command;
 
-  bool operator==(const PanasonicData& rhs) const {
-    return address == rhs.address && command == rhs.command;
-  }
+  bool operator==(const PanasonicData &rhs) const { return address == rhs.address && command == rhs.command; }
 };
 
 class PanasonicProtocol : public RemoteProtocol<PanasonicData> {
@@ -26,9 +24,8 @@ DECLARE_REMOTE_PROTOCOL(Panasonic)
 
 template<typename... Ts> class PanasonicAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  PanasonicAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
- TEMPLATABLE_VALUE(uint16_t, address)
- TEMPLATABLE_VALUE(uint32_t, command)
+  TEMPLATABLE_VALUE(uint16_t, address)
+  TEMPLATABLE_VALUE(uint32_t, command)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     PanasonicData data{};
     data.address = this->address_.value(x...);

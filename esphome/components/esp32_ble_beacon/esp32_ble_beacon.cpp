@@ -1,6 +1,8 @@
 #include "esp32_ble_beacon.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
@@ -128,3 +130,5 @@ ESP32BLEBeacon *global_esp32_ble_beacon = nullptr;
 
 }  // namespace esp32_ble_beacon
 }  // namespace esphome
+
+#endif

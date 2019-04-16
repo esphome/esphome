@@ -10,7 +10,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(LightState *state) : state_(state) {}
 
- TEMPLATABLE_VALUE(uint32_t, transition_length)
+  TEMPLATABLE_VALUE(uint32_t, transition_length)
 
   void play(Ts... x) override {
     auto call = this->state_->toggle();
@@ -27,16 +27,16 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
  public:
   explicit LightControlAction(LightState *parent) : parent_(parent) {}
 
- TEMPLATABLE_VALUE(bool, state)
- TEMPLATABLE_VALUE(uint32_t, transition_length)
- TEMPLATABLE_VALUE(uint32_t, flash_length)
- TEMPLATABLE_VALUE(float, brightness)
- TEMPLATABLE_VALUE(float, red)
- TEMPLATABLE_VALUE(float, green)
- TEMPLATABLE_VALUE(float, blue)
- TEMPLATABLE_VALUE(float, white)
- TEMPLATABLE_VALUE(float, color_temperature)
- TEMPLATABLE_VALUE(std::string, effect)
+  TEMPLATABLE_VALUE(bool, state)
+  TEMPLATABLE_VALUE(uint32_t, transition_length)
+  TEMPLATABLE_VALUE(uint32_t, flash_length)
+  TEMPLATABLE_VALUE(float, brightness)
+  TEMPLATABLE_VALUE(float, red)
+  TEMPLATABLE_VALUE(float, green)
+  TEMPLATABLE_VALUE(float, blue)
+  TEMPLATABLE_VALUE(float, white)
+  TEMPLATABLE_VALUE(float, color_temperature)
+  TEMPLATABLE_VALUE(std::string, effect)
 
   void play(Ts... x) override {
     auto call = this->parent_->make_call();

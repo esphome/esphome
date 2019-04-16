@@ -66,6 +66,7 @@ def convert_tz(pytz_obj):
         tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
         return tzbase
 
+    # pylint: disable=protected-access
     transition_times = tz._utc_transition_times
     transition_info = tz._transition_info
     idx = max(0, bisect.bisect_right(transition_times, now))
@@ -243,8 +244,6 @@ def validate_tz(value):
     value = cv.string_strict(value)
 
     try:
-        import pytz
-
         return convert_tz(pytz.timezone(value))
     except Exception:  # pylint: disable=broad-except
         return value

@@ -1,6 +1,8 @@
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
 #include <esp_bt_main.h>
@@ -470,9 +472,9 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   }
 }
 
-void ESPBTDeviceListener::setup_ble() {
-  this->parent_->add_listener(this);
-}
+void ESPBTDeviceListener::setup_ble() { this->parent_->add_listener(this); }
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
+
+#endif

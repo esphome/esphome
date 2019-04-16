@@ -41,7 +41,7 @@ class ISRInternalGPIOPin {
  public:
   ISRInternalGPIOPin(uint8_t pin,
 #ifdef ARDUINO_ARCH_ESP32
-      volatile uint32_t *gpio_clear, volatile uint32_t *gpio_set,
+                     volatile uint32_t *gpio_clear, volatile uint32_t *gpio_set,
 #endif
                      volatile uint32_t *gpio_read, uint32_t gpio_mask, bool inverted);
   bool digital_read();

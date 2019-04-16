@@ -4,10 +4,13 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace ble_presence {
 
-class BLEPresenceDevice : public binary_sensor::BinarySensor, public esp32_ble_tracker::ESPBTDeviceListener,
+class BLEPresenceDevice : public binary_sensor::BinarySensor,
+                          public esp32_ble_tracker::ESPBTDeviceListener,
                           public Component {
  public:
   BLEPresenceDevice(const std::string &name, esp32_ble_tracker::ESP32BLETracker *parent, uint64_t address)
@@ -37,3 +40,5 @@ class BLEPresenceDevice : public binary_sensor::BinarySensor, public esp32_ble_t
 
 }  // namespace ble_presence
 }  // namespace esphome
+
+#endif

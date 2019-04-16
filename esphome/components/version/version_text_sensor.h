@@ -6,7 +6,7 @@
 namespace esphome {
 namespace version {
 
- class VersionTextSensor : public text_sensor::TextSensor, public Component {
+class VersionTextSensor : public text_sensor::TextSensor, public Component {
  public:
   explicit VersionTextSensor(const std::string &name);
   void setup() override;

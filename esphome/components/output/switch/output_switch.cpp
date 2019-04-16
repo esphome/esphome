@@ -6,9 +6,7 @@ namespace output {
 
 static const char *TAG = "output.switch";
 
-void OutputSwitch::dump_config() {
-  LOG_SWITCH("", "Output Switch", this);
-}
+void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() {
   auto restored = this->get_initial_state();
   if (!restored.has_value())

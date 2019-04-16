@@ -11,12 +11,8 @@ class BMP085Component : public PollingComponent, public i2c::I2CDevice {
  public:
   BMP085Component(uint32_t update_interval) : PollingComponent(update_interval) {}
 
-  void set_temperature(sensor::Sensor *temperature) {
-    temperature_ = temperature;
-  }
-  void set_pressure(sensor::Sensor *pressure) {
-    pressure_ = pressure;
-  }
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
 
   /// Schedule temperature+pressure readings.
   void update() override;

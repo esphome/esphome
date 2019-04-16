@@ -85,5 +85,5 @@ class TSL2561Sensor : public sensor::PollingSensorComponent, public i2c::I2CDevi
   bool package_cs_{false};
 };
 
-}  // namespace something
+}  // namespace tsl2561
 }  // namespace esphome

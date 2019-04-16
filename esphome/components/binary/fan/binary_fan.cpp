@@ -42,9 +42,7 @@ void BinaryFan::loop() {
     ESP_LOGD(TAG, "Setting oscillation: %s", ONOFF(enable));
   }
 }
-float BinaryFan::get_setup_priority() const {
-  return setup_priority::DATA;
-}
+float BinaryFan::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace binary
 }  // namespace esphome

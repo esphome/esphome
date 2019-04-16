@@ -11,17 +11,10 @@ ota_ns = cg.esphome_ns.namespace('ota')
 OTAComponent = ota_ns.class_('OTAComponent', cg.Component)
 
 
-def default_port():
-    if CORE.is_esp32:
-        return 3232
-    if CORE.is_esp8266:
-        return 8266
-
-
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(OTAComponent),
     cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-    cv.Optional(CONF_PORT, default=default_port): cv.port,
+    cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
 }).extend(cv.COMPONENT_SCHEMA)
 

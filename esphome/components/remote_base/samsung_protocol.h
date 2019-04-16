@@ -9,9 +9,7 @@ namespace remote_base {
 struct SamsungData {
   uint32_t data;
 
-  bool operator==(const SamsungData& rhs) const {
-    return data == rhs.data;
-  }
+  bool operator==(const SamsungData &rhs) const { return data == rhs.data; }
 };
 
 class SamsungProtocol : public RemoteProtocol<SamsungData> {
@@ -25,8 +23,7 @@ DECLARE_REMOTE_PROTOCOL(Samsung)
 
 template<typename... Ts> class SamsungAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  SamsungAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
- TEMPLATABLE_VALUE(uint32_t, data)
+  TEMPLATABLE_VALUE(uint32_t, data)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     SamsungData data{};
     data.data = this->data_.value(x...);

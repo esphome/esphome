@@ -188,9 +188,7 @@ class APIServer : public Component, public Controller {
   void on_climate_update(climate::Climate *obj) override;
 #endif
   void send_service_call(ServiceCallResponse &call);
-  void register_user_service(UserServiceDescriptor *descriptor) {
-    this->user_services_.push_back(descriptor);
-  }
+  void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
@@ -222,9 +220,11 @@ extern APIServer *global_api_server;
 template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
  public:
   explicit HomeAssistantServiceCallAction(APIServer *parent) : parent_(parent) {}
-  void set_service(const std::string &service) {this->resp_.set_service(service);}
+  void set_service(const std::string &service) { this->resp_.set_service(service); }
   void set_data(const std::vector<KeyValuePair> &data) { this->resp_.set_data(data); }
-  void set_data_template(const std::vector<KeyValuePair> &data_template) { this->resp_.set_data_template(data_template); }
+  void set_data_template(const std::vector<KeyValuePair> &data_template) {
+    this->resp_.set_data_template(data_template);
+  }
   void set_variables(const std::vector<TemplatableKeyValuePair> &variables) { this->resp_.set_variables(variables); }
   void play(Ts... x) override {
     this->parent_->send_service_call(this->resp_);
@@ -238,7 +238,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
 template<typename... Ts> class APIConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override {return global_api_server->is_connected();}
+  bool check(Ts... x) override { return global_api_server->is_connected(); }
 };
 
 }  // namespace api

@@ -10,9 +10,7 @@ namespace ttp229 {
 class TTP229Channel : public binary_sensor::BinarySensor {
  public:
   TTP229Channel(const std::string &name, int channel) : BinarySensor(name), channel_(channel) {}
-  void process(uint16_t data) {
-    this->publish_state(data & (1 << this->channel_));
-  }
+  void process(uint16_t data) { this->publish_state(data & (1 << this->channel_)); }
 
  protected:
   int channel_;
@@ -20,9 +18,7 @@ class TTP229Channel : public binary_sensor::BinarySensor {
 
 class TTP229LSFComponent : public Component, public i2c::I2CDevice {
  public:
-  void register_channel(TTP229Channel *channel) {
-    this->channels_.push_back(channel);
-  }
+  void register_channel(TTP229Channel *channel) { this->channels_.push_back(channel); }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }

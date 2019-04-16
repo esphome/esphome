@@ -3,7 +3,6 @@
 
 #define ESPHOME_VERSION "dev"
 
-#define CLANG_TIDY
 #define ESPHOME_LOG_LEVEL 6
 #define USE_API
 #define USE_LOGGER
@@ -17,10 +16,12 @@
 #define USE_COVER
 #define USE_LIGHT
 #define USE_CLIMATE
-//#define USE_MQTT
+#define USE_MQTT
 #define USE_POWER_SUPPLY
 #define USE_HOMEASSISTANT_TIME
 #define USE_JSON
+#ifdef ARDUINO_ARCH_ESP32
 #define USE_ESP32_CAMERA
+#endif
 #define USE_TIME
 #define USE_DEEP_SLEEP

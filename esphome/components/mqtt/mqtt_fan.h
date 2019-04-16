@@ -14,10 +14,10 @@ class MQTTFanComponent : public mqtt::MQTTComponent {
  public:
   explicit MQTTFanComponent(fan::FanState *state);
 
- MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
- MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
- MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
- MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(oscillation, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(speed, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(speed, state)
 
   void send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) override;
 

@@ -90,9 +90,7 @@ MCP23017GPIOPin::MCP23017GPIOPin(MCP23017 *parent, uint8_t pin, uint8_t mode, bo
 void MCP23017GPIOPin::setup() { this->pin_mode(this->mode_); }
 void MCP23017GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
 bool MCP23017GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void MCP23017GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write(this->pin_, value != this->inverted_);
-}
+void MCP23017GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 
 }  // namespace mcp23017
 }  // namespace esphome

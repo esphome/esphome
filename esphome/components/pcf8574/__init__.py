@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_PCF8575, CONF_PCF8574, CONF_NUMBER, CONF_MODE, CONF_INVERTED
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -18,6 +18,8 @@ PCF8674_GPIO_MODES = {
 PCF8574Component = pcf8574_ns.class_('PCF8574Component', cg.Component, i2c.I2CDevice)
 PCF8574GPIOPin = pcf8574_ns.class_('PCF8574GPIOPin', cg.GPIOPin)
 
+CONF_PCF8574 = 'pcf8574'
+CONF_PCF8575 = 'pcf8575'
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_variable_id(PCF8574Component),
     cv.Optional(CONF_PCF8575, default=False): cv.boolean,

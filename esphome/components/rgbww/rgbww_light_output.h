@@ -10,12 +10,15 @@ namespace rgbww {
 class RGBWWLightOutput : public light::LightOutput {
  public:
   RGBWWLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue,
-                   output::FloatOutput *cold_white, output::FloatOutput *warm_white,
-                   float cold_white_temperature, float warm_white_temperature)
-      : red_(red), green_(green), blue_(blue), cold_white_(cold_white), warm_white_(warm_white),
-        cold_white_temperature_(cold_white_temperature), warm_white_temperature_(warm_white_temperature) {
-
-  }
+                   output::FloatOutput *cold_white, output::FloatOutput *warm_white, float cold_white_temperature,
+                   float warm_white_temperature)
+      : red_(red),
+        green_(green),
+        blue_(blue),
+        cold_white_(cold_white),
+        warm_white_(warm_white),
+        cold_white_temperature_(cold_white_temperature),
+        warm_white_temperature_(warm_white_temperature) {}
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
@@ -33,6 +36,7 @@ class RGBWWLightOutput : public light::LightOutput {
     this->cold_white_->set_level(cwhite);
     this->warm_white_->set_level(wwhite);
   }
+
  protected:
   output::FloatOutput *red_;
   output::FloatOutput *green_;

@@ -68,8 +68,7 @@ void HOT Logger::log_message_(int level, const char *tag, char *msg, int ret) {
   this->log_callback_.call(level, tag, msg);
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
-    : baud_rate_(baud_rate), uart_(uart) {
+Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart) : baud_rate_(baud_rate), uart_(uart) {
   this->set_tx_buffer_size(tx_buffer_size);
 }
 

@@ -120,7 +120,7 @@ void INA3221Component::set_shunt_resistance(int channel, float resistance_ohm) {
 
 bool INA3221Component::INA3221Channel::exists() {
   return this->bus_voltage_sensor_ != nullptr || this->shunt_voltage_sensor_ != nullptr ||
-      this->current_sensor_ != nullptr || this->power_sensor_ != nullptr;
+         this->current_sensor_ != nullptr || this->power_sensor_ != nullptr;
 }
 bool INA3221Component::INA3221Channel::should_measure_shunt_voltage() {
   return this->shunt_voltage_sensor_ != nullptr || this->current_sensor_ != nullptr || this->power_sensor_ != nullptr;

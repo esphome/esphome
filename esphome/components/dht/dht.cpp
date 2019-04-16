@@ -7,8 +7,7 @@ namespace dht {
 
 static const char *TAG = "dht";
 
-DHT::DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin,
-         uint32_t update_interval)
+DHT::DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin, uint32_t update_interval)
     : PollingComponent(update_interval),
       pin_(pin),
       temperature_sensor_(new sensor::Sensor(temperature_name)),
@@ -150,13 +149,8 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   enable_interrupts();
 
   ESP_LOGVV(TAG,
-            "Data: Hum=0b"
-                BYTE_TO_BINARY_PATTERN BYTE_TO_BINARY_PATTERN
-                ", Temp=0b"
-                BYTE_TO_BINARY_PATTERN
-                BYTE_TO_BINARY_PATTERN
-                ", Checksum=0b"
-                BYTE_TO_BINARY_PATTERN,
+            "Data: Hum=0b" BYTE_TO_BINARY_PATTERN BYTE_TO_BINARY_PATTERN
+            ", Temp=0b" BYTE_TO_BINARY_PATTERN BYTE_TO_BINARY_PATTERN ", Checksum=0b" BYTE_TO_BINARY_PATTERN,
             BYTE_TO_BINARY(data[0]), BYTE_TO_BINARY(data[1]), BYTE_TO_BINARY(data[2]), BYTE_TO_BINARY(data[3]),
             BYTE_TO_BINARY(data[4]));
 

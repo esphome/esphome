@@ -28,9 +28,7 @@ class TemplateCover : public cover::Cover, public Component {
   void set_tilt_lambda(std::function<optional<float>()> &&tilt_f);
   void set_has_position(bool has_position);
   void set_has_tilt(bool has_tilt);
-  void set_restore_mode(TemplateCoverRestoreMode restore_mode) {
-    restore_mode_ = restore_mode;
-  }
+  void set_restore_mode(TemplateCoverRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
   void setup() override;
   void loop() override;

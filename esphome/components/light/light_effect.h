@@ -24,9 +24,7 @@ class LightEffect {
   /// Apply this effect. Use the provided state for starting transitions, ...
   virtual void apply() = 0;
 
-  const std::string &get_name() {
-    return this->name_;
-  }
+  const std::string &get_name() { return this->name_; }
 
   /// Internal method called by the LightState when this light effect is registered in it.
   virtual void init() {}

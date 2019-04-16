@@ -35,8 +35,7 @@ class PCA9685Channel : public output::FloatOutput {
 class PCA9685Output : public Component, public i2c::I2CDevice {
  public:
   PCA9685Output(float frequency, uint8_t mode = PCA9685_MODE_OUTPUT_ONACK | PCA9685_MODE_OUTPUT_TOTEM_POLE)
-      : frequency_(frequency), mode_(mode) {
-  }
+      : frequency_(frequency), mode_(mode) {}
 
   PCA9685Channel *create_channel(uint8_t channel);
 
@@ -59,7 +58,9 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
 
   uint8_t min_channel_{0xFF};
   uint8_t max_channel_{0x00};
-  uint16_t pwm_amounts_[16] = {0,};
+  uint16_t pwm_amounts_[16] = {
+      0,
+  };
   bool update_{true};
 };
 

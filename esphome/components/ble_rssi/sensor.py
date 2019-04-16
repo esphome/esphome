@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESPBTDeviceListener, \
     ESP_BLE_DEVICE_SCHEMA
-from esphome.const import CONF_MAC_ADDRESS, CONF_NAME, CONF_ID, CONF_UNIT_OF_MEASUREMENT, CONF_ICON, \
-    CONF_ACCURACY_DECIMALS, UNIT_DECIBEL, ICON_SIGNAL
+from esphome.const import CONF_MAC_ADDRESS, CONF_NAME, CONF_ID, CONF_UNIT_OF_MEASUREMENT, \
+    CONF_ICON, CONF_ACCURACY_DECIMALS, UNIT_DECIBEL, ICON_SIGNAL
 
 DEPENDENCIES = ['esp32_ble_tracker']
 

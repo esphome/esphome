@@ -73,7 +73,6 @@ class HighFrequencyLoopRequester {
  * @return val clamped in between min and max.
  */
 float clamp(float val, float min, float max);
-// TODO: Check changed clamp signature
 
 /** Linearly interpolate between end start and end by completion.
  *
@@ -163,9 +162,7 @@ template<typename... X> class CallbackManager;
 template<typename... Ts> class CallbackManager<void(Ts...)> {
  public:
   /// Add a callback to the internal callback list.
-  void add(std::function<void(Ts...)> &&callback) {
-    this->callbacks_.push_back(std::move(callback));
-  }
+  void add(std::function<void(Ts...)> &&callback) { this->callbacks_.push_back(std::move(callback)); }
 
   /// Call all callbacks in this manager.
   void call(Ts... args) {
@@ -217,6 +214,13 @@ template<typename T, typename... X> class TemplatableValue {
     return this->value(x...);
   }
 
+  T value_or(X... x, T default_value) {
+    if (!this->has_value()) {
+      return default_value;
+    }
+    return this->value(x...);
+  }
+
  protected:
   enum {
     EMPTY,
@@ -241,9 +245,7 @@ template<typename T> class Deduplicator {
     this->last_value_ = value;
     return true;
   }
-  bool has_value() const {
-    return this->has_value_;
-  }
+  bool has_value() const { return this->has_value_; }
 
  protected:
   bool has_value_{false};

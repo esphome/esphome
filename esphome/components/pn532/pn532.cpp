@@ -39,11 +39,11 @@ void PN532::setup() {
   // do not actually read any data, this should be OK according to datasheet
 
   this->pn532_write_command_({
-                                 0x14,  // SAM config command
-                                 0x01,  // normal mode
-                                 0x14,  // zero timeout (not in virtual card mode)
-                                 0x01,
-                             });
+      0x14,  // SAM config command
+      0x01,  // normal mode
+      0x14,  // zero timeout (not in virtual card mode)
+      0x01,
+  });
 
   // do not wait for ready bit, this is a dummy command
   delay(2);
@@ -64,11 +64,11 @@ void PN532::setup() {
   // Set up SAM (secure access module)
   uint8_t sam_timeout = std::min(255u, this->update_interval_ / 50);
   bool ret = this->pn532_write_command_check_ack_({
-                                                      0x14,         // SAM config command
-                                                      0x01,         // normal mode
-                                                      sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
-                                                      0x01,         // Enable IRQ
-                                                  });
+      0x14,         // SAM config command
+      0x01,         // normal mode
+      sam_timeout,  // timeout as multiple of 50ms (actually only for virtual card mode, but shouldn't matter)
+      0x01,         // Enable IRQ
+  });
 
   if (!ret) {
     this->error_code_ = SAM_COMMAND_FAILED;
@@ -78,7 +78,7 @@ void PN532::setup() {
 
   auto sam_result = this->pn532_read_data_();
   if (sam_result.size() != 1) {
-    ESP_LOGV(TAG, "Invalid SAM result: (%u)", sam_result.size());
+    ESP_LOGV(TAG, "Invalid SAM result: (%u)", sam_result.size());  // NOLINT
     for (auto dat : sam_result) {
       ESP_LOGV(TAG, " 0x%02X", dat);
     }
@@ -93,10 +93,10 @@ void PN532::update() {
     obj->on_scan_end();
 
   bool success = this->pn532_write_command_check_ack_({
-                                                          0x4A,  // INLISTPASSIVETARGET
-                                                          0x01,  // max 1 card
-                                                          0x00,  // baud rate ISO14443A (106 kbit/s)
-                                                      });
+      0x4A,  // INLISTPASSIVETARGET
+      0x01,  // max 1 card
+      0x00,  // baud rate ISO14443A (106 kbit/s)
+  });
   if (!success) {
     ESP_LOGW(TAG, "Requesting tag read failed!");
     this->status_set_warning();
@@ -238,9 +238,9 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
   }
 
   bool valid_header = (header[0] == 0x00 &&                                                      // preamble
-      header[1] == 0x00 &&                                                      // start code
-      header[2] == 0xFF && static_cast<uint8_t>(header[3] + header[4]) == 0 &&  // LCS, len + lcs = 0
-      header[5] == 0xD5  // TFI - frame from PN532 to system controller
+                       header[1] == 0x00 &&                                                      // start code
+                       header[2] == 0xFF && static_cast<uint8_t>(header[3] + header[4]) == 0 &&  // LCS, len + lcs = 0
+                       header[5] == 0xD5  // TFI - frame from PN532 to system controller
   );
   if (!valid_header) {
     this->disable();
@@ -279,7 +279,7 @@ std::vector<uint8_t> PN532::pn532_read_data_() {
   this->disable();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-  ESP_LOGVV(TAG, "PN532 Data Frame: (%u)", ret.size());
+  ESP_LOGVV(TAG, "PN532 Data Frame: (%u)", ret.size());  // NOLINT
   for (uint8_t dat : ret) {
     ESP_LOGVV(TAG, "  0x%02X", dat);
   }
@@ -316,9 +316,9 @@ bool PN532::read_ack_() {
   this->disable();
 
   bool matches = (ack[0] == 0x00 &&                    // preamble
-      ack[1] == 0x00 &&                    // start of packet
-      ack[2] == 0xFF && ack[3] == 0x00 &&  // ACK packet code
-      ack[4] == 0xFF && ack[5] == 0x00     // postamble
+                  ack[1] == 0x00 &&                    // start of packet
+                  ack[2] == 0xFF && ack[3] == 0x00 &&  // ACK packet code
+                  ack[4] == 0xFF && ack[5] == 0x00     // postamble
   );
   ESP_LOGVV(TAG, "ACK valid: %s", YESNO(matches));
   return matches;
@@ -359,9 +359,7 @@ void PN532::dump_config() {
 }
 
 PN532BinarySensor::PN532BinarySensor(const std::string &name, const std::vector<uint8_t> &uid)
-    : BinarySensor(name), uid_(uid) {
-
-}
+    : BinarySensor(name), uid_(uid) {}
 
 bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
   if (len != this->uid_.size())

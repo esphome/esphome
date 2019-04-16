@@ -1,5 +1,5 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT
 from esphome.core import CORE, coroutine_with_priority
 
@@ -26,4 +26,3 @@ def to_code(config):
     if CORE.is_esp32:
         cg.add_library('FS', None)
     cg.add_library('ESP Async WebServer', '1.1.1')
-

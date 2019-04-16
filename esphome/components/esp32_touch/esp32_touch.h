@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace esp32_touch {
 
@@ -64,3 +66,5 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
 
 }  // namespace esp32_touch
 }  // namespace esphome
+
+#endif

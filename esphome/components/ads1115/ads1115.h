@@ -31,9 +31,7 @@ class ADS1115Sensor;
 
 class ADS1115Component : public Component, public i2c::I2CDevice {
  public:
-  void register_sensor(ADS1115Sensor *obj) {
-    this->sensors_.push_back(obj);
-  }
+  void register_sensor(ADS1115Sensor *obj) { this->sensors_.push_back(obj); }
   /// Set up the internal sensor array.
   void setup() override;
   void dump_config() override;

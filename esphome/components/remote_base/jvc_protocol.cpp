@@ -29,9 +29,7 @@ void JVCProtocol::encode(RemoteTransmitData *dst, const JVCData &data) {
   dst->mark(BIT_HIGH_US);
 }
 optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
-  JVCData out{
-      .data = 0
-  };
+  JVCData out{.data = 0};
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
@@ -47,9 +45,7 @@ optional<JVCData> JVCProtocol::decode(RemoteReceiveData src) {
   }
   return out;
 }
-void JVCProtocol::dump(const JVCData &data) {
-  ESP_LOGD(TAG, "Received JVC: data=0x%04X", data.data);
-}
+void JVCProtocol::dump(const JVCData &data) { ESP_LOGD(TAG, "Received JVC: data=0x%04X", data.data); }
 
 }  // namespace remote_base
 }  // namespace esphome

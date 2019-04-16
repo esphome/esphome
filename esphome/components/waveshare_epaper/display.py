@@ -46,8 +46,8 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
     cv.Optional(CONF_UPDATE_INTERVAL, default='1s'): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
-                         validate_full_update_every_only_type_a,
-                         cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       validate_full_update_every_only_type_a,
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "esphome/core/component.h"
+
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <esp_gap_ble_api.h>
 
 namespace esphome {
@@ -50,3 +53,5 @@ extern ESP32BLEBeacon *global_esp32_ble_beacon;
 
 }  // namespace esp32_ble_beacon
 }  // namespace esphome
+
+#endif

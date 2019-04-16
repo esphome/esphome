@@ -27,9 +27,7 @@ class BinaryOutput {
    *
    * @param power_supply The PowerSupplyComponent, set this to nullptr to disable the power supply.
    */
-  void set_power_supply(power_supply::PowerSupply *power_supply) {
-    this->power_supply_ = power_supply;
-  }
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
 #endif
 
   /// Enable this binary output.

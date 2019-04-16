@@ -162,8 +162,7 @@ def read_file(path):
         with codecs.open(path, 'r', encoding='utf-8') as f_handle:
             return f_handle.read()
     except OSError:
-        import EsphomeError
-
+        from esphome.core import EsphomeError
         raise EsphomeError(u"Could not read file at {}".format(path))
 
 
@@ -173,8 +172,7 @@ def write_file(path, text):
         with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
             f_handle.write(text)
     except OSError:
-        import EsphomeError
-
+        from esphome.core import EsphomeError
         raise EsphomeError(u"Could not write file at {}".format(path))
 
 

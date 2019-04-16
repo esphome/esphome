@@ -5,6 +5,8 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace xiaomi_miflora {
 
@@ -18,7 +20,8 @@ class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceLis
       return false;
 
     auto res = xiaomi_ble::parse_xiaomi(device);
-    if (!res.has_value()) return false;
+    if (!res.has_value())
+      return false;
 
     if (res->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*res->temperature);
@@ -34,24 +37,13 @@ class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   }
 
   void dump_config() override;
-  float get_setup_priority() const override {
-    return setup_priority::DATA;
-  }
-  void set_temperature(sensor::Sensor *temperature) {
-    temperature_ = temperature;
-  }
-  void set_moisture(sensor::Sensor *moisture) {
-    moisture_ = moisture;
-  }
-  void set_conductivity(sensor::Sensor *conductivity) {
-    conductivity_ = conductivity;
-  }
-  void set_illuminance(sensor::Sensor *illuminance) {
-    illuminance_ = illuminance;
-  }
-  void set_battery_level(sensor::Sensor *battery_level) {
-    battery_level_ = battery_level;
-  }
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
+  void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
+  void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
+  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
+
  protected:
   uint64_t address_;
   sensor::Sensor *temperature_{nullptr};
@@ -63,3 +55,5 @@ class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceLis
 
 }  // namespace xiaomi_miflora
 }  // namespace esphome
+
+#endif

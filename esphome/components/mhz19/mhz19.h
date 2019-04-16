@@ -16,12 +16,8 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void update() override;
   void dump_config() override;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    temperature_sensor_ = temperature_sensor;
-  }
-  void set_co2_sensor(sensor::Sensor *co2_sensor) {
-    co2_sensor_ = co2_sensor;
-  }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
 
  protected:
   bool mhz19_write_command_(const uint8_t *command, uint8_t *response);

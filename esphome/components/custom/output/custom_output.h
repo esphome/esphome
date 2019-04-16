@@ -9,9 +9,7 @@ namespace custom {
 
 class CustomBinaryOutputConstructor {
  public:
-  CustomBinaryOutputConstructor(std::function<std::vector<output::BinaryOutput *>()> init) {
-    this->outputs_ = init();
-  }
+  CustomBinaryOutputConstructor(std::function<std::vector<output::BinaryOutput *>()> init) { this->outputs_ = init(); }
 
   output::BinaryOutput *get_output(int i) { return this->outputs_[i]; }
 
@@ -21,9 +19,7 @@ class CustomBinaryOutputConstructor {
 
 class CustomFloatOutputConstructor {
  public:
-  CustomFloatOutputConstructor(std::function<std::vector<output::FloatOutput *>()> init) {
-    this->outputs_ = init();
-  }
+  CustomFloatOutputConstructor(std::function<std::vector<output::FloatOutput *>()> init) { this->outputs_ = init(); }
 
   output::FloatOutput *get_output(int i) { return this->outputs_[i]; }
 

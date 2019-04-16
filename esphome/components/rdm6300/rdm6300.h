@@ -15,12 +15,8 @@ class RDM6300Component : public Component, public uart::UARTDevice {
  public:
   void loop() override;
 
-  void register_card(RDM6300BinarySensor *obj) {
-    this->cards_.push_back(obj);
-  }
-  void register_trigger(RDM6300Trigger *trig) {
-    this->triggers_.push_back(trig);
-  }
+  void register_card(RDM6300BinarySensor *obj) { this->cards_.push_back(obj); }
+  void register_trigger(RDM6300Trigger *trig) { this->triggers_.push_back(trig); }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
@@ -52,9 +48,7 @@ class RDM6300BinarySensor : public binary_sensor::BinarySensor {
 
 class RDM6300Trigger : public Trigger<uint32_t> {
  public:
-  void process(uint32_t uid) {
-    this->trigger(uid);
-  }
+  void process(uint32_t uid) { this->trigger(uid); }
 };
 
 }  // namespace rdm6300

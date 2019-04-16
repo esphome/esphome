@@ -32,28 +32,28 @@ class Controller {
  public:
   void setup_controller();
 #ifdef USE_BINARY_SENSOR
-  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {};
+  virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
 #endif
 #ifdef USE_FAN
-  virtual void on_fan_update(fan::FanState *obj) {};
+  virtual void on_fan_update(fan::FanState *obj){};
 #endif
 #ifdef USE_LIGHT
-  virtual void on_light_update(light::LightState *obj) {};
+  virtual void on_light_update(light::LightState *obj){};
 #endif
 #ifdef USE_SENSOR
-  virtual void on_sensor_update(sensor::Sensor *obj, float state) {};
+  virtual void on_sensor_update(sensor::Sensor *obj, float state){};
 #endif
 #ifdef USE_SWITCH
-  virtual void on_switch_update(switch_::Switch *obj, bool state) {};
+  virtual void on_switch_update(switch_::Switch *obj, bool state){};
 #endif
 #ifdef USE_COVER
-  virtual void on_cover_update(cover::Cover *obj) {};
+  virtual void on_cover_update(cover::Cover *obj){};
 #endif
 #ifdef USE_TEXT_SENSOR
-  virtual void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) {};
+  virtual void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state){};
 #endif
 #ifdef USE_CLIMATE
-  virtual void on_climate_update(climate::Climate *obj) {};
+  virtual void on_climate_update(climate::Climate *obj){};
 #endif
 };
 

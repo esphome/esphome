@@ -29,7 +29,7 @@ void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
   }
 }
 bool PulseCounterStorage::pulse_counter_setup() {
-  this->isr_pin = this->pin_->to_isr();
+  this->isr_pin = this->pin->to_isr();
   this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, CHANGE);
   return true;
 }

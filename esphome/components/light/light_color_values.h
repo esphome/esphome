@@ -28,9 +28,13 @@ class LightColorValues {
  public:
   /// Construct the LightColorValues with all attributes enabled, but state set to 0.0
   LightColorValues()
-      : state_(0.0f), brightness_(1.0f), red_(1.0f), green_(1.0f), blue_(1.0f), white_(1.0f), color_temperature_{1.0f} {
-
-  }
+      : state_(0.0f),
+        brightness_(1.0f),
+        red_(1.0f),
+        green_(1.0f),
+        blue_(1.0f),
+        white_(1.0f),
+        color_temperature_{1.0f} {}
 
   LightColorValues(float state, float brightness, float red, float green, float blue, float white,
                    float color_temperature = 1.0f) {
@@ -48,9 +52,7 @@ class LightColorValues {
       : LightColorValues(state ? 1.0f : 0.0f, brightness, red, green, blue, white, color_temperature) {}
 
   /// Create light color values from a binary true/false state.
-  static LightColorValues from_binary(bool state) {
-    return {state, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f};
-  }
+  static LightColorValues from_binary(bool state) { return {state, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f}; }
 
   /// Create light color values from a monochromatic brightness state.
   static LightColorValues from_monochromatic(float brightness) {
@@ -168,14 +170,10 @@ class LightColorValues {
   }
 
   /// Convert these light color values to a binary representation and write them to binary.
-  void as_binary(bool *binary) const {
-    *binary = this->state_ == 1.0f;
-  }
+  void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
 
   /// Convert these light color values to a brightness-only representation and write them to brightness.
-  void as_brightness(float *brightness) const {
-    *brightness = this->state_ * this->brightness_;
-  }
+  void as_brightness(float *brightness) const { *brightness = this->state_ * this->brightness_; }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue) const {
@@ -194,7 +192,7 @@ class LightColorValues {
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white) const {
     this->as_rgb(red, green, blue);
-    const float color_temp = clamp(color_temperature_cw, color_temperature_ww, this->color_temperature_);
+    const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
     const float max_cw_ww = std::max(ww_fraction, cw_fraction);
@@ -204,7 +202,7 @@ class LightColorValues {
 
   /// Convert these light color values to an CWWW representation with the given parameters.
   void as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white, float *warm_white) const {
-    const float color_temp = clamp(color_temperature_cw, color_temperature_ww, this->color_temperature_);
+    const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
     const float max_cw_ww = std::max(ww_fraction, cw_fraction);
@@ -215,45 +213,43 @@ class LightColorValues {
   /// Compare this LightColorValues to rhs, return true if and only if all attributes match.
   bool operator==(const LightColorValues &rhs) const {
     return state_ == rhs.state_ && brightness_ == rhs.brightness_ && red_ == rhs.red_ && green_ == rhs.green_ &&
-        blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_;
+           blue_ == rhs.blue_ && white_ == rhs.white_ && color_temperature_ == rhs.color_temperature_;
   }
-  bool operator!=(const LightColorValues &rhs) const {
-    return !(rhs == *this);
-  }
+  bool operator!=(const LightColorValues &rhs) const { return !(rhs == *this); }
 
   /// Get the state of these light color values. In range from 0.0 (off) to 1.0 (on)
   float get_state() const { return this->state_; }
   /// Get the binary true/false state of these light color values.
   bool is_on() const { return this->get_state() != 0.0f; }
   /// Set the state of these light color values. In range from 0.0 (off) to 1.0 (on)
-  void set_state(float state) { this->state_ = clamp(0.0f, 1.0f, state); }
+  void set_state(float state) { this->state_ = clamp(state, 0.0f, 1.0f); }
   /// Set the state of these light color values as a binary true/false.
   void set_state(bool state) { this->state_ = state ? 1.0f : 0.0f; }
 
   /// Get the brightness property of these light color values. In range 0.0 to 1.0
   float get_brightness() const { return this->brightness_; }
   /// Set the brightness property of these light color values. In range 0.0 to 1.0
-  void set_brightness(float brightness) { this->brightness_ = clamp(0.0f, 1.0f, brightness); }
+  void set_brightness(float brightness) { this->brightness_ = clamp(brightness, 0.0f, 1.0f); }
 
   /// Get the red property of these light color values. In range 0.0 to 1.0
   float get_red() const { return this->red_; }
   /// Set the red property of these light color values. In range 0.0 to 1.0
-  void set_red(float red) { this->red_ = clamp(0.0f, 1.0f, red); }
+  void set_red(float red) { this->red_ = clamp(red, 0.0f, 1.0f); }
 
   /// Get the green property of these light color values. In range 0.0 to 1.0
   float get_green() const { return this->green_; }
   /// Set the green property of these light color values. In range 0.0 to 1.0
-  void set_green(float green) { this->green_ = clamp(0.0f, 1.0f, green); }
+  void set_green(float green) { this->green_ = clamp(green, 0.0f, 1.0f); }
 
   /// Get the blue property of these light color values. In range 0.0 to 1.0
   float get_blue() const { return this->blue_; }
   /// Set the blue property of these light color values. In range 0.0 to 1.0
-  void set_blue(float blue) { this->blue_ = clamp(0.0f, 1.0f, blue); }
+  void set_blue(float blue) { this->blue_ = clamp(blue, 0.0f, 1.0f); }
 
   /// Get the white property of these light color values. In range 0.0 to 1.0
   float get_white() const { return white_; }
   /// Set the white property of these light color values. In range 0.0 to 1.0
-  void set_white(float white) { this->white_ = clamp(0.0f, 1.0f, white); }
+  void set_white(float white) { this->white_ = clamp(white, 0.0f, 1.0f); }
 
   /// Get the color temperature property of these light color values in mired.
   float get_color_temperature() const { return this->color_temperature_; }

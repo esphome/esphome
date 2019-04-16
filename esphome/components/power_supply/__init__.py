@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -10,10 +8,10 @@ PowerSupply = power_supply_ns.class_('PowerSupply', cg.Component)
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.Schema({
-    vol.Required(CONF_ID): cv.declare_variable_id(PowerSupply),
-    vol.Required(CONF_PIN): pins.gpio_output_pin_schema,
-    vol.Optional(CONF_ENABLE_TIME, default='20ms'): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_KEEP_ON_TIME, default='10s'): cv.positive_time_period_milliseconds,
+    cv.Required(CONF_ID): cv.declare_variable_id(PowerSupply),
+    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_ENABLE_TIME, default='20ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_KEEP_ON_TIME, default='10s'): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

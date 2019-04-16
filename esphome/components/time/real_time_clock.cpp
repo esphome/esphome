@@ -29,7 +29,7 @@ void RealTimeClock::call_setup() {
 }
 void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
-      .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
+    .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
   timezone tz = {0, 0};
   settimeofday(&timev, &tz);
@@ -46,26 +46,26 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
 }
 ESPTime ESPTime::from_tm(struct tm *c_tm, time_t c_time) {
   return ESPTime{.second = uint8_t(c_tm->tm_sec),
-      .minute = uint8_t(c_tm->tm_min),
-      .hour = uint8_t(c_tm->tm_hour),
-      .day_of_week = uint8_t(c_tm->tm_wday + 1),
-      .day_of_month = uint8_t(c_tm->tm_mday),
-      .day_of_year = uint16_t(c_tm->tm_yday + 1),
-      .month = uint8_t(c_tm->tm_mon + 1),
-      .year = uint16_t(c_tm->tm_year + 1900),
-      .is_dst = bool(c_tm->tm_isdst),
-      .time = c_time};
+                 .minute = uint8_t(c_tm->tm_min),
+                 .hour = uint8_t(c_tm->tm_hour),
+                 .day_of_week = uint8_t(c_tm->tm_wday + 1),
+                 .day_of_month = uint8_t(c_tm->tm_mday),
+                 .day_of_year = uint16_t(c_tm->tm_yday + 1),
+                 .month = uint8_t(c_tm->tm_mon + 1),
+                 .year = uint16_t(c_tm->tm_year + 1900),
+                 .is_dst = bool(c_tm->tm_isdst),
+                 .time = c_time};
 }
 struct tm ESPTime::to_c_tm() {
   struct tm c_tm = tm{.tm_sec = this->second,
-      .tm_min = this->minute,
-      .tm_hour = this->hour,
-      .tm_mday = this->day_of_month,
-      .tm_mon = this->month - 1,
-      .tm_year = this->year - 1900,
-      .tm_wday = this->day_of_week - 1,
-      .tm_yday = this->day_of_year - 1,
-      .tm_isdst = this->is_dst};
+                      .tm_min = this->minute,
+                      .tm_hour = this->hour,
+                      .tm_mday = this->day_of_month,
+                      .tm_mon = this->month - 1,
+                      .tm_year = this->year - 1900,
+                      .tm_wday = this->day_of_week - 1,
+                      .tm_yday = this->day_of_year - 1,
+                      .tm_isdst = this->is_dst};
   return c_tm;
 }
 std::string ESPTime::strftime(const std::string &format) {
@@ -130,8 +130,8 @@ bool ESPTime::operator>=(ESPTime other) { return this->time >= other.time; }
 bool ESPTime::operator>(ESPTime other) { return this->time > other.time; }
 bool ESPTime::in_range() const {
   return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 && this->day_of_week < 8 &&
-      this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 && this->day_of_year < 367 &&
-      this->month > 0 && this->month < 13;
+         this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 && this->day_of_year < 367 &&
+         this->month > 0 && this->month < 13;
 }
 
 }  // namespace time

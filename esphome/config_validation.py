@@ -12,9 +12,9 @@ import voluptuous as vol
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, \
-    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266, CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE
+    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
+    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
@@ -248,8 +248,8 @@ def only_on(platforms):
     return validator_
 
 
-only_on_esp32 = only_on(ESP_PLATFORM_ESP32)
-only_on_esp8266 = only_on(ESP_PLATFORM_ESP8266)
+only_on_esp32 = only_on('ESP32')
+only_on_esp8266 = only_on('ESP8266')
 
 
 # Adapted from:
@@ -499,7 +499,6 @@ if IS_PY2:
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path
-
 
     Invalid.__unicode__ = _vol_invalid_unicode
 
@@ -913,9 +912,9 @@ def validate_registry_entry(name, registry, ignore_keys):
             raise vol.Invalid(u"Unable to find {} with the name '{}'".format(name, key))
         key2 = next((x for x in item if x != key and x not in ignore_keys), None)
         if key2 is not None:
-            raise vol.Invalid(u"Cannot have two {}s in one item. Key '{}' overrides '{}'! "
-                              u"Did you forget to indent the block inside the {}?"
-                              u"".format(name, key, key2, name))
+            raise vol.Invalid(u"Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
+                              u"Did you forget to indent the block inside the {0}?"
+                              u"".format(name, key, key2))
         validator_ = registry[key][0]
         try:
             item[key] = validator_(item[key] or {})

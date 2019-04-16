@@ -1,9 +1,6 @@
-import voluptuous as vol
-
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-# from esphome.components.power_supply import PowerSupplyComponent
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components import power_supply
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
@@ -12,13 +9,13 @@ from esphome.core import CORE, coroutine
 IS_PLATFORM_COMPONENT = True
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({
-    vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
+    cv.Optional(CONF_INVERTED): cv.boolean,
 })
 
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
-    vol.Optional(CONF_MAX_POWER): cv.percentage,
-    vol.Optional(CONF_MIN_POWER): cv.percentage,
+    cv.Optional(CONF_MAX_POWER): cv.percentage,
+    cv.Optional(CONF_MIN_POWER): cv.percentage,
 })
 
 output_ns = cg.esphome_ns.namespace('output')
@@ -54,7 +51,7 @@ def register_output(var, config):
 
 
 BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
+    cv.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
 })
 
 
@@ -75,8 +72,8 @@ def output_turn_off_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('output.set_level', cv.Schema({
-    vol.Required(CONF_ID): cv.use_variable_id(FloatOutput),
-    vol.Required(CONF_LEVEL): cv.templatable(cv.percentage),
+    cv.Required(CONF_ID): cv.use_variable_id(FloatOutput),
+    cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 }))
 def output_set_level_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])
@@ -90,4 +87,3 @@ def output_set_level_to_code(config, action_id, template_arg, args):
 
 def to_code(config):
     cg.add_global(output_ns.using)
-

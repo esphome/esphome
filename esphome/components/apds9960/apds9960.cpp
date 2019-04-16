@@ -117,7 +117,7 @@ void APDS9960::setup() {
 }
 bool APDS9960::is_color_enabled_() const {
   return this->red_channel_ != nullptr || this->green_channel_ != nullptr || this->blue_channel_ != nullptr ||
-      this->clear_channel_ != nullptr;
+         this->clear_channel_ != nullptr;
 }
 
 void APDS9960::dump_config() {
@@ -367,7 +367,7 @@ float APDS9960::get_setup_priority() const { return setup_priority::DATA; }
 bool APDS9960::is_proximity_enabled_() const { return this->proximity_ != nullptr || this->is_gesture_enabled_(); }
 bool APDS9960::is_gesture_enabled_() const {
   return this->up_direction_ != nullptr || this->left_direction_ != nullptr || this->down_direction_ != nullptr ||
-      this->right_direction_ != nullptr;
+         this->right_direction_ != nullptr;
 }
 
 }  // namespace apds9960

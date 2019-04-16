@@ -110,4 +110,4 @@ void Application::safe_reboot() {
 
 Application App;
 
-} // namespace esphome
+}  // namespace esphome

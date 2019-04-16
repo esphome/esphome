@@ -55,13 +55,8 @@ extern RCSwitchBase rc_switch_protocols[8];
 
 uint32_t decode_binary_string(const std::string &data);
 
-
-
-
-
 template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RCSwitchRawAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, code);
 
@@ -77,7 +72,6 @@ template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActio
 
 template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RCSwitchTypeAAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, group);
   TEMPLATABLE_VALUE(std::string, device);
@@ -101,7 +95,6 @@ template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RCSwitchTypeBAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(uint8_t, address);
   TEMPLATABLE_VALUE(uint8_t, channel);
@@ -123,7 +116,6 @@ template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RCSwitchTypeCAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, family);
   TEMPLATABLE_VALUE(uint8_t, group);
@@ -148,7 +140,6 @@ template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterAct
 };
 template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  RCSwitchTypeDAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, group);
   TEMPLATABLE_VALUE(uint8_t, device);
@@ -170,39 +161,30 @@ template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterAct
   }
 };
 
-
-
-
 class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
  public:
-  void set_protocol(const RCSwitchBase &a_protocol) {
-      this->protocol_ = a_protocol;
-  }
-  void set_code(uint32_t code) {
-      this->code_ = code;
-  }
+  void set_protocol(const RCSwitchBase &a_protocol) { this->protocol_ = a_protocol; }
+  void set_code(uint32_t code) { this->code_ = code; }
   void set_code(const std::string &code) {
-      this->code_ = decode_binary_string(code);
-      this->nbits_ = code.size();
+    this->code_ = decode_binary_string(code);
+    this->nbits_ = code.size();
   }
-  void set_nbits(uint8_t nbits) {
-      this->nbits_ = nbits;
-  }
+  void set_nbits(uint8_t nbits) { this->nbits_ = nbits; }
   void set_type_a(const std::string &group, const std::string &device, bool state) {
-      uint8_t u_group = decode_binary_string(group);
-      uint8_t u_device = decode_binary_string(device);
-      RCSwitchBase::type_a_code(u_group, u_device, state, &this->code_, &this->nbits_);
+    uint8_t u_group = decode_binary_string(group);
+    uint8_t u_device = decode_binary_string(device);
+    RCSwitchBase::type_a_code(u_group, u_device, state, &this->code_, &this->nbits_);
   }
   void set_type_b(uint8_t address_code, uint8_t channel_code, bool state) {
-      RCSwitchBase::type_b_code(address_code, channel_code, state, &this->code_, &this->nbits_);
+    RCSwitchBase::type_b_code(address_code, channel_code, state, &this->code_, &this->nbits_);
   }
   void set_type_c(std::string family, uint8_t group, uint8_t device, bool state) {
-      auto u_family = static_cast<uint8_t>(tolower(family[0]) - 'a');
-      RCSwitchBase::type_c_code(u_family, group, device, state, &this->code_, &this->nbits_);
+    auto u_family = static_cast<uint8_t>(tolower(family[0]) - 'a');
+    RCSwitchBase::type_c_code(u_family, group, device, state, &this->code_, &this->nbits_);
   }
   void set_type_d(std::string group, uint8_t device, bool state) {
-      auto u_group = static_cast<uint8_t>(tolower(group[0]) - 'a');
-      RCSwitchBase::type_d_code(u_group, device, state, &this->code_, &this->nbits_);
+    auto u_group = static_cast<uint8_t>(tolower(group[0]) - 'a');
+    RCSwitchBase::type_d_code(u_group, device, state, &this->code_, &this->nbits_);
   }
 
  protected:

@@ -74,11 +74,11 @@ struct CoverRestoreState {
 /// Enum encoding the current operation of a cover.
 enum CoverOperation : uint8_t {
   /// The cover is currently idle (not moving)
-      COVER_OPERATION_IDLE = 0,
+  COVER_OPERATION_IDLE = 0,
   /// The cover is currently opening.
-      COVER_OPERATION_OPENING,
+  COVER_OPERATION_OPENING,
   /// The cover is currently closing.
-      COVER_OPERATION_CLOSING,
+  COVER_OPERATION_CLOSING,
 };
 
 const char *cover_operation_to_str(CoverOperation op);

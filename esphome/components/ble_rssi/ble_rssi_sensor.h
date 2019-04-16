@@ -4,6 +4,8 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace ble_rssi {
 
@@ -36,3 +38,5 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
 
 }  // namespace ble_rssi
 }  // namespace esphome
+
+#endif

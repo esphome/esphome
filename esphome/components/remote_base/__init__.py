@@ -2,10 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY
-from esphome.components import binary_sensor
+from esphome.components import binary_sensor as binary_sensor_
 from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
-    CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY
+    CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
+    CONF_WAIT_TIME, CONF_TIMES
 from esphome.core import coroutine
 from esphome.py_compat import string_types, text_type
 from esphome.util import ServiceRegistry
@@ -19,7 +20,7 @@ ns = remote_base_ns = cg.esphome_ns.namespace('remote_base')
 RemoteProtocol = ns.class_('RemoteProtocol')
 RemoteReceiverListener = ns.class_('RemoteReceiverListener')
 RemoteReceiverBinarySensorBase = ns.class_('RemoteReceiverBinarySensorBase',
-                                           binary_sensor.BinarySensor, cg.Component)
+                                           binary_sensor_.BinarySensor, cg.Component)
 RemoteReceiverTrigger = ns.class_('RemoteReceiverTrigger', cg.Trigger, RemoteReceiverListener)
 RemoteTransmitterDumper = ns.class_('RemoteTransmitterDumper')
 RemoteTransmitterActionBase = ns.class_('RemoteTransmitterActionBase', cg.Action)
@@ -111,17 +112,27 @@ def register_action(name, type_, schema):
     validator = templatize(schema).extend({
         cv.GenerateID(): cv.declare_variable_id(type_),
         cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_variable_id(RemoteTransmitterBase),
+        cv.Optional(CONF_REPEAT): cv.Schema({
+            cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_WAIT_TIME, default='10ms'):
+                cv.templatable(cv.positive_time_period_milliseconds),
+        }),
     })
     registerer = ACTION_REGISTRY.register('remote_transmitter.transmit_{}'.format(name), validator)
-    # TODO: repeat
 
     def decorator(func):
         @coroutine
         def new_func(config, action_id, template_arg, args):
             transmitter = yield cg.get_variable(config[CONF_TRANSMITTER_ID])
             type = type_.template(template_arg)
-            rhs = type.new(transmitter)
-            var = cg.Pvariable(action_id, rhs, type=type)
+            var = cg.Pvariable(action_id, type.new(), type=type)
+            cg.add(var.set_parent(transmitter))
+            if CONF_REPEAT in config:
+                conf = config[CONF_REPEAT]
+                template_ = yield cg.templatable(conf[CONF_TIMES], args, cg.uint32)
+                cg.add(var.set_send_times(template_))
+                template_ = yield cg.templatable(conf[CONF_WAIT_TIME], args, cg.uint32)
+                cg.add(var.set_send_wait(template_))
             yield coroutine(func)(var, config, args)
             yield var
 
@@ -580,8 +591,8 @@ def rc_switch_dumper(var, config):
 
 
 # Samsung
-SamsungData, SamsungProtocol, SamsungBinarySensor, SamsungTrigger, SamsungAction, SamsungDumper = declare_protocol(
-    'Samsung')
+(SamsungData, SamsungProtocol, SamsungBinarySensor, SamsungTrigger, SamsungAction,
+ SamsungDumper) = declare_protocol('Samsung')
 SAMSUNG_SCHEMA = cv.Schema({
     cv.Required(CONF_DATA): cv.hex_uint32_t,
 })
@@ -612,8 +623,8 @@ def samsung_action(var, config, args):
 
 
 # Panasonic
-PanasonicData, PanasonicProtocol, PanasonicBinarySensor, PanasonicTrigger, PanasonicAction, PanasonicDumper = declare_protocol(
-    'Panasonic')
+(PanasonicData, PanasonicProtocol, PanasonicBinarySensor, PanasonicTrigger, PanasonicAction,
+ PanasonicDumper) = declare_protocol('Panasonic')
 PANASONIC_SCHEMA = cv.Schema({
     cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
     cv.Required(CONF_COMMAND): cv.hex_uint32_t,

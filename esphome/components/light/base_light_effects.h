@@ -49,7 +49,8 @@ class LambdaLightEffect : public LightEffect {
   LambdaLightEffect(const std::string &name, const std::function<void()> &f, uint32_t update_interval)
       : LightEffect(name), f_(f), update_interval_(update_interval) {}
 
-  void apply() override {const uint32_t now = millis();
+  void apply() override {
+    const uint32_t now = millis();
     if (now - this->last_run_ >= this->update_interval_) {
       this->last_run_ = now;
       this->f_();
@@ -94,9 +95,7 @@ class StrobeLightEffect : public LightEffect {
     this->last_switch_ = now;
   }
 
-  void set_colors(const std::vector<StrobeLightEffectColor> &colors) {
-    this->colors_ = colors;
-  }
+  void set_colors(const std::vector<StrobeLightEffectColor> &colors) { this->colors_ = colors; }
 
  protected:
   std::vector<StrobeLightEffectColor> colors_;
@@ -116,7 +115,7 @@ class FlickerLightEffect : public LightEffect {
     const float beta = 1.0f - alpha;
     out.set_state(remote.get_state());
     out.set_brightness(remote.get_brightness() * beta + current.get_brightness() * alpha +
-        (random_cubic_float() * this->intensity_));
+                       (random_cubic_float() * this->intensity_));
     out.set_red(remote.get_red() * beta + current.get_red() * alpha + (random_cubic_float() * this->intensity_));
     out.set_green(remote.get_green() * beta + current.get_green() * alpha + (random_cubic_float() * this->intensity_));
     out.set_blue(remote.get_blue() * beta + current.get_blue() * alpha + (random_cubic_float() * this->intensity_));

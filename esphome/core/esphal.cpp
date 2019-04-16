@@ -28,7 +28,7 @@ GPIOPin::GPIOPin(uint8_t pin, uint8_t mode, bool inverted)
       gpio_mask_(pin < 16 ? (1UL << pin) : 1)
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-      gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
+          gpio_set_(pin < 32 ? &GPIO.out_w1ts : &GPIO.out1_w1ts.val),
       gpio_clear_(pin < 32 ? &GPIO.out_w1tc : &GPIO.out1_w1tc.val),
       gpio_read_(pin < 32 ? &GPIO.in : &GPIO.in1.val),
       gpio_mask_(pin < 32 ? (1UL << pin) : (1UL << (pin - 32)))
@@ -174,14 +174,15 @@ void ISRInternalGPIOPin::digital_write(bool value) {
 }
 ISRInternalGPIOPin::ISRInternalGPIOPin(uint8_t pin,
 #ifdef ARDUINO_ARCH_ESP32
-    volatile uint32_t *gpio_clear, volatile uint32_t *gpio_set,
+                                       volatile uint32_t *gpio_clear, volatile uint32_t *gpio_set,
 #endif
                                        volatile uint32_t *gpio_read, uint32_t gpio_mask, bool inverted)
-    : pin_(pin), inverted_(inverted),
+    : pin_(pin),
+      inverted_(inverted),
       gpio_read_(gpio_read),
       gpio_mask_(gpio_mask)
 #ifdef ARDUINO_ARCH_ESP32
-,
+      ,
       gpio_clear_(gpio_clear),
       gpio_set_(gpio_set)
 #endif
@@ -255,7 +256,7 @@ void GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, int mode) const
 ISRInternalGPIOPin *GPIOPin::to_isr() const {
   return new ISRInternalGPIOPin(this->pin_,
 #ifdef ARDUINO_ARCH_ESP32
-      this->gpio_clear_, this->gpio_set_,
+                                this->gpio_clear_, this->gpio_set_,
 #endif
                                 this->gpio_read_, this->gpio_mask_, this->inverted_);
 }

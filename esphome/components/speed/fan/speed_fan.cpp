@@ -47,9 +47,7 @@ void SpeedFan::loop() {
     ESP_LOGD(TAG, "Setting oscillation: %s", ONOFF(enable));
   }
 }
-float SpeedFan::get_setup_priority() const {
-  return setup_priority::DATA;
-}
+float SpeedFan::get_setup_priority() const { return setup_priority::DATA; }
 
 }  // namespace speed
 }  // namespace esphome

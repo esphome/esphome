@@ -64,7 +64,7 @@ class DeepSleepComponent : public Component {
 
   /// Helper to enter deep sleep mode
   void begin_sleep(bool manual = false);
-  
+
   void prevent_deep_sleep();
 
  protected:

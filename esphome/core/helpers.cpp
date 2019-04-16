@@ -303,8 +303,6 @@ float clamp(float val, float min, float max) {
     return max;
   return val;
 }
-float lerp(float completion, float start, float end) {
-  return start + (end - start) * completion;
-}
+float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
 }  // namespace esphome

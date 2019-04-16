@@ -10,7 +10,7 @@ namespace mqtt_subscribe {
 class MQTTSubscribeSensor : public sensor::Sensor, public Component {
  public:
   MQTTSubscribeSensor(const std::string &name, mqtt::MQTTClientComponent *parent, const std::string &topic)
-    : Sensor(name), parent_(parent), topic_(topic) {}
+      : Sensor(name), parent_(parent), topic_(topic) {}
 
   void setup() override;
   void dump_config() override;

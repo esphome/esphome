@@ -1,6 +1,6 @@
-from esphome import pins
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
     ESP_PLATFORM_ESP32
 
@@ -128,4 +128,3 @@ def to_code(config):
 
     cg.add_define('USE_ESP32_CAMERA')
     cg.add_build_flag('-DBOARD_HAS_PSRAM')
-

@@ -3,7 +3,7 @@ import hashlib
 from esphome import config_validation as cv
 from esphome import codegen as cg
 from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE
-
+from esphome.py_compat import IS_PY3
 
 globals_ns = cg.esphome_ns.namespace('globals')
 GlobalsComponent = globals_ns.class_('GlobalsComponent', cg.Component)
@@ -32,5 +32,8 @@ def to_code(config):
     yield cg.register_component(glob, config)
 
     if config.get(CONF_RESTORE_VALUE, False):
-        hash_ = int(hashlib.md5(config[CONF_ID].id).hexdigest()[:8], 16)
+        value = config[CONF_ID].id
+        if IS_PY3 and isinstance(value, str):
+            value = value.encode()
+        hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_restore_value(hash_))

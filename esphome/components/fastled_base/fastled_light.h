@@ -33,14 +33,10 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
   }
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
-  void set_max_refresh_rate(uint32_t interval_us) {
-    this->max_refresh_rate_ = interval_us;
-  }
+  void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
 #ifdef USE_POWER_SUPPLY
-  void set_power_supply(power_supply::PowerSupply *power_supply) {
-    this->power_supply_ = power_supply;
-  }
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
 #endif
 
   /// Add some LEDS, can only be called once.
@@ -90,8 +86,7 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
     }
   }
 
-  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN>
-  CLEDController &add_leds(int num_leds) {
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN> CLEDController &add_leds(int num_leds) {
     switch (CHIPSET) {
       case LPD8806: {
         static LPD8806Controller<DATA_PIN, CLOCK_PIN> CONTROLLER;
@@ -173,28 +168,24 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
     return add_leds(&CONTROLLER, num_leds);
   }
 
-  template<template<uint8_t DATA_PIN> class CHIPSET, uint8_t DATA_PIN>
-  CLEDController &add_leds(int num_leds) {
+  template<template<uint8_t DATA_PIN> class CHIPSET, uint8_t DATA_PIN> CLEDController &add_leds(int num_leds) {
     static CHIPSET<DATA_PIN> CONTROLLER;
     return add_leds(&CONTROLLER, num_leds);
   }
 #endif
 
-  template<template<EOrder RGB_ORDER> class CHIPSET, EOrder RGB_ORDER>
-  CLEDController &add_leds(int num_leds) {
+  template<template<EOrder RGB_ORDER> class CHIPSET, EOrder RGB_ORDER> CLEDController &add_leds(int num_leds) {
     static CHIPSET<RGB_ORDER> CONTROLLER;
     return add_leds(&CONTROLLER, num_leds);
   }
 
-  template<template<EOrder RGB_ORDER> class CHIPSET>
-  CLEDController &add_leds(int num_leds) {
+  template<template<EOrder RGB_ORDER> class CHIPSET> CLEDController &add_leds(int num_leds) {
     static CHIPSET<RGB> CONTROLLER;
     return add_leds(&CONTROLLER, num_leds);
   }
 
 #ifdef FASTLED_HAS_BLOCKLESS
-  template<EBlockChipsets CHIPSET, int NUM_LANES, EOrder RGB_ORDER>
-  CLEDController &add_leds(int num_leds) {
+  template<EBlockChipsets CHIPSET, int NUM_LANES, EOrder RGB_ORDER> CLEDController &add_leds(int num_leds) {
     switch (CHIPSET) {
 #ifdef PORTA_FIRST_PIN
       case WS2811_PORTA:
@@ -221,8 +212,7 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
     }
   }
 
-  template<EBlockChipsets CHIPSET, int NUM_LANES>
-  CLEDController &add_leds(int num_leds) {
+  template<EBlockChipsets CHIPSET, int NUM_LANES> CLEDController &add_leds(int num_leds) {
     return add_leds<CHIPSET, NUM_LANES, GRB>(num_leds);
   }
 #endif

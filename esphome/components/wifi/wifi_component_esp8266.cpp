@@ -107,7 +107,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   bool ret = true;
 
-  struct ip_info info{};
+  struct ip_info info {};
   info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
   info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
@@ -141,7 +141,7 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 IPAddress WiFiComponent::wifi_sta_ip_() {
   if (!this->has_sta())
     return {};
-  struct ip_info ip{};
+  struct ip_info ip {};
   wifi_get_ip_info(STATION_IF, &ip);
   return {ip.ip.addr};
 }
@@ -162,7 +162,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   wifi_station_disconnect();
   ETS_UART_INTR_ENABLE();
 
-  struct station_config conf{};
+  struct station_config conf {};
   memset(&conf, 0, sizeof(conf));
   strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
   strcpy(reinterpret_cast<char *>(conf.password), ap.get_password().c_str());
@@ -440,7 +440,7 @@ bool WiFiComponent::wifi_scan_start_() {
     wifi_station_disconnect();
   }
 
-  struct scan_config config{};
+  struct scan_config config {};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;
   config.bssid = nullptr;
@@ -490,7 +490,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct ip_info info{};
+  struct ip_info info {};
   if (manual_ip.has_value()) {
     info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
     info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
@@ -512,7 +512,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-  struct dhcps_lease lease{};
+  struct dhcps_lease lease {};
   IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
   lease.start_ip.addr = static_cast<uint32_t>(start_address);
@@ -550,7 +550,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  struct softap_config conf{};
+  struct softap_config conf {};
   strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
@@ -583,7 +583,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   return true;
 }
 IPAddress WiFiComponent::wifi_soft_ap_ip_() {
-  struct ip_info ip{};
+  struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return {ip.ip.addr};
 }

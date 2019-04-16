@@ -24,12 +24,8 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 
   void loop() override;
 
-  void register_tag(PN532BinarySensor *tag) {
-    this->binary_sensors_.push_back(tag);
-  }
-  void register_trigger(PN532Trigger *trig) {
-    this->triggers_.push_back(trig);
-  }
+  void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
+  void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
  protected:
   bool is_device_msb_first() override;

@@ -1,6 +1,8 @@
 #include "esp32_touch.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace esp32_touch {
 
@@ -126,9 +128,7 @@ void ESP32TouchComponent::loop() {
     delay(250);
   }
 }
-void ESP32TouchComponent::register_touch_pad(ESP32TouchBinarySensor *pad) {
-  this->children_.push_back(pad);
-}
+void ESP32TouchComponent::register_touch_pad(ESP32TouchBinarySensor *pad) { this->children_.push_back(pad); }
 void ESP32TouchComponent::set_setup_mode(bool setup_mode) { this->setup_mode_ = setup_mode; }
 bool ESP32TouchComponent::iir_filter_enabled_() const { return this->iir_filter_ > 0; }
 
@@ -158,6 +158,7 @@ ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pa
 touch_pad_t ESP32TouchBinarySensor::get_touch_pad() const { return this->touch_pad_; }
 uint16_t ESP32TouchBinarySensor::get_threshold() const { return this->threshold_; }
 
-
 }  // namespace esp32_touch
 }  // namespace esphome
+
+#endif

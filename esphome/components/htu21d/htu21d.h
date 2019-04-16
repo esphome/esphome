@@ -10,12 +10,8 @@ namespace htu21d {
 class HTU21DComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   HTU21DComponent(uint32_t update_interval) : PollingComponent(update_interval) {}
-  void set_temperature(sensor::Sensor *temperature) {
-    temperature_ = temperature;
-  }
-  void set_humidity(sensor::Sensor *humidity) {
-    humidity_ = humidity;
-  }
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
+  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
 
   /// Setup (reset) the sensor and check connection.
   void setup() override;

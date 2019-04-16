@@ -114,6 +114,5 @@ PollingSensorComponent::PollingSensorComponent(const std::string &name, uint32_t
 
 uint32_t PollingSensorComponent::update_interval() { return this->get_update_interval(); }
 
-
 }  // namespace sensor
 }  // namespace esphome

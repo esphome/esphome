@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
@@ -13,8 +11,8 @@ PCA9685Output = pca9685_ns.class_('PCA9685Output', cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(PCA9685Output),
-    vol.Required(CONF_FREQUENCY): vol.All(cv.frequency,
-                                          vol.Range(min=23.84, max=1525.88)),
+    cv.Required(CONF_FREQUENCY): cv.All(cv.frequency,
+                                        cv.Range(min=23.84, max=1525.88)),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x40))
 
 

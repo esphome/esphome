@@ -42,9 +42,7 @@ uint32_t Filter::calculate_remaining_interval(uint32_t input) {
 // SlidingWindowMovingAverageFilter
 SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
                                                                    size_t send_first_at)
-    : send_every_(send_every),
-      send_at_(send_every - send_first_at),
-      window_size_(window_size) {}
+    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
 void SlidingWindowMovingAverageFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
 void SlidingWindowMovingAverageFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
 optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
@@ -57,8 +55,10 @@ optional<float> SlidingWindowMovingAverageFilter::new_value(float value) {
     this->sum_ += value;
   }
   float average;
-  if (this->queue_.empty()) average = 0.0f;
-  else average = this->sum_ / this->queue_.size();
+  if (this->queue_.empty())
+    average = 0.0f;
+  else
+    average = this->sum_ / this->queue_.size();
   ESP_LOGVV(TAG, "SlidingWindowMovingAverageFilter(%p)::new_value(%f) -> %f", this, value, average);
 
   if (++this->send_at_ >= this->send_every_) {
@@ -76,8 +76,10 @@ ExponentialMovingAverageFilter::ExponentialMovingAverageFilter(float alpha, size
     : send_every_(send_every), send_at_(send_every - 1), alpha_(alpha) {}
 optional<float> ExponentialMovingAverageFilter::new_value(float value) {
   if (!isnan(value)) {
-    if (this->first_value_) this->accumulator_ = value;
-    else this->accumulator_ = (this->alpha_ * value) + (1.0f - this->alpha_) * this->accumulator_;
+    if (this->first_value_)
+      this->accumulator_ = value;
+    else
+      this->accumulator_ = (this->alpha_ * value) + (1.0f - this->alpha_) * this->accumulator_;
     this->first_value_ = false;
   }
 

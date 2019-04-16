@@ -10,9 +10,7 @@ struct LGData {
   uint32_t data;
   uint8_t nbits;
 
-  bool operator==(const LGData& rhs) const {
-    return data == rhs.data && nbits == rhs.nbits;
-  }
+  bool operator==(const LGData &rhs) const { return data == rhs.data && nbits == rhs.nbits; }
 };
 
 class LGProtocol : public RemoteProtocol<LGData> {
@@ -26,7 +24,6 @@ DECLARE_REMOTE_PROTOCOL(LG)
 
 template<typename... Ts> class LGAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  LGAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(uint32_t, data)
   TEMPLATABLE_VALUE(uint8_t, nbits)
   void encode(RemoteTransmitData *dst, Ts... x) override {

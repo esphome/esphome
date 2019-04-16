@@ -197,7 +197,7 @@ void OTAComponent::handle_() {
     }
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-      if (ss.indexOf("Bad Size Given") != -1) {
+    if (ss.indexOf("Bad Size Given") != -1) {
       error_code = OTA_RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE;
       goto error;
     }
@@ -231,7 +231,7 @@ void OTAComponent::handle_() {
 
     uint32_t written = Update.write(buf, available);
     if (written != available) {
-      ESP_LOGW(TAG, "Error writing binary data to flash: %u != %u!", written, available);
+      ESP_LOGW(TAG, "Error writing binary data to flash: %u != %u!", written, available);  // NOLINT
       error_code = OTA_RESPONSE_ERROR_WRITING_FLASH;
       goto error;
     }
@@ -270,7 +270,7 @@ void OTAComponent::handle_() {
   delay(100);
   App.safe_reboot();
 
-  error:
+error:
   if (update_started) {
     StreamString ss;
     Update.printError(ss);
@@ -342,7 +342,7 @@ size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_discon
   }
 
   if (!success) {
-    ESP_LOGW(TAG, "Reading %u bytes of binary data failed!", bytes);
+    ESP_LOGW(TAG, "Reading %u bytes of binary data failed!", bytes);  // NOLINT
     return 0;
   }
 

@@ -14,7 +14,6 @@ enum PCF8574GPIOMode : uint8_t {
   PCF8574_OUTPUT = OUTPUT,
 };
 
-
 class PCF8574Component : public Component, public i2c::I2CDevice {
  public:
   PCF8574Component() = default;

@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY
@@ -33,10 +31,10 @@ ControlAction = climate_ns.class_('ControlAction', cg.Action)
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ClimateDevice),
     cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTClimateComponent),
-    vol.Optional(CONF_VISUAL, default={}): cv.Schema({
-        vol.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
-        vol.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-        vol.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
+    cv.Optional(CONF_VISUAL, default={}): cv.Schema({
+        cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
+        cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
+        cv.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
     }),
     # TODO: MQTT topic options
 })
@@ -68,12 +66,12 @@ def register_climate(var, config):
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
-    vol.Required(CONF_ID): cv.use_variable_id(ClimateDevice),
-    vol.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
-    vol.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
-    vol.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
-    vol.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
-    vol.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+    cv.Required(CONF_ID): cv.use_variable_id(ClimateDevice),
+    cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
+    cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
+    cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
+    cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
+    cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
 })
 
 
@@ -105,4 +103,3 @@ def climate_control_to_code(config, action_id, template_arg, args):
 def to_code(config):
     cg.add_define('USE_CLIMATE')
     cg.add_global(climate_ns.using)
-

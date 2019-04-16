@@ -10,9 +10,7 @@ namespace rgb {
 class RGBLightOutput : public light::LightOutput {
  public:
   RGBLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue)
-    : red_(red), green_(green), blue_(blue) {
-
-  }
+      : red_(red), green_(green), blue_(blue) {}
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
@@ -26,6 +24,7 @@ class RGBLightOutput : public light::LightOutput {
     this->green_->set_level(green);
     this->blue_->set_level(blue);
   }
+
  protected:
   output::FloatOutput *red_;
   output::FloatOutput *green_;

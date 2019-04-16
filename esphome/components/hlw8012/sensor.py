@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_CF1_PIN, CONF_CF_PIN, CONF_CHANGE_MODE_EVERY, CONF_CURRENT, \
+from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_SEL_PIN, CONF_UPDATE_INTERVAL, \
     CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER, ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
@@ -11,6 +11,8 @@ AUTO_LOAD = ['pulse_width']
 hlw8012_ns = cg.esphome_ns.namespace('hlw8012')
 HLW8012Component = hlw8012_ns.class_('HLW8012Component', cg.PollingComponent)
 
+CONF_CF1_PIN = 'cf1_pin'
+CONF_CF_PIN = 'cf_pin'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(HLW8012Component),
     cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,

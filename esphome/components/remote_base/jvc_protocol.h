@@ -8,9 +8,7 @@ namespace remote_base {
 struct JVCData {
   uint32_t data;
 
-  bool operator==(const JVCData &rhs) const {
-    return data == rhs.data;
-  }
+  bool operator==(const JVCData &rhs) const { return data == rhs.data; }
 };
 
 class JVCProtocol : public RemoteProtocol<JVCData> {
@@ -24,7 +22,6 @@ DECLARE_REMOTE_PROTOCOL(JVC)
 
 template<typename... Ts> class JVCAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  JVCAction(RemoteTransmitterBase *parent) : RemoteTransmitterActionBase<Ts...>(parent) {}
   TEMPLATABLE_VALUE(uint32_t, data)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     JVCData data{};

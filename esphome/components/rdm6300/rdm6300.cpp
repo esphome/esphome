@@ -47,7 +47,7 @@ void rdm6300::RDM6300Component::loop() {
         // Valid data
         this->status_clear_warning();
         const uint32_t result = (uint32_t(this->buffer_[1]) << 24) | (uint32_t(this->buffer_[2]) << 16) |
-            (uint32_t(this->buffer_[3]) << 8) | this->buffer_[4];
+                                (uint32_t(this->buffer_[3]) << 8) | this->buffer_[4];
         bool report = result != last_id_;
         for (auto *card : this->cards_) {
           if (card->process(result)) {

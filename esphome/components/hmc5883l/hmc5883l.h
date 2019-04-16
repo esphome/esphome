@@ -27,21 +27,11 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   void update() override;
 
-  void set_range(HMC5883LRange range) {
-    range_ = range;
-  }
-  void set_x_sensor(sensor::Sensor *x_sensor) {
-    x_sensor_ = x_sensor;
-  }
-  void set_y_sensor(sensor::Sensor *y_sensor) {
-    y_sensor_ = y_sensor;
-  }
-  void set_z_sensor(sensor::Sensor *z_sensor) {
-    z_sensor_ = z_sensor;
-  }
-  void set_heading_sensor(sensor::Sensor *heading_sensor) {
-    heading_sensor_ = heading_sensor;
-  }
+  void set_range(HMC5883LRange range) { range_ = range; }
+  void set_x_sensor(sensor::Sensor *x_sensor) { x_sensor_ = x_sensor; }
+  void set_y_sensor(sensor::Sensor *y_sensor) { y_sensor_ = y_sensor; }
+  void set_z_sensor(sensor::Sensor *z_sensor) { z_sensor_ = z_sensor; }
+  void set_heading_sensor(sensor::Sensor *heading_sensor) { heading_sensor_ = heading_sensor; }
 
  protected:
   HMC5883LRange range_{HMC5883L_RANGE_130_UT};

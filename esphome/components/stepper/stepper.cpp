@@ -26,7 +26,7 @@ void Stepper::calculate_speed_(uint32_t now) {
     // we can still accelerate
     this->current_speed_ += this->acceleration_ * dt;
   }
-  this->current_speed_ = clamp(0.0f, this->max_speed_, this->current_speed_);
+  this->current_speed_ = clamp(this->current_speed_, 0.0f, this->max_speed_);
 }
 int32_t Stepper::should_step_() {
   uint32_t now = micros();

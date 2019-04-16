@@ -118,7 +118,7 @@ def _lookup_module(domain, is_platform):
         module = importlib.import_module(path)
     except ImportError:
         return None
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         import traceback
         _LOGGER.error("Unable to load component %s:", domain)
         traceback.print_exc()

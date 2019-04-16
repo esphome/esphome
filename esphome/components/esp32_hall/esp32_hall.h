@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace esp32_hall {
 
@@ -20,3 +22,5 @@ class ESP32HallSensor : public sensor::PollingSensorComponent {
 
 }  // namespace esp32_hall
 }  // namespace esphome
+
+#endif

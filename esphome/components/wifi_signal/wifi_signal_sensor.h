@@ -11,7 +11,7 @@ namespace wifi_signal {
 class WiFiSignalSensor : public sensor::PollingSensorComponent {
  public:
   explicit WiFiSignalSensor(const std::string &name, uint32_t update_interval)
-    : sensor::PollingSensorComponent(name, update_interval) {}
+      : sensor::PollingSensorComponent(name, update_interval) {}
 
   void update() override { this->publish_state(WiFi.RSSI()); }
   void dump_config() override;

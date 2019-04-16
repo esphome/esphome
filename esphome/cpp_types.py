@@ -16,7 +16,6 @@ const_char_ptr = global_ns.namespace('const char *')
 NAN = global_ns.namespace('NAN')
 esphome_ns = global_ns  # using namespace esphome;
 App = esphome_ns.App
-io_ns = esphome_ns.namespace('io')
 Nameable = esphome_ns.class_('Nameable')
 Trigger = esphome_ns.class_('Trigger')
 Action = esphome_ns.class_('Action')

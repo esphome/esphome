@@ -20,7 +20,7 @@ void FloatOutput::set_min_power(float min_power) {
 float FloatOutput::get_min_power() const { return this->min_power_; }
 
 void FloatOutput::set_level(float state) {
-  state = clamp(0.0f, 1.0f, state);
+  state = clamp(state, 0.0f, 1.0f);
 
 #ifdef USE_POWER_SUPPLY
   if (state > 0.0f) {  // ON

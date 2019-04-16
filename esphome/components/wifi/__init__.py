@@ -1,5 +1,3 @@
-import voluptuous as vol
-
 from esphome.automation import CONDITION_REGISTRY, Condition
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -29,38 +27,38 @@ def validate_password(value):
     if not value:
         return value
     if len(value) < 8:
-        raise vol.Invalid(u"WPA password must be at least 8 characters long")
+        raise cv.Invalid(u"WPA password must be at least 8 characters long")
     if len(value) > 64:
-        raise vol.Invalid(u"WPA password must be at most 64 characters long")
+        raise cv.Invalid(u"WPA password must be at most 64 characters long")
     return value
 
 
 def validate_channel(value):
     value = cv.positive_int(value)
     if value < 1:
-        raise vol.Invalid("Minimum WiFi channel is 1")
+        raise cv.Invalid("Minimum WiFi channel is 1")
     if value > 14:
-        raise vol.Invalid("Maximum WiFi channel is 14")
+        raise cv.Invalid("Maximum WiFi channel is 14")
     return value
 
 
 AP_MANUAL_IP_SCHEMA = cv.Schema({
-    vol.Required(CONF_STATIC_IP): cv.ipv4,
-    vol.Required(CONF_GATEWAY): cv.ipv4,
-    vol.Required(CONF_SUBNET): cv.ipv4,
+    cv.Required(CONF_STATIC_IP): cv.ipv4,
+    cv.Required(CONF_GATEWAY): cv.ipv4,
+    cv.Required(CONF_SUBNET): cv.ipv4,
 })
 
 STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
-    vol.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
-    vol.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
+    cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
+    cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
 })
 
 WIFI_NETWORK_BASE = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiAP),
-    vol.Optional(CONF_SSID): cv.ssid,
-    vol.Optional(CONF_PASSWORD): validate_password,
-    vol.Optional(CONF_CHANNEL): validate_channel,
-    vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+    cv.Optional(CONF_SSID): cv.ssid,
+    cv.Optional(CONF_PASSWORD): validate_password,
+    cv.Optional(CONF_CHANNEL): validate_channel,
+    cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
 })
 
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
@@ -68,34 +66,34 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
 })
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
-    vol.Optional(CONF_BSSID): cv.mac_address,
-    vol.Optional(CONF_HIDDEN): cv.boolean,
+    cv.Optional(CONF_BSSID): cv.mac_address,
+    cv.Optional(CONF_HIDDEN): cv.boolean,
 })
 
 
 def validate(config):
     if CONF_PASSWORD in config and CONF_SSID not in config:
-        raise vol.Invalid("Cannot have WiFi password without SSID!")
+        raise cv.Invalid("Cannot have WiFi password without SSID!")
 
     if CONF_SSID in config:
         network = {CONF_SSID: config.pop(CONF_SSID)}
         if CONF_PASSWORD in config:
             network[CONF_PASSWORD] = config.pop(CONF_PASSWORD)
         if CONF_NETWORKS in config:
-            raise vol.Invalid("You cannot use the 'ssid:' option together with 'networks:'. Please "
-                              "copy your network into the 'networks:' key")
+            raise cv.Invalid("You cannot use the 'ssid:' option together with 'networks:'. Please "
+                             "copy your network into the 'networks:' key")
         config[CONF_NETWORKS] = cv.ensure_list(WIFI_NETWORK_STA)(network)
 
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
-        raise vol.Invalid("Please specify at least an SSID or an Access Point "
-                          "to create.")
+        raise cv.Invalid("Please specify at least an SSID or an Access Point "
+                         "to create.")
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
         if not networks:
-            raise vol.Invalid("At least one network required for fast_connect!")
+            raise cv.Invalid("At least one network required for fast_connect!")
         if len(networks) != 1:
-            raise vol.Invalid("Fast connect can only be used with one network!")
+            raise cv.Invalid("Fast connect can only be used with one network!")
 
     if CONF_USE_ADDRESS not in config:
         if CONF_MANUAL_IP in config:
@@ -107,23 +105,23 @@ def validate(config):
     return config
 
 
-CONFIG_SCHEMA = vol.All(cv.Schema({
+CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
-    vol.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
+    cv.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
 
-    vol.Optional(CONF_SSID): cv.ssid,
-    vol.Optional(CONF_PASSWORD): validate_password,
-    vol.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
+    cv.Optional(CONF_SSID): cv.ssid,
+    cv.Optional(CONF_PASSWORD): validate_password,
+    cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
 
-    vol.Optional(CONF_AP): WIFI_NETWORK_AP,
-    vol.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
-    vol.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
-    vol.Optional(CONF_POWER_SAVE_MODE, default='NONE'):
+    cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+    cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'):
         cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
-    vol.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
-    vol.Optional(CONF_USE_ADDRESS): cv.string_strict,
+    cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
+    cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
-    vol.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
+    cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
 
 
