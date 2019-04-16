@@ -8,7 +8,7 @@ namespace custom {
 
 class CustomBinarySensorConstructor : public Component {
  public:
-  CustomBinarySensorConstructor(const std::function<std::vector<BinarySensor *>()> &init) {
+  CustomBinarySensorConstructor(const std::function<std::vector<binary_sensor::BinarySensor *>()> &init) {
     this->binary_sensors_ = init();
   }
 
