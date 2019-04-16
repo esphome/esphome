@@ -3,4 +3,4 @@ ports:
   onOpen: open-preview
 tasks:
 - before: python setup.py install
-  command: python esphome my_configuration.yaml dashboard
+  command: python esphome config dashboard
