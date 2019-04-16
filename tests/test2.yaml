@@ -196,6 +196,8 @@ text_sensor:
           variables:
             my_variable: |-
               return id(version_sensor).state;
+            my_variable_str: |-
+              return "Hello World";
   - platform: template
     name: "Template Text Sensor"
     lambda: |-
