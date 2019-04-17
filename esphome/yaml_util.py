@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import codecs
-from collections import OrderedDict
 import fnmatch
 import logging
 import os
@@ -13,6 +12,7 @@ import yaml.constructor
 from esphome import core
 from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
 from esphome.py_compat import string_types, text_type, IS_PY2
+from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -397,6 +397,10 @@ yaml.SafeDumper.add_representer(
 )
 
 yaml.SafeDumper.add_representer(str, unicode_representer)
+yaml.SafeDumper.add_representer(
+    core.AutoLoad,
+    lambda dumper, value: represent_odict(dumper, 'tag:yaml.org,2002:map', value)
+)
 if IS_PY2:
     yaml.SafeDumper.add_representer(unicode, unicode_representer)
 yaml.SafeDumper.add_representer(HexInt, hex_int_representer)

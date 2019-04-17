@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Set up ESPHome dev environment
+
+set -e
+
+cd "$(dirname "$0")/.."
+pip install -r requirements_test.txt
+pip install -e .

@@ -1,6 +1,5 @@
-import collections
-from collections import OrderedDict
 import functools
+import heapq
 import inspect
 import logging
 import math
@@ -10,11 +9,11 @@ import re
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List  # noqa
 
-from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ESPHOME_CORE_VERSION, \
-    CONF_LOCAL, CONF_USE_ADDRESS, CONF_WIFI, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266, \
-    CONF_REPOSITORY, CONF_BRANCH
+from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
+    SOURCE_FILE_EXTENSIONS
 from esphome.helpers import ensure_unique_string, is_hassio
-from esphome.py_compat import IS_PY2, integer_types
+from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
+from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +54,7 @@ class MACAddress(object):
     def __str__(self):
         return ':'.join('{:02X}'.format(part) for part in self.parts)
 
+    @property
     def as_hex(self):
         from esphome.cpp_generator import RawExpression
 
@@ -286,37 +286,115 @@ class ID(object):
 
     def __eq__(self, other):
         if not isinstance(other, ID):
-            raise ValueError("other must be ID")
+            raise ValueError("other must be ID {} {}".format(type(other), other))
         return self.id == other.id
 
     def __hash__(self):
         return hash(self.id)
 
 
-def coroutine(func):
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        if not inspect.isgeneratorfunction(func):
-            yield func(*args, **kwargs)
-            return
-        gen = func(*args, **kwargs)
-        var = None
-        try:
-            while True:
-                var = gen.send(var)
-                if inspect.isgenerator(var):
-                    # Yielded generator, equivalent to 'yield from'
-                    for x in var:
-                        yield None
-                    # Last yield value is the result
-                    var = x
-                else:
-                    yield var
-        except StopIteration:
-            # Stopping iteration
-            yield var
+class Define(object):
+    def __init__(self, name, value=None):
+        self.name = name
+        self.value = value
 
-    return wrapper
+    @property
+    def as_build_flag(self):
+        if self.value is None:
+            return u'-D{}'.format(self.name)
+        return u'-D{}={}'.format(self.name, self.value)
+
+    @property
+    def as_macro(self):
+        if self.value is None:
+            return u'#define {}'.format(self.name)
+        return u'#define {} {}'.format(self.name, self.value)
+
+    @property
+    def as_tuple(self):
+        return self.name, self.value
+
+    def __hash__(self):
+        return hash(self.as_tuple)
+
+    def __eq__(self, other):
+        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
+
+
+class Library(object):
+    def __init__(self, name, version):
+        self.name = name
+        self.version = version
+
+    @property
+    def as_lib_dep(self):
+        if self.version is None:
+            return self.name
+        return u'{}@{}'.format(self.name, self.version)
+
+    @property
+    def as_tuple(self):
+        return self.name, self.version
+
+    def __hash__(self):
+        return hash(self.as_tuple)
+
+    def __eq__(self, other):
+        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
+
+
+def coroutine(func):
+    return coroutine_with_priority(0.0)(func)
+
+
+def coroutine_with_priority(priority):
+    def decorator(func):
+        if getattr(func, '_esphome_coroutine', False):
+            # If func is already a coroutine, do not re-wrap it (performance)
+            return func
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if not inspect.isgeneratorfunction(func):
+                # If func is not a generator, return result immediately
+                yield func(*args, **kwargs)
+                return
+            gen = func(*args, **kwargs)
+            var = None
+            try:
+                while True:
+                    var = gen.send(var)
+                    if inspect.isgenerator(var):
+                        # Yielded generator, equivalent to 'yield from'
+                        x = None
+                        for x in var:
+                            yield None
+                        # Last yield value is the result
+                        var = x
+                    else:
+                        yield var
+            except StopIteration:
+                # Stopping iteration
+                yield var
+
+        # pylint: disable=protected-access
+        wrapper._esphome_coroutine = True
+        wrapper.priority = priority
+        return wrapper
+    return decorator
+
+
+def find_source_files(file):
+    files = set()
+    directory = os.path.abspath(os.path.dirname(file))
+    for f in os.listdir(directory):
+        if not os.path.isfile(os.path.join(directory, f)):
+            continue
+        _, ext = os.path.splitext(f)
+        if ext.lower() not in SOURCE_FILE_EXTENSIONS:
+            continue
+        files.add(f)
+    return files
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
@@ -339,11 +417,41 @@ class EsphomeCore(object):
         # The validated configuration, this is None until the config has been validated
         self.config = {}  # type: ConfigType
         # The pending tasks in the task queue (mostly for C++ generation)
-        self.pending_tasks = collections.deque()
+        # This is a priority queue (with heapq)
+        # Each item is a tuple of form: (-priority, unique number, task)
+        self.pending_tasks = []
+        # Task counter for pending tasks
+        self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
         self.variables = {}  # type: Dict[str, MockObj]
-        # The list of expressions for the C++ generation
-        self.expressions = []  # type: List[Expression]
+        # A list of statements that go in the main setup() block
+        self.main_statements = []  # type: List[Statement]
+        # A list of statements to insert in the global block (includes and global variables)
+        self.global_statements = []  # type: List[Statement]
+        # A set of platformio libraries to add to the project
+        self.libraries = set()  # type: Set[Library]
+        # A set of build flags to set in the platformio project
+        self.build_flags = set()  # type: Set[str]
+        # A set of defines to set for the compile process in esphome/core/defines.h
+        self.defines = set()  # type: Set[Define]
+
+    def reset(self):
+        self.dashboard = False
+        self.name = None
+        self.config_path = None
+        self.build_path = None
+        self.esp_platform = None
+        self.board = None
+        self.raw_config = None
+        self.config = None
+        self.pending_tasks = []
+        self.task_counter = 0
+        self.variables = {}
+        self.main_statements = []
+        self.global_statements = []
+        self.libraries = set()
+        self.build_flags = set()
+        self.defines = set()
 
     @property
     def address(self):  # type: () -> str
@@ -354,20 +462,6 @@ class EsphomeCore(object):
             return self.config['ethernet'][CONF_USE_ADDRESS]
 
         return None
-
-    @property
-    def esphome_core_version(self):  # type: () -> Dict[str, str]
-        return self.config[CONF_ESPHOME][CONF_ESPHOME_CORE_VERSION]
-
-    @property
-    def is_dev_esphome_core_version(self):
-        if CONF_REPOSITORY not in self.esphome_core_version:
-            return False
-        return self.esphome_core_version.get(CONF_BRANCH) == 'dev'
-
-    @property
-    def is_local_esphome_core_copy(self):
-        return CONF_LOCAL in self.esphome_core_version
 
     @property
     def arduino_version(self):  # type: () -> str
@@ -389,6 +483,9 @@ class EsphomeCore(object):
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
+    def relative_src_path(self, *path):
+        return self.relative_build_path('src', *path)
+
     def relative_pioenvs_path(self, *path):
         if is_hassio():
             return os.path.join('/data', self.name, '.pioenvs', *path)
@@ -407,19 +504,21 @@ class EsphomeCore(object):
     def is_esp8266(self):
         if self.esp_platform is None:
             raise ValueError
-        return self.esp_platform == ESP_PLATFORM_ESP8266
+        return self.esp_platform == 'ESP8266'
 
     @property
     def is_esp32(self):
         if self.esp_platform is None:
             raise ValueError
-        return self.esp_platform == ESP_PLATFORM_ESP32
+        return self.esp_platform == 'ESP32'
 
     def add_job(self, func, *args, **kwargs):
-        domain = kwargs.get('domain')
-        gen = coroutine(func)(*args)
-        self.pending_tasks.append((gen, domain))
-        return gen
+        coro = coroutine(func)
+        task = coro(*args, **kwargs)
+        item = (-coro.priority, self.task_counter, task)
+        self.task_counter += 1
+        heapq.heappush(self.pending_tasks, item)
+        return task
 
     def flush_tasks(self):
         i = 0
@@ -428,29 +527,78 @@ class EsphomeCore(object):
             if i > 1000000:
                 raise EsphomeError("Circular dependency detected!")
 
-            task, domain = self.pending_tasks.popleft()
-            _LOGGER.debug("Executing task for domain=%s", domain)
+            inv_priority, num, task = heapq.heappop(self.pending_tasks)
+            priority = -inv_priority
+            _LOGGER.debug("Running %s (num %s)", task, num)
             try:
                 next(task)
-                self.pending_tasks.append((task, domain))
+                # Decrease priority over time, so that if this task is blocked
+                # due to a dependency others will clear the dependency
+                # This could be improved with a less naive approach
+                priority -= 1
+                item = (-priority, num, task)
+                heapq.heappush(self.pending_tasks, item)
             except StopIteration:
-                _LOGGER.debug(" -> %s finished", domain)
+                _LOGGER.debug(" -> finished")
 
-    def add(self, expression, require=True):
-        from esphome.cpp_generator import Expression
+    def add(self, expression):
+        from esphome.cpp_generator import Expression, Statement, statement
 
-        if require and isinstance(expression, Expression):
-            expression.require()
-        self.expressions.append(expression)
+        if isinstance(expression, Expression):
+            expression = statement(expression)
+        if not isinstance(expression, Statement):
+            raise ValueError(u"Add '{}' must be expression or statement, not {}"
+                             u"".format(expression, type(expression)))
+
+        self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
         return expression
 
+    def add_global(self, expression):
+        from esphome.cpp_generator import Expression, Statement, statement
+
+        if isinstance(expression, Expression):
+            expression = statement(expression)
+        if not isinstance(expression, Statement):
+            raise ValueError(u"Add '{}' must be expression or statement, not {}"
+                             u"".format(expression, type(expression)))
+        self.global_statements.append(expression)
+        _LOGGER.debug("Adding global: %s", expression)
+        return expression
+
+    def add_library(self, library):
+        if not isinstance(library, Library):
+            raise ValueError(u"Library {} must be instance of Library, not {}"
+                             u"".format(library, type(library)))
+        self.libraries.add(library)
+        _LOGGER.debug("Adding library: %s", library)
+        return library
+
+    def add_build_flag(self, build_flag):
+        self.build_flags.add(build_flag)
+        _LOGGER.debug("Adding build flag: %s", build_flag)
+        return build_flag
+
+    def add_define(self, define):
+        if isinstance(define, string_types):
+            define = Define(define)
+        elif isinstance(define, Define):
+            pass
+        else:
+            raise ValueError(u"Define {} must be string or Define, not {}"
+                             u"".format(define, type(define)))
+        self.defines.add(define)
+        _LOGGER.debug("Adding define: %s", define)
+        return define
+
     def get_variable(self, id):
+        if not isinstance(id, ID):
+            raise ValueError("ID {!r} must be of type ID!".format(id))
         while True:
             if id in self.variables:
                 yield self.variables[id]
                 return
-            _LOGGER.debug("Waiting for variable %s", id)
+            _LOGGER.debug("Waiting for variable %s (%r)", id, id)
             yield None
 
     def get_variable_with_full_id(self, id):
@@ -471,6 +619,32 @@ class EsphomeCore(object):
 
     def has_id(self, id):
         return id in self.variables
+
+    @property
+    def cpp_main_section(self):
+        from esphome.cpp_generator import statement
+
+        main_code = []
+        for exp in self.main_statements:
+            text = text_type(statement(exp))
+            text = text.rstrip()
+            main_code.append(text)
+        return u'\n'.join(main_code) + u'\n\n'
+
+    @property
+    def cpp_global_section(self):
+        from esphome.cpp_generator import statement
+
+        global_code = []
+        for exp in self.global_statements:
+            text = text_type(statement(exp))
+            text = text.rstrip()
+            global_code.append(text)
+        return u'\n'.join(global_code) + u'\n'
+
+
+class AutoLoad(dict):
+    pass
 
 
 CORE = EsphomeCore()

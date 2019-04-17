@@ -1,0 +1,39 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/output/float_output.h"
+#include "esphome/components/light/light_output.h"
+
+namespace esphome {
+namespace rgbw {
+
+class RGBWLightOutput : public light::LightOutput {
+ public:
+  RGBWLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue,
+                  output::FloatOutput *white)
+      : red_(red), green_(green), blue_(blue), white_(white) {}
+  light::LightTraits get_traits() override {
+    auto traits = light::LightTraits();
+    traits.set_supports_brightness(true);
+    traits.set_supports_rgb(true);
+    traits.set_supports_rgb_white_value(true);
+    return traits;
+  }
+  void write_state(light::LightState *state) override {
+    float red, green, blue, white;
+    state->current_values_as_rgbw(&red, &green, &blue, &white);
+    this->red_->set_level(red);
+    this->green_->set_level(green);
+    this->blue_->set_level(blue);
+    this->white_->set_level(white);
+  }
+
+ protected:
+  output::FloatOutput *red_;
+  output::FloatOutput *green_;
+  output::FloatOutput *blue_;
+  output::FloatOutput *white_;
+};
+
+}  // namespace rgbw
+}  // namespace esphome

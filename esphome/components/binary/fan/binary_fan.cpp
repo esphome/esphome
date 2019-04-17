@@ -1,0 +1,48 @@
+#include "binary_fan.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace binary {
+
+static const char *TAG = "binary.fan";
+
+void binary::BinaryFan::dump_config() {
+  ESP_LOGCONFIG(TAG, "Fan '%s':", this->fan_->get_name().c_str());
+  if (this->fan_->get_traits().supports_oscillation()) {
+    ESP_LOGCONFIG(TAG, "  Oscillation: YES");
+  }
+}
+void BinaryFan::setup() {
+  auto traits = fan::FanTraits(this->oscillating_ != nullptr, false);
+  this->fan_->set_traits(traits);
+  this->fan_->add_on_state_callback([this]() { this->next_update_ = true; });
+}
+void BinaryFan::loop() {
+  if (!this->next_update_) {
+    return;
+  }
+  this->next_update_ = false;
+
+  {
+    bool enable = this->fan_->state;
+    if (enable)
+      this->output_->turn_on();
+    else
+      this->output_->turn_off();
+    ESP_LOGD(TAG, "Setting binary state: %s", ONOFF(enable));
+  }
+
+  if (this->oscillating_ != nullptr) {
+    bool enable = this->fan_->oscillating;
+    if (enable) {
+      this->oscillating_->turn_on();
+    } else {
+      this->oscillating_->turn_off();
+    }
+    ESP_LOGD(TAG, "Setting oscillation: %s", ONOFF(enable));
+  }
+}
+float BinaryFan::get_setup_priority() const { return setup_priority::DATA; }
+
+}  // namespace binary
+}  // namespace esphome
