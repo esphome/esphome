@@ -9,8 +9,9 @@ namespace esp8266_pwm {
 
 class ESP8266PWM : public output::FloatOutput, public Component {
  public:
-  explicit ESP8266PWM(GPIOPin *pin) : pin_(pin) {}
-
+  void set_pin(GPIOPin *pin) {
+    pin_ = pin;
+  }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
 
   /// Initialize pin

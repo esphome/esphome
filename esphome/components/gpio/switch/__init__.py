@@ -25,17 +25,18 @@ CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
 
 
 def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    rhs = GPIOSwitch.new(config[CONF_NAME], pin)
-    gpio = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(gpio, config)
-    yield switch.register_switch(gpio, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+    yield switch.register_switch(var, config)
 
-    cg.add(gpio.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
+    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    cg.add(var.set_pin(pin))
+
+    cg.add(var.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
 
     if CONF_INTERLOCK in config:
         interlock = []
         for it in config[CONF_INTERLOCK]:
             lock = yield cg.get_variable(it)
             interlock.append(lock)
-        cg.add(gpio.set_interlock(interlock))
+        cg.add(var.set_interlock(interlock))

@@ -60,8 +60,6 @@ enum BME280IIRFilter {
 /// This class implements support for the BME280 Temperature+Pressure+Humidity i2c sensor.
 class BME280Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  BME280Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }

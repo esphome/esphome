@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_ON_VALUE, \
-    CONF_TRIGGER_ID, CONF_MQTT_ID
+    CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -30,6 +30,7 @@ TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_text_sensor_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

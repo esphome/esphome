@@ -47,12 +47,11 @@ CONFIG_SCHEMA = cv.Schema({
                 cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
         })),
     cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x77))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x77))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 

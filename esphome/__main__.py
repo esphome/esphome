@@ -242,8 +242,10 @@ def command_config(args, config):
 
 
 def command_vscode(args):
+    from esphome import vscode
+
     CORE.config_path = args.configuration
-    config = vscode.read_config()
+    vscode.read_config()
 
 
 def command_compile(args, config):

@@ -1,4 +1,5 @@
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY, \
+    CONF_UPDATE_INTERVAL
 from esphome.core import coroutine
 from esphome.cpp_generator import RawExpression, add
 from esphome.cpp_types import App, GPIOPin
@@ -24,6 +25,8 @@ def gpio_pin_expression(conf):
 def register_component(obj, config):
     if CONF_SETUP_PRIORITY in config:
         add(obj.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+    if CONF_UPDATE_INTERVAL in config:
+        add(obj.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     add(App.register_component(obj))
 
 

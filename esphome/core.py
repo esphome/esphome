@@ -136,18 +136,18 @@ class TimePeriod(object):
 
     def __str__(self):
         if self.microseconds is not None:
-            return '{} us'.format(self.total_microseconds)
+            return '{}us'.format(self.total_microseconds)
         if self.milliseconds is not None:
-            return '{} ms'.format(self.total_milliseconds)
+            return '{}ms'.format(self.total_milliseconds)
         if self.seconds is not None:
-            return '{} s'.format(self.total_seconds)
+            return '{}s'.format(self.total_seconds)
         if self.minutes is not None:
-            return '{} min'.format(self.total_minutes)
+            return '{}min'.format(self.total_minutes)
         if self.hours is not None:
-            return '{} h'.format(self.total_hours)
+            return '{}h'.format(self.total_hours)
         if self.days is not None:
-            return '{} d'.format(self.total_days)
-        return '0'
+            return '{}d'.format(self.total_days)
+        return '0s'
 
     @property
     def total_microseconds(self):
@@ -225,7 +225,10 @@ LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 class Lambda(object):
     def __init__(self, value):
-        self._value = value
+        if isinstance(value, Lambda):
+            self._value = value._value
+        else:
+            self._value = value
         self._parts = None
         self._requires_ids = None
 
@@ -308,9 +311,6 @@ class DocumentLocation(object):
             mark.column
         )
 
-    def __repr__(self):
-        return u'[{} {}:{}]'.format(self.document, self.line, self.column)
-
     def __str__(self):
         return u'{} {}:{}'.format(self.document, self.line, self.column)
 
@@ -327,9 +327,6 @@ class DocumentRange(object):
             DocumentLocation.from_mark(start_mark),
             DocumentLocation.from_mark(end_mark)
         )
-
-    def __repr__(self):
-        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
 
     def __str__(self):
         return u'[{} - {}]'.format(self.start_mark, self.end_mark)
@@ -687,7 +684,7 @@ class EsphomeCore(object):
         return u'\n'.join(global_code) + u'\n'
 
 
-class AutoLoad(dict):
+class AutoLoad(OrderedDict):
     pass
 
 

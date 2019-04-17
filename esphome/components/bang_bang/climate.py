@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.nameable(climate.CLIMATE_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield climate.register_climate(var, config)
 

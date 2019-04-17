@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ENTITY_ID, CONF_ID, CONF_NAME
+from esphome.const import CONF_ENTITY_ID, CONF_ID
 from .. import homeassistant_ns
 
 DEPENDENCIES = ['api']
@@ -15,6 +15,8 @@ CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_ENTITY_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
+
+    cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))

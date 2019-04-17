@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
-    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID
+    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -53,6 +53,7 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_cover_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:

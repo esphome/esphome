@@ -17,6 +17,7 @@ enum FanSpeed {
 
 class FanState : public Nameable, public Component {
  public:
+  FanState() = default;
   /// Construct the fan state with name.
   explicit FanState(const std::string &name);
 

@@ -242,6 +242,8 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
+  PollingComponent() : PollingComponent(0) {}
+
   /** Initialize this polling component with the given update interval in ms.
    *
    * @param update_interval The update interval in ms.

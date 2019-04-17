@@ -28,12 +28,11 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
     cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
     cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(cv.uint32_t, cv.Range(min=1)),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
     sel = yield cg.gpio_pin_expression(config[CONF_SEL_PIN])

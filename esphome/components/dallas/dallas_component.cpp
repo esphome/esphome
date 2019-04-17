@@ -95,15 +95,13 @@ void DallasComponent::dump_config() {
   }
 }
 
-DallasTemperatureSensor *DallasComponent::get_sensor_by_address(const std::string &name, uint64_t address,
-                                                                uint8_t resolution) {
-  auto s = new DallasTemperatureSensor(name, address, resolution, this);
+DallasTemperatureSensor *DallasComponent::get_sensor_by_address(uint64_t address, uint8_t resolution) {
+  auto s = new DallasTemperatureSensor(address, resolution, this);
   this->sensors_.push_back(s);
   return s;
 }
-DallasTemperatureSensor *DallasComponent::get_sensor_by_index(const std::string &name, uint8_t index,
-                                                              uint8_t resolution) {
-  auto s = this->get_sensor_by_address(name, 0, resolution);
+DallasTemperatureSensor *DallasComponent::get_sensor_by_index(uint8_t index, uint8_t resolution) {
+  auto s = this->get_sensor_by_address(0, resolution);
   s->set_index(index);
   return s;
 }
@@ -148,12 +146,11 @@ void DallasComponent::update() {
     });
   }
 }
-DallasComponent::DallasComponent(ESPOneWire *one_wire, uint32_t update_interval)
-    : PollingComponent(update_interval), one_wire_(one_wire) {}
+DallasComponent::DallasComponent(ESPOneWire *one_wire)
+    : one_wire_(one_wire) {}
 
-DallasTemperatureSensor::DallasTemperatureSensor(const std::string &name, uint64_t address, uint8_t resolution,
-                                                 DallasComponent *parent)
-    : sensor::Sensor(name), parent_(parent) {
+DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
+    : parent_(parent) {
   this->set_address(address);
   this->set_resolution(resolution);
 }

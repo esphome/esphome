@@ -105,8 +105,8 @@ const char *cover_operation_to_str(CoverOperation op);
  */
 class Cover : public Nameable {
  public:
-  explicit Cover(const std::string &name);
   explicit Cover();
+  explicit Cover(const std::string &name);
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};

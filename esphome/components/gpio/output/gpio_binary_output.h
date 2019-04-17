@@ -9,7 +9,9 @@ namespace gpio {
 
 class GPIOBinaryOutput : public output::BinaryOutput, public Component {
  public:
-  explicit GPIOBinaryOutput(GPIOPin *pin) : pin_(pin) {}
+  void set_pin(GPIOPin *pin) {
+    pin_ = pin;
+  }
 
   void setup() override {
     this->turn_off();

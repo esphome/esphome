@@ -50,15 +50,15 @@ CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).exten
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
     cv.Required(CONF_MULTIPLEXER): cv.one_of(*MUX, upper=True, space='_'),
     cv.Required(CONF_GAIN): validate_gain,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}))
+}).extend(cv.polling_component_schema('60s')))
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_ADS1115_ID])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
-    cg.add(var.set_multiplexer(MUX[config[CONF_MULTIPLEXER]]))
-    cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+    var = cg.new_Pvariable(config[CONF_ID])
     yield sensor.register_sensor(var, config)
 
+    cg.add(var.set_multiplexer(MUX[config[CONF_MULTIPLEXER]]))
+    cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+
+    hub = yield cg.get_variable(config[CONF_ADS1115_ID])
     cg.add(hub.register_sensor(var))

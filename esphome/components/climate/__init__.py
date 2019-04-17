@@ -5,7 +5,7 @@ from esphome.components import mqtt
 from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATURE, \
     CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
     CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
-    CONF_MQTT_ID
+    CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 climate_ns = cg.esphome_ns.namespace('climate')
@@ -42,6 +42,7 @@ CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_climate_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]

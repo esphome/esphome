@@ -48,13 +48,12 @@ CONFIG_SCHEMA = cv.Schema({
 
 @coroutine_with_priority(40.0)
 def to_code(config):
-    rhs = APIServer.new()
-    api = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(api, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
-    cg.add(api.set_port(config[CONF_PORT]))
-    cg.add(api.set_password(config[CONF_PASSWORD]))
-    cg.add(api.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+    cg.add(var.set_port(config[CONF_PORT]))
+    cg.add(var.set_password(config[CONF_PASSWORD]))
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_SERVICES, []):
         template_args = []
@@ -65,7 +64,7 @@ def to_code(config):
             template_args.append(native)
             func_args.append((native, name))
             service_type_args.append(ServiceTypeArgument(name, SERVICE_ARG_TYPES[var_]))
-        func = api.make_user_service_trigger.template(*template_args)
+        func = var.make_user_service_trigger.template(*template_args)
         rhs = func(conf[CONF_SERVICE], service_type_args)
         type_ = UserService.template(*template_args)
         trigger = cg.Pvariable(conf[CONF_TRIGGER_ID], rhs, type=type_)

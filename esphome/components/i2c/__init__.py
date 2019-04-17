@@ -21,10 +21,13 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_SDA], config[CONF_SCL],
-                           int(config[CONF_FREQUENCY]), config[CONF_SCAN])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
+    cg.add(var.set_sda_pin(config[CONF_SDA]))
+    cg.add(var.set_scl_pin(config[CONF_SCL]))
+    cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
+    cg.add(var.set_scan(config[CONF_SCAN]))
     cg.add_library('Wire', None)
     cg.add_global(i2c_ns.using)
 

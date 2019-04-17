@@ -46,13 +46,12 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(field_strength_schema),
     cv.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(field_strength_schema),
     cv.Optional(CONF_HEADING): cv.nameable(heading_schema),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
     cv.Optional(CONF_RANGE, default='130uT'): validate_range,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x1E))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x1E))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 

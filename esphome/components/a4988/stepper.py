@@ -17,11 +17,14 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend({
 
 
 def to_code(config):
-    step_pin = yield cg.gpio_pin_expression(config[CONF_STEP_PIN])
-    dir_pin = yield cg.gpio_pin_expression(config[CONF_DIR_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], step_pin, dir_pin)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield stepper.register_stepper(var, config)
+
+    step_pin = yield cg.gpio_pin_expression(config[CONF_STEP_PIN])
+    cg.add(var.set_step_pin(step_pin))
+    dir_pin = yield cg.gpio_pin_expression(config[CONF_DIR_PIN])
+    cg.add(var.set_dir_pin(dir_pin))
 
     if CONF_SLEEP_PIN in config:
         sleep_pin = yield cg.gpio_pin_expression(config[CONF_SLEEP_PIN])

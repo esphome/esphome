@@ -15,7 +15,7 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
@@ -772,7 +772,15 @@ def one_of(*values, **kwargs):
         if upper:
             value = Upper(value)
         if value not in values:
-            raise Invalid(u"Unknown value '{}', must be one of {}".format(value, options))
+            import difflib
+            options_ = [text_type(x) for x in values]
+            option = text_type(value)
+            matches = difflib.get_close_matches(option, options_)
+            if matches:
+                raise Invalid(u"Unknown value '{}', did you mean {}?"
+                              u"".format(value, u", ".join(u"'{}'".format(x) for x in matches)))
+            else:
+                raise Invalid(u"Unknown value '{}', valid options are {}.".format(value, options))
         return value
 
     return validator
@@ -976,3 +984,13 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
 COMPONENT_SCHEMA = Schema({
     Optional(CONF_SETUP_PRIORITY): float_
 })
+
+
+def polling_component_schema(default_update_interval):
+    if default_update_interval is None:
+        return COMPONENT_SCHEMA.extend({
+            Required(CONF_UPDATE_INTERVAL): default_update_interval,
+        })
+    return COMPONENT_SCHEMA.extend({
+        Optional(CONF_UPDATE_INTERVAL, default=default_update_interval): update_interval,
+    })

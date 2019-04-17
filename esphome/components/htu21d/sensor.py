@@ -15,12 +15,11 @@ CONFIG_SCHEMA = cv.Schema({
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
     cv.Required(CONF_HUMIDITY): cv.nameable(
         sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1)),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x40))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 

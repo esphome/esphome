@@ -12,6 +12,5 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    rhs = DebugComponent.new()
-    var = cg.Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)

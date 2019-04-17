@@ -239,6 +239,11 @@ class EsphomeCleanHandler(EsphomeCommandWebSocket):
         return ["esphome", "--dashboard", config_file, "clean"]
 
 
+class EsphomeVscodeHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        return ["esphome", "--dashboard", "-q", 'dummy', "vscode"]
+
+
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
     def get(self):
@@ -623,6 +628,7 @@ def make_app(debug=False):
         (RELATIVE_URL + "validate", EsphomeValidateHandler),
         (RELATIVE_URL + "clean-mqtt", EsphomeCleanMqttHandler),
         (RELATIVE_URL + "clean", EsphomeCleanHandler),
+        (RELATIVE_URL + "vscode", EsphomeVscodeHandler),
         (RELATIVE_URL + "edit", EditRequestHandler),
         (RELATIVE_URL + "download.bin", DownloadBinaryRequestHandler),
         (RELATIVE_URL + "serial-ports", SerialPortRequestHandler),
@@ -690,6 +696,7 @@ def start_web_server(args):
 
             webbrowser.open('localhost:{}'.format(args.port))
 
+    STATUS_USE_PING = True
     if STATUS_USE_PING:
         status_thread = PingStatusThread()
     else:

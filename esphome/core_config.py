@@ -12,9 +12,8 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
-from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +40,6 @@ def validate_board(value):
 
 
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
-
 
 PLATFORMIO_ESP8266_LUT = {
     '2.5.0': 'espressif8266@2.0.1',
@@ -121,7 +119,7 @@ CONFIG_SCHEMA = cv.Schema({
 PRELOAD_CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): validate_platform,
-}, extra=vol.ALLOW_EXTRA)
+}, extra=cv.ALLOW_EXTRA)
 
 PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
     cv.Required(CONF_BOARD): validate_board,

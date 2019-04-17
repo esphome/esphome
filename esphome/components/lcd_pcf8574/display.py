@@ -15,6 +15,6 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield lcd_base.setup_lcd_display(var, config)
     yield i2c.register_i2c_device(var, config)

@@ -9,7 +9,9 @@ namespace binary {
 
 class BinaryLightOutput : public light::LightOutput {
  public:
-  BinaryLightOutput(output::BinaryOutput *output) : output_(output) {}
+  void set_output(output::BinaryOutput *output) {
+    output_ = output;
+  }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(false);

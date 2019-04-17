@@ -20,8 +20,7 @@ def validate_lcd_dimensions(value):
 
 LCD_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_DIMENSIONS): validate_lcd_dimensions,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='1s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.polling_component_schema('1s'))
 
 
 @coroutine

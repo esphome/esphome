@@ -16,12 +16,11 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CURRENT): cv.nameable(
         sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2)),
     cv.Optional(CONF_POWER): cv.nameable(sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1)),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield uart.register_uart_device(var, config)
 

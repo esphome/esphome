@@ -38,6 +38,7 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_fan_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
@@ -66,7 +67,7 @@ def register_fan(var, config):
 
 @coroutine
 def create_fan_state(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield register_fan(var, config)
     yield var
 

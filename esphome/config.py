@@ -7,7 +7,7 @@ import re
 import os.path
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import List, Optional, Tuple, Union  # noqa
+from contextlib import contextmanager
 
 import voluptuous as vol
 
@@ -20,10 +20,9 @@ from esphome.helpers import color, indent
 from esphome.py_compat import text_type
 from esphome.util import safe_print, OrderedDict
 
-# pylint: disable=unused-import, wrong-import-order
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
-from esphome.yaml_util import is_secret
+from esphome.yaml_util import is_secret, ESPHomeDataBase
 from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
@@ -218,12 +217,28 @@ class Config(OrderedDict):
                 return True
         return False
 
+    def set_by_path(self, path, value):
+        conf = self
+        for key in path[:-1]:
+            conf = conf[key]
+        conf[path[-1]] = value
+
     def get_error_for_path(self, path):
         # type: (ConfigPath) -> Optional[vol.Invalid]
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 return err
         return None
+
+    def get_deepest_value_for_path(self, path):
+        # type: (ConfigPath) -> ConfigType
+        data = self
+        for item_index in path:
+            try:
+                data = data[item_index]
+            except (KeyError, IndexError, TypeError):
+                return data
+        return data
 
     def get_nested_item(self, path):
         # type: (ConfigPath) -> ConfigType
@@ -273,9 +288,13 @@ def do_id_pass(result):  # type: (Config) -> None
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     for id, path in iter_ids(result):
         if id.is_declaration:
-            if id.id is not None and any(v[0].id == id.id for v in declare_ids):
-                result.add_str_error(u"ID {} redefined!".format(id.id), path)
-                continue
+            if id.id is not None:
+                # Look for duplicate definitions
+                match = next((v for v in declare_ids if v[0].id == id.id), None)
+                if match is not None:
+                    opath = u'->'.join(text_type(v) for v in match[1])
+                    result.add_str_error(u"ID {} redefined! Check {}".format(id.id, opath), path)
+                    continue
             declare_ids.append((id, path))
         else:
             searching_ids.append((id, path))
@@ -290,7 +309,15 @@ def do_id_pass(result):  # type: (Config) -> None
             match = next((v[0] for v in declare_ids if v[0].id == id.id), None)
             if match is None:
                 # No declared ID with this name
-                result.add_str_error("Couldn't find ID '{}'".format(id.id), path)
+                import difflib
+                error = ("Couldn't find ID '{}'. Please check you have defined "
+                         "an ID with that name in your configuration.".format(id.id))
+                # Find candidates
+                matches = difflib.get_close_matches(id.id, [v[0].id for v in declare_ids])
+                if matches:
+                    matches_s = ', '.join('"{}"'.format(x) for x in matches)
+                    error += " These IDs look similar: {}.".format(matches_s)
+                result.add_str_error(error, path)
                 continue
             if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
                 continue
@@ -332,182 +359,162 @@ def validate_config(config):
     except vol.Invalid as err:
         result.add_error(err)
         return result
+    # Remove temporary esphome config path again, it will be reloaded later
+    result.remove_output_path([CONF_ESPHOME], CONF_ESPHOME)
 
-    # 3. Load components. When a component cannot be loaded, it is added to 'skip_paths'
-    # a list of paths for which no further voluptuous validation will be performed
-    skip_paths = list()  # type: List[ConfigPath]
-
-    # Step 1: Load everything
-    result.add_domain([CONF_ESPHOME], CONF_ESPHOME)
-    result[CONF_ESPHOME] = config[CONF_ESPHOME]
-    config_queue = collections.deque()
+    # 3. Load components.
+    # Load components (also AUTO_LOAD) and set output paths of result
+    # Queue of items to load, FIFO
+    load_queue = collections.deque()
     for domain, conf in config.items():
-        config_queue.append((domain, conf))
+        load_queue.append((domain, conf))
 
-    while config_queue:
-        domain, conf = config_queue.popleft()
-        domain = str(domain)
-        if domain == CONF_ESPHOME or domain.startswith(u'.'):
+    # List of items to enter next stage
+    check_queue = []  # type: List[Tuple[ConfigPath, str, ConfigType, ComponentManifest]]
+
+    # This step handles:
+    # - Adding output path
+    # - Auto Load
+    # - Loading configs into result
+
+    while load_queue:
+        domain, conf = load_queue.popleft()
+        domain = text_type(domain)
+        if domain.startswith(u'.'):
             # Ignore top-level keys starting with a dot
-            # Also ignore 'esphome' it is handled separately
-            skip_paths.append([domain])
             continue
         result.add_output_path([domain], domain)
-        if conf is None:
-            conf = {}
         result[domain] = conf
         component = get_component(domain)
         if component is None:
             result.add_str_error(u"Component not found: {}".format(domain), [domain])
-            skip_paths.append([domain])
             continue
 
-        if component.is_multi_conf and not isinstance(conf, list):
+        # Process AUTO_LOAD
+        for load in component.auto_load:
+            if load not in config:
+                load_conf = core.AutoLoad()
+                config[load] = load_conf
+                load_queue.append((load, load_conf))
+
+        if not component.is_platform_component:
+            check_queue.append(([domain], domain, conf, component))
+            continue
+
+        # This is a platform component, proceed to reading platform entries
+        # Remove this is as an output path
+        result.remove_output_path([domain], domain)
+
+        # Ensure conf is a list
+        was_list = True
+        if not isinstance(conf, list) and conf:
             result[domain] = conf = [conf]
+            was_list = False
+
+        for i, p_config in enumerate(conf):
+            path = [domain, i] if was_list else [domain]
+            # Construct temporary unknown output path
+            p_domain = u'{}.unknown'.format(domain)
+            result.add_output_path(path, p_domain)
+            result[domain][i] = p_config
+            if not isinstance(p_config, dict):
+                result.add_str_error(u"Platform schemas must be key-value pairs.", path)
+                continue
+            p_name = p_config.get('platform')
+            if p_name is None:
+                result.add_str_error(u"No platform specified! See 'platform' key.", path)
+                continue
+            # Remove temp output path and construct new one
+            result.remove_output_path(path, p_domain)
+            p_domain = u'{}.{}'.format(domain, p_name)
+            result.add_output_path(path, p_domain)
+            # Try Load platform
+            platform = get_platform(domain, p_name)
+            if platform is None:
+                result.add_str_error(u"Platform not found: '{}'".format(p_domain), path)
+                continue
+
+            # Process AUTO_LOAD
+            for load in platform.auto_load:
+                if load not in config:
+                    load_conf = core.AutoLoad()
+                    config[load] = load_conf
+                    load_queue.append((load, load_conf))
+
+            check_queue.append((path, p_domain, p_config, platform))
+
+    # 4. Validate component metadata, including
+    # - Transformation (nullable, multi conf)
+    # - Dependencies
+    # - Conflicts
+    # - Supported ESP Platform
+
+    # List of items to proceed to next stage
+    validate_queue = []  # type: List[Tuple[ConfigPath, ConfigType, ComponentManifest]]
+    for path, domain, conf, comp in check_queue:
+        if conf is None:
+            result[domain] = conf = {}
 
         success = True
-        for dependency in component.dependencies:
+        for dependency in comp.dependencies:
             if dependency not in config:
                 result.add_str_error(u"Component {} requires component {}"
-                                     u"".format(domain, dependency), [domain])
+                                     u"".format(domain, dependency), path)
                 success = False
         if not success:
-            skip_paths.append([domain])
             continue
 
         success = True
-        for conflict in component.conflicts_with:
+        for conflict in comp.conflicts_with:
             if conflict in config:
                 result.add_str_error(u"Component {} cannot be used together with component {}"
                                      u"".format(domain, conflict), [domain])
                 success = False
         if not success:
-            skip_paths.append([domain])
             continue
 
-        for load in component.auto_load:
-            if load not in config:
-                conf = core.AutoLoad()
-                config[load] = conf
-                config_queue.append((load, conf))
-
-        if CORE.esp_platform not in component.esp_platforms:
-            result.add_str_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+        if CORE.esp_platform not in comp.esp_platforms:
+            result.add_str_error(u"Component {} doesn't support {}.".format(domain,
+                                                                            CORE.esp_platform),
                                  [domain])
-            skip_paths.append([domain])
             continue
 
-        if not component.is_platform_component:
-            if component.config_schema is None and not isinstance(conf, core.AutoLoad):
-                result.add_error(u"Component {} cannot be loaded via YAML (no CONFIG_SCHEMA)."
-                                 u"".format(domain), [domain])
-                skip_paths.append([domain])
+        if not comp.is_platform_component and comp.config_schema is None and \
+                not isinstance(conf, core.AutoLoad):
+            result.add_str_error(u"Component {} cannot be loaded via YAML "
+                                 u"(no CONFIG_SCHEMA).".format(domain), path)
             continue
 
-        result.remove_output_path([domain], domain)
-
-        if not isinstance(conf, list) and conf:
-            result[domain] = conf = [conf]
-
-        for i, p_config in enumerate(conf):
-            if not isinstance(p_config, dict):
-                result.add_str_error(u"Platform schemas must have 'platform:' key", [domain, i])
-                skip_paths.append([domain, i])
-                continue
-            p_name = p_config.get('platform')
-            if p_name is None:
-                result.add_str_error(u"No platform specified for {}".format(domain), [domain, i])
-                skip_paths.append([domain, i])
-                continue
-            p_domain = u'{}.{}'.format(domain, p_name)
-            result.add_output_path([domain, i], p_domain)
-            platform = get_platform(domain, p_name)
-            if platform is None:
-                result.add_str_error(u"Platform not found: '{}'".format(p_domain), [domain, i])
-                skip_paths.append([domain, i])
-                continue
-
-            success = True
-            for dependency in platform.dependencies:
-                if dependency not in config:
-                    result.add_str_error(u"Platform {} requires component {}"
-                                         u"".format(p_domain, dependency), [domain, i])
-                    success = False
-            if not success:
-                skip_paths.append([domain, i])
-                continue
-
-            success = True
-            for conflict in platform.conflicts_with:
-                if conflict in config:
-                    result.add_str_error(u"Platform {} cannot be used together with component {}"
-                                         u"".format(p_domain, conflict), [domain, i])
-                    success = False
-            if not success:
-                skip_paths.append([domain, i])
-                continue
-
-            for load in platform.auto_load:
-                if load not in config:
-                    conf = core.AutoLoad()
-                    config[load] = conf
-                    config_queue.append((load, conf))
-
-            if CORE.esp_platform not in platform.esp_platforms:
-                result.add_str_error(u"Platform {} doesn't support {}."
-                                     u"".format(p_domain, CORE.esp_platform), [domain, i])
-                skip_paths.append([domain, i])
-                continue
-
-            if platform.config_schema is None:
-                result.add_error(u"Platform {} cannot be loaded via YAML (no PLATFORM_SCHEMA)."
-                                 u"".format(p_domain), [domain, i])
-                skip_paths.append([domain])
-
-    # Step 2: Validate configuration
-    with result.catch_error([CONF_ESPHOME]):
-        result[CONF_ESPHOME] = core_config.CONFIG_SCHEMA(result[CONF_ESPHOME])
-
-    for domain, conf in result.items():
-        domain = str(domain)
-        if [domain] in skip_paths:
-            continue
-        component = get_component(domain)
-
-        if not component.is_platform_component:
-            if component.config_schema is None:
-                continue
-
-            if component.is_multi_conf:
-                for i, conf_ in enumerate(conf):
-                    with result.catch_error([domain, i]):
-                        validated = component.config_schema(conf_)
-                        result[domain][i] = validated
-            else:
-                with result.catch_error([domain]):
-                    validated = component.config_schema(conf)
-                    result[domain] = validated
+        if comp.is_multi_conf:
+            if not isinstance(conf, list):
+                result[domain] = conf = [conf]
+            for i, part_conf in enumerate(conf):
+                validate_queue.append((path + [i], part_conf, comp))
             continue
 
-        for i, p_config in enumerate(conf):
-            if [domain, i] in skip_paths:
-                continue
-            p_name = p_config['platform']
-            platform = get_platform(domain, p_name)
+        validate_queue.append((path, conf, comp))
 
-            if platform.config_schema is not None:
+    # 5. Validate configuration schema
+    for path, conf, comp in validate_queue:
+        if comp.config_schema is None:
+            continue
+        with result.catch_error(path):
+            if comp.is_platform:
                 # Remove 'platform' key for validation
-                input_conf = OrderedDict(p_config)
+                input_conf = OrderedDict(conf)
                 platform_val = input_conf.pop('platform')
-                with result.catch_error([domain, i]):
-                    p_validated = platform.config_schema(input_conf)
-                    if not isinstance(p_validated, OrderedDict):
-                        p_validated = OrderedDict(p_validated)
-                    p_validated['platform'] = platform_val
-                    p_validated.move_to_end('platform', last=False)
-                    result[domain][i] = p_validated
+                validated = comp.config_schema(input_conf)
+                # Ensure result is OrderedDict so we can call move_to_end
+                if not isinstance(validated, OrderedDict):
+                    validated = OrderedDict(validated)
+                validated['platform'] = platform_val
+                validated.move_to_end('platform', last=False)
+                result.set_by_path(path, validated)
+            else:
+                validated = comp.config_schema(conf)
+                result.set_by_path(path, validated)
 
-    # 5. If no validation errors, check IDs
+    # 6. If no validation errors, check IDs
     if not result.errors:
         # Only parse IDs if no validation error. Otherwise
         # user gets confusing messages
@@ -525,9 +532,6 @@ def _nested_getitem(data, path):
 
 
 def humanize_error(config, validation_error):
-    offending_item_summary = _nested_getitem(config, validation_error.path)
-    if isinstance(offending_item_summary, dict):
-        offending_item_summary = None
     validation_error = text_type(validation_error)
     m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
     if m is not None:
@@ -535,10 +539,7 @@ def humanize_error(config, validation_error):
     validation_error = validation_error.strip()
     if not validation_error.endswith(u'.'):
         validation_error += u'.'
-    if offending_item_summary is None or is_secret(offending_item_summary):
-        return validation_error
-
-    return u"{} Got '{}'".format(validation_error, offending_item_summary)
+    return validation_error
 
 
 def _get_parent_name(path, config):
@@ -614,9 +615,10 @@ def line_info(obj, highlight=True):
     """Display line config source."""
     if not highlight:
         return None
-    if hasattr(obj, '__config_file__'):
-        return color('cyan', "[source {}:{}]"
-                     .format(obj.__config_file__, obj.__line__ or '?'))
+    if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
+        mark = obj.esp_range.start_mark
+        source = u"[source {}:{}]".format(mark.document, mark.line + 1)
+        return color('cyan', source)
     return None
 
 

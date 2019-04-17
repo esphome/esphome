@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_ON_TURN_OFF, \
-    CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID
+    CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -39,6 +39,7 @@ SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 
 def setup_switch_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

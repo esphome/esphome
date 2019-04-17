@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_NAME, CONF_RESOLUTION, CONF_UPDATE_INTERVAL, UNIT_LUX, \
-    ICON_BRIGHTNESS_5
+from esphome.const import CONF_ID, CONF_RESOLUTION, UNIT_LUX, ICON_BRIGHTNESS_5
 
 DEPENDENCIES = ['i2c']
 
@@ -19,12 +18,11 @@ BH1750Sensor = bh1750_ns.class_('BH1750Sensor', sensor.PollingSensorComponent, i
 CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
     cv.GenerateID(): cv.declare_variable_id(BH1750Sensor),
     cv.Optional(CONF_RESOLUTION, default=0.0): cv.one_of(*BH1750_RESOLUTIONS, float=True),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x23)))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x23)))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
     yield i2c.register_i2c_device(var, config)

@@ -10,8 +10,6 @@ namespace hlw8012 {
 
 class HLW8012Component : public PollingComponent {
  public:
-  HLW8012Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;

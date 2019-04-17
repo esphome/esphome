@@ -7,12 +7,6 @@ namespace dht {
 
 static const char *TAG = "dht";
 
-DHT::DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin, uint32_t update_interval)
-    : PollingComponent(update_interval),
-      pin_(pin),
-      temperature_sensor_(new sensor::Sensor(temperature_name)),
-      humidity_sensor_(new sensor::Sensor(humidity_name)) {}
-
 void DHT::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DHT...");
   this->pin_->digital_write(true);

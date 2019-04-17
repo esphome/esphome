@@ -19,7 +19,7 @@ struct BangBangClimateTargetTempConfig {
 
 class BangBangClimate : public climate::Climate, public Component {
  public:
-  BangBangClimate(const std::string &name);
+  BangBangClimate();
   void setup() override;
 
   void set_sensor(sensor::Sensor *sensor);

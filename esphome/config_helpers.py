@@ -24,4 +24,3 @@ def read_config_file(path):
         raise EsphomeError(u"Error accessing file {}: {}".format(path, exc))
     except UnicodeDecodeError as exc:
         raise EsphomeError(u"Unable to read file {}: {}".format(path, exc))
-

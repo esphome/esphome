@@ -24,9 +24,11 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
 
 
 def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], pin)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield output.register_output(var, config)
+
+    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    cg.add(var.set_pin(pin))
 
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))

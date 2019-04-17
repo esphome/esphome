@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import lcd_base
-from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_PIN, CONF_ID, \
-    CONF_UPDATE_INTERVAL
+from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_PIN, CONF_ID
 
 AUTO_LOAD = ['lcd_base']
 
@@ -28,7 +27,7 @@ CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield lcd_base.setup_lcd_display(var, config)
     pins_ = []
     for conf in config[CONF_DATA_PINS]:

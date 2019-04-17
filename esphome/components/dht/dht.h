@@ -18,13 +18,6 @@ enum DHTModel {
 /// Component for reading temperature/humidity measurements from DHT11/DHT22 sensors.
 class DHT : public PollingComponent {
  public:
-  /** Construct a DHTComponent.
-   *
-   * @param pin The pin which DHT sensor is connected to.
-   * @param update_interval The interval in ms the sensor should be checked.
-   */
-  DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin, uint32_t update_interval);
-
   /** Manually select the DHT model.
    *
    * Valid values are:
@@ -40,10 +33,18 @@ class DHT : public PollingComponent {
    */
   void set_dht_model(DHTModel model);
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
-  sensor::Sensor *get_temperature_sensor() const;
-  sensor::Sensor *get_humidity_sensor() const;
+  void set_pin(GPIOPin *pin) {
+    pin_ = pin;
+  }
+  void set_model(DHTModel model) {
+    model_ = model;
+  }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
+    temperature_sensor_ = temperature_sensor;
+  }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) {
+    humidity_sensor_ = humidity_sensor;
+  }
 
   /// Set up the pins and check connection.
   void setup() override;
@@ -59,8 +60,8 @@ class DHT : public PollingComponent {
   GPIOPin *pin_;
   DHTModel model_{DHT_MODEL_AUTO_DETECT};
   bool is_auto_detect_{false};
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace dht

@@ -138,9 +138,8 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->supports_away_ = true;
   this->away_config_ = away_config;
 }
-BangBangClimate::BangBangClimate(const std::string &name)
-    : climate::Climate(name),
-      idle_trigger_(new Trigger<>()),
+BangBangClimate::BangBangClimate()
+    : idle_trigger_(new Trigger<>()),
       cool_trigger_(new Trigger<>()),
       heat_trigger_(new Trigger<>()) {}
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
