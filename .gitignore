@@ -99,3 +99,4 @@ CTestTestfile.cmake
 config/
 tests/build/
 tests/.esphome/
+/.temp-clang-tidy.cpp

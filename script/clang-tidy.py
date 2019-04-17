@@ -28,6 +28,7 @@ else:
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, '..', '..')))
 basepath = os.path.join(root_path, 'esphome')
 rel_basepath = os.path.relpath(basepath, os.getcwd())
+temp_header_file = os.path.join(root_path, '.temp-clang-tidy.cpp')
 
 
 def run_tidy(args, tmpdir, queue, lock, failed_files):
@@ -138,6 +139,7 @@ def build_compile_commands():
         ext = os.path.splitext(path)[1]
         if ext in filetypes:
             source_files.append(os.path.abspath(path))
+    source_files.append(temp_header_file)
     source_files.sort()
     compile_commands = [{
         'directory': root_path,
@@ -156,6 +158,24 @@ def build_compile_commands():
         json.dump(compile_commands, f, indent=2)
 
 
+def build_all_include():
+    # Build a cpp file that includes all header files in this repo.
+    # Otherwise header-only integrations would not be tested by clang-tidy
+    headers = []
+    for path in walk_files(basepath):
+        filetypes = ('.h',)
+        ext = os.path.splitext(path)[1]
+        if ext in filetypes:
+            path = os.path.relpath(path, root_path)
+            include_p = path.replace(os.path.sep, '/')
+            headers.append('#include "{}"'.format(include_p))
+    headers.sort()
+    headers.append('')
+    content = '\n'.join(headers)
+    with codecs.open(temp_header_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
@@ -168,6 +188,8 @@ def main():
                         help='Run clang-tidy in quiet mode')
     parser.add_argument('-c', '--changed', action='store_true',
                         help='Only run on changed files')
+    parser.add_argument('--all-headers', action='store_true',
+                        help='Create a dummy file that checks all headers')
     args = parser.parse_args()
 
     try:
@@ -202,6 +224,10 @@ def main():
 
     files.sort()
 
+    if args.all_headers:
+        build_all_include()
+        files.insert(0, temp_header_file)
+
     tmpdir = None
     if args.fix:
         tmpdir = tempfile.mkdtemp()
@@ -232,6 +258,8 @@ def main():
         print('Ctrl-C detected, goodbye.')
         if tmpdir:
             shutil.rmtree(tmpdir)
+        if os.path.exists(temp_header_file):
+            os.remove(temp_header_file)
         os.kill(0, 9)
 
     if args.fix and failed_files:
@@ -240,8 +268,12 @@ def main():
             subprocess.call(['clang-apply-replacements-7', tmpdir])
         except:
             print('Error applying fixes.\n', file=sys.stderr)
+            if os.path.exists(temp_header_file):
+                os.remove(temp_header_file)
             raise
 
+    if os.path.exists(temp_header_file):
+        os.remove(temp_header_file)
     sys.exit(return_code)
 
 
