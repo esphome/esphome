@@ -209,7 +209,6 @@ uint16_t reverse_bits_16(uint16_t x) {
   return uint16_t(reverse_bits_8(x & 0xFF) << 8) | uint16_t(reverse_bits_8(x >> 8));
 }
 std::string to_string(const std::string &val) { return val; }
-std::string to_string(const String &val) { return val.c_str(); }
 std::string to_string(int val) {
   char buf[64];
   sprintf(buf, "%d", val);

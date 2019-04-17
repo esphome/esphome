@@ -30,7 +30,6 @@ std::string get_mac_address();
 std::string get_mac_address_pretty();
 
 std::string to_string(const std::string &val);
-std::string to_string(const String &val);
 std::string to_string(int val);
 std::string to_string(long val);
 std::string to_string(long long val);
