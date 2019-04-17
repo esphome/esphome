@@ -195,7 +195,7 @@ def perform_ota(sock, password, file_handle, filename):
         send_check(sock, cnonce, 'auth cnonce')
 
         result_md5 = hashlib.md5()
-        result_md5.update(password.encode())
+        result_md5.update(password.encode('utf-8'))
         result_md5.update(nonce.encode())
         result_md5.update(cnonce.encode())
         result = result_md5.hexdigest()
@@ -297,15 +297,3 @@ def run_ota(remote_host, remote_port, password, filename):
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
-
-
-def run_legacy_ota(verbose, host_port, remote_host, remote_port, password, filename):
-    from esphome import espota
-
-    espota_args = ['espota.py', '--debug', '--progress', '-i', remote_host,
-                   '-p', str(remote_port), '-f', filename,
-                   '-a', password, '-P', str(host_port)]
-    if verbose:
-        espota_args.append('-d')
-    return espota.main(espota_args)

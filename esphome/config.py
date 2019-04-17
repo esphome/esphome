@@ -1,13 +1,14 @@
 from __future__ import print_function
 
-from collections import OrderedDict
-from contextlib import contextmanager
+import collections
 import importlib
 import logging
 import re
+import os.path
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import List, Optional, Tuple, Union  # noqa
+
 import voluptuous as vol
 
 from esphome import core, core_config, yaml_util
@@ -17,55 +18,148 @@ from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, ConfigType, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.py_compat import text_type
-from esphome.util import safe_print
-from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.util import safe_print, OrderedDict
+
+# pylint: disable=unused-import, wrong-import-order
+from typing import List, Optional, Tuple, Union  # noqa
+from esphome.core import ConfigType  # noqa
 from esphome.yaml_util import is_secret
+from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
 
 _COMPONENT_CACHE = {}
 
 
-def get_component(domain):
+class ComponentManifest(object):
+    def __init__(self, module, base_components_path, is_core=False, is_platform=False):
+        self.module = module
+        self._is_core = is_core
+        self.is_platform = is_platform
+        self.base_components_path = base_components_path
+
+    @property
+    def is_platform_component(self):
+        return getattr(self.module, 'IS_PLATFORM_COMPONENT', False)
+
+    @property
+    def config_schema(self):
+        return getattr(self.module, 'CONFIG_SCHEMA', None)
+
+    @property
+    def is_multi_conf(self):
+        return getattr(self.module, 'MULTI_CONF', False)
+
+    @property
+    def to_code(self):
+        return getattr(self.module, 'to_code', None)
+
+    @property
+    def esp_platforms(self):
+        return getattr(self.module, 'ESP_PLATFORMS', ESP_PLATFORMS)
+
+    @property
+    def dependencies(self):
+        return getattr(self.module, 'DEPENDENCIES', [])
+
+    @property
+    def conflicts_with(self):
+        return getattr(self.module, 'CONFLICTS_WITH', [])
+
+    @property
+    def auto_load(self):
+        return getattr(self.module, 'AUTO_LOAD', [])
+
+    @property
+    def to_code_priority(self):
+        return getattr(self.module, 'TO_CODE_PRIORITY', [])
+
+    def _get_flags_set(self, name, config):
+        if not hasattr(self.module, name):
+            return set()
+        obj = getattr(self.module, name)
+        if callable(obj):
+            obj = obj(config)
+        if obj is None:
+            return set()
+        if not isinstance(obj, (list, tuple, set)):
+            obj = [obj]
+        return set(obj)
+
+    @property
+    def source_files(self):
+        if self._is_core:
+            core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), 'core'))
+            source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
+            ret = {}
+            for f in source_files:
+                ret['esphome/core/{}'.format(f)] = os.path.join(core_p, f)
+            return ret
+
+        source_files = core.find_source_files(self.module.__file__)
+        ret = {}
+        # Make paths absolute
+        directory = os.path.abspath(os.path.dirname(self.module.__file__))
+        for x in source_files:
+            full_file = os.path.join(directory, x)
+            rel = os.path.relpath(full_file, self.base_components_path)
+            # Always use / for C++ include names
+            rel = rel.replace(os.sep, '/')
+            target_file = 'esphome/components/{}'.format(rel)
+            ret[target_file] = full_file
+        return ret
+
+
+CORE_COMPONENTS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), 'components'))
+
+
+def _lookup_module(domain, is_platform):
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
     path = 'esphome.components.{}'.format(domain)
     try:
         module = importlib.import_module(path)
-    except (ImportError, ValueError) as err:
-        _LOGGER.debug(err)
+    except ImportError:
+        return None
+    except Exception:  # pylint: disable=broad-except
+        import traceback
+        _LOGGER.error("Unable to load component %s:", domain)
+        traceback.print_exc()
+        return None
     else:
-        _COMPONENT_CACHE[domain] = module
-        return module
+        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
+        _COMPONENT_CACHE[domain] = manif
+        return manif
 
-    _LOGGER.error("Unable to find component %s", domain)
-    return None
+
+def get_component(domain):
+    assert '.' not in domain
+    return _lookup_module(domain, False)
 
 
 def get_platform(domain, platform):
-    return get_component("{}.{}".format(domain, platform))
+    full = '{}.{}'.format(platform, domain)
+    return _lookup_module(full, True)
 
 
-def is_platform_component(component):
-    return hasattr(component, 'PLATFORM_SCHEMA')
+_COMPONENT_CACHE['esphome'] = ComponentManifest(
+    core_config, CORE_COMPONENTS_PATH, is_core=True, is_platform=False,
+)
 
 
 def iter_components(config):
     for domain, conf in config.items():
-        if domain == CONF_ESPHOME:
-            yield CONF_ESPHOME, core_config, conf
-            continue
         component = get_component(domain)
-        if getattr(component, 'MULTI_CONF', False):
+        if component.is_multi_conf:
             for conf_ in conf:
                 yield domain, component, conf_
         else:
             yield domain, component, conf
-        if is_platform_component(component):
+        if component.is_platform_component:
             for p_config in conf:
                 p_name = u"{}.{}".format(domain, p_config[CONF_PLATFORM])
-                platform = get_component(p_name)
+                platform = get_platform(domain, p_config[CONF_PLATFORM])
                 yield p_name, platform, p_config
 
 
@@ -243,7 +337,15 @@ def validate_config(config):
     # a list of paths for which no further voluptuous validation will be performed
     skip_paths = list()  # type: List[ConfigPath]
 
+    # Step 1: Load everything
+    result.add_domain([CONF_ESPHOME], CONF_ESPHOME)
+    result[CONF_ESPHOME] = config[CONF_ESPHOME]
+    config_queue = collections.deque()
     for domain, conf in config.items():
+        config_queue.append((domain, conf))
+
+    while config_queue:
+        domain, conf = config_queue.popleft()
         domain = str(domain)
         if domain == CONF_ESPHOME or domain.startswith(u'.'):
             # Ignore top-level keys starting with a dot
@@ -260,12 +362,11 @@ def validate_config(config):
             skip_paths.append([domain])
             continue
 
-        if not isinstance(conf, list) and getattr(component, 'MULTI_CONF', False):
+        if component.is_multi_conf and not isinstance(conf, list):
             result[domain] = conf = [conf]
 
         success = True
-        dependencies = getattr(component, 'DEPENDENCIES', [])
-        for dependency in dependencies:
+        for dependency in component.dependencies:
             if dependency not in config:
                 result.add_str_error(u"Component {} requires component {}"
                                      u"".format(domain, dependency), [domain])
@@ -275,8 +376,7 @@ def validate_config(config):
             continue
 
         success = True
-        conflicts_with = getattr(component, 'CONFLICTS_WITH', [])
-        for conflict in conflicts_with:
+        for conflict in component.conflicts_with:
             if conflict in config:
                 result.add_str_error(u"Component {} cannot be used together with component {}"
                                      u"".format(domain, conflict), [domain])
@@ -285,14 +385,23 @@ def validate_config(config):
             skip_paths.append([domain])
             continue
 
-        esp_platforms = getattr(component, 'ESP_PLATFORMS', ESP_PLATFORMS)
-        if CORE.esp_platform not in esp_platforms:
-            result.add_str_error(u"Component {} doesn't support {}."
-                                 u"".format(domain, CORE.esp_platform), [domain])
+        for load in component.auto_load:
+            if load not in config:
+                conf = core.AutoLoad()
+                config[load] = conf
+                config_queue.append((load, conf))
+
+        if CORE.esp_platform not in component.esp_platforms:
+            result.add_str_error(u"Component {} doesn't support {}.".format(domain, CORE.esp_platform),
+                                 [domain])
             skip_paths.append([domain])
             continue
 
-        if not hasattr(component, 'PLATFORM_SCHEMA'):
+        if not component.is_platform_component:
+            if component.config_schema is None and not isinstance(conf, core.AutoLoad):
+                result.add_error(u"Component {} cannot be loaded via YAML (no CONFIG_SCHEMA)."
+                                 u"".format(domain), [domain])
+                skip_paths.append([domain])
             continue
 
         result.remove_output_path([domain], domain)
@@ -319,8 +428,7 @@ def validate_config(config):
                 continue
 
             success = True
-            dependencies = getattr(platform, 'DEPENDENCIES', [])
-            for dependency in dependencies:
+            for dependency in platform.dependencies:
                 if dependency not in config:
                     result.add_str_error(u"Platform {} requires component {}"
                                          u"".format(p_domain, dependency), [domain, i])
@@ -330,8 +438,7 @@ def validate_config(config):
                 continue
 
             success = True
-            conflicts_with = getattr(platform, 'CONFLICTS_WITH', [])
-            for conflict in conflicts_with:
+            for conflict in platform.conflicts_with:
                 if conflict in config:
                     result.add_str_error(u"Platform {} cannot be used together with component {}"
                                          u"".format(p_domain, conflict), [domain, i])
@@ -340,14 +447,24 @@ def validate_config(config):
                 skip_paths.append([domain, i])
                 continue
 
-            esp_platforms = getattr(platform, 'ESP_PLATFORMS', ESP_PLATFORMS)
-            if CORE.esp_platform not in esp_platforms:
+            for load in platform.auto_load:
+                if load not in config:
+                    conf = core.AutoLoad()
+                    config[load] = conf
+                    config_queue.append((load, conf))
+
+            if CORE.esp_platform not in platform.esp_platforms:
                 result.add_str_error(u"Platform {} doesn't support {}."
                                      u"".format(p_domain, CORE.esp_platform), [domain, i])
                 skip_paths.append([domain, i])
                 continue
 
-    # 4. Validate configuration
+            if platform.config_schema is None:
+                result.add_error(u"Platform {} cannot be loaded via YAML (no PLATFORM_SCHEMA)."
+                                 u"".format(p_domain), [domain, i])
+                skip_paths.append([domain])
+
+    # Step 2: Validate configuration
     with result.catch_error([CONF_ESPHOME]):
         result[CONF_ESPHOME] = core_config.CONFIG_SCHEMA(result[CONF_ESPHOME])
 
@@ -357,20 +474,19 @@ def validate_config(config):
             continue
         component = get_component(domain)
 
-        if hasattr(component, 'CONFIG_SCHEMA'):
-            multi_conf = getattr(component, 'MULTI_CONF', False)
+        if not component.is_platform_component:
+            if component.config_schema is None:
+                continue
 
-            if multi_conf:
+            if component.is_multi_conf:
                 for i, conf_ in enumerate(conf):
                     with result.catch_error([domain, i]):
-                        validated = component.CONFIG_SCHEMA(conf_)
+                        validated = component.config_schema(conf_)
                         result[domain][i] = validated
             else:
                 with result.catch_error([domain]):
-                    validated = component.CONFIG_SCHEMA(conf)
+                    validated = component.config_schema(conf)
                     result[domain] = validated
-
-        if not hasattr(component, 'PLATFORM_SCHEMA'):
             continue
 
         for i, p_config in enumerate(conf):
@@ -379,9 +495,16 @@ def validate_config(config):
             p_name = p_config['platform']
             platform = get_platform(domain, p_name)
 
-            if hasattr(platform, 'PLATFORM_SCHEMA'):
+            if platform.config_schema is not None:
+                # Remove 'platform' key for validation
+                input_conf = OrderedDict(p_config)
+                platform_val = input_conf.pop('platform')
                 with result.catch_error([domain, i]):
-                    p_validated = platform.PLATFORM_SCHEMA(p_config)
+                    p_validated = platform.config_schema(input_conf)
+                    if not isinstance(p_validated, OrderedDict):
+                        p_validated = OrderedDict(p_validated)
+                    p_validated['platform'] = platform_val
+                    p_validated.move_to_end('platform', last=False)
                     result[domain][i] = p_validated
 
     # 5. If no validation errors, check IDs
@@ -603,7 +726,7 @@ def strip_default_ids(config):
         to_remove = []
         for i, x in enumerate(config):
             x = config[i] = strip_default_ids(x)
-            if isinstance(x, core.ID) and not x.is_manual:
+            if (isinstance(x, core.ID) and not x.is_manual) or isinstance(x, core.AutoLoad):
                 to_remove.append(x)
         for x in to_remove:
             config.remove(x)
@@ -611,7 +734,7 @@ def strip_default_ids(config):
         to_remove = []
         for k, v in config.items():
             v = config[k] = strip_default_ids(v)
-            if isinstance(v, core.ID) and not v.is_manual:
+            if (isinstance(v, core.ID) and not v.is_manual) or isinstance(v, core.AutoLoad):
                 to_remove.append(k)
         for k in to_remove:
             config.pop(k)

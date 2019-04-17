@@ -1,13 +1,10 @@
 from __future__ import print_function
 
-import errno
+import codecs
 import logging
 import os
-import socket
-import subprocess
 
 from esphome.py_compat import char_to_byte, text_type
-from esphome.zeroconf import Zeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +70,8 @@ def color(the_color, message=''):
 
 
 def run_system_command(*args):
+    import subprocess
+
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
     rc = p.returncode
@@ -80,6 +79,8 @@ def run_system_command(*args):
 
 
 def mkdir_p(path):
+    import errno
+
     try:
         os.makedirs(path)
     except OSError as exc:
@@ -103,6 +104,8 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphome.core import EsphomeError
+    from esphome.zeroconf import Zeroconf
+
     try:
         zc = Zeroconf()
     except Exception:
@@ -122,6 +125,7 @@ def _resolve_with_zeroconf(host):
 
 def resolve_ip_address(host):
     from esphome.core import EsphomeError
+    import socket
 
     try:
         ip = socket.gethostbyname(host)
@@ -142,14 +146,39 @@ def is_hassio():
     return get_bool_env('ESPHOME_IS_HASSIO')
 
 
-def symlink(src, dst):
-    if hasattr(os, 'symlink'):
-        os.symlink(src, dst)
+def copy_file_if_changed(src, dst):
+    src_text = read_file(src)
+    if os.path.isfile(dst):
+        dst_text = read_file(dst)
     else:
-        import ctypes
-        csl = ctypes.windll.kernel32.CreateSymbolicLinkW
-        csl.argtypes = (ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint32)
-        csl.restype = ctypes.c_ubyte
-        flags = 1 if os.path.isdir(src) else 0
-        if csl(dst, src, flags) == 0:
-            raise ctypes.WinError()
+        dst_text = None
+    if src_text == dst_text:
+        return
+    write_file(dst, src_text)
+
+
+def read_file(path):
+    try:
+        with codecs.open(path, 'r', encoding='utf-8') as f_handle:
+            return f_handle.read()
+    except OSError:
+        from esphome.core import EsphomeError
+        raise EsphomeError(u"Could not read file at {}".format(path))
+
+
+def write_file(path, text):
+    try:
+        mkdir_p(os.path.dirname(path))
+        with codecs.open(path, 'w+', encoding='utf-8') as f_handle:
+            f_handle.write(text)
+    except OSError:
+        from esphome.core import EsphomeError
+        raise EsphomeError(u"Could not write file at {}".format(path))
+
+
+def write_file_if_changed(text, dst):
+    src_content = None
+    if os.path.isfile(dst):
+        src_content = read_file(dst)
+    if src_content != text:
+        write_file(dst, text)

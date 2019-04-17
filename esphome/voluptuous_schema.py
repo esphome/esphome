@@ -161,5 +161,7 @@ class _Schema(vol.Schema):
         return validate_mapping
 
     def extend(self, schema, required=None, extra=None):
+        if isinstance(schema, vol.Schema):
+            schema = schema.schema
         ret = vol.Schema.extend(self, schema, required=required, extra=extra)
         return _Schema(ret.schema, required=ret.required, extra=ret.extra)

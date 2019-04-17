@@ -2,11 +2,6 @@ esphome:
   name: $devicename
   platform: ESP32
   board: nodemcu-32s
-  # Use this for testing while developing:
-  # Note the travis check for esphome PRs will fail until the
-  # esphome-core PR has been merged.
-  # esphome_core_version:
-  #   local: ~/path/to/esphome-core
   build_path: build/test2
 
 substitutions:
@@ -142,7 +137,7 @@ esp32_touch:
   setup_mode: True
 
 binary_sensor:
-  - platform: esp32_ble_tracker
+  - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
   - platform: esp32_touch
@@ -201,6 +196,8 @@ text_sensor:
           variables:
             my_variable: |-
               return id(version_sensor).state;
+            my_variable_str: |-
+              return "Hello World";
   - platform: template
     name: "Template Text Sensor"
     lambda: |-

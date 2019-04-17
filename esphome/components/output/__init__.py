@@ -1,114 +1,89 @@
-import voluptuous as vol
-
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-from esphome.components.power_supply import PowerSupplyComponent
+import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome.components import power_supply
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
-from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, add, get_variable, templatable
-from esphome.cpp_types import Action, esphome_ns, float_
+from esphome.core import CORE, coroutine
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
-
-})
+IS_PLATFORM_COMPONENT = True
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({
-    vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
+    cv.Optional(CONF_INVERTED): cv.boolean,
 })
-
-BINARY_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_OUTPUT_SCHEMA.schema)
 
 FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend({
-    vol.Optional(CONF_MAX_POWER): cv.percentage,
-    vol.Optional(CONF_MIN_POWER): cv.percentage,
+    cv.Optional(CONF_MAX_POWER): cv.percentage,
+    cv.Optional(CONF_MIN_POWER): cv.percentage,
 })
 
-FLOAT_OUTPUT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(FLOAT_OUTPUT_SCHEMA.schema)
-
-output_ns = esphome_ns.namespace('output')
+output_ns = cg.esphome_ns.namespace('output')
 BinaryOutput = output_ns.class_('BinaryOutput')
 BinaryOutputPtr = BinaryOutput.operator('ptr')
 FloatOutput = output_ns.class_('FloatOutput', BinaryOutput)
 FloatOutputPtr = FloatOutput.operator('ptr')
 
 # Actions
-TurnOffAction = output_ns.class_('TurnOffAction', Action)
-TurnOnAction = output_ns.class_('TurnOnAction', Action)
-SetLevelAction = output_ns.class_('SetLevelAction', Action)
+TurnOffAction = output_ns.class_('TurnOffAction', cg.Action)
+TurnOnAction = output_ns.class_('TurnOnAction', cg.Action)
+SetLevelAction = output_ns.class_('SetLevelAction', cg.Action)
 
 
-def setup_output_platform_(obj, config, skip_power_supply=False):
+@coroutine
+def setup_output_platform_(obj, config):
     if CONF_INVERTED in config:
-        add(obj.set_inverted(config[CONF_INVERTED]))
-    if not skip_power_supply and CONF_POWER_SUPPLY in config:
-        power_supply = None
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
-        add(obj.set_power_supply(power_supply))
+        cg.add(obj.set_inverted(config[CONF_INVERTED]))
+    if CONF_POWER_SUPPLY in config:
+        power_supply_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(obj.set_power_supply(power_supply_))
     if CONF_MAX_POWER in config:
-        add(obj.set_max_power(config[CONF_MAX_POWER]))
+        cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
     if CONF_MIN_POWER in config:
-        add(obj.set_min_power(config[CONF_MIN_POWER]))
+        cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
 
 
-def setup_output_platform(obj, config, skip_power_supply=False):
-    CORE.add_job(setup_output_platform_, obj, config, skip_power_supply)
-
-
+@coroutine
 def register_output(var, config):
-    output_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    CORE.add_job(setup_output_platform_, output_var, config)
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    yield setup_output_platform_(var, config)
 
 
-BUILD_FLAGS = '-DUSE_OUTPUT'
-
-CONF_OUTPUT_TURN_ON = 'output.turn_on'
-OUTPUT_TURN_ON_ACTION = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
+BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
 })
 
 
-@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_ON, OUTPUT_TURN_ON_ACTION)
+@ACTION_REGISTRY.register('output.turn_on', BINARY_OUTPUT_ACTION_SCHEMA)
 def output_turn_on_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_turn_on_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = TurnOnAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
+    rhs = type.new(var)
+    yield cg.Pvariable(action_id, rhs, type=type)
 
 
-CONF_OUTPUT_TURN_OFF = 'output.turn_off'
-OUTPUT_TURN_OFF_ACTION = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(BinaryOutput)
-})
-
-
-@ACTION_REGISTRY.register(CONF_OUTPUT_TURN_OFF, OUTPUT_TURN_OFF_ACTION)
+@ACTION_REGISTRY.register('output.turn_off', BINARY_OUTPUT_ACTION_SCHEMA)
 def output_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_turn_off_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = TurnOffAction.template(template_arg)
-    yield Pvariable(action_id, rhs, type=type)
+    rhs = type.new(var)
+    yield cg.Pvariable(action_id, rhs, type=type)
 
 
-CONF_OUTPUT_SET_LEVEL = 'output.set_level'
-OUTPUT_SET_LEVEL_ACTION = cv.Schema({
-    vol.Required(CONF_ID): cv.use_variable_id(FloatOutput),
-    vol.Required(CONF_LEVEL): cv.templatable(cv.percentage),
-})
-
-
-@ACTION_REGISTRY.register(CONF_OUTPUT_SET_LEVEL, OUTPUT_SET_LEVEL_ACTION)
+@ACTION_REGISTRY.register('output.set_level', cv.Schema({
+    cv.Required(CONF_ID): cv.use_variable_id(FloatOutput),
+    cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
+}))
 def output_set_level_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_set_level_action(template_arg)
+    var = yield cg.get_variable(config[CONF_ID])
     type = SetLevelAction.template(template_arg)
-    action = Pvariable(action_id, rhs, type=type)
-    for template_ in templatable(config[CONF_LEVEL], args, float_):
-        yield None
-    add(action.set_level(template_))
+    rhs = type.new(var)
+    action = cg.Pvariable(action_id, rhs, type=type)
+    template_ = yield cg.templatable(config[CONF_LEVEL], args, float)
+    cg.add(action.set_level(template_))
     yield action
+
+
+def to_code(config):
+    cg.add_global(output_ns.using)

@@ -1,0 +1,18 @@
+voluptuous>=0.11.5,<0.12
+PyYAML>=5.1,<6
+paho-mqtt>=1.4,<2
+colorlog>=4.0.2
+tornado>=5.1.1,<6
+typing>=3.6.6 ; python_version<"3.5"
+protobuf>=3.7,<3.8
+tzlocal>=1.5.1
+pyserial>=3.4,<4
+ifaddr>=0.1.6,<1
+platformio>=3.6.5 ; python_version<"3"
+https://github.com/platformio/platformio-core/archive/develop.zip ; python_version>"3"
+esptool>=2.6,<3
+pylint==1.9.4 ; python_version<"3"
+pylint==2.3.0 ; python_version>"3"
+flake8==3.6.0
+pillow
+pexpect

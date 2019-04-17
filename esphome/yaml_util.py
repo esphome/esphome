@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import collections
 from collections import OrderedDict
 from contextlib import contextmanager
 import fnmatch
@@ -11,10 +10,11 @@ import yaml
 import yaml.constructor
 
 from esphome import core
-from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod, \
-    DocumentRange
-from esphome.py_compat import IS_PY2, string_types, text_type
+from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod
+from esphome.py_compat import string_types, text_type, IS_PY2
+from esphome.util import OrderedDict
+
+_LOGGER = logging.getLogger(__name__)
 
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
@@ -447,7 +447,7 @@ def represent_odict(dump, tag, mapping, flow_style=None):
 
 
 def represent_secret(value):
-    return yaml.ScalarNode(tag=u'!secret', value=_SECRET_VALUES[value])
+    return yaml.ScalarNode(tag=u'!secret', value=_SECRET_VALUES[text_type(value)])
 
 
 def unicode_representer(_, uni):
@@ -515,6 +515,16 @@ yaml.SafeDumper.add_representer(
     dumper.represent_sequence('tag:yaml.org,2002:seq', value)
 )
 
+yaml.SafeDumper.add_representer(str, unicode_representer)
+yaml.SafeDumper.add_representer(
+    core.AutoLoad,
+    lambda dumper, value: represent_odict(dumper, 'tag:yaml.org,2002:map', value)
+)
+if IS_PY2:
+    yaml.SafeDumper.add_representer(unicode, unicode_representer)
+yaml.SafeDumper.add_representer(HexInt, hex_int_representer)
+yaml.SafeDumper.add_representer(IPAddress, stringify_representer)
+yaml.SafeDumper.add_representer(MACAddress, stringify_representer)
 yaml.SafeDumper.add_multi_representer(basestring, unicode_representer)
 yaml.SafeDumper.add_multi_representer(HexInt, hex_int_representer)
 yaml.SafeDumper.add_multi_representer(IPAddress, stringify_representer)
