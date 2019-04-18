@@ -12,10 +12,9 @@ CSE7766Component = cse7766_ns.class_('CSE7766Component', cg.PollingComponent, ua
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(CSE7766Component),
 
-    cv.Optional(CONF_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1)),
-    cv.Optional(CONF_CURRENT): cv.nameable(
-        sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2)),
-    cv.Optional(CONF_POWER): cv.nameable(sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1)),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
 
 

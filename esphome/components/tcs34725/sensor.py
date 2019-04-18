@@ -40,12 +40,12 @@ illuminance_schema = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(TCS34725Component),
-    cv.Optional(CONF_RED_CHANNEL): cv.nameable(color_channel_schema),
-    cv.Optional(CONF_GREEN_CHANNEL): cv.nameable(color_channel_schema),
-    cv.Optional(CONF_BLUE_CHANNEL): cv.nameable(color_channel_schema),
-    cv.Optional(CONF_CLEAR_CHANNEL): cv.nameable(color_channel_schema),
-    cv.Optional(CONF_ILLUMINANCE): cv.nameable(illuminance_schema),
-    cv.Optional(CONF_COLOR_TEMPERATURE): cv.nameable(color_temperature_schema),
+    cv.Optional(CONF_RED_CHANNEL): color_channel_schema,
+    cv.Optional(CONF_GREEN_CHANNEL): color_channel_schema,
+    cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,
+    cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
+    cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
+    cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
     cv.Optional(CONF_INTEGRATION_TIME, default='2.4ms'):
         cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
     cv.Optional(CONF_GAIN, default='1X'): cv.All(cv.Upper, cv.one_of(*TCS34725_GAINS), upper=True),

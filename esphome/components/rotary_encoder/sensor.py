@@ -29,7 +29,7 @@ def validate_min_max_value(config):
     return config
 
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(RotaryEncoderSensor),
     cv.Required(CONF_PIN_A): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),

@@ -43,12 +43,12 @@ def validate_gain(value):
 ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor)
 
 CONF_ADS1115_ID = 'ads1115_id'
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
     cv.Required(CONF_MULTIPLEXER): cv.one_of(*MUX, upper=True, space='_'),
     cv.Required(CONF_GAIN): validate_gain,
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

@@ -22,12 +22,12 @@ def validate_adc_pin(value):
 adc_ns = cg.esphome_ns.namespace('adc')
 ADCSensor = adc_ns.class_('ADCSensor', sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensor),
     cv.Required(CONF_PIN): validate_adc_pin,
     cv.SplitDefault(CONF_ATTENUATION, esp32='0db'):
         cv.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES, lower=True)),
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

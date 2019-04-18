@@ -11,10 +11,8 @@ SHT3XDComponent = sht3xd_ns.class_('SHT3XDComponent', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(SHT3XDComponent),
-    cv.Required(CONF_TEMPERATURE):
-        cv.nameable(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
-    cv.Required(CONF_HUMIDITY):
-        cv.nameable(sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1)),
+    cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x44))
 
 

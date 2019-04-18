@@ -15,13 +15,13 @@ RESTORE_MODES = {
     'ALWAYS_ON': GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_ON,
 }
 
-CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE_DEFAULT_OFF'):
         cv.one_of(*RESTORE_MODES, upper=True, space='_'),
     cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_variable_id(switch.Switch)),
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

@@ -9,7 +9,7 @@ from .. import template_ns
 
 TemplateSwitch = template_ns.class_('TemplateSwitch', switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
     cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

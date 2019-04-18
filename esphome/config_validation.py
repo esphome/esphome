@@ -19,7 +19,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
-from esphome.voluptuous_schema import _Schema
+from esphome.voluptuous_schema import _Schema, _Required
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 
 Schema = _Schema
 Optional = vol.Optional
-Required = vol.Required
+Required = _Required
 All = vol.All
 Coerce = vol.Coerce
 Range = vol.Range
@@ -186,6 +186,15 @@ def int_(value):
     return int(value)
 
 
+def int_range(min=None, max=None, min_included=None, max_included=None):
+    return All(int_, Range(min=min, max=max, min_included=min_included, max_included=max_included))
+
+
+def float_range(min=None, max=None, min_included=None, max_included=None):
+    return All(float_, Range(min=min, max=max, min_included=min_included,
+                             max_included=max_included))
+
+
 hex_int = Coerce(hex_int_)
 
 
@@ -303,12 +312,12 @@ TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 
 
 time_period_dict = All(
     dict, Schema({
-        'days': float_,
-        'hours': float_,
-        'minutes': float_,
-        'seconds': float_,
-        'milliseconds': float_,
-        'microseconds': float_,
+        Optional('days'): float_,
+        Optional('hours'): float_,
+        Optional('minutes'): float_,
+        Optional('seconds'): float_,
+        Optional('milliseconds'): float_,
+        Optional('microseconds'): float_,
     }),
     has_at_least_one_key('days', 'hours', 'minutes',
                          'seconds', 'milliseconds', 'microseconds'),
@@ -899,23 +908,17 @@ class OnlyWith(Optional):
         pass
 
 
-def nameable(*schemas):
-    def validator(config):
-        config = All(*schemas)(config)
-        if CONF_NAME not in config and CONF_ID not in config:
-            print(config)
+def _nameable_validator(config):
+    if CONF_NAME not in config and CONF_ID not in config:
+        raise Invalid("At least one of 'id:' or 'name:' is required!")
+    if CONF_NAME not in config:
+        id = config[CONF_ID]
+        if not id.is_manual:
             raise Invalid("At least one of 'id:' or 'name:' is required!")
-        if CONF_NAME not in config:
-            id = config[CONF_ID]
-            if not id.is_manual:
-                print(config)
-                raise Invalid("At least one of 'id:' or 'name:' is required!")
-            config[CONF_NAME] = id.id
-            config[CONF_INTERNAL] = True
-            return config
+        config[CONF_NAME] = id.id
+        config[CONF_INTERNAL] = True
         return config
-
-    return validator
+    return config
 
 
 def validate_registry_entry(name, registry, ignore_keys):
@@ -977,6 +980,7 @@ MQTT_COMPONENT_SCHEMA = Schema({
                                      Any(None, MQTT_COMPONENT_AVAILABILITY_SCHEMA)),
     Optional(CONF_INTERNAL): boolean,
 })
+MQTT_COMPONENT_SCHEMA.add_extra(_nameable_validator)
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
     Optional(CONF_COMMAND_TOPIC): All(requires_component('mqtt'), subscribe_topic),

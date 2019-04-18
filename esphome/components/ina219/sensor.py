@@ -13,10 +13,10 @@ INA219Component = ina219_ns.class_('INA219Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(INA219Component),
-    cv.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2)),
-    cv.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2)),
-    cv.Optional(CONF_CURRENT): cv.nameable(sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 3)),
-    cv.Optional(CONF_POWER): cv.nameable(sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2)),
+    cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
+    cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 3),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
     cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance,
                                                             cv.Range(min=0.0, max=32.0)),
     cv.Optional(CONF_MAX_VOLTAGE, default=32.0): cv.All(cv.voltage, cv.Range(min=0.0, max=32.0)),

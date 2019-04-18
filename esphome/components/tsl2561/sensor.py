@@ -29,12 +29,12 @@ def validate_integration_time(value):
 
 TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.PollingSensorComponent, i2c.I2CDevice)
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TSL2561Sensor),
     cv.Optional(CONF_INTEGRATION_TIME, default=402): validate_integration_time,
     cv.Optional(CONF_GAIN, default='1X'): cv.one_of(*GAINS, upper=True),
     cv.Optional(CONF_IS_CS_PACKAGE, default=False): cv.boolean,
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x39)))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x39))
 
 
 def to_code(config):

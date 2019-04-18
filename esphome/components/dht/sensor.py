@@ -21,10 +21,8 @@ DHT = dht_ns.class_('DHT', cg.PollingComponent)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DHT),
     cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
-    cv.Optional(CONF_TEMPERATURE):
-        cv.nameable(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
-    cv.Optional(CONF_HUMIDITY):
-        cv.nameable(sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0)),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
     cv.Optional(CONF_MODEL, default='auto detect'): cv.one_of(*DHT_MODELS, upper=True, space='_'),
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 }).extend(cv.polling_component_schema('60s'))

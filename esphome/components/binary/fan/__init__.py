@@ -6,11 +6,11 @@ from .. import binary_ns
 
 BinaryFan = binary_ns.class_('BinaryFan', cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(fan.FAN_SCHEMA.extend({
+CONFIG_SCHEMA = fan.FAN_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(BinaryFan),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
     cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

@@ -127,7 +127,7 @@ def validate(config):
     raise cv.Invalid("Must specify at least one of 'pin' or 'clock_pin'+'data_pin'")
 
 
-CONFIG_SCHEMA = cv.nameable(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(NeoPixelBusLightOutputBase),
 
     cv.Optional(CONF_TYPE, default='GRB'): validate_type,

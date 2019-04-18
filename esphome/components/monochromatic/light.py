@@ -6,10 +6,10 @@ from esphome.const import CONF_OUTPUT_ID, CONF_OUTPUT
 monochromatic_ns = cg.esphome_ns.namespace('monochromatic')
 MonochromaticLightOutput = monochromatic_ns.class_('MonochromaticLightOutput', light.LightOutput)
 
-CONFIG_SCHEMA = cv.nameable(light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
+CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(MonochromaticLightOutput),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.FloatOutput),
-}))
+})
 
 
 def to_code(config):

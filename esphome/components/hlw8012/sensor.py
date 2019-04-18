@@ -21,9 +21,9 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_CF1_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
                                       pins.validate_has_interrupt),
 
-    cv.Optional(CONF_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1)),
-    cv.Optional(CONF_CURRENT): cv.nameable(sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2)),
-    cv.Optional(CONF_POWER): cv.nameable(sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1)),
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
 
     cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
     cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,

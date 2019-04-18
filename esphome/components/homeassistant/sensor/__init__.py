@@ -8,10 +8,10 @@ DEPENDENCIES = ['api']
 
 HomeassistantSensor = homeassistant_ns.class_('HomeassistantSensor', sensor.Sensor)
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(HomeassistantSensor),
     cv.Required(CONF_ENTITY_ID): cv.entity_id,
-}))
+})
 
 
 def to_code(config):

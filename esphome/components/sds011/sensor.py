@@ -28,9 +28,9 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(SDS011Component),
 
     cv.Optional(CONF_PM_2_5):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
     cv.Optional(CONF_PM_10_0):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
 
     cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
     cv.Optional(CONF_UPDATE_INTERVAL, default='0min'): cv.positive_time_period_minutes,

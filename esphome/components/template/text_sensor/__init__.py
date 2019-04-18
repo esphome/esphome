@@ -9,10 +9,10 @@ from .. import template_ns
 TemplateTextSensor = template_ns.class_('TemplateTextSensor', text_sensor.TextSensor,
                                         cg.PollingComponent)
 
-CONFIG_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

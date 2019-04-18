@@ -6,13 +6,13 @@ from esphome.const import CONF_ID, CONF_INVERTED, CONF_ICON, ICON_POWER
 shutdown_ns = cg.esphome_ns.namespace('shutdown')
 ShutdownSwitch = shutdown_ns.class_('ShutdownSwitch', switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(ShutdownSwitch),
 
     cv.Optional(CONF_INVERTED): cv.invalid("Shutdown switches do not support inverted mode!"),
 
     cv.Optional(CONF_ICON, default=ICON_POWER): switch.icon
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

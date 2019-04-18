@@ -11,10 +11,8 @@ DHT12Component = dht12_ns.class_('DHT12Component', cg.PollingComponent, i2c.I2CD
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(DHT12Component),
-    cv.Optional(CONF_TEMPERATURE):
-        cv.nameable(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
-    cv.Optional(CONF_HUMIDITY):
-        cv.nameable(sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1)),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x5C))
 
 

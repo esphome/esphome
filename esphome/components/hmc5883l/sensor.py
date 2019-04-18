@@ -42,10 +42,10 @@ heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
-    cv.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_HEADING): cv.nameable(heading_schema),
+    cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
+    cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
+    cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
+    cv.Optional(CONF_HEADING): heading_schema,
     cv.Optional(CONF_RANGE, default='130uT'): validate_range,
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x1E))
 

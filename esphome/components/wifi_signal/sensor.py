@@ -7,9 +7,9 @@ DEPENDENCIES = ['wifi']
 wifi_signal_ns = cg.esphome_ns.namespace('wifi_signal')
 WiFiSignalSensor = wifi_signal_ns.class_('WiFiSignalSensor', sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_DECIBEL, ICON_WIFI, 0).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_DECIBEL, ICON_WIFI, 0).extend({
     cv.GenerateID(): cv.declare_variable_id(WiFiSignalSensor),
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

@@ -7,10 +7,9 @@ max6675_ns = cg.esphome_ns.namespace('max6675')
 MAX6675Sensor = max6675_ns.class_('MAX6675Sensor', sensor.PollingSensorComponent,
                                   spi.SPIDevice)
 
-CONFIG_SCHEMA = cv.nameable(
-    sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
-        cv.GenerateID(): cv.declare_variable_id(MAX6675Sensor),
-    }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA))
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+    cv.GenerateID(): cv.declare_variable_id(MAX6675Sensor),
+}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 
 def to_code(config):

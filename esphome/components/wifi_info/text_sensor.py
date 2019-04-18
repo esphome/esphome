@@ -12,15 +12,15 @@ SSIDWiFiInfo = wifi_info_ns.class_('SSIDWiFiInfo', text_sensor.TextSensor, cg.Co
 BSSIDWiFiInfo = wifi_info_ns.class_('BSSIDWiFiInfo', text_sensor.TextSensor, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.Optional(CONF_IP_ADDRESS): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    cv.Optional(CONF_IP_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(IPAddressWiFiInfo),
-    })),
-    cv.Optional(CONF_SSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    }),
+    cv.Optional(CONF_SSID): text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(SSIDWiFiInfo),
-    })),
-    cv.Optional(CONF_BSSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    }),
+    cv.Optional(CONF_BSSID): text_sensor.TEXT_SENSOR_SCHEMA.extend({
         cv.GenerateID(): cv.declare_variable_id(BSSIDWiFiInfo),
-    })),
+    }),
 })
 
 

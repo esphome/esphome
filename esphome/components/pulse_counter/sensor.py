@@ -38,7 +38,7 @@ def validate_pulse_counter_pin(value):
     return value
 
 
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={
@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PU
     }),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

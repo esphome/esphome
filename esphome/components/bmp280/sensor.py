@@ -31,16 +31,12 @@ BMP280Component = bmp280_ns.class_('BMP280Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(BMP280Component),
-    cv.Optional(CONF_TEMPERATURE): cv.nameable(
-        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
-            cv.Optional(CONF_OVERSAMPLING, default='16X'):
-                cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
-        })),
-    cv.Optional(CONF_PRESSURE): cv.nameable(
-        sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
-            cv.Optional(CONF_OVERSAMPLING, default='16X'):
-                cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
-        })),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
+        cv.Optional(CONF_OVERSAMPLING, default='16X'): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+    }),
+    cv.Optional(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
+        cv.Optional(CONF_OVERSAMPLING, default='16X'): cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+    }),
     cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x77))
 

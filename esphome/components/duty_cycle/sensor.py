@@ -7,11 +7,11 @@ from esphome.const import CONF_ID, CONF_PIN, UNIT_PERCENT, ICON_PERCENT
 duty_cycle_ns = cg.esphome_ns.namespace('duty_cycle')
 DutyCycleSensor = duty_cycle_ns.class_('DutyCycleSensor', sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_PERCENT, ICON_PERCENT, 1).extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_PERCENT, 1).extend({
     cv.GenerateID(): cv.declare_variable_id(DutyCycleSensor),
     cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema,
                                   pins.validate_has_interrupt),
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

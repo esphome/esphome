@@ -8,7 +8,7 @@ from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, CONF_ID, CONF_
 time_based_ns = cg.esphome_ns.namespace('time_based')
 TimeBasedCover = time_based_ns.class_('TimeBasedCover', cover.Cover, cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TimeBasedCover),
     cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
 
@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
 
     cv.Required(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

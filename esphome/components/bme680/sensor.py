@@ -36,23 +36,23 @@ BME680Component = bme680_ns.class_('BME680Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(BME680Component),
-    cv.Optional(CONF_TEMPERATURE): cv.nameable(
+    cv.Optional(CONF_TEMPERATURE):
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
-        })),
-    cv.Optional(CONF_PRESSURE): cv.nameable(
+        }),
+    cv.Optional(CONF_PRESSURE):
         sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
-        })),
-    cv.Optional(CONF_HUMIDITY): cv.nameable(
+        }),
+    cv.Optional(CONF_HUMIDITY):
         sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
                 cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
-        })),
-    cv.Optional(CONF_GAS_RESISTANCE): cv.nameable(
-        sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 1)),
+        }),
+    cv.Optional(CONF_GAS_RESISTANCE):
+        sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 1),
     cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
     cv.Optional(CONF_HEATER): cv.Any(None, cv.All(cv.Schema({
         cv.Optional(CONF_TEMPERATURE, default=320): cv.All(cv.Coerce(int), cv.Range(200, 400)),

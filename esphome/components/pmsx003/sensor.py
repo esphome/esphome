@@ -45,17 +45,17 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TYPE): cv.one_of(*PMSX003_TYPES, upper=True),
 
     cv.Optional(CONF_PM_1_0):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PM_2_5):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PM_10_0):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_TEMPERATURE):
-        cv.nameable(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
+        sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY):
-        cv.nameable(sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1)),
+        sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
     cv.Optional(CONF_FORMALDEHYDE):
-        cv.nameable(sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0)),
+        sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 

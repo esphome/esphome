@@ -11,20 +11,19 @@ ultrasonic_ns = cg.esphome_ns.namespace('ultrasonic')
 UltrasonicSensorComponent = ultrasonic_ns.class_('UltrasonicSensorComponent',
                                                  sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(
-    sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
-        cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),
-        cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
+    cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),
+    cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
+    cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
 
-        cv.Optional(CONF_TIMEOUT, default='2m'): cv.distance,
-        cv.Optional(CONF_PULSE_TIME, default='10us'): cv.positive_time_period_microseconds,
+    cv.Optional(CONF_TIMEOUT, default='2m'): cv.distance,
+    cv.Optional(CONF_PULSE_TIME, default='10us'): cv.positive_time_period_microseconds,
 
-        cv.Optional('timeout_meter'): cv.invalid("The timeout_meter option has been renamed "
-                                                 "to 'timeout' in 1.12."),
-        cv.Optional('timeout_time'): cv.invalid("The timeout_time option has been removed. Please "
-                                                "use 'timeout' in 1.12."),
-    }).extend(cv.polling_component_schema('60s')))
+    cv.Optional('timeout_meter'): cv.invalid("The timeout_meter option has been renamed "
+                                             "to 'timeout' in 1.12."),
+    cv.Optional('timeout_time'): cv.invalid("The timeout_time option has been removed. Please "
+                                            "use 'timeout' in 1.12."),
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

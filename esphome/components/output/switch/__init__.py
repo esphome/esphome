@@ -6,10 +6,10 @@ from .. import output_ns
 
 OutputSwitch = output_ns.class_('OutputSwitch', switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(OutputSwitch),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

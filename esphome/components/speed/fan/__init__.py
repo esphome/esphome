@@ -7,7 +7,7 @@ from .. import speed_ns
 
 SpeedFan = speed_ns.class_('SpeedFan', cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(fan.FAN_SCHEMA.extend({
+CONFIG_SCHEMA = fan.FAN_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(SpeedFan),
     cv.Required(CONF_OUTPUT): cv.use_variable_id(output.FloatOutput),
     cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),
@@ -16,7 +16,7 @@ CONFIG_SCHEMA = cv.nameable(fan.FAN_SCHEMA.extend({
         cv.Optional(CONF_MEDIUM, default=0.66): cv.percentage,
         cv.Optional(CONF_HIGH, default=1.0): cv.percentage,
     }),
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

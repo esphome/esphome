@@ -17,7 +17,7 @@ RESTORE_MODES = {
     'RESTORE_AND_CALL': TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
 }
 
-CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateCover),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
     cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.one_of(*RESTORE_MODES, upper=True),
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

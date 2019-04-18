@@ -16,12 +16,12 @@ GAINS = {
     64: HX711Gain.HX711_GAIN_64,
 }
 
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema('', ICON_SCALE, 0).extend({
+CONFIG_SCHEMA = sensor.sensor_schema('', ICON_SCALE, 0).extend({
     cv.GenerateID(): cv.declare_variable_id(HX711Sensor),
     cv.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
     cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_GAIN, default=128): cv.one_of(*GAINS, int=True),
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

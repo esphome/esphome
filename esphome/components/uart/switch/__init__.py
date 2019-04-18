@@ -21,11 +21,11 @@ def validate_data(value):
     raise cv.Invalid("data must either be a string wrapped in quotes or a list of bytes")
 
 
-CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(UARTSwitch),
     cv.Required(CONF_DATA): validate_data,
     cv.Optional(CONF_INVERTED): cv.invalid("UART switches do not support inverted mode!"),
-}).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA))
+}).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

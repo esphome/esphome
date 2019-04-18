@@ -16,10 +16,10 @@ ina3221_ns = cg.esphome_ns.namespace('ina3221')
 INA3221Component = ina3221_ns.class_('INA3221Component', cg.PollingComponent, i2c.I2CDevice)
 
 INA3221_CHANNEL_SCHEMA = cv.Schema({
-    cv.Optional(CONF_BUS_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2)),
-    cv.Optional(CONF_SHUNT_VOLTAGE): cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2)),
-    cv.Optional(CONF_CURRENT): cv.nameable(sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2)),
-    cv.Optional(CONF_POWER): cv.nameable(sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2)),
+    cv.Optional(CONF_BUS_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
+    cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
     cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance,
                                                             cv.Range(min=0.0, max=32.0)),
 })

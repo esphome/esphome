@@ -7,10 +7,10 @@ from .. import template_ns
 
 TemplateSensor = template_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-}).extend(cv.polling_component_schema('60s')))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

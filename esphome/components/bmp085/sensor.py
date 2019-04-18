@@ -11,10 +11,8 @@ BMP085Component = bmp085_ns.class_('BMP085Component', cg.PollingComponent, i2c.I
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(BMP085Component),
-    cv.Optional(CONF_TEMPERATURE):
-        cv.nameable(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
-    cv.Optional(CONF_PRESSURE):
-        cv.nameable(sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1)),
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_PRESSURE): sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x77))
 
 

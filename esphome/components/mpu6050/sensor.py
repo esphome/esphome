@@ -23,13 +23,13 @@ temperature_schema = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(MPU6050Component),
-    cv.Optional(CONF_ACCEL_X): cv.nameable(accel_schema),
-    cv.Optional(CONF_ACCEL_Y): cv.nameable(accel_schema),
-    cv.Optional(CONF_ACCEL_Z): cv.nameable(accel_schema),
-    cv.Optional(CONF_GYRO_X): cv.nameable(gyro_schema),
-    cv.Optional(CONF_GYRO_Y): cv.nameable(gyro_schema),
-    cv.Optional(CONF_GYRO_Z): cv.nameable(gyro_schema),
-    cv.Optional(CONF_TEMPERATURE): cv.nameable(temperature_schema),
+    cv.Optional(CONF_ACCEL_X): accel_schema,
+    cv.Optional(CONF_ACCEL_Y): accel_schema,
+    cv.Optional(CONF_ACCEL_Z): accel_schema,
+    cv.Optional(CONF_GYRO_X): gyro_schema,
+    cv.Optional(CONF_GYRO_Y): gyro_schema,
+    cv.Optional(CONF_GYRO_Z): gyro_schema,
+    cv.Optional(CONF_TEMPERATURE): temperature_schema,
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x68))
 
 
