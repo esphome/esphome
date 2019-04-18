@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_NAME, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE
+from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE
 
 rotary_encoder_ns = cg.esphome_ns.namespace('rotary_encoder')
 RotaryEncoderResolution = rotary_encoder_ns.enum('RotaryEncoderResolution')
@@ -43,11 +43,13 @@ CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    pin_a = yield cg.gpio_pin_expression(config[CONF_PIN_A])
-    pin_b = yield cg.gpio_pin_expression(config[CONF_PIN_B])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], pin_a, pin_b)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
+    pin_a = yield cg.gpio_pin_expression(config[CONF_PIN_A])
+    cg.add(var.set_pin_a(pin_a))
+    pin_b = yield cg.gpio_pin_expression(config[CONF_PIN_B])
+    cg.add(var.set_pin_a(pin_b))
 
     if CONF_PIN_RESET in config:
         pin_i = yield cg.gpio_pin_expression(config[CONF_PIN_RESET])

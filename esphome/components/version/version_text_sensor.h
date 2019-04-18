@@ -8,7 +8,6 @@ namespace version {
 
 class VersionTextSensor : public text_sensor::TextSensor, public Component {
  public:
-  explicit VersionTextSensor(const std::string &name);
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;

@@ -9,8 +9,6 @@ namespace mpu6050 {
 
 class MPU6050Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  MPU6050Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void setup() override;
   void dump_config() override;
 

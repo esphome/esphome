@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, CONF_PRESSURE, \
-    CONF_TEMPERATURE, CONF_UPDATE_INTERVAL, ICON_THERMOMETER, UNIT_CELSIUS, ICON_GAUGE, \
+    CONF_TEMPERATURE, ICON_THERMOMETER, UNIT_CELSIUS, ICON_GAUGE, \
     UNIT_HECTOPASCAL
 
 DEPENDENCIES = ['i2c']
@@ -15,12 +15,11 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TEMPERATURE): cv.nameable(
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)),
     cv.Required(CONF_PRESSURE): cv.nameable(sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1)),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x77))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x77))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 

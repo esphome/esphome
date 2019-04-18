@@ -33,18 +33,10 @@ class DHT : public PollingComponent {
    */
   void set_dht_model(DHTModel model);
 
-  void set_pin(GPIOPin *pin) {
-    pin_ = pin;
-  }
-  void set_model(DHTModel model) {
-    model_ = model;
-  }
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) {
-    temperature_sensor_ = temperature_sensor;
-  }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) {
-    humidity_sensor_ = humidity_sensor;
-  }
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_model(DHTModel model) { model_ = model; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
 
   /// Set up the pins and check connection.
   void setup() override;

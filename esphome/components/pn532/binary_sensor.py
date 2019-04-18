@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_NAME, CONF_UID, CONF_ID
+from esphome.const import CONF_UID, CONF_ID
 from esphome.core import HexInt
 from . import pn532_ns, PN532
 
@@ -35,8 +35,10 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_PN532_ID])
-    addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], addr)
-    cg.add(hub.register_tag(var))
+    var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
+    hub = yield cg.get_variable(config[CONF_PN532_ID])
+    cg.add(hub.register_tag(var))
+    addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
+    cg.add(var.set_uid(addr))

@@ -13,6 +13,8 @@ CONFIG_SCHEMA = cv.nameable(light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
 
 
 def to_code(config):
-    out = yield cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], out)
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield light.register_light(var, config)
+
+    out = yield cg.get_variable(config[CONF_OUTPUT])
+    cg.add(var.set_output(out))

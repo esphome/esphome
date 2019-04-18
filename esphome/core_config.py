@@ -143,14 +143,14 @@ def preload_core_config(config):
     with cv.prepend_path(core_key):
         out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])
     CORE.board = out2[CONF_BOARD]
-    CORE.build_path = out2[CONF_BUILD_PATH]
+    CORE.build_path = CORE.relative_config_path(out2[CONF_BUILD_PATH])
 
 
 @coroutine_with_priority(-1000.0)
 def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
-        path = CORE.relative_path(include)
+        path = CORE.relative_config_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src'))
         cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
 

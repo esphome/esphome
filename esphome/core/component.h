@@ -276,6 +276,7 @@ class PollingComponent : public Component {
 /// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
 class Nameable {
  public:
+  Nameable() : Nameable("") {}
   explicit Nameable(const std::string &name);
   const std::string &get_name() const;
   void set_name(const std::string &name);

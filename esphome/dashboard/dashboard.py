@@ -99,10 +99,11 @@ class BaseHandler(tornado.web.RequestHandler):
 
 
 def websocket_class(cls):
+    # pylint: disable=protected-access
     if not hasattr(cls, '_message_handlers'):
         cls._message_handlers = {}
 
-    for name, method in cls.__dict__.iteritems():
+    for _, method in cls.__dict__.iteritems():
         if hasattr(method, "_message_handler"):
             cls._message_handlers[method._message_handler] = method
 
@@ -111,6 +112,7 @@ def websocket_class(cls):
 
 def websocket_method(name):
     def wrap(fn):
+        # pylint: disable=protected-access
         fn._message_handler = name
         return fn
     return wrap
@@ -131,6 +133,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Messages are always JSON, 500 when not
         json_message = json.loads(message)
         type_ = json_message['type']
+        # pylint: disable=no-member
         handlers = type(self)._message_handlers
         if type_ not in handlers:
             _LOGGER.warning("Requested unknown message type %s", type_)
@@ -148,8 +151,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         self._proc = tornado.process.Subprocess(command,
                                                 stdout=tornado.process.Subprocess.STREAM,
                                                 stderr=subprocess.STDOUT,
-                                                stdin=tornado.process.Subprocess.STREAM,
-                                                )
+                                                stdin=tornado.process.Subprocess.STREAM)
         self._proc.set_exit_callback(self._proc_on_exit)
         tornado.ioloop.IOLoop.current().spawn_callback(self._redirect_stdout)
 
@@ -696,7 +698,6 @@ def start_web_server(args):
 
             webbrowser.open('localhost:{}'.format(args.port))
 
-    STATUS_USE_PING = True
     if STATUS_USE_PING:
         status_thread = PingStatusThread()
     else:

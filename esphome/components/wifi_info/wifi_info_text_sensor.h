@@ -9,7 +9,6 @@ namespace wifi_info {
 
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
-  IPAddressWiFiInfo(const std::string &name) : TextSensor(name) {}
   void loop() override {
     IPAddress ip = WiFi.localIP();
     if (ip != this->last_ip_) {
@@ -25,7 +24,6 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
 
 class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
-  SSIDWiFiInfo(const std::string &name) : TextSensor(name) {}
   void loop() override {
     String ssid = WiFi.SSID();
     if (this->last_ssid_ != ssid.c_str()) {
@@ -41,7 +39,6 @@ class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
 
 class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
-  BSSIDWiFiInfo(const std::string &name) : TextSensor(name) {}
   void loop() override {
     uint8_t *bssid = WiFi.BSSID();
     if (memcmp(bssid, this->last_bssid_.data(), 6) != 0) {

@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
 
 TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.BinarySensor,
@@ -15,7 +15,7 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield binary_sensor.register_binary_sensor(var, config)
 

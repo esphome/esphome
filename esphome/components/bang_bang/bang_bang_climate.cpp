@@ -139,9 +139,7 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->away_config_ = away_config;
 }
 BangBangClimate::BangBangClimate()
-    : idle_trigger_(new Trigger<>()),
-      cool_trigger_(new Trigger<>()),
-      heat_trigger_(new Trigger<>()) {}
+    : idle_trigger_(new Trigger<>()), cool_trigger_(new Trigger<>()), heat_trigger_(new Trigger<>()) {}
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 Trigger<> *BangBangClimate::get_idle_trigger() const { return this->idle_trigger_; }
 Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger_; }

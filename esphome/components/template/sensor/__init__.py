@@ -1,9 +1,8 @@
-
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import sensor
-import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
 
 TemplateSensor = template_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
@@ -11,20 +10,18 @@ TemplateSensor = template_ns.class_('TemplateSensor', sensor.PollingSensorCompon
 CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-    cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.polling_component_schema('60s')))
 
 
 def to_code(config):
-    rhs = TemplateSensor.new(config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
-    template = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(template, config)
-    yield sensor.register_sensor(template, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+    yield sensor.register_sensor(var, config)
 
     if CONF_LAMBDA in config:
         template_ = yield cg.process_lambda(config[CONF_LAMBDA], [],
                                             return_type=cg.optional.template(float))
-        cg.add(template.set_template(template_))
+        cg.add(var.set_template(template_))
 
 
 CONF_SENSOR_TEMPLATE_PUBLISH = 'sensor.template.publish'

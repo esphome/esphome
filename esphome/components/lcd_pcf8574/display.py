@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import lcd_base, i2c
-from esphome.const import CONF_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['lcd_base']

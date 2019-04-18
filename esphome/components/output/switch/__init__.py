@@ -1,7 +1,7 @@
-from esphome.components import output, switch
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NAME, CONF_OUTPUT
+import esphome.config_validation as cv
+from esphome.components import output, switch
+from esphome.const import CONF_ID, CONF_OUTPUT
 from .. import output_ns
 
 OutputSwitch = output_ns.class_('OutputSwitch', switch.Switch, cg.Component)
@@ -13,7 +13,9 @@ CONFIG_SCHEMA = cv.nameable(switch.SWITCH_SCHEMA.extend({
 
 
 def to_code(config):
-    output_ = yield cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], output_)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield switch.register_switch(var, config)
+
+    output_ = yield cg.get_variable(config[CONF_OUTPUT])
+    cg.add(var.set_output(output_))

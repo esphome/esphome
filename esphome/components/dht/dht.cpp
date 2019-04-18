@@ -65,8 +65,6 @@ void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
-sensor::Sensor *DHT::get_temperature_sensor() const { return this->temperature_sensor_; }
-sensor::Sensor *DHT::get_humidity_sensor() const { return this->humidity_sensor_; }
 bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;

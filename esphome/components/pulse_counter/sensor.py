@@ -1,10 +1,10 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_NAME, CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, CONF_NUMBER, \
-    CONF_ACCURACY_DECIMALS, CONF_ICON, CONF_UNIT_OF_MEASUREMENT, ICON_PULSE, UNIT_PULSES_PER_MINUTE
+    CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, CONF_NUMBER, \
+    ICON_PULSE, UNIT_PULSES_PER_MINUTE
 from esphome.core import CORE
 
 pulse_counter_ns = cg.esphome_ns.namespace('pulse_counter')
@@ -38,7 +38,7 @@ def validate_pulse_counter_pin(value):
     return value
 
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
     cv.GenerateID(): cv.declare_variable_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={
@@ -50,20 +50,17 @@ CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
     }),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-
-    cv.Optional(CONF_ACCURACY_DECIMALS, default=2): sensor.accuracy_decimals,
-    cv.Optional(CONF_ICON, default=ICON_PULSE): sensor.icon,
-    cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_PULSES_PER_MINUTE):
-        sensor.unit_of_measurement,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.polling_component_schema('60s')))
 
 
 def to_code(config):
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    count = config[CONF_COUNT_MODE]
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], pin, config[CONF_UPDATE_INTERVAL],
-                           COUNT_MODES[count[CONF_RISING_EDGE]],
-                           COUNT_MODES[count[CONF_FALLING_EDGE]],
-                           config[CONF_INTERNAL_FILTER])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
+
+    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
+    cg.add(var.set_pin(pin))
+    count = config[CONF_COUNT_MODE]
+    cg.add(var.set_rising_edge_mode(COUNT_MODES[count[CONF_RISING_EDGE]]))
+    cg.add(var.set_falling_edge_mode(COUNT_MODES[count[CONF_FALLING_EDGE]]))
+    cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))

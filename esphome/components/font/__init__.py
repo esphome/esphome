@@ -80,7 +80,7 @@ CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 def to_code(config):
     from PIL import ImageFont
 
-    path = CORE.relative_path(config[CONF_FILE])
+    path = CORE.relative_config_path(config[CONF_FILE])
     try:
         font = ImageFont.truetype(path, config[CONF_SIZE])
     except Exception as e:

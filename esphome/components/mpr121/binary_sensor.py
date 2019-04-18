@@ -1,7 +1,7 @@
-from esphome.components import binary_sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_CHANNEL, CONF_NAME, CONF_ID
+import esphome.config_validation as cv
+from esphome.components import binary_sensor
+from esphome.const import CONF_CHANNEL, CONF_ID
 from . import mpr121_ns, MPR121Component, CONF_MPR121_ID
 
 DEPENDENCIES = ['mpr121']
@@ -15,7 +15,10 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_MPR121_ID])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_CHANNEL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+
+    hub = yield cg.get_variable(config[CONF_MPR121_ID])
     cg.add(hub.register_channel(var))

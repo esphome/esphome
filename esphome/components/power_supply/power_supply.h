@@ -8,7 +8,9 @@ namespace power_supply {
 
 class PowerSupply : public Component {
  public:
-  explicit PowerSupply(GPIOPin *pin, uint32_t enable_time, uint32_t keep_on_time);
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_enable_time(uint32_t enable_time) { enable_time_ = enable_time; }
+  void set_keep_on_time(uint32_t keep_on_time) { keep_on_time_ = keep_on_time; }
 
   /// Is this power supply currently on?
   bool is_enabled() const;

@@ -21,10 +21,11 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    out = yield cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_ID], out)
-    cg.register_component(var, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
+    out = yield cg.get_variable(config[CONF_OUTPUT])
+    cg.add(var.set_output(out))
     cg.add(var.set_min_level(config[CONF_MIN_LEVEL]))
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))
     cg.add(var.set_max_level(config[CONF_MAX_LEVEL]))

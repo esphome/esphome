@@ -1,10 +1,9 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import cover
-import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, CONF_ID, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPEN_DURATION, CONF_STOP_ACTION
-
+from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, CONF_ID, CONF_OPEN_ACTION, \
+    CONF_OPEN_DURATION, CONF_STOP_ACTION
 
 time_based_ns = cg.esphome_ns.namespace('time_based')
 TimeBasedCover = time_based_ns.class_('TimeBasedCover', cover.Cover, cg.Component)
@@ -22,7 +21,7 @@ CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield cover.register_cover(var, config)
 

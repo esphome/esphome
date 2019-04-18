@@ -225,6 +225,7 @@ LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 class Lambda(object):
     def __init__(self, value):
+        # pylint: disable=protected-access
         if isinstance(value, Lambda):
             self._value = value._value
         else:
@@ -516,7 +517,7 @@ class EsphomeCore(object):
     def config_filename(self):
         return os.path.basename(self.config_path)
 
-    def relative_path(self, *path):
+    def relative_config_path(self, *path):
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 

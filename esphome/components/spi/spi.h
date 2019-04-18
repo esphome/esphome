@@ -8,7 +8,9 @@ namespace spi {
 
 class SPIComponent : public Component {
  public:
-  SPIComponent(GPIOPin *clk, GPIOPin *miso, GPIOPin *mosi) : clk_(clk), miso_(miso), mosi_(mosi) {}
+  void set_clk(GPIOPin *clk) { clk_ = clk; }
+  void set_miso(GPIOPin *miso) { miso_ = miso; }
+  void set_mosi(GPIOPin *mosi) { mosi_ = mosi; }
 
   void setup() override;
 
@@ -30,8 +32,8 @@ class SPIComponent : public Component {
 
  protected:
   GPIOPin *clk_;
-  GPIOPin *miso_;
-  GPIOPin *mosi_;
+  GPIOPin *miso_{nullptr};
+  GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
   bool msb_first_{true};
   bool high_speed_{false};

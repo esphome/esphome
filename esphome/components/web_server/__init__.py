@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT
 from esphome.core import CORE, coroutine_with_priority
 
+DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']
 
 web_server_ns = cg.esphome_ns.namespace('web_server')
@@ -18,10 +19,12 @@ CONFIG_SCHEMA = cv.Schema({
 
 @coroutine_with_priority(40.0)
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_PORT])
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+
+    cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
-    yield cg.register_component(var, config)
 
     if CORE.is_esp32:
         cg.add_library('FS', None)

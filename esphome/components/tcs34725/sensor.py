@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_COLOR_TEMPERATURE, CONF_GAIN, CONF_ID, \
-    CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, CONF_UPDATE_INTERVAL, ICON_LIGHTBULB, \
+    CONF_ILLUMINANCE, CONF_INTEGRATION_TIME, ICON_LIGHTBULB, \
     UNIT_PERCENT, ICON_THERMOMETER, UNIT_KELVIN, ICON_BRIGHTNESS_5, UNIT_LUX
 
 DEPENDENCIES = ['i2c']
@@ -49,12 +49,11 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_INTEGRATION_TIME, default='2.4ms'):
         cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
     cv.Optional(CONF_GAIN, default='1X'): cv.All(cv.Upper, cv.one_of(*TCS34725_GAINS), upper=True),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x29))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x29))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 

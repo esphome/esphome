@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display
-from esphome.const import CONF_DIMENSIONS, CONF_LAMBDA, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_DIMENSIONS, CONF_LAMBDA
 from esphome.core import coroutine
 
 lcd_base_ns = cg.esphome_ns.namespace('lcd_base')

@@ -7,6 +7,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 CONFLICTS_WITH = ['wifi']
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+AUTO_LOAD = ['network']
 
 ethernet_ns = cg.esphome_ns.namespace('ethernet')
 CONF_PHY_ADDR = 'phy_addr'

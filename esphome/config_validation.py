@@ -40,6 +40,7 @@ Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
+RequiredFieldInvalid = vol.RequiredFieldInvalid
 
 port = All(Coerce(int), Range(min=1, max=65535))
 float_ = Coerce(float)
@@ -812,7 +813,7 @@ def dimensions(value):
 
 def directory(value):
     value = string(value)
-    path = CORE.relative_path(value)
+    path = CORE.relative_config_path(value)
     if not os.path.exists(path):
         raise Invalid(u"Could not find directory '{}'. Please make sure it exists.".format(
             path))
@@ -823,7 +824,7 @@ def directory(value):
 
 def file_(value):
     value = string(value)
-    path = CORE.relative_path(value)
+    path = CORE.relative_config_path(value)
     if not os.path.exists(path):
         raise Invalid(u"Could not find file '{}'. Please make sure it exists.".format(
             path))

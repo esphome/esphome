@@ -18,6 +18,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
 
 
 def to_code(config):
-    my9231 = yield cg.get_variable(config[CONF_MY9231_ID])
-    var = cg.new_Pvariable(config[CONF_ID], my9231, config[CONF_CHANNEL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield output.register_output(var, config)
+
+    parent = yield cg.get_variable(config[CONF_MY9231_ID])
+    cg.add(var.set_parent(parent))
+    cg.add(var.set_channel(config[CONF_CHANNEL]))

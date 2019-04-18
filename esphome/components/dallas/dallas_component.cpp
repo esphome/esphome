@@ -146,8 +146,7 @@ void DallasComponent::update() {
     });
   }
 }
-DallasComponent::DallasComponent(ESPOneWire *one_wire)
-    : one_wire_(one_wire) {}
+DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
 
 DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
     : parent_(parent) {

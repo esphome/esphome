@@ -23,9 +23,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
-  void set_pin(uint8_t pin) {
-    this->pin_ = pin;
-  }
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
 
 #ifdef ARDUINO_ARCH_ESP8266
   std::string unique_id() override;

@@ -9,8 +9,6 @@ namespace mhz19 {
 
 class MHZ19Component : public PollingComponent, public uart::UARTDevice {
  public:
-  MHZ19Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   float get_setup_priority() const override;
 
   void update() override;

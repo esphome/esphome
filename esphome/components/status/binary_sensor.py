@@ -1,7 +1,7 @@
-from esphome.components import binary_sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NAME, CONF_DEVICE_CLASS, DEVICE_CLASS_CONNECTIVITY
+import esphome.config_validation as cv
+from esphome.components import binary_sensor
+from esphome.const import CONF_ID, CONF_DEVICE_CLASS, DEVICE_CLASS_CONNECTIVITY
 
 status_ns = cg.esphome_ns.namespace('status')
 StatusBinarySensor = status_ns.class_('StatusBinarySensor', binary_sensor.BinarySensor,
@@ -15,6 +15,6 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield binary_sensor.register_binary_sensor(var, config)

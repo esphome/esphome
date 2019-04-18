@@ -19,9 +19,7 @@ struct DutyCycleSensorStore {
 
 class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
  public:
-  void set_pin(GPIOPin *pin) {
-    pin_ = pin;
-  }
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override;
   float get_setup_priority() const override;

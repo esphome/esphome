@@ -22,6 +22,7 @@ disable=
   undefined-loop-variable,
   useless-object-inheritance,
   stop-iteration-return,
+  no-self-use,
 
 
 additional-builtins=

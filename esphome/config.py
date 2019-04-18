@@ -15,7 +15,7 @@ from esphome import core, core_config, yaml_util
 from esphome.components import substitutions
 from esphome.components.substitutions import CONF_SUBSTITUTIONS
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
-from esphome.core import CORE, ConfigType, EsphomeError  # noqa
+from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.py_compat import text_type
 from esphome.util import safe_print, OrderedDict
@@ -581,7 +581,7 @@ class InvalidYAMLError(EsphomeError):
     def __init__(self, path, base_exc):
         message = u"Invalid YAML at {}. Please see YAML syntax reference or use an " \
                   u"online YAML syntax validator. ({})".format(path, base_exc)
-        super(EsphomeError, self).__init__(message)
+        super(InvalidYAMLError, self).__init__(message)
         self.path = path
         self.base_exc = base_exc
 

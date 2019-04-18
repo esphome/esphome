@@ -1,9 +1,8 @@
 import logging
 import re
 
-from esphome import core
 import esphome.config_validation as cv
-from esphome.core import EsphomeError
+from esphome import core
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)

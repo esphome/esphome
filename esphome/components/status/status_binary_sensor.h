@@ -8,9 +8,6 @@ namespace status {
 
 class StatusBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
-  /// Construct the status binary sensor
-  explicit StatusBinarySensor(const std::string &name);
-
   void loop() override;
 
   void setup() override;

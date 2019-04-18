@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_SERVERS
 
 
+DEPENDENCIES = ['network']
 sntp_ns = cg.esphome_ns.namespace('sntp')
 SNTPComponent = sntp_ns.class_('SNTPComponent', time_.RealTimeClock)
 

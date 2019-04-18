@@ -10,12 +10,8 @@ namespace my9231 {
 class MY9231OutputComponent : public Component {
  public:
   class Channel;
-  /** Construct the component.
-   *
-   * @param pin_di The pin which DI is connected to.
-   * @param pin_dcki The pin which DCKI is connected to.
-   */
-  MY9231OutputComponent(GPIOPin *pin_di, GPIOPin *pin_dcki) : pin_di_(pin_di), pin_dcki_(pin_dcki) {}
+  void set_pin_di(GPIOPin *pin_di) { pin_di_ = pin_di; }
+  void set_pin_dcki(GPIOPin *pin_dcki) { pin_dcki_ = pin_dcki; }
 
   void set_num_channels(uint16_t num_channels) { this->num_channels_ = num_channels; }
   void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
@@ -31,7 +27,8 @@ class MY9231OutputComponent : public Component {
 
   class Channel : public output::FloatOutput {
    public:
-    Channel(MY9231OutputComponent *parent, uint8_t channel) : parent_(parent), channel_(channel) {}
+    void set_parent(MY9231OutputComponent *parent) { parent_ = parent; }
+    void set_channel(uint8_t channel) { channel_ = channel; }
 
    protected:
     void write_state(float state) override {

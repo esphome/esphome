@@ -6,9 +6,6 @@ namespace ultrasonic {
 
 static const char *TAG = "ultrasonic.sensor";
 
-UltrasonicSensorComponent::UltrasonicSensorComponent(const std::string &name, GPIOPin *trigger_pin, GPIOPin *echo_pin,
-                                                     uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval), trigger_pin_(trigger_pin), echo_pin_(echo_pin) {}
 void UltrasonicSensorComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ultrasonic Sensor...");
   this->trigger_pin_->setup();

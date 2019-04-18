@@ -1,13 +1,12 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import cover
-import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
-    CONF_LAMBDA, CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
+    CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
     CONF_STATE, CONF_STOP_ACTION
 from .. import template_ns
-
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover)
 
@@ -31,7 +30,7 @@ CONFIG_SCHEMA = cv.nameable(cover.COVER_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield cover.register_cover(var, config)
     if CONF_LAMBDA in config:

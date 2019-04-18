@@ -9,8 +9,6 @@ namespace template_ {
 
 class TemplateTextSensor : public text_sensor::TextSensor, public PollingComponent {
  public:
-  TemplateTextSensor(const std::string &name, uint32_t update_interval);
-
   void set_template(std::function<optional<std::string>()> &&f);
 
   void update() override;

@@ -9,7 +9,6 @@ namespace ms5611 {
 
 class MS5611Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  MS5611Component(uint32_t update_interval) : PollingComponent(update_interval) {}
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;

@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.ads1115 import ADS1115Component
-from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, CONF_UPDATE_INTERVAL, \
-    ICON_FLASH, UNIT_VOLT, CONF_ID, CONF_NAME
+from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
 from esphome.py_compat import string_types
 from . import ads1115_ns
 
@@ -42,7 +41,6 @@ def validate_gain(value):
 
 
 ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor)
-
 
 CONF_ADS1115_ID = 'ads1115_id'
 CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({

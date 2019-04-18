@@ -14,8 +14,9 @@ def read_config_file(path):
             'type': 'read_file',
             'path': path,
         }))
-        data = safe_input()
-        return json.loads(data)
+        data = json.loads(safe_input())
+        assert data['type'] == 'file_response'
+        return data['content']
 
     try:
         with codecs.open(path, encoding='utf-8') as handle:

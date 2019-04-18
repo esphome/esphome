@@ -21,12 +21,20 @@ CONFIG_SCHEMA = cv.nameable(light.RGB_LIGHT_SCHEMA.extend({
 
 
 def to_code(config):
-    red = yield cg.get_variable(config[CONF_RED])
-    green = yield cg.get_variable(config[CONF_GREEN])
-    blue = yield cg.get_variable(config[CONF_BLUE])
-    cwhite = yield cg.get_variable(config[CONF_COLD_WHITE])
-    wwhite = yield cg.get_variable(config[CONF_WARM_WHITE])
-    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], red, green, blue, cwhite, wwhite,
-                           config[CONF_COLD_WHITE_COLOR_TEMPERATURE],
-                           config[CONF_WARM_WHITE_COLOR_TEMPERATURE])
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield light.register_light(var, config)
+
+    red = yield cg.get_variable(config[CONF_RED])
+    cg.add(var.set_red(red))
+    green = yield cg.get_variable(config[CONF_GREEN])
+    cg.add(var.set_green(green))
+    blue = yield cg.get_variable(config[CONF_BLUE])
+    cg.add(var.set_blue(blue))
+
+    cwhite = yield cg.get_variable(config[CONF_COLD_WHITE])
+    cg.add(var.set_cold_white(cwhite))
+    cg.add(var.set_cold_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
+
+    wwhite = yield cg.get_variable(config[CONF_WARM_WHITE])
+    cg.add(var.set_warm_white(wwhite))
+    cg.add(var.set_warm_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))

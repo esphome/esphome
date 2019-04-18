@@ -335,7 +335,6 @@ bool PN532::wait_ready_() {
   return true;
 }
 
-PN532::PN532(uint32_t update_interval) : PollingComponent(update_interval) {}
 bool PN532::is_device_msb_first() { return false; }
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
@@ -357,9 +356,6 @@ void PN532::dump_config() {
     LOG_BINARY_SENSOR("  ", "Tag", child);
   }
 }
-
-PN532BinarySensor::PN532BinarySensor(const std::string &name, const std::vector<uint8_t> &uid)
-    : BinarySensor(name), uid_(uid) {}
 
 bool PN532BinarySensor::process(const uint8_t *data, uint8_t len) {
   if (len != this->uid_.size())

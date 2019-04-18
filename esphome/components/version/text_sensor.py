@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import text_sensor
-from esphome.const import CONF_ID, CONF_NAME, CONF_ICON, ICON_NEW_BOX
+from esphome.const import CONF_ID, CONF_ICON, ICON_NEW_BOX
 
 version_ns = cg.esphome_ns.namespace('version')
 VersionTextSensor = version_ns.class_('VersionTextSensor', text_sensor.TextSensor, cg.Component)
@@ -13,6 +13,6 @@ CONFIG_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield text_sensor.register_text_sensor(var, config)
     yield cg.register_component(var, config)

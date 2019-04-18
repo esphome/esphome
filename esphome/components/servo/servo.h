@@ -13,7 +13,7 @@ extern uint32_t global_servo_id;
 
 class Servo : public Component {
  public:
-  Servo(output::FloatOutput *output) : output_(output) {}
+  void set_output(output::FloatOutput *output) { output_ = output; }
   void write(float value) {
     value = clamp(value, -1.0f, 1.0f);
 

@@ -2,9 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
-from esphome.components.spi import SPIComponent
-from esphome.const import CONF_EXTERNAL_VCC, CONF_LAMBDA, \
-    CONF_MODEL, CONF_RESET_PIN, CONF_SPI_ID, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_EXTERNAL_VCC, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN
 from esphome.core import coroutine
 
 ssd1306_base_ns = cg.esphome_ns.namespace('ssd1306_base')
@@ -25,18 +23,17 @@ MODELS = {
 SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
 
 SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
     cv.Required(CONF_MODEL): SSD1306_MODEL,
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_EXTERNAL_VCC): cv.boolean,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='1s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.polling_component_schema('1s'))
 
 
 @coroutine
 def setup_ssd1036(var, config):
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
+
     cg.add(var.set_model(MODELS[config[CONF_MODEL]]))
     if CONF_RESET_PIN in config:
         reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])

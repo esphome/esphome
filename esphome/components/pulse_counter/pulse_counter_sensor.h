@@ -48,16 +48,12 @@ struct PulseCounterStorage {
   pulse_counter_t last_value{0};
 };
 
-class PulseCounterSensor : public sensor::PollingSensorComponent {
+class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit PulseCounterSensor(const std::string &name, GPIOPin *pin, uint32_t update_interval,
-                              PulseCounterCountMode rising_edge_mode, PulseCounterCountMode falling_edge_mode,
-                              uint32_t filter_us)
-      : sensor::PollingSensorComponent(name, update_interval), pin_(pin) {
-    this->storage_.rising_edge_mode = rising_edge_mode;
-    this->storage_.falling_edge_mode = falling_edge_mode;
-    this->storage_.filter_us = filter_us;
-  }
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
+  void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
+  void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
 
   /// Unit of measurement is "pulses/min".
   void setup() override;

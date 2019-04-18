@@ -7,15 +7,10 @@
 namespace esphome {
 namespace ultrasonic {
 
-class UltrasonicSensorComponent : public sensor::PollingSensorComponent {
+class UltrasonicSensorComponent : public sensor::Sensor, public PollingComponent {
  public:
-  /** Construct the ultrasonic sensor with the specified trigger pin and echo pin.
-   *
-   * @param trigger_pin The trigger pin where pulses are sent to.
-   * @param echo_pin The echo pin where the echo is listened for.
-   * @param update_interval The interval in ms the sensor should check for new values.
-   */
-  UltrasonicSensorComponent(const std::string &name, GPIOPin *trigger_pin, GPIOPin *echo_pin, uint32_t update_interval);
+  void set_trigger_pin(GPIOPin *trigger_pin) { trigger_pin_ = trigger_pin; }
+  void set_echo_pin(GPIOPin *echo_pin) { echo_pin_ = echo_pin; }
 
   /// Set the timeout for waiting for the echo in µs.
   void set_timeout_us(uint32_t timeout_us);

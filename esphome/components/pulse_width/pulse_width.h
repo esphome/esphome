@@ -26,9 +26,8 @@ class PulseWidthSensorStore {
   volatile uint32_t last_rise_{0};
 };
 
-class PulseWidthSensor : public sensor::PollingSensorComponent {
+class PulseWidthSensor : public sensor::Sensor, public PollingComponent {
  public:
-  PulseWidthSensor(const std::string &name, uint32_t update_interval) : PollingSensorComponent(name, update_interval) {}
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void setup() override { this->store_.setup(this->pin_); }
   void dump_config() override;

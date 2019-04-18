@@ -9,9 +9,10 @@ namespace rgbw {
 
 class RGBWLightOutput : public light::LightOutput {
  public:
-  RGBWLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue,
-                  output::FloatOutput *white)
-      : red_(red), green_(green), blue_(blue), white_(white) {}
+  void set_red(output::FloatOutput *red) { red_ = red; }
+  void set_green(output::FloatOutput *green) { green_ = green; }
+  void set_blue(output::FloatOutput *blue) { blue_ = blue; }
+  void set_white(output::FloatOutput *white) { white_ = white; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);

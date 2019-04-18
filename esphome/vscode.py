@@ -2,11 +2,8 @@ from __future__ import print_function
 
 import json
 
-import voluptuous as vol
-from typing import Optional
-
-from esphome.config import load_config, _format_vol_invalid, Config
-from esphome.core import CORE, EsphomeError, DocumentRange
+from esphome.config import load_config, _format_vol_invalid
+from esphome.core import CORE, EsphomeError
 from esphome.py_compat import text_type, safe_input
 from esphome.yaml_util import ESPHomeDataBase
 
@@ -36,14 +33,12 @@ class VSCodeResult(object):
     def __init__(self):
         self.yaml_errors = []
         self.validation_errors = []
-        self.ids = []
 
     def dump(self):
         return json.dumps({
             'type': 'result',
             'yaml_errors': self.yaml_errors,
             'validation_errors': self.validation_errors,
-            'ids': self.ids,
         })
 
     def add_yaml_error(self, message):
@@ -57,12 +52,6 @@ class VSCodeResult(object):
             'message': message,
         })
 
-    def add_id(self, name, type_):
-        self.ids.append({
-            'name': name,
-            'type': type_,
-        })
-
 
 def read_config():
     while True:
@@ -74,11 +63,10 @@ def read_config():
         vs = VSCodeResult()
         try:
             res = load_config()
-        except EsphomeError as err:
+        except Exception as err:  # pylint: disable=broad-except
             vs.add_yaml_error(text_type(err))
-            print(vs.dump())
-            return
-        for err in res.errors:
-            range_ = _get_invalid_range(res, err)
-            vs.add_validation_error(range_, _format_vol_invalid(err, res))
+        else:
+            for err in res.errors:
+                range_ = _get_invalid_range(res, err)
+                vs.add_validation_error(range_, _format_vol_invalid(err, res))
         print(vs.dump())

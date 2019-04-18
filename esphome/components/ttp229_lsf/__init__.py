@@ -7,9 +7,9 @@ DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']
 
 CONF_TTP229_ID = 'ttp229_id'
-ttp229_ns = cg.esphome_ns.namespace('ttp229')
+ttp229_lsf_ns = cg.esphome_ns.namespace('ttp229_lsf')
 
-TTP229LSFComponent = ttp229_ns.class_('TTP229LSFComponent', cg.Component)
+TTP229LSFComponent = ttp229_lsf_ns.class_('TTP229LSFComponent', cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_variable_id(TTP229LSFComponent),

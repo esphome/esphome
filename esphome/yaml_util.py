@@ -4,7 +4,6 @@ import fnmatch
 import functools
 import logging
 import os
-from collections import OrderedDict
 
 import uuid
 import yaml
@@ -12,9 +11,8 @@ import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, HexInt, IPAddress, Lambda, MACAddress, TimePeriod, \
-    DocumentRange
-from esphome.py_compat import text_type, IS_PY2, IS_PY3
+from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
+from esphome.py_compat import text_type, IS_PY2
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,6 +39,7 @@ class ESPHomeDataBase(object):
         return getattr(self, '_esp_range', None)
 
     def from_node(self, node):
+        # pylint: disable=attribute-defined-outside-init
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
 
 
@@ -79,6 +78,7 @@ ESP_TYPES = {
 if IS_PY2:
     class ESPUnicode(unicode, ESPHomeDataBase):
         pass
+
     ESP_TYPES[unicode] = ESPUnicode
 
 
@@ -118,10 +118,6 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     @_add_data_ref
     def construct_yaml_str(self, node):
         return super(ESPHomeLoader, self).construct_yaml_str(node)
-
-    @_add_data_ref
-    def construct_yaml_seq(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_seq(node)
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
@@ -334,6 +330,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             return self.represent_secret(value)
         return self.represent_scalar(tag=u'tag:yaml.org,2002:str', value=text_type(value))
 
+    # pylint: disable=arguments-differ
     def represent_bool(self, value):
         return self.represent_scalar(u'tag:yaml.org,2002:bool', u'true' if value else u'false')
 

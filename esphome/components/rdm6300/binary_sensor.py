@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor, rdm6300
-from esphome.const import CONF_UID, CONF_ID, CONF_NAME
+from esphome.const import CONF_UID, CONF_ID
 from . import rdm6300_ns
 
 DEPENDENCIES = ['rdm6300']
@@ -17,7 +17,9 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_RDM6300_ID])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UID])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
+    hub = yield cg.get_variable(config[CONF_RDM6300_ID])
     cg.add(hub.register_card(var))
+    cg.add(var.set_id(config[CONF_UID]))

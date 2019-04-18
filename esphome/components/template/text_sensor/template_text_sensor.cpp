@@ -6,8 +6,6 @@ namespace template_ {
 
 static const char *TAG = "template.text_sensor";
 
-TemplateTextSensor::TemplateTextSensor(const std::string &name, uint32_t update_interval)
-    : TextSensor(name), PollingComponent(update_interval) {}
 void TemplateTextSensor::update() {
   if (!this->f_.has_value())
     return;

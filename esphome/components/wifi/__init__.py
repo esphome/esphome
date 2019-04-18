@@ -7,6 +7,8 @@ from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS
     CONF_SUBNET, CONF_USE_ADDRESS
 from esphome.core import CORE, HexInt, coroutine_with_priority
 
+AUTO_LOAD = ['network']
+
 wifi_ns = cg.esphome_ns.namespace('wifi')
 IPAddress = cg.global_ns.class_('IPAddress')
 ManualIP = wifi_ns.struct('ManualIP')

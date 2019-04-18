@@ -14,6 +14,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_WILL_MESSAGE
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
+DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']
 
 

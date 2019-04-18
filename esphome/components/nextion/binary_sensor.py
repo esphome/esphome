@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_COMPONENT_ID, CONF_NAME, CONF_PAGE_ID, CONF_ID
+from esphome.const import CONF_COMPONENT_ID, CONF_PAGE_ID, CONF_ID
 from . import nextion_ns
 from .display import Nextion
 
@@ -21,8 +21,11 @@ CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
-    rhs = hub.make_touch_component(config[CONF_NAME], config[CONF_PAGE_ID],
-                                   config[CONF_COMPONENT_ID])
-    var = cg.Pvariable(config[CONF_ID], rhs)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
+    hub = yield cg.get_variable(config[CONF_NEXTION_ID])
+    cg.add(hub.register_touch_component(var))
+
+    cg.add(var.set_component_id(config[CONF_COMPONENT_ID]))
+    cg.add(var.set_page_id(config[CONF_PAGE_ID]))

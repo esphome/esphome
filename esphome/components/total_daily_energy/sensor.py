@@ -1,7 +1,7 @@
-from esphome.components import sensor, time
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_NAME, CONF_TIME_ID
+import esphome.config_validation as cv
+from esphome.components import sensor, time
+from esphome.const import CONF_ID, CONF_TIME_ID
 
 DEPENDENCIES = ['time']
 
@@ -17,9 +17,12 @@ CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
 
 
 def to_code(config):
-    time_ = yield cg.get_variable(config[CONF_TIME_ID])
-    sens = yield cg.get_variable(config[CONF_POWER_ID])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], time_, sens)
+    var = cg.new_Pvariable(config[CONF_ID])
 
     yield cg.register_component(var, config)
     yield sensor.register_sensor(var, config)
+
+    sens = yield cg.get_variable(config[CONF_POWER_ID])
+    cg.add(var.set_parent(sens))
+    time_ = yield cg.get_variable(config[CONF_TIME_ID])
+    cg.add(var.set_time(time_))
