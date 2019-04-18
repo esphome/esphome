@@ -80,7 +80,7 @@ CONFIG_SCHEMA = cv.Schema({
                                                                        max=60)),
     cv.Optional(CONF_IDLE_FRAMERATE, default='0.1 fps'): cv.All(cv.framerate,
                                                                 cv.Range(min=0, max=1)),
-    cv.Optional(CONF_RESOLUTION, default='640X480'): cv.one_of(*FRAME_SIZES, upper=True),
+    cv.Optional(CONF_RESOLUTION, default='640X480'): cv.enum(FRAME_SIZES, upper=True),
     cv.Optional(CONF_JPEG_QUALITY, default=10): cv.All(cv.int_, cv.Range(min=10, max=63)),
     cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
     cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
@@ -124,7 +124,7 @@ def to_code(config):
         cg.add(var.set_idle_update_interval(0))
     else:
         cg.add(var.set_idle_update_interval(1000 / config[CONF_IDLE_FRAMERATE]))
-    cg.add(var.set_frame_size(FRAME_SIZES[config[CONF_RESOLUTION]]))
+    cg.add(var.set_frame_size(config[CONF_RESOLUTION]))
 
     cg.add_define('USE_ESP32_CAMERA')
     cg.add_build_flag('-DBOARD_HAS_PSRAM')

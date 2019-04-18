@@ -44,10 +44,10 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_WAKEUP_PIN): cv.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                          validate_pin_number),
     cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(cv.only_on_esp32,
-                                              cv.one_of(*WAKEUP_PIN_MODES), upper=True),
+                                              cv.enum(WAKEUP_PIN_MODES), upper=True),
     cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(cv.only_on_esp32, cv.Schema({
         cv.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
-        cv.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
+        cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
     })),
 
     cv.Optional(CONF_RUN_CYCLES): cv.invalid("The run_cycles option has been removed in 1.11.0 as "
@@ -66,7 +66,7 @@ def to_code(config):
         pin = yield cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
         cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
+        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
     if CONF_RUN_DURATION in config:
         cg.add(var.set_run_duration(config[CONF_RUN_DURATION]))
 
@@ -78,7 +78,7 @@ def to_code(config):
         struct = cg.StructInitializer(
             Ext1Wakeup,
             ('mask', mask),
-            ('wakeup_mode', EXT1_WAKEUP_MODES[conf[CONF_MODE]])
+            ('wakeup_mode', conf[CONF_MODE])
         )
         cg.add(var.set_ext1_wakeup(struct))
 

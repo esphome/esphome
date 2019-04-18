@@ -24,7 +24,7 @@ COVER_STATES = {
     'OPEN': COVER_OPEN,
     'CLOSED': COVER_CLOSED,
 }
-validate_cover_state = cv.one_of(*COVER_STATES, upper=True)
+validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum('CoverOperation')
 COVER_OPERATIONS = {
@@ -32,7 +32,7 @@ COVER_OPERATIONS = {
     'OPENING': CoverOperation.COVER_OPERATION_OPENING,
     'CLOSING': CoverOperation.COVER_OPERATION_CLOSING,
 }
-validate_cover_operation = cv.one_of(*COVER_OPERATIONS, upper=True)
+validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
 OpenAction = cover_ns.class_('OpenAction', cg.Action)
@@ -104,7 +104,7 @@ def cover_stop_to_code(config, action_id, template_arg, args):
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.use_variable_id(Cover),
     cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
-    cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(cv.one_of(*COVER_STATES)),
+    cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.percentage),
     cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
 })
@@ -120,8 +120,7 @@ def cover_control_to_code(config, action_id, template_arg, args):
         template_ = yield cg.templatable(config[CONF_STOP], args, bool)
         cg.add(action.set_stop(template_))
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float,
-                                         to_exp=COVER_STATES)
+        template_ = yield cg.templatable(config[CONF_STATE], args, float)
         cg.add(action.set_position(template_))
     if CONF_POSITION in config:
         template_ = yield cg.templatable(config[CONF_POSITION], args, float)

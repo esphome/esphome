@@ -82,15 +82,20 @@ if IS_PY2:
     ESP_TYPES[unicode] = ESPUnicode
 
 
+def make_data_base(value):
+    for typ, cons in ESP_TYPES.items():
+        if isinstance(value, typ):
+            return cons(value)
+    return value
+
+
 def _add_data_ref(fn):
     @functools.wraps(fn)
     def wrapped(loader, node):
         res = fn(loader, node)
-        for typ, cons in ESP_TYPES.items():
-            if isinstance(res, typ):
-                res_ = cons(res)
-                res_.from_node(node)
-                return res_
+        res = make_data_base(res)
+        if isinstance(res, ESPHomeDataBase):
+            res.from_node(node)
         return res
 
     return wrapped

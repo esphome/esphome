@@ -20,7 +20,7 @@ CONFIG_SCHEMA = sensor.sensor_schema('', ICON_SCALE, 0).extend({
     cv.GenerateID(): cv.declare_variable_id(HX711Sensor),
     cv.Required(CONF_DOUT_PIN): pins.gpio_input_pin_schema,
     cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_GAIN, default=128): cv.one_of(*GAINS, int=True),
+    cv.Optional(CONF_GAIN, default=128): cv.enum(GAINS, int=True),
 }).extend(cv.polling_component_schema('60s'))
 
 
@@ -33,4 +33,4 @@ def to_code(config):
     cg.add(var.set_dout_pin(dout_pin))
     sck_pin = yield cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_sck_pin(sck_pin))
-    cg.add(var.set_gain(GAINS[config[CONF_GAIN]]))
+    cg.add(var.set_gain(config[CONF_GAIN]))

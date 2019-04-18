@@ -20,7 +20,7 @@ MODELS = {
     'SH1106_64X48': SSD1306Model.SH1106_MODEL_64_48,
 }
 
-SSD1306_MODEL = cv.one_of(*MODELS, upper=True, space="_")
+SSD1306_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 SSD1306_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_MODEL): SSD1306_MODEL,
@@ -34,7 +34,7 @@ def setup_ssd1036(var, config):
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
 
-    cg.add(var.set_model(MODELS[config[CONF_MODEL]]))
+    cg.add(var.set_model(config[CONF_MODEL]))
     if CONF_RESET_PIN in config:
         reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))

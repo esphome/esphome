@@ -15,7 +15,7 @@ COUNT_MODES = {
     'DECREMENT': PulseCounterCountMode.PULSE_COUNTER_DECREMENT,
 }
 
-COUNT_MODE_SCHEMA = cv.one_of(*COUNT_MODES, upper=True)
+COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
 PulseCounterSensor = pulse_counter_ns.class_('PulseCounterSensor',
                                              sensor.PollingSensorComponent)
@@ -61,6 +61,6 @@ def to_code(config):
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
     count = config[CONF_COUNT_MODE]
-    cg.add(var.set_rising_edge_mode(COUNT_MODES[count[CONF_RISING_EDGE]]))
-    cg.add(var.set_falling_edge_mode(COUNT_MODES[count[CONF_FALLING_EDGE]]))
+    cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
+    cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))

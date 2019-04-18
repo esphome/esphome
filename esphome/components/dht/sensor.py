@@ -23,7 +23,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
-    cv.Optional(CONF_MODEL, default='auto detect'): cv.one_of(*DHT_MODELS, upper=True, space='_'),
+    cv.Optional(CONF_MODEL, default='auto detect'): cv.enum(DHT_MODELS, upper=True, space='_'),
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 }).extend(cv.polling_component_schema('60s'))
 
@@ -42,4 +42,4 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
 
-    cg.add(var.set_dht_model(DHT_MODELS[config[CONF_MODEL]]))
+    cg.add(var.set_dht_model(config[CONF_MODEL]))

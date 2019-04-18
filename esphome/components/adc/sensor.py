@@ -26,7 +26,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
     cv.GenerateID(): cv.declare_variable_id(ADCSensor),
     cv.Required(CONF_PIN): validate_adc_pin,
     cv.SplitDefault(CONF_ATTENUATION, esp32='0db'):
-        cv.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES, lower=True)),
+        cv.All(cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)),
 }).extend(cv.polling_component_schema('60s'))
 
 
@@ -41,4 +41,5 @@ def to_code(config):
     else:
         cg.add(var.set_pin(config[CONF_PIN]))
 
-    cg.add(var.set_attenuation(ATTENUATION_MODES[config[CONF_ATTENUATION]]))
+    if CONF_ATTENUATION in config:
+        cg.add(var.set_attenuation(config[CONF_ATTENUATION]))

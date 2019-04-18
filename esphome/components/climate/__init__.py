@@ -23,7 +23,7 @@ CLIMATE_MODES = {
     'HEAT': ClimateMode.CLIMATE_MODE_HEAT,
 }
 
-validate_climate_mode = cv.one_of(*CLIMATE_MODES, upper=True)
+validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 # Actions
 ControlAction = climate_ns.class_('ControlAction', cg.Action)
@@ -83,8 +83,7 @@ def climate_control_to_code(config, action_id, template_arg, args):
     rhs = type.new(var)
     action = cg.Pvariable(action_id, rhs, type=type)
     if CONF_MODE in config:
-        template_ = yield cg.templatable(config[CONF_MODE], args, ClimateMode,
-                                         to_exp=CLIMATE_MODES)
+        template_ = yield cg.templatable(config[CONF_MODE], args, ClimateMode)
         cg.add(action.set_mode(template_))
     if CONF_TARGET_TEMPERATURE in config:
         template_ = yield cg.templatable(config[CONF_TARGET_TEMPERATURE], args, float)

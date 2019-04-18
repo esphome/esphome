@@ -2,6 +2,7 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
+import copy
 from contextlib import contextmanager
 import logging
 import os
@@ -94,6 +95,8 @@ def valid_name(value):
 def string(value):
     if isinstance(value, (dict, list)):
         raise Invalid("string value cannot be dictionary or list.")
+    if isinstance(value, text_type):
+        return value
     if value is not None:
         return text_type(value)
     raise Invalid("string value is None")
@@ -101,8 +104,10 @@ def string(value):
 
 def string_strict(value):
     """Strictly only allow strings."""
-    if isinstance(value, string_types):
+    if isinstance(value, text_type):
         return value
+    if isinstance(value, string_types):
+        return text_type(value)
     raise Invalid("Must be string, got {}. did you forget putting quotes "
                   "around the value?".format(type(value)))
 
@@ -117,6 +122,8 @@ def icon(value):
 
 def boolean(value):
     """Validate and coerce a boolean value."""
+    if isinstance(value, bool):
+        return value
     if isinstance(value, str):
         value = value.lower()
         if value in ('1', 'true', 'yes', 'on', 'enable'):
@@ -762,12 +769,14 @@ def prepend_path(path):
 
 def one_of(*values, **kwargs):
     options = u', '.join(u"'{}'".format(x) for x in values)
-    lower = kwargs.get('lower', False)
-    upper = kwargs.get('upper', False)
-    string_ = kwargs.get('string', False) or lower or upper
-    to_int = kwargs.get('int', False)
-    to_float = kwargs.get('float', False)
-    space = kwargs.get('space', ' ')
+    lower = kwargs.pop('lower', False)
+    upper = kwargs.pop('upper', False)
+    string_ = kwargs.pop('string', False) or lower or upper
+    to_int = kwargs.pop('int', False)
+    to_float = kwargs.pop('float', False)
+    space = kwargs.pop('space', ' ')
+    if kwargs:
+        raise ValueError
 
     def validator(value):
         if string_:
@@ -791,6 +800,22 @@ def one_of(*values, **kwargs):
                               u"".format(value, u", ".join(u"'{}'".format(x) for x in matches)))
             else:
                 raise Invalid(u"Unknown value '{}', valid options are {}.".format(value, options))
+        return value
+
+    return validator
+
+
+def enum(mapping, **kwargs):
+    assert isinstance(mapping, dict)
+    one_of_validator = one_of(*mapping, **kwargs)
+
+    def validator(value):
+        from esphome.yaml_util import make_data_base
+
+        value = make_data_base(one_of_validator(value))
+        cls = value.__class__
+        value.__class__ = cls.__class__(cls.__name__ + "Enum", (cls, core.EnumValue), {})
+        value.enum_value = mapping[value]
         return value
 
     return validator

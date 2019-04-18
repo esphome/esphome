@@ -23,7 +23,7 @@ CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend({
     cv.Required(CONF_PIN_C): pins.gpio_output_pin_schema,
     cv.Required(CONF_PIN_D): pins.gpio_output_pin_schema,
     cv.Optional(CONF_SLEEP_WHEN_DONE, default=False): cv.boolean,
-    cv.Optional(CONF_STEP_MODE, default='FULL_STEP'): cv.one_of(*STEP_MODES, upper=True, space='_')
+    cv.Optional(CONF_STEP_MODE, default='FULL_STEP'): cv.enum(STEP_MODES, upper=True, space='_')
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -42,4 +42,4 @@ def to_code(config):
     cg.add(var.set_pin_d(pin_d))
 
     cg.add(var.set_sleep_when_done(config[CONF_SLEEP_WHEN_DONE]))
-    cg.add(var.set_step_mode(STEP_MODES[config[CONF_STEP_MODE]]))
+    cg.add(var.set_step_mode(config[CONF_STEP_MODE]))

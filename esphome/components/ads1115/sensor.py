@@ -37,7 +37,7 @@ def validate_gain(value):
     elif not isinstance(value, string_types):
         raise cv.Invalid('invalid gain "{}"'.format(value))
 
-    return cv.one_of(*GAIN)(value)
+    return cv.enum(GAIN)(value)
 
 
 ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor)
@@ -46,7 +46,7 @@ CONF_ADS1115_ID = 'ads1115_id'
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
     cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),
     cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
-    cv.Required(CONF_MULTIPLEXER): cv.one_of(*MUX, upper=True, space='_'),
+    cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space='_'),
     cv.Required(CONF_GAIN): validate_gain,
 }).extend(cv.polling_component_schema('60s'))
 
@@ -55,8 +55,8 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield sensor.register_sensor(var, config)
 
-    cg.add(var.set_multiplexer(MUX[config[CONF_MULTIPLEXER]]))
-    cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+    cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
+    cg.add(var.set_gain(config[CONF_GAIN]))
 
     hub = yield cg.get_variable(config[CONF_ADS1115_ID])
     cg.add(hub.register_sensor(var))

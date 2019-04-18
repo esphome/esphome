@@ -689,6 +689,17 @@ class AutoLoad(OrderedDict):
     pass
 
 
+class EnumValue(object):
+    """Special type used by ESPHome to mark enum values for cv.enum."""
+    @property
+    def enum_value(self):
+        return getattr(self, '_enum_value', None)
+
+    @enum_value.setter
+    def enum_value(self, value):
+        setattr(self, '_enum_value', value)
+
+
 CORE = EsphomeCore()
 
 ConfigType = Dict[str, Any]

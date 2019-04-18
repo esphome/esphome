@@ -47,8 +47,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
     cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
     cv.Optional(CONF_INTEGRATION_TIME, default='2.4ms'):
-        cv.one_of(*TCS34725_INTEGRATION_TIMES, lower=True),
-    cv.Optional(CONF_GAIN, default='1X'): cv.All(cv.Upper, cv.one_of(*TCS34725_GAINS), upper=True),
+        cv.enum(TCS34725_INTEGRATION_TIMES, lower=True),
+    cv.Optional(CONF_GAIN, default='1X'): cv.enum(TCS34725_GAINS, upper=True),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x29))
 
 
@@ -57,8 +57,8 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_integration_time(TCS34725_INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
-    cg.add(var.set_gain(TCS34725_GAINS[config[CONF_GAIN]]))
+    cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
+    cg.add(var.set_gain(config[CONF_GAIN]))
 
     if CONF_RED_CHANNEL in config:
         sens = yield sensor.new_sensor(config[CONF_RED_CHANNEL])

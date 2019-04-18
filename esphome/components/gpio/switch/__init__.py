@@ -19,7 +19,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(GPIOSwitch),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE_DEFAULT_OFF'):
-        cv.one_of(*RESTORE_MODES, upper=True, space='_'),
+        cv.enum(RESTORE_MODES, upper=True, space='_'),
     cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_variable_id(switch.Switch)),
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -32,7 +32,7 @@ def to_code(config):
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))
 
-    cg.add(var.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
     if CONF_INTERLOCK in config:
         interlock = []

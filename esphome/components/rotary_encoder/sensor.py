@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(sensor.SENSOR_SCHEMA.extend({
     cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),
     cv.Optional(CONF_PIN_RESET): pins.internal_gpio_input_pin_schema,
-    cv.Optional(CONF_RESOLUTION, default=1): cv.one_of(*RESOLUTIONS, int=True),
+    cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
     cv.Optional(CONF_MIN_VALUE): cv.int_,
     cv.Optional(CONF_MAX_VALUE): cv.int_,
 }).extend(cv.COMPONENT_SCHEMA), validate_min_max_value)
@@ -54,9 +54,7 @@ def to_code(config):
     if CONF_PIN_RESET in config:
         pin_i = yield cg.gpio_pin_expression(config[CONF_PIN_RESET])
         cg.add(var.set_reset_pin(pin_i))
-    if CONF_RESOLUTION in config:
-        resolution = RESOLUTIONS[config[CONF_RESOLUTION]]
-        cg.add(var.set_resolution(resolution))
+    cg.add(var.set_resolution(config[CONF_RESOLUTION]))
     if CONF_MIN_VALUE in config:
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:

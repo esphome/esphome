@@ -25,7 +25,7 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
-    cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.one_of(*RESTORE_MODES, upper=True),
+    cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -46,7 +46,7 @@ def to_code(config):
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
 @ACTION_REGISTRY.register('cover.template.publish', cv.Schema({
@@ -61,14 +61,12 @@ def cover_template_publish_to_code(config, action_id, template_arg, args):
     rhs = type.new(var)
     action = cg.Pvariable(action_id, rhs, type=type)
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float, to_exp=cover.COVER_STATES)
+        template_ = yield cg.templatable(config[CONF_STATE], args, float)
         cg.add(action.set_position(template_))
     if CONF_POSITION in config:
-        template_ = yield cg.templatable(config[CONF_POSITION], args, float,
-                                         to_exp=cover.COVER_STATES)
+        template_ = yield cg.templatable(config[CONF_POSITION], args, float)
         cg.add(action.set_position(template_))
     if CONF_CURRENT_OPERATION in config:
-        template_ = yield cg.templatable(config[CONF_CURRENT_OPERATION], args,
-                                         cover.CoverOperation, to_exp=cover.COVER_OPERATIONS)
+        template_ = yield cg.templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation)
         cg.add(action.set_current_operation(template_))
     yield action

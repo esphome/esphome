@@ -118,8 +118,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_AP): WIFI_NETWORK_AP,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'):
-        cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
+    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
@@ -177,7 +176,7 @@ def to_code(config):
         cg.add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
 
     cg.add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[config[CONF_POWER_SAVE_MODE]]))
+    cg.add(wifi.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(wifi.set_fast_connect(config[CONF_FAST_CONNECT]))
 
     if CORE.is_esp8266:

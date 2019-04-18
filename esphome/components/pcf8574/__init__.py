@@ -36,13 +36,13 @@ def to_code(config):
 PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
     cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="OUTPUT"): cv.one_of(*PCF8674_GPIO_MODES, upper=True),
+    cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(PCF8674_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 PCF8574_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
     cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="INPUT"): cv.one_of(*PCF8674_GPIO_MODES, upper=True),
+    cv.Optional(CONF_MODE, default="INPUT"): cv.enum(PCF8674_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
@@ -50,5 +50,4 @@ PCF8574_INPUT_PIN_SCHEMA = cv.Schema({
 @pins.PIN_SCHEMA_REGISTRY.register('pcf8574', (PCF8574_OUTPUT_PIN_SCHEMA, PCF8574_INPUT_PIN_SCHEMA))
 def pcf8574_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_PCF8574])
-    yield PCF8574GPIOPin.new(parent, config[CONF_NUMBER],
-                             PCF8674_GPIO_MODES[config[CONF_MODE]], config[CONF_INVERTED])
+    yield PCF8574GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])

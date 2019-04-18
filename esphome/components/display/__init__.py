@@ -29,11 +29,7 @@ def validate_rotation(value):
     value = cv.string(value)
     if value.endswith(u"°"):
         value = value[:-1]
-    try:
-        value = int(value)
-    except ValueError:
-        raise cv.Invalid(u"Expected integer for rotation")
-    return cv.one_of(*DISPLAY_ROTATIONS)(value)
+    return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
 
 
 BASIC_DISPLAY_SCHEMA = cv.Schema({

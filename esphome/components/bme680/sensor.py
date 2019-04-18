@@ -39,23 +39,23 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_TEMPERATURE):
         sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
-                cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+                cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_PRESSURE):
         sensor.sensor_schema(UNIT_HECTOPASCAL, ICON_GAUGE, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
-                cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+                cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_HUMIDITY):
         sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1).extend({
             cv.Optional(CONF_OVERSAMPLING, default='16X'):
-                cv.one_of(*OVERSAMPLING_OPTIONS, upper=True),
+                cv.enum(OVERSAMPLING_OPTIONS, upper=True),
         }),
     cv.Optional(CONF_GAS_RESISTANCE):
         sensor.sensor_schema(UNIT_OHM, ICON_GAS_CYLINDER, 1),
-    cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.one_of(*IIR_FILTER_OPTIONS, upper=True),
+    cv.Optional(CONF_IIR_FILTER, default='OFF'): cv.enum(IIR_FILTER_OPTIONS, upper=True),
     cv.Optional(CONF_HEATER): cv.Any(None, cv.All(cv.Schema({
-        cv.Optional(CONF_TEMPERATURE, default=320): cv.All(cv.Coerce(int), cv.Range(200, 400)),
+        cv.Optional(CONF_TEMPERATURE, default=320): cv.int_range(min=200, max=400),
         cv.Optional(CONF_DURATION, default='150ms'): cv.All(
             cv.positive_time_period_milliseconds, cv.Range(max=core.TimePeriod(milliseconds=4032)))
     }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
@@ -71,19 +71,19 @@ def to_code(config):
         conf = config[CONF_TEMPERATURE]
         sens = yield sensor.new_sensor(conf)
         cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_temperature_oversampling(OVERSAMPLING_OPTIONS[conf[CONF_OVERSAMPLING]]))
+        cg.add(var.set_temperature_oversampling(conf[CONF_OVERSAMPLING]))
 
     if CONF_PRESSURE in config:
         conf = config[CONF_PRESSURE]
         sens = yield sensor.new_sensor(conf)
         cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling(OVERSAMPLING_OPTIONS[conf[CONF_OVERSAMPLING]]))
+        cg.add(var.set_pressure_oversampling(conf[CONF_OVERSAMPLING]))
 
     if CONF_HUMIDITY in config:
         conf = config[CONF_HUMIDITY]
         sens = yield sensor.new_sensor(conf)
         cg.add(var.set_humidity_sensor(sens))
-        cg.add(var.set_humidity_oversampling(OVERSAMPLING_OPTIONS[conf[CONF_OVERSAMPLING]]))
+        cg.add(var.set_humidity_oversampling(conf[CONF_OVERSAMPLING]))
 
     if CONF_GAS_RESISTANCE in config:
         conf = config[CONF_GAS_RESISTANCE]

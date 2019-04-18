@@ -33,7 +33,7 @@ def validate_range(value):
     value = cv.string(value)
     if value.endswith(u'µT') or value.endswith('uT'):
         value = value[:-2]
-    return cv.one_of(*HMC5883L_RANGES, int=True)(value)
+    return cv.enum(HMC5883L_RANGES, int=True)(value)
 
 
 field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1)
@@ -55,7 +55,7 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_range(HMC5883L_RANGES[config[CONF_RANGE]]))
+    cg.add(var.set_range(config[CONF_RANGE]))
     if CONF_FIELD_STRENGTH_X in config:
         sens = yield sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
         cg.add(var.set_x_sensor(sens))

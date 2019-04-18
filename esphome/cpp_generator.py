@@ -5,7 +5,8 @@ from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Cal
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define)
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
+    EnumValue)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
 from esphome.util import OrderedDict
@@ -253,6 +254,8 @@ def safe_exp(
 
     if isinstance(obj, Expression):
         return obj
+    if isinstance(obj, EnumValue):
+        return safe_exp(obj.enum_value)
     if isinstance(obj, bool):
         return BoolLiteral(obj)
     if isinstance(obj, string_types):
