@@ -18,7 +18,7 @@ def validate_rx_pin(value):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(UARTComponent),
+    cv.GenerateID(): cv.declare_id(UARTComponent),
     cv.Required(CONF_BAUD_RATE): cv.All(cv.int_, cv.Range(min=1, max=115200)),
     cv.Optional(CONF_TX_PIN): pins.output_pin,
     cv.Optional(CONF_RX_PIN): validate_rx_pin,
@@ -37,12 +37,17 @@ def to_code(config):
         cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
 
 
+# A schema to use for all UART devices, all UART integrations must extend this!
 UART_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_UART_ID): cv.use_variable_id(UARTComponent),
+    cv.GenerateID(CONF_UART_ID): cv.use_id(UARTComponent),
 })
 
 
 @coroutine
 def register_uart_device(var, config):
+    """Register a UART device, setting up all the internal values.
+
+    This is a coroutine, you need to await it with a 'yield' expression!
+    """
     parent = yield cg.get_variable(config[CONF_UART_ID])
     cg.add(var.set_uart_parent(parent))

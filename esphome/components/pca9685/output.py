@@ -10,8 +10,8 @@ PCA9685Channel = pca9685_ns.class_('PCA9685Channel', output.FloatOutput)
 CONF_PCA9685_ID = 'pca9685_id'
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_variable_id(PCA9685Channel),
-    cv.GenerateID(CONF_PCA9685_ID): cv.use_variable_id(PCA9685Output),
+    cv.Required(CONF_ID): cv.declare_id(PCA9685Channel),
+    cv.GenerateID(CONF_PCA9685_ID): cv.use_id(PCA9685Output),
 
     cv.Required(CONF_CHANNEL): cv.All(cv.Coerce(int), cv.Range(min=0, max=15)),
 })

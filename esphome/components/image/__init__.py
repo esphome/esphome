@@ -17,10 +17,10 @@ Image_ = display.display_ns.class_('Image')
 CONF_RAW_DATA_ID = 'raw_data_id'
 
 IMAGE_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(Image_),
+    cv.Required(CONF_ID): cv.declare_id(Image_),
     cv.Required(CONF_FILE): cv.file_,
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(cg.uint8),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)

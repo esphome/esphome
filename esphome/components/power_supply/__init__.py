@@ -8,7 +8,7 @@ PowerSupply = power_supply_ns.class_('PowerSupply', cg.Component)
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(PowerSupply),
+    cv.Required(CONF_ID): cv.declare_id(PowerSupply),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_ENABLE_TIME, default='20ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_KEEP_ON_TIME, default='10s'): cv.positive_time_period_milliseconds,

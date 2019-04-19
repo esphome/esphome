@@ -12,7 +12,7 @@ ttp229_lsf_ns = cg.esphome_ns.namespace('ttp229_lsf')
 TTP229LSFComponent = ttp229_lsf_ns.class_('TTP229LSFComponent', cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(TTP229LSFComponent),
+    cv.GenerateID(): cv.declare_id(TTP229LSFComponent),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x57))
 
 

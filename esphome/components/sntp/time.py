@@ -12,7 +12,7 @@ SNTPComponent = sntp_ns.class_('SNTPComponent', time_.RealTimeClock)
 DEFAULT_SERVERS = ["0.pool.ntp.org", "1.pool.ntp.org", "2.pool.ntp.org"]
 
 CONFIG_SCHEMA = time_.TIME_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(SNTPComponent),
+    cv.GenerateID(): cv.declare_id(SNTPComponent),
     cv.Optional(CONF_SERVERS, default=DEFAULT_SERVERS):
         cv.All(cv.ensure_list(cv.domain), cv.Length(min=1, max=3)),
 }).extend(cv.COMPONENT_SCHEMA)

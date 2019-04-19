@@ -9,7 +9,7 @@ TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.
                                           cg.Component)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),
+    cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -26,7 +26,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('binary_sensor.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(binary_sensor.BinarySensor),
+    cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }))
 def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):

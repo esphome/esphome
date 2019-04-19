@@ -67,11 +67,11 @@ DEFAULT_GLYPHS = u' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklm
 CONF_RAW_DATA_ID = 'raw_data_id'
 
 FONT_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(Font),
+    cv.Required(CONF_ID): cv.declare_id(Font),
     cv.Required(CONF_FILE): validate_truetype_file,
     cv.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
     cv.Optional(CONF_SIZE, default=20): cv.All(cv.int_, cv.Range(min=1)),
-    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_variable_id(cg.uint8),
+    cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 
 CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)

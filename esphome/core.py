@@ -267,7 +267,7 @@ class ID(object):
         self.id = id
         self.is_manual = id is not None
         self.is_declaration = is_declaration
-        self.type = type
+        self.type = type  # type: 'Optional[MockObjClass]'
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -394,10 +394,12 @@ def coroutine_with_priority(priority):
             return func
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def _wrapper_generator(*args, **kwargs):
+            instance_id = kwargs.pop('__esphome_coroutine_instance__')
             if not inspect.isgeneratorfunction(func):
                 # If func is not a generator, return result immediately
                 yield func(*args, **kwargs)
+                CORE._remove_coroutine(instance_id)
                 return
             gen = func(*args, **kwargs)
             var = None
@@ -416,6 +418,16 @@ def coroutine_with_priority(priority):
             except StopIteration:
                 # Stopping iteration
                 yield var
+            CORE._remove_coroutine(instance_id)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            import random
+            instance_id = random.randint(0, 2**32)
+            kwargs['__esphome_coroutine_instance__'] = instance_id
+            gen = _wrapper_generator(*args, **kwargs)
+            CORE._add_active_coroutine(instance_id, gen)
+            return gen
 
         # pylint: disable=protected-access
         wrapper._esphome_coroutine = True
@@ -476,6 +488,9 @@ class EsphomeCore(object):
         self.build_flags = set()  # type: Set[str]
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines = set()  # type: Set[Define]
+        # A dictionary of started coroutines, used to warn when a coroutine was not
+        # awaited.
+        self.active_coroutines = {}  # type: Dict[int, Any]
 
     def reset(self):
         self.dashboard = False
@@ -494,6 +509,7 @@ class EsphomeCore(object):
         self.libraries = set()
         self.build_flags = set()
         self.defines = set()
+        self.active_coroutines = {}
 
     @property
     def address(self):  # type: () -> str
@@ -504,6 +520,13 @@ class EsphomeCore(object):
             return self.config['ethernet'][CONF_USE_ADDRESS]
 
         return None
+
+    def _add_active_coroutine(self, instance_id, obj):
+        self.active_coroutines[instance_id] = obj
+        return instance_id
+
+    def _remove_coroutine(self, instance_id):
+        self.active_coroutines.pop(instance_id)
 
     @property
     def arduino_version(self):  # type: () -> str
@@ -582,6 +605,12 @@ class EsphomeCore(object):
                 heapq.heappush(self.pending_tasks, item)
             except StopIteration:
                 _LOGGER.debug(" -> finished")
+
+        # Print not-awaited coroutines
+        for obj in self.active_coroutines.values():
+            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'. Please file a "
+                            u"bug report with your configuration.", obj.__name__, obj)
+        self.active_coroutines.clear()
 
     def add(self, expression):
         from esphome.cpp_generator import Expression, Statement, statement

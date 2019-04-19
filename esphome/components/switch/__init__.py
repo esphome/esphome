@@ -25,15 +25,15 @@ SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', cg.Trigger.templ
 icon = cv.icon
 
 SWITCH_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTSwitchComponent),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTSwitchComponent),
 
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_INVERTED): cv.boolean,
     cv.Optional(CONF_ON_TURN_ON): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOnTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOnTrigger),
     }),
     cv.Optional(CONF_ON_TURN_OFF): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SwitchTurnOffTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
     }),
 })
 
@@ -67,7 +67,7 @@ def register_switch(var, config):
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Switch),
+    cv.Required(CONF_ID): cv.use_id(Switch),
 })
 
 

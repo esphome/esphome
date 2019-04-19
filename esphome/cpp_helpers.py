@@ -7,6 +7,10 @@ from esphome.cpp_types import App, GPIOPin
 
 @coroutine
 def gpio_pin_expression(conf):
+    """Generate an expression for the given pin option.
+
+    This is a coroutine, you must await it with a 'yield' expression!
+    """
     if conf is None:
         return
     from esphome import pins
@@ -22,12 +26,19 @@ def gpio_pin_expression(conf):
 
 
 @coroutine
-def register_component(obj, config):
+def register_component(var, config):
+    """Register the given obj as a component.
+
+    This is a coroutine, you must await it with a 'yield' expression!
+
+    :param var: The variable representing the component.
+    :param config: The configuration for the component.
+    """
     if CONF_SETUP_PRIORITY in config:
-        add(obj.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
     if CONF_UPDATE_INTERVAL in config:
-        add(obj.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-    add(App.register_component(obj))
+        add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    add(App.register_component(var))
 
 
 @coroutine

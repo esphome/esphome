@@ -11,7 +11,7 @@ GlobalsComponent = globals_ns.class_('GlobalsComponent', cg.Component)
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(GlobalsComponent),
+    cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
     cv.Required(CONF_TYPE): cv.string_strict,
     cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
     cv.Optional(CONF_RESTORE_VALUE): cv.boolean,

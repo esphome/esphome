@@ -16,7 +16,7 @@ xiaomi_miflora_ns = cg.esphome_ns.namespace('xiaomi_miflora')
 XiaomiMiflora = xiaomi_miflora_ns.class_('XiaomiMiflora', ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(XiaomiMiflora),
+    cv.GenerateID(): cv.declare_id(XiaomiMiflora),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_MOISTURE): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),

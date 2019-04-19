@@ -10,7 +10,7 @@ web_server_ns = cg.esphome_ns.namespace('web_server')
 WebServer = web_server_ns.class_('WebServer', cg.Component, cg.Controller)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(WebServer),
+    cv.GenerateID(): cv.declare_id(WebServer),
     cv.Optional(CONF_PORT, default=80): cv.port,
     cv.Optional(CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"): cv.string,
     cv.Optional(CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"): cv.string,

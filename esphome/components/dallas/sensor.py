@@ -8,8 +8,8 @@ from . import DallasComponent, dallas_ns
 DallasTemperatureSensor = dallas_ns.class_('DallasTemperatureSensor', sensor.Sensor)
 
 CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
-    cv.GenerateID(): cv.declare_variable_id(DallasTemperatureSensor),
-    cv.GenerateID(CONF_DALLAS_ID): cv.use_variable_id(DallasComponent),
+    cv.GenerateID(): cv.declare_id(DallasTemperatureSensor),
+    cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),
 
     cv.Optional(CONF_ADDRESS): cv.hex_int,
     cv.Optional(CONF_INDEX): cv.positive_int,

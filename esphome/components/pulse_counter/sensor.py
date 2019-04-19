@@ -39,7 +39,7 @@ def validate_pulse_counter_pin(value):
 
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
-    cv.GenerateID(): cv.declare_variable_id(PulseCounterSensor),
+    cv.GenerateID(): cv.declare_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={
         CONF_RISING_EDGE: 'INCREMENT',

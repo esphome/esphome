@@ -7,7 +7,7 @@ interval_ns = cg.esphome_ns.namespace('interval')
 IntervalTrigger = interval_ns.class_('IntervalTrigger', cg.Trigger.template(), cg.PollingComponent)
 
 CONFIG_SCHEMA = automation.validate_automation(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(IntervalTrigger),
+    cv.GenerateID(): cv.declare_id(IntervalTrigger),
     cv.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA))
 

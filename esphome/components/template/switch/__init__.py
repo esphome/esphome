@@ -10,7 +10,7 @@ from .. import template_ns
 TemplateSwitch = template_ns.class_('TemplateSwitch', switch.Switch, cg.Component)
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateSwitch),
+    cv.GenerateID(): cv.declare_id(TemplateSwitch),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
@@ -41,7 +41,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('switch.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(switch.Switch),
+    cv.Required(CONF_ID): cv.use_id(switch.Switch),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }))
 def switch_template_publish_to_code(config, action_id, template_arg, args):

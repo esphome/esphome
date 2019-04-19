@@ -47,8 +47,8 @@ def register_binary_sensor(name, type, schema):
     if not isinstance(schema, cv.Schema):
         schema = cv.Schema(schema)
     validator = schema.extend({
-        cv.GenerateID(): cv.declare_variable_id(type),
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_variable_id(RemoteReceiverBase),
+        cv.GenerateID(): cv.declare_id(type),
+        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
     })
     registerer = BINARY_SENSOR_REGISTRY.register(name, validator)
 
@@ -68,8 +68,8 @@ def register_binary_sensor(name, type, schema):
 
 def register_trigger(name, type, data_type):
     validator = automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(type),
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_variable_id(RemoteReceiverBase),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
+        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
     })
     registerer = TRIGGER_REGISTRY.register('on_{}'.format(name), validator)
 
@@ -89,8 +89,8 @@ def register_trigger(name, type, data_type):
 
 def register_dumper(name, type):
     validator = cv.Schema({
-        cv.GenerateID(): cv.declare_variable_id(type),
-        cv.GenerateID(CONF_RECEIVER_ID): cv.use_variable_id(RemoteReceiverBase),
+        cv.GenerateID(): cv.declare_id(type),
+        cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
     })
     registerer = DUMPER_REGISTRY.register(name, validator)
 
@@ -110,8 +110,8 @@ def register_dumper(name, type):
 
 def register_action(name, type_, schema):
     validator = templatize(schema).extend({
-        cv.GenerateID(): cv.declare_variable_id(type_),
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_variable_id(RemoteTransmitterBase),
+        cv.GenerateID(): cv.declare_id(type_),
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
         cv.Optional(CONF_REPEAT): cv.Schema({
             cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
             cv.Optional(CONF_WAIT_TIME, default='10ms'):
@@ -354,7 +354,7 @@ CONF_CODE_STORAGE_ID = 'code_storage_id'
 RAW_SCHEMA = cv.Schema({
     cv.Required(CONF_CODE): cv.All([cv.Any(cv.int_, cv.time_period_microseconds)],
                                    cv.Length(min=1), validate_raw_alternating),
-    cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_variable_id(cg.int32),
+    cv.GenerateID(CONF_CODE_STORAGE_ID): cv.declare_id(cg.int32),
 })
 
 

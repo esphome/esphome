@@ -10,7 +10,7 @@ lcd_pcf8574_ns = cg.esphome_ns.namespace('lcd_pcf8574')
 PCF8574LCDDisplay = lcd_pcf8574_ns.class_('PCF8574LCDDisplay', lcd_base.LCDDisplay, i2c.I2CDevice)
 
 CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(PCF8574LCDDisplay),
+    cv.GenerateID(): cv.declare_id(PCF8574LCDDisplay),
 }).extend(i2c.i2c_device_schema(0x3F))
 
 

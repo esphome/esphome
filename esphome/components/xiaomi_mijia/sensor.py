@@ -13,7 +13,7 @@ xiaomi_mijia_ns = cg.esphome_ns.namespace('xiaomi_mijia')
 XiaomiMijia = xiaomi_mijia_ns.class_('XiaomiMijia', ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(XiaomiMijia),
+    cv.GenerateID(): cv.declare_id(XiaomiMijia),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),

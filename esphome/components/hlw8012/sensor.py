@@ -14,7 +14,7 @@ HLW8012Component = hlw8012_ns.class_('HLW8012Component', cg.PollingComponent)
 CONF_CF1_PIN = 'cf1_pin'
 CONF_CF_PIN = 'cf_pin'
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HLW8012Component),
+    cv.GenerateID(): cv.declare_id(HLW8012Component),
     cv.Required(CONF_SEL_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CF_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
                                      pins.validate_has_interrupt),

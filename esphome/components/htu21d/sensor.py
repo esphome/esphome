@@ -10,7 +10,7 @@ htu21d_ns = cg.esphome_ns.namespace('htu21d')
 HTU21DComponent = htu21d_ns.class_('HTU21DComponent', cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HTU21DComponent),
+    cv.GenerateID(): cv.declare_id(HTU21DComponent),
     cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40))

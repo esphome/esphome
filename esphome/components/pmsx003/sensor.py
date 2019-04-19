@@ -41,7 +41,7 @@ def validate_pmsx003_sensors(value):
 
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(PMSX003Component),
+    cv.GenerateID(): cv.declare_id(PMSX003Component),
     cv.Required(CONF_TYPE): cv.enum(PMSX003_TYPES, upper=True),
 
     cv.Optional(CONF_PM_1_0):

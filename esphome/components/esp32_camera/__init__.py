@@ -58,7 +58,7 @@ CONF_TEST_PATTERN = 'test_pattern'
 camera_range_param = cv.All(cv.int_, cv.Range(min=-2, max=2))
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ESP32Camera),
+    cv.GenerateID(): cv.declare_id(ESP32Camera),
     cv.Required(CONF_NAME): cv.string,
     cv.Required(CONF_DATA_PINS): cv.All([pins.input_pin], cv.Length(min=8, max=8)),
     cv.Required(CONF_VSYNC_PIN): pins.input_pin,

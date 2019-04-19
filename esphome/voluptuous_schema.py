@@ -12,12 +12,6 @@ class ExtraKeysInvalid(vol.Invalid):
         vol.Invalid.__init__(self, *arg, **kwargs)
 
 
-class _Required(vol.Required):
-    """Custom voluptuous Required that does not accept defaults."""
-    def __init__(self, schema, msg=None, description=None):
-        super(_Required, self).__init__(schema, msg=msg, description=description)
-
-
 def ensure_multiple_invalid(err):
     if isinstance(err, vol.MultipleInvalid):
         return err

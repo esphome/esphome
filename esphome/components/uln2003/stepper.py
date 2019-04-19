@@ -17,7 +17,7 @@ STEP_MODES = {
 ULN2003 = uln2003_ns.class_('ULN2003', stepper.Stepper, cg.Component)
 
 CONFIG_SCHEMA = stepper.STEPPER_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_variable_id(ULN2003),
+    cv.Required(CONF_ID): cv.declare_id(ULN2003),
     cv.Required(CONF_PIN_A): pins.gpio_output_pin_schema,
     cv.Required(CONF_PIN_B): pins.gpio_output_pin_schema,
     cv.Required(CONF_PIN_C): pins.gpio_output_pin_schema,

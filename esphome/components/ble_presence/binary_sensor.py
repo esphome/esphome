@@ -12,7 +12,7 @@ BLEPresenceDevice = ble_presence_ns.class_('BLEPresenceDevice', binary_sensor.Bi
                                            cg.Component, ESPBTDeviceListener)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(BLEPresenceDevice),
+    cv.GenerateID(): cv.declare_id(BLEPresenceDevice),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
 }).extend(ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 

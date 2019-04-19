@@ -386,8 +386,9 @@ def validate_config(config):
         result.add_output_path([domain], domain)
         result[domain] = conf
         component = get_component(domain)
+        path = [domain]
         if component is None:
-            result.add_str_error(u"Component not found: {}".format(domain), [domain])
+            result.add_str_error(u"Component not found: {}".format(domain), path)
             continue
 
         # Process AUTO_LOAD
@@ -406,13 +407,11 @@ def validate_config(config):
         result.remove_output_path([domain], domain)
 
         # Ensure conf is a list
-        was_list = True
         if not isinstance(conf, list) and conf:
             result[domain] = conf = [conf]
-            was_list = False
 
         for i, p_config in enumerate(conf):
-            path = [domain, i] if was_list else [domain]
+            path = [domain, i]
             # Construct temporary unknown output path
             p_domain = u'{}.unknown'.format(domain)
             result.add_output_path(path, p_domain)
@@ -468,7 +467,7 @@ def validate_config(config):
         for conflict in comp.conflicts_with:
             if conflict in config:
                 result.add_str_error(u"Component {} cannot be used together with component {}"
-                                     u"".format(domain, conflict), [domain])
+                                     u"".format(domain, conflict), path)
                 success = False
         if not success:
             continue
@@ -476,7 +475,7 @@ def validate_config(config):
         if CORE.esp_platform not in comp.esp_platforms:
             result.add_str_error(u"Component {} doesn't support {}.".format(domain,
                                                                             CORE.esp_platform),
-                                 [domain])
+                                 path)
             continue
 
         if not comp.is_platform_component and comp.config_schema is None and \

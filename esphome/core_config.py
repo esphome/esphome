@@ -103,14 +103,14 @@ CONFIG_SCHEMA = cv.Schema({
     cv.SplitDefault(CONF_BOARD_FLASH_MODE, esp8266='dout'): cv.one_of(*BUILD_FLASH_MODES,
                                                                       lower=True),
     cv.Optional(CONF_ON_BOOT): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
         cv.Optional(CONF_PRIORITY): cv.float_,
     }),
     cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
     }),
     cv.Optional(CONF_ON_LOOP): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
     }),
     cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
     cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),

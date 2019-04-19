@@ -10,7 +10,7 @@ TemplateTextSensor = template_ns.class_('TemplateTextSensor', text_sensor.TextSe
                                         cg.PollingComponent)
 
 CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
+    cv.GenerateID(): cv.declare_id(TemplateTextSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
 }).extend(cv.polling_component_schema('60s'))
 
@@ -27,7 +27,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('text_sensor.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(text_sensor.TextSensor),
+    cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
     cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
 }))
 def text_sensor_template_publish_to_code(config, action_id, template_arg, args):

@@ -8,7 +8,7 @@ status_led_ns = cg.esphome_ns.namespace('status_led')
 StatusLED = status_led_ns.class_('StatusLED', cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(StatusLED),
+    cv.GenerateID(): cv.declare_id(StatusLED),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA)
 

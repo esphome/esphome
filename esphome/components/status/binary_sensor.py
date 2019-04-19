@@ -8,7 +8,7 @@ StatusBinarySensor = status_ns.class_('StatusBinarySensor', binary_sensor.Binary
                                       cg.Component)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(StatusBinarySensor),
+    cv.GenerateID(): cv.declare_id(StatusBinarySensor),
 
     cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_CONNECTIVITY): binary_sensor.device_class,
 }).extend(cv.COMPONENT_SCHEMA)

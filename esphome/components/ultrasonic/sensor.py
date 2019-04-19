@@ -12,7 +12,7 @@ UltrasonicSensorComponent = ultrasonic_ns.class_('UltrasonicSensorComponent',
                                                  sensor.PollingSensorComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
-    cv.GenerateID(): cv.declare_variable_id(UltrasonicSensorComponent),
+    cv.GenerateID(): cv.declare_id(UltrasonicSensorComponent),
     cv.Required(CONF_TRIGGER_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_ECHO_PIN): pins.internal_gpio_input_pin_schema,
 

@@ -18,7 +18,7 @@ def validate_pin_length(value):
 
 
 CONFIG_SCHEMA = lcd_base.LCD_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(GPIOLCDDisplay),
+    cv.GenerateID(): cv.declare_id(GPIOLCDDisplay),
     cv.Required(CONF_DATA_PINS): cv.All([pins.gpio_output_pin_schema], validate_pin_length),
     cv.Required(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_RS_PIN): pins.gpio_output_pin_schema,

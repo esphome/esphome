@@ -7,7 +7,7 @@ DEPENDENCIES = ['logger']
 debug_ns = cg.esphome_ns.namespace('debug')
 DebugComponent = debug_ns.class_('DebugComponent', cg.Component)
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DebugComponent),
+    cv.GenerateID(): cv.declare_id(DebugComponent),
 }).extend(cv.COMPONENT_SCHEMA)
 
 

@@ -51,7 +51,7 @@ def validate_recursive_condition(value):
             err.prepend(path)
             raise err
         value[i] = {
-            CONF_CONDITION_ID: cv.declare_variable_id(Condition)(item[CONF_CONDITION_ID]),
+            CONF_CONDITION_ID: cv.declare_id(Condition)(item[CONF_CONDITION_ID]),
             key: condition,
         }
     return value
@@ -86,7 +86,7 @@ def validate_recursive_action(value):
             err.prepend(path)
             raise err
         value[i] = {
-            CONF_ACTION_ID: cv.declare_variable_id(Action)(item[CONF_ACTION_ID]),
+            CONF_ACTION_ID: cv.declare_id(Action)(item[CONF_ACTION_ID]),
             key: action,
         }
     return value
@@ -155,8 +155,8 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
 
 
 AUTOMATION_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(Trigger),
-    cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_variable_id(Automation),
+    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(Trigger),
+    cv.GenerateID(CONF_AUTOMATION_ID): cv.declare_id(Automation),
     cv.Required(CONF_THEN): validate_recursive_action,
 })
 
@@ -301,7 +301,7 @@ def lambda_condition_to_code(config, condition_id, template_arg, args):
 
 CONF_COMPONENT_UPDATE = 'component.update'
 COMPONENT_UPDATE_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(PollingComponent),
+    cv.Required(CONF_ID): cv.use_id(PollingComponent),
 })
 
 

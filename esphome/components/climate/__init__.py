@@ -29,8 +29,8 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 ControlAction = climate_ns.class_('ControlAction', cg.Action)
 
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(ClimateDevice),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTClimateComponent),
+    cv.GenerateID(): cv.declare_id(ClimateDevice),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTClimateComponent),
     cv.Optional(CONF_VISUAL, default={}): cv.Schema({
         cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
         cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
@@ -67,7 +67,7 @@ def register_climate(var, config):
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(ClimateDevice),
+    cv.Required(CONF_ID): cv.use_id(ClimateDevice),
     cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
     cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
     cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),

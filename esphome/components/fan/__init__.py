@@ -27,8 +27,8 @@ FAN_SPEEDS = {
 }
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(FanState),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTFanComponent),
+    cv.GenerateID(): cv.declare_id(FanState),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTFanComponent),
     cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(cv.requires_component('mqtt'),
                                                       cv.publish_topic),
     cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(cv.requires_component('mqtt'),
@@ -73,7 +73,7 @@ def create_fan_state(config):
 
 
 FAN_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(FanState),
+    cv.Required(CONF_ID): cv.use_id(FanState),
 })
 
 
@@ -94,7 +94,7 @@ def fan_turn_off_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('fan.turn_on', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(FanState),
+    cv.Required(CONF_ID): cv.use_id(FanState),
     cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
     cv.Optional(CONF_SPEED): cv.templatable(cv.enum(FAN_SPEEDS, upper=True)),
 }))

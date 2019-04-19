@@ -9,7 +9,7 @@ HomeassistantBinarySensor = homeassistant_ns.class_('HomeassistantBinarySensor',
                                                     binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(HomeassistantBinarySensor),
+    cv.GenerateID(): cv.declare_id(HomeassistantBinarySensor),
     cv.Required(CONF_ENTITY_ID): cv.entity_id,
 }).extend(cv.COMPONENT_SCHEMA)
 

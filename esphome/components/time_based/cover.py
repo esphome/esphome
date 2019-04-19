@@ -9,7 +9,7 @@ time_based_ns = cg.esphome_ns.namespace('time_based')
 TimeBasedCover = time_based_ns.class_('TimeBasedCover', cover.Cover, cg.Component)
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TimeBasedCover),
+    cv.GenerateID(): cv.declare_id(TimeBasedCover),
     cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
 
     cv.Required(CONF_OPEN_ACTION): automation.validate_automation(single=True),

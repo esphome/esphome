@@ -44,8 +44,8 @@ CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
 CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 
 COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(Cover),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTCoverComponent),
+    cv.GenerateID(): cv.declare_id(Cover),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTCoverComponent),
     cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     # TODO: MQTT topic options
 })
@@ -73,7 +73,7 @@ def register_cover(var, config):
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Cover),
+    cv.Required(CONF_ID): cv.use_id(Cover),
 })
 
 
@@ -102,7 +102,7 @@ def cover_stop_to_code(config, action_id, template_arg, args):
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Cover),
+    cv.Required(CONF_ID): cv.use_id(Cover),
     cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
     cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.percentage),

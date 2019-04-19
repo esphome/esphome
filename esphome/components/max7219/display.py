@@ -10,7 +10,7 @@ MAX7219Component = max7219_ns.class_('MAX7219Component', cg.PollingComponent, sp
 MAX7219ComponentRef = MAX7219Component.operator('ref')
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(MAX7219Component),
+    cv.GenerateID(): cv.declare_id(MAX7219Component),
 
     cv.Optional(CONF_NUM_CHIPS, default=1): cv.All(cv.uint8_t, cv.Range(min=1)),
     cv.Optional(CONF_INTENSITY, default=15): cv.All(cv.uint8_t, cv.Range(min=0, max=15)),

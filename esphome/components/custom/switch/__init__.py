@@ -8,11 +8,11 @@ from .. import custom_ns
 CustomSwitchConstructor = custom_ns.class_('CustomSwitchConstructor')
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CustomSwitchConstructor),
+    cv.GenerateID(): cv.declare_id(CustomSwitchConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_SWITCHES):
         cv.ensure_list(switch.SWITCH_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_variable_id(switch.Switch),
+            cv.GenerateID(): cv.declare_id(switch.Switch),
         })),
 })
 

@@ -7,7 +7,7 @@ max31855_ns = cg.esphome_ns.namespace('max31855')
 MAX31855Sensor = max31855_ns.class_('MAX31855Sensor', sensor.PollingSensorComponent, spi.SPIDevice)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
-    cv.GenerateID(): cv.declare_variable_id(MAX31855Sensor),
+    cv.GenerateID(): cv.declare_id(MAX31855Sensor),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 

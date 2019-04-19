@@ -9,7 +9,7 @@ pulse_width_ns = cg.esphome_ns.namespace('pulse_width')
 PulseWidthSensor = pulse_width_ns.class_('PulseWidthSensor', sensor.PollingSensorComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_SECOND, ICON_TIMER, 3).extend({
-    cv.GenerateID(): cv.declare_variable_id(PulseWidthSensor),
+    cv.GenerateID(): cv.declare_id(PulseWidthSensor),
     cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pullup_pin_schema,
                                   pins.validate_has_interrupt),
 }).extend(cv.polling_component_schema('60s'))

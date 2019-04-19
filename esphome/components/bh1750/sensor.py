@@ -16,7 +16,7 @@ BH1750_RESOLUTIONS = {
 BH1750Sensor = bh1750_ns.class_('BH1750Sensor', sensor.PollingSensorComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
-    cv.GenerateID(): cv.declare_variable_id(BH1750Sensor),
+    cv.GenerateID(): cv.declare_id(BH1750Sensor),
     cv.Optional(CONF_RESOLUTION, default=0.5): cv.enum(BH1750_RESOLUTIONS, float=True),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x23))
 

@@ -40,7 +40,7 @@ field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1)
 heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
+    cv.GenerateID(): cv.declare_id(HMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
     cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,

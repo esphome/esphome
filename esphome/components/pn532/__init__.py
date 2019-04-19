@@ -13,9 +13,9 @@ PN532 = pn532_ns.class_('PN532', cg.PollingComponent, spi.SPIDevice)
 PN532Trigger = pn532_ns.class_('PN532Trigger', cg.Trigger.template(cg.std_string))
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(PN532),
+    cv.GenerateID(): cv.declare_id(PN532),
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PN532Trigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
     }),
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
 

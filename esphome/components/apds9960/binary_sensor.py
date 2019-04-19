@@ -15,7 +15,7 @@ DIRECTIONS = {
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.Required(CONF_DIRECTION): cv.one_of(*DIRECTIONS, upper=True),
-    cv.GenerateID(CONF_APDS9960_ID): cv.use_variable_id(APDS9960),
+    cv.GenerateID(CONF_APDS9960_ID): cv.use_id(APDS9960),
     cv.Optional(CONF_DEVICE_CLASS, default=DEVICE_CLASS_MOVING): binary_sensor.device_class,
 })
 

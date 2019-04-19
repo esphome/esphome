@@ -30,7 +30,7 @@ IIR_FILTER_OPTIONS = {
 BMP280Component = bmp280_ns.class_('BMP280Component', cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(BMP280Component),
+    cv.GenerateID(): cv.declare_id(BMP280Component),
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
         cv.Optional(CONF_OVERSAMPLING, default='16X'): cv.enum(OVERSAMPLING_OPTIONS, upper=True),
     }),

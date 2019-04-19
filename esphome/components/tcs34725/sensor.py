@@ -39,7 +39,7 @@ color_temperature_schema = sensor.sensor_schema(UNIT_KELVIN, ICON_THERMOMETER, 1
 illuminance_schema = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(TCS34725Component),
+    cv.GenerateID(): cv.declare_id(TCS34725Component),
     cv.Optional(CONF_RED_CHANNEL): color_channel_schema,
     cv.Optional(CONF_GREEN_CHANNEL): color_channel_schema,
     cv.Optional(CONF_BLUE_CHANNEL): color_channel_schema,

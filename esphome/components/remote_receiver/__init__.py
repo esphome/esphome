@@ -13,7 +13,7 @@ RemoteReceiverComponent = remote_receiver_ns.class_('RemoteReceiverComponent',
 
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(RemoteReceiverComponent),
+    cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
     cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema,
                                   pins.validate_has_interrupt),
     cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,

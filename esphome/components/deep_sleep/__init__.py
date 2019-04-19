@@ -37,7 +37,7 @@ CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
 CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
+    cv.GenerateID(): cv.declare_id(DeepSleepComponent),
     cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 
     cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
@@ -86,7 +86,7 @@ def to_code(config):
 
 
 DEEP_SLEEP_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+    cv.Required(CONF_ID): cv.use_id(DeepSleepComponent),
 })
 
 

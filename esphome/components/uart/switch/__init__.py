@@ -22,7 +22,7 @@ def validate_data(value):
 
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(UARTSwitch),
+    cv.GenerateID(): cv.declare_id(UARTSwitch),
     cv.Required(CONF_DATA): validate_data,
     cv.Optional(CONF_INVERTED): cv.invalid("UART switches do not support inverted mode!"),
 }).extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)

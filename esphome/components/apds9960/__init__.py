@@ -13,7 +13,7 @@ apds9960_nds = cg.esphome_ns.namespace('apds9960')
 APDS9960 = apds9960_nds.class_('APDS9960', cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(APDS9960),
+    cv.GenerateID(): cv.declare_id(APDS9960),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x39))
 
 

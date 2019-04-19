@@ -11,7 +11,7 @@ Nextion = nextion_ns.class_('Nextion', cg.PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(Nextion),
+    cv.GenerateID(): cv.declare_id(Nextion),
 }).extend(cv.polling_component_schema('5s')).extend(uart.UART_DEVICE_SCHEMA)
 
 

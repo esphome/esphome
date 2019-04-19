@@ -11,7 +11,7 @@ SPIDevice = spi_ns.class_('SPIDevice')
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(SPIComponent),
+    cv.GenerateID(): cv.declare_id(SPIComponent),
     cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
@@ -35,7 +35,7 @@ def to_code(config):
 
 
 SPI_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
+    cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
 })
 

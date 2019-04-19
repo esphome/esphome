@@ -38,7 +38,7 @@ def validate_full_update_every_only_type_a(value):
 
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(WaveshareEPaper),
+    cv.GenerateID(): cv.declare_id(WaveshareEPaper),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,

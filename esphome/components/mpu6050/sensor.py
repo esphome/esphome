@@ -22,7 +22,7 @@ gyro_schema = sensor.sensor_schema(UNIT_DEGREE_PER_SECOND, ICON_SCREEN_ROTATION,
 temperature_schema = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MPU6050Component),
+    cv.GenerateID(): cv.declare_id(MPU6050Component),
     cv.Optional(CONF_ACCEL_X): accel_schema,
     cv.Optional(CONF_ACCEL_Y): accel_schema,
     cv.Optional(CONF_ACCEL_Z): accel_schema,

@@ -18,7 +18,7 @@ RESTORE_MODES = {
 }
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateCover),
+    cv.GenerateID(): cv.declare_id(TemplateCover),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
@@ -50,7 +50,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('cover.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(cover.Cover),
+    cv.Required(CONF_ID): cv.use_id(cover.Cover),
     cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(cover.validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.zero_to_one_float),
     cv.Optional(CONF_CURRENT_OPERATION): cv.templatable(cover.validate_cover_operation),

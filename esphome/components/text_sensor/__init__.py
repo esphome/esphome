@@ -20,10 +20,10 @@ TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', cg.Ac
 icon = cv.icon
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTTextSensor),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTTextSensor),
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
     }),
 })
 

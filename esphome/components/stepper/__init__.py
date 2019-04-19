@@ -80,7 +80,7 @@ def register_stepper(var, config):
 
 
 @ACTION_REGISTRY.register('stepper.set_target', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Stepper),
+    cv.Required(CONF_ID): cv.use_id(Stepper),
     cv.Required(CONF_TARGET): cv.templatable(cv.int_),
 }))
 def stepper_set_target_to_code(config, action_id, template_arg, args):
@@ -94,7 +94,7 @@ def stepper_set_target_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('stepper.report_position', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Stepper),
+    cv.Required(CONF_ID): cv.use_id(Stepper),
     cv.Required(CONF_POSITION): cv.templatable(cv.int_),
 }))
 def stepper_report_position_to_code(config, action_id, template_arg, args):

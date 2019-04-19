@@ -10,8 +10,8 @@ CONF_RDM6300_ID = 'rdm6300_id'
 RDM6300BinarySensor = rdm6300_ns.class_('RDM6300BinarySensor', binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(RDM6300BinarySensor),
-    cv.GenerateID(CONF_RDM6300_ID): cv.use_variable_id(rdm6300.RDM6300Component),
+    cv.GenerateID(): cv.declare_id(RDM6300BinarySensor),
+    cv.GenerateID(CONF_RDM6300_ID): cv.use_id(rdm6300.RDM6300Component),
     cv.Required(CONF_UID): cv.uint32_t,
 })
 

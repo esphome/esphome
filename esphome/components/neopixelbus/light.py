@@ -128,7 +128,7 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(NeoPixelBusLightOutputBase),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(NeoPixelBusLightOutputBase),
 
     cv.Optional(CONF_TYPE, default='GRB'): validate_type,
     cv.Optional(CONF_VARIANT, default='800KBPS'): validate_variant,
@@ -139,7 +139,7 @@ CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
 
     cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
 
-    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
 }).extend(cv.COMPONENT_SCHEMA), validate, validate_method_pin)
 
 

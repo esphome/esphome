@@ -22,7 +22,7 @@ ledc_ns = cg.esphome_ns.namespace('ledc')
 LEDCOutput = ledc_ns.class_('LEDCOutput', output.FloatOutput, cg.Component)
 
 CONFIG_SCHEMA = cv.All(output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_variable_id(LEDCOutput),
+    cv.Required(CONF_ID): cv.declare_id(LEDCOutput),
     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.frequency,
     cv.Optional(CONF_BIT_DEPTH, default=12): cv.All(cv.int_, cv.Range(min=1, max=15)),

@@ -12,8 +12,8 @@ CONF_NEXTION_ID = 'nextion_id'
 NextionTouchComponent = nextion_ns.class_('NextionTouchComponent', binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(NextionTouchComponent),
-    cv.GenerateID(CONF_NEXTION_ID): cv.use_variable_id(Nextion),
+    cv.GenerateID(): cv.declare_id(NextionTouchComponent),
+    cv.GenerateID(CONF_NEXTION_ID): cv.use_id(Nextion),
 
     cv.Required(CONF_PAGE_ID): cv.uint8_t,
     cv.Required(CONF_COMPONENT_ID): cv.uint8_t,

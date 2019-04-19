@@ -10,7 +10,7 @@ cse7766_ns = cg.esphome_ns.namespace('cse7766')
 CSE7766Component = cse7766_ns.class_('CSE7766Component', cg.PollingComponent, uart.UARTDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CSE7766Component),
+    cv.GenerateID(): cv.declare_id(CSE7766Component),
 
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),

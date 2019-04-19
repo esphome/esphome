@@ -84,8 +84,8 @@ accuracy_decimals = cv.int_
 icon = cv.icon
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTSensorComponent),
-    cv.GenerateID(): cv.declare_variable_id(Sensor),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTSensorComponent),
+    cv.GenerateID(): cv.declare_id(Sensor),
     cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
@@ -93,13 +93,13 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
                                            cv.Any(None, cv.positive_time_period_milliseconds)),
     cv.Optional(CONF_FILTERS): validate_filters,
     cv.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
     }),
     cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorRawStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorRawStateTrigger),
     }),
     cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
         cv.Optional(CONF_ABOVE): cv.float_,
         cv.Optional(CONF_BELOW): cv.float_,
     }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
@@ -116,7 +116,7 @@ def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_):
 
 
 @FILTER_REGISTRY.register(CONF_OFFSET, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(OffsetFilter),
+    cv.GenerateID(): cv.declare_id(OffsetFilter),
     cv.Required(CONF_VALUE): cv.float_,
 })))
 def offset_filter_to_code(config):
@@ -124,7 +124,7 @@ def offset_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_MULTIPLY, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MultiplyFilter),
+    cv.GenerateID(): cv.declare_id(MultiplyFilter),
     cv.Required(CONF_VALUE): cv.float_,
 })))
 def multiply_filter_to_code(config):
@@ -132,7 +132,7 @@ def multiply_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register('filter_out', cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(FilterOutValueFilter),
+    cv.GenerateID(): cv.declare_id(FilterOutValueFilter),
     cv.Required(CONF_VALUE): cv.float_,
 })))
 def filter_out_filter_to_code(config):
@@ -141,7 +141,7 @@ def filter_out_filter_to_code(config):
 
 @FILTER_REGISTRY.register('sliding_window_moving_average', cv.All(cv.Schema({
     cv.GenerateID():
-        cv.declare_variable_id(SlidingWindowMovingAverageFilter),
+        cv.declare_id(SlidingWindowMovingAverageFilter),
     cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
@@ -153,7 +153,7 @@ def sliding_window_moving_average_filter_to_code(config):
 
 @FILTER_REGISTRY.register('exponential_moving_average', cv.Schema({
     cv.GenerateID():
-        cv.declare_variable_id(ExponentialMovingAverageFilter),
+        cv.declare_id(ExponentialMovingAverageFilter),
     cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
 }))
@@ -162,7 +162,7 @@ def exponential_moving_average_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_LAMBDA, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(LambdaFilter),
+    cv.GenerateID(): cv.declare_id(LambdaFilter),
     cv.Required(CONF_VALUE): cv.lambda_,
 })))
 def lambda_filter_to_code(config):
@@ -172,7 +172,7 @@ def lambda_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_DELTA, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DeltaFilter),
+    cv.GenerateID(): cv.declare_id(DeltaFilter),
     cv.Required(CONF_VALUE): cv.float_,
 })))
 def delta_filter_to_code(config):
@@ -180,7 +180,7 @@ def delta_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_OR, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(OrFilter),
+    cv.GenerateID(): cv.declare_id(OrFilter),
     cv.Required(CONF_VALUE): validate_filters,
 })))
 def or_filter_to_code(config):
@@ -189,7 +189,7 @@ def or_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_THROTTLE, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ThrottleFilter),
+    cv.GenerateID(): cv.declare_id(ThrottleFilter),
     cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
 })))
 def throttle_filter_to_code(config):
@@ -197,7 +197,7 @@ def throttle_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_HEARTBEAT, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HeartbeatFilter),
+    cv.GenerateID(): cv.declare_id(HeartbeatFilter),
     cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA)))
 def heartbeat_filter_to_code(config):
@@ -207,7 +207,7 @@ def heartbeat_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_DEBOUNCE, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DebounceFilter),
+    cv.GenerateID(): cv.declare_id(DebounceFilter),
     cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA)))
 def debounce_filter_to_code(config):
@@ -217,7 +217,7 @@ def debounce_filter_to_code(config):
 
 
 @FILTER_REGISTRY.register(CONF_CALIBRATE_LINEAR, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CalibrateLinearFilter),
+    cv.GenerateID(): cv.declare_id(CalibrateLinearFilter),
     cv.Required(CONF_VALUE): cv.All(
         cv.ensure_list(validate_datapoint), cv.Length(min=2)),
 }).extend(cv.COMPONENT_SCHEMA)))
@@ -293,7 +293,7 @@ def new_sensor(config):
 
 CONF_SENSOR_IN_RANGE = 'sensor.in_range'
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All({
-    cv.Required(CONF_ID): cv.use_variable_id(Sensor),
+    cv.Required(CONF_ID): cv.use_id(Sensor),
     cv.Optional(CONF_ABOVE): cv.float_,
     cv.Optional(CONF_BELOW): cv.float_,
 }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))

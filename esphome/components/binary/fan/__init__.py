@@ -7,9 +7,9 @@ from .. import binary_ns
 BinaryFan = binary_ns.class_('BinaryFan', cg.Component)
 
 CONFIG_SCHEMA = fan.FAN_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(BinaryFan),
-    cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
-    cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_variable_id(output.BinaryOutput),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(BinaryFan),
+    cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
+    cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
 }).extend(cv.COMPONENT_SCHEMA)
 
 

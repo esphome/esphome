@@ -7,8 +7,8 @@ from .. import binary_ns
 BinaryLightOutput = binary_ns.class_('BinaryLightOutput', light.LightOutput)
 
 CONFIG_SCHEMA = light.BINARY_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(BinaryLightOutput),
-    cv.Required(CONF_OUTPUT): cv.use_variable_id(output.BinaryOutput),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(BinaryLightOutput),
+    cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
 })
 
 

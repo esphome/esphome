@@ -7,11 +7,11 @@ rgbw_ns = cg.esphome_ns.namespace('rgbw')
 RGBWLightOutput = rgbw_ns.class_('RGBWLightOutput', light.LightOutput)
 
 CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(RGBWLightOutput),
-    cv.Required(CONF_RED): cv.use_variable_id(output.FloatOutput),
-    cv.Required(CONF_GREEN): cv.use_variable_id(output.FloatOutput),
-    cv.Required(CONF_BLUE): cv.use_variable_id(output.FloatOutput),
-    cv.Required(CONF_WHITE): cv.use_variable_id(output.FloatOutput),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(RGBWLightOutput),
+    cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
+    cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
+    cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
+    cv.Required(CONF_WHITE): cv.use_id(output.FloatOutput),
 })
 
 

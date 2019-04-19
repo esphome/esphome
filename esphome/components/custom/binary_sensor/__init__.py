@@ -7,7 +7,7 @@ from .. import custom_ns
 CustomBinarySensorConstructor = custom_ns.class_('CustomBinarySensorConstructor')
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CustomBinarySensorConstructor),
+    cv.GenerateID(): cv.declare_id(CustomBinarySensorConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_BINARY_SENSORS): cv.ensure_list(binary_sensor.BINARY_SENSOR_SCHEMA),
 })

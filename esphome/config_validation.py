@@ -2,15 +2,14 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
-import copy
-from contextlib import contextmanager
 import logging
 import os
 import re
-import uuid as uuid_
-from datetime import datetime
+from contextlib import contextmanager
 
+import uuid as uuid_
 import voluptuous as vol
+from datetime import datetime
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
@@ -20,15 +19,13 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
-from esphome.voluptuous_schema import _Schema, _Required
+from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
 
 # pylint: disable=invalid-name
 
 Schema = _Schema
-Optional = vol.Optional
-Required = _Required
 All = vol.All
 Coerce = vol.Coerce
 Range = vol.Range
@@ -41,15 +38,8 @@ Length = vol.Length
 Exclusive = vol.Exclusive
 Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
+UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
-
-port = All(Coerce(int), Range(min=1, max=65535))
-float_ = Coerce(float)
-positive_float = All(float_, Range(min=0))
-zero_to_one_float = All(float_, Range(min=0, max=1))
-negative_one_to_one_float = All(float_, Range(min=-1, max=1))
-positive_int = All(Coerce(int), Range(min=0))
-positive_not_null_int = All(Coerce(int), Range(min=0, min_included=False))
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 
@@ -74,6 +64,36 @@ RESERVED_IDS = [
 ]
 
 
+class Optional(vol.Optional):
+    """Mark a field as optional and optionally define a default for the field.
+
+    When no default is defined, the validated config will not contain the key.
+    You can check if the key is defined with 'CONF_<KEY> in config'. Or to access
+    the key and return None if it does not exist, call config.get(CONF_<KEY>)
+
+    If a default *is* set, the resulting validated config will always contain the
+    default value. You can therefore directly access the value using the
+    'config[CONF_<KEY>]' syntax.
+
+    In ESPHome, all configuration defaults should be defined with the Optional class
+    during config validation - specifically *not* in the C++ code or the code generation
+    phase.
+    """
+    def __init__(self, key, default=UNDEFINED):
+        super(Optional, self).__init__(key, default=default)
+
+
+class Required(vol.Required):
+    """Define a field to be required to be set. The validated configuration is guaranteed
+    to contain this key.
+
+    All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
+    - *not* the `config.get(CONF_<KEY>)` syntax.
+    """
+    def __init__(self, key):
+        super(Required, self).__init__(key)
+
+
 def alphanumeric(value):
     if value is None:
         raise Invalid("string value is None")
@@ -93,6 +113,11 @@ def valid_name(value):
 
 
 def string(value):
+    """Validate that a configuration value is a string. If not, automatically converts to a string.
+
+    Note that this can be lossy, for example the input value 60.00 (float) will be turned into
+    "60.0" (string). For values where this could be a problem `string_string` has to be used.
+    """
     if isinstance(value, (dict, list)):
         raise Invalid("string value cannot be dictionary or list.")
     if isinstance(value, text_type):
@@ -103,7 +128,8 @@ def string(value):
 
 
 def string_strict(value):
-    """Strictly only allow strings."""
+    """Like string, but only allows strings, and does not automatically convert other types to
+    strings."""
     if isinstance(value, text_type):
         return value
     if isinstance(value, string_types):
@@ -113,7 +139,7 @@ def string_strict(value):
 
 
 def icon(value):
-    """Validate icon."""
+    """Validate that a given config value is a valid icon."""
     value = string_strict(value)
     if value.startswith('mdi:'):
         return value
@@ -121,21 +147,34 @@ def icon(value):
 
 
 def boolean(value):
-    """Validate and coerce a boolean value."""
+    """Validate the given config option to be a boolean.
+
+    This option allows a bunch of different ways of expressing boolean values:
+     - instance of boolean
+     - 'true'/'false'
+     - 'yes'/'no'
+     - 'enable'/disable
+    """
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
         value = value.lower()
-        if value in ('1', 'true', 'yes', 'on', 'enable'):
+        if value in ('true', 'yes', 'on', 'enable'):
             return True
-        if value in ('0', 'false', 'no', 'off', 'disable'):
+        if value in ('false', 'no', 'off', 'disable'):
             return False
-        raise Invalid('invalid boolean value {}'.format(value))
-    return bool(value)
+    raise Invalid(u"Expected boolean value, but cannot convert {} to a boolean. "
+                  u"Please use 'true' or 'false'".format(value))
 
 
 def ensure_list(*validators):
-    """Wrap value in list if it is not one."""
+    """Validate this configuration option to be a list.
+
+    If the config value is not a list, it is automatically converted to a
+    single-item list.
+
+    None and empty dictionaries are converted to empty lists.
+    """
     user = All(*validators)
 
     def validator(value):
@@ -147,65 +186,79 @@ def ensure_list(*validators):
         errs = []
         for i, val in enumerate(value):
             try:
-                ret.append(user(val))
-            except vol.MultipleInvalid as err:
-                err.prepend([i])
+                with prepend_path([i]):
+                    ret.append(user(val))
+            except MultipleInvalid as err:
                 errs.extend(err.errors)
             except Invalid as err:
-                err.prepend([i])
                 errs.append(err)
         if errs:
-            raise vol.MultipleInvalid(errs)
+            raise MultipleInvalid(errs)
         return ret
 
     return validator
 
 
-def ensure_list_not_empty(value):
-    if isinstance(value, list):
-        return value
-    return [value]
-
-
-def ensure_dict(value):
-    if value is None:
-        return {}
-    if not isinstance(value, dict):
-        raise Invalid("Expected a dictionary")
-    return value
-
-
-def hex_int_(value):
-    if isinstance(value, integer_types):
-        return HexInt(value)
-    value = string_strict(value).lower()
-    if value.startswith('0x'):
-        return HexInt(int(value, 16))
-    return HexInt(int(value))
+def hex_int(value):
+    """Validate the given value to be a hex integer. This is mostly for cosmetic
+    purposes of the generated code.
+    """
+    return HexInt(int_(value))
 
 
 def int_(value):
+    """Validate that the config option is an integer.
+
+    Automatically also converts strings to ints.
+    """
     if isinstance(value, integer_types):
         return value
     value = string_strict(value).lower()
+    base = 10
     if value.startswith('0x'):
-        return int(value, 16)
-    return int(value)
+        base = 16
+    try:
+        return int(value, base)
+    except ValueError:
+        raise Invalid(u"Expected integer, but cannot parse {} as an integer".format(value))
 
 
 def int_range(min=None, max=None, min_included=None, max_included=None):
+    """Validate that the config option is an integer in the given range."""
+    if min is not None:
+        assert isinstance(min, integer_types)
+    if max is not None:
+        assert isinstance(max, integer_types)
     return All(int_, Range(min=min, max=max, min_included=min_included, max_included=max_included))
 
 
+def hex_int_range(min=None, max=None, min_included=None, max_included=None):
+    """Validate that the config option is an integer in the given range."""
+    return All(hex_int,
+               Range(min=min, max=max, min_included=min_included, max_included=max_included))
+
+
 def float_range(min=None, max=None, min_included=None, max_included=None):
+    """Validate that the config option is a floating point number in the given range."""
+    if min is not None:
+        assert isinstance(min, (int, float))
+    if max is not None:
+        assert isinstance(max, (int, float))
     return All(float_, Range(min=min, max=max, min_included=min_included,
                              max_included=max_included))
 
 
-hex_int = Coerce(hex_int_)
+port = int_range(min=1, max=65535)
+float_ = Coerce(float)
+positive_float = float_range(min=0)
+zero_to_one_float = float_range(min=0, max=1)
+negative_one_to_one_float = float_range(min=-1, max=1)
+positive_int = int_range(min=0)
+positive_not_null_int = int_range(min=0, min_included=False)
 
 
 def validate_id_name(value):
+    """Validate that the given value would be a valid C++ identifier name."""
     value = string(value)
     if not value:
         raise Invalid("ID must not be empty")
@@ -223,7 +276,8 @@ def validate_id_name(value):
     return value
 
 
-def use_variable_id(type):
+def use_id(type):
+    """Declare that this configuration option should point to an ID with the given type."""
     def validator(value):
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
@@ -233,7 +287,12 @@ def use_variable_id(type):
     return validator
 
 
-def declare_variable_id(type):
+def declare_id(type):
+    """Declare that this configuration option should be used to declare a variable ID
+    with the given type.
+
+    If two IDs with the same name exist, a validation error is thrown.
+    """
     def validator(value):
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
@@ -244,17 +303,26 @@ def declare_variable_id(type):
 
 
 def templatable(other_validators):
+    """Validate that the configuration option can (optionally) be templated.
+
+    The user can declare a value as template by using the '!lambda' tag. In that case,
+    validation is skipped. Otherwise (if the value is not templated) the validator given
+    as the first argument to this method is called.
+    """
+    schema = Schema(other_validators)
+
     def validator(value):
         if isinstance(value, Lambda):
             return value
         if isinstance(other_validators, dict):
-            return Schema(other_validators)(value)
-        return other_validators(value)
+            return schema(value)
+        return schema(value)
 
     return validator
 
 
 def only_on(platforms):
+    """Validate that this option can only be specified on the given ESP platforms."""
     if not isinstance(platforms, list):
         platforms = [platforms]
 
@@ -273,7 +341,7 @@ only_on_esp8266 = only_on('ESP8266')
 # Adapted from:
 # https://github.com/alecthomas/voluptuous/issues/115#issuecomment-144464666
 def has_at_least_one_key(*keys):
-    """Validate that at least one key exists."""
+    """Validate that at least one of the given keys exist in the config."""
 
     def validate(obj):
         """Test keys exist in dict."""
@@ -288,6 +356,7 @@ def has_at_least_one_key(*keys):
 
 
 def has_exactly_one_key(*keys):
+    """Validate that exactly one of the given keys exist in the config."""
     def validate(obj):
         if not isinstance(obj, dict):
             raise Invalid('expected dictionary')
@@ -303,6 +372,7 @@ def has_exactly_one_key(*keys):
 
 
 def has_at_most_one_key(*keys):
+    """Validate that at most one of the given keys exist in the config."""
     def validate(obj):
         if not isinstance(obj, dict):
             raise Invalid('expected dictionary')
@@ -317,17 +387,15 @@ def has_at_most_one_key(*keys):
 
 TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 
-time_period_dict = All(
-    dict, Schema({
-        Optional('days'): float_,
-        Optional('hours'): float_,
-        Optional('minutes'): float_,
-        Optional('seconds'): float_,
-        Optional('milliseconds'): float_,
-        Optional('microseconds'): float_,
-    }),
-    has_at_least_one_key('days', 'hours', 'minutes',
-                         'seconds', 'milliseconds', 'microseconds'),
+time_period_dict = All(Schema({
+    Optional('days'): float_,
+    Optional('hours'): float_,
+    Optional('minutes'): float_,
+    Optional('seconds'): float_,
+    Optional('milliseconds'): float_,
+    Optional('microseconds'): float_,
+}),
+    has_at_least_one_key('days', 'hours', 'minutes', 'seconds', 'milliseconds', 'microseconds'),
     lambda value: TimePeriod(**value))
 
 
@@ -700,6 +768,7 @@ def mqtt_qos(value):
 
 
 def requires_component(comp):
+    """Validate that this option can only be specified when the component `comp` is loaded."""
     def validator(value):
         if comp not in CORE.raw_config:
             raise Invalid("This option requires component {}".format(comp))
@@ -708,16 +777,20 @@ def requires_component(comp):
     return validator
 
 
-uint8_t = All(int_, Range(min=0, max=255))
-uint16_t = All(int_, Range(min=0, max=65535))
-uint32_t = All(int_, Range(min=0, max=4294967295))
-hex_uint8_t = All(hex_int, Range(min=0, max=255))
-hex_uint16_t = All(hex_int, Range(min=0, max=65535))
-hex_uint32_t = All(hex_int, Range(min=0, max=4294967295))
+uint8_t = int_range(min=0, max=255)
+uint16_t = int_range(min=0, max=65535)
+uint32_t = int_range(min=0, max=4294967295)
+hex_uint8_t = hex_int_range(min=0, max=255)
+hex_uint16_t = hex_int_range(min=0, max=65535)
+hex_uint32_t = hex_int_range(min=0, max=4294967295)
 i2c_address = hex_uint8_t
 
 
 def percentage(value):
+    """Validate that the value is a percentage.
+
+    The resulting value is an integer in the range 0.0 to 1.0.
+    """
     value = possibly_negative_percentage(value)
     return zero_to_one_float(value)
 
@@ -746,18 +819,18 @@ def percentage_int(value):
 
 
 def invalid(message):
+    """Mark this value as invalid. Each time *any* value is passed here it will result in a
+    validation error with the given message.
+    """
     def validator(value):
         raise Invalid(message)
 
     return validator
 
 
-def valid(value):
-    return value
-
-
 @contextmanager
 def prepend_path(path):
+    """A contextmanager helper to prepend a path to all voluptuous errors."""
     if not isinstance(path, (list, tuple)):
         path = [path]
     try:
@@ -768,6 +841,19 @@ def prepend_path(path):
 
 
 def one_of(*values, **kwargs):
+    """Validate that the config option is one of the given values.
+
+    :param values: The valid values for this type
+
+    :Keyword Arguments:
+      - *lower* (``bool``, default=False): Whether to convert the incoming values to lowercase
+        strings.
+      - *upper* (``bool``, default=False): Whether to convert the incoming values to uppercase
+        strings.
+      - *int* (``bool``, default=False): Whether to convert the incoming values to integers.
+      - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
+      - *space* (``str``, default=' '): What to convert spaces in the input string to.
+    """
     options = u', '.join(u"'{}'".format(x) for x in values)
     lower = kwargs.pop('lower', False)
     upper = kwargs.pop('upper', False)
@@ -806,6 +892,13 @@ def one_of(*values, **kwargs):
 
 
 def enum(mapping, **kwargs):
+    """Validate this config option against an enum mapping.
+
+    The mapping should be a dictionary with the key representing the config value name and
+    a value representing the expression to set during code generation.
+
+    Accepts all kwargs of one_of.
+    """
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
@@ -822,6 +915,7 @@ def enum(mapping, **kwargs):
 
 
 def lambda_(value):
+    """Coerce this configuration option to a lambda."""
     if isinstance(value, Lambda):
         return value
     return Lambda(string_strict(value))
@@ -849,10 +943,11 @@ def directory(value):
     value = string(value)
     path = CORE.relative_config_path(value)
     if not os.path.exists(path):
-        raise Invalid(u"Could not find directory '{}'. Please make sure it exists.".format(
-            path))
+        raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
     if not os.path.isdir(path):
-        raise Invalid(u"Path '{}' is not a directory.".format(path))
+        raise Invalid(u"Path '{}' is not a directory (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
     return value
 
 
@@ -860,10 +955,11 @@ def file_(value):
     value = string(value)
     path = CORE.relative_config_path(value)
     if not os.path.exists(path):
-        raise Invalid(u"Could not find file '{}'. Please make sure it exists.".format(
-            path))
+        raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
     if not os.path.isfile(path):
-        raise Invalid(u"Path '{}' is not a file.".format(path))
+        raise Invalid(u"Path '{}' is not a file (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
     return value
 
 
@@ -871,6 +967,10 @@ ENTITY_ID_CHARACTERS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 
 def entity_id(value):
+    """Validate that this option represents a valid Home Assistant entity id.
+
+    Should only be used for 'homeassistant' platforms.
+    """
     value = string_strict(value).lower()
     if value.count('.') != 1:
         raise Invalid("Entity ID must have exactly one dot in it")
@@ -882,20 +982,30 @@ def entity_id(value):
 
 
 def extract_keys(schema):
+    """Extract the names of the keys from the given schema."""
     if isinstance(schema, Schema):
         schema = schema.schema
     assert isinstance(schema, dict)
-    keys = list(schema.keys())
+    keys = []
+    for skey in list(schema.keys()):
+        if isinstance(skey, string_types):
+            keys.append(skey)
+        elif isinstance(skey, vol.Marker) and isinstance(skey.schema, string_types):
+            keys.append(skey.schema)
+        else:
+            raise ValueError()
     keys.sort()
     return keys
 
 
 class GenerateID(Optional):
+    """Mark this key as being an auto-generated ID key."""
     def __init__(self, key=CONF_ID):
         super(GenerateID, self).__init__(key, default=lambda: None)
 
 
 class SplitDefault(Optional):
+    """Mark this key to have a split default for ESP8266/ESP32."""
     def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
         super(SplitDefault, self).__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -916,6 +1026,7 @@ class SplitDefault(Optional):
 
 
 class OnlyWith(Optional):
+    """Set the default value only if the given component is loaded."""
     def __init__(self, key, component, default=None):
         super(OnlyWith, self).__init__(key)
         self._component = component
@@ -1017,10 +1128,16 @@ COMPONENT_SCHEMA = Schema({
 
 
 def polling_component_schema(default_update_interval):
+    """Validate that this component represents a PollingComponent with a configurable
+    update_interval.
+
+    :param default_update_interval: The default update interval to set for the integration.
+    """
     if default_update_interval is None:
         return COMPONENT_SCHEMA.extend({
             Required(CONF_UPDATE_INTERVAL): default_update_interval,
         })
+    assert isinstance(default_update_interval, string_types)
     return COMPONENT_SCHEMA.extend({
         Optional(CONF_UPDATE_INTERVAL, default=default_update_interval): update_interval,
     })

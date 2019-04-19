@@ -10,7 +10,7 @@ hdc1080_ns = cg.esphome_ns.namespace('hdc1080')
 HDC1080Component = hdc1080_ns.class_('HDC1080Component', cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HDC1080Component),
+    cv.GenerateID(): cv.declare_id(HDC1080Component),
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40))

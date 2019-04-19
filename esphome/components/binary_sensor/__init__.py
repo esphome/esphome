@@ -52,7 +52,7 @@ validate_filters = cv.validate_registry('filter', FILTER_REGISTRY, [CONF_ID])
 
 @FILTER_REGISTRY.register('invert',
                           cv.Schema({
-                              cv.GenerateID(): cv.declare_variable_id(InvertFilter)
+                              cv.GenerateID(): cv.declare_id(InvertFilter)
                           }))
 def invert_filter_to_code(config):
     rhs = InvertFilter.new()
@@ -62,7 +62,7 @@ def invert_filter_to_code(config):
 
 @FILTER_REGISTRY.register('delayed_on',
                           cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_variable_id(DelayedOnFilter),
+                              cv.GenerateID(): cv.declare_id(DelayedOnFilter),
                               cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
                           }).extend(cv.COMPONENT_SCHEMA)))
 def delayed_on_filter_to_code(config):
@@ -74,7 +74,7 @@ def delayed_on_filter_to_code(config):
 
 @FILTER_REGISTRY.register('delayed_off',
                           cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_variable_id(DelayedOffFilter),
+                              cv.GenerateID(): cv.declare_id(DelayedOffFilter),
                               cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
                           }).extend(cv.COMPONENT_SCHEMA)))
 def delayed_off_filter_to_code(config):
@@ -86,7 +86,7 @@ def delayed_off_filter_to_code(config):
 
 @FILTER_REGISTRY.register('lambda',
                           cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_variable_id(LambdaFilter),
+                              cv.GenerateID(): cv.declare_id(LambdaFilter),
                               cv.Required(CONF_VALUE): cv.lambda_,
                           })))
 def lambda_filter_to_code(config):
@@ -193,35 +193,35 @@ def validate_multi_click_timing(value):
 device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space='_')
 
 BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(BinarySensor),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTBinarySensorComponent),
+    cv.GenerateID(): cv.declare_id(BinarySensor),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTBinarySensorComponent),
 
     cv.Optional(CONF_DEVICE_CLASS): device_class,
     cv.Optional(CONF_FILTERS): validate_filters,
     cv.Optional(CONF_ON_PRESS): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(PressTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PressTrigger),
     }),
     cv.Optional(CONF_ON_RELEASE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ReleaseTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
     }),
     cv.Optional(CONF_ON_CLICK): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ClickTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
         cv.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     }),
     cv.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(DoubleClickTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
         cv.Optional(CONF_MIN_LENGTH, default='50ms'): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_MAX_LENGTH, default='350ms'): cv.positive_time_period_milliseconds,
     }),
     cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MultiClickTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MultiClickTrigger),
         cv.Required(CONF_TIMING): cv.All([parse_multi_click_timing_str],
                                          validate_multi_click_timing),
         cv.Optional(CONF_INVALID_COOLDOWN, default='1s'): cv.positive_time_period_milliseconds,
     }),
     cv.Optional(CONF_ON_STATE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StateTrigger),
     }),
 
     cv.Optional(CONF_INVERTED): cv.invalid(
@@ -302,7 +302,7 @@ def new_binary_sensor(config):
 
 
 BINARY_SENSOR_IS_ON_OFF_CONDITION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(BinarySensor),
+    cv.Required(CONF_ID): cv.use_id(BinarySensor),
     cv.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
 })
 

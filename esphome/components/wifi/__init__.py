@@ -56,7 +56,7 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
 })
 
 WIFI_NETWORK_BASE = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(WiFiAP),
+    cv.GenerateID(): cv.declare_id(WiFiAP),
     cv.Optional(CONF_SSID): cv.ssid,
     cv.Optional(CONF_PASSWORD): validate_password,
     cv.Optional(CONF_CHANNEL): validate_channel,
@@ -108,7 +108,7 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
+    cv.GenerateID(): cv.declare_id(WiFiComponent),
     cv.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
 
     cv.Optional(CONF_SSID): cv.ssid,

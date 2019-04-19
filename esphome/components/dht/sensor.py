@@ -19,7 +19,7 @@ DHT_MODELS = {
 DHT = dht_ns.class_('DHT', cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DHT),
+    cv.GenerateID(): cv.declare_id(DHT),
     cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),

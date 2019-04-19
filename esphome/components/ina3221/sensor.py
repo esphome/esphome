@@ -25,7 +25,7 @@ INA3221_CHANNEL_SCHEMA = cv.Schema({
 })
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(INA3221Component),
+    cv.GenerateID(): cv.declare_id(INA3221Component),
     cv.Optional(CONF_CHANNEL_1): INA3221_CHANNEL_SCHEMA,
     cv.Optional(CONF_CHANNEL_2): INA3221_CHANNEL_SCHEMA,
     cv.Optional(CONF_CHANNEL_3): INA3221_CHANNEL_SCHEMA,

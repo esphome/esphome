@@ -55,7 +55,7 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(EthernetComponent),
+    cv.GenerateID(): cv.declare_id(EthernetComponent),
     cv.Required(CONF_TYPE): cv.enum(ETHERNET_TYPES, upper=True),
     cv.Required(CONF_MDC_PIN): pins.output_pin,
     cv.Required(CONF_MDIO_PIN): pins.input_output_pin,

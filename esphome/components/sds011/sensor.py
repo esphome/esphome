@@ -25,7 +25,7 @@ def validate_sds011_rx_mode(value):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(SDS011Component),
+    cv.GenerateID(): cv.declare_id(SDS011Component),
 
     cv.Optional(CONF_PM_2_5):
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
