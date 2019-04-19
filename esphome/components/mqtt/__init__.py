@@ -103,7 +103,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_PORT, default=1883): cv.port,
     cv.Optional(CONF_USERNAME, default=''): cv.string,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.All(cv.string, cv.Length(max=23)),
+    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.string,
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,

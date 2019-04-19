@@ -9,6 +9,10 @@ substitutions:
 
 api:
 
+wifi:
+  ssid: 'MySSID'
+  password: 'password1'
+
 i2c:
   sda: 4
   scl: 5
