@@ -141,6 +141,8 @@ def string_strict(value):
 def icon(value):
     """Validate that a given config value is a valid icon."""
     value = string_strict(value)
+    if not value:
+        return value
     if value.startswith('mdi:'):
         return value
     raise Invalid('Icons should start with prefix "mdi:"')
@@ -223,7 +225,7 @@ def int_(value):
         raise Invalid(u"Expected integer, but cannot parse {} as an integer".format(value))
 
 
-def int_range(min=None, max=None, min_included=None, max_included=None):
+def int_range(min=None, max=None, min_included=True, max_included=True):
     """Validate that the config option is an integer in the given range."""
     if min is not None:
         assert isinstance(min, integer_types)
@@ -232,13 +234,13 @@ def int_range(min=None, max=None, min_included=None, max_included=None):
     return All(int_, Range(min=min, max=max, min_included=min_included, max_included=max_included))
 
 
-def hex_int_range(min=None, max=None, min_included=None, max_included=None):
+def hex_int_range(min=None, max=None, min_included=True, max_included=True):
     """Validate that the config option is an integer in the given range."""
     return All(hex_int,
                Range(min=min, max=max, min_included=min_included, max_included=max_included))
 
 
-def float_range(min=None, max=None, min_included=None, max_included=None):
+def float_range(min=None, max=None, min_included=True, max_included=True):
     """Validate that the config option is a floating point number in the given range."""
     if min is not None:
         assert isinstance(min, (int, float))

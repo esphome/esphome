@@ -2,6 +2,7 @@ import functools
 import heapq
 import inspect
 import logging
+
 import math
 import os
 import re
@@ -523,7 +524,6 @@ class EsphomeCore(object):
 
     def _add_active_coroutine(self, instance_id, obj):
         self.active_coroutines[instance_id] = obj
-        return instance_id
 
     def _remove_coroutine(self, instance_id):
         self.active_coroutines.pop(instance_id)
@@ -607,9 +607,11 @@ class EsphomeCore(object):
                 _LOGGER.debug(" -> finished")
 
         # Print not-awaited coroutines
-        for obj in self.active_coroutines.values():
-            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'. Please file a "
-                            u"bug report with your configuration.", obj.__name__, obj)
+        for obj, frame in self.active_coroutines.values():
+            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
+            _LOGGER.warning(u"Please file a bug report with your configuration.")
+        if self.active_coroutines:
+            raise EsphomeError()
         self.active_coroutines.clear()
 
     def add(self, expression):

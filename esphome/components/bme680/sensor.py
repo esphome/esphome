@@ -58,7 +58,7 @@ CONFIG_SCHEMA = cv.Schema({
         cv.Optional(CONF_TEMPERATURE, default=320): cv.int_range(min=200, max=400),
         cv.Optional(CONF_DURATION, default='150ms'): cv.All(
             cv.positive_time_period_milliseconds, cv.Range(max=core.TimePeriod(milliseconds=4032)))
-    }, cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION)))),
+    }), cv.has_at_least_one_key(CONF_TEMPERATURE, CONF_DURATION))),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x76))
 
 
