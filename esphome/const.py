@@ -415,6 +415,8 @@ CONF_TO = 'to'
 CONF_SEGMENTS = 'segments'
 CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
+CONF_BASELINE = 'baseline'
+CONF_STATUS_NAME = 'status_name'
 
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
