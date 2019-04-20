@@ -26,6 +26,19 @@ void ClimateRemoteTransmitter::set_transmitter(remote_transmitter::RemoteTransmi
 void ClimateRemoteTransmitter::set_model(ClimateRemoteTransmitterModel model)
 {
   this->model_ = model;
+  switch (model)
+  {
+    case CLIMATE_REMOTE_TRANSMITTER_COOLIX:
+      this->set_visual_max_temperature_override(30);
+      this->set_visual_min_temperature_override(17);
+      this->set_visual_temperature_step_override(1);
+      break;
+    case CLIMATE_REMOTE_TRANSMITTER_TCL:
+      this->set_visual_max_temperature_override(30);
+      this->set_visual_min_temperature_override(16);
+      this->set_visual_temperature_step_override(.5f);
+      break;
+  }
 }
 
 void ClimateRemoteTransmitter::control(const climate::ClimateCall &call) {
