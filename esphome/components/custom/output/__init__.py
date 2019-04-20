@@ -53,7 +53,7 @@ def to_code(config):
     else:
         ret_type = output.FloatOutputPtr
         klass = CustomFloatOutputConstructor
-    template_ = yield cg.process_lambda(config[CONF_LAMBDA], [],
+    template_ = yield cg.process_lambda(config[CONF_LAMBDA], [], '=',
                                         return_type=cg.std_vector.template(ret_type))
 
     rhs = klass(template_)

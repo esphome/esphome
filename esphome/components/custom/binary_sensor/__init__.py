@@ -15,7 +15,8 @@ CONFIG_SCHEMA = cv.Schema({
 
 def to_code(config):
     template_ = yield cg.process_lambda(
-        config[CONF_LAMBDA], [], return_type=cg.std_vector.template(binary_sensor.BinarySensorPtr))
+        config[CONF_LAMBDA], [], '=',
+        return_type=cg.std_vector.template(binary_sensor.BinarySensorPtr))
 
     rhs = CustomBinarySensorConstructor(template_)
     custom = cg.variable(config[CONF_ID], rhs)
