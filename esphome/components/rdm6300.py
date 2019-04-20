@@ -17,8 +17,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    for uart_ in get_variable(config[CONF_UART_ID]):
-        yield
+    uart_ = yield get_variable(config[CONF_UART_ID])
     rhs = App.make_rdm6300_component(uart_)
     var = Pvariable(config[CONF_ID], rhs)
     setup_component(var, config)

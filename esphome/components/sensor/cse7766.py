@@ -38,8 +38,7 @@ PLATFORM_SCHEMA = vol.All(sensor.PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart_ in get_variable(config[CONF_UART_ID]):
-        yield
+    uart_ = yield get_variable(config[CONF_UART_ID])
 
     rhs = App.make_cse7766(uart_, config.get(CONF_UPDATE_INTERVAL))
     cse = Pvariable(config[CONF_ID], rhs)

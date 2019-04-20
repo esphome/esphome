@@ -2,6 +2,7 @@
 """Helpers for config validation using voluptuous."""
 from __future__ import print_function
 
+from datetime import datetime
 import logging
 import os
 import re
@@ -13,10 +14,10 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PLATFORM, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, ESP_PLATFORM_ESP32, \
-    ESP_PLATFORM_ESP8266
+    ESP_PLATFORM_ESP8266, CONF_HOUR, CONF_MINUTE, CONF_SECOND
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
-from esphome.py_compat import integer_types, string_types, text_type
+from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -391,6 +392,23 @@ positive_not_null_time_period = vol.All(time_period,
                                         vol.Range(min=TimePeriod(), min_included=False))
 
 
+def time_of_day(value):
+    value = string(value)
+    try:
+        date = datetime.strptime(value, '%H:%M:%S')
+    except ValueError as err:
+        try:
+            date = datetime.strptime(value, '%H:%M:%S %p')
+        except ValueError:
+            raise vol.Invalid("Invalid time of day: {}".format(err))
+
+    return {
+        CONF_HOUR: date.hour,
+        CONF_MINUTE: date.minute,
+        CONF_SECOND: date.second,
+    }
+
+
 def mac_address(value):
     value = string_strict(value)
     parts = value.split(':')
@@ -420,7 +438,7 @@ METRIC_SUFFIXES = {
 
 
 def float_with_unit(quantity, regex_suffix):
-    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + "$")
+    pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
 
     def validator(value):
         match = pattern.match(string(value))
@@ -438,12 +456,63 @@ def float_with_unit(quantity, regex_suffix):
     return validator
 
 
-frequency = float_with_unit("frequency", r"(Hz|HZ|hz)?")
-resistance = float_with_unit("resistance", r"(Ω|Ω|ohm|Ohm|OHM)?")
-current = float_with_unit("current", r"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
-voltage = float_with_unit("voltage", r"(v|V|volt|Volts)?")
-distance = float_with_unit("distance", r"(m)")
-framerate = float_with_unit("framerate", r"(FPS|fps|Fps|FpS|Hz)")
+frequency = float_with_unit("frequency", u"(Hz|HZ|hz)?")
+resistance = float_with_unit("resistance", u"(Ω|Ω|ohm|Ohm|OHM)?")
+current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
+distance = float_with_unit("distance", u"(m)")
+framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
+_temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
+_temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
+_temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
+
+if IS_PY2:
+    # Override voluptuous invalid to unicode for py2
+    def _vol_invalid_unicode(self):
+        path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
+            if self.path else ''
+        # pylint: disable=no-member
+        output = Exception.__unicode__(self)
+        if self.error_type:
+            output += u' for ' + self.error_type
+        return output + path
+
+    vol.Invalid.__unicode__ = _vol_invalid_unicode
+
+
+def temperature(value):
+    try:
+        return _temperature_c(value)
+    except vol.Invalid as orig_err:  # noqa
+        pass
+
+    try:
+        kelvin = _temperature_k(value)
+        return kelvin - 273.15
+    except vol.Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return (fahrenheit - 32) * (5/9)
+    except vol.Invalid:
+        pass
+
+    raise orig_err  # noqa
+
+
+_color_temperature_mireds = float_with_unit('Color Temperature', r'(mireds|Mireds)')
+_color_temperature_kelvin = float_with_unit('Color Temperature', r'(K|Kelvin)')
+
+
+def color_temperature(value):
+    try:
+        val = _color_temperature_mireds(value)
+    except vol.Invalid:
+        val = 1000000.0 / _color_temperature_kelvin(value)
+    if val < 0:
+        raise vol.Invalid("Color temperature cannot be negative")
+    return val
 
 
 def validate_bytes(value):

@@ -7,7 +7,8 @@ import voluptuous as vol
 from esphome import automation
 import esphome.config_validation as cv
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
+    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add
 from esphome.cpp_types import App, Component, Trigger, esphome_ns
@@ -232,14 +233,36 @@ def validate_cron_raw(value):
     }
 
 
+def validate_time_at(value):
+    value = cv.time_of_day(value)
+    return {
+        CONF_HOURS: [value[CONF_HOUR]],
+        CONF_MINUTES: [value[CONF_MINUTE]],
+        CONF_SECONDS: [value[CONF_SECOND]],
+        CONF_DAYS_OF_MONTH: validate_cron_days_of_month('*'),
+        CONF_MONTHS: validate_cron_months('*'),
+        CONF_DAYS_OF_WEEK: validate_cron_days_of_week('*'),
+    }
+
+
 def validate_cron_keys(value):
     if CONF_CRON in value:
         for key in value.keys():
             if key in CRON_KEYS:
                 raise vol.Invalid("Cannot use option {} when cron: is specified.".format(key))
+        if CONF_AT in value:
+            raise vol.Invalid("Cannot use option at with cron!")
         cron_ = value[CONF_CRON]
         value = {x: value[x] for x in value if x != CONF_CRON}
         value.update(cron_)
+        return value
+    if CONF_AT in value:
+        for key in value.keys():
+            if key in CRON_KEYS:
+                raise vol.Invalid("Cannot use option {} when at: is specified.".format(key))
+        at_ = value[CONF_AT]
+        value = {x: value[x] for x in value if x != CONF_AT}
+        value.update(at_)
         return value
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
@@ -266,6 +289,7 @@ TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
         vol.Optional(CONF_MONTHS): validate_cron_months,
         vol.Optional(CONF_DAYS_OF_WEEK): validate_cron_days_of_week,
         vol.Optional(CONF_CRON): validate_cron_raw,
+        vol.Optional(CONF_AT): validate_time_at,
     }, validate_cron_keys),
 })
 

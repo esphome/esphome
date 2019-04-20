@@ -10,7 +10,7 @@ from esphome.const import CONF_DELAYED_OFF, CONF_DELAYED_ON, CONF_DEVICE_CLASS, 
     CONF_LAMBDA, CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_MQTT_ID, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR
-from esphome.core import CORE
+from esphome.core import CORE, coroutine
 from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda
 from esphome.cpp_types import App, Component, Nameable, Trigger, bool_, esphome_ns, optional
 from esphome.py_compat import string_types
@@ -196,6 +196,7 @@ BINARY_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 BINARY_SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(BINARY_SENSOR_SCHEMA.schema)
 
 
+@coroutine
 def setup_filter(config):
     if CONF_INVERT in config:
         yield InvertFilter.new()
@@ -204,21 +205,20 @@ def setup_filter(config):
     elif CONF_DELAYED_ON in config:
         yield App.register_component(DelayedOnFilter.new(config[CONF_DELAYED_ON]))
     elif CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
-                                      return_type=optional.template(bool_)):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(bool_, 'x')],
+                                       return_type=optional.template(bool_))
         yield LambdaFilter.new(lambda_)
 
 
+@coroutine
 def setup_filters(config):
     filters = []
     for conf in config:
-        for filter in setup_filter(conf):
-            yield None
-        filters.append(filter)
+        filters.append((yield setup_filter(conf)))
     yield filters
 
 
+@coroutine
 def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INTERNAL in config:
         add(binary_sensor_var.set_internal(CONF_INTERNAL))
@@ -227,8 +227,7 @@ def setup_binary_sensor_core_(binary_sensor_var, config):
     if CONF_INVERTED in config:
         add(binary_sensor_var.set_inverted(config[CONF_INVERTED]))
     if CONF_FILTERS in config:
-        for filters in setup_filters(config[CONF_FILTERS]):
-            yield
+        filters = yield setup_filters(config[CONF_FILTERS])
         add(binary_sensor_var.add_filters(filters))
 
     for conf in config.get(CONF_ON_PRESS, []):
@@ -298,8 +297,7 @@ BINARY_SENSOR_IS_ON_CONDITION_SCHEMA = maybe_simple_id({
 
 @CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_ON, BINARY_SENSOR_IS_ON_CONDITION_SCHEMA)
 def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_binary_sensor_is_on_condition(template_arg, config.get(CONF_FOR))
     type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)
@@ -314,8 +312,7 @@ BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA = maybe_simple_id({
 
 @CONDITION_REGISTRY.register(CONF_BINARY_SENSOR_IS_OFF, BINARY_SENSOR_IS_OFF_CONDITION_SCHEMA)
 def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_binary_sensor_is_off_condition(template_arg, config.get(CONF_FOR))
     type = BinarySensorCondition.template(template_arg)
     yield Pvariable(condition_id, rhs, type=type)

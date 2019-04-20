@@ -26,10 +26,8 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi_ in get_variable(config[CONF_SPI_ID]):
-        yield
-    for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
-        yield
+    spi_ = yield get_variable(config[CONF_SPI_ID])
+    cs = yield gpio_output_pin_expression(config[CONF_CS_PIN])
     rhs = App.make_max7219(spi_, cs)
     max7219 = Pvariable(config[CONF_ID], rhs)
 
@@ -39,9 +37,8 @@ def to_code(config):
         add(max7219.set_intensity(config[CONF_INTENSITY]))
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
-                                      return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
+                                       return_type=void)
         add(max7219.set_writer(lambda_))
 
     display.setup_display(max7219, config)

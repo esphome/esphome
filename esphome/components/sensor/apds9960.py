@@ -24,8 +24,7 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_APDS9960_ID]):
-        yield
+    hub = yield get_variable(config[CONF_APDS9960_ID])
     func = getattr(hub, TYPES[config[CONF_TYPE]])
     rhs = func(config[CONF_NAME])
     sensor.register_sensor(rhs, config)

@@ -4,8 +4,7 @@ from esphome import pins
 from esphome.components import light
 from esphome.components.power_supply import PowerSupplyComponent
 import esphome.config_validation as cv
-from esphome.const import CONF_CHIPSET, CONF_COLOR_CORRECT, CONF_DEFAULT_TRANSITION_LENGTH, \
-    CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, \
+from esphome.const import CONF_CHIPSET, CONF_MAKE_ID, CONF_MAX_REFRESH_RATE, CONF_NAME, \
     CONF_NUM_LEDS, CONF_PIN, CONF_POWER_SUPPLY, CONF_RGB_ORDER
 from esphome.cpp_generator import RawExpression, TemplateArguments, add, get_variable, variable
 from esphome.cpp_helpers import setup_component
@@ -56,8 +55,7 @@ def validate(value):
 
 MakeFastLEDLight = Application.struct('MakeFastLEDLight')
 
-PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(light.AddressableLightState),
+PLATFORM_SCHEMA = cv.nameable(light.PLATFORM_SCHEMA.extend({
     cv.GenerateID(CONF_MAKE_ID): cv.declare_variable_id(MakeFastLEDLight),
 
     vol.Required(CONF_CHIPSET): cv.one_of(*TYPES, upper=True),
@@ -67,12 +65,8 @@ PLATFORM_SCHEMA = cv.nameable(light.LIGHT_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
     vol.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
 
-    vol.Optional(CONF_GAMMA_CORRECT): cv.positive_float,
-    vol.Optional(CONF_COLOR_CORRECT): vol.All([cv.percentage], vol.Length(min=3, max=3)),
-    vol.Optional(CONF_DEFAULT_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
     vol.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(PowerSupplyComponent),
-    vol.Optional(CONF_EFFECTS): light.validate_effects(light.ADDRESSABLE_EFFECTS),
-}).extend(cv.COMPONENT_SCHEMA.schema), validate)
+}).extend(light.ADDRESSABLE_LIGHT_SCHEMA.schema).extend(cv.COMPONENT_SCHEMA.schema), validate)
 
 
 def to_code(config):
@@ -91,15 +85,10 @@ def to_code(config):
         add(fast_led.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     if CONF_POWER_SUPPLY in config:
-        for power_supply in get_variable(config[CONF_POWER_SUPPLY]):
-            yield
+        power_supply = yield get_variable(config[CONF_POWER_SUPPLY])
         add(fast_led.set_power_supply(power_supply))
 
-    if CONF_COLOR_CORRECT in config:
-        r, g, b = config[CONF_COLOR_CORRECT]
-        add(fast_led.set_correction(r, g, b))
-
-    light.setup_light(make.Pstate, config)
+    light.setup_light(make.Pstate, make.Pfast_led, config)
     setup_component(fast_led, config)
 
 

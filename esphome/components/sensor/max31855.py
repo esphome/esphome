@@ -21,10 +21,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for spi_ in get_variable(config[CONF_SPI_ID]):
-        yield
-    for cs in gpio_output_pin_expression(config[CONF_CS_PIN]):
-        yield
+    spi_ = yield get_variable(config[CONF_SPI_ID])
+    cs = yield gpio_output_pin_expression(config[CONF_CS_PIN])
     rhs = App.make_max31855_sensor(config[CONF_NAME], spi_, cs,
                                    config.get(CONF_UPDATE_INTERVAL))
     max31855 = Pvariable(config[CONF_ID], rhs)

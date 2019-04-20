@@ -30,10 +30,8 @@ PLATFORM_SCHEMA = cv.nameable(sensor.SENSOR_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for dout_pin in gpio_input_pin_expression(config[CONF_DOUT_PIN]):
-        yield
-    for sck_pin in gpio_input_pin_expression(config[CONF_CLK_PIN]):
-        yield
+    dout_pin = yield gpio_input_pin_expression(config[CONF_DOUT_PIN])
+    sck_pin = yield gpio_input_pin_expression(config[CONF_CLK_PIN])
 
     rhs = App.make_hx711_sensor(config[CONF_NAME], dout_pin, sck_pin,
                                 config.get(CONF_UPDATE_INTERVAL))

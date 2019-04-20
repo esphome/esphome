@@ -18,15 +18,13 @@ PLATFORM_SCHEMA = display.BASIC_DISPLAY_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for uart_ in get_variable(config[CONF_UART_ID]):
-        yield
+    uart_ = yield get_variable(config[CONF_UART_ID])
     rhs = App.make_nextion(uart_)
     nextion = Pvariable(config[CONF_ID], rhs)
 
     if CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(NextionRef, 'it')],
-                                      return_type=void):
-            yield
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(NextionRef, 'it')],
+                                       return_type=void)
         add(nextion.set_writer(lambda_))
 
     display.setup_display(nextion, config)

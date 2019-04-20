@@ -47,9 +47,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    hub = None
-    for hub in get_variable(config[CONF_ESP32_TOUCH_ID]):
-        yield
+    hub = yield get_variable(config[CONF_ESP32_TOUCH_ID])
     touch_pad = TOUCH_PADS[config[CONF_PIN]]
     rhs = hub.make_touch_pad(config[CONF_NAME], touch_pad, config[CONF_THRESHOLD])
     binary_sensor.register_binary_sensor(rhs, config)

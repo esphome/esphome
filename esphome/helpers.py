@@ -1,13 +1,9 @@
 from __future__ import print_function
 
-import errno
 import logging
 import os
-import socket
-import subprocess
 
 from esphome.py_compat import char_to_byte, text_type
-from esphome.zeroconf import Zeroconf
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -73,6 +69,8 @@ def color(the_color, message=''):
 
 
 def run_system_command(*args):
+    import subprocess
+
     p = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
     rc = p.returncode
@@ -80,6 +78,8 @@ def run_system_command(*args):
 
 
 def mkdir_p(path):
+    import errno
+
     try:
         os.makedirs(path)
     except OSError as exc:
@@ -103,6 +103,8 @@ def is_ip_address(host):
 
 def _resolve_with_zeroconf(host):
     from esphome.core import EsphomeError
+    from esphome.zeroconf import Zeroconf
+
     try:
         zc = Zeroconf()
     except Exception:
@@ -122,6 +124,7 @@ def _resolve_with_zeroconf(host):
 
 def resolve_ip_address(host):
     from esphome.core import EsphomeError
+    import socket
 
     try:
         ip = socket.gethostbyname(host)

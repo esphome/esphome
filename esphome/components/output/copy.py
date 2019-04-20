@@ -40,9 +40,7 @@ PLATFORM_SCHEMA = validate_copy_output
 def to_code(config):
     outputs = []
     for out in config[CONF_OUTPUTS]:
-        for var in get_variable(out):
-            yield
-        outputs.append(var)
+        outputs.append((yield get_variable(out)))
 
     klass = {
         'binary': BinaryCopyOutput,

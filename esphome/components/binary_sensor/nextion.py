@@ -22,8 +22,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_NEXTION_ID]):
-        yield
+    hub = yield get_variable(config[CONF_NEXTION_ID])
     rhs = hub.make_touch_component(config[CONF_NAME], config[CONF_PAGE_ID],
                                    config[CONF_COMPONENT_ID])
     binary_sensor.register_binary_sensor(rhs, config)

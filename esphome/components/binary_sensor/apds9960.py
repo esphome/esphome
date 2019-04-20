@@ -25,8 +25,7 @@ PLATFORM_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_PLATFORM_SCHEMA.extend
 
 
 def to_code(config):
-    for hub in get_variable(config[CONF_APDS9960_ID]):
-        yield
+    hub = yield get_variable(config[CONF_APDS9960_ID])
     func = getattr(hub, DIRECTIONS[config[CONF_DIRECTION]])
     rhs = func(config[CONF_NAME])
     binary_sensor.register_binary_sensor(rhs, config)

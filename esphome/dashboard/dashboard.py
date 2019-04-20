@@ -28,7 +28,7 @@ import tornado.websocket
 from esphome import const
 from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
-from esphome.py_compat import IS_PY2
+from esphome.py_compat import IS_PY2, decode_text
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote
@@ -223,8 +223,8 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: ''.join(v) for k, v in self.request.arguments.items()}
-        destination = os.path.join(CONFIG_DIR, kwargs['name'] + '.yaml')
+        kwargs = {k: u''.join(decode_text(x) for x in v) for k, v in self.request.arguments.items()}
+        destination = os.path.join(CONFIG_DIR, kwargs['name'] + u'.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('/?begin=True')
 

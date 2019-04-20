@@ -10,7 +10,6 @@ from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING
 from esphome.core import CORE
 from esphome.cpp_generator import Pvariable, add, get_variable, templatable
 from esphome.cpp_types import Action, Application, Component, Nameable, bool_, esphome_ns
-from esphome.py_compat import string_types
 
 PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
 
@@ -82,8 +81,7 @@ FAN_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_FAN_TOGGLE, FAN_TOGGLE_ACTION_SCHEMA)
 def fan_toggle_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_toggle_action(template_arg)
     type = ToggleAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -97,8 +95,7 @@ FAN_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_OFF, FAN_TURN_OFF_ACTION_SCHEMA)
 def fan_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_off_action(template_arg)
     type = TurnOffAction.template(template_arg)
     yield Pvariable(action_id, rhs, type=type)
@@ -114,19 +111,15 @@ FAN_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
 
 @ACTION_REGISTRY.register(CONF_FAN_TURN_ON, FAN_TURN_ON_ACTION_SCHEMA)
 def fan_turn_on_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_turn_on_action(template_arg)
     type = TurnOnAction.template(template_arg)
     action = Pvariable(action_id, rhs, type=type)
     if CONF_OSCILLATING in config:
-        for template_ in templatable(config[CONF_OSCILLATING], args, bool_):
-            yield None
+        template_ = yield templatable(config[CONF_OSCILLATING], args, bool_)
         add(action.set_oscillating(template_))
     if CONF_SPEED in config:
-        for template_ in templatable(config[CONF_SPEED], args, FanSpeed):
-            yield None
-        if isinstance(template_, string_types):
-            template_ = FAN_SPEEDS[template_]
+        template_ = yield templatable(config[CONF_SPEED], args, FanSpeed,
+                                      to_exp=FAN_SPEEDS)
         add(action.set_speed(template_))
     yield action

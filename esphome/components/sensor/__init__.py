@@ -15,7 +15,7 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
     CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_SLIDING_WINDOW_MOVING_AVERAGE, \
     CONF_THROTTLE, CONF_TO, CONF_TRIGGER_ID, CONF_UNIQUE, CONF_UNIT_OF_MEASUREMENT, \
     CONF_WINDOW_SIZE
-from esphome.core import CORE
+from esphome.core import CORE, coroutine
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_types import App, Component, Nameable, PollingComponent, Trigger, \
     esphome_ns, float_, optional
@@ -143,6 +143,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
 SENSOR_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(SENSOR_SCHEMA.schema)
 
 
+@coroutine
 def setup_filter(config):
     if CONF_OFFSET in config:
         yield OffsetFilter.new(config[CONF_OFFSET])
@@ -158,17 +159,15 @@ def setup_filter(config):
         conf = config[CONF_EXPONENTIAL_MOVING_AVERAGE]
         yield ExponentialMovingAverageFilter.new(conf[CONF_ALPHA], conf[CONF_SEND_EVERY])
     elif CONF_LAMBDA in config:
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
-                                      return_type=optional.template(float_)):
-            yield None
+        lambda_ = yield process_lambda(config[CONF_LAMBDA], [(float_, 'x')],
+                                       return_type=optional.template(float_))
         yield LambdaFilter.new(lambda_)
     elif CONF_THROTTLE in config:
         yield ThrottleFilter.new(config[CONF_THROTTLE])
     elif CONF_DELTA in config:
         yield DeltaFilter.new(config[CONF_DELTA])
     elif CONF_OR in config:
-        for filters in setup_filters(config[CONF_OR]):
-            yield None
+        filters = yield setup_filters(config[CONF_OR])
         yield OrFilter.new(filters)
     elif CONF_HEARTBEAT in config:
         yield App.register_component(HeartbeatFilter.new(config[CONF_HEARTBEAT]))
@@ -181,15 +180,15 @@ def setup_filter(config):
         yield CalibrateLinearFilter.new(k, b)
 
 
+@coroutine
 def setup_filters(config):
     filters = []
     for conf in config:
-        for filter in setup_filter(conf):
-            yield None
-        filters.append(filter)
+        filters.append((yield setup_filter(conf)))
     yield filters
 
 
+@coroutine
 def setup_sensor_core_(sensor_var, config):
     if CONF_INTERNAL in config:
         add(sensor_var.set_internal(config[CONF_INTERNAL]))
@@ -200,8 +199,7 @@ def setup_sensor_core_(sensor_var, config):
     if CONF_ACCURACY_DECIMALS in config:
         add(sensor_var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     if CONF_FILTERS in config:
-        for filters in setup_filters(config[CONF_FILTERS]):
-            yield
+        filters = yield setup_filters(config[CONF_FILTERS])
         add(sensor_var.set_filters(filters))
 
     for conf in config.get(CONF_ON_VALUE, []):
@@ -217,12 +215,10 @@ def setup_sensor_core_(sensor_var, config):
         trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
         add(App.register_component(trigger))
         if CONF_ABOVE in conf:
-            for template_ in templatable(conf[CONF_ABOVE], float_, float_):
-                yield
+            template_ = yield templatable(conf[CONF_ABOVE], float_, float_)
             add(trigger.set_min(template_))
         if CONF_BELOW in conf:
-            for template_ in templatable(conf[CONF_BELOW], float_, float_):
-                yield
+            template_ = yield templatable(conf[CONF_BELOW], float_, float_)
             add(trigger.set_max(template_))
         automation.build_automations(trigger, [(float_, 'x')], conf)
 
@@ -242,9 +238,10 @@ def setup_sensor(sensor_obj, config):
 
 
 def register_sensor(var, config):
-    sensor_var = Pvariable(config[CONF_ID], var, has_side_effects=True)
-    add(App.register_sensor(sensor_var))
-    CORE.add_job(setup_sensor_core_, sensor_var, config)
+    if not CORE.has_id(config[CONF_ID]):
+        var = Pvariable(config[CONF_ID], var, has_side_effects=True)
+    add(App.register_sensor(var))
+    CORE.add_job(setup_sensor_core_, var, config)
 
 
 BUILD_FLAGS = '-DUSE_SENSOR'
@@ -259,8 +256,7 @@ SENSOR_IN_RANGE_CONDITION_SCHEMA = vol.All({
 
 @CONDITION_REGISTRY.register(CONF_SENSOR_IN_RANGE, SENSOR_IN_RANGE_CONDITION_SCHEMA)
 def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
+    var = yield get_variable(config[CONF_ID])
     rhs = var.make_sensor_in_range_condition(template_arg)
     type = SensorInRangeCondition.template(template_arg)
     cond = Pvariable(condition_id, rhs, type=type)

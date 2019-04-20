@@ -4,15 +4,22 @@ from esphome import automation
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import cover
 import esphome.config_validation as cv
-from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_ID, CONF_LAMBDA, CONF_NAME, \
-    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_STATE, CONF_STOP_ACTION
+from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
+    CONF_LAMBDA, CONF_NAME, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
+    CONF_STATE, CONF_STOP_ACTION
 from esphome.cpp_generator import Pvariable, add, get_variable, process_lambda, templatable
 from esphome.cpp_helpers import setup_component
 from esphome.cpp_types import Action, App, optional
-from esphome.py_compat import string_types
 
 TemplateCover = cover.cover_ns.class_('TemplateCover', cover.Cover)
 CoverPublishAction = cover.cover_ns.class_('CoverPublishAction', Action)
+
+TemplateCoverRestoreMode = cover.cover_ns.enum('TemplateCoverRestoreMode')
+RESTORE_MODES = {
+    'NO_RESTORE': TemplateCoverRestoreMode.NO_RESTORE,
+    'RESTORE': TemplateCoverRestoreMode.RESTORE,
+    'RESTORE_AND_CALL': TemplateCoverRestoreMode.RESTORE_AND_CALL,
+}
 
 PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     cv.GenerateID(): cv.declare_variable_id(TemplateCover),
@@ -22,20 +29,19 @@ PLATFORM_SCHEMA = cv.nameable(cover.COVER_PLATFORM_SCHEMA.extend({
     vol.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     vol.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+    vol.Optional(CONF_RESTORE_MODE): cv.one_of(*RESTORE_MODES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA.schema))
 
 
 def to_code(config):
-    rhs = App.make_template_cover(config[CONF_NAME])
+    rhs = App.register_component(TemplateCover.new(config[CONF_NAME]))
     var = Pvariable(config[CONF_ID], rhs)
-
-    cover.setup_cover(var, config)
+    cover.register_cover(var, config)
     setup_component(var, config)
 
     if CONF_LAMBDA in config:
-        for template_ in process_lambda(config[CONF_LAMBDA], [],
-                                        return_type=optional.template(cover.CoverState)):
-            yield
+        template_ = yield process_lambda(config[CONF_LAMBDA], [],
+                                         return_type=optional.template(float))
         add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
         automation.build_automations(var.get_open_trigger(), [],
@@ -50,6 +56,8 @@ def to_code(config):
         add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     if CONF_ASSUMED_STATE in config:
         add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
+    if CONF_RESTORE_MODE in config:
+        add(var.set_restore_mode(RESTORE_MODES[config[CONF_RESTORE_MODE]]))
 
 
 BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'
@@ -57,23 +65,29 @@ BUILD_FLAGS = '-DUSE_TEMPLATE_COVER'
 CONF_COVER_TEMPLATE_PUBLISH = 'cover.template.publish'
 COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA = cv.Schema({
     vol.Required(CONF_ID): cv.use_variable_id(cover.Cover),
-    vol.Required(CONF_STATE): cv.templatable(cover.validate_cover_state),
+    vol.Exclusive(CONF_STATE, 'pos'): cv.templatable(cover.validate_cover_state),
+    vol.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.zero_to_one_float),
+    vol.Optional(CONF_CURRENT_OPERATION): cv.templatable(cover.validate_cover_operation),
 })
 
 
 @ACTION_REGISTRY.register(CONF_COVER_TEMPLATE_PUBLISH,
                           COVER_TEMPLATE_PUBLISH_ACTION_SCHEMA)
 def cover_template_publish_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_cover_publish_action(template_arg)
+    var = yield get_variable(config[CONF_ID])
     type = CoverPublishAction.template(template_arg)
+    rhs = type.new(var)
     action = Pvariable(action_id, rhs, type=type)
-    state = config[CONF_STATE]
-    if isinstance(state, string_types):
-        template_ = cover.COVER_STATES[state]
-    else:
-        for template_ in templatable(state, args, cover.CoverState):
-            yield None
-    add(action.set_state(template_))
+    if CONF_STATE in config:
+        template_ = yield templatable(config[CONF_STATE], args, float,
+                                      to_exp=cover.COVER_STATES)
+        add(action.set_position(template_))
+    if CONF_POSITION in config:
+        template_ = yield templatable(config[CONF_POSITION], args, float,
+                                      to_exp=cover.COVER_STATES)
+        add(action.set_position(template_))
+    if CONF_CURRENT_OPERATION in config:
+        template_ = yield templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation,
+                                      to_exp=cover.COVER_OPERATIONS)
+        add(action.set_current_operation(template_))
     yield action

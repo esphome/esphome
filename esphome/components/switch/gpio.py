@@ -27,8 +27,7 @@ PLATFORM_SCHEMA = cv.nameable(switch.SWITCH_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for pin in gpio_output_pin_expression(config[CONF_PIN]):
-        yield
+    pin = yield gpio_output_pin_expression(config[CONF_PIN])
     rhs = App.make_gpio_switch(config[CONF_NAME], pin)
     gpio = Pvariable(config[CONF_ID], rhs)
 
@@ -38,8 +37,7 @@ def to_code(config):
     if CONF_INTERLOCK in config:
         interlock = []
         for it in config[CONF_INTERLOCK]:
-            for lock in get_variable(it):
-                yield
+            lock = yield get_variable(it)
             interlock.append(lock)
         add(gpio.set_interlock(interlock))
 

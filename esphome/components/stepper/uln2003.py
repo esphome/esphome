@@ -31,14 +31,10 @@ PLATFORM_SCHEMA = stepper.STEPPER_PLATFORM_SCHEMA.extend({
 
 
 def to_code(config):
-    for pin_a in gpio_output_pin_expression(config[CONF_PIN_A]):
-        yield
-    for pin_b in gpio_output_pin_expression(config[CONF_PIN_B]):
-        yield
-    for pin_c in gpio_output_pin_expression(config[CONF_PIN_C]):
-        yield
-    for pin_d in gpio_output_pin_expression(config[CONF_PIN_D]):
-        yield
+    pin_a = yield gpio_output_pin_expression(config[CONF_PIN_A])
+    pin_b = yield gpio_output_pin_expression(config[CONF_PIN_B])
+    pin_c = yield gpio_output_pin_expression(config[CONF_PIN_C])
+    pin_d = yield gpio_output_pin_expression(config[CONF_PIN_D])
     rhs = App.make_uln2003(pin_a, pin_b, pin_c, pin_d)
     uln = Pvariable(config[CONF_ID], rhs)
 

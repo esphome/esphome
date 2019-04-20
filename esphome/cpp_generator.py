@@ -1,14 +1,14 @@
 from collections import OrderedDict
 import math
 
-from esphome.core import CORE, HexInt, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
-from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
-
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Union  # noqa
-from esphome.core import ID  # noqa
-from esphome.py_compat import text_type, string_types, integer_types
+from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Callable  # noqa
+
+from esphome.core import (  # noqa
+    CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine)
+from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
+from esphome.py_compat import integer_types, string_types, text_type
 
 
 class Expression(object):
@@ -30,7 +30,8 @@ class Expression(object):
         return self.required
 
 
-SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod]
+SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod,
+                    Type[bool], Type[int], Type[float]]
 
 
 class RawExpression(Expression):
@@ -190,9 +191,9 @@ class LambdaExpression(Expression):
         self.parameters = parameters
         self.requires.append(self.parameters)
         self.capture = capture
-        self.return_type = return_type
+        self.return_type = safe_exp(return_type) if return_type is not None else None
         if return_type is not None:
-            self.requires.append(return_type)
+            self.requires.append(self.return_type)
         for i in range(1, len(parts), 3):
             self.requires.append(parts[i])
 
@@ -271,6 +272,8 @@ def safe_exp(
         obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
+    from esphome.cpp_types import bool_, float_, int32
+
     if isinstance(obj, Expression):
         return obj
     if isinstance(obj, bool):
@@ -293,6 +296,12 @@ def safe_exp(
         return IntLiteral(int(obj.total_minutes))
     if isinstance(obj, (tuple, list)):
         return ArrayInitializer(*[safe_exp(o) for o in obj])
+    if obj is bool:
+        return bool_
+    if obj is int:
+        return int32
+    if obj is float:
+        return float_
     raise ValueError(u"Object is not an expression", obj)
 
 
@@ -390,12 +399,13 @@ def add(expression,  # type: Union[Expression, Statement]
     CORE.add(expression, require=require)
 
 
+@coroutine
 def get_variable(id):  # type: (ID) -> Generator[MockObj]
-    for var in CORE.get_variable(id):
-        yield None
+    var = yield CORE.get_variable(id)
     yield var
 
 
+@coroutine
 def process_lambda(value,  # type: Lambda
                    parameters,  # type: List[Tuple[Expression, str]]
                    capture='=',  # type: str
@@ -409,8 +419,7 @@ def process_lambda(value,  # type: Lambda
         return
     parts = value.parts[:]
     for i, id in enumerate(value.requires_ids):
-        for full_id, var in CORE.get_variable_with_full_id(id):
-            yield
+        full_id, var = yield CORE.get_variable_with_full_id(id)
         if full_id is not None and isinstance(full_id.type, MockObjClass) and \
                 full_id.type.inherits_from(GlobalVariableComponent):
             parts[i * 3 + 1] = var.value()
@@ -424,16 +433,22 @@ def process_lambda(value,  # type: Lambda
     yield LambdaExpression(parts, parameters, capture, return_type)
 
 
+@coroutine
 def templatable(value,  # type: Any
-                args,  # type: List[Tuple[Expression, str]]
-                output_type  # type: Optional[Expression]
+                args,  # type: List[Tuple[SafeExpType, str]]
+                output_type,  # type: Optional[SafeExpType],
+                to_exp=None  # type: Optional[Any]
                 ):
     if isinstance(value, Lambda):
-        for lambda_ in process_lambda(value, args, return_type=output_type):
-            yield None
+        lambda_ = yield process_lambda(value, args, return_type=output_type)
         yield lambda_
     else:
-        yield value
+        if to_exp is None:
+            yield value
+        elif isinstance(to_exp, dict):
+            yield to_exp[value]
+        else:
+            yield to_exp(value)
 
 
 class MockObj(Expression):
