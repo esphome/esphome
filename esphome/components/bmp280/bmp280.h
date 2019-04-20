@@ -53,7 +53,6 @@ enum BMP280IIRFilter {
 /// This class implements support for the BMP280 Temperature+Pressure i2c sensor.
 class BMP280Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  BMP280Component(uint32_t update_interval);
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { pressure_sensor_ = pressure_sensor; }
 

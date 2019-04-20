@@ -12,28 +12,58 @@ class ExtraKeysInvalid(vol.Invalid):
         vol.Invalid.__init__(self, *arg, **kwargs)
 
 
+def ensure_multiple_invalid(err):
+    if isinstance(err, vol.MultipleInvalid):
+        return err
+    return vol.MultipleInvalid(err)
+
+
 # pylint: disable=protected-access, unidiomatic-typecheck
 class _Schema(vol.Schema):
     """Custom cv.Schema that prints similar keys on error."""
+    def __init__(self, schema, extra=vol.PREVENT_EXTRA, extra_schemas=None):
+        super(_Schema, self).__init__(schema, extra=extra)
+        # List of extra schemas to apply after validation
+        # Should be used sparingly, as it's not a very voluptuous-way/clean way of
+        # doing things.
+        self._extra_schemas = extra_schemas or []
+
+    def __call__(self, data):
+        res = super(_Schema, self).__call__(data)
+        for extra in self._extra_schemas:
+            try:
+                res = extra(res)
+            except vol.Invalid as err:
+                raise ensure_multiple_invalid(err)
+        return res
+
     def _compile_mapping(self, schema, invalid_msg=None):
         invalid_msg = invalid_msg or 'mapping value'
 
+        # Check some things that ESPHome's schemas do not allow
+        # mostly to keep the logic in this method sane (so these may be re-added if needed).
+        for key in schema:
+            if key is vol.Extra:
+                raise ValueError("ESPHome does not allow vol.Extra")
+            if isinstance(key, vol.Remove):
+                raise ValueError("ESPHome does not allow vol.Remove")
+            if isinstance(key, vol.primitive_types):
+                raise ValueError("All schema keys must be wrapped in cv.Required or cv.Optional")
+
         # Keys that may be required
-        all_required_keys = set(key for key in schema
-                                if key is not vol.Extra and
-                                ((self.required and not isinstance(key, (vol.Optional, vol.Remove)))
-                                 or isinstance(key, vol.Required)))
+        all_required_keys = set(key for key in schema if isinstance(key, vol.Required))
 
         # Keys that may have defaults
-        all_default_keys = set(key for key in schema
-                               if isinstance(key, (vol.Required, vol.Optional)))
+        all_default_keys = set(key for key in schema if isinstance(key, vol.Optional))
 
+        # Recursively compile schema
         _compiled_schema = {}
         for skey, svalue in vol.iteritems(schema):
             new_key = self._compile(skey)
             new_value = self._compile(svalue)
             _compiled_schema[skey] = (new_key, new_value)
 
+        # Sort compiled schema (probably not necessary for esphome, but leave it here just in case)
         candidates = list(vol.schema_builder._iterate_mapping_candidates(_compiled_schema))
 
         # After we have the list of candidates in the correct order, we want to apply some
@@ -71,18 +101,14 @@ class _Schema(vol.Schema):
 
             # Insert default values for non-existing keys.
             for key in all_default_keys:
-                if not isinstance(key.default, vol.Undefined) and \
-                        key.schema not in key_value_map:
-                    # A default value has been specified for this missing
-                    # key, insert it.
+                if not isinstance(key.default, vol.Undefined) and key.schema not in key_value_map:
+                    # A default value has been specified for this missing key, insert it.
                     key_value_map[key.schema] = key.default()
 
             error = None
             errors = []
             for key, value in key_value_map.items():
                 key_path = path + [key]
-                remove_key = False
-
                 # Optimization. Validate against the matching key first, then fallback to the rest
                 relevant_candidates = itertools.chain(candidates_by_key.get(key, []),
                                                       additional_candidates)
@@ -101,24 +127,15 @@ class _Schema(vol.Schema):
                     # Backtracking is not performed once a key is selected, so if
                     # the value is invalid we immediately throw an exception.
                     exception_errors = []
-                    # check if the key is marked for removal
-                    is_remove = new_key is vol.Remove
                     try:
                         cval = cvalue(key_path, value)
-                        # include if it's not marked for removal
-                        if not is_remove:
-                            out[new_key] = cval
-                        else:
-                            remove_key = True
-                            continue
+                        out[new_key] = cval
                     except vol.MultipleInvalid as e:
                         exception_errors.extend(e.errors)
                     except vol.Invalid as e:
                         exception_errors.append(e)
 
                     if exception_errors:
-                        if is_remove or remove_key:
-                            continue
                         for err in exception_errors:
                             if len(err.path) <= len(key_path):
                                 err.error_type = invalid_msg
@@ -136,10 +153,7 @@ class _Schema(vol.Schema):
 
                     break
                 else:
-                    if remove_key:
-                        # remove key
-                        continue
-                    elif self.extra == vol.ALLOW_EXTRA:
+                    if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
                     elif self.extra != vol.REMOVE_EXTRA:
                         if isinstance(key, string_types) and key_names:
@@ -151,7 +165,7 @@ class _Schema(vol.Schema):
 
             # for any required keys left that weren't found and don't have defaults:
             for key in required_keys:
-                msg = key.msg if hasattr(key, 'msg') and key.msg else 'required key not provided'
+                msg = getattr(key, 'msg', None) or 'required key not provided'
                 errors.append(vol.RequiredFieldInvalid(msg, path + [key]))
             if errors:
                 raise vol.MultipleInvalid(errors)
@@ -160,8 +174,25 @@ class _Schema(vol.Schema):
 
         return validate_mapping
 
-    def extend(self, schema, required=None, extra=None):
+    def add_extra(self, validator):
+        validator = _Schema(validator)
+        self._extra_schemas.append(validator)
+        return self
+
+    def extend(self, *schemas, **kwargs):
+        extra = kwargs.pop('extra', None)
+        if kwargs:
+            raise ValueError
+        if not schemas:
+            return self.extend({})
+        if len(schemas) != 1:
+            ret = self
+            for schema in schemas:
+                ret = ret.extend(schema)
+            return ret
+
+        schema = schemas[0]
         if isinstance(schema, vol.Schema):
             schema = schema.schema
-        ret = vol.Schema.extend(self, schema, required=required, extra=extra)
-        return _Schema(ret.schema, required=ret.required, extra=ret.extra)
+        ret = super(_Schema, self).extend(schema, extra=extra)
+        return _Schema(ret.schema, extra=ret.extra, extra_schemas=self._extra_schemas)

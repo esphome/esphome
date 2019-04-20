@@ -8,8 +8,6 @@ namespace shutdown {
 
 class ShutdownSwitch : public switch_::Switch, public Component {
  public:
-  explicit ShutdownSwitch(const std::string &name) : switch_::Switch(name) {}
-
   void dump_config() override;
 
  protected:

@@ -12,9 +12,9 @@ RDM6300Component = rdm6300_ns.class_('RDM6300Component', cg.Component, uart.UART
 RDM6300Trigger = rdm6300_ns.class_('RDM6300Trigger', cg.Trigger.template(cg.uint32))
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(RDM6300Component),
+    cv.GenerateID(): cv.declare_id(RDM6300Component),
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(RDM6300Trigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RDM6300Trigger),
     }),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 

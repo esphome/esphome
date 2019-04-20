@@ -8,8 +8,7 @@ namespace i2c {
 
 static const char *TAG = "i2c";
 
-I2CComponent::I2CComponent(uint8_t sda_pin, uint8_t scl_pin, uint32_t frequency, bool scan)
-    : sda_pin_(sda_pin), scl_pin_(scl_pin), frequency_(frequency), scan_(scan) {
+I2CComponent::I2CComponent() {
 #ifdef ARDUINO_ARCH_ESP32
   if (next_i2c_bus_num_ == 0)
     this->wire_ = &Wire;

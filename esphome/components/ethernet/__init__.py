@@ -7,6 +7,7 @@ from esphome.core import CORE, coroutine_with_priority
 
 CONFLICTS_WITH = ['wifi']
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
+AUTO_LOAD = ['network']
 
 ethernet_ns = cg.esphome_ns.namespace('ethernet')
 CONF_PHY_ADDR = 'phy_addr'
@@ -54,12 +55,12 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(EthernetComponent),
-    cv.Required(CONF_TYPE): cv.one_of(*ETHERNET_TYPES, upper=True),
+    cv.GenerateID(): cv.declare_id(EthernetComponent),
+    cv.Required(CONF_TYPE): cv.enum(ETHERNET_TYPES, upper=True),
     cv.Required(CONF_MDC_PIN): pins.output_pin,
     cv.Required(CONF_MDIO_PIN): pins.input_output_pin,
-    cv.Optional(CONF_CLK_MODE, default='GPIO0_IN'): cv.one_of(*CLK_MODES, upper=True, space='_'),
-    cv.Optional(CONF_PHY_ADDR, default=0): cv.All(cv.int_, cv.Range(min=0, max=31)),
+    cv.Optional(CONF_CLK_MODE, default='GPIO0_IN'): cv.enum(CLK_MODES, upper=True, space='_'),
+    cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
     cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
@@ -87,7 +88,7 @@ def to_code(config):
     cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
     cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
-    cg.add(var.set_type(ETHERNET_TYPES[config[CONF_TYPE]]))
+    cg.add(var.set_type(config[CONF_TYPE]))
     cg.add(var.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 

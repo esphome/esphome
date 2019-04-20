@@ -2,20 +2,20 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
 
 TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.BinarySensor,
                                           cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield binary_sensor.register_binary_sensor(var, config)
 
@@ -26,7 +26,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('binary_sensor.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(binary_sensor.BinarySensor),
+    cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }))
 def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):

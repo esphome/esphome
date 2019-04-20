@@ -5,7 +5,7 @@ from esphome.components import mqtt
 from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATURE, \
     CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
     CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
-    CONF_MQTT_ID
+    CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -25,14 +25,14 @@ CLIMATE_MODES = {
     'HEAT': ClimateMode.CLIMATE_MODE_HEAT,
 }
 
-validate_climate_mode = cv.one_of(*CLIMATE_MODES, upper=True)
+validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 # Actions
 ControlAction = climate_ns.class_('ControlAction', cg.Action)
 
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(ClimateDevice),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTClimateComponent),
+    cv.GenerateID(): cv.declare_id(ClimateDevice),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTClimateComponent),
     cv.Optional(CONF_VISUAL, default={}): cv.Schema({
         cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
         cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
@@ -44,6 +44,7 @@ CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_climate_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     visual = config[CONF_VISUAL]
@@ -68,7 +69,7 @@ def register_climate(var, config):
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(ClimateDevice),
+    cv.Required(CONF_ID): cv.use_id(ClimateDevice),
     cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
     cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
     cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
@@ -84,8 +85,7 @@ def climate_control_to_code(config, action_id, template_arg, args):
     rhs = type.new(var)
     action = cg.Pvariable(action_id, rhs, type=type)
     if CONF_MODE in config:
-        template_ = yield cg.templatable(config[CONF_MODE], args, ClimateMode,
-                                         to_exp=CLIMATE_MODES)
+        template_ = yield cg.templatable(config[CONF_MODE], args, ClimateMode)
         cg.add(action.set_mode(template_))
     if CONF_TARGET_TEMPERATURE in config:
         template_ = yield cg.templatable(config[CONF_TARGET_TEMPERATURE], args, float)

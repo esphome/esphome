@@ -19,7 +19,7 @@ MCP23017 = mcp23017_ns.class_('MCP23017', cg.Component, i2c.I2CDevice)
 MCP23017GPIOPin = mcp23017_ns.class_('MCP23017GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(MCP23017),
+    cv.Required(CONF_ID): cv.declare_id(MCP23017),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x20))
 
 
@@ -31,15 +31,15 @@ def to_code(config):
 
 CONF_MCP23017 = 'mcp23017'
 MCP23017_OUTPUT_PIN_SCHEMA = cv.Schema({
-    cv.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
+    cv.Required(CONF_MCP23017): cv.use_id(MCP23017),
     cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="OUTPUT"): cv.one_of(*MCP23017_GPIO_MODES, upper=True),
+    cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(MCP23017_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 MCP23017_INPUT_PIN_SCHEMA = cv.Schema({
-    cv.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
+    cv.Required(CONF_MCP23017): cv.use_id(MCP23017),
     cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="INPUT"): cv.one_of(*MCP23017_GPIO_MODES, upper=True),
+    cv.Optional(CONF_MODE, default="INPUT"): cv.enum(MCP23017_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
@@ -48,5 +48,4 @@ MCP23017_INPUT_PIN_SCHEMA = cv.Schema({
                                    (MCP23017_OUTPUT_PIN_SCHEMA, MCP23017_INPUT_PIN_SCHEMA))
 def mcp23017_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_MCP23017])
-    yield MCP23017GPIOPin.new(parent, config[CONF_NUMBER],
-                              MCP23017_GPIO_MODES[config[CONF_MODE]], config[CONF_INVERTED])
+    yield MCP23017GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])

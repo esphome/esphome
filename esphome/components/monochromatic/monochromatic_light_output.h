@@ -9,7 +9,7 @@ namespace monochromatic {
 
 class MonochromaticLightOutput : public light::LightOutput {
  public:
-  MonochromaticLightOutput(output::FloatOutput *output) : output_(output) {}
+  void set_output(output::FloatOutput *output) { output_ = output; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);

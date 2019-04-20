@@ -14,7 +14,6 @@ namespace status {
 
 static const char *TAG = "status";
 
-StatusBinarySensor::StatusBinarySensor(const std::string &name) : BinarySensor(name) {}
 void StatusBinarySensor::loop() {
   bool status = network_is_connected();
 #ifdef USE_MQTT

@@ -44,7 +44,7 @@ VOLTAGE_ATTENUATION = {
 }
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ESP32TouchComponent),
+    cv.GenerateID(): cv.declare_id(ESP32TouchComponent),
     cv.Optional(CONF_SETUP_MODE, default=False): cv.boolean,
     cv.Optional(CONF_IIR_FILTER, default='0ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SLEEP_DURATION, default='27306us'):

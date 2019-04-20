@@ -398,7 +398,7 @@ GITIGNORE_CONTENT = """# Gitignore settings for ESPHome
 
 
 def write_gitignore():
-    path = CORE.relative_path('.gitignore')
+    path = CORE.relative_config_path('.gitignore')
     if not os.path.isfile(path):
         with open(path, 'w') as f:
             f.write(GITIGNORE_CONTENT)

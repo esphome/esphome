@@ -31,8 +31,6 @@ void HomeassistantBinarySensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Entity ID: '%s'", this->entity_id_.c_str());
 }
 float HomeassistantBinarySensor::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
-HomeassistantBinarySensor::HomeassistantBinarySensor(const std::string &name, const std::string &entity_id)
-    : BinarySensor(name), entity_id_(entity_id) {}
 
 }  // namespace homeassistant
 }  // namespace esphome

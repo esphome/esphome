@@ -9,7 +9,7 @@ DEPENDENCIES = ['remote_receiver']
 BASE_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({}, extra=cv.ALLOW_EXTRA)
 
 
-CONFIG_SCHEMA = cv.nameable(cv.All(BASE_SCHEMA, remote_base.validate_binary_sensor(BASE_SCHEMA)))
+CONFIG_SCHEMA = cv.All(BASE_SCHEMA, remote_base.validate_binary_sensor(BASE_SCHEMA))
 
 
 def to_code(config):

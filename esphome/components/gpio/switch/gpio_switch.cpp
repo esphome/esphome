@@ -6,8 +6,6 @@ namespace gpio {
 
 static const char *TAG = "switch.gpio";
 
-GPIOSwitch::GPIOSwitch(const std::string &name, GPIOPin *pin) : Switch(name), Component(), pin_(pin) {}
-
 float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 void GPIOSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->name_.c_str());

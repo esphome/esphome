@@ -8,8 +8,6 @@ namespace lcd_gpio {
 
 class GPIOLCDDisplay : public lcd_base::LCDDisplay {
  public:
-  GPIOLCDDisplay(uint32_t update_interval) : LCDDisplay(update_interval) {}
-
   void setup() override;
   void set_data_pins(GPIOPin *d0, GPIOPin *d1, GPIOPin *d2, GPIOPin *d3) {
     this->data_pins_[0] = d0;

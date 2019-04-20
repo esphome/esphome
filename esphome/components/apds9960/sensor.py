@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_TYPE, CONF_UNIT_OF_MEASUREMENT, CONF_ACCURACY_DECIMALS, CONF_ICON, \
-    UNIT_PERCENT, ICON_LIGHTBULB
+from esphome.const import CONF_TYPE, UNIT_PERCENT, ICON_LIGHTBULB
 from . import APDS9960, CONF_APDS9960_ID
 
 DEPENDENCIES = ['apds9960']
@@ -15,14 +14,10 @@ TYPES = {
     'PROXIMITY': 'set_proximity',
 }
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_LIGHTBULB, 1).extend({
     cv.Required(CONF_TYPE): cv.one_of(*TYPES, upper=True),
-    cv.GenerateID(CONF_APDS9960_ID): cv.use_variable_id(APDS9960),
-
-    cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_PERCENT): sensor.unit_of_measurement,
-    cv.Optional(CONF_ACCURACY_DECIMALS, default=1): sensor.accuracy_decimals,
-    cv.Optional(CONF_ICON, default=ICON_LIGHTBULB): sensor.icon,
-}))
+    cv.GenerateID(CONF_APDS9960_ID): cv.use_id(APDS9960),
+})
 
 
 def to_code(config):

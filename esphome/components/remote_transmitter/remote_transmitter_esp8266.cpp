@@ -69,8 +69,8 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
     ESP_LOGD(TAG, "Sending remote code with %d mark/spaces at %d Hz times: %d / %d...", 
              this->temp_.get_data().size(), this->temp_.get_carrier_frequency(),
              on_time, off_time);
-
-    ESP.wdtFeed();
+  
+    ESP.wdtFeed();  
     disable_interrupts();
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {

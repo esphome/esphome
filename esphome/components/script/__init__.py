@@ -10,7 +10,7 @@ ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', cg.Action)
 ScriptStopAction = script_ns.class_('ScriptStopAction', cg.Action)
 
 CONFIG_SCHEMA = automation.validate_automation({
-    cv.Required(CONF_ID): cv.declare_variable_id(Script),
+    cv.Required(CONF_ID): cv.declare_id(Script),
 })
 
 
@@ -21,7 +21,7 @@ def to_code(config):
 
 
 @ACTION_REGISTRY.register('script.execute', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Script),
+    cv.Required(CONF_ID): cv.use_id(Script),
 }))
 def script_execute_action_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])
@@ -31,7 +31,7 @@ def script_execute_action_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('script.stop', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Script)
+    cv.Required(CONF_ID): cv.use_id(Script)
 }))
 def script_stop_action_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])

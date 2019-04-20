@@ -34,12 +34,12 @@ def validate_touch_pad(value):
 
 ESP32TouchBinarySensor = esp32_touch_ns.class_('ESP32TouchBinarySensor', binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(ESP32TouchBinarySensor),
-    cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_variable_id(ESP32TouchComponent),
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(ESP32TouchBinarySensor),
+    cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_id(ESP32TouchComponent),
     cv.Required(CONF_PIN): validate_touch_pad,
     cv.Required(CONF_THRESHOLD): cv.uint16_t,
-}))
+})
 
 
 def to_code(config):

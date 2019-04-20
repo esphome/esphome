@@ -22,9 +22,6 @@ void PowerSupply::dump_config() {
 
 float PowerSupply::get_setup_priority() const { return setup_priority::IO; }
 
-PowerSupply::PowerSupply(GPIOPin *pin, uint32_t enable_time, uint32_t keep_on_time)
-    : pin_(pin), enable_time_(enable_time), keep_on_time_(keep_on_time) {}
-
 bool PowerSupply::is_enabled() const { return this->enabled_; }
 
 void PowerSupply::request_high_power() {

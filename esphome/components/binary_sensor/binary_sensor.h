@@ -24,12 +24,12 @@ namespace binary_sensor {
  */
 class BinarySensor : public Nameable {
  public:
+  explicit BinarySensor();
   /** Construct a binary sensor with the specified name
    *
    * @param name Name of this binary sensor.
    */
   explicit BinarySensor(const std::string &name);
-  explicit BinarySensor();
 
   /** Add a callback to be notified of state changes.
    *

@@ -7,11 +7,8 @@
 namespace esphome {
 namespace adc {
 
-class ADCSensor : public sensor::PollingSensorComponent {
+class ADCSensor : public sensor::Sensor, public PollingComponent {
  public:
-  /// Construct the ADCSensor with the provided pin and update interval in ms.
-  explicit ADCSensor(const std::string &name, uint8_t pin, uint32_t update_interval);
-
 #ifdef ARDUINO_ARCH_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.
   void set_attenuation(adc_attenuation_t attenuation);
@@ -26,6 +23,7 @@ class ADCSensor : public sensor::PollingSensorComponent {
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
+  void set_pin(uint8_t pin) { this->pin_ = pin; }
 
 #ifdef ARDUINO_ARCH_ESP8266
   std::string unique_id() override;

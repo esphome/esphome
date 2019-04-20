@@ -9,7 +9,7 @@ namespace waveshare_epaper {
 
 class WaveshareEPaper : public PollingComponent, public spi::SPIDevice, public display::DisplayBuffer {
  public:
-  WaveshareEPaper(GPIOPin *dc_pin);
+  void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
@@ -53,7 +53,7 @@ enum WaveshareEPaperTypeAModel {
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
  public:
-  WaveshareEPaperTypeA(GPIOPin *dc_pin, WaveshareEPaperTypeAModel model);
+  WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model);
 
   void setup() override;
 
@@ -83,7 +83,6 @@ enum WaveshareEPaperTypeBModel {
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
  public:
-  WaveshareEPaper2P7In(GPIOPin *dc_pin);
   void setup() override;
 
   void display() override;
@@ -98,7 +97,6 @@ class WaveshareEPaper2P7In : public WaveshareEPaper {
 
 class WaveshareEPaper4P2In : public WaveshareEPaper {
  public:
-  WaveshareEPaper4P2In(GPIOPin *dc_pin);
   void setup() override;
 
   void display() override;
@@ -115,7 +113,6 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
 
 class WaveshareEPaper7P5In : public WaveshareEPaper {
  public:
-  WaveshareEPaper7P5In(GPIOPin *dc_pin);
   void setup() override;
 
   void display() override;

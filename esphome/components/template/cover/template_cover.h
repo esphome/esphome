@@ -15,7 +15,7 @@ enum TemplateCoverRestoreMode {
 
 class TemplateCover : public cover::Cover, public Component {
  public:
-  explicit TemplateCover(const std::string &name);
+  TemplateCover();
 
   void set_state_lambda(std::function<optional<float>()> &&f);
   Trigger<> *get_open_trigger() const;

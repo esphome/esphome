@@ -110,7 +110,6 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, int color) 
     this->buffer_[pos] &= ~(0x80 >> subpos);
 }
 uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
-WaveshareEPaper::WaveshareEPaper(GPIOPin *dc_pin) : PollingComponent(0), dc_pin_(dc_pin) {}
 bool WaveshareEPaper::is_device_high_speed() { return true; }
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
@@ -246,8 +245,7 @@ void WaveshareEPaperTypeA::write_lut_(const uint8_t *lut) {
   for (uint8_t i = 0; i < 30; i++)
     this->data(lut[i]);
 }
-WaveshareEPaperTypeA::WaveshareEPaperTypeA(GPIOPin *dc_pin, WaveshareEPaperTypeAModel model)
-    : WaveshareEPaper(dc_pin), model_(model) {}
+WaveshareEPaperTypeA::WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model) : model_(model) {}
 void WaveshareEPaperTypeA::set_full_update_every(uint32_t full_update_every) {
   this->full_update_every_ = full_update_every;
 }
@@ -414,7 +412,6 @@ void HOT WaveshareEPaper2P7In::display() {
 }
 int WaveshareEPaper2P7In::get_width_internal() { return 176; }
 int WaveshareEPaper2P7In::get_height_internal() { return 264; }
-WaveshareEPaper2P7In::WaveshareEPaper2P7In(GPIOPin *dc_pin) : WaveshareEPaper(dc_pin) {}
 void WaveshareEPaper2P7In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.7in");
@@ -523,7 +520,6 @@ void HOT WaveshareEPaper4P2In::display() {
 int WaveshareEPaper4P2In::get_width_internal() { return 400; }
 int WaveshareEPaper4P2In::get_height_internal() { return 300; }
 bool WaveshareEPaper4P2In::is_device_high_speed() { return false; }
-WaveshareEPaper4P2In::WaveshareEPaper4P2In(GPIOPin *dc_pin) : WaveshareEPaper(dc_pin) {}
 void WaveshareEPaper4P2In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in");
@@ -609,7 +605,6 @@ void HOT WaveshareEPaper7P5In::display() {
 }
 int WaveshareEPaper7P5In::get_width_internal() { return 640; }
 int WaveshareEPaper7P5In::get_height_internal() { return 384; }
-WaveshareEPaper7P5In::WaveshareEPaper7P5In(GPIOPin *dc_pin) : WaveshareEPaper(dc_pin) {}
 void WaveshareEPaper7P5In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 7.5in");

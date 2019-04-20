@@ -8,8 +8,6 @@ namespace template_ {
 
 class TemplateBinarySensor : public Component, public binary_sensor::BinarySensor {
  public:
-  explicit TemplateBinarySensor(const std::string &name) : BinarySensor(name) {}
-
   void set_template(std::function<optional<bool>()> &&f) { this->f_ = f; }
 
   void loop() override;

@@ -29,11 +29,7 @@ def validate_rotation(value):
     value = cv.string(value)
     if value.endswith(u"°"):
         value = value[:-1]
-    try:
-        value = int(value)
-    except ValueError:
-        raise cv.Invalid(u"Expected integer for rotation")
-    return cv.one_of(*DISPLAY_ROTATIONS)(value)
+    return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
 
 
 BASIC_DISPLAY_SCHEMA = cv.Schema({
@@ -44,7 +40,7 @@ BASIC_DISPLAY_SCHEMA = cv.Schema({
 FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_ROTATION): validate_rotation,
     cv.Optional(CONF_PAGES): cv.All(cv.ensure_list({
-        cv.GenerateID(): cv.declare_variable_id(DisplayPage),
+        cv.GenerateID(): cv.declare_id(DisplayPage),
         cv.Required(CONF_LAMBDA): cv.lambda_,
     }), cv.Length(min=1)),
 })
@@ -72,7 +68,7 @@ def register_display(var, config):
 
 
 @ACTION_REGISTRY.register('display.page.show', maybe_simple_id({
-    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayPage)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayPage)),
 }))
 def display_page_show_to_code(config, action_id, template_arg, args):
     type = DisplayPageShowAction.template(template_arg)
@@ -87,7 +83,7 @@ def display_page_show_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('display.page.show_next', maybe_simple_id({
-    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
 }))
 def display_page_show_next_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])
@@ -96,7 +92,7 @@ def display_page_show_next_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('display.page.show_previous', maybe_simple_id({
-    cv.Required(CONF_ID): cv.templatable(cv.use_variable_id(DisplayBuffer)),
+    cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
 }))
 def display_page_show_previous_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])

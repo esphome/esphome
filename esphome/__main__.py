@@ -195,8 +195,13 @@ def clean_mqtt(config, args):
     return mqtt.clear_topic(config, args.topic, args.username, args.password, args.client_id)
 
 
-def setup_log(debug=False):
-    log_level = logging.DEBUG if debug else logging.INFO
+def setup_log(debug=False, quiet=False):
+    if debug:
+        log_level = logging.DEBUG
+    elif quiet:
+        log_level = logging.CRITICAL
+    else:
+        log_level = logging.INFO
     logging.basicConfig(level=log_level)
     fmt = "%(levelname)s %(message)s"
     colorfmt = "%(log_color)s{}%(reset)s".format(fmt)
@@ -234,6 +239,13 @@ def command_config(args, config):
         config = strip_default_ids(config)
     safe_print(yaml_util.dump(config))
     return 0
+
+
+def command_vscode(args):
+    from esphome import vscode
+
+    CORE.config_path = args.configuration
+    vscode.read_config()
 
 
 def command_compile(args, config):
@@ -321,7 +333,8 @@ def command_dashboard(args):
 PRE_CONFIG_ACTIONS = {
     'wizard': command_wizard,
     'version': command_version,
-    'dashboard': command_dashboard
+    'dashboard': command_dashboard,
+    'vscode': command_vscode,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -340,8 +353,9 @@ def parse_args(argv):
     parser = argparse.ArgumentParser(prog='esphome')
     parser.add_argument('-v', '--verbose', help="Enable verbose esphome logs.",
                         action='store_true')
-    parser.add_argument('--dashboard', help="Internal flag to set if the command is run from the "
-                                            "dashboard.", action='store_true')
+    parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
+                        action='store_true')
+    parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
     parser.add_argument('configuration', help='Your YAML configuration file.')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -404,11 +418,12 @@ def parse_args(argv):
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
     dashboard.add_argument("--hassio",
-                           help="Internal flag used to tell esphome is started as a Hass.io "
-                                "add-on.",
+                           help=argparse.SUPPRESS,
                            action="store_true")
     dashboard.add_argument("--socket",
                            help="Make the dashboard serve under a unix socket", type=str)
+
+    subparsers.add_parser('vscode', help=argparse.SUPPRESS)
 
     return parser.parse_args(argv[1:])
 
@@ -417,7 +432,7 @@ def run_esphome(argv):
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
-    setup_log(args.verbose)
+    setup_log(args.verbose, args.quiet)
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)

@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
-    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID
+    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -24,7 +24,7 @@ COVER_STATES = {
     'OPEN': COVER_OPEN,
     'CLOSED': COVER_CLOSED,
 }
-validate_cover_state = cv.one_of(*COVER_STATES, upper=True)
+validate_cover_state = cv.enum(COVER_STATES, upper=True)
 
 CoverOperation = cover_ns.enum('CoverOperation')
 COVER_OPERATIONS = {
@@ -32,7 +32,7 @@ COVER_OPERATIONS = {
     'OPENING': CoverOperation.COVER_OPERATION_OPENING,
     'CLOSING': CoverOperation.COVER_OPERATION_CLOSING,
 }
-validate_cover_operation = cv.one_of(*COVER_OPERATIONS, upper=True)
+validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
 OpenAction = cover_ns.class_('OpenAction', cg.Action)
@@ -44,8 +44,8 @@ CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
 CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 
 COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(Cover),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTCoverComponent),
+    cv.GenerateID(): cv.declare_id(Cover),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTCoverComponent),
     cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
     # TODO: MQTT topic options
 })
@@ -53,6 +53,7 @@ COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_cover_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEVICE_CLASS in config:
@@ -72,7 +73,7 @@ def register_cover(var, config):
 
 
 COVER_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Cover),
+    cv.Required(CONF_ID): cv.use_id(Cover),
 })
 
 
@@ -101,9 +102,9 @@ def cover_stop_to_code(config, action_id, template_arg, args):
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Cover),
+    cv.Required(CONF_ID): cv.use_id(Cover),
     cv.Optional(CONF_STOP): cv.templatable(cv.boolean),
-    cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(cv.one_of(*COVER_STATES)),
+    cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.percentage),
     cv.Optional(CONF_TILT): cv.templatable(cv.percentage),
 })
@@ -119,8 +120,7 @@ def cover_control_to_code(config, action_id, template_arg, args):
         template_ = yield cg.templatable(config[CONF_STOP], args, bool)
         cg.add(action.set_stop(template_))
     if CONF_STATE in config:
-        template_ = yield cg.templatable(config[CONF_STATE], args, float,
-                                         to_exp=COVER_STATES)
+        template_ = yield cg.templatable(config[CONF_STATE], args, float)
         cg.add(action.set_position(template_))
     if CONF_POSITION in config:
         template_ = yield cg.templatable(config[CONF_POSITION], args, float)

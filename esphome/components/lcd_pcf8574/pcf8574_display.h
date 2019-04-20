@@ -9,7 +9,6 @@ namespace lcd_pcf8574 {
 
 class PCF8574LCDDisplay : public lcd_base::LCDDisplay, public i2c::I2CDevice {
  public:
-  PCF8574LCDDisplay(uint32_t update_interval) : lcd_base::LCDDisplay(update_interval) {}
   void setup() override;
   void dump_config() override;
 

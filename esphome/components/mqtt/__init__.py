@@ -14,6 +14,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_WILL_MESSAGE
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
+DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']
 
 
@@ -97,12 +98,12 @@ def validate_fingerprint(value):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.declare_id(MQTTClientComponent),
     cv.Required(CONF_BROKER): cv.string_strict,
     cv.Optional(CONF_PORT, default=1883): cv.port,
     cv.Optional(CONF_USERNAME, default=''): cv.string,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.All(cv.string, cv.Length(max=23)),
+    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.string,
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,
@@ -120,13 +121,13 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_KEEPALIVE, default='15s'): cv.positive_time_period_seconds,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
         cv.Optional(CONF_PAYLOAD): cv.string_strict,
     }),
     cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     }),
@@ -221,7 +222,7 @@ def to_code(config):
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
     cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     cv.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
     cv.Optional(CONF_QOS, default=0): cv.templatable(cv.mqtt_qos),
@@ -248,7 +249,7 @@ def mqtt_publish_action_to_code(config, action_id, template_arg, args):
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
     cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     cv.Required(CONF_PAYLOAD): cv.lambda_,
     cv.Optional(CONF_QOS, default=0): cv.templatable(cv.mqtt_qos),
@@ -305,7 +306,7 @@ def register_mqtt_component(var, config):
 
 
 @CONDITION_REGISTRY.register('mqtt.connected', cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
 }))
 def mqtt_connected_to_code(config, condition_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])

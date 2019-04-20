@@ -12,8 +12,8 @@ ServoDetachAction = servo_ns.class_('ServoDetachAction', cg.Action)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.declare_variable_id(Servo),
-    cv.Required(CONF_OUTPUT): cv.use_variable_id(FloatOutput),
+    cv.Required(CONF_ID): cv.declare_id(Servo),
+    cv.Required(CONF_OUTPUT): cv.use_id(FloatOutput),
     cv.Optional(CONF_MIN_LEVEL, default='3%'): cv.percentage,
     cv.Optional(CONF_IDLE_LEVEL, default='7.5%'): cv.percentage,
     cv.Optional(CONF_MAX_LEVEL, default='12%'): cv.percentage,
@@ -21,17 +21,18 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    out = yield cg.get_variable(config[CONF_OUTPUT])
-    var = cg.new_Pvariable(config[CONF_ID], out)
-    cg.register_component(var, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
+    out = yield cg.get_variable(config[CONF_OUTPUT])
+    cg.add(var.set_output(out))
     cg.add(var.set_min_level(config[CONF_MIN_LEVEL]))
     cg.add(var.set_idle_level(config[CONF_IDLE_LEVEL]))
     cg.add(var.set_max_level(config[CONF_MAX_LEVEL]))
 
 
 @ACTION_REGISTRY.register('servo.write', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Servo),
+    cv.Required(CONF_ID): cv.use_id(Servo),
     cv.Required(CONF_LEVEL): cv.templatable(cv.possibly_negative_percentage),
 }))
 def servo_write_to_code(config, action_id, template_arg, args):
@@ -45,7 +46,7 @@ def servo_write_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('servo.detach', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(Servo),
+    cv.Required(CONF_ID): cv.use_id(Servo),
 }))
 def servo_detach_to_code(config, action_id, template_arg, args):
     var = yield cg.get_variable(config[CONF_ID])

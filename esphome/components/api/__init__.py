@@ -1,4 +1,3 @@
-
 from esphome import automation
 from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
 import esphome.config_validation as cv
@@ -6,6 +5,8 @@ import esphome.codegen as cg
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID
 from esphome.core import CORE, coroutine_with_priority
+
+DEPENDENCIES = ['network']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -32,12 +33,12 @@ SERVICE_ARG_NATIVE_TYPES = {
 
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(APIServer),
+    cv.GenerateID(): cv.declare_id(APIServer),
     cv.Optional(CONF_PORT, default=6053): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string_strict,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SERVICES): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(UserService),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserService),
         cv.Required(CONF_SERVICE): cv.valid_name,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema({
             cv.validate_id_name: cv.one_of(*SERVICE_ARG_TYPES, lower=True),
@@ -48,13 +49,12 @@ CONFIG_SCHEMA = cv.Schema({
 
 @coroutine_with_priority(40.0)
 def to_code(config):
-    rhs = APIServer.new()
-    api = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(api, config)
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
-    cg.add(api.set_port(config[CONF_PORT]))
-    cg.add(api.set_password(config[CONF_PASSWORD]))
-    cg.add(api.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+    cg.add(var.set_port(config[CONF_PORT]))
+    cg.add(var.set_password(config[CONF_PASSWORD]))
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     for conf in config.get(CONF_SERVICES, []):
         template_args = []
@@ -65,7 +65,7 @@ def to_code(config):
             template_args.append(native)
             func_args.append((native, name))
             service_type_args.append(ServiceTypeArgument(name, SERVICE_ARG_TYPES[var_]))
-        func = api.make_user_service_trigger.template(*template_args)
+        func = var.make_user_service_trigger.template(*template_args)
         rhs = func(conf[CONF_SERVICE], service_type_args)
         type_ = UserService.template(*template_args)
         trigger = cg.Pvariable(conf[CONF_TRIGGER_ID], rhs, type=type_)
@@ -80,7 +80,7 @@ def to_code(config):
 
 CONF_HOMEASSISTANT_SERVICE = 'homeassistant.service'
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(APIServer),
+    cv.GenerateID(): cv.use_id(APIServer),
     cv.Required(CONF_SERVICE): cv.string,
     cv.Optional(CONF_DATA): cv.Schema({
         cv.string: cv.string,

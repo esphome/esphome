@@ -9,7 +9,8 @@ namespace binary {
 
 class BinaryFan : public Component {
  public:
-  BinaryFan(fan::FanState *fan, output::BinaryOutput *output) : fan_(fan), output_(output) {}
+  void set_fan(fan::FanState *fan) { fan_ = fan; }
+  void set_output(output::BinaryOutput *output) { output_ = output; }
   void setup() override;
   void loop() override;
   void dump_config() override;

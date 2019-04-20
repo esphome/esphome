@@ -9,7 +9,7 @@ from esphome.core import CORE, coroutine
 IS_PLATFORM_COMPONENT = True
 
 BINARY_OUTPUT_SCHEMA = cv.Schema({
-    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
     cv.Optional(CONF_INVERTED): cv.boolean,
 })
 
@@ -51,7 +51,7 @@ def register_output(var, config):
 
 
 BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(BinaryOutput),
+    cv.Required(CONF_ID): cv.use_id(BinaryOutput),
 })
 
 
@@ -72,7 +72,7 @@ def output_turn_off_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('output.set_level', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(FloatOutput),
+    cv.Required(CONF_ID): cv.use_id(FloatOutput),
     cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 }))
 def output_set_level_to_code(config, action_id, template_arg, args):

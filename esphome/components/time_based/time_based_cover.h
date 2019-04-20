@@ -9,7 +9,6 @@ namespace time_based {
 
 class TimeBasedCover : public cover::Cover, public Component {
  public:
-  TimeBasedCover(const std::string &name) : cover::Cover(name) {}
   void setup() override;
   void loop() override;
   void dump_config() override;

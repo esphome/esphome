@@ -71,7 +71,7 @@ def validate_local_no_higher_than_global(value):
 Logger = logger_ns.class_('Logger', cg.Component)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(Logger),
+    cv.GenerateID(): cv.declare_id(Logger),
     cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
     cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
     cv.Optional(CONF_HARDWARE_UART, default='UART0'): uart_selection,

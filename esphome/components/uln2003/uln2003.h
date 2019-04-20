@@ -15,8 +15,10 @@ enum ULN2003StepMode {
 
 class ULN2003 : public stepper::Stepper, public Component {
  public:
-  ULN2003(GPIOPin *pin_a, GPIOPin *pin_b, GPIOPin *pin_c, GPIOPin *pin_d)
-      : pin_a_(pin_a), pin_b_(pin_b), pin_c_(pin_c), pin_d_(pin_d) {}
+  void set_pin_a(GPIOPin *pin_a) { pin_a_ = pin_a; }
+  void set_pin_b(GPIOPin *pin_b) { pin_b_ = pin_b; }
+  void set_pin_c(GPIOPin *pin_c) { pin_c_ = pin_c; }
+  void set_pin_d(GPIOPin *pin_d) { pin_d_ = pin_d; }
 
   void setup() override;
   void loop() override;

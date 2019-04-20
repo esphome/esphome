@@ -83,7 +83,7 @@ EFFECTS_REGISTRY = ServiceRegistry()
 
 def register_effect(name, effect_type, default_name, schema, *extra_validators):
     schema = cv.Schema(schema).extend({
-        cv.GenerateID(): cv.declare_variable_id(effect_type),
+        cv.GenerateID(): cv.declare_id(effect_type),
         cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
     })
     validator = cv.All(schema, *extra_validators)
@@ -294,8 +294,8 @@ def validate_effects(allowed_effects):
 
 
 LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(LightState),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTJSONLightComponent),
+    cv.GenerateID(): cv.declare_id(LightState),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTJSONLightComponent),
 })
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
@@ -313,7 +313,7 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
 })
 
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(AddressableLightState),
+    cv.GenerateID(): cv.declare_id(AddressableLightState),
     cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
     cv.Optional(CONF_COLOR_CORRECT): cv.All([cv.percentage], cv.Length(min=3, max=4)),
 })
@@ -347,7 +347,7 @@ def register_light(output_var, config):
 
 
 @ACTION_REGISTRY.register('light.toggle', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 }))
 def light_toggle_to_code(config, action_id, template_arg, args):
@@ -362,7 +362,7 @@ def light_toggle_to_code(config, action_id, template_arg, args):
 
 
 @ACTION_REGISTRY.register('light.turn_off', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 }))
 def light_turn_off_to_code(config, action_id, template_arg, args):
@@ -377,7 +377,7 @@ def light_turn_off_to_code(config, action_id, template_arg, args):
 
 
 LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
     cv.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
         cv.templatable(cv.positive_time_period_milliseconds),
@@ -392,7 +392,7 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
 })
 LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
     cv.Optional(CONF_STATE, default=False): False,
 })

@@ -263,11 +263,6 @@ void Nextion::set_nextion_rtc_time(time::ESPTime time) {
 void Nextion::set_backlight_brightness(uint8_t brightness) { this->send_command_printf("dim=%u", brightness); }
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) { this->send_command_printf("thsp=%u", timeout); }
 
-NextionTouchComponent *Nextion::make_touch_component(const std::string &name, uint8_t page_id, uint8_t component_id) {
-  auto *ret = new NextionTouchComponent(name, page_id, component_id);
-  this->touch_.push_back(ret);
-  return ret;
-}
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
   va_list arg;
@@ -285,8 +280,6 @@ void NextionTouchComponent::process(uint8_t page_id, uint8_t component_id, bool 
     this->publish_state(on);
   }
 }
-NextionTouchComponent::NextionTouchComponent(const std::string &name, uint8_t page_id, uint8_t component_id)
-    : BinarySensor(name), page_id_(page_id), component_id_(component_id) {}
 
 }  // namespace nextion
 }  // namespace esphome
