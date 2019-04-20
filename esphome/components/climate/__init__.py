@@ -8,6 +8,8 @@ from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATUR
     CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 
+IS_PLATFORM_COMPONENT = True
+
 climate_ns = cg.esphome_ns.namespace('climate')
 
 ClimateDevice = climate_ns.class_('Climate', cg.Nameable)

@@ -36,7 +36,6 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase, pu
   std::vector<rmt_item32_t> rmt_temp_;
 #endif
   uint8_t carrier_duty_percent_{50};
-  remote_base::RemoteTransmitData temp_;
 };
 
 }  // namespace remote_transmitter
