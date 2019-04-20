@@ -9,6 +9,11 @@
 namespace esphome {
 namespace climate {
 
+enum ClimateRemoteTransmitterModel {
+  CLIMATE_REMOTE_TRANSMITTER_COOLIX = 0,
+  CLIMATE_REMOTE_TRANSMITTER_TCL
+};
+
 class ClimateRemoteTransmitter : public climate::Climate, public Component {
  public:
   ClimateRemoteTransmitter(const std::string &name);
@@ -19,6 +24,7 @@ class ClimateRemoteTransmitter : public climate::Climate, public Component {
   void set_supports_cool(bool supports_cool);
   void set_supports_heat(bool supports_heat);
 
+  void set_model(ClimateRemoteTransmitterModel model);
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
@@ -26,7 +32,8 @@ class ClimateRemoteTransmitter : public climate::Climate, public Component {
   climate::ClimateTraits traits() override;
 
   /// Transmit via IR the state of this climate controller.
-  void transmit_state_();
+  void transmit_state_coolix_();
+  void transmit_state_tcl_();
 
   void sendData(remote_base::RemoteTransmitData * transmitData, uint16_t onemark, uint32_t onespace, uint16_t zeromark,
                 uint32_t zerospace, uint64_t data, uint16_t nbits,
@@ -36,6 +43,7 @@ class ClimateRemoteTransmitter : public climate::Climate, public Component {
   bool supports_heat_{true};
   
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
+  ClimateRemoteTransmitterModel model_;
 };
 
 }  // namespace climate
