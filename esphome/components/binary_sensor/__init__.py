@@ -7,7 +7,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERTED, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
-    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE, CONF_NAME, CONF_MQTT_ID
+    CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 from esphome.py_compat import string_types
 from esphome.util import Registry
@@ -26,15 +26,15 @@ BinarySensor = binary_sensor_ns.class_('BinarySensor', cg.Nameable)
 BinarySensorPtr = BinarySensor.operator('ptr')
 
 # Triggers
-PressTrigger = binary_sensor_ns.class_('PressTrigger', cg.Trigger.template())
-ReleaseTrigger = binary_sensor_ns.class_('ReleaseTrigger', cg.Trigger.template())
-ClickTrigger = binary_sensor_ns.class_('ClickTrigger', cg.Trigger.template())
-DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', cg.Trigger.template())
-MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', cg.Trigger.template(),
+PressTrigger = binary_sensor_ns.class_('PressTrigger', automation.Trigger.template())
+ReleaseTrigger = binary_sensor_ns.class_('ReleaseTrigger', automation.Trigger.template())
+ClickTrigger = binary_sensor_ns.class_('ClickTrigger', automation.Trigger.template())
+DoubleClickTrigger = binary_sensor_ns.class_('DoubleClickTrigger', automation.Trigger.template())
+MultiClickTrigger = binary_sensor_ns.class_('MultiClickTrigger', automation.Trigger.template(),
                                             cg.Component)
 MultiClickTriggerEvent = binary_sensor_ns.struct('MultiClickTriggerEvent')
-StateTrigger = binary_sensor_ns.class_('StateTrigger', cg.Trigger.template(bool))
-BinarySensorPublishAction = binary_sensor_ns.class_('BinarySensorPublishAction', cg.Action)
+StateTrigger = binary_sensor_ns.class_('StateTrigger', automation.Trigger.template(bool))
+BinarySensorPublishAction = binary_sensor_ns.class_('BinarySensorPublishAction', automation.Action)
 
 # Condition
 BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Condition)

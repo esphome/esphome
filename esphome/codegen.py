@@ -21,6 +21,6 @@ from esphome.cpp_helpers import (  # noqa
 from esphome.cpp_types import (  # noqa
     global_ns, void, nullptr, float_, bool_, std_ns, std_string,
     std_vector, uint8, uint16, uint32, int32, const_char_ptr, NAN,
-    esphome_ns, App, Nameable, Trigger, Action, Component, ComponentPtr,
+    esphome_ns, App, Nameable, Component, ComponentPtr,
     PollingComponent, Application, optional, arduino_json_ns, JsonObject,
     JsonObjectRef, JsonObjectConstRef, Controller, GPIOPin)

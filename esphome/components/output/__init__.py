@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome.automation import maybe_simple_id
 from esphome.components import power_supply
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
     CONF_MIN_POWER, CONF_POWER_SUPPLY
@@ -26,9 +26,9 @@ FloatOutput = output_ns.class_('FloatOutput', BinaryOutput)
 FloatOutputPtr = FloatOutput.operator('ptr')
 
 # Actions
-TurnOffAction = output_ns.class_('TurnOffAction', cg.Action)
-TurnOnAction = output_ns.class_('TurnOnAction', cg.Action)
-SetLevelAction = output_ns.class_('SetLevelAction', cg.Action)
+TurnOffAction = output_ns.class_('TurnOffAction', automation.Action)
+TurnOnAction = output_ns.class_('TurnOnAction', automation.Action)
+SetLevelAction = output_ns.class_('SetLevelAction', automation.Action)
 
 
 @coroutine

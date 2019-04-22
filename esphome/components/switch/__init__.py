@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition, maybe_simple_id
+from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_ON_TURN_OFF, \
     CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
@@ -13,14 +13,14 @@ switch_ns = cg.esphome_ns.namespace('switch_')
 Switch = switch_ns.class_('Switch', cg.Nameable)
 SwitchPtr = Switch.operator('ptr')
 
-ToggleAction = switch_ns.class_('ToggleAction', cg.Action)
-TurnOffAction = switch_ns.class_('TurnOffAction', cg.Action)
-TurnOnAction = switch_ns.class_('TurnOnAction', cg.Action)
-SwitchPublishAction = switch_ns.class_('SwitchPublishAction', cg.Action)
+ToggleAction = switch_ns.class_('ToggleAction', automation.Action)
+TurnOffAction = switch_ns.class_('TurnOffAction', automation.Action)
+TurnOnAction = switch_ns.class_('TurnOnAction', automation.Action)
+SwitchPublishAction = switch_ns.class_('SwitchPublishAction', automation.Action)
 
 SwitchCondition = switch_ns.class_('SwitchCondition', Condition)
-SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', cg.Trigger.template())
-SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', cg.Trigger.template())
+SwitchTurnOnTrigger = switch_ns.class_('SwitchTurnOnTrigger', automation.Trigger.template())
+SwitchTurnOffTrigger = switch_ns.class_('SwitchTurnOffTrigger', automation.Trigger.template())
 
 icon = cv.icon
 

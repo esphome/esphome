@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
 from esphome.components import switch
 from esphome.const import CONF_ASSUMED_STATE, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC, \
     CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION

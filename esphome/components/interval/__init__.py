@@ -4,7 +4,8 @@ from esphome import automation
 from esphome.const import CONF_ID, CONF_INTERVAL
 
 interval_ns = cg.esphome_ns.namespace('interval')
-IntervalTrigger = interval_ns.class_('IntervalTrigger', cg.Trigger.template(), cg.PollingComponent)
+IntervalTrigger = interval_ns.class_('IntervalTrigger', automation.Trigger.template(),
+                                     cg.PollingComponent)
 
 CONFIG_SCHEMA = automation.validate_automation(cv.Schema({
     cv.GenerateID(): cv.declare_id(IntervalTrigger),

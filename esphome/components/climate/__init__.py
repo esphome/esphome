@@ -8,6 +8,8 @@ from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATUR
     CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
+IS_PLATFORM_COMPONENT = True
+
 climate_ns = cg.esphome_ns.namespace('climate')
 
 ClimateDevice = climate_ns.class_('Climate', cg.Nameable)
@@ -26,7 +28,7 @@ CLIMATE_MODES = {
 validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 
 # Actions
-ControlAction = climate_ns.class_('ControlAction', cg.Action)
+ControlAction = climate_ns.class_('ControlAction', automation.Action)
 
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(ClimateDevice),

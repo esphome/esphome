@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
 from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
 from esphome.core import CORE, coroutine
@@ -12,8 +11,8 @@ IS_PLATFORM_COMPONENT = True
 stepper_ns = cg.esphome_ns.namespace('stepper')
 Stepper = stepper_ns.class_('Stepper')
 
-SetTargetAction = stepper_ns.class_('SetTargetAction', cg.Action)
-ReportPositionAction = stepper_ns.class_('ReportPositionAction', cg.Action)
+SetTargetAction = stepper_ns.class_('SetTargetAction', automation.Action)
+ReportPositionAction = stepper_ns.class_('ReportPositionAction', automation.Action)
 
 
 def validate_acceleration(value):

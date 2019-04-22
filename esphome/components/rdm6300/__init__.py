@@ -9,7 +9,7 @@ AUTO_LOAD = ['binary_sensor']
 
 rdm6300_ns = cg.esphome_ns.namespace('rdm6300')
 RDM6300Component = rdm6300_ns.class_('RDM6300Component', cg.Component, uart.UARTDevice)
-RDM6300Trigger = rdm6300_ns.class_('RDM6300Trigger', cg.Trigger.template(cg.uint32))
+RDM6300Trigger = rdm6300_ns.class_('RDM6300Trigger', automation.Trigger.template(cg.uint32))
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(RDM6300Component),

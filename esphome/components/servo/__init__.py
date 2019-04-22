@@ -1,15 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome.automation import maybe_simple_id
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_IDLE_LEVEL, CONF_MAX_LEVEL, CONF_MIN_LEVEL, CONF_OUTPUT, \
     CONF_LEVEL
 
 servo_ns = cg.esphome_ns.namespace('servo')
 Servo = servo_ns.class_('Servo', cg.Component)
-ServoWriteAction = servo_ns.class_('ServoWriteAction', cg.Action)
-ServoDetachAction = servo_ns.class_('ServoDetachAction', cg.Action)
+ServoWriteAction = servo_ns.class_('ServoWriteAction', automation.Action)
+ServoDetachAction = servo_ns.class_('ServoDetachAction', automation.Action)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({

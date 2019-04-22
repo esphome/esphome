@@ -483,7 +483,7 @@ def get_variable(id):  # type: (ID) -> Generator[MockObj]
 @coroutine
 def process_lambda(value,  # type: Lambda
                    parameters,  # type: List[Tuple[SafeExpType, str]]
-                   capture='',  # type: str
+                   capture='=',  # type: str
                    return_type=None  # type: Optional[SafeExpType]
                    ):
     # type: (...) -> Generator[LambdaExpression]

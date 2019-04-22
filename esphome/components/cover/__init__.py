@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id, Condition
+from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
     CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
@@ -36,11 +36,11 @@ COVER_OPERATIONS = {
 validate_cover_operation = cv.enum(COVER_OPERATIONS, upper=True)
 
 # Actions
-OpenAction = cover_ns.class_('OpenAction', cg.Action)
-CloseAction = cover_ns.class_('CloseAction', cg.Action)
-StopAction = cover_ns.class_('StopAction', cg.Action)
-ControlAction = cover_ns.class_('ControlAction', cg.Action)
-CoverPublishAction = cover_ns.class_('CoverPublishAction', cg.Action)
+OpenAction = cover_ns.class_('OpenAction', automation.Action)
+CloseAction = cover_ns.class_('CloseAction', automation.Action)
+StopAction = cover_ns.class_('StopAction', automation.Action)
+ControlAction = cover_ns.class_('ControlAction', automation.Action)
+CoverPublishAction = cover_ns.class_('CoverPublishAction', automation.Action)
 CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
 CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 

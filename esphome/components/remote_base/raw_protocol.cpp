@@ -11,7 +11,7 @@ void RawDumper::dump(RemoteReceiveData src) {
   uint32_t buffer_offset = 0;
   buffer_offset += sprintf(buffer, "Received Raw: ");
 
-  for (int32_t i = 0; i < src.size(); i++) {
+  for (int32_t i = 0; i < src.size() - 1; i++) {
     const int32_t value = src[i];
     const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
     int written;

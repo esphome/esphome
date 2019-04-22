@@ -6,10 +6,10 @@ import logging
 import os
 import re
 from contextlib import contextmanager
-
 import uuid as uuid_
-import voluptuous as vol
 from datetime import datetime
+
+import voluptuous as vol
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
@@ -404,16 +404,18 @@ def has_at_most_one_key(*keys):
 
 TIME_PERIOD_ERROR = "Time period {} should be format number + unit, for example 5ms, 5s, 5min, 5h"
 
-time_period_dict = All(Schema({
-    Optional('days'): float_,
-    Optional('hours'): float_,
-    Optional('minutes'): float_,
-    Optional('seconds'): float_,
-    Optional('milliseconds'): float_,
-    Optional('microseconds'): float_,
-}),
+time_period_dict = All(
+    Schema({
+        Optional('days'): float_,
+        Optional('hours'): float_,
+        Optional('minutes'): float_,
+        Optional('seconds'): float_,
+        Optional('milliseconds'): float_,
+        Optional('microseconds'): float_,
+    }),
     has_at_least_one_key('days', 'hours', 'minutes', 'seconds', 'milliseconds', 'microseconds'),
-    lambda value: TimePeriod(**value))
+    lambda value: TimePeriod(**value)
+)
 
 
 def time_period_str_colon(value):
@@ -873,7 +875,7 @@ def remove_prepend_path(path):
     except vol.Invalid as e:
         if list_starts_with(e.path, path):
             # Can't set e.path (namedtuple
-            for i in range(len(path)):
+            for _ in range(len(path)):
                 e.path.pop(0)
         raise e
 

@@ -1,13 +1,13 @@
-from esphome import automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID
 
 script_ns = cg.esphome_ns.namespace('script')
-Script = script_ns.class_('Script', cg.Trigger.template())
-ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', cg.Action)
-ScriptStopAction = script_ns.class_('ScriptStopAction', cg.Action)
+Script = script_ns.class_('Script', automation.Trigger.template())
+ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', automation.Action)
+ScriptStopAction = script_ns.class_('ScriptStopAction', automation.Action)
 
 CONFIG_SCHEMA = automation.validate_automation({
     cv.Required(CONF_ID): cv.declare_id(Script),

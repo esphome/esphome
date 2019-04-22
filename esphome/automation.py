@@ -46,7 +46,6 @@ def validate_potentially_and_condition(value):
     return validate_condition(value)
 
 
-# pylint: disable=invalid-name
 DelayAction = cg.esphome_ns.class_('DelayAction', Action, cg.Component)
 LambdaAction = cg.esphome_ns.class_('LambdaAction', Action)
 IfAction = cg.esphome_ns.class_('IfAction', Action)

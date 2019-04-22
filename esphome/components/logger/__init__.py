@@ -3,7 +3,7 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY, LambdaAction
+from esphome.automation import LambdaAction
 from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_UART, CONF_ID, \
     CONF_LEVEL, CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority

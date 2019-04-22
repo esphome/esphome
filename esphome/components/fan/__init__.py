@@ -1,7 +1,7 @@
-from esphome import automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED, \
@@ -15,9 +15,9 @@ FanState = fan_ns.class_('FanState', cg.Nameable, cg.Component)
 MakeFan = cg.Application.struct('MakeFan')
 
 # Actions
-TurnOnAction = fan_ns.class_('TurnOnAction', cg.Action)
-TurnOffAction = fan_ns.class_('TurnOffAction', cg.Action)
-ToggleAction = fan_ns.class_('ToggleAction', cg.Action)
+TurnOnAction = fan_ns.class_('TurnOnAction', automation.Action)
+TurnOffAction = fan_ns.class_('TurnOffAction', automation.Action)
+ToggleAction = fan_ns.class_('ToggleAction', automation.Action)
 
 FanSpeed = fan_ns.enum('FanSpeed')
 FAN_SPEEDS = {

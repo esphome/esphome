@@ -24,8 +24,8 @@ AddressableLight = light_ns.class_('AddressableLight')
 AddressableLightRef = AddressableLight.operator('ref')
 
 # Actions
-ToggleAction = light_ns.class_('ToggleAction', cg.Action)
-LightControlAction = light_ns.class_('LightControlAction', cg.Action)
+ToggleAction = light_ns.class_('ToggleAction', automation.Action)
+LightControlAction = light_ns.class_('LightControlAction', automation.Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
 

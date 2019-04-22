@@ -407,6 +407,7 @@ def coroutine_with_priority(priority):
             if not inspect.isgeneratorfunction(func):
                 # If func is not a generator, return result immediately
                 yield func(*args, **kwargs)
+                # pylint: disable=protected-access
                 CORE._remove_coroutine(instance_id)
                 return
             gen = func(*args, **kwargs)
@@ -426,6 +427,7 @@ def coroutine_with_priority(priority):
             except StopIteration:
                 # Stopping iteration
                 yield var
+            # pylint: disable=protected-access
             CORE._remove_coroutine(instance_id)
 
         @functools.wraps(func)
@@ -434,6 +436,7 @@ def coroutine_with_priority(priority):
             instance_id = random.randint(0, 2**32)
             kwargs['__esphome_coroutine_instance__'] = instance_id
             gen = _wrapper_generator(*args, **kwargs)
+            # pylint: disable=protected-access
             CORE._add_active_coroutine(instance_id, gen)
             return gen
 
@@ -614,7 +617,7 @@ class EsphomeCore(object):
                 _LOGGER.debug(" -> finished")
 
         # Print not-awaited coroutines
-        for obj, frame in self.active_coroutines.values():
+        for obj in self.active_coroutines.values():
             _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
             _LOGGER.warning(u"Please file a bug report with your configuration.")
         if self.active_coroutines:

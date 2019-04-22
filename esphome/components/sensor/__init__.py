@@ -54,11 +54,12 @@ SensorPtr = Sensor.operator('ptr')
 PollingSensorComponent = sensor_ns.class_('PollingSensorComponent', cg.PollingComponent, Sensor)
 
 # Triggers
-SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', cg.Trigger.template(cg.float_))
-SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger', cg.Trigger.template(cg.float_))
-ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', cg.Trigger.template(cg.float_),
+SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', automation.Trigger.template(cg.float_))
+SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger',
+                                         automation.Trigger.template(cg.float_))
+ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', automation.Trigger.template(cg.float_),
                                      cg.Component)
-SensorPublishAction = sensor_ns.class_('SensorPublishAction', cg.Action)
+SensorPublishAction = sensor_ns.class_('SensorPublishAction', automation.Action)
 
 # Filters
 Filter = sensor_ns.class_('Filter')

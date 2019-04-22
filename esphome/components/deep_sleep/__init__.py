@@ -1,7 +1,7 @@
-from esphome import pins, automation
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+import esphome.config_validation as cv
+from esphome import pins, automation
+from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
 
@@ -16,8 +16,8 @@ def validate_pin_number(value):
 
 deep_sleep_ns = cg.esphome_ns.namespace('deep_sleep')
 DeepSleepComponent = deep_sleep_ns.class_('DeepSleepComponent', cg.Component)
-EnterDeepSleepAction = deep_sleep_ns.class_('EnterDeepSleepAction', cg.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_('PreventDeepSleepAction', cg.Action)
+EnterDeepSleepAction = deep_sleep_ns.class_('EnterDeepSleepAction', automation.Action)
+PreventDeepSleepAction = deep_sleep_ns.class_('PreventDeepSleepAction', automation.Action)
 
 WakeupPinMode = deep_sleep_ns.enum('WakeupPinMode')
 WAKEUP_PIN_MODES = {

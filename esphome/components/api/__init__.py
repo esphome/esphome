@@ -1,7 +1,7 @@
-from esphome import automation
-from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import Condition
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID
 from esphome.core import CORE, coroutine_with_priority
@@ -10,12 +10,12 @@ DEPENDENCIES = ['network']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
-HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', cg.Action)
+HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', automation.Action)
 KeyValuePair = api_ns.class_('KeyValuePair')
 TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
 APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
-UserService = api_ns.class_('UserService', cg.Trigger)
+UserService = api_ns.class_('UserService', automation.Trigger)
 ServiceTypeArgument = api_ns.class_('ServiceTypeArgument')
 ServiceArgType = api_ns.enum('ServiceArgType')
 SERVICE_ARG_TYPES = {
@@ -30,7 +30,6 @@ SERVICE_ARG_NATIVE_TYPES = {
     'float': float,
     'string': cg.std_string,
 }
-
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(APIServer),
@@ -65,10 +64,9 @@ def to_code(config):
             template_args.append(native)
             func_args.append((native, name))
             service_type_args.append(ServiceTypeArgument(name, SERVICE_ARG_TYPES[var_]))
-        func = var.make_user_service_trigger.template(*template_args)
-        rhs = func(conf[CONF_SERVICE], service_type_args)
-        type_ = UserService.template(*template_args)
-        trigger = cg.Pvariable(conf[CONF_TRIGGER_ID], rhs, type=type_)
+        templ = cg.TemplateArguments(*template_args)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], templ,
+                                   conf[CONF_SERVICE], service_type_args)
         yield automation.build_automation(trigger, func_args, conf)
 
     cg.add_define('USE_API')

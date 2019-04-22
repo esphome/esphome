@@ -221,6 +221,8 @@ def perform_ota(sock, password, file_handle, filename):
     # Limit send buffer (usually around 100kB) in order to have progress bar
     # show the actual progress
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+    # Set higher timeout during upload
+    sock.settimeout(20.0)
 
     offset = 0
     progress = ProgressBar()

@@ -14,8 +14,8 @@ TextSensor = text_sensor_ns.class_('TextSensor', cg.Nameable)
 TextSensorPtr = TextSensor.operator('ptr')
 
 TextSensorStateTrigger = text_sensor_ns.class_('TextSensorStateTrigger',
-                                               cg.Trigger.template(cg.std_string))
-TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', cg.Action)
+                                               automation.Trigger.template(cg.std_string))
+TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', automation.Action)
 
 icon = cv.icon
 

@@ -1,8 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
-from esphome.components import binary_sensor as binary_sensor_, binary_sensor
+from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
@@ -20,10 +19,11 @@ ns = remote_base_ns = cg.esphome_ns.namespace('remote_base')
 RemoteProtocol = ns.class_('RemoteProtocol')
 RemoteReceiverListener = ns.class_('RemoteReceiverListener')
 RemoteReceiverBinarySensorBase = ns.class_('RemoteReceiverBinarySensorBase',
-                                           binary_sensor_.BinarySensor, cg.Component)
-RemoteReceiverTrigger = ns.class_('RemoteReceiverTrigger', cg.Trigger, RemoteReceiverListener)
+                                           binary_sensor.BinarySensor, cg.Component)
+RemoteReceiverTrigger = ns.class_('RemoteReceiverTrigger', automation.Trigger,
+                                  RemoteReceiverListener)
 RemoteTransmitterDumper = ns.class_('RemoteTransmitterDumper')
-RemoteTransmitterActionBase = ns.class_('RemoteTransmitterActionBase', cg.Action)
+RemoteTransmitterActionBase = ns.class_('RemoteTransmitterActionBase', automation.Action)
 RemoteReceiverBase = ns.class_('RemoteReceiverBase')
 RemoteTransmitterBase = ns.class_('RemoteTransmitterBase')
 
@@ -117,11 +117,11 @@ def register_action(name, type_, schema):
 
 def declare_protocol(name):
     data = ns.struct('{}Data'.format(name))
-    binary_sensor = ns.class_('{}BinarySensor'.format(name), RemoteReceiverBinarySensorBase)
+    binary_sensor_ = ns.class_('{}BinarySensor'.format(name), RemoteReceiverBinarySensorBase)
     trigger = ns.class_('{}Trigger'.format(name), RemoteReceiverTrigger)
     action = ns.class_('{}Action'.format(name), RemoteTransmitterActionBase)
     dumper = ns.class_('{}Dumper'.format(name), RemoteTransmitterDumper)
-    return data, binary_sensor, trigger, action, dumper
+    return data, binary_sensor_, trigger, action, dumper
 
 
 BINARY_SENSOR_REGISTRY = Registry(binary_sensor.BINARY_SENSOR_SCHEMA.extend({

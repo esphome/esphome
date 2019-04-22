@@ -2,7 +2,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
 from esphome.core import coroutine
 
@@ -13,9 +13,9 @@ DisplayBuffer = display_ns.class_('DisplayBuffer')
 DisplayPage = display_ns.class_('DisplayPage')
 DisplayPagePtr = DisplayPage.operator('ptr')
 DisplayBufferRef = DisplayBuffer.operator('ref')
-DisplayPageShowAction = display_ns.class_('DisplayPageShowAction', cg.Action)
-DisplayPageShowNextAction = display_ns.class_('DisplayPageShowNextAction', cg.Action)
-DisplayPageShowPrevAction = display_ns.class_('DisplayPageShowPrevAction', cg.Action)
+DisplayPageShowAction = display_ns.class_('DisplayPageShowAction', automation.Action)
+DisplayPageShowNextAction = display_ns.class_('DisplayPageShowNextAction', automation.Action)
+DisplayPageShowPrevAction = display_ns.class_('DisplayPageShowPrevAction', automation.Action)
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,

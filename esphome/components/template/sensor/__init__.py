@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import ACTION_REGISTRY
 from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, UNIT_EMPTY, ICON_EMPTY
 from .. import template_ns

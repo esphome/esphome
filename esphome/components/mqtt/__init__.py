@@ -1,10 +1,10 @@
 import re
 
-from esphome import automation
-from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
-from esphome.components import logger
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import Condition
+from esphome.components import logger
 from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, \
     CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, \
     CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, \
@@ -38,11 +38,12 @@ MQTT_MESSAGE_SCHEMA = cv.Any(None, MQTT_MESSAGE_BASE.extend({
 mqtt_ns = cg.esphome_ns.namespace('mqtt')
 MQTTMessage = mqtt_ns.struct('MQTTMessage')
 MQTTClientComponent = mqtt_ns.class_('MQTTClientComponent', cg.Component)
-MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', cg.Action)
-MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', cg.Action)
-MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger', cg.Trigger.template(cg.std_string))
+MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', automation.Action)
+MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', automation.Action)
+MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger',
+                                    automation.Trigger.template(cg.std_string))
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
-                                        cg.Trigger.template(cg.JsonObjectConstRef))
+                                        automation.Trigger.template(cg.JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_('MQTTConnectedCondition', Condition)
 

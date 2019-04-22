@@ -21,7 +21,7 @@ IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
-CronTrigger = time_ns.class_('CronTrigger', cg.Trigger.template(), cg.Component)
+CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 
 

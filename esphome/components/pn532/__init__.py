@@ -10,7 +10,7 @@ MULTI_CONF = True
 
 pn532_ns = cg.esphome_ns.namespace('pn532')
 PN532 = pn532_ns.class_('PN532', cg.PollingComponent, spi.SPIDevice)
-PN532Trigger = pn532_ns.class_('PN532Trigger', cg.Trigger.template(cg.std_string))
+PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.std_string))
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PN532),

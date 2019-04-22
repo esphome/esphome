@@ -3,7 +3,7 @@ from __future__ import print_function
 import json
 
 from esphome.config import load_config, _format_vol_invalid
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 from esphome.py_compat import text_type, safe_input
 from esphome.yaml_util import ESPHomeDataBase
 

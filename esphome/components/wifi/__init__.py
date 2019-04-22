@@ -1,7 +1,7 @@
-from esphome import automation
-from esphome.automation import CONDITION_REGISTRY, Condition
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import Condition
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
