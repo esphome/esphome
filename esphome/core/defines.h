@@ -3,7 +3,6 @@
 
 #define ESPHOME_VERSION "dev"
 
-#define ESPHOME_LOG_LEVEL 6
 #define USE_API
 #define USE_LOGGER
 #define USE_BINARY_SENSOR

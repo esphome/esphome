@@ -182,3 +182,7 @@ def write_file_if_changed(text, dst):
         src_content = read_file(dst)
     if src_content != text:
         write_file(dst, text)
+
+
+def list_starts_with(list_, sub):
+    return len(sub) <= len(list_) and all(list_[i] == x for i, x in enumerate(sub))

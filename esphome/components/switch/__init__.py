@@ -72,45 +72,26 @@ SWITCH_ACTION_SCHEMA = maybe_simple_id({
 })
 
 
-@ACTION_REGISTRY.register('switch.toggle', SWITCH_ACTION_SCHEMA)
+@automation.register_action('switch.toggle', ToggleAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action('switch.turn_off', TurnOffAction, SWITCH_ACTION_SCHEMA)
+@automation.register_action('switch.turn_on', TurnOnAction, SWITCH_ACTION_SCHEMA)
 def switch_toggle_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ToggleAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('switch.turn_off', SWITCH_ACTION_SCHEMA)
-def switch_turn_off_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOffAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
-
-
-@ACTION_REGISTRY.register('switch.turn_on', SWITCH_ACTION_SCHEMA)
-def switch_turn_on_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOnAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
-
-
-@CONDITION_REGISTRY.register('switch.is_on', SWITCH_ACTION_SCHEMA)
+@automation.register_condition('switch.is_on', SwitchCondition, SWITCH_ACTION_SCHEMA)
 def switch_is_on_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = SwitchCondition.template(template_arg)
-    rhs = type.new(var, True)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)
 
 
-@CONDITION_REGISTRY.register('switch.is_off', SWITCH_ACTION_SCHEMA)
+@automation.register_condition('switch.is_off', SwitchCondition, SWITCH_ACTION_SCHEMA)
 def switch_is_off_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = SwitchCondition.template(template_arg)
-    rhs = type.new(var, False)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)
 
 
 def to_code(config):
+    cg.add_global(switch_ns.using)
     cg.add_define('USE_SWITCH')

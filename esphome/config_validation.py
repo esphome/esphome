@@ -15,9 +15,10 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
+from esphome.helpers import list_starts_with
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
 from esphome.voluptuous_schema import _Schema
 
@@ -94,6 +95,11 @@ class Required(vol.Required):
         super(Required, self).__init__(key)
 
 
+def check_not_templatable(value):
+    if isinstance(value, Lambda):
+        raise Invalid("This option is not templatable!")
+
+
 def alphanumeric(value):
     if value is None:
         raise Invalid("string value is None")
@@ -118,6 +124,7 @@ def string(value):
     Note that this can be lossy, for example the input value 60.00 (float) will be turned into
     "60.0" (string). For values where this could be a problem `string_string` has to be used.
     """
+    check_not_templatable(value)
     if isinstance(value, (dict, list)):
         raise Invalid("string value cannot be dictionary or list.")
     if isinstance(value, text_type):
@@ -130,6 +137,7 @@ def string(value):
 def string_strict(value):
     """Like string, but only allows strings, and does not automatically convert other types to
     strings."""
+    check_not_templatable(value)
     if isinstance(value, text_type):
         return value
     if isinstance(value, string_types):
@@ -157,6 +165,7 @@ def boolean(value):
      - 'yes'/'no'
      - 'enable'/disable
     """
+    check_not_templatable(value)
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
@@ -180,6 +189,7 @@ def ensure_list(*validators):
     user = All(*validators)
 
     def validator(value):
+        check_not_templatable(value)
         if value is None or (isinstance(value, dict) and not value):
             return []
         if not isinstance(value, list):
@@ -213,6 +223,7 @@ def int_(value):
 
     Automatically also converts strings to ints.
     """
+    check_not_templatable(value)
     if isinstance(value, integer_types):
         return value
     value = string_strict(value).lower()
@@ -281,8 +292,11 @@ def validate_id_name(value):
 def use_id(type):
     """Declare that this configuration option should point to an ID with the given type."""
     def validator(value):
+        check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
+        if isinstance(value, core.ID) and value.is_declaration is False and value.type is type:
+            return value
 
         return core.ID(validate_id_name(value), is_declaration=False, type=type)
 
@@ -296,6 +310,7 @@ def declare_id(type):
     If two IDs with the same name exist, a validation error is thrown.
     """
     def validator(value):
+        check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
 
@@ -426,6 +441,8 @@ def time_period_str_colon(value):
 
 def time_period_str_unit(value):
     """Validate and transform time period with time unit and integer value."""
+    check_not_templatable(value)
+
     if isinstance(value, int):
         raise Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
                       "'{0}s'?".format(value))
@@ -830,6 +847,10 @@ def invalid(message):
     return validator
 
 
+def valid(value):
+    return value
+
+
 @contextmanager
 def prepend_path(path):
     """A contextmanager helper to prepend a path to all voluptuous errors."""
@@ -839,6 +860,21 @@ def prepend_path(path):
         yield
     except vol.Invalid as e:
         e.prepend(path)
+        raise e
+
+
+@contextmanager
+def remove_prepend_path(path):
+    """A contextmanager helper to remove a path from a voluptuous error."""
+    if not isinstance(path, (list, tuple)):
+        path = [path]
+    try:
+        yield
+    except vol.Invalid as e:
+        if list_starts_with(e.path, path):
+            # Can't set e.path (namedtuple
+            for i in range(len(path)):
+                e.path.pop(0)
         raise e
 
 
@@ -1059,37 +1095,57 @@ def _nameable_validator(config):
     return config
 
 
-def validate_registry_entry(name, registry, ignore_keys):
+def ensure_schema(schema):
+    if not isinstance(schema, vol.Schema):
+        return Schema(schema)
+    return schema
+
+
+def validate_registry_entry(name, registry):
+    base_schema = ensure_schema(registry.base_schema).extend({
+        Optional(CONF_TYPE_ID): valid,
+    }, extra=ALLOW_EXTRA)
+    ignore_keys = extract_keys(base_schema)
+
     def validator(value):
         if isinstance(value, string_types):
             value = {value: {}}
         if not isinstance(value, dict):
             raise Invalid(u"{} must consist of key-value mapping! Got {}"
                           u"".format(name.title(), value))
-        item = value.copy()
-        key = next((x for x in item if x not in ignore_keys), None)
+        value = base_schema(value)
+        key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
-            raise Invalid(u"Key missing from {}! Got {}".format(name, item))
+            raise Invalid(u"Key missing from {}! Got {}".format(name, value))
         if key not in registry:
-            raise vol.Invalid(u"Unable to find {} with the name '{}'".format(name, key))
-        key2 = next((x for x in item if x != key and x not in ignore_keys), None)
+            raise Invalid(u"Unable to find {} with the name '{}'".format(name, key), [key])
+        key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
-            raise vol.Invalid(u"Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
-                              u"Did you forget to indent the block inside the {0}?"
-                              u"".format(name, key, key2))
-        validator_ = registry[key][0]
-        try:
-            item[key] = validator_(item[key] or {})
-        except vol.Invalid as err:
-            err.prepend([key])
-            raise err
-        return item
+            raise Invalid(u"Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
+                          u"Did you forget to indent the block inside the {0}?"
+                          u"".format(name, key, key2))
+
+        if value[key] is None:
+            value[key] = {}
+
+        registry_entry = registry[key]
+
+        with prepend_path([key]):
+            value[key] = registry_entry.schema(value[key])
+
+        if registry_entry.type_id is not None:
+            my_base_schema = base_schema.extend({
+                GenerateID(CONF_TYPE_ID): declare_id(registry_entry.type_id)
+            })
+            value = my_base_schema(value)
+
+        return value
 
     return validator
 
 
-def validate_registry(name, registry, ignore_keys):
-    return ensure_list(validate_registry_entry(name, registry, ignore_keys))
+def validate_registry(name, registry):
+    return ensure_list(validate_registry_entry(name, registry))
 
 
 def maybe_simple_value(*validators):

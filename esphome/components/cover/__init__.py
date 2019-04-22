@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
@@ -77,28 +78,22 @@ COVER_ACTION_SCHEMA = maybe_simple_id({
 })
 
 
-@ACTION_REGISTRY.register('cover.open', COVER_ACTION_SCHEMA)
+@automation.register_action('cover.open', OpenAction, COVER_ACTION_SCHEMA)
 def cover_open_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = OpenAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('cover.close', COVER_ACTION_SCHEMA)
+@automation.register_action('cover.close', CloseAction, COVER_ACTION_SCHEMA)
 def cover_close_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = CloseAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('cover.stop', COVER_ACTION_SCHEMA)
+@automation.register_action('cover.stop', StopAction, COVER_ACTION_SCHEMA)
 def cover_stop_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = StopAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
 COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
@@ -110,25 +105,23 @@ COVER_CONTROL_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register('cover.control', COVER_CONTROL_ACTION_SCHEMA)
+@automation.register_action('cover.control', ControlAction, COVER_CONTROL_ACTION_SCHEMA)
 def cover_control_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = StopAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_STOP in config:
         template_ = yield cg.templatable(config[CONF_STOP], args, bool)
-        cg.add(action.set_stop(template_))
+        cg.add(var.set_stop(template_))
     if CONF_STATE in config:
         template_ = yield cg.templatable(config[CONF_STATE], args, float)
-        cg.add(action.set_position(template_))
+        cg.add(var.set_position(template_))
     if CONF_POSITION in config:
         template_ = yield cg.templatable(config[CONF_POSITION], args, float)
-        cg.add(action.set_position(template_))
+        cg.add(var.set_position(template_))
     if CONF_TILT in config:
         template_ = yield cg.templatable(config[CONF_TILT], args, float)
-        cg.add(action.set_tilt(template_))
-    yield action
+        cg.add(var.set_tilt(template_))
+    yield var
 
 
 def to_code(config):

@@ -1,7 +1,7 @@
 # coding=utf-8
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import core
+from esphome import core, automation
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
 from esphome.core import coroutine
@@ -67,37 +67,35 @@ def register_display(var, config):
     yield setup_display_core_(var, config)
 
 
-@ACTION_REGISTRY.register('display.page.show', maybe_simple_id({
+@automation.register_action('display.page.show', DisplayPageShowAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayPage)),
 }))
 def display_page_show_to_code(config, action_id, template_arg, args):
-    type = DisplayPageShowAction.template(template_arg)
-    action = cg.Pvariable(action_id, type.new(), type=type)
+    var = cg.new_Pvariable(action_id, template_arg)
     if isinstance(config[CONF_ID], core.Lambda):
         template_ = yield cg.templatable(config[CONF_ID], args, DisplayPagePtr)
-        cg.add(action.set_page(template_))
+        cg.add(var.set_page(template_))
     else:
-        var = yield cg.get_variable(config[CONF_ID])
-        cg.add(action.set_page(var))
-    yield action
+        paren = yield cg.get_variable(config[CONF_ID])
+        cg.add(var.set_page(paren))
+    yield var
 
 
-@ACTION_REGISTRY.register('display.page.show_next', maybe_simple_id({
+@automation.register_action('display.page.show_next', DisplayPageShowNextAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
 }))
 def display_page_show_next_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = DisplayPageShowNextAction.template(template_arg)
-    yield cg.Pvariable(action_id, type.new(var), type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('display.page.show_previous', maybe_simple_id({
-    cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
-}))
+@automation.register_action('display.page.show_previous', DisplayPageShowPrevAction,
+                            maybe_simple_id({
+                                cv.Required(CONF_ID): cv.templatable(cv.use_id(DisplayBuffer)),
+                            }))
 def display_page_show_previous_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = DisplayPageShowPrevAction.template(template_arg)
-    yield cg.Pvariable(action_id, type.new(var), type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
 def to_code(config):

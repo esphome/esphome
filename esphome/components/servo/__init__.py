@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_IDLE_LEVEL, CONF_MAX_LEVEL, CONF_MIN_LEVEL, CONF_OUTPUT, \
@@ -31,25 +32,21 @@ def to_code(config):
     cg.add(var.set_max_level(config[CONF_MAX_LEVEL]))
 
 
-@ACTION_REGISTRY.register('servo.write', cv.Schema({
+@automation.register_action('servo.write', ServoWriteAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(Servo),
     cv.Required(CONF_LEVEL): cv.templatable(cv.possibly_negative_percentage),
 }))
 def servo_write_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ServoWriteAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_LEVEL], args, float)
-    cg.add(action.set_value(template_))
-    yield action
+    cg.add(var.set_value(template_))
+    yield var
 
 
-@ACTION_REGISTRY.register('servo.detach', maybe_simple_id({
+@automation.register_action('servo.detach', ServoDetachAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(Servo),
 }))
 def servo_detach_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ServoDetachAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, core
-from esphome.automation import CONDITION_REGISTRY, Condition, maybe_simple_id
+from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ID, CONF_INTERNAL, CONF_INVALID_COOLDOWN, CONF_INVERTED, \
@@ -10,7 +10,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_VALUE, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine
 from esphome.py_compat import string_types
-from esphome.util import ServiceRegistry
+from esphome.util import Registry
 
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
@@ -46,55 +46,34 @@ DelayedOffFilter = binary_sensor_ns.class_('DelayedOffFilter', Filter, cg.Compon
 InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
 LambdaFilter = binary_sensor_ns.class_('LambdaFilter', Filter)
 
-FILTER_REGISTRY = ServiceRegistry()
-validate_filters = cv.validate_registry('filter', FILTER_REGISTRY, [CONF_ID])
+FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry('filter', FILTER_REGISTRY)
 
 
-@FILTER_REGISTRY.register('invert',
-                          cv.Schema({
-                              cv.GenerateID(): cv.declare_id(InvertFilter)
-                          }))
-def invert_filter_to_code(config):
-    rhs = InvertFilter.new()
-    var = cg.Pvariable(config[CONF_ID], rhs)
+@FILTER_REGISTRY.register('invert', InvertFilter, {})
+def invert_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register('delayed_on', DelayedOnFilter,
+                          cv.positive_time_period_milliseconds)
+def delayed_on_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
     yield var
 
 
-@FILTER_REGISTRY.register('delayed_on',
-                          cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_id(DelayedOnFilter),
-                              cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-                          }).extend(cv.COMPONENT_SCHEMA)))
-def delayed_on_filter_to_code(config):
-    rhs = DelayedOnFilter.new(config[CONF_VALUE])
-    var = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(var, config)
+@FILTER_REGISTRY.register('delayed_off', DelayedOffFilter, cv.positive_time_period_milliseconds)
+def delayed_off_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
     yield var
 
 
-@FILTER_REGISTRY.register('delayed_off',
-                          cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_id(DelayedOffFilter),
-                              cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-                          }).extend(cv.COMPONENT_SCHEMA)))
-def delayed_off_filter_to_code(config):
-    rhs = DelayedOffFilter.new(config[CONF_VALUE])
-    var = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(var, config)
-    yield var
-
-
-@FILTER_REGISTRY.register('lambda',
-                          cv.maybe_simple_value(cv.Schema({
-                              cv.GenerateID(): cv.declare_id(LambdaFilter),
-                              cv.Required(CONF_VALUE): cv.lambda_,
-                          })))
-def lambda_filter_to_code(config):
-    lambda_ = yield cg.process_lambda(config[CONF_VALUE], [(bool, 'x')],
-                                      return_type=cg.optional.template(bool))
-    rhs = LambdaFilter.new(lambda_)
-    var = cg.Pvariable(config[CONF_ID], rhs)
-    yield var
+@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.lambda_)
+def lambda_filter_to_code(config, filter_id):
+    lambda_ = yield cg.process_lambda(config, [(bool, 'x')], return_type=cg.optional.template(bool))
+    yield cg.new_Pvariable(filter_id, lambda_)
 
 
 MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
@@ -301,26 +280,24 @@ def new_binary_sensor(config):
     yield var
 
 
-BINARY_SENSOR_IS_ON_OFF_CONDITION_SCHEMA = maybe_simple_id({
+BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(BinarySensor),
     cv.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
 })
 
 
-@CONDITION_REGISTRY.register('binary_sensor.is_on', BINARY_SENSOR_IS_ON_OFF_CONDITION_SCHEMA)
+@automation.register_condition('binary_sensor.is_on', BinarySensorCondition,
+                               BINARY_SENSOR_CONDITION_SCHEMA)
 def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = BinarySensorCondition.template(template_arg)
-    rhs = type.new(var, True, config.get(CONF_FOR))
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren, True, config.get(CONF_FOR))
 
 
-@CONDITION_REGISTRY.register('binary_sensor.is_off', BINARY_SENSOR_IS_ON_OFF_CONDITION_SCHEMA)
+@automation.register_condition('binary_sensor.is_off', BinarySensorCondition,
+                               BINARY_SENSOR_CONDITION_SCHEMA)
 def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = BinarySensorCondition.template(template_arg)
-    rhs = type.new(var, False, config.get(CONF_FOR))
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren, False, config.get(CONF_FOR))
 
 
 def to_code(config):

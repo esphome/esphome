@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import ACTION_REGISTRY
+from esphome import automation
 from esphome.components import text_sensor
 from esphome.components.text_sensor import TextSensorPublishAction
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
@@ -26,15 +26,13 @@ def to_code(config):
         cg.add(var.set_template(template_))
 
 
-@ACTION_REGISTRY.register('text_sensor.template.publish', cv.Schema({
+@automation.register_action('text_sensor.template.publish', TextSensorPublishAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
     cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
 }))
 def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TextSensorPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_STATE], args, cg.std_string)
-    cg.add(action.set_state(template_))
-    yield action
+    cg.add(var.set_state(template_))
+    yield var

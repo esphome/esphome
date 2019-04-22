@@ -5,7 +5,7 @@ import logging
 import esphome.config_validation as cv
 from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER
 from esphome.core import CORE
-from esphome.util import ServiceRegistry
+from esphome.util import SimpleRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -404,7 +404,7 @@ def validate_has_interrupt(value):
     return value
 
 
-PIN_SCHEMA_REGISTRY = ServiceRegistry()
+PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
 
 def internal_gpio_output_pin_schema(value):
@@ -415,9 +415,9 @@ def internal_gpio_output_pin_schema(value):
 
 def gpio_output_pin_schema(value):
     if isinstance(value, dict):
-        for key, ((output_validator, _), _) in PIN_SCHEMA_REGISTRY.items():
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
-                return output_validator(value)
+                return entry[1][0](value)
     return internal_gpio_output_pin_schema(value)
 
 
@@ -435,9 +435,9 @@ def internal_gpio_analog_pin_schema(value):
 
 def gpio_input_pin_schema(value):
     if isinstance(value, dict):
-        for key, ((_, input_validator), _) in PIN_SCHEMA_REGISTRY.items():
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
-                return input_validator(value)
+                return entry[1][1](value)
     return internal_gpio_input_pin_schema(value)
 
 
@@ -449,7 +449,7 @@ def internal_gpio_input_pullup_pin_schema(value):
 
 def gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict):
-        for key, ((_, input_validator), _) in PIN_SCHEMA_REGISTRY.items():
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
             if key in value:
-                return input_validator(value)
+                return entry[1][1](value)
     return internal_gpio_input_pullup_pin_schema(value)

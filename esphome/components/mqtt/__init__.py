@@ -230,22 +230,20 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register('mqtt.publish', MQTT_PUBLISH_ACTION_SCHEMA)
+@automation.register_action('mqtt.publish', MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA)
 def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(action.set_topic(template_))
+    cg.add(var.set_topic(template_))
 
     template_ = yield cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(action.set_payload(template_))
+    cg.add(var.set_payload(template_))
     template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(action.set_qos(template_))
+    cg.add(var.set_qos(template_))
     template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(action.set_retain(template_))
-    yield action
+    cg.add(var.set_retain(template_))
+    yield var
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
@@ -257,23 +255,22 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register('mqtt.publish_json', MQTT_PUBLISH_JSON_ACTION_SCHEMA)
+@automation.register_action('mqtt.publish_json', MQTTPublishJsonAction,
+                            MQTT_PUBLISH_JSON_ACTION_SCHEMA)
 def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTPublishJsonAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(action.set_topic(template_))
+    cg.add(var.set_topic(template_))
 
     args_ = args + [(cg.JsonObjectRef, 'root')]
     lambda_ = yield cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
-    cg.add(action.set_payload(lambda_))
+    cg.add(var.set_payload(lambda_))
     template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(action.set_qos(template_))
+    cg.add(var.set_qos(template_))
     template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(action.set_retain(template_))
-    yield action
+    cg.add(var.set_retain(template_))
+    yield var
 
 
 def get_default_topic_for(data, component_type, name, suffix):
@@ -305,11 +302,9 @@ def register_mqtt_component(var, config):
                                         availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 
-@CONDITION_REGISTRY.register('mqtt.connected', cv.Schema({
+@automation.register_condition('mqtt.connected', MQTTConnectedCondition, cv.Schema({
     cv.GenerateID(): cv.use_id(MQTTClientComponent),
 }))
 def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTConnectedCondition.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

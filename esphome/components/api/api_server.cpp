@@ -999,7 +999,7 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   bool success = this->send_buffer(APIMessageType::SUBSCRIBE_LOGS_RESPONSE);
 
   if (!success) {
-    auto buffer = this->get_buffer();
+    buffer = this->get_buffer();
     // bool send_failed = 4;
     buffer.encode_bool(4, true);
     return this->send_buffer(APIMessageType::SUBSCRIBE_LOGS_RESPONSE);

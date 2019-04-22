@@ -132,6 +132,13 @@ def build_compile_commands():
     command.extend(includes)
     command.extend(defines)
     command.append('-std=gnu++11')
+    command.append('-Wall')
+    command.append('-Wno-delete-non-virtual-dtor')
+    command.append('-Wno-unused-variable')
+    command.append('-Wfor-loop-analysis')
+    command.append('-Wshadow-field')
+    command.append('-Wshadow-field-in-constructor')
+    command.append('-Wunreachable-code')
 
     source_files = []
     for path in walk_files(basepath):

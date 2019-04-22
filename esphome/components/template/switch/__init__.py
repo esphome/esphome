@@ -40,15 +40,13 @@ def to_code(config):
     cg.add(var.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
-@ACTION_REGISTRY.register('switch.template.publish', cv.Schema({
+@automation.register_action('switch.template.publish', switch.SwitchPublishAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(switch.Switch),
     cv.Required(CONF_STATE): cv.templatable(cv.boolean),
 }))
 def switch_template_publish_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = switch.SwitchPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_STATE], args, bool)
-    cg.add(action.set_state(template_))
-    yield action
+    cg.add(var.set_state(template_))
+    yield var

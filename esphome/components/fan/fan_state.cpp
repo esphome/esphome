@@ -13,10 +13,10 @@ void FanState::add_on_state_callback(std::function<void()> &&callback) {
 }
 FanState::FanState(const std::string &name) : Nameable(name) {}
 
-FanState::StateCall FanState::turn_on() { return this->make_call().set_state(true); }
-FanState::StateCall FanState::turn_off() { return this->make_call().set_state(false); }
-FanState::StateCall FanState::toggle() { return this->make_call().set_state(!this->state); }
-FanState::StateCall FanState::make_call() { return FanState::StateCall(this); }
+FanStateCall FanState::turn_on() { return this->make_call().set_state(true); }
+FanStateCall FanState::turn_off() { return this->make_call().set_state(false); }
+FanStateCall FanState::toggle() { return this->make_call().set_state(!this->state); }
+FanStateCall FanState::make_call() { return FanStateCall(this); }
 
 struct FanStateRTCState {
   bool state;
@@ -39,32 +39,7 @@ void FanState::setup() {
 float FanState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
 uint32_t FanState::hash_base() { return 418001110UL; }
 
-FanState::StateCall::StateCall(FanState *state) : state_(state) {}
-FanState::StateCall &FanState::StateCall::set_state(bool state) {
-  this->binary_state_ = state;
-  return *this;
-}
-FanState::StateCall &FanState::StateCall::set_state(optional<bool> state) {
-  this->binary_state_ = state;
-  return *this;
-}
-FanState::StateCall &FanState::StateCall::set_oscillating(bool oscillating) {
-  this->oscillating_ = oscillating;
-  return *this;
-}
-FanState::StateCall &FanState::StateCall::set_oscillating(optional<bool> oscillating) {
-  this->oscillating_ = oscillating;
-  return *this;
-}
-FanState::StateCall &FanState::StateCall::set_speed(FanSpeed speed) {
-  this->speed_ = speed;
-  return *this;
-}
-FanState::StateCall &FanState::StateCall::set_speed(optional<FanSpeed> speed) {
-  this->speed_ = speed;
-  return *this;
-}
-void FanState::StateCall::perform() const {
+void FanStateCall::perform() const {
   if (this->binary_state_.has_value()) {
     this->state_->state = *this->binary_state_;
   }
@@ -92,7 +67,7 @@ void FanState::StateCall::perform() const {
 
   this->state_->state_callback_.call();
 }
-FanState::StateCall &FanState::StateCall::set_speed(const char *speed) {
+FanStateCall &FanStateCall::set_speed(const char *speed) {
   if (strcasecmp(speed, "low") == 0) {
     this->set_speed(FAN_SPEED_LOW);
   } else if (strcasecmp(speed, "medium") == 0) {

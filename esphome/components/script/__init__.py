@@ -20,21 +20,17 @@ def to_code(config):
         yield automation.build_automation(trigger, [], conf)
 
 
-@ACTION_REGISTRY.register('script.execute', maybe_simple_id({
+@automation.register_action('script.execute', ScriptExecuteAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(Script),
 }))
 def script_execute_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ScriptExecuteAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('script.stop', maybe_simple_id({
+@automation.register_action('script.stop', ScriptStopAction, maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(Script)
 }))
 def script_stop_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ScriptStopAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)

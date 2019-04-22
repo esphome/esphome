@@ -310,7 +310,6 @@ template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...
     call.set_send_times(this->send_times_.value_or(x..., 1));
     call.set_send_wait(this->send_wait_.value_or(x..., 0));
     call.perform();
-    this->play_next(x...);
   }
 
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;

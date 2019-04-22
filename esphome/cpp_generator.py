@@ -287,7 +287,10 @@ def safe_exp(
         return int32
     if obj is float:
         return float_
-    if not inspect.isgenerator(obj):
+    if isinstance(obj, ID):
+        raise ValueError(u"Object {} is an ID. Did you forget to register the variable?"
+                         u"".format(obj))
+    if inspect.isgenerator(obj):
         raise ValueError(u"Object {} is a coroutine. Did you forget to await the expression with "
                          u"'yield'?".format(obj))
     raise ValueError(u"Object is not an expression", obj)
@@ -397,7 +400,7 @@ def Pvariable(id,  # type: ID
 
 
 def new_Pvariable(id,  # type: ID
-                  *args  # type: Tuple[SafeExpType]
+                  *args  # type: SafeExpType
                   ):
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
@@ -407,6 +410,10 @@ def new_Pvariable(id,  # type: ID
 
     :returns The new variable as a MockObj.
     """
+    if args and isinstance(args[0], TemplateArguments):
+        id = id.copy()
+        id.type = id.type.template(args[0])
+        args = args[1:]
     rhs = id.type.new(*args)
     return Pvariable(id, rhs)
 

@@ -1,15 +1,10 @@
-from esphome.components import binary_sensor, remote_base
-import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.components import binary_sensor, remote_base
 from esphome.const import CONF_NAME
 
 DEPENDENCIES = ['remote_receiver']
 
-
-BASE_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({}, extra=cv.ALLOW_EXTRA)
-
-
-CONFIG_SCHEMA = cv.All(BASE_SCHEMA, remote_base.validate_binary_sensor(BASE_SCHEMA))
+CONFIG_SCHEMA = remote_base.validate_binary_sensor
 
 
 def to_code(config):

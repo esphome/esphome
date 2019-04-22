@@ -222,11 +222,11 @@ class OrFilter : public Filter {
  protected:
   class PhiNode : public Filter {
    public:
-    PhiNode(OrFilter *parent);
+    PhiNode(OrFilter *or_parent);
     optional<float> new_value(float value) override;
 
    protected:
-    OrFilter *parent_;
+    OrFilter *or_parent_;
   };
 
   std::vector<Filter *> filters_;

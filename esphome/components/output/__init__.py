@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
 from esphome.components import power_supply
 from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
@@ -55,34 +56,28 @@ BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
 })
 
 
-@ACTION_REGISTRY.register('output.turn_on', BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action('output.turn_on', TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
 def output_turn_on_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOnAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('output.turn_off', BINARY_OUTPUT_ACTION_SCHEMA)
+@automation.register_action('output.turn_off', TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA)
 def output_turn_off_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOffAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('output.set_level', cv.Schema({
+@automation.register_action('output.set_level', SetLevelAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(FloatOutput),
     cv.Required(CONF_LEVEL): cv.templatable(cv.percentage),
 }))
 def output_set_level_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = SetLevelAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_LEVEL], args, float)
-    cg.add(action.set_level(template_))
-    yield action
+    cg.add(var.set_level(template_))
+    yield var
 
 
 def to_code(config):

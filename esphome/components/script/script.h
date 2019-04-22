@@ -14,10 +14,7 @@ template<typename... Ts> class ScriptExecuteAction : public Action<Ts...> {
  public:
   ScriptExecuteAction(Script *script) : script_(script) {}
 
-  void play(Ts... x) override {
-    this->script_->trigger();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->script_->trigger(); }
 
  protected:
   Script *script_;
@@ -27,10 +24,7 @@ template<typename... Ts> class ScriptStopAction : public Action<Ts...> {
  public:
   ScriptStopAction(Script *script) : script_(script) {}
 
-  void play(Ts... x) override {
-    this->script_->stop();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->script_->stop(); }
 
  protected:
   Script *script_;

@@ -1,3 +1,4 @@
+from esphome import automation
 from esphome.automation import CONDITION_REGISTRY, Condition
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -188,8 +189,6 @@ def to_code(config):
     yield cg.register_component(wifi, config)
 
 
-@CONDITION_REGISTRY.register('wifi.connected', cv.Schema({}))
+@automation.register_condition('wifi.connected', WiFiConnectedCondition, cv.Schema({}))
 def wifi_connected_to_code(config, condition_id, template_arg, args):
-    rhs = WiFiConnectedCondition.new(template_arg)
-    type = WiFiConnectedCondition.template(template_arg)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    yield cg.new_Pvariable(condition_id, template_arg)

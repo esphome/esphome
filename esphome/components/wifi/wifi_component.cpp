@@ -297,7 +297,7 @@ void WiFiComponent::check_scanning_finished() {
   }
 
   std::stable_sort(this->scan_result_.begin(), this->scan_result_.end(),
-                   [this](const WiFiScanResult &a, const WiFiScanResult &b) {
+                   [](const WiFiScanResult &a, const WiFiScanResult &b) {
                      if (a.get_matches() && !b.get_matches())
                        return true;
                      if (!a.get_matches() && b.get_matches())

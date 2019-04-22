@@ -15,6 +15,47 @@ enum FanSpeed {
   FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
 };
 
+class FanState;
+
+class FanStateCall {
+ public:
+  explicit FanStateCall(FanState *state) : state_(state) {}
+
+  FanStateCall &set_state(bool binary_state) {
+    this->binary_state_ = binary_state;
+    return *this;
+  }
+  FanStateCall &set_state(optional<bool> binary_state) {
+    this->binary_state_ = binary_state;
+    return *this;
+  }
+  FanStateCall &set_oscillating(bool oscillating) {
+    this->oscillating_ = oscillating;
+    return *this;
+  }
+  FanStateCall &set_oscillating(optional<bool> oscillating) {
+    this->oscillating_ = oscillating;
+    return *this;
+  }
+  FanStateCall &set_speed(FanSpeed speed) {
+    this->speed_ = speed;
+    return *this;
+  }
+  FanStateCall &set_speed(optional<FanSpeed> speed) {
+    this->speed_ = speed;
+    return *this;
+  }
+  FanStateCall &set_speed(const char *speed);
+
+  void perform() const;
+
+ protected:
+  FanState *const state_;
+  optional<bool> binary_state_;
+  optional<bool> oscillating_{};
+  optional<FanSpeed> speed_{};
+};
+
 class FanState : public Nameable, public Component {
  public:
   FanState() = default;
@@ -36,36 +77,17 @@ class FanState : public Nameable, public Component {
   /// The current fan speed.
   FanSpeed speed{FAN_SPEED_HIGH};
 
-  class StateCall {
-   public:
-    explicit StateCall(FanState *state);
-
-    FanState::StateCall &set_state(bool state);
-    FanState::StateCall &set_state(optional<bool> state);
-    FanState::StateCall &set_oscillating(bool oscillating);
-    FanState::StateCall &set_oscillating(optional<bool> oscillating);
-    FanState::StateCall &set_speed(FanSpeed speed);
-    FanState::StateCall &set_speed(optional<FanSpeed> speed);
-    FanState::StateCall &set_speed(const char *speed);
-
-    void perform() const;
-
-   protected:
-    FanState *const state_;
-    optional<bool> binary_state_;
-    optional<bool> oscillating_{};
-    optional<FanSpeed> speed_{};
-  };
-
-  FanState::StateCall turn_on();
-  FanState::StateCall turn_off();
-  FanState::StateCall toggle();
-  FanState::StateCall make_call();
+  FanStateCall turn_on();
+  FanStateCall turn_off();
+  FanStateCall toggle();
+  FanStateCall make_call();
 
   void setup() override;
   float get_setup_priority() const override;
 
  protected:
+  friend FanStateCall;
+
   uint32_t hash_base() override;
 
   FanTraits traits_{};

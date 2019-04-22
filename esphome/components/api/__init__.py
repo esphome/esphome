@@ -78,7 +78,6 @@ def to_code(config):
         cg.add_library('ESPAsyncTCP', '1.2.0')
 
 
-CONF_HOMEASSISTANT_SERVICE = 'homeassistant.service'
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
     cv.Required(CONF_SERVICE): cv.string,
@@ -94,34 +93,27 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register(CONF_HOMEASSISTANT_SERVICE, HOMEASSISTANT_SERVICE_ACTION_SCHEMA)
+@automation.register_action('homeassistant.service', HomeAssistantServiceCallAction,
+                            HOMEASSISTANT_SERVICE_ACTION_SCHEMA)
 def homeassistant_service_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = HomeAssistantServiceCallAction.template(template_arg)
-    rhs = type.new(var)
-    act = cg.Pvariable(action_id, rhs, type=type)
-    cg.add(act.set_service(config[CONF_SERVICE]))
+    serv = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv)
+    cg.add(var.set_service(config[CONF_SERVICE]))
     if CONF_DATA in config:
         datas = [KeyValuePair(k, v) for k, v in config[CONF_DATA].items()]
-        cg.add(act.set_data(datas))
+        cg.add(var.set_data(datas))
     if CONF_DATA_TEMPLATE in config:
         datas = [KeyValuePair(k, v) for k, v in config[CONF_DATA_TEMPLATE].items()]
-        cg.add(act.set_data_template(datas))
+        cg.add(var.set_data_template(datas))
     if CONF_VARIABLES in config:
         datas = []
         for key, value in config[CONF_VARIABLES].items():
             value_ = yield cg.process_lambda(value, [])
             datas.append(TemplatableKeyValuePair(key, value_))
-        cg.add(act.set_variables(datas))
-    yield act
+        cg.add(var.set_variables(datas))
+    yield var
 
 
-CONF_API_CONNECTED = 'api.connected'
-API_CONNECTED_CONDITION_SCHEMA = cv.Schema({})
-
-
-@CONDITION_REGISTRY.register(CONF_API_CONNECTED, API_CONNECTED_CONDITION_SCHEMA)
+@automation.register_condition('api.connected', APIConnectedCondition, {})
 def api_connected_to_code(config, condition_id, template_arg, args):
-    rhs = APIConnectedCondition.new(template_arg)
-    type = APIConnectedCondition.template(template_arg)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    yield cg.new_Pvariable(condition_id, template_arg)

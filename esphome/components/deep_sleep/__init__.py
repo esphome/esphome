@@ -1,4 +1,4 @@
-from esphome import pins
+from esphome import pins, automation
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.automation import ACTION_REGISTRY, maybe_simple_id
@@ -86,21 +86,17 @@ def to_code(config):
 
 
 DEEP_SLEEP_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_id(DeepSleepComponent),
+    cv.GenerateID(): cv.use_id(DeepSleepComponent),
 })
 
 
-@ACTION_REGISTRY.register('deep_sleep.enter', DEEP_SLEEP_ACTION_SCHEMA)
+@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA)
 def deep_sleep_enter_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = EnterDeepSleepAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('deep_sleep.prevent', DEEP_SLEEP_ACTION_SCHEMA)
+@automation.register_action('deep_sleep.prevent', PreventDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA)
 def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = PreventDeepSleepAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
