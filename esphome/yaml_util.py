@@ -3,6 +3,7 @@ from __future__ import print_function
 import fnmatch
 import functools
 import logging
+import math
 import os
 
 import uuid
@@ -411,13 +412,10 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        # pylint: disable=comparison-with-itself
-        if value != value or (value == 0.0 and value == 1.0):
+        if math.isnan(value):
             value = u'.nan'
-        elif value == self.inf_value:
-            value = u'.inf'
-        elif value == -self.inf_value:
-            value = u'-.inf'
+        elif math.isinf(value):
+            value = u'.inf' if value > 0 else u'-.inf'
         else:
             value = text_type(repr(value)).lower()
             # Note that in some cases `repr(data)` represents a float number
