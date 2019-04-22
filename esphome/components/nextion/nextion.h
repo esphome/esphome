@@ -19,8 +19,6 @@ using nextion_writer_t = std::function<void(Nextion &)>;
 
 class Nextion : public PollingComponent, public uart::UARTDevice {
  public:
-  Nextion() : PollingComponent(0) {}
-
   /**
    * Set the text of a component to a static string.
    * @param component The component name.
@@ -189,7 +187,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  NextionTouchComponent *make_touch_component(const std::string &name, uint8_t page_id, uint8_t component_id);
+  void register_touch_component(NextionTouchComponent *obj) { this->touch_.push_back(obj); }
   void setup() override;
   float get_setup_priority() const override;
   void update() override;
@@ -222,7 +220,8 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
 
 class NextionTouchComponent : public binary_sensor::BinarySensor {
  public:
-  NextionTouchComponent(const std::string &name, uint8_t page_id, uint8_t component_id);
+  void set_page_id(uint8_t page_id) { page_id_ = page_id; }
+  void set_component_id(uint8_t component_id) { component_id_ = component_id; }
   void process(uint8_t page_id, uint8_t component_id, bool on);
 
  protected:

@@ -7,8 +7,6 @@ namespace uptime {
 
 static const char *TAG = "uptime.sensor";
 
-UptimeSensor::UptimeSensor(const std::string &name, uint32_t update_interval)
-    : sensor::PollingSensorComponent(name, update_interval) {}
 void UptimeSensor::update() {
   const uint32_t ms = millis();
   const uint64_t ms_mask = (1ULL << 32) - 1ULL;

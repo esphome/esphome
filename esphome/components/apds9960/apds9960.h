@@ -10,7 +10,6 @@ namespace apds9960 {
 
 class APDS9960 : public PollingComponent, public i2c::I2CDevice {
  public:
-  APDS9960(uint32_t update_interval) : PollingComponent(update_interval) {}
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;

@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_NAME, CONF_PIN, CONF_UPDATE_INTERVAL, \
-    CONF_ICON, ICON_FLASH, CONF_UNIT_OF_MEASUREMENT, UNIT_VOLT, CONF_ACCURACY_DECIMALS
+from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_PIN, ICON_FLASH, UNIT_VOLT
 
 ATTENUATION_MODES = {
     '0db': cg.global_ns.ADC_0db,
@@ -23,30 +22,24 @@ def validate_adc_pin(value):
 adc_ns = cg.esphome_ns.namespace('adc')
 ADCSensor = adc_ns.class_('ADCSensor', sensor.PollingSensorComponent)
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(ADCSensor),
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
+    cv.GenerateID(): cv.declare_id(ADCSensor),
     cv.Required(CONF_PIN): validate_adc_pin,
-    cv.Optional(CONF_ATTENUATION): cv.All(cv.only_on_esp32, cv.one_of(*ATTENUATION_MODES,
-                                                                      lower=True)),
-
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-    cv.Optional(CONF_ICON, default=ICON_FLASH): sensor.icon,
-    cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_VOLT): sensor.unit_of_measurement,
-    cv.Optional(CONF_ACCURACY_DECIMALS, default=2): sensor.accuracy_decimals,
-}).extend(cv.COMPONENT_SCHEMA))
+    cv.SplitDefault(CONF_ATTENUATION, esp32='0db'):
+        cv.All(cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)),
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):
-    pin = config[CONF_PIN]
-    if pin == 'VCC':
-        pin = 0
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+    yield sensor.register_sensor(var, config)
 
+    if config[CONF_PIN] == 'VCC':
         cg.add_define('USE_ADC_SENSOR_VCC')
         cg.add_global(cg.global_ns.ADC_MODE(cg.global_ns.ADC_VCC))
-    rhs = ADCSensor.new(config[CONF_NAME], pin, config[CONF_UPDATE_INTERVAL])
-    adc = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(adc, config)
-    yield sensor.register_sensor(adc, config)
+    else:
+        cg.add(var.set_pin(config[CONF_PIN]))
 
     if CONF_ATTENUATION in config:
-        cg.add(adc.set_attenuation(ATTENUATION_MODES[config[CONF_ATTENUATION]]))
+        cg.add(var.set_attenuation(config[CONF_ATTENUATION]))

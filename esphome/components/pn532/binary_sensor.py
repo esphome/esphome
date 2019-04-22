@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_NAME, CONF_UID, CONF_ID
+from esphome.const import CONF_UID, CONF_ID
 from esphome.core import HexInt
 from . import pn532_ns, PN532
 
@@ -27,16 +27,18 @@ def validate_uid(value):
 
 PN532BinarySensor = pn532_ns.class_('PN532BinarySensor', binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(PN532BinarySensor),
-    cv.GenerateID(CONF_PN532_ID): cv.use_variable_id(PN532),
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(PN532BinarySensor),
+    cv.GenerateID(CONF_PN532_ID): cv.use_id(PN532),
     cv.Required(CONF_UID): validate_uid,
-}))
+})
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_PN532_ID])
-    addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], addr)
-    cg.add(hub.register_tag(var))
+    var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
+    hub = yield cg.get_variable(config[CONF_PN532_ID])
+    cg.add(hub.register_tag(var))
+    addr = [HexInt(int(x, 16)) for x in config[CONF_UID].split('-')]
+    cg.add(var.set_uid(addr))

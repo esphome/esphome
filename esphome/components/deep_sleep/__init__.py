@@ -1,7 +1,7 @@
-from esphome import pins
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+import esphome.config_validation as cv
+from esphome import pins, automation
+from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
 
@@ -16,8 +16,8 @@ def validate_pin_number(value):
 
 deep_sleep_ns = cg.esphome_ns.namespace('deep_sleep')
 DeepSleepComponent = deep_sleep_ns.class_('DeepSleepComponent', cg.Component)
-EnterDeepSleepAction = deep_sleep_ns.class_('EnterDeepSleepAction', cg.Action)
-PreventDeepSleepAction = deep_sleep_ns.class_('PreventDeepSleepAction', cg.Action)
+EnterDeepSleepAction = deep_sleep_ns.class_('EnterDeepSleepAction', automation.Action)
+PreventDeepSleepAction = deep_sleep_ns.class_('PreventDeepSleepAction', automation.Action)
 
 WakeupPinMode = deep_sleep_ns.enum('WakeupPinMode')
 WAKEUP_PIN_MODES = {
@@ -37,17 +37,17 @@ CONF_WAKEUP_PIN_MODE = 'wakeup_pin_mode'
 CONF_ESP32_EXT1_WAKEUP = 'esp32_ext1_wakeup'
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DeepSleepComponent),
+    cv.GenerateID(): cv.declare_id(DeepSleepComponent),
     cv.Optional(CONF_RUN_DURATION): cv.positive_time_period_milliseconds,
 
     cv.Optional(CONF_SLEEP_DURATION): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_WAKEUP_PIN): cv.All(cv.only_on_esp32, pins.internal_gpio_input_pin_schema,
                                          validate_pin_number),
     cv.Optional(CONF_WAKEUP_PIN_MODE): cv.All(cv.only_on_esp32,
-                                              cv.one_of(*WAKEUP_PIN_MODES), upper=True),
+                                              cv.enum(WAKEUP_PIN_MODES), upper=True),
     cv.Optional(CONF_ESP32_EXT1_WAKEUP): cv.All(cv.only_on_esp32, cv.Schema({
         cv.Required(CONF_PINS): cv.ensure_list(pins.shorthand_input_pin, validate_pin_number),
-        cv.Required(CONF_MODE): cv.one_of(*EXT1_WAKEUP_MODES, upper=True),
+        cv.Required(CONF_MODE): cv.enum(EXT1_WAKEUP_MODES, upper=True),
     })),
 
     cv.Optional(CONF_RUN_CYCLES): cv.invalid("The run_cycles option has been removed in 1.11.0 as "
@@ -66,7 +66,7 @@ def to_code(config):
         pin = yield cg.gpio_pin_expression(config[CONF_WAKEUP_PIN])
         cg.add(var.set_wakeup_pin(pin))
     if CONF_WAKEUP_PIN_MODE in config:
-        cg.add(var.set_wakeup_pin_mode(WAKEUP_PIN_MODES[config[CONF_WAKEUP_PIN_MODE]]))
+        cg.add(var.set_wakeup_pin_mode(config[CONF_WAKEUP_PIN_MODE]))
     if CONF_RUN_DURATION in config:
         cg.add(var.set_run_duration(config[CONF_RUN_DURATION]))
 
@@ -78,7 +78,7 @@ def to_code(config):
         struct = cg.StructInitializer(
             Ext1Wakeup,
             ('mask', mask),
-            ('wakeup_mode', EXT1_WAKEUP_MODES[conf[CONF_MODE]])
+            ('wakeup_mode', conf[CONF_MODE])
         )
         cg.add(var.set_ext1_wakeup(struct))
 
@@ -86,21 +86,17 @@ def to_code(config):
 
 
 DEEP_SLEEP_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(DeepSleepComponent),
+    cv.GenerateID(): cv.use_id(DeepSleepComponent),
 })
 
 
-@ACTION_REGISTRY.register('deep_sleep.enter', DEEP_SLEEP_ACTION_SCHEMA)
+@automation.register_action('deep_sleep.enter', EnterDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA)
 def deep_sleep_enter_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = EnterDeepSleepAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('deep_sleep.prevent', DEEP_SLEEP_ACTION_SCHEMA)
+@automation.register_action('deep_sleep.prevent', PreventDeepSleepAction, DEEP_SLEEP_ACTION_SCHEMA)
 def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = PreventDeepSleepAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)

@@ -9,8 +9,9 @@ namespace rgb {
 
 class RGBLightOutput : public light::LightOutput {
  public:
-  RGBLightOutput(output::FloatOutput *red, output::FloatOutput *green, output::FloatOutput *blue)
-      : red_(red), green_(green), blue_(blue) {}
+  void set_red(output::FloatOutput *red) { red_ = red; }
+  void set_green(output::FloatOutput *green) { green_ = green; }
+  void set_blue(output::FloatOutput *blue) { blue_ = blue; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);

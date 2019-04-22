@@ -6,8 +6,8 @@ namespace template_ {
 
 static const char *TAG = "template.switch";
 
-TemplateSwitch::TemplateSwitch(const std::string &name)
-    : switch_::Switch(name), Component(), turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+TemplateSwitch::TemplateSwitch() : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
+
 void TemplateSwitch::loop() {
   if (!this->f_.has_value())
     return;

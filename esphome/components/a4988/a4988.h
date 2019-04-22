@@ -9,7 +9,8 @@ namespace a4988 {
 
 class A4988 : public stepper::Stepper, public Component {
  public:
-  A4988(GPIOPin *step_pin, GPIOPin *dir_pin) : step_pin_(step_pin), dir_pin_(dir_pin) {}
+  void set_step_pin(GPIOPin *step_pin) { step_pin_ = step_pin; }
+  void set_dir_pin(GPIOPin *dir_pin) { dir_pin_ = dir_pin; }
   void set_sleep_pin(GPIOPin *sleep_pin) { this->sleep_pin_ = sleep_pin; }
   void setup() override;
   void dump_config() override;

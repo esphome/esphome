@@ -40,7 +40,7 @@ class ESP8266SoftwareSerial {
 
 class UARTComponent : public Component, public Stream {
  public:
-  UARTComponent(uint32_t baud_rate) : baud_rate_(baud_rate) {}
+  void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
 
   void setup() override;
 

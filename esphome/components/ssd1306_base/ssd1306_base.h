@@ -20,8 +20,6 @@ enum SSD1306Model {
 
 class SSD1306 : public PollingComponent, public display::DisplayBuffer {
  public:
-  SSD1306() : PollingComponent(0) {}
-
   void setup() override;
 
   void display();

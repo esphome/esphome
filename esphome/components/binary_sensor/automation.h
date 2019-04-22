@@ -150,7 +150,6 @@ template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> 
   void play(Ts... x) override {
     auto val = this->state_.value(x...);
     this->sensor_->publish_state(val);
-    this->play_next(x...);
   }
 
  protected:

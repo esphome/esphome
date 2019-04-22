@@ -88,7 +88,7 @@ std::string to_lowercase_underscore(std::string s) {
 std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist) {
   std::string out(s);
   out.erase(std::remove_if(out.begin(), out.end(),
-                           [&out, &whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
+                           [&whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
             out.end());
   return out;
 }

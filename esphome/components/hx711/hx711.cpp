@@ -58,10 +58,6 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
     *result = data;
   return true;
 }
-HX711Sensor::HX711Sensor(const std::string &name, GPIOPin *dout, GPIOPin *sck, uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval), dout_pin_(dout), sck_pin_(sck) {}
-
-void HX711Sensor::set_gain(HX711Gain gain) { this->gain_ = gain; }
 
 }  // namespace hx711
 }  // namespace esphome

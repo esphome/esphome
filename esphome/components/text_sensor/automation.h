@@ -18,10 +18,7 @@ template<typename... Ts> class TextSensorPublishAction : public Action<Ts...> {
  public:
   TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(std::string, state)
-  void play(Ts... x) override {
-    this->sensor_->publish_state(this->state_.value(x...));
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
   TextSensor *sensor_;

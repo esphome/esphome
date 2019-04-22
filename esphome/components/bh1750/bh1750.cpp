@@ -8,9 +8,6 @@ static const char *TAG = "bh1750.sensor";
 
 static const uint8_t BH1750_COMMAND_POWER_ON = 0b00000001;
 
-BH1750Sensor::BH1750Sensor(const std::string &name, uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval) {}
-
 void BH1750Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BH1750 '%s'...", this->name_.c_str());
   if (!this->write_bytes(BH1750_COMMAND_POWER_ON, nullptr, 0)) {

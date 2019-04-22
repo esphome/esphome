@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, CONF_COLOR_CORRECT, \
     CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
@@ -9,7 +10,7 @@ from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, C
     CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH, \
     CONF_MQTT_ID
 from esphome.core import coroutine
-from esphome.util import ServiceRegistry
+from esphome.util import Registry
 
 IS_PLATFORM_COMPONENT = True
 
@@ -23,8 +24,8 @@ AddressableLight = light_ns.class_('AddressableLight')
 AddressableLightRef = AddressableLight.operator('ref')
 
 # Actions
-ToggleAction = light_ns.class_('ToggleAction', cg.Action)
-LightControlAction = light_ns.class_('LightControlAction', cg.Action)
+ToggleAction = light_ns.class_('ToggleAction', automation.Action)
+LightControlAction = light_ns.class_('LightControlAction', automation.Action)
 
 LightColorValues = light_ns.class_('LightColorValues')
 
@@ -78,27 +79,24 @@ ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_R
                                      CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
                                      CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
 
-EFFECTS_REGISTRY = ServiceRegistry()
+EFFECTS_REGISTRY = Registry()
 
 
 def register_effect(name, effect_type, default_name, schema, *extra_validators):
     schema = cv.Schema(schema).extend({
-        cv.GenerateID(): cv.declare_variable_id(effect_type),
         cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
     })
     validator = cv.All(schema, *extra_validators)
-    register = EFFECTS_REGISTRY.register(name, validator)
-
-    return register
+    return EFFECTS_REGISTRY.register(name, effect_type, validator)
 
 
 @register_effect('lambda', LambdaLightEffect, "Lambda", {
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.update_interval,
 })
-def lambda_effect_to_code(config):
+def lambda_effect_to_code(config, effect_id):
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.void)
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], lambda_,
+    yield cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
 
 
@@ -106,8 +104,8 @@ def lambda_effect_to_code(config):
     cv.Optional(CONF_TRANSITION_LENGTH, default='7.5s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_UPDATE_INTERVAL, default='10s'): cv.positive_time_period_milliseconds,
 })
-def random_effect_to_code(config):
-    effect = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def random_effect_to_code(config, effect_id):
+    effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
     cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     yield effect
@@ -128,8 +126,8 @@ def random_effect_to_code(config):
     }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
                                 CONF_WHITE)), cv.Length(min=2)),
 })
-def strobe_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def strobe_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     colors = []
     for color in config.get(CONF_COLORS, []):
         colors.append(cg.StructInitializer(
@@ -147,8 +145,8 @@ def strobe_effect_to_code(config):
     cv.Optional(CONF_ALPHA, default=0.95): cv.percentage,
     cv.Optional(CONF_INTENSITY, default=0.015): cv.percentage,
 })
-def flicker_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def flicker_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_alpha(config[CONF_ALPHA]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     yield var
@@ -158,10 +156,10 @@ def flicker_effect_to_code(config):
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
 })
-def addressable_lambda_effect_to_code(config):
+def addressable_lambda_effect_to_code(config, effect_id):
     args = [(AddressableLightRef, 'it')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], lambda_,
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
     yield var
 
@@ -170,8 +168,8 @@ def addressable_lambda_effect_to_code(config):
     cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
     cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
 })
-def addressable_rainbow_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_rainbow_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_speed(config[CONF_SPEED]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     yield var
@@ -189,8 +187,8 @@ def addressable_rainbow_effect_to_code(config):
     cv.Optional(CONF_ADD_LED_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_REVERSE, default=False): cv.boolean,
 })
-def addressable_color_wipe_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_color_wipe_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
     cg.add(var.set_reverse(config[CONF_REVERSE]))
     colors = []
@@ -211,8 +209,8 @@ def addressable_color_wipe_effect_to_code(config):
 @register_effect('addressable_scan', AddressableScanEffect, "Scan", {
     cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
 })
-def addressable_scan_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_scan_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_move_interval(config[CONF_MOVE_INTERVAL]))
     yield var
 
@@ -221,8 +219,8 @@ def addressable_scan_effect_to_code(config):
     cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
     cv.Optional(CONF_PROGRESS_INTERVAL, default='4ms'): cv.positive_time_period_milliseconds,
 })
-def addressable_twinkle_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_twinkle_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
     cg.add(var.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
     yield var
@@ -232,8 +230,8 @@ def addressable_twinkle_effect_to_code(config):
     cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
     cv.Optional(CONF_PROGRESS_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
 })
-def addressable_random_twinkle_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_random_twinkle_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
     cg.add(var.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
     yield var
@@ -245,8 +243,8 @@ def addressable_random_twinkle_effect_to_code(config):
     cv.Optional(CONF_USE_RANDOM_COLOR, default=False): cv.boolean,
     cv.Optional(CONF_FADE_OUT_RATE, default=120): cv.uint8_t,
 })
-def addressable_fireworks_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_fireworks_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(var.set_spark_probability(config[CONF_SPARK_PROBABILITY]))
     cg.add(var.set_use_random_color(config[CONF_USE_RANDOM_COLOR]))
@@ -258,8 +256,8 @@ def addressable_fireworks_effect_to_code(config):
     cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_INTENSITY, default='5%'): cv.percentage,
 })
-def addressable_flicker_effect_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+def addressable_flicker_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
     yield var
@@ -267,7 +265,7 @@ def addressable_flicker_effect_to_code(config):
 
 def validate_effects(allowed_effects):
     def validator(value):
-        value = cv.validate_registry('effect', EFFECTS_REGISTRY, [])(value)
+        value = cv.validate_registry('effect', EFFECTS_REGISTRY)(value)
         errors = []
         names = set()
         for i, x in enumerate(value):
@@ -294,8 +292,8 @@ def validate_effects(allowed_effects):
 
 
 LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(LightState),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTJSONLightComponent),
+    cv.GenerateID(): cv.declare_id(LightState),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTJSONLightComponent),
 })
 
 BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
@@ -313,7 +311,7 @@ RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
 })
 
 ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(AddressableLightState),
+    cv.GenerateID(): cv.declare_id(AddressableLightState),
     cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
     cv.Optional(CONF_COLOR_CORRECT): cv.All([cv.percentage], cv.Length(min=3, max=4)),
 })
@@ -346,38 +344,21 @@ def register_light(output_var, config):
     yield setup_light_core_(light_var, output_var, config)
 
 
-@ACTION_REGISTRY.register('light.toggle', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+@automation.register_action('light.toggle', ToggleAction, maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 }))
 def light_toggle_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ToggleAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_TRANSITION_LENGTH in config:
         template_ = yield cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
-        cg.add(action.set_transition_length(template_))
-    yield action
-
-
-@ACTION_REGISTRY.register('light.turn_off', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
-    cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
-}))
-def light_turn_off_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = LightControlAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
-    if CONF_TRANSITION_LENGTH in config:
-        template_ = yield cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
-        cg.add(action.set_transition_length(template_))
-    yield action
+        cg.add(var.set_transition_length(template_))
+    yield var
 
 
 LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_STATE): cv.templatable(cv.boolean),
     cv.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
         cv.templatable(cv.positive_time_period_milliseconds),
@@ -392,7 +373,7 @@ LIGHT_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.color_temperature),
 })
 LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(LightState),
+    cv.Required(CONF_ID): cv.use_id(LightState),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
     cv.Optional(CONF_STATE, default=False): False,
 })
@@ -401,45 +382,43 @@ LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id(LIGHT_CONTROL_ACTION_SCHEMA.extend
 }))
 
 
-@ACTION_REGISTRY.register('light.turn_off', LIGHT_TURN_OFF_ACTION_SCHEMA)
-@ACTION_REGISTRY.register('light.turn_on', LIGHT_TURN_ON_ACTION_SCHEMA)
-@ACTION_REGISTRY.register('light.control', LIGHT_CONTROL_ACTION_SCHEMA)
-def light_control_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = LightControlAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+@automation.register_action('light.turn_off', LightControlAction, LIGHT_TURN_OFF_ACTION_SCHEMA)
+@automation.register_action('light.turn_on', LightControlAction, LIGHT_TURN_ON_ACTION_SCHEMA)
+@automation.register_action('light.control', LightControlAction, LIGHT_CONTROL_ACTION_SCHEMA)
+def light_control_to_code(config, var, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(var, template_arg, paren)
     if CONF_STATE in config:
         template_ = yield cg.templatable(config[CONF_STATE], args, bool)
-        cg.add(action.set_state(template_))
+        cg.add(var.set_state(template_))
     if CONF_TRANSITION_LENGTH in config:
         template_ = yield cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
-        cg.add(action.set_transition_length(template_))
+        cg.add(var.set_transition_length(template_))
     if CONF_FLASH_LENGTH in config:
         template_ = yield cg.templatable(config[CONF_FLASH_LENGTH], args, cg.uint32)
-        cg.add(action.set_flash_length(template_))
+        cg.add(var.set_flash_length(template_))
     if CONF_BRIGHTNESS in config:
         template_ = yield cg.templatable(config[CONF_BRIGHTNESS], args, float)
-        cg.add(action.set_brightness(template_))
+        cg.add(var.set_brightness(template_))
     if CONF_RED in config:
         template_ = yield cg.templatable(config[CONF_RED], args, float)
-        cg.add(action.set_red(template_))
+        cg.add(var.set_red(template_))
     if CONF_GREEN in config:
         template_ = yield cg.templatable(config[CONF_GREEN], args, float)
-        cg.add(action.set_green(template_))
+        cg.add(var.set_green(template_))
     if CONF_BLUE in config:
         template_ = yield cg.templatable(config[CONF_BLUE], args, float)
-        cg.add(action.set_blue(template_))
+        cg.add(var.set_blue(template_))
     if CONF_WHITE in config:
         template_ = yield cg.templatable(config[CONF_WHITE], args, float)
-        cg.add(action.set_white(template_))
+        cg.add(var.set_white(template_))
     if CONF_COLOR_TEMPERATURE in config:
         template_ = yield cg.templatable(config[CONF_COLOR_TEMPERATURE], args, float)
-        cg.add(action.set_color_temperature(template_))
+        cg.add(var.set_color_temperature(template_))
     if CONF_EFFECT in config:
         template_ = yield cg.templatable(config[CONF_EFFECT], args, cg.std_string)
-        cg.add(action.set_effect(template_))
-    yield action
+        cg.add(var.set_effect(template_))
+    yield var
 
 
 def to_code(config):

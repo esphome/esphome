@@ -9,8 +9,6 @@ namespace dht12 {
 
 class DHT12Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  DHT12Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;

@@ -4,15 +4,15 @@ from esphome import automation
 from esphome.components import climate, sensor
 from esphome.const import CONF_AWAY_CONFIG, CONF_COOL_ACTION, \
     CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION, \
-    CONF_ID, CONF_IDLE_ACTION, CONF_NAME, CONF_SENSOR
+    CONF_ID, CONF_IDLE_ACTION, CONF_SENSOR
 
 bang_bang_ns = cg.esphome_ns.namespace('bang_bang')
 BangBangClimate = bang_bang_ns.class_('BangBangClimate', climate.ClimateDevice)
 BangBangClimateTargetTempConfig = bang_bang_ns.struct('BangBangClimateTargetTempConfig')
 
-CONFIG_SCHEMA = cv.nameable(climate.CLIMATE_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(BangBangClimate),
-    cv.Required(CONF_SENSOR): cv.use_variable_id(sensor.Sensor),
+CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(BangBangClimate),
+    cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
     cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
     cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
     cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
@@ -26,7 +26,7 @@ CONFIG_SCHEMA = cv.nameable(climate.CLIMATE_SCHEMA.extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield climate.register_climate(var, config)
 

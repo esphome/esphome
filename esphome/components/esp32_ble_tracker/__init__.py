@@ -11,12 +11,12 @@ ESP32BLETracker = esp32_ble_tracker_ns.class_('ESP32BLETracker', cg.Component)
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_('ESPBTDeviceListener')
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ESP32BLETracker),
+    cv.GenerateID(): cv.declare_id(ESP32BLETracker),
     cv.Optional(CONF_SCAN_INTERVAL, default='300s'): cv.positive_time_period_seconds,
 }).extend(cv.COMPONENT_SCHEMA)
 
 ESP_BLE_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_variable_id(ESP32BLETracker),
+    cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_id(ESP32BLETracker),
 })
 
 

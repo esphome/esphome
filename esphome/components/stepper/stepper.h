@@ -42,10 +42,7 @@ template<typename... Ts> class SetTargetAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(int32_t, target)
 
-  void play(Ts... x) override {
-    this->parent_->set_target(this->target_.value(x...));
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->parent_->set_target(this->target_.value(x...)); }
 
  protected:
   Stepper *parent_;
@@ -57,10 +54,7 @@ template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(int32_t, position)
 
-  void play(Ts... x) override {
-    this->parent_->report_position(this->position_.value(x...));
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->parent_->report_position(this->position_.value(x...)); }
 
  protected:
   Stepper *parent_;

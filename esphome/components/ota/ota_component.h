@@ -35,12 +35,6 @@ enum OTAResponseTypes {
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
-  /** Construct an OTAComponent. Defaults to no authentication.
-   *
-   * @param port The port ArduinoOTA will listen on.
-   */
-  explicit OTAComponent(uint16_t port);
-
   /** Set a plaintext password that OTA will use for authentication.
    *
    * Warning: This password will be stored in plaintext in the ROM and can be read

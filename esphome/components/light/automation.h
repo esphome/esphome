@@ -16,7 +16,6 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
     auto call = this->state_->toggle();
     call.set_transition_length(this->transition_length_.optional_value(x...));
     call.perform();
-    this->play_next(x...);
   }
 
  protected:
@@ -51,7 +50,6 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
     call.set_flash_length(this->flash_length_.optional_value(x...));
     call.set_transition_length(this->transition_length_.optional_value(x...));
     call.perform();
-    this->play_next(x...);
   }
 
  protected:

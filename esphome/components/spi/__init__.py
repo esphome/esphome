@@ -11,7 +11,7 @@ SPIDevice = spi_ns.class_('SPIDevice')
 MULTI_CONF = True
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(SPIComponent),
+    cv.GenerateID(): cv.declare_id(SPIComponent),
     cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
@@ -19,21 +19,23 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 
 
 def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+
     clk = yield cg.gpio_pin_expression(config[CONF_CLK_PIN])
-    miso = mosi = cg.nullptr
+    cg.add(var.set_clk(clk))
     if CONF_MISO_PIN in config:
         miso = yield cg.gpio_pin_expression(config[CONF_MISO_PIN])
+        cg.add(var.set_miso(miso))
     if CONF_MOSI_PIN in config:
         mosi = yield cg.gpio_pin_expression(config[CONF_MOSI_PIN])
-
-    var = cg.new_Pvariable(config[CONF_ID], clk, miso, mosi)
-    yield cg.register_component(var, config)
+        cg.add(var.set_mosi(mosi))
 
     cg.add_global(spi_ns.using)
 
 
 SPI_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_SPI_ID): cv.use_variable_id(SPIComponent),
+    cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
 })
 

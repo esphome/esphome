@@ -13,8 +13,6 @@ class PN532Trigger;
 
 class PN532 : public PollingComponent, public spi::SPIDevice {
  public:
-  PN532(uint32_t update_interval);
-
   void setup() override;
 
   void dump_config() override;
@@ -69,7 +67,7 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
 
 class PN532BinarySensor : public binary_sensor::BinarySensor {
  public:
-  PN532BinarySensor(const std::string &name, const std::vector<uint8_t> &uid);
+  void set_uid(const std::vector<uint8_t> &uid) { uid_ = uid; }
 
   bool process(const uint8_t *data, uint8_t len);
 

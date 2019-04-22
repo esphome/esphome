@@ -9,7 +9,6 @@ namespace ina3221 {
 
 class INA3221Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  INA3221Component(uint32_t update_interval) : PollingComponent(update_interval) {}
   void setup() override;
   void dump_config() override;
   void update() override;

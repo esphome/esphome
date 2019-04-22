@@ -1,11 +1,14 @@
-from esphome.automation import CONDITION_REGISTRY, Condition
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import Condition
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
     CONF_SUBNET, CONF_USE_ADDRESS
 from esphome.core import CORE, HexInt, coroutine_with_priority
+
+AUTO_LOAD = ['network']
 
 wifi_ns = cg.esphome_ns.namespace('wifi')
 IPAddress = cg.global_ns.class_('IPAddress')
@@ -54,7 +57,7 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
 })
 
 WIFI_NETWORK_BASE = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(WiFiAP),
+    cv.GenerateID(): cv.declare_id(WiFiAP),
     cv.Optional(CONF_SSID): cv.ssid,
     cv.Optional(CONF_PASSWORD): validate_password,
     cv.Optional(CONF_CHANNEL): validate_channel,
@@ -106,7 +109,7 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(WiFiComponent),
+    cv.GenerateID(): cv.declare_id(WiFiComponent),
     cv.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
 
     cv.Optional(CONF_SSID): cv.ssid,
@@ -116,8 +119,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_AP): WIFI_NETWORK_AP,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'):
-        cv.one_of(*WIFI_POWER_SAVE_MODES, upper=True),
+    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
@@ -175,7 +177,7 @@ def to_code(config):
         cg.add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
 
     cg.add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(wifi.set_power_save_mode(WIFI_POWER_SAVE_MODES[config[CONF_POWER_SAVE_MODE]]))
+    cg.add(wifi.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(wifi.set_fast_connect(config[CONF_FAST_CONNECT]))
 
     if CORE.is_esp8266:
@@ -187,8 +189,6 @@ def to_code(config):
     yield cg.register_component(wifi, config)
 
 
-@CONDITION_REGISTRY.register('wifi.connected', cv.Schema({}))
+@automation.register_condition('wifi.connected', WiFiConnectedCondition, cv.Schema({}))
 def wifi_connected_to_code(config, condition_id, template_arg, args):
-    rhs = WiFiConnectedCondition.new(template_arg)
-    type = WiFiConnectedCondition.template(template_arg)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    yield cg.new_Pvariable(condition_id, template_arg)

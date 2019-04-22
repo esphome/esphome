@@ -7,8 +7,6 @@ namespace homeassistant {
 
 static const char *TAG = "homeassistant.sensor";
 
-HomeassistantSensor::HomeassistantSensor(const std::string &name, const std::string &entity_id)
-    : Sensor(name), entity_id_(entity_id) {}
 void HomeassistantSensor::setup() {
   api::global_api_server->subscribe_home_assistant_state(this->entity_id_, [this](std::string state) {
     auto val = parse_float(state);

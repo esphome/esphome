@@ -1,3 +1,5 @@
+import inspect
+
 import math
 
 # pylint: disable=unused-import, wrong-import-order
@@ -5,7 +7,8 @@ from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Cal
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define)
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
+    EnumValue)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
 from esphome.util import OrderedDict
@@ -249,10 +252,15 @@ def safe_exp(
         obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
+    """Try to convert obj to an expression by automatically converting native python types to
+    expressions/literals.
+    """
     from esphome.cpp_types import bool_, float_, int32
 
     if isinstance(obj, Expression):
         return obj
+    if isinstance(obj, EnumValue):
+        return safe_exp(obj.enum_value)
     if isinstance(obj, bool):
         return BoolLiteral(obj)
     if isinstance(obj, string_types):
@@ -279,6 +287,12 @@ def safe_exp(
         return int32
     if obj is float:
         return float_
+    if isinstance(obj, ID):
+        raise ValueError(u"Object {} is an ID. Did you forget to register the variable?"
+                         u"".format(obj))
+    if inspect.isgenerator(obj):
+        raise ValueError(u"Object {} is a coroutine. Did you forget to await the expression with "
+                         u"'yield'?".format(obj))
     raise ValueError(u"Object is not an expression", obj)
 
 
@@ -335,10 +349,20 @@ def statement(expression):  # type: (Union[Expression, Statement]) -> Statement
 
 
 def variable(id,  # type: ID
-             rhs,  # type: Expression
+             rhs,  # type: SafeExpType
              type=None  # type: MockObj
              ):
     # type: (...) -> MockObj
+    """Declare a new variable (not pointer type) in the code generation.
+
+    :param id: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param type: Manually define a type for the variable, only use this when it's not possible
+      to do so during config validation phase (for example because of template arguments).
+
+    :returns The new variable as a MockObj.
+    """
+    assert isinstance(id, ID)
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'.')
     if type is not None:
@@ -350,10 +374,19 @@ def variable(id,  # type: ID
 
 
 def Pvariable(id,  # type: ID
-              rhs,  # type: Expression
+              rhs,  # type: SafeExpType
               type=None  # type: MockObj
               ):
     # type: (...) -> MockObj
+    """Declare a new pointer variable in the code generation.
+
+    :param id: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param type: Manually define a type for the variable, only use this when it's not possible
+      to do so during config validation phase (for example because of template arguments).
+
+    :returns The new variable as a MockObj.
+    """
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'->')
     if type is not None:
@@ -367,21 +400,35 @@ def Pvariable(id,  # type: ID
 
 
 def new_Pvariable(id,  # type: ID
-                  *args  # type: Tuple[SafeExpType]
+                  *args  # type: SafeExpType
                   ):
+    """Declare a new pointer variable in the code generation by calling it's constructor
+    with the given arguments.
+
+    :param id: The ID used to declare the variable (also specifies the type).
+    :param args: The values to pass to the constructor.
+
+    :returns The new variable as a MockObj.
+    """
+    if args and isinstance(args[0], TemplateArguments):
+        id = id.copy()
+        id.type = id.type.template(args[0])
+        args = args[1:]
     rhs = id.type.new(*args)
     return Pvariable(id, rhs)
 
 
-def add(expression,  # type: Union[Expression, Statement]
+def add(expression,  # type: Union[SafeExpType, Statement]
         ):
     # type: (...) -> None
+    """Add an expression to the codegen setup() storage."""
     CORE.add(expression)
 
 
-def add_global(expression,  # type: Union[Expression, Statement]
+def add_global(expression,  # type: Union[SafeExpType, Statement]
                ):
     # type: (...) -> None
+    """Add an expression to the codegen global storage (above setup())."""
     CORE.add_global(expression)
 
 
@@ -389,12 +436,18 @@ def add_library(name,  # type: str
                 version  # type: Optional[str]
                 ):
     # type: (...) -> None
+    """Add a library to the codegen library storage.
+
+    :param name: The name of the library (for example 'AsyncTCP')
+    :param version: The version of the library, may be None.
+    """
     CORE.add_library(Library(name, version))
 
 
 def add_build_flag(build_flag,  # type: str
                    ):
     # type: (...) -> None
+    """Add a global build flag to the compiler flags."""
     CORE.add_build_flag(build_flag)
 
 
@@ -402,6 +455,10 @@ def add_define(name,  # type: str
                value=None,  # type: Optional[SafeExpType]
                ):
     # type: (...) -> None
+    """Add a global define to the auto-generated defines.h file.
+
+    Optionally define a value to set this define to.
+    """
     if value is None:
         CORE.add_define(Define(name))
     else:
@@ -410,6 +467,15 @@ def add_define(name,  # type: str
 
 @coroutine
 def get_variable(id):  # type: (ID) -> Generator[MockObj]
+    """
+    Wait for the given ID to be defined in the code generation and
+    return it as a MockObj.
+
+    This is a coroutine, you need to await it with a 'yield' expression!
+
+    :param id: The ID to retrieve
+    :return: The variable as a MockObj.
+    """
     var = yield CORE.get_variable(id)
     yield var
 
@@ -421,6 +487,17 @@ def process_lambda(value,  # type: Lambda
                    return_type=None  # type: Optional[SafeExpType]
                    ):
     # type: (...) -> Generator[LambdaExpression]
+    """Process the given lambda value into a LambdaExpression.
+
+    This is a coroutine because lambdas can depend on other IDs,
+    you need to await it with 'yield'!
+
+    :param value: The lambda to process.
+    :param parameters: The parameters to pass to the Lambda, list of tuples
+    :param capture: The capture expression for the lambda, usually ''.
+    :param return_type: The return type of the lambda.
+    :return: The generated lambda expression.
+    """
     from esphome.components.globals import GlobalsComponent
 
     if value is None:
@@ -443,6 +520,7 @@ def process_lambda(value,  # type: Lambda
 
 
 def is_template(value):
+    """Return if value is a lambda expression."""
     return isinstance(value, Lambda)
 
 
@@ -452,6 +530,17 @@ def templatable(value,  # type: Any
                 output_type,  # type: Optional[SafeExpType],
                 to_exp=None  # type: Optional[Any]
                 ):
+    """Generate code for a templatable config option.
+
+    If `value` is a templated value, the lambda expression is returned.
+    Otherwise the value is returned as-is (optionally process with to_exp).
+
+    :param value: The value to process.
+    :param args: The arguments for the lambda expression.
+    :param output_type: The output type of the lambda expression.
+    :param to_exp: An optional callable to use for converting non-templated values.
+    :return: The potentially templated value.
+    """
     if is_template(value):
         lambda_ = yield process_lambda(value, args, return_type=output_type)
         yield lambda_
@@ -465,6 +554,10 @@ def templatable(value,  # type: Any
 
 
 class MockObj(Expression):
+    """A general expression that can be used to represent any value.
+
+    Mostly consists of magic methods that allow ESPHome's codegen syntax.
+    """
     def __init__(self, base, op=u'.'):
         self.base = base
         self.op = op

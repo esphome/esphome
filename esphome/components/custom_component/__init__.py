@@ -7,10 +7,10 @@ CustomComponentConstructor = custom_component_ns.class_('CustomComponentConstruc
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CustomComponentConstructor),
+    cv.GenerateID(): cv.declare_id(CustomComponentConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_COMPONENTS): cv.ensure_list(cv.Schema({
-        cv.GenerateID(): cv.declare_variable_id(cg.Component)
+        cv.GenerateID(): cv.declare_id(cg.Component)
     }).extend(cv.COMPONENT_SCHEMA)),
 })
 

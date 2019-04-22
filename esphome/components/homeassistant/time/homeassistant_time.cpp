@@ -14,7 +14,7 @@ float HomeassistantTime::get_setup_priority() const { return setup_priority::DAT
 void HomeassistantTime::setup() {
   global_homeassistant_time = this;
 
-  this->set_interval(15 * 60 * 1000, [this]() {
+  this->set_interval(15 * 60 * 1000, []() {
     // re-request time every 15 minutes
     api::global_api_server->request_time();
   });

@@ -11,10 +11,10 @@ ble_presence_ns = cg.esphome_ns.namespace('ble_presence')
 BLEPresenceDevice = ble_presence_ns.class_('BLEPresenceDevice', binary_sensor.BinarySensor,
                                            cg.Component, ESPBTDeviceListener)
 
-CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(BLEPresenceDevice),
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(BLEPresenceDevice),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-}).extend(ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA))
+}).extend(ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):

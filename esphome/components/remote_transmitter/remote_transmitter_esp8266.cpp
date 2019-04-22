@@ -63,12 +63,10 @@ void RemoteTransmitterComponent::space_(uint32_t usec) {
   delay_microseconds_accurate(usec);
 }
 void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t send_wait) {
+  ESP_LOGD(TAG, "Sending remote code...");
+  uint32_t on_time, off_time;
+  this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   for (uint32_t i = 0; i < send_times; i++) {
-    uint32_t on_time, off_time;
-    this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
-    ESP_LOGD(TAG, "Sending remote code...");
-
-    ESP.wdtFeed();
     disable_interrupts();
     for (int32_t item : this->temp_.get_data()) {
       if (item > 0) {

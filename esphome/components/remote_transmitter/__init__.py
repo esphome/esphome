@@ -12,7 +12,7 @@ RemoteTransmitterComponent = remote_transmitter_ns.class_('RemoteTransmitterComp
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(RemoteTransmitterComponent),
+    cv.GenerateID(): cv.declare_id(RemoteTransmitterComponent),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CARRIER_DUTY_PERCENT): cv.All(cv.percentage_int, cv.Range(min=1, max=100)),
 }).extend(cv.COMPONENT_SCHEMA)

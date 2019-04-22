@@ -9,8 +9,6 @@ namespace ssd1306_i2c {
 
 class I2CSSD1306 : public ssd1306_base::SSD1306, public i2c::I2CDevice {
  public:
-  I2CSSD1306() = default;
-
   void setup() override;
   void dump_config() override;
 

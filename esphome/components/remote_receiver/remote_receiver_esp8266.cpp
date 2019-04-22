@@ -13,17 +13,20 @@ void ICACHE_RAM_ATTR HOT RemoteReceiverComponentStore::gpio_intr(RemoteReceiverC
   const uint32_t now = micros();
   // If the lhs is 1 (rising edge) we should write to an uneven index and vice versa
   const uint32_t next = (arg->buffer_write_at + 1) % arg->buffer_size;
-  if (uint32_t(arg->pin->digital_read()) != next % 2)
+  const bool level = arg->pin->digital_read();
+  if (level != next % 2)
     return;
+
+  // If next is buffer_read, we have hit an overflow
+  if (next == arg->buffer_read_at)
+    return;
+
   const uint32_t last_change = arg->buffer[arg->buffer_write_at];
-  if (now - last_change <= arg->filter_us)
+  const uint32_t time_since_change = now - last_change;
+  if (time_since_change <= arg->filter_us)
     return;
 
   arg->buffer[arg->buffer_write_at = next] = now;
-
-  if (next == arg->buffer_read_at) {
-    arg->overflow = true;
-  }
 }
 
 void RemoteReceiverComponent::setup() {
@@ -39,15 +42,16 @@ void RemoteReceiverComponent::setup() {
     // Make sure divisible by two. This way, we know that every 0bxxx0 index is a space and every 0bxxx1 index is a mark
     s.buffer_size++;
   }
+
   s.buffer = new uint32_t[s.buffer_size];
+  void *buf = (void *) s.buffer;
+  memset(buf, 0, s.buffer_size * sizeof(uint32_t));
+
   // First index is a space.
   if (this->pin_->digital_read()) {
     s.buffer_write_at = s.buffer_read_at = 1;
-    s.buffer[1] = 0;
-    s.buffer[0] = 0;
   } else {
     s.buffer_write_at = s.buffer_read_at = 0;
-    s.buffer[0] = 0;
   }
   this->pin_->attach_interrupt(RemoteReceiverComponentStore::gpio_intr, &this->store_, CHANGE);
 }
@@ -66,12 +70,6 @@ void RemoteReceiverComponent::dump_config() {
 
 void RemoteReceiverComponent::loop() {
   auto &s = this->store_;
-  if (s.overflow) {
-    s.buffer_read_at = s.buffer_write_at;
-    s.overflow = false;
-    ESP_LOGW(TAG, "Data is coming in too fast! Try increasing the buffer size.");
-    return;
-  }
 
   // copy write at to local variables, as it's volatile
   const uint32_t write_at = s.buffer_write_at;
@@ -82,7 +80,6 @@ void RemoteReceiverComponent::loop() {
   const uint32_t now = micros();
   if (now - s.buffer[write_at] < this->idle_us_)
     // The last change was fewer than the configured idle time ago.
-    // TODO: Handle case when loop() is not called quickly enough to catch idle
     return;
 
   ESP_LOGVV(TAG, "read_at=%u write_at=%u dist=%u now=%u end=%u", s.buffer_read_at, write_at, dist, now,

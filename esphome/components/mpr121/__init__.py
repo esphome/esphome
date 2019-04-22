@@ -12,7 +12,7 @@ MPR121Component = mpr121_ns.class_('MPR121Component', cg.Component, i2c.I2CDevic
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MPR121Component),
+    cv.GenerateID(): cv.declare_id(MPR121Component),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x5A))
 
 

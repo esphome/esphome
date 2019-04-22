@@ -1,11 +1,10 @@
-from esphome.components import sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_NAME, \
-    CONF_PIN, CONF_TEMPERATURE, CONF_UPDATE_INTERVAL, CONF_ACCURACY_DECIMALS, CONF_ICON, \
-    ICON_THERMOMETER, CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS, ICON_WATER_PERCENT, UNIT_PERCENT
+import esphome.config_validation as cv
+from esphome import pins
+from esphome.components import sensor
+from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_PIN, CONF_TEMPERATURE, \
+    CONF_UPDATE_INTERVAL, ICON_THERMOMETER, UNIT_CELSIUS, ICON_WATER_PERCENT, UNIT_PERCENT
 from esphome.cpp_helpers import gpio_pin_expression
-from esphome.pins import gpio_input_pullup_pin_schema
 
 dht_ns = cg.esphome_ns.namespace('dht')
 DHTModel = dht_ns.enum('DHTModel')
@@ -20,31 +19,27 @@ DHT_MODELS = {
 DHT = dht_ns.class_('DHT', cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DHT),
-    cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
-    cv.Required(CONF_TEMPERATURE): cv.nameable(sensor.SENSOR_SCHEMA.extend({
-        cv.Optional(CONF_ACCURACY_DECIMALS, default=1): sensor.accuracy_decimals,
-        cv.Optional(CONF_ICON, default=ICON_THERMOMETER): sensor.icon,
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_CELSIUS): sensor.unit_of_measurement,
-    })),
-    cv.Required(CONF_HUMIDITY): cv.nameable(sensor.SENSOR_SCHEMA.extend({
-        cv.Optional(CONF_ACCURACY_DECIMALS, default=0): sensor.accuracy_decimals,
-        cv.Optional(CONF_ICON, default=ICON_WATER_PERCENT): sensor.icon,
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT, default=UNIT_PERCENT): sensor.unit_of_measurement,
-    })),
-    cv.Optional(CONF_MODEL, default='auto detect'): cv.one_of(*DHT_MODELS, upper=True, space='_'),
+    cv.GenerateID(): cv.declare_id(DHT),
+    cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
+    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
+    cv.Optional(CONF_MODEL, default='auto detect'): cv.enum(DHT_MODELS, upper=True, space='_'),
     cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):
-    pin = yield gpio_pin_expression(config[CONF_PIN])
-    rhs = DHT.new(config[CONF_TEMPERATURE][CONF_NAME],
-                  config[CONF_HUMIDITY][CONF_NAME],
-                  pin, config[CONF_UPDATE_INTERVAL])
-    dht = cg.Pvariable(config[CONF_ID], rhs)
-    yield cg.register_component(dht, config)
-    yield sensor.register_sensor(dht.Pget_temperature_sensor(), config[CONF_TEMPERATURE])
-    yield sensor.register_sensor(dht.Pget_humidity_sensor(), config[CONF_HUMIDITY])
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
-    cg.add(dht.set_dht_model(DHT_MODELS[config[CONF_MODEL]]))
+    pin = yield gpio_pin_expression(config[CONF_PIN])
+    cg.add(var.set_pin(pin))
+
+    if CONF_TEMPERATURE in config:
+        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        cg.add(var.set_temperature_sensor(sens))
+    if CONF_HUMIDITY in config:
+        sens = yield sensor.new_sensor(config[CONF_HUMIDITY])
+        cg.add(var.set_humidity_sensor(sens))
+
+    cg.add(var.set_dht_model(config[CONF_MODEL]))

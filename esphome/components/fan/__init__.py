@@ -1,6 +1,7 @@
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED, \
@@ -14,9 +15,9 @@ FanState = fan_ns.class_('FanState', cg.Nameable, cg.Component)
 MakeFan = cg.Application.struct('MakeFan')
 
 # Actions
-TurnOnAction = fan_ns.class_('TurnOnAction', cg.Action)
-TurnOffAction = fan_ns.class_('TurnOffAction', cg.Action)
-ToggleAction = fan_ns.class_('ToggleAction', cg.Action)
+TurnOnAction = fan_ns.class_('TurnOnAction', automation.Action)
+TurnOffAction = fan_ns.class_('TurnOffAction', automation.Action)
+ToggleAction = fan_ns.class_('ToggleAction', automation.Action)
 
 FanSpeed = fan_ns.enum('FanSpeed')
 FAN_SPEEDS = {
@@ -27,8 +28,8 @@ FAN_SPEEDS = {
 }
 
 FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(FanState),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTFanComponent),
+    cv.GenerateID(): cv.declare_id(FanState),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTFanComponent),
     cv.Optional(CONF_OSCILLATION_STATE_TOPIC): cv.All(cv.requires_component('mqtt'),
                                                       cv.publish_topic),
     cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(cv.requires_component('mqtt'),
@@ -38,6 +39,7 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
 
 @coroutine
 def setup_fan_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
 
@@ -66,50 +68,43 @@ def register_fan(var, config):
 
 @coroutine
 def create_fan_state(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield register_fan(var, config)
     yield var
 
 
 FAN_ACTION_SCHEMA = maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(FanState),
+    cv.Required(CONF_ID): cv.use_id(FanState),
 })
 
 
-@ACTION_REGISTRY.register('fan.toggle', FAN_ACTION_SCHEMA)
+@automation.register_action('fan.toggle', ToggleAction, FAN_ACTION_SCHEMA)
 def fan_toggle_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ToggleAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('fan.turn_off', FAN_ACTION_SCHEMA)
+@automation.register_action('fan.turn_off', TurnOffAction, FAN_ACTION_SCHEMA)
 def fan_turn_off_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOffAction.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
-@ACTION_REGISTRY.register('fan.turn_on', maybe_simple_id({
-    cv.Required(CONF_ID): cv.use_variable_id(FanState),
+@automation.register_action('fan.turn_on', TurnOnAction, maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(FanState),
     cv.Optional(CONF_OSCILLATING): cv.templatable(cv.boolean),
-    cv.Optional(CONF_SPEED): cv.templatable(cv.one_of(*FAN_SPEEDS, upper=True)),
+    cv.Optional(CONF_SPEED): cv.templatable(cv.enum(FAN_SPEEDS, upper=True)),
 }))
 def fan_turn_on_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TurnOnAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     if CONF_OSCILLATING in config:
         template_ = yield cg.templatable(config[CONF_OSCILLATING], args, bool)
-        cg.add(action.set_oscillating(template_))
+        cg.add(var.set_oscillating(template_))
     if CONF_SPEED in config:
-        template_ = yield cg.templatable(config[CONF_SPEED], args, FanSpeed,
-                                         to_exp=FAN_SPEEDS)
-        cg.add(action.set_speed(template_))
-    yield action
+        template_ = yield cg.templatable(config[CONF_SPEED], args, FanSpeed)
+        cg.add(var.set_speed(template_))
+    yield var
 
 
 def to_code(config):

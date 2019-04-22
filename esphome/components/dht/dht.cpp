@@ -7,12 +7,6 @@ namespace dht {
 
 static const char *TAG = "dht";
 
-DHT::DHT(const std::string &temperature_name, const std::string &humidity_name, GPIOPin *pin, uint32_t update_interval)
-    : PollingComponent(update_interval),
-      pin_(pin),
-      temperature_sensor_(new sensor::Sensor(temperature_name)),
-      humidity_sensor_(new sensor::Sensor(humidity_name)) {}
-
 void DHT::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DHT...");
   this->pin_->digital_write(true);
@@ -71,8 +65,6 @@ void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
-sensor::Sensor *DHT::get_temperature_sensor() const { return this->temperature_sensor_; }
-sensor::Sensor *DHT::get_humidity_sensor() const { return this->humidity_sensor_; }
 bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;

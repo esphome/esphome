@@ -128,6 +128,10 @@ sensor:
 
 time:
 - platform: homeassistant
+  on_time:
+    - at: '16:00:00'
+      then:
+        - logger.log: It's 16:00
 
 apds9960:
   address: 0x20
@@ -198,6 +202,10 @@ text_sensor:
               return id(version_sensor).state;
             my_variable_str: |-
               return "Hello World";
+      - homeassistant.service:
+          service: light.turn_on
+          data:
+            entity_id: light.my_light
   - platform: template
     name: "Template Text Sensor"
     lambda: |-

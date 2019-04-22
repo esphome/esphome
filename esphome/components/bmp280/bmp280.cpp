@@ -233,7 +233,6 @@ uint16_t BMP280Component::read_u16_le_(uint8_t a_register) {
   return (data >> 8) | (data << 8);
 }
 int16_t BMP280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
-BMP280Component::BMP280Component(uint32_t update_interval) : PollingComponent(update_interval) {}
 
 }  // namespace bmp280
 }  // namespace esphome

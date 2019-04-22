@@ -14,8 +14,6 @@ namespace sntp {
 /// \see https://www.gnu.org/software/libc/manual/html_node/TZ-Variable.html
 class SNTPComponent : public time::RealTimeClock {
  public:
-  SNTPComponent() : time::RealTimeClock() {}
-
   void setup() override;
   void dump_config() override;
   /// Change the servers used by SNTP for timekeeping

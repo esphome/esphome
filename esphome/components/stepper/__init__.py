@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import ACTION_REGISTRY
+from esphome import automation
 from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
     CONF_POSITION, CONF_TARGET
 from esphome.core import CORE, coroutine
@@ -11,8 +11,8 @@ IS_PLATFORM_COMPONENT = True
 stepper_ns = cg.esphome_ns.namespace('stepper')
 Stepper = stepper_ns.class_('Stepper')
 
-SetTargetAction = stepper_ns.class_('SetTargetAction', cg.Action)
-ReportPositionAction = stepper_ns.class_('ReportPositionAction', cg.Action)
+SetTargetAction = stepper_ns.class_('SetTargetAction', automation.Action)
+ReportPositionAction = stepper_ns.class_('ReportPositionAction', automation.Action)
 
 
 def validate_acceleration(value):
@@ -79,32 +79,28 @@ def register_stepper(var, config):
     yield setup_stepper_core_(var, config)
 
 
-@ACTION_REGISTRY.register('stepper.set_target', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Stepper),
+@automation.register_action('stepper.set_target', SetTargetAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(Stepper),
     cv.Required(CONF_TARGET): cv.templatable(cv.int_),
 }))
 def stepper_set_target_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = SetTargetAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_TARGET], args, cg.int32)
-    cg.add(action.set_target(template_))
-    yield action
+    cg.add(var.set_target(template_))
+    yield var
 
 
-@ACTION_REGISTRY.register('stepper.report_position', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(Stepper),
+@automation.register_action('stepper.report_position', ReportPositionAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(Stepper),
     cv.Required(CONF_POSITION): cv.templatable(cv.int_),
 }))
 def stepper_report_position_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = ReportPositionAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_POSITION], args, cg.int32)
-    cg.add(action.set_position(template_))
-    yield action
+    cg.add(var.set_position(template_))
+    yield var
 
 
 def to_code(config):

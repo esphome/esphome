@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_ON_VALUE, \
-    CONF_TRIGGER_ID, CONF_MQTT_ID
+    CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
 from esphome.core import CORE, coroutine
 
 IS_PLATFORM_COMPONENT = True
@@ -14,22 +14,23 @@ TextSensor = text_sensor_ns.class_('TextSensor', cg.Nameable)
 TextSensorPtr = TextSensor.operator('ptr')
 
 TextSensorStateTrigger = text_sensor_ns.class_('TextSensorStateTrigger',
-                                               cg.Trigger.template(cg.std_string))
-TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', cg.Action)
+                                               automation.Trigger.template(cg.std_string))
+TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', automation.Action)
 
 icon = cv.icon
 
 TEXT_SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTTextSensor),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTTextSensor),
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(TextSensorStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextSensorStateTrigger),
     }),
 })
 
 
 @coroutine
 def setup_text_sensor_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_ICON in config:

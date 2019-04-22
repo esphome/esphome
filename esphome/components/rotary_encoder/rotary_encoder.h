@@ -31,7 +31,8 @@ struct RotaryEncoderSensorStore {
 
 class RotaryEncoderSensor : public sensor::Sensor, public Component {
  public:
-  RotaryEncoderSensor(const std::string &name, GPIOPin *pin_a, GPIOPin *pin_b);
+  void set_pin_a(GPIOPin *pin_a) { pin_a_ = pin_a; }
+  void set_pin_b(GPIOPin *pin_b) { pin_b_ = pin_b; }
 
   /** Set the resolution of the rotary encoder.
    *

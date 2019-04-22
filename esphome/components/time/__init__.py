@@ -21,7 +21,7 @@ IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
-CronTrigger = time_ns.class_('CronTrigger', cg.Trigger.template(), cg.Component)
+CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 
 
@@ -252,7 +252,7 @@ def validate_tz(value):
 TIME_SCHEMA = cv.Schema({
     cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
     cv.Optional(CONF_ON_TIME): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
         cv.Optional(CONF_SECONDS): validate_cron_seconds,
         cv.Optional(CONF_MINUTES): validate_cron_minutes,
         cv.Optional(CONF_HOURS): validate_cron_hours,

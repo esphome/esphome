@@ -92,6 +92,9 @@ mqtt:
               if (x.containsKey("effect"))
                 effect = x["effect"];
               return effect;
+        - light.control:
+            id: living_room_lights
+            brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
 
 i2c:
   sda: 21
@@ -211,6 +214,8 @@ sensor:
           payload: Hello
           qos: 2
           retain: True
+  - platform: esp32_hall
+    name: ESP32 Hall Sensor
   - platform: ads1115
     multiplexer: 'A0_A1'
     gain: 1.024
@@ -433,6 +438,9 @@ sensor:
     resolution: 4
     min_value: -10
     max_value: 30
+  - platform: pulse_width
+    name: Pulse Width
+    pin: GPIO12
   - platform: sht3xd
     temperature:
       name: "Living Room Temperature 8"
@@ -1141,7 +1149,7 @@ cover:
     id: template_cover
     lambda: |-
       if (id(binary_sensor1).state) {
-        return cover::COVER_OPEN;
+        return COVER_OPEN;
       } else {
         return {};
       }

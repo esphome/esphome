@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, CONF_UPDATE_INTERVAL, CONF_NAME
+from esphome.const import CONF_GAIN, CONF_ID, CONF_INTEGRATION_TIME, UNIT_LUX, ICON_BRIGHTNESS_5
 
 DEPENDENCIES = ['i2c']
 
@@ -24,26 +24,25 @@ CONF_IS_CS_PACKAGE = 'is_cs_package'
 
 def validate_integration_time(value):
     value = cv.positive_time_period_milliseconds(value).total_milliseconds
-    return cv.one_of(*INTEGRATION_TIMES, int=True)(value)
+    return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
 
 TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.PollingSensorComponent, i2c.I2CDevice)
 
-CONFIG_SCHEMA = cv.nameable(sensor.SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TSL2561Sensor),
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
+    cv.GenerateID(): cv.declare_id(TSL2561Sensor),
     cv.Optional(CONF_INTEGRATION_TIME, default=402): validate_integration_time,
-    cv.Optional(CONF_GAIN, default='1X'): cv.one_of(*GAINS, upper=True),
+    cv.Optional(CONF_GAIN, default='1X'): cv.enum(GAINS, upper=True),
     cv.Optional(CONF_IS_CS_PACKAGE, default=False): cv.boolean,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x39)))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x39))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
     yield sensor.register_sensor(var, config)
 
-    cg.add(var.set_integration_time(INTEGRATION_TIMES[config[CONF_INTEGRATION_TIME]]))
-    cg.add(var.set_gain(GAINS[config[CONF_GAIN]]))
+    cg.add(var.set_integration_time(config[CONF_INTEGRATION_TIME]))
+    cg.add(var.set_gain(config[CONF_GAIN]))
     cg.add(var.set_is_cs_package(config[CONF_IS_CS_PACKAGE]))

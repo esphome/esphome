@@ -61,8 +61,6 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
   return match;
 }
 
-WebServer::WebServer(uint16_t port) : port_(port) {}
-
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 

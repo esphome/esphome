@@ -8,22 +8,22 @@ CustomBinaryOutputConstructor = custom_ns.class_('CustomBinaryOutputConstructor'
 CustomFloatOutputConstructor = custom_ns.class_('CustomFloatOutputConstructor')
 
 BINARY_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CustomBinaryOutputConstructor),
+    cv.GenerateID(): cv.declare_id(CustomBinaryOutputConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_TYPE): 'binary',
     cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_variable_id(output.BinaryOutput),
+            cv.GenerateID(): cv.declare_id(output.BinaryOutput),
         })),
 })
 
 FLOAT_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CustomFloatOutputConstructor),
+    cv.GenerateID(): cv.declare_id(CustomFloatOutputConstructor),
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Required(CONF_TYPE): 'float',
     cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_variable_id(output.FloatOutput),
+            cv.GenerateID(): cv.declare_id(output.FloatOutput),
         })),
 })
 

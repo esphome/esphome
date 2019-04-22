@@ -12,9 +12,8 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0
-from esphome.core import CORE, EsphomeError, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
-from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -41,7 +40,6 @@ def validate_board(value):
 
 
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
-
 
 PLATFORMIO_ESP8266_LUT = {
     '2.5.0': 'espressif8266@2.0.1',
@@ -105,50 +103,54 @@ CONFIG_SCHEMA = cv.Schema({
     cv.SplitDefault(CONF_BOARD_FLASH_MODE, esp8266='dout'): cv.one_of(*BUILD_FLASH_MODES,
                                                                       lower=True),
     cv.Optional(CONF_ON_BOOT): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(StartupTrigger),
-        cv.Optional(CONF_PRIORITY): cv.float_,
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(StartupTrigger),
+        cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
     }),
     cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ShutdownTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
     }),
     cv.Optional(CONF_ON_LOOP): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(LoopTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
     }),
     cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
     cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
 })
 
+PRELOAD_CONFIG_SCHEMA = cv.Schema({
+    cv.Required(CONF_NAME): cv.valid_name,
+    cv.Required(CONF_PLATFORM): validate_platform,
+}, extra=cv.ALLOW_EXTRA)
+
+PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
+    cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
+})
+
 
 def preload_core_config(config):
+    core_key = 'esphome'
     if 'esphomeyaml' in config:
         _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
                         "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
         config[CONF_ESPHOME] = config.pop('esphomeyaml')
+        core_key = 'esphomeyaml'
     if CONF_ESPHOME not in config:
-        raise EsphomeError(u"No esphome section in config")
-    core_conf = config[CONF_ESPHOME]
-    if CONF_PLATFORM not in core_conf:
-        raise EsphomeError("esphome.platform not specified.")
-    if CONF_BOARD not in core_conf:
-        raise EsphomeError("esphome.board not specified.")
-    if CONF_NAME not in core_conf:
-        raise EsphomeError("esphome.name not specified.")
-
-    try:
-        CORE.esp_platform = validate_platform(core_conf[CONF_PLATFORM])
-        CORE.board = validate_board(core_conf[CONF_BOARD])
-        CORE.name = cv.valid_name(core_conf[CONF_NAME])
-        CORE.build_path = CORE.relative_path(
-            cv.string(core_conf.get(CONF_BUILD_PATH, default_build_path())))
-    except cv.Invalid as e:
-        raise EsphomeError(text_type(e))
+        raise cv.RequiredFieldInvalid("required key not provided", CONF_ESPHOME)
+    with cv.prepend_path(core_key):
+        out = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
+    CORE.name = out[CONF_NAME]
+    CORE.esp_platform = out[CONF_PLATFORM]
+    with cv.prepend_path(core_key):
+        out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])
+    CORE.board = out2[CONF_BOARD]
+    CORE.build_path = CORE.relative_config_path(out2[CONF_BUILD_PATH])
 
 
 @coroutine_with_priority(-1000.0)
 def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
-        path = CORE.relative_path(include)
+        path = CORE.relative_config_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src'))
         cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
 

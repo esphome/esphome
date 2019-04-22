@@ -1,24 +1,22 @@
-from esphome.automation import ACTION_REGISTRY
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import text_sensor
 from esphome.components.text_sensor import TextSensorPublishAction
-import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
-
 
 TemplateTextSensor = template_ns.class_('TemplateTextSensor', text_sensor.TextSensor,
                                         cg.PollingComponent)
 
-CONFIG_SCHEMA = cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateTextSensor),
+CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(TemplateTextSensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield text_sensor.register_text_sensor(var, config)
 
@@ -28,15 +26,13 @@ def to_code(config):
         cg.add(var.set_template(template_))
 
 
-@ACTION_REGISTRY.register('text_sensor.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(text_sensor.TextSensor),
+@automation.register_action('text_sensor.template.publish', TextSensorPublishAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(text_sensor.TextSensor),
     cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
 }))
 def text_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = TextSensorPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_STATE], args, cg.std_string)
-    cg.add(action.set_state(template_))
-    yield action
+    cg.add(var.set_state(template_))
+    yield var
