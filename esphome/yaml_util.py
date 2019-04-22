@@ -128,10 +128,74 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     def construct_yaml_seq(self, node):
         return super(ESPHomeLoader, self).construct_yaml_seq(node)
 
+    def custom_flatten_mapping(self, node):
+        pre_merge = []
+        post_merge = []
+        index = 0
+        while index < len(node.value):
+            if isinstance(node.value[index], yaml.ScalarNode):
+                index += 1
+                continue
+
+            key_node, value_node = node.value[index]
+            if key_node.tag == u'tag:yaml.org,2002:merge':
+                del node.value[index]
+
+                if isinstance(value_node, yaml.MappingNode):
+                    self.custom_flatten_mapping(value_node)
+                    node.value = node.value[:index] + value_node.value + node.value[index:]
+                elif isinstance(value_node, yaml.SequenceNode):
+                    submerge = []
+                    for subnode in value_node.value:
+                        if not isinstance(subnode, yaml.MappingNode):
+                            raise yaml.constructor.ConstructorError(
+                                "while constructing a mapping", node.start_mark,
+                                "expected a mapping for merging, but found %{}".format(subnode.id),
+                                subnode.start_mark)
+                        self.custom_flatten_mapping(subnode)
+                        submerge.append(subnode.value)
+                    # submerge.reverse()
+                    node.value = node.value[:index] + submerge + node.value[index:]
+                elif isinstance(value_node, yaml.ScalarNode):
+                    node.value = node.value[:index] + [value_node] + node.value[index:]
+                    # post_merge.append(value_node)
+                else:
+                    raise yaml.constructor.ConstructorError(
+                        "while constructing a mapping", node.start_mark,
+                        "expected a mapping or list of mappings for merging, "
+                        "but found {}".format(value_node.id), value_node.start_mark)
+            elif key_node.tag == u'tag:yaml.org,2002:value':
+                key_node.tag = u'tag:yaml.org,2002:str'
+                index += 1
+            else:
+                index += 1
+        if pre_merge:
+            node.value = pre_merge + node.value
+        if post_merge:
+            node.value = node.value + post_merge
+
+    def custom_construct_pairs(self, node):
+        pairs = []
+        for kv in node.value:
+            if isinstance(kv, yaml.ScalarNode):
+                obj = self.construct_object(kv)
+                if not isinstance(obj, dict):
+                    raise EsphomeError(
+                        "Expected mapping for anchored include tag, got {}".format(type(obj)))
+                for key, value in obj.items():
+                    pairs.append((key, value))
+            else:
+                key_node, value_node = kv
+                key = self.construct_object(key_node)
+                value = self.construct_object(value_node)
+                pairs.append((key, value))
+
+        return pairs
+
     @_add_data_ref
     def construct_yaml_map(self, node):
-        self.flatten_mapping(node)
-        nodes = self.construct_pairs(node)
+        self.custom_flatten_mapping(node)
+        nodes = self.custom_construct_pairs(node)
 
         seen = {}
         for (key, _), nv in zip(nodes, node.value):
@@ -347,6 +411,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)
+        # pylint: disable=comparison-with-itself
         if value != value or (value == 0.0 and value == 1.0):
             value = u'.nan'
         elif value == self.inf_value:

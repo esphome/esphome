@@ -1,10 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_PIN, CONF_TEMPERATURE, \
     CONF_UPDATE_INTERVAL, ICON_THERMOMETER, UNIT_CELSIUS, ICON_WATER_PERCENT, UNIT_PERCENT
 from esphome.cpp_helpers import gpio_pin_expression
-from esphome.pins import gpio_input_pullup_pin_schema
 
 dht_ns = cg.esphome_ns.namespace('dht')
 DHTModel = dht_ns.enum('DHTModel')
@@ -20,7 +20,7 @@ DHT = dht_ns.class_('DHT', cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(DHT),
-    cv.Required(CONF_PIN): gpio_input_pullup_pin_schema,
+    cv.Required(CONF_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
     cv.Optional(CONF_MODEL, default='auto detect'): cv.enum(DHT_MODELS, upper=True, space='_'),

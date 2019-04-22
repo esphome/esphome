@@ -74,14 +74,12 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 with cv.remove_prepend_path([CONF_THEN]):
                     return [schema({CONF_THEN: value})]
             except cv.Invalid as err:
-                pass
-
-            # Next try as a sequence of automations
-            try:
-                return cv.Schema([schema])(value)
-            except cv.Invalid as err2:
-                if u'Unable to find action' in str(err):
-                    raise err2
+                # Next try as a sequence of automations
+                try:
+                    return cv.Schema([schema])(value)
+                except cv.Invalid as err2:
+                    if u'Unable to find action' in str(err):
+                        raise err2
                 raise cv.MultipleInvalid([err, err2])
         elif isinstance(value, dict):
             if CONF_THEN in value:

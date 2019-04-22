@@ -924,8 +924,7 @@ def one_of(*values, **kwargs):
             if matches:
                 raise Invalid(u"Unknown value '{}', did you mean {}?"
                               u"".format(value, u", ".join(u"'{}'".format(x) for x in matches)))
-            else:
-                raise Invalid(u"Unknown value '{}', valid options are {}.".format(value, options))
+            raise Invalid(u"Unknown value '{}', valid options are {}.".format(value, options))
         return value
 
     return validator

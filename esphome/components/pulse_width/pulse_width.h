@@ -19,6 +19,7 @@ class PulseWidthSensorStore {
   static void gpio_intr(PulseWidthSensorStore *arg);
   uint32_t get_pulse_width_us() const { return this->last_width_; }
   float get_pulse_width_s() const { return this->last_width_ / 1e6f; }
+  uint32_t get_last_rise() const { return last_rise_; }
 
  protected:
   ISRInternalGPIOPin *pin_;
