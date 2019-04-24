@@ -31,13 +31,9 @@ class AddressableLightEffect : public LightEffect {
   void start_internal() override {
     this->get_addressable_()->set_effect_active(true);
     this->get_addressable_()->clear_effect_data();
-    this->high_freq_.start();
     this->start();
   }
-  void stop() override {
-    this->get_addressable_()->set_effect_active(false);
-    this->high_freq_.stop();
-  }
+  void stop() override { this->get_addressable_()->set_effect_active(false); }
   virtual void apply(AddressableLight &it, const ESPColor &current_color) = 0;
   void apply() override {
     LightColorValues color = this->state_->remote_values;
@@ -50,8 +46,6 @@ class AddressableLightEffect : public LightEffect {
 
  protected:
   AddressableLight *get_addressable_() const { return (AddressableLight *) this->state_->get_output(); }
-
-  HighFrequencyLoopRequester high_freq_;
 };
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
