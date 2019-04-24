@@ -697,7 +697,8 @@ def make_app(debug=False):
 
 
 def start_web_server(args):
-    mkdir_p(os.path.join(settings.config_dir, ".esphome"))
+    settings.parse_args(args)
+    mkdir_p(settings.rel_path(".esphome"))
 
     if settings.using_auth:
         path = esphome_storage_path(settings.config_dir)
