@@ -9,7 +9,7 @@ let wsProtocol = "ws:";
 if (window.location.protocol === "https:") {
   wsProtocol = 'wss:';
 }
-const wsUrl = `${wsProtocol}//${window.location.hostname}:${window.location.port}/`;
+const wsUrl = `${wsProtocol}//${window.location.host}${window.location.pathname}`;
 
 
 // ============================= Color Log Parsing =============================
