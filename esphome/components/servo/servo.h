@@ -19,9 +19,9 @@ class Servo : public Component {
 
     float level;
     if (value < 0.0)
-      level = lerp(this->idle_level_, this->min_level_, -value);
+      level = lerp(-value, this->idle_level_, this->min_level_);
     else
-      level = lerp(this->idle_level_, this->max_level_, value);
+      level = lerp(value, this->idle_level_, this->max_level_);
 
     this->output_->set_level(level);
     this->save_level_(level);

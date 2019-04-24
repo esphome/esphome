@@ -577,11 +577,10 @@ def _format_vol_invalid(ex, config):
 
 
 class InvalidYAMLError(EsphomeError):
-    def __init__(self, path, base_exc):
-        message = u"Invalid YAML at {}. Please see YAML syntax reference or use an " \
-                  u"online YAML syntax validator. ({})".format(path, base_exc)
+    def __init__(self, base_exc):
+        message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
+                  u"online YAML syntax validator:\n\n{}".format(base_exc)
         super(InvalidYAMLError, self).__init__(message)
-        self.path = path
         self.base_exc = base_exc
 
 
@@ -589,7 +588,7 @@ def _load_config():
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
-        raise InvalidYAMLError(CORE.config_path, e)
+        raise InvalidYAMLError(e)
     CORE.raw_config = config
 
     try:
