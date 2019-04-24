@@ -125,22 +125,12 @@ class StateTrigger : public Trigger<bool> {
 
 template<typename... Ts> class BinarySensorCondition : public Condition<Ts...> {
  public:
-  BinarySensorCondition(BinarySensor *parent, bool state, uint32_t for_time = 0)
-      : parent_(parent), state_(state), for_time_(for_time) {
-    parent->add_on_state_callback([this](bool state) { this->last_state_time_ = millis(); });
-  }
-  bool check(Ts... x) override {
-    if (this->parent_->state != this->state_)
-      return false;
-
-    return millis() - this->last_state_time_ >= this->for_time_;
-  }
+  BinarySensorCondition(BinarySensor *parent, bool state) : parent_(parent), state_(state) {}
+  bool check(Ts... x) override { return this->parent_->state == this->state_; }
 
  protected:
   BinarySensor *parent_;
   bool state_;
-  uint32_t last_state_time_{0};
-  uint32_t for_time_{0};
 };
 
 template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> {

@@ -12,7 +12,7 @@ from esphome import automation
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
     CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
-from esphome.core import coroutine
+from esphome.core import coroutine, coroutine_with_priority
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -293,6 +293,7 @@ def register_time(time_var, config):
     yield setup_time_core_(time_var, config)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_TIME')
     cg.add_global(time_ns.using)

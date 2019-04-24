@@ -18,7 +18,8 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 
   void play(Ts... x) override {
     auto call = this->climate_->make_call();
-    call.set_target_temperature(this->mode_.optional_value(x...));
+    call.set_mode(this->mode_.optional_value(x...));
+    call.set_target_temperature(this->target_temperature_.optional_value(x...));
     call.set_target_temperature_low(this->target_temperature_low_.optional_value(x...));
     call.set_target_temperature_high(this->target_temperature_high_.optional_value(x...));
     call.set_away(this->away_.optional_value(x...));

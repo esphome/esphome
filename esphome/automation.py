@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_AUTOMATION_ID, CONF_CONDITION, CONF_ELSE, CONF_ID, CONF_THEN, \
-    CONF_TRIGGER_ID, CONF_TYPE_ID
+    CONF_TRIGGER_ID, CONF_TYPE_ID, CONF_TIME
 from esphome.core import coroutine
 from esphome.util import Registry
 
@@ -55,6 +55,7 @@ UpdateComponentAction = cg.esphome_ns.class_('UpdateComponentAction', Action)
 Automation = cg.esphome_ns.class_('Automation')
 
 LambdaCondition = cg.esphome_ns.class_('LambdaCondition', Condition)
+ForCondition = cg.esphome_ns.class_('ForCondition', Condition)
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
@@ -78,6 +79,8 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 try:
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
+                    if u'extra keys not allowed' in str(err2) and len(err2.path) == 2:
+                        raise err
                     if u'Unable to find action' in str(err):
                         raise err2
                     raise cv.MultipleInvalid([err, err2])
@@ -135,6 +138,19 @@ def not_condition_to_code(config, condition_id, template_arg, args):
 def lambda_condition_to_code(config, condition_id, template_arg, args):
     lambda_ = yield cg.process_lambda(config, args, return_type=bool)
     yield cg.new_Pvariable(condition_id, template_arg, lambda_)
+
+
+@register_condition('for', ForCondition, cv.Schema({
+    cv.Required(CONF_TIME): cv.templatable(cv.positive_time_period_milliseconds),
+    cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+}).extend(cv.COMPONENT_SCHEMA))
+def for_condition_to_code(config, condition_id, template_arg, args):
+    condition = yield build_condition(config[CONF_CONDITION], cg.TemplateArguments(), [])
+    var = cg.new_Pvariable(condition_id, template_arg, condition)
+    yield cg.register_component(var, config)
+    templ = yield cg.templatable(config[CONF_TIME], args, cg.uint32)
+    cg.add(var.set_time(templ))
+    yield var
 
 
 @register_action('delay', DelayAction, cv.templatable(cv.positive_time_period_milliseconds))

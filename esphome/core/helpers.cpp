@@ -304,4 +304,9 @@ float clamp(float val, float min, float max) {
 }
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
 
+bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }
+bool str_endswith(const std::string &full, const std::string &ending) {
+  return full.rfind(ending) == (full.size() - ending.size());
+}
+
 }  // namespace esphome

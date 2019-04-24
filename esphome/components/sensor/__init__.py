@@ -10,7 +10,7 @@ from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_B
     CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_TO, CONF_TRIGGER_ID, \
     CONF_UNIT_OF_MEASUREMENT, \
     CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
 IS_PLATFORM_COMPONENT = True
@@ -305,6 +305,7 @@ def fit_linear(x, y):
     return k, b
 
 
+@coroutine_with_priority(40.0)
 def to_code(config):
     cg.add_define('USE_SENSOR')
     cg.add_global(sensor_ns.using)

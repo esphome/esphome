@@ -150,6 +150,10 @@ def exp_mqtt_message(config):
 
 @coroutine_with_priority(40.0)
 def to_code(config):
+    cg.add_library('AsyncMqttClient', '0.8.2')
+    cg.add_define('USE_MQTT')
+    cg.add_global(mqtt_ns.using)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
@@ -216,10 +220,6 @@ def to_code(config):
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
         yield automation.build_automation(trig, [(cg.JsonObjectConstRef, 'x')], conf)
-
-    cg.add_library('AsyncMqttClient', '0.8.2')
-    cg.add_define('USE_MQTT')
-    cg.add_global(mqtt_ns.using)
 
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({

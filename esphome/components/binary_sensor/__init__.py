@@ -8,7 +8,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_MAX_LENGTH, CONF_MIN_LENGTH, CONF_ON_CLICK, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_NAME, CONF_MQTT_ID
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.py_compat import string_types
 from esphome.util import Registry
 
@@ -282,7 +282,8 @@ def new_binary_sensor(config):
 
 BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(BinarySensor),
-    cv.Optional(CONF_FOR): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_FOR): cv.invalid("This option has been removed in 1.13, please use the "
+                                      "'for' condition instead."),
 })
 
 
@@ -290,16 +291,17 @@ BINARY_SENSOR_CONDITION_SCHEMA = maybe_simple_id({
                                BINARY_SENSOR_CONDITION_SCHEMA)
 def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, True, config.get(CONF_FOR))
+    yield cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
 @automation.register_condition('binary_sensor.is_off', BinarySensorCondition,
                                BINARY_SENSOR_CONDITION_SCHEMA)
 def binary_sensor_is_off_to_code(config, condition_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren, False, config.get(CONF_FOR))
+    yield cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_BINARY_SENSOR')
     cg.add_global(binary_sensor_ns.using)

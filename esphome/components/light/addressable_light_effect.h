@@ -76,9 +76,9 @@ class AddressableRainbowLightEffect : public AddressableLightEffect {
     hsv.saturation = 240;
     uint16_t hue = (millis() * this->speed_) % 0xFFFF;
     const uint16_t add = 0xFFFF / this->width_;
-    for (int i = 0; i < it.size(); i++) {
+    for (auto var : it) {
       hsv.hue = hue >> 8;
-      it[i] = hsv;
+      var = hsv;
       hue += add;
     }
   }
@@ -107,15 +107,10 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
     if (now - this->last_add_ < this->add_led_interval_)
       return;
     this->last_add_ = now;
-    if (!this->reverse_) {
-      for (int i = 0; i < it.size() - 1; i++) {
-        it[i] = it[i + 1].get();
-      }
-    } else {
-      for (int i = it.size() - 1; i > 0; i--) {
-        it[i] = it[i - 1].get();
-      }
-    }
+    if (this->reverse_)
+      it.shift_left(1);
+    else
+      it.shift_right(1);
     const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
     const ESPColor esp_color = ESPColor(color.r, color.g, color.b, color.w);
     if (!this->reverse_) {
@@ -149,18 +144,14 @@ class AddressableScanEffect : public AddressableLightEffect {
  public:
   explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
-  void apply(AddressableLight &addressable, const ESPColor &current_color) override {
-    for (int i = 0; i < addressable.size(); i++) {
-      if (i == this->at_led_)
-        addressable[i] = current_color;
-      else
-        addressable[i] = ESPColor(0, 0, 0, 0);
-    }
+  void apply(AddressableLight &it, const ESPColor &current_color) override {
+    it.all() = ESPColor(0, 0, 0, 0);
+    it[this->at_led_] = current_color;
     const uint32_t now = millis();
     if (now - this->last_move_ > this->move_interval_) {
       if (direction_) {
         this->at_led_++;
-        if (this->at_led_ == addressable.size() - 1)
+        if (this->at_led_ == it.size() - 1)
           this->direction_ = false;
       } else {
         this->at_led_--;
@@ -189,8 +180,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
       pos_add = pos_add32;
       this->last_progress_ += pos_add32 * this->progress_interval_;
     }
-    for (int i = 0; i < addressable.size(); i++) {
-      ESPColorView view = addressable[i];
+    for (auto view : addressable) {
       if (view.get_effect_data() != 0) {
         const uint8_t sine = half_sin8(view.get_effect_data());
         view = current_color * sine;
@@ -230,8 +220,8 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       this->last_progress_ = now;
     }
     uint8_t subsine = ((8 * (now - this->last_progress_)) / this->progress_interval_) & 0b111;
-    for (int i = 0; i < it.size(); i++) {
-      ESPColorView view = it[i];
+    for (auto &&i : it) {
+      ESPColorView view = i;
       if (view.get_effect_data() != 0) {
         const uint8_t x = (view.get_effect_data() >> 3) & 0b11111;
         const uint8_t color = view.get_effect_data() & 0b111;
@@ -282,11 +272,11 @@ class AddressableFireworksEffect : public AddressableLightEffect {
     this->last_update_ = now;
     // "invert" the fade out parameter so that higher values make fade out faster
     const uint8_t fade_out_mult = 255u - this->fade_out_rate_;
-    for (int i = 0; i < it.size(); i++) {
-      ESPColor target = it[i].get() * fade_out_mult;
+    for (auto view : it) {
+      ESPColor target = view.get() * fade_out_mult;
       if (target.r < 64)
         target *= 170;
-      it[i] = target;
+      view = target;
     }
     int last = it.size() - 1;
     it[0].set(it[0].get() + (it[1].get() * 128));
@@ -326,9 +316,9 @@ class AddressableFlickerEffect : public AddressableLightEffect {
       return;
     this->last_update_ = now;
     fast_random_set_seed(random_uint32());
-    for (int i = 0; i < it.size(); i++) {
+    for (auto var : it) {
       const uint8_t flicker = fast_random_8() % this->intensity_;
-      it[i] = (it[i].get() * delta_intensity) + (current_color * flicker);
+      var = (var.get() * delta_intensity) + (current_color * flicker);
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }

@@ -6,7 +6,7 @@ from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATUR
     CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
     CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
     CONF_MQTT_ID, CONF_NAME
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -15,7 +15,6 @@ climate_ns = cg.esphome_ns.namespace('climate')
 ClimateDevice = climate_ns.class_('Climate', cg.Nameable)
 ClimateCall = climate_ns.class_('ClimateCall')
 ClimateTraits = climate_ns.class_('ClimateTraits')
-# MQTTClimateComponent = climate_ns.class_('MQTTClimateComponent', mqtt.MQTTComponent)
 
 ClimateMode = climate_ns.enum('ClimateMode')
 CLIMATE_MODES = {
@@ -100,6 +99,7 @@ def climate_control_to_code(config, action_id, template_arg, args):
     yield var
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_CLIMATE')
     cg.add_global(climate_ns.using)

@@ -151,7 +151,7 @@ def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        res = os.path.relpath(path, CORE.relative_build_path('src'))
+        res = os.path.relpath(path, CORE.relative_build_path('src')).replace(os.path.sep, '/')
         cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
 
 

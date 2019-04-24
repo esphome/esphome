@@ -56,6 +56,30 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   LightState *parent_;
 };
 
+template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
+ public:
+  explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(float, relative_brightness)
+  TEMPLATABLE_VALUE(uint32_t, transition_length)
+
+  void play(Ts... x) override {
+    auto call = this->parent_->make_call();
+    float rel = this->relative_brightness_.value(x...);
+    float cur;
+    this->parent_->remote_values.as_brightness(&cur);
+    float new_brightness = clamp(cur + rel, 0.0f, 1.0f);
+    call.set_state(new_brightness != 0.0f);
+    call.set_brightness(new_brightness);
+
+    call.set_transition_length(this->transition_length_.optional_value(x...));
+    call.perform();
+  }
+
+ protected:
+  LightState *parent_;
+};
+
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  public:
   explicit LightIsOnCondition(LightState *state) : state_(state) {}

@@ -60,8 +60,6 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
-    'display', 'i2c', 'spi', 'uart', 'sensor', 'binary_sensor', 'climate', 'cover', 'text_sensor',
-    'api', 'fan', 'light', 'gpio', 'mqtt', 'ota', 'power_supply', 'wifi'
 ]
 
 
@@ -127,6 +125,8 @@ def string(value):
     check_not_templatable(value)
     if isinstance(value, (dict, list)):
         raise Invalid("string value cannot be dictionary or list.")
+    if isinstance(value, bool):
+        raise Invalid("Auto-converted this value to boolean, please wrap the value in quotes.")
     if isinstance(value, text_type):
         return value
     if value is not None:
@@ -168,7 +168,7 @@ def boolean(value):
     check_not_templatable(value)
     if isinstance(value, bool):
         return value
-    if isinstance(value, str):
+    if isinstance(value, string_types):
         value = value.lower()
         if value in ('true', 'yes', 'on', 'enable'):
             return True
@@ -285,7 +285,10 @@ def validate_id_name(value):
                           u"character and numbers. The character '{}' cannot be used"
                           u"".format(char))
     if value in RESERVED_IDS:
-        raise Invalid(u"ID {} is reserved internally and cannot be used".format(value))
+        raise Invalid(u"ID '{}' is reserved internally and cannot be used".format(value))
+    if value in CORE.loaded_integrations:
+        raise Invalid(u"ID '{}' conflicts with the name of an esphome integration, please use "
+                      u"another ID name.".format(value))
     return value
 
 
@@ -330,7 +333,7 @@ def templatable(other_validators):
 
     def validator(value):
         if isinstance(value, Lambda):
-            return value
+            return lambda_(value)
         if isinstance(other_validators, dict):
             return schema(value)
         return schema(value)
@@ -953,11 +956,22 @@ def enum(mapping, **kwargs):
     return validator
 
 
+LAMBDA_ENTITY_ID_PROG = re.compile(r'id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)')
+
+
 def lambda_(value):
     """Coerce this configuration option to a lambda."""
-    if isinstance(value, Lambda):
-        return value
-    return Lambda(string_strict(value))
+    if not isinstance(value, Lambda):
+        value = Lambda(string_strict(value))
+    entity_id_parts = re.split(LAMBDA_ENTITY_ID_PROG, value.value)
+    if len(entity_id_parts) != 1:
+        entity_ids = ' '.join("'{}'".format(entity_id_parts[i])
+                              for i in range(1, len(entity_id_parts), 2))
+        raise Invalid("Lambda contains reference to entity-id-style ID {}. "
+                      "The id() wrapper only works for ESPHome-internal types. For importing "
+                      "states from Home Assistant use the 'homeassistant' sensor platforms."
+                      "".format(entity_ids))
+    return value
 
 
 def dimensions(value):

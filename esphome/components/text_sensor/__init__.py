@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_ON_VALUE, \
-    CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
-from esphome.core import CORE, coroutine
+    CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME, CONF_STATE
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -16,6 +16,7 @@ TextSensorPtr = TextSensor.operator('ptr')
 TextSensorStateTrigger = text_sensor_ns.class_('TextSensorStateTrigger',
                                                automation.Trigger.template(cg.std_string))
 TextSensorPublishAction = text_sensor_ns.class_('TextSensorPublishAction', automation.Action)
+TextSensorStateCondition = text_sensor_ns.class_('TextSensorStateCondition', automation.Condition)
 
 icon = cv.icon
 
@@ -53,6 +54,19 @@ def register_text_sensor(var, config):
     yield setup_text_sensor_core_(var, config)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_TEXT_SENSOR')
     cg.add_global(text_sensor_ns.using)
+
+
+@automation.register_condition('text_sensor.state', TextSensorStateCondition, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(TextSensor),
+    cv.Required(CONF_STATE): cv.templatable(cv.string_strict),
+}))
+def text_sensor_state_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
+    templ = yield cg.templatable(config[CONF_STATE], args, cg.std_string)
+    cg.add(var.set_state(templ))
+    yield var

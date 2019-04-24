@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
-from esphome.core import coroutine
+from esphome.core import coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -98,5 +98,6 @@ def display_page_show_previous_to_code(config, action_id, template_arg, args):
     yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(display_ns.using)

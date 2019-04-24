@@ -502,6 +502,8 @@ class EsphomeCore(object):
         # A dictionary of started coroutines, used to warn when a coroutine was not
         # awaited.
         self.active_coroutines = {}  # type: Dict[int, Any]
+        # A set of strings of names of loaded integrations, used to find namespace ID conflicts
+        self.loaded_integrations = set()
 
     def reset(self):
         self.dashboard = False
@@ -521,6 +523,7 @@ class EsphomeCore(object):
         self.build_flags = set()
         self.defines = set()
         self.active_coroutines = {}
+        self.loaded_integrations = set()
 
     @property
     def address(self):  # type: () -> str

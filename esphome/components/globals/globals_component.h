@@ -8,6 +8,7 @@ namespace globals {
 
 template<typename T> class GlobalsComponent : public Component {
  public:
+  using value_type = T;
   explicit GlobalsComponent() = default;
   explicit GlobalsComponent(T initial_value) : value_(initial_value) {}
   explicit GlobalsComponent(std::array<typename std::remove_extent<T>::type, std::extent<T>::value> initial_value) {
@@ -47,6 +48,20 @@ template<typename T> class GlobalsComponent : public Component {
   bool restore_value_{false};
   uint32_t name_hash_{};
   ESPPreferenceObject rtc_;
+};
+
+template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...> {
+ public:
+  explicit GlobalVarSetAction(C *parent) : parent_(parent) {}
+
+  using T = typename C::value_type;
+
+  TEMPLATABLE_VALUE(T, value);
+
+  void play(Ts... x) override { this->parent_->value() = this->value_.value(x...); }
+
+ protected:
+  C *parent_;
 };
 
 }  // namespace globals

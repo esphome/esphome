@@ -120,6 +120,9 @@ def _lookup_module(domain, is_platform):
     try:
         module = importlib.import_module(path)
     except ImportError:
+        import traceback
+        _LOGGER.error("Unable to import component %s:", domain)
+        traceback.print_exc()
         return None
     except Exception:  # pylint: disable=broad-except
         import traceback
@@ -390,6 +393,7 @@ def validate_config(config):
         if component is None:
             result.add_str_error(u"Component not found: {}".format(domain), path)
             continue
+        CORE.loaded_integrations.add(domain)
 
         # Process AUTO_LOAD
         for load in component.auto_load:
@@ -432,6 +436,7 @@ def validate_config(config):
             if platform is None:
                 result.add_str_error(u"Platform not found: '{}'".format(p_domain), path)
                 continue
+            CORE.loaded_integrations.add(p_name)
 
             # Process AUTO_LOAD
             for load in platform.auto_load:

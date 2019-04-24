@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
-    CONF_POSITION, CONF_TARGET
-from esphome.core import CORE, coroutine
+    CONF_POSITION, CONF_TARGET, CONF_SPEED
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -13,6 +13,7 @@ Stepper = stepper_ns.class_('Stepper')
 
 SetTargetAction = stepper_ns.class_('SetTargetAction', automation.Action)
 ReportPositionAction = stepper_ns.class_('ReportPositionAction', automation.Action)
+SetSpeedAction = stepper_ns.class_('SetSpeedAction', automation.Action)
 
 
 def validate_acceleration(value):
@@ -103,5 +104,18 @@ def stepper_report_position_to_code(config, action_id, template_arg, args):
     yield var
 
 
+@automation.register_action('stepper.set_speed', SetSpeedAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(Stepper),
+    cv.Required(CONF_SPEED): cv.templatable(validate_speed),
+}))
+def stepper_set_speed_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_SPEED], args, cg.int32)
+    cg.add(var.set_speed(template_))
+    yield var
+
+
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(stepper_ns.using)

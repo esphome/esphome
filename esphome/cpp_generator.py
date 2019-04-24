@@ -72,6 +72,9 @@ class ExpressionList(Expression):
         text = u", ".join(text_type(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
+    def __iter__(self):
+        return iter(self.args)
+
 
 class TemplateArguments(Expression):
     def __init__(self, *args):  # type: (*SafeExpType) -> None
@@ -80,6 +83,9 @@ class TemplateArguments(Expression):
 
     def __str__(self):
         return u'<{}>'.format(self.args)
+
+    def __iter__(self):
+        return iter(self.args)
 
 
 class CallExpression(Expression):
@@ -400,7 +406,7 @@ def Pvariable(id,  # type: ID
 
 
 def new_Pvariable(id,  # type: ID
-                  *args  # type: SafeExpType
+                  *args  # type: *SafeExpType
                   ):
     """Declare a new pointer variable in the code generation by calling it's constructor
     with the given arguments.
@@ -478,6 +484,21 @@ def get_variable(id):  # type: (ID) -> Generator[MockObj]
     """
     var = yield CORE.get_variable(id)
     yield var
+
+
+@coroutine
+def get_variable_with_full_id(id):  # type: (ID) -> Generator[ID, MockObj]
+    """
+    Wait for the given ID to be defined in the code generation and
+    return it as a MockObj.
+
+    This is a coroutine, you need to await it with a 'yield' expression!
+
+    :param id: The ID to retrieve
+    :return: The variable as a MockObj.
+    """
+    full_id, var = yield CORE.get_variable_with_full_id(id)
+    yield full_id, var
 
 
 @coroutine
@@ -572,7 +593,7 @@ class MockObj(Expression):
             attr = attr[1:]
         return MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
 
-    def __call__(self, *args, **kwargs):  # type: (*Any, **Any) -> MockObj
+    def __call__(self, *args):  # type: (SafeExpType) -> MockObj
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 
@@ -583,37 +604,32 @@ class MockObj(Expression):
         return u'MockObj<{}>'.format(text_type(self.base))
 
     @property
-    def _(self):
+    def _(self):  # type: () -> MockObj
         return MockObj(u'{}{}'.format(self.base, self.op))
 
     @property
-    def new(self):
+    def new(self):  # type: () -> MockObj
         return MockObj(u'new {}'.format(self.base), u'->')
 
-    def template(self, *args):  # type: (Tuple[Union[TemplateArguments, Expression]]) -> MockObj
+    def template(self, *args):  # type: (*SafeExpType) -> MockObj
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
             args = args[0]
-        obj = MockObj(u'{}{}'.format(self.base, args))
-        return obj
+        return MockObj(u'{}{}'.format(self.base, args))
 
     def namespace(self, name):  # type: (str) -> MockObj
-        obj = MockObj(u'{}{}{}'.format(self.base, self.op, name), u'::')
-        return obj
+        return MockObj(u'{}{}'.format(self._, name), u'::')
 
     def class_(self, name, *parents):  # type: (str, *MockObjClass) -> MockObjClass
         op = '' if self.op == '' else '::'
-        obj = MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
-        return obj
+        return MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
 
     def struct(self, name):  # type: (str) -> MockObjClass
         return self.class_(name)
 
     def enum(self, name, is_class=False):  # type: (str, bool) -> MockObj
-        if is_class:
-            return self.namespace(name)
-        return self
+        return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
 
     def operator(self, name):  # type: (str) -> MockObj
         if name == 'ref':
@@ -625,7 +641,7 @@ class MockObj(Expression):
         raise NotImplementedError
 
     @property
-    def using(self):
+    def using(self):  # type: () -> MockObj
         assert self.op == '::'
         return MockObj(u'using namespace {}'.format(self.base))
 
@@ -635,6 +651,26 @@ class MockObj(Expression):
             item = item[1:]
             next_op = u'->'
         return MockObj(u'{}[{}]'.format(self.base, item), next_op)
+
+
+class MockObjEnum(MockObj):
+    def __init__(self, *args, **kwargs):
+        self._enum = kwargs.pop('enum')
+        self._is_class = kwargs.pop('is_class')
+        base = kwargs.pop('base')
+        if self._is_class:
+            base = base + '::' + self._enum
+            kwargs['op'] = '::'
+        kwargs['base'] = base
+        MockObj.__init__(self, *args, **kwargs)
+
+    def __str__(self):  # type: () -> unicode
+        if self._is_class:
+            return super(MockObjEnum, self).__str__()
+        return u'{}{}{}'.format(self.base, self.op, self._enum)
+
+    def __repr__(self):
+        return u'MockObj<{}>'.format(text_type(self.base))
 
 
 class MockObjClass(MockObj):
@@ -657,10 +693,8 @@ class MockObjClass(MockObj):
                 return True
         return False
 
-    def template(self,
-                 *args  # type: Tuple[Union[TemplateArguments, Expression]]
-                 ):
-        # type: (...) -> MockObjClass
+    def template(self, *args):
+        # type: (*SafeExpType) -> MockObjClass
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:

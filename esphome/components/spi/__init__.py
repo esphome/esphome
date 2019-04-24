@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN, CONF_SPI_ID, \
     CONF_CS_PIN
-from esphome.core import coroutine
+from esphome.core import coroutine, coroutine_with_priority
 
 spi_ns = cg.esphome_ns.namespace('spi')
 SPIComponent = spi_ns.class_('SPIComponent', cg.Component)
@@ -18,7 +18,9 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 }), cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN))
 
 
+@coroutine_with_priority(1.0)
 def to_code(config):
+    cg.add_global(spi_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
@@ -30,8 +32,6 @@ def to_code(config):
     if CONF_MOSI_PIN in config:
         mosi = yield cg.gpio_pin_expression(config[CONF_MOSI_PIN])
         cg.add(var.set_mosi(mosi))
-
-    cg.add_global(spi_ns.using)
 
 
 SPI_DEVICE_SCHEMA = cv.Schema({

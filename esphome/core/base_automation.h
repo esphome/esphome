@@ -55,6 +55,32 @@ template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
   std::function<bool(Ts...)> f_;
 };
 
+template<typename... Ts> class ForCondition : public Condition<Ts...>, public Component {
+ public:
+  explicit ForCondition(Condition<> *condition) : condition_(condition) {}
+
+  TEMPLATABLE_VALUE(uint32_t, time);
+
+  void loop() override { this->check_internal(); }
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  bool check_internal() {
+    bool cond = this->condition_->check();
+    if (!cond)
+      this->last_inactive_ = millis();
+    return cond;
+  }
+
+  bool check(Ts... x) override {
+    if (!this->check_internal())
+      return false;
+    return millis() - this->last_inactive_ < this->time_.value(x...);
+  }
+
+ protected:
+  Condition<> *condition_;
+  uint32_t last_inactive_{0};
+};
+
 class StartupTrigger : public Trigger<>, public Component {
  public:
   explicit StartupTrigger(float setup_priority) : setup_priority_(setup_priority) {}

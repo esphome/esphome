@@ -14,6 +14,18 @@ class TextSensorStateTrigger : public Trigger<std::string> {
   }
 };
 
+template<typename... Ts> class TextSensorStateCondition : public Condition<Ts...> {
+ public:
+  explicit TextSensorStateCondition(TextSensor *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(std::string, state)
+
+  bool check(Ts... x) override { return this->parent_->state == this->state_.value(x...); }
+
+ protected:
+  TextSensor *parent_;
+};
+
 template<typename... Ts> class TextSensorPublishAction : public Action<Ts...> {
  public:
   TextSensorPublishAction(TextSensor *sensor) : sensor_(sensor) {}

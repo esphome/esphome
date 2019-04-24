@@ -5,7 +5,7 @@ from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_INVERTED, CONF_ON_TURN_OFF, \
     CONF_ON_TURN_ON, CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -92,6 +92,7 @@ def switch_is_off_to_code(config, condition_id, template_arg, args):
     yield cg.new_Pvariable(condition_id, template_arg, paren)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(switch_ns.using)
     cg.add_define('USE_SWITCH')

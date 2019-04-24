@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA, CONF_ADDRESS, \
     CONF_I2C_ID
-from esphome.core import coroutine
+from esphome.core import coroutine, coroutine_with_priority
 
 i2c_ns = cg.esphome_ns.namespace('i2c')
 I2CComponent = i2c_ns.class_('I2CComponent', cg.Component)
@@ -20,7 +20,9 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 
+@coroutine_with_priority(1.0)
 def to_code(config):
+    cg.add_global(i2c_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
@@ -29,7 +31,6 @@ def to_code(config):
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
     cg.add_library('Wire', None)
-    cg.add_global(i2c_ns.using)
 
 
 def i2c_device_schema(default_address):

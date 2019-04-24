@@ -6,7 +6,7 @@ from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_OSCILLATING, \
     CONF_OSCILLATION_COMMAND_TOPIC, CONF_OSCILLATION_STATE_TOPIC, CONF_SPEED, \
     CONF_SPEED_COMMAND_TOPIC, CONF_SPEED_STATE_TOPIC, CONF_NAME
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -107,6 +107,7 @@ def fan_turn_on_to_code(config, action_id, template_arg, args):
     yield var
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_FAN')
     cg.add_global(fan_ns.using)

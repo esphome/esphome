@@ -5,7 +5,7 @@ from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
     CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
-from esphome.core import CORE, coroutine
+from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
@@ -124,6 +124,7 @@ def cover_control_to_code(config, action_id, template_arg, args):
     yield var
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_COVER')
     cg.add_global(cover_ns.using)
