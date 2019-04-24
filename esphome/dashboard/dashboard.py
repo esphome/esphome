@@ -69,13 +69,18 @@ def template_args():
 def authenticated(func):
     def decorator(self, *args, **kwargs):
         if not is_authenticated(self):
-            self.redirect(RELATIVE_URL + 'login')
+            self.redirect('./login')
             return None
         return func(self, *args, **kwargs)
     return decorator
 
 
 def is_authenticated(request_handler):
+    if ON_HASSIO:
+        # Handle ingress - disable auth on ingress port
+        # X-Hassio-Ingress is automatically stripped on the non-ingress server in nginx
+        if request_handler.request.headers.get('X-Hassio-Ingress', 'NO') == 'YES':
+            return True
     if USING_HASSIO_AUTH or USING_PASSWORD:
         return request_handler.get_secure_cookie('authenticated') == cookie_authenticated_yes
     return True
@@ -188,7 +193,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def _proc_on_exit(self, returncode):
         if not self._is_closed:
             # Check if the proc was not forcibly closed
-            _LOGGER.debug("Process exited with return code %s", returncode)
+            _LOGGER.info("Process exited with return code %s", returncode)
             self.write_message({'event': 'exit', 'code': returncode})
 
     def on_close(self):
@@ -528,7 +533,7 @@ class LoginHandler(BaseHandler):
         if USING_HASSIO_AUTH:
             self.render_hassio_login()
             return
-        self.write('<html><body><form action="' + RELATIVE_URL + 'login" method="post">'
+        self.write('<html><body><form action="./login" method="post">'
                    'Password: <input type="password" name="password">'
                    '<input type="submit" value="Sign in">'
                    '</form></body></html>')
@@ -587,7 +592,7 @@ def get_static_file_url(name):
         with open(path, 'rb') as f_handle:
             hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
-    return RELATIVE_URL + u'static/{}?hash={}'.format(name, hash_)
+    return u'./static/{}?hash={}'.format(name, hash_)
 
 
 def make_app(debug=False):

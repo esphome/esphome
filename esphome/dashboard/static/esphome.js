@@ -9,7 +9,7 @@ let wsProtocol = "ws:";
 if (window.location.protocol === "https:") {
   wsProtocol = 'wss:';
 }
-const wsUrl = `${wsProtocol}//${window.location.hostname}:${window.location.port}${relative_url}`;
+const wsUrl = `${wsProtocol}//${window.location.hostname}:${window.location.port}/`;
 
 
 // ============================= Color Log Parsing =============================
@@ -192,7 +192,7 @@ const fetchPing = () => {
       return;
   isFetchingPing = true;
 
-  fetch(`${relative_url}ping`, {credentials: "same-origin"}).then(res => res.json())
+  fetch(`./ping`, {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
       for (let filename in response) {
         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
@@ -235,7 +235,7 @@ const portSelect = document.querySelector('.nav-wrapper select');
 let ports = [];
 
 const fetchSerialPorts = (begin=false) => {
-  fetch(`${relative_url}serial-ports`, {credentials: "same-origin"}).then(res => res.json())
+  fetch(`./serial-ports`, {credentials: "same-origin"}).then(res => res.json())
     .then(response => {
       if (ports.length === response.length) {
         let allEqual = true;
@@ -333,7 +333,6 @@ class LogModalElem {
   }
 
   _onPress(event) {
-    console.log("_onPress");
     this.activeConfig = event.target.getAttribute('data-node');
     this._setupModalInstance();
     // clear log
@@ -435,12 +434,12 @@ const validateModal = new LogModalElem({
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
       M.toast({
-        html: `<code class="inlinecode">${configuration}</code> is valid 👍`,
+        html: `<code class="inlinecode">${validateModal.activeConfig}</code> is valid 👍`,
         displayLength: 5000,
       });
     } else {
       M.toast({
-        html: `<code class="inlinecode">${configuration}</code> is invalid 😕`,
+        html: `<code class="inlinecode">${validateModal.activeConfig}</code> is invalid 😕`,
         displayLength: 5000,
       });
     }
@@ -477,7 +476,7 @@ compileModal.setup();
 downloadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
-  link.href = `${relative_url}download.bin?configuration=${encodeURIComponent(compileModal.activeConfig)}`;
+  link.href = `./download.bin?configuration=${encodeURIComponent(compileModal.activeConfig)}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -520,7 +519,7 @@ document.querySelectorAll(".action-delete").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     let configuration = e.target.getAttribute('data-node');
 
-    fetch(`${relative_url}delete?configuration=${configuration}`, {
+    fetch(`./delete?configuration=${configuration}`, {
       credentials: "same-origin",
       method: "POST",
     }).then(res => res.text()).then(() => {
@@ -532,7 +531,7 @@ document.querySelectorAll(".action-delete").forEach((btn) => {
         document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
 
         undoButton.addEventListener('click', () => {
-          fetch(`${relative_url}undo-delete?configuration=${configuration}`, {
+          fetch(`./undo-delete?configuration=${configuration}`, {
             credentials: "same-origin",
             method: "POST",
           }).then(res => res.text()).then(() => {
@@ -554,7 +553,7 @@ editor.session.setOption('tabSize', 2);
 
 const saveButton = editModalElem.querySelector(".save-button");
 const saveEditor = () => {
-  fetch(`${relative_url}edit?configuration=${activeEditorConfig}`, {
+  fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
       method: "POST",
       body: editor.getValue()
@@ -581,7 +580,7 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     const filenameField = editModalElem.querySelector('.filename');
     filenameField.innerHTML = activeEditorConfig;
 
-    fetch(`${relative_url}edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
+    fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
     });
