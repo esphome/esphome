@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         python-pil \
         git \
     && apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/*rm -rf /var/lib/apt/lists/* /tmp/* && \
-    pip install --no-cache-dir --no-binary :all: platformio && \
+    pip install --no-cache-dir platformio && \
     platformio settings set enable_telemetry No && \
     platformio settings set check_libraries_interval 1000000 && \
     platformio settings set check_platformio_interval 1000000 && \

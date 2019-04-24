@@ -1,9 +1,8 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:1.4.3
+ARG BUILD_FROM=esphome/esphome-base-amd64:1.5.1
 FROM ${BUILD_FROM}
 
 COPY . .
-RUN \
-    pip2 install --no-cache-dir --no-binary :all: -e .
+RUN pip2 install --no-cache-dir -e .
 
 WORKDIR /config
 ENTRYPOINT ["esphome"]
