@@ -79,7 +79,9 @@ def is_authenticated(request_handler):
     if ON_HASSIO:
         # Handle ingress - disable auth on ingress port
         # X-Hassio-Ingress is automatically stripped on the non-ingress server in nginx
-        if request_handler.request.headers.get('X-Hassio-Ingress', 'NO') == 'YES':
+        header = request_handler.request.headers.get('X-Hassio-Ingress', 'NO')
+        _LOGGER.info("ingress: %s (%s)", header, type(header))
+        if header == 'YES':
             return True
     if USING_HASSIO_AUTH or USING_PASSWORD:
         return request_handler.get_secure_cookie('authenticated') == cookie_authenticated_yes
