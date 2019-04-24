@@ -136,13 +136,11 @@ def authenticated(func):
 
 
 def is_authenticated(request_handler):
-    _LOGGER.info("is_authenticated")
     if settings.on_hassio:
         # Handle ingress - disable auth on ingress port
         # X-Hassio-Ingress is automatically stripped on the non-ingress server in nginx
         header = request_handler.request.headers.get('X-Hassio-Ingress', 'NO')
-        _LOGGER.info("ingress: %s %r, (%s)", header, header, type(header))
-        if header == 'YES':
+        if str(header) == 'YES':
             return True
     if settings.using_auth:
         return request_handler.get_secure_cookie('authenticated') == cookie_authenticated_yes
@@ -338,7 +336,7 @@ class WizardRequestHandler(BaseHandler):
         kwargs = {k: u''.join(decode_text(x) for x in v) for k, v in self.request.arguments.items()}
         destination = settings.rel_path(kwargs['name'] + u'.yaml')
         wizard.wizard_write(path=destination, **kwargs)
-        self.redirect('/?begin=True')
+        self.redirect('./?begin=True')
 
 
 class DownloadBinaryRequestHandler(BaseHandler):
