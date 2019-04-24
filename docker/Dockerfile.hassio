@@ -1,4 +1,4 @@
-ARG BUILD_FROM=esphome/esphome-hassio-base-amd64:1.4.3
+ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
 # Copy root filesystem
@@ -6,8 +6,7 @@ COPY docker/rootfs/ /
 COPY setup.py setup.cfg MANIFEST.in /opt/esphome/
 COPY esphome /opt/esphome/esphome
 
-RUN \
-    pip2 install --no-cache-dir --no-binary :all: -e /opt/esphome
+RUN pip2 install --no-cache-dir -e /opt/esphome
 
 # Build arguments
 ARG BUILD_VERSION=dev
