@@ -1,4 +1,5 @@
-from collections import OrderedDict
+import inspect
+
 import math
 
 # pylint: disable=unused-import, wrong-import-order
@@ -6,32 +7,20 @@ from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Cal
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine)
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
+    EnumValue)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.py_compat import integer_types, string_types, text_type
+from esphome.util import OrderedDict
 
 
 class Expression(object):
-    def __init__(self):
-        self.requires = []
-        self.required = False
-
     def __str__(self):
         raise NotImplementedError
 
-    def require(self):
-        self.required = True
-        for require in self.requires:
-            if require.required:
-                continue
-            require.require()
-
-    def has_side_effects(self):
-        return self.required
-
 
 SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod,
-                    Type[bool], Type[int], Type[float]]
+                    Type[bool], Type[int], Type[float], List[Any]]
 
 
 class RawExpression(Expression):
@@ -51,15 +40,23 @@ class AssignmentExpression(Expression):
         self.modifier = modifier
         self.name = name
         self.rhs = safe_exp(rhs)
-        self.requires.append(self.rhs)
         self.obj = obj
 
     def __str__(self):
-        type_ = self.type
-        return u"{} {}{} = {}".format(type_, self.modifier, self.name, self.rhs)
+        if self.type is None:
+            return u"{} = {}".format(self.name, self.rhs)
+        return u"{} {}{} = {}".format(self.type, self.modifier, self.name, self.rhs)
 
-    def has_side_effects(self):
-        return self.rhs.has_side_effects()
+
+class VariableDeclarationExpression(Expression):
+    def __init__(self, type, modifier, name):
+        super(VariableDeclarationExpression, self).__init__()
+        self.type = type
+        self.modifier = modifier
+        self.name = name
+
+    def __str__(self):
+        return u"{} {}{}".format(self.type, self.modifier, self.name)
 
 
 class ExpressionList(Expression):
@@ -69,25 +66,26 @@ class ExpressionList(Expression):
         args = list(args)
         while args and args[-1] is None:
             args.pop()
-        self.args = []
-        for arg in args:
-            exp = safe_exp(arg)
-            self.requires.append(exp)
-            self.args.append(exp)
+        self.args = [safe_exp(arg) for arg in args]
 
     def __str__(self):
         text = u", ".join(text_type(x) for x in self.args)
         return indent_all_but_first_and_last(text)
+
+    def __iter__(self):
+        return iter(self.args)
 
 
 class TemplateArguments(Expression):
     def __init__(self, *args):  # type: (*SafeExpType) -> None
         super(TemplateArguments, self).__init__()
         self.args = ExpressionList(*args)
-        self.requires.append(self.args)
 
     def __str__(self):
         return u'<{}>'.format(self.args)
+
+    def __iter__(self):
+        return iter(self.args)
 
 
 class CallExpression(Expression):
@@ -96,12 +94,10 @@ class CallExpression(Expression):
         self.base = base
         if args and isinstance(args[0], TemplateArguments):
             self.template_args = args[0]
-            self.requires.append(self.template_args)
             args = args[1:]
         else:
             self.template_args = None
         self.args = ExpressionList(*args)
-        self.requires.append(self.args)
 
     def __str__(self):
         if self.template_args is not None:
@@ -113,8 +109,6 @@ class StructInitializer(Expression):
     def __init__(self, base, *args):  # type: (Expression, *Tuple[str, SafeExpType]) -> None
         super(StructInitializer, self).__init__()
         self.base = base
-        if isinstance(base, Expression):
-            self.requires.append(base)
         if not isinstance(args, OrderedDict):
             args = OrderedDict(args)
         self.args = OrderedDict()
@@ -123,7 +117,6 @@ class StructInitializer(Expression):
                 continue
             exp = safe_exp(value)
             self.args[key] = exp
-            self.requires.append(exp)
 
     def __str__(self):
         cpp = u'{}{{\n'.format(self.base)
@@ -143,7 +136,6 @@ class ArrayInitializer(Expression):
                 continue
             exp = safe_exp(arg)
             self.args.append(exp)
-            self.requires.append(exp)
 
     def __str__(self):
         if not self.args:
@@ -161,7 +153,7 @@ class ArrayInitializer(Expression):
 class ParameterExpression(Expression):
     def __init__(self, type, id):
         super(ParameterExpression, self).__init__()
-        self.type = type
+        self.type = safe_exp(type)
         self.id = id
 
     def __str__(self):
@@ -176,7 +168,6 @@ class ParameterListExpression(Expression):
             if not isinstance(parameter, ParameterExpression):
                 parameter = ParameterExpression(*parameter)
             self.parameters.append(parameter)
-            self.requires.append(parameter)
 
     def __str__(self):
         return u", ".join(text_type(x) for x in self.parameters)
@@ -189,13 +180,8 @@ class LambdaExpression(Expression):
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
         self.parameters = parameters
-        self.requires.append(self.parameters)
         self.capture = capture
         self.return_type = safe_exp(return_type) if return_type is not None else None
-        if return_type is not None:
-            self.requires.append(self.return_type)
-        for i in range(1, len(parts), 3):
-            self.requires.append(parts[i])
 
     def __str__(self):
         cpp = u'[{}]({})'.format(self.capture, self.parameters)
@@ -272,10 +258,15 @@ def safe_exp(
         obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
+    """Try to convert obj to an expression by automatically converting native python types to
+    expressions/literals.
+    """
     from esphome.cpp_types import bool_, float_, int32
 
     if isinstance(obj, Expression):
         return obj
+    if isinstance(obj, EnumValue):
+        return safe_exp(obj.enum_value)
     if isinstance(obj, bool):
         return BoolLiteral(obj)
     if isinstance(obj, string_types):
@@ -302,6 +293,12 @@ def safe_exp(
         return int32
     if obj is float:
         return float_
+    if isinstance(obj, ID):
+        raise ValueError(u"Object {} is an ID. Did you forget to register the variable?"
+                         u"".format(obj))
+    if inspect.isgenerator(obj):
+        raise ValueError(u"Object {} is a coroutine. Did you forget to await the expression with "
+                         u"'yield'?".format(obj))
     raise ValueError(u"Object is not an expression", obj)
 
 
@@ -348,7 +345,6 @@ def progmem_array(id, rhs):
     assignment = ProgmemAssignmentExpression(id.type, id, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id, obj)
-    obj.requires.append(assignment)
     return obj
 
 
@@ -359,60 +355,171 @@ def statement(expression):  # type: (Union[Expression, Statement]) -> Statement
 
 
 def variable(id,  # type: ID
-             rhs,  # type: Expression
+             rhs,  # type: SafeExpType
              type=None  # type: MockObj
              ):
     # type: (...) -> MockObj
+    """Declare a new variable (not pointer type) in the code generation.
+
+    :param id: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param type: Manually define a type for the variable, only use this when it's not possible
+      to do so during config validation phase (for example because of template arguments).
+
+    :returns The new variable as a MockObj.
+    """
+    assert isinstance(id, ID)
     rhs = safe_exp(rhs)
     obj = MockObj(id, u'.')
-    id.type = type or id.type
+    if type is not None:
+        id.type = type
     assignment = AssignmentExpression(id.type, '', id, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id, obj)
-    obj.requires.append(assignment)
     return obj
 
 
 def Pvariable(id,  # type: ID
-              rhs,  # type: Expression
-              has_side_effects=True,  # type: bool
+              rhs,  # type: SafeExpType
               type=None  # type: MockObj
               ):
     # type: (...) -> MockObj
+    """Declare a new pointer variable in the code generation.
+
+    :param id: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param type: Manually define a type for the variable, only use this when it's not possible
+      to do so during config validation phase (for example because of template arguments).
+
+    :returns The new variable as a MockObj.
+    """
     rhs = safe_exp(rhs)
-    if not has_side_effects and hasattr(rhs, '_has_side_effects'):
-        # pylint: disable=attribute-defined-outside-init, protected-access
-        rhs._has_side_effects = False
-    obj = MockObj(id, u'->', has_side_effects=has_side_effects)
-    id.type = type or id.type
-    assignment = AssignmentExpression(id.type, '*', id, rhs, obj)
+    obj = MockObj(id, u'->')
+    if type is not None:
+        id.type = type
+    decl = VariableDeclarationExpression(id.type, '*', id)
+    CORE.add_global(decl)
+    assignment = AssignmentExpression(None, None, id, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id, obj)
-    obj.requires.append(assignment)
     return obj
 
 
-def add(expression,  # type: Union[Expression, Statement]
-        require=True  # type: bool
+def new_Pvariable(id,  # type: ID
+                  *args  # type: *SafeExpType
+                  ):
+    """Declare a new pointer variable in the code generation by calling it's constructor
+    with the given arguments.
+
+    :param id: The ID used to declare the variable (also specifies the type).
+    :param args: The values to pass to the constructor.
+
+    :returns The new variable as a MockObj.
+    """
+    if args and isinstance(args[0], TemplateArguments):
+        id = id.copy()
+        id.type = id.type.template(args[0])
+        args = args[1:]
+    rhs = id.type.new(*args)
+    return Pvariable(id, rhs)
+
+
+def add(expression,  # type: Union[SafeExpType, Statement]
         ):
     # type: (...) -> None
-    CORE.add(expression, require=require)
+    """Add an expression to the codegen setup() storage."""
+    CORE.add(expression)
+
+
+def add_global(expression,  # type: Union[SafeExpType, Statement]
+               ):
+    # type: (...) -> None
+    """Add an expression to the codegen global storage (above setup())."""
+    CORE.add_global(expression)
+
+
+def add_library(name,  # type: str
+                version  # type: Optional[str]
+                ):
+    # type: (...) -> None
+    """Add a library to the codegen library storage.
+
+    :param name: The name of the library (for example 'AsyncTCP')
+    :param version: The version of the library, may be None.
+    """
+    CORE.add_library(Library(name, version))
+
+
+def add_build_flag(build_flag,  # type: str
+                   ):
+    # type: (...) -> None
+    """Add a global build flag to the compiler flags."""
+    CORE.add_build_flag(build_flag)
+
+
+def add_define(name,  # type: str
+               value=None,  # type: Optional[SafeExpType]
+               ):
+    # type: (...) -> None
+    """Add a global define to the auto-generated defines.h file.
+
+    Optionally define a value to set this define to.
+    """
+    if value is None:
+        CORE.add_define(Define(name))
+    else:
+        CORE.add_define(Define(name, safe_exp(value)))
 
 
 @coroutine
 def get_variable(id):  # type: (ID) -> Generator[MockObj]
+    """
+    Wait for the given ID to be defined in the code generation and
+    return it as a MockObj.
+
+    This is a coroutine, you need to await it with a 'yield' expression!
+
+    :param id: The ID to retrieve
+    :return: The variable as a MockObj.
+    """
     var = yield CORE.get_variable(id)
     yield var
 
 
 @coroutine
+def get_variable_with_full_id(id):  # type: (ID) -> Generator[ID, MockObj]
+    """
+    Wait for the given ID to be defined in the code generation and
+    return it as a MockObj.
+
+    This is a coroutine, you need to await it with a 'yield' expression!
+
+    :param id: The ID to retrieve
+    :return: The variable as a MockObj.
+    """
+    full_id, var = yield CORE.get_variable_with_full_id(id)
+    yield full_id, var
+
+
+@coroutine
 def process_lambda(value,  # type: Lambda
-                   parameters,  # type: List[Tuple[Expression, str]]
+                   parameters,  # type: List[Tuple[SafeExpType, str]]
                    capture='=',  # type: str
-                   return_type=None  # type: Optional[Expression]
+                   return_type=None  # type: Optional[SafeExpType]
                    ):
     # type: (...) -> Generator[LambdaExpression]
-    from esphome.components.globals import GlobalVariableComponent
+    """Process the given lambda value into a LambdaExpression.
+
+    This is a coroutine because lambdas can depend on other IDs,
+    you need to await it with 'yield'!
+
+    :param value: The lambda to process.
+    :param parameters: The parameters to pass to the Lambda, list of tuples
+    :param capture: The capture expression for the lambda, usually ''.
+    :param return_type: The return type of the lambda.
+    :return: The generated lambda expression.
+    """
+    from esphome.components.globals import GlobalsComponent
 
     if value is None:
         yield
@@ -421,7 +528,7 @@ def process_lambda(value,  # type: Lambda
     for i, id in enumerate(value.requires_ids):
         full_id, var = yield CORE.get_variable_with_full_id(id)
         if full_id is not None and isinstance(full_id.type, MockObjClass) and \
-                full_id.type.inherits_from(GlobalVariableComponent):
+                full_id.type.inherits_from(GlobalsComponent):
             parts[i * 3 + 1] = var.value()
             continue
 
@@ -433,13 +540,29 @@ def process_lambda(value,  # type: Lambda
     yield LambdaExpression(parts, parameters, capture, return_type)
 
 
+def is_template(value):
+    """Return if value is a lambda expression."""
+    return isinstance(value, Lambda)
+
+
 @coroutine
 def templatable(value,  # type: Any
                 args,  # type: List[Tuple[SafeExpType, str]]
                 output_type,  # type: Optional[SafeExpType],
                 to_exp=None  # type: Optional[Any]
                 ):
-    if isinstance(value, Lambda):
+    """Generate code for a templatable config option.
+
+    If `value` is a templated value, the lambda expression is returned.
+    Otherwise the value is returned as-is (optionally process with to_exp).
+
+    :param value: The value to process.
+    :param args: The arguments for the lambda expression.
+    :param output_type: The output type of the lambda expression.
+    :param to_exp: An optional callable to use for converting non-templated values.
+    :return: The potentially templated value.
+    """
+    if is_template(value):
         lambda_ = yield process_lambda(value, args, return_type=output_type)
         yield lambda_
     else:
@@ -452,106 +575,102 @@ def templatable(value,  # type: Any
 
 
 class MockObj(Expression):
-    def __init__(self, base, op=u'.', has_side_effects=True):
+    """A general expression that can be used to represent any value.
+
+    Mostly consists of magic methods that allow ESPHome's codegen syntax.
+    """
+    def __init__(self, base, op=u'.'):
         self.base = base
         self.op = op
-        self._has_side_effects = has_side_effects
         super(MockObj, self).__init__()
 
     def __getattr__(self, attr):  # type: (str) -> MockObj
-        if attr == u'_':
-            obj = MockObj(u'{}{}'.format(self.base, self.op))
-            obj.requires.append(self)
-            return obj
-        if attr == u'new':
-            obj = MockObj(u'new {}'.format(self.base), u'->')
-            obj.requires.append(self)
-            return obj
         next_op = u'.'
         if attr.startswith(u'P') and self.op not in ['::', '']:
             attr = attr[1:]
             next_op = u'->'
         if attr.startswith(u'_'):
             attr = attr[1:]
-        obj = MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
-        obj.requires.append(self)
-        return obj
+        return MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
 
-    def __call__(self, *args, **kwargs):  # type: (*Any, **Any) -> MockObj
+    def __call__(self, *args):  # type: (SafeExpType) -> MockObj
         call = CallExpression(self.base, *args)
-        obj = MockObj(call, self.op)
-        obj.requires.append(self)
-        obj.requires.append(call)
-        return obj
+        return MockObj(call, self.op)
 
     def __str__(self):  # type: () -> unicode
         return text_type(self.base)
 
-    def require(self):  # type: () -> None
-        self.required = True
-        for require in self.requires:
-            if require.required:
-                continue
-            require.require()
+    def __repr__(self):
+        return u'MockObj<{}>'.format(text_type(self.base))
 
-    def template(self, *args):  # type: (Tuple[Union[TemplateArguments, Expression]]) -> MockObj
+    @property
+    def _(self):  # type: () -> MockObj
+        return MockObj(u'{}{}'.format(self.base, self.op))
+
+    @property
+    def new(self):  # type: () -> MockObj
+        return MockObj(u'new {}'.format(self.base), u'->')
+
+    def template(self, *args):  # type: (*SafeExpType) -> MockObj
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
             args = args[0]
-        obj = MockObj(u'{}{}'.format(self.base, args))
-        obj.requires.append(self)
-        obj.requires.append(args)
-        return obj
+        return MockObj(u'{}{}'.format(self.base, args))
 
     def namespace(self, name):  # type: (str) -> MockObj
-        obj = MockObj(u'{}{}{}'.format(self.base, self.op, name), u'::')
-        obj.requires.append(self)
-        return obj
+        return MockObj(u'{}{}'.format(self._, name), u'::')
 
     def class_(self, name, *parents):  # type: (str, *MockObjClass) -> MockObjClass
         op = '' if self.op == '' else '::'
-        obj = MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
-        obj.requires.append(self)
-        return obj
+        return MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
 
     def struct(self, name):  # type: (str) -> MockObjClass
         return self.class_(name)
 
     def enum(self, name, is_class=False):  # type: (str, bool) -> MockObj
-        if is_class:
-            return self.namespace(name)
-
-        return self
+        return MockObjEnum(enum=name, is_class=is_class, base=self.base, op=self.op)
 
     def operator(self, name):  # type: (str) -> MockObj
         if name == 'ref':
-            obj = MockObj(u'{} &'.format(self.base), u'')
-            obj.requires.append(self)
-            return obj
+            return MockObj(u'{} &'.format(self.base), u'')
         if name == 'ptr':
-            obj = MockObj(u'{} *'.format(self.base), u'')
-            obj.requires.append(self)
-            return obj
+            return MockObj(u'{} *'.format(self.base), u'')
         if name == "const":
-            obj = MockObj(u'const {}'.format(self.base), u'')
-            obj.requires.append(self)
-            return obj
+            return MockObj(u'const {}'.format(self.base), u'')
         raise NotImplementedError
 
-    def has_side_effects(self):  # type: () -> bool
-        return self._has_side_effects
+    @property
+    def using(self):  # type: () -> MockObj
+        assert self.op == '::'
+        return MockObj(u'using namespace {}'.format(self.base))
 
     def __getitem__(self, item):  # type: (Union[str, Expression]) -> MockObj
         next_op = u'.'
         if isinstance(item, str) and item.startswith(u'P'):
             item = item[1:]
             next_op = u'->'
-        obj = MockObj(u'{}[{}]'.format(self.base, item), next_op)
-        obj.requires.append(self)
-        if isinstance(item, Expression):
-            obj.requires.append(item)
-        return obj
+        return MockObj(u'{}[{}]'.format(self.base, item), next_op)
+
+
+class MockObjEnum(MockObj):
+    def __init__(self, *args, **kwargs):
+        self._enum = kwargs.pop('enum')
+        self._is_class = kwargs.pop('is_class')
+        base = kwargs.pop('base')
+        if self._is_class:
+            base = base + '::' + self._enum
+            kwargs['op'] = '::'
+        kwargs['base'] = base
+        MockObj.__init__(self, *args, **kwargs)
+
+    def __str__(self):  # type: () -> unicode
+        if self._is_class:
+            return super(MockObjEnum, self).__str__()
+        return u'{}{}{}'.format(self.base, self.op, self._enum)
+
+    def __repr__(self):
+        return u'MockObj<{}>'.format(text_type(self.base))
 
 
 class MockObjClass(MockObj):
@@ -574,17 +693,15 @@ class MockObjClass(MockObj):
                 return True
         return False
 
-    def template(self,
-                 *args  # type: Tuple[Union[TemplateArguments, Expression]]
-                 ):
-        # type: (...) -> MockObjClass
+    def template(self, *args):
+        # type: (*SafeExpType) -> MockObjClass
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
             args = args[0]
         new_parents = self._parents[:]
         new_parents.append(self)
-        obj = MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
-        obj.requires.append(self)
-        obj.requires.append(args)
-        return obj
+        return MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
+
+    def __repr__(self):
+        return u'MockObjClass<{}, parents={}>'.format(text_type(self.base), self._parents)

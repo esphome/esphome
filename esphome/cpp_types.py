@@ -2,6 +2,7 @@ from esphome.cpp_generator import MockObj
 
 global_ns = MockObj('', '')
 void = global_ns.namespace('void')
+nullptr = global_ns.namespace('nullptr')
 float_ = global_ns.namespace('float')
 bool_ = global_ns.namespace('bool')
 std_ns = global_ns.namespace('std')
@@ -15,10 +16,7 @@ const_char_ptr = global_ns.namespace('const char *')
 NAN = global_ns.namespace('NAN')
 esphome_ns = global_ns  # using namespace esphome;
 App = esphome_ns.App
-io_ns = esphome_ns.namespace('io')
 Nameable = esphome_ns.class_('Nameable')
-Trigger = esphome_ns.class_('Trigger')
-Action = esphome_ns.class_('Action')
 Component = esphome_ns.class_('Component')
 ComponentPtr = Component.operator('ptr')
 PollingComponent = esphome_ns.class_('PollingComponent', Component)
@@ -29,8 +27,5 @@ JsonObject = arduino_json_ns.class_('JsonObject')
 JsonObjectRef = JsonObject.operator('ref')
 JsonObjectConstRef = JsonObjectRef.operator('const')
 Controller = esphome_ns.class_('Controller')
-StoringController = esphome_ns.class_('StoringController', Controller)
 
 GPIOPin = esphome_ns.class_('GPIOPin')
-GPIOOutputPin = esphome_ns.class_('GPIOOutputPin', GPIOPin)
-GPIOInputPin = esphome_ns.class_('GPIOInputPin', GPIOPin)

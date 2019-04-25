@@ -1,18 +1,47 @@
 esphome:
   name: $devicename
   platform: ESP8266
-  board: esp07
-  # Use this for testing while developing:
-  # Note the travis check for esphome PRs will fail until the
-  # esphome-core PR has been merged.
-  # esphome_core_version:
-  #   local: ~/path/to/esphome-core
+  board: d1_mini
   build_path: build/test3
+  on_boot:
+    - wait_until:
+        - api.connected
+        - wifi.connected
 
 substitutions:
   devicename: test3
 
 api:
+  port: 8000
+  password: 'pwd'
+  reboot_timeout: 0min
+  services:
+    - service: hello_world
+      variables:
+        name: string
+      then:
+        - logger.log:
+            format: 'Hello World %s!'
+            args:
+              - name.c_str()
+    - service: empty_service
+      then:
+        - logger.log: 'Service Called'
+    - service: all_types
+      variables:
+        bool_: bool
+        int_: int
+        float_: float
+        string_: string
+      then:
+        - logger.log: 'Something happened'
+        - stepper.set_target:
+            id: my_stepper2
+            target: !lambda 'return int_;'
+
+wifi:
+  ssid: 'MySSID'
+  password: 'password1'
 
 i2c:
   sda: 4
@@ -44,39 +73,6 @@ deep_sleep:
   sleep_duration: 50s
 
 sensor:
-  - platform: pmsx003
-    type: PMSX003
-    pm_1_0:
-      name: "PM 1.0 Concentration"
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    pm_10_0:
-      name: "PM 10.0 Concentration"
-  - platform: pmsx003
-    type: PMS5003T
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-  - platform: pmsx003
-    type: PMS5003ST
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-    formaldehyde:
-      name: "PMS Formaldehyde Concentration"
-  - platform: cse7766
-    voltage:
-      name: "CSE7766 Voltage"
-    current:
-      name: "CSE7766 Current"
-    power:
-      name: "CSE776 Power"
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
@@ -95,6 +91,37 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: adc
+    pin: VCC
+    id: my_sensor
+    filters:
+      - offset: 5.0
+      - multiply: 2.0
+      - filter_out: NAN
+      - sliding_window_moving_average:
+      - exponential_moving_average:
+      - lambda: 'return 0;'
+      - delta: 100
+      - throttle: 100ms
+      - debounce: 500s
+      - calibrate_linear:
+          - 0 -> 0
+          - 100 -> 100
+  - platform: tcs34725
+    red_channel:
+      name: Red Channel
+    green_channel:
+      name: Green Channel
+    blue_channel:
+      name: Blue Channel
+    clear_channel:
+      name: Clear Channel
+    illuminance:
+      name: Illuminance
+    color_temperature:
+      name: Color Temperature
+    integration_time: 700ms
+    gain: 60x
 
 time:
 - platform: homeassistant
@@ -111,6 +138,15 @@ binary_sensor:
   - platform: apds9960
     direction: up
     name: APDS9960 Up
+    device_class: motion
+    filters:
+      - invert
+      - delayed_on: 20ms
+      - delayed_off: 20ms
+      - lambda: 'return false;'
+    on_state:
+      - logger.log: New state
+    id: my_binary_sensor
   - platform: apds9960
     direction: down
     name: APDS9960 Down
@@ -123,7 +159,6 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
-#mpr121
   - platform: mpr121
     id: touchkey0
     channel: 0
@@ -140,6 +175,9 @@ binary_sensor:
     on_press:
       then:
         - switch.toggle: mpr121_toggle
+  - platform: ttp229_lsf
+    channel: 1
+    name: TTP229 LSF Test
 
 remote_receiver:
   pin: GPIO12
@@ -184,6 +222,17 @@ switch:
     name: "mpr121_toggle"
     id: mpr121_toggle
     optimistic: True
+  - platform: gpio
+    id: gpio_switch1
+    pin:
+      mcp23017: mcp
+      number: 0
+      mode: OUTPUT
+    interlock: &interlock [gpio_switch1, gpio_switch2]
+  - platform: gpio
+    id: gpio_switch2
+    pin: GPIO1
+    interlock: *interlock
 
 stepper:
   - platform: uln2003
@@ -195,12 +244,111 @@ stepper:
     sleep_when_done: no
     step_mode: HALF_STEP
     max_speed: 250 steps/s
-
-    # Optional:
     acceleration: inf
     deceleration: inf
+  - platform: a4988
+    id: my_stepper2
+    step_pin: GPIO1
+    dir_pin: GPIO2
+    max_speed: 0.1 steps/s
+    acceleration: 10 steps/s^2
+    deceleration: 10 steps/s^2
 
 interval:
   interval: 5s
   then:
     - logger.log: "Interval Run"
+    - stepper.set_target:
+        id: my_stepper2
+        target: 500
+    - stepper.set_target:
+        id: my_stepper
+        target: !lambda 'return 0;'
+    - stepper.report_position:
+        id: my_stepper2
+        position: 0
+    - stepper.report_position:
+        id: my_stepper
+        position: !lambda 'return 50/100.0;'
+
+climate:
+  - platform: bang_bang
+    name: Bang Bang Climate
+    sensor: ha_hello_world
+    default_target_temperature_low: 18°C
+    default_target_temperature_high: 24°C
+    idle_action:
+      - switch.turn_on: gpio_switch1
+    cool_action:
+      - switch.turn_on: gpio_switch2
+    heat_action:
+      - switch.turn_on: gpio_switch1
+    away_config:
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
+
+cover:
+  - platform: endstop
+    name: Endstop Cover
+    stop_action:
+      - switch.turn_on: gpio_switch1
+    open_endstop: my_binary_sensor
+    open_action:
+      - switch.turn_on: gpio_switch1
+    open_duration: 5min
+    close_endstop: my_binary_sensor
+    close_action:
+      - switch.turn_on: gpio_switch2
+      - output.set_level:
+          id: out
+          level: 50%
+      - output.esp8266_pwm.set_frequency:
+          id: out
+          frequency: 500.0Hz
+      - output.esp8266_pwm.set_frequency:
+          id: out
+          frequency: !lambda 'return 500.0;'
+      - servo.write:
+          id: my_servo
+          level: -100%
+      - servo.write:
+          id: my_servo
+          level: !lambda 'return -1.0;'
+      - delay: 2s
+      - servo.detach: my_servo
+    close_duration: 4.5min
+    max_duration: 10min
+  - platform: time_based
+    name: Time Based Cover
+    stop_action:
+      - switch.turn_on: gpio_switch1
+    open_action:
+      - switch.turn_on: gpio_switch1
+    open_duration: 5min
+    close_action:
+      - switch.turn_on: gpio_switch2
+    close_duration: 4.5min
+
+output:
+  - platform: esp8266_pwm
+    id: out
+    pin: D3
+    frequency: 50Hz
+
+mcp23017:
+  id: mcp
+
+light:
+  - platform: neopixelbus
+    name: Neopixelbus Light
+    pin: GPIO1
+    type: GRBW
+    variant: SK6812
+    method: ESP8266_UART0
+    num_leds: 100
+
+servo:
+  id: my_servo
+  output: out
+
+ttp229_lsf:

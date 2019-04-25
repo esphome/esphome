@@ -16,7 +16,6 @@
 
   <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script>const relative_url = "{{ relative_url }}";</script>
 
   {% if streamer_mode %}
     <style>
@@ -86,7 +85,7 @@
           <div class="card-action">
             <a class="action-upload" data-node="{{ entry.filename }}">Upload</a>
             <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
-            <a class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
+            <a class="action-logs" data-node="{{ entry.filename }}">Show Logs</a>
             <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
           <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action">
@@ -154,7 +153,7 @@
 
 <div id="modal-wizard" class="modal">
   <div class="modal-content">
-    <form action="/wizard.html" method="POST">
+    <form action="./wizard.html" method="POST">
     <ul class="stepper linear">
       <li class="step active">
         <div class="step-title waves-effect">Introduction And Name</div>

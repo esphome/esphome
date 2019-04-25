@@ -1,61 +1,65 @@
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, \
-    CONF_SETUP_PRIORITY, CONF_MCP23017
-from esphome.core import CORE, EsphomeError, coroutine
-from esphome.cpp_generator import IntLiteral, RawExpression
-from esphome.cpp_types import GPIOInputPin, GPIOOutputPin
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY, \
+    CONF_UPDATE_INTERVAL, CONF_TYPE_ID
+from esphome.core import coroutine
+from esphome.cpp_generator import RawExpression, add
+from esphome.cpp_types import App, GPIOPin
 
 
 @coroutine
-def generic_gpio_pin_expression_(conf, mock_obj, default_mode):
+def gpio_pin_expression(conf):
+    """Generate an expression for the given pin option.
+
+    This is a coroutine, you must await it with a 'yield' expression!
+    """
     if conf is None:
         return
+    from esphome import pins
+    for key, (func, _) in pins.PIN_SCHEMA_REGISTRY.items():
+        if key in conf:
+            yield coroutine(func)(conf)
+            return
+
     number = conf[CONF_NUMBER]
+    mode = conf[CONF_MODE]
     inverted = conf.get(CONF_INVERTED)
-    if CONF_PCF8574 in conf:
-        from esphome.components import pcf8574
-
-        hub = yield CORE.get_variable(conf[CONF_PCF8574])
-
-        if default_mode == u'INPUT':
-            mode = pcf8574.PCF8675_GPIO_MODES[conf.get(CONF_MODE, u'INPUT')]
-            yield hub.make_input_pin(number, mode, inverted)
-            return
-        if default_mode == u'OUTPUT':
-            yield hub.make_output_pin(number, inverted)
-            return
-
-        raise EsphomeError(u"Unknown default mode {}".format(default_mode))
-    if CONF_MCP23017 in conf:
-        from esphome.components import mcp23017
-
-        hub = yield CORE.get_variable(conf[CONF_MCP23017])
-
-        if default_mode == u'INPUT':
-            mode = mcp23017.MCP23017_GPIO_MODES[conf.get(CONF_MODE, u'INPUT')]
-            yield hub.make_input_pin(number, mode, inverted)
-            return
-        if default_mode == u'OUTPUT':
-            yield hub.make_output_pin(number, inverted)
-            return
-
-        raise EsphomeError(u"Unknown default mode {}".format(default_mode))
-    if len(conf) == 1:
-        yield IntLiteral(number)
-        return
-    mode = RawExpression(conf.get(CONF_MODE, default_mode))
-    yield mock_obj(number, mode, inverted)
+    yield GPIOPin.new(number, RawExpression(mode), inverted)
 
 
 @coroutine
-def gpio_output_pin_expression(conf):
-    yield generic_gpio_pin_expression_(conf, GPIOOutputPin, 'OUTPUT')
+def register_component(var, config):
+    """Register the given obj as a component.
 
+    This is a coroutine, you must await it with a 'yield' expression!
 
-@coroutine
-def gpio_input_pin_expression(conf):
-    yield generic_gpio_pin_expression_(conf, GPIOInputPin, 'INPUT')
-
-
-def setup_component(obj, config):
+    :param var: The variable representing the component.
+    :param config: The configuration for the component.
+    """
     if CONF_SETUP_PRIORITY in config:
-        CORE.add(obj.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+        add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))
+    if CONF_UPDATE_INTERVAL in config:
+        add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    add(App.register_component(var))
+    yield var
+
+
+def extract_registry_entry_config(registry, full_config):
+    # type: (Registry, ConfigType) -> RegistryEntry
+    key, config = next((k, v) for k, v in full_config.items() if k in registry)
+    return registry[key], config
+
+
+@coroutine
+def build_registry_entry(registry, full_config):
+    registry_entry, config = extract_registry_entry_config(registry, full_config)
+    type_id = full_config[CONF_TYPE_ID]
+    builder = registry_entry.coroutine_fun
+    yield builder(config, type_id)
+
+
+@coroutine
+def build_registry_list(registry, config):
+    actions = []
+    for conf in config:
+        action = yield build_registry_entry(registry, conf)
+        actions.append(action)
+    yield actions

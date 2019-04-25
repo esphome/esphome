@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import collections
 import io
 import logging
 import re
@@ -7,23 +8,47 @@ import subprocess
 import sys
 
 from esphome import const
+from esphome.py_compat import IS_PY2
 
 _LOGGER = logging.getLogger(__name__)
 
 
+class RegistryEntry(object):
+    def __init__(self, name, fun, type_id, schema):
+        self.name = name
+        self.fun = fun
+        self.type_id = type_id
+        self.raw_schema = schema
+
+    @property
+    def coroutine_fun(self):
+        from esphome.core import coroutine
+        return coroutine(self.fun)
+
+    @property
+    def schema(self):
+        from esphome.config_validation import Schema
+        return Schema(self.raw_schema)
+
+
 class Registry(dict):
-    def register(self, name):
+    def __init__(self, base_schema=None, type_id_key=None):
+        super(Registry, self).__init__()
+        self.base_schema = base_schema or {}
+        self.type_id_key = type_id_key
+
+    def register(self, name, type_id, schema):
         def decorator(fun):
-            self[name] = fun
+            self[name] = RegistryEntry(name, fun, type_id, schema)
             return fun
 
         return decorator
 
 
-class ServiceRegistry(dict):
-    def register(self, name, validator):
+class SimpleRegistry(dict):
+    def register(self, name, data):
         def decorator(fun):
-            self[name] = (validator, fun)
+            self[name] = (fun, data)
             return fun
 
         return decorator
@@ -153,3 +178,30 @@ def run_external_process(*cmd, **kwargs):
 
 def is_dev_esphome_version():
     return 'dev' in const.__version__
+
+
+# Custom OrderedDict with nicer repr method for debugging
+class OrderedDict(collections.OrderedDict):
+    def __repr__(self):
+        return dict(self).__repr__()
+
+    def move_to_end(self, key, last=True):
+        if IS_PY2:
+            if last:
+                # When moving to end, just pop and re-add
+                val = self.pop(key)
+                self[key] = val
+            else:
+                # When moving to front, use internals here
+                # https://stackoverflow.com/a/16664932
+                root = self._OrderedDict__root  # pylint: disable=no-member
+                first = root[1]
+                link = self._OrderedDict__map[key]  # pylint: disable=no-member
+                link_prev, link_next, _ = link
+                link_prev[1] = link_next
+                link_next[0] = link_prev
+                link[0] = root
+                link[1] = first
+                root[1] = first[0] = link
+        else:
+            super(OrderedDict, self).move_to_end(key, last=last)  # pylint: disable=no-member
