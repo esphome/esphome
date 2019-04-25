@@ -4,6 +4,9 @@
 namespace esphome {
 namespace light {
 
+const ESPColor ESPColor::BLACK = ESPColor(0, 0, 0, 0);
+const ESPColor ESPColor::WHITE = ESPColor(255, 255, 255, 255);
+
 ESPColor ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb
   const uint8_t hue = this->hue;
@@ -76,9 +79,18 @@ void ESPRangeView::set(const ESPColor &color) {
     (*this->parent_)[i] = color;
   }
 }
-ESPColorView ESPRangeView::operator[](int32_t index) const { return (*this->parent_)[index]; }
+ESPColorView ESPRangeView::operator[](int32_t index) const {
+  index = interpret_index(index, this->size());
+  return (*this->parent_)[index];
+}
 
 ESPColorView ESPRangeView::Iterator::operator*() const { return (*this->range_->parent_)[this->i_]; }
+
+int32_t HOT interpret_index(int32_t index, int32_t size) {
+  if (index < 0)
+    return size + index;
+  return index;
+}
 
 }  // namespace light
 }  // namespace esphome

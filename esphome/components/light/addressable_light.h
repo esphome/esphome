@@ -147,6 +147,9 @@ struct ESPColor {
   ESPColor fade_to_black(uint8_t amnt) { return *this * amnt; }
   ESPColor lighten(uint8_t delta) { return *this + delta; }
   ESPColor darken(uint8_t delta) { return *this - delta; }
+
+  static const ESPColor BLACK;
+  static const ESPColor WHITE;
 };
 
 struct ESPHSVColor {
@@ -353,6 +356,8 @@ class ESPColorView : public ESPColorSettable {
 
 class AddressableLight;
 
+int32_t interpret_index(int32_t index, int32_t size);
+
 class ESPRangeView : public ESPColorSettable {
  public:
   class Iterator {
@@ -383,6 +388,10 @@ class ESPRangeView : public ESPColorSettable {
   void set(const ESPColor &color) override;
   ESPRangeView &operator=(const ESPColor &rhs) {
     this->set(rhs);
+    return *this;
+  }
+  ESPRangeView &operator=(const ESPColorView &rhs) {
+    this->set(rhs.get());
     return *this;
   }
   ESPRangeView &operator=(const ESPHSVColor &rhs) {
@@ -463,9 +472,14 @@ class ESPRangeView : public ESPColorSettable {
 class AddressableLight : public LightOutput {
  public:
   virtual int32_t size() const = 0;
-  virtual ESPColorView operator[](int32_t index) const = 0;
+  ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
+  ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
   virtual void clear_effect_data() = 0;
-  ESPRangeView range(int32_t from, int32_t to) { return ESPRangeView(this, from, to); }
+  ESPRangeView range(int32_t from, int32_t to) {
+    from = interpret_index(from, this->size());
+    to = interpret_index(to, this->size());
+    return ESPRangeView(this, from, to);
+  }
   ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
   ESPRangeView::Iterator begin() { return this->all().begin(); }
   ESPRangeView::Iterator end() { return this->all().end(); }
@@ -476,7 +490,7 @@ class AddressableLight : public LightOutput {
     }
     if (amnt > this->size())
       amnt = this->size();
-    this->range(0, this->size() - amnt) = this->range(amnt, this->size());
+    this->range(0, -amnt) = this->range(amnt, this->size());
   }
   void shift_right(int32_t amnt) {
     if (amnt < 0) {
@@ -485,7 +499,7 @@ class AddressableLight : public LightOutput {
     }
     if (amnt > this->size())
       amnt = this->size();
-    this->range(amnt, this->size()) = this->range(0, this->size() - amnt);
+    this->range(amnt, this->size()) = this->range(0, -amnt);
   }
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
@@ -516,6 +530,7 @@ class AddressableLight : public LightOutput {
  protected:
   bool should_show_() const { return this->effect_active_ || this->next_show_; }
   void mark_shown_() { this->next_show_ = false; }
+  virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   bool effect_active_{false};
   bool next_show_{true};

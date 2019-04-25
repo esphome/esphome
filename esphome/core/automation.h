@@ -52,6 +52,11 @@ template<typename... Ts> class Trigger {
       return;
     this->automation_parent_->stop();
   }
+  bool is_running() {
+    if (this->automation_parent_ == nullptr)
+      return false;
+    return this->automation_parent_.is_running();
+  }
 
  protected:
   Automation<Ts...> *automation_parent_{nullptr};
@@ -80,6 +85,12 @@ template<typename... Ts> class Action {
     if (this->next_ != nullptr) {
       this->next_->stop_complex();
     }
+  }
+  virtual bool is_running() { return this->is_running_next(); }
+  bool is_running_next() {
+    if (this->next_ == nullptr)
+      return false;
+    return this->next_->is_running();
   }
 
   void play_next_tuple(const std::tuple<Ts...> &tuple) {
@@ -121,6 +132,11 @@ template<typename... Ts> class ActionList {
       this->actions_begin_->stop_complex();
   }
   bool empty() const { return this->actions_begin_ == nullptr; }
+  bool is_running() {
+    if (this->actions_begin_ == nullptr)
+      return false;
+    return this->actions_begin_->is_running();
+  }
 
  protected:
   template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) { this->play(std::get<S>(tuple)...); }
@@ -139,6 +155,8 @@ template<typename... Ts> class Automation {
   void stop() { this->actions_.stop(); }
 
   void trigger(Ts... x) { this->actions_.play(x...); }
+
+  bool is_running() { return this->actions_.is_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;

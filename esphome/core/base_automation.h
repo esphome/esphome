@@ -108,16 +108,29 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
-  void stop() override { this->cancel_timeout(""); }
+  void stop() override {
+    this->cancel_timeout("");
+    this->num_running_ = 0;
+  }
 
   void play(Ts... x) override { /* ignore - see play_complex */
   }
 
   void play_complex(Ts... x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next, this, x...);
+    auto f = std::bind(&DelayAction<Ts...>::delay_end_, this, x...);
+    this->num_running_++;
     this->set_timeout(this->delay_.value(x...), f);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+  bool is_running() override { return this->num_running_ > 0 || this->is_running_next(); }
+
+ protected:
+  void delay_end_(Ts... x) {
+    this->num_running_--;
+    this->play_next(x...);
+  }
+  int num_running_{0};
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
@@ -168,6 +181,8 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     this->else_.stop();
   }
 
+  bool is_running() override { return this->then_.is_running() || this->else_.is_running() || this->is_running_next(); }
+
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
@@ -210,6 +225,8 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
 
   void stop() override { this->then_.stop(); }
 
+  bool is_running() override { return this->then_.is_running() || this->is_running_next(); }
+
  protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
@@ -250,6 +267,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
+
+  bool is_running() override { return this->triggered_ || this->is_running_next(); }
 
  protected:
   Condition<Ts...> *condition_;

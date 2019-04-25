@@ -113,11 +113,10 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       it.shift_right(1);
     const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
     const ESPColor esp_color = ESPColor(color.r, color.g, color.b, color.w);
-    if (!this->reverse_) {
-      it[it.size() - 1] = esp_color;
-    } else {
+    if (!this->reverse_)
+      it[-1] = esp_color;
+    else
       it[0] = esp_color;
-    }
     if (++this->leds_added_ >= color.num_leds) {
       this->leds_added_ = 0;
       this->at_color_ = (this->at_color_ + 1) % this->colors_.size();
@@ -145,7 +144,7 @@ class AddressableScanEffect : public AddressableLightEffect {
   explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
-    it.all() = ESPColor(0, 0, 0, 0);
+    it.all() = ESPColor::BLACK;
     it[this->at_led_] = current_color;
     const uint32_t now = millis();
     if (now - this->last_move_ > this->move_interval_) {
@@ -190,7 +189,7 @@ class AddressableTwinkleEffect : public AddressableLightEffect {
         else
           view.set_effect_data(new_pos);
       } else {
-        view = ESPColor(0, 0, 0, 0);
+        view = ESPColor::BLACK;
       }
     }
     while (random_float() < this->twinkle_probability_) {
@@ -220,8 +219,7 @@ class AddressableRandomTwinkleEffect : public AddressableLightEffect {
       this->last_progress_ = now;
     }
     uint8_t subsine = ((8 * (now - this->last_progress_)) / this->progress_interval_) & 0b111;
-    for (auto &&i : it) {
-      ESPColorView view = i;
+    for (auto view : it) {
       if (view.get_effect_data() != 0) {
         const uint8_t x = (view.get_effect_data() >> 3) & 0b11111;
         const uint8_t color = view.get_effect_data() & 0b111;
@@ -261,9 +259,8 @@ class AddressableFireworksEffect : public AddressableLightEffect {
  public:
   explicit AddressableFireworksEffect(const std::string &name) : AddressableLightEffect(name) {}
   void start() override {
-    const auto &it = *this->get_addressable_();
-    for (int i = 0; i < it.size(); i++)
-      it[i] = ESPColor(0, 0, 0, 0);
+    auto &it = *this->get_addressable_();
+    it.all() = ESPColor::BLACK;
   }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();

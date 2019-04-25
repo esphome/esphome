@@ -1,14 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
     CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
-    CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM
+    CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
+    CONF_THEN
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
-    AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect
+    AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
+    AutomationLightEffect
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
@@ -28,8 +31,9 @@ CONF_ADDRESSABLE_TWINKLE = 'addressable_twinkle'
 CONF_ADDRESSABLE_RANDOM_TWINKLE = 'addressable_random_twinkle'
 CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
 CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
+CONF_AUTOMATION = 'automation'
 
-BINARY_EFFECTS = ['lambda', 'strobe']
+BINARY_EFFECTS = ['lambda', 'automation', 'strobe']
 MONOCHROMATIC_EFFECTS = BINARY_EFFECTS + ['flicker']
 RGB_EFFECTS = MONOCHROMATIC_EFFECTS + ['random']
 ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_RAINBOW,
@@ -56,6 +60,15 @@ def lambda_effect_to_code(config, effect_id):
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.void)
     yield cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
+
+
+@register_effect('automation', AutomationLightEffect, "Automation", {
+    cv.Required(CONF_THEN): automation.validate_automation(single=True),
+})
+def automation_effect_to_code(config, effect_id):
+    var = yield cg.new_Pvariable(effect_id, config[CONF_NAME])
+    yield automation.build_automation(var.get_trig(), [], config[CONF_THEN])
+    yield var
 
 
 @register_effect('random', RandomLightEffect, "Random", {

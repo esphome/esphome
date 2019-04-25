@@ -144,35 +144,37 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>
 class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
  public:
-  inline light::ESPColorView operator[](int32_t index) const override {
-    uint8_t *base = this->controller_->Pixels() + 3ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               nullptr, this->effect_data_ + index, &this->correction_);
-  }
-
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supports_rgb(true);
     return traits;
+  }
+
+ protected:
+  light::ESPColorView get_view_internal(int32_t index) const override {
+    uint8_t *base = this->controller_->Pixels() + 3ULL * index;
+    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
+                               nullptr, this->effect_data_ + index, &this->correction_);
   }
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbwFeature>
 class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COLOR_FEATURE> {
  public:
-  inline light::ESPColorView operator[](int32_t index) const override {
-    uint8_t *base = this->controller_->Pixels() + 4ULL * index;
-    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
-                               base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
-  }
-
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
     traits.set_supports_rgb(true);
     traits.set_supports_rgb_white_value(true);
     return traits;
+  }
+
+ protected:
+  light::ESPColorView get_view_internal(int32_t index) const override {
+    uint8_t *base = this->controller_->Pixels() + 4ULL * index;
+    return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
+                               base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);
   }
 };
 

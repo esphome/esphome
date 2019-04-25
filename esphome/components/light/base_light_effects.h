@@ -1,6 +1,7 @@
 #pragma once
 
 #include "light_effect.h"
+#include "esphome/core/automation.h"
 
 namespace esphome {
 namespace light {
@@ -61,6 +62,21 @@ class LambdaLightEffect : public LightEffect {
   std::function<void()> f_;
   uint32_t update_interval_;
   uint32_t last_run_{0};
+};
+
+class AutomationLightEffect : public LightEffect {
+ public:
+  AutomationLightEffect(const std::string &name) : LightEffect(name) {}
+  void stop() override { this->trig_->stop(); }
+  void apply() override {
+    if (!this->trig_->is_running()) {
+      this->trig_->trigger();
+    }
+  }
+  Trigger<> *get_trig() const { return trig_; }
+
+ protected:
+  Trigger<> *trig_{new Trigger<>};
 };
 
 struct StrobeLightEffectColor {

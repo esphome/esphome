@@ -27,11 +27,6 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
 
   inline int32_t size() const override { return this->num_leds_; }
 
-  inline light::ESPColorView operator[](int32_t index) const override {
-    return light::ESPColorView(&this->leds_[index].r, &this->leds_[index].g, &this->leds_[index].b, nullptr,
-                               &this->effect_data_[index], &this->correction_);
-  }
-
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -236,6 +231,11 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
   }
 
  protected:
+  light::ESPColorView get_view_internal(int32_t index) const override {
+    return {&this->leds_[index].r,      &this->leds_[index].g, &this->leds_[index].b, nullptr,
+            &this->effect_data_[index], &this->correction_};
+  }
+
   CLEDController *controller_{nullptr};
   CRGB *leds_{nullptr};
   uint8_t *effect_data_{nullptr};

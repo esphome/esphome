@@ -7,7 +7,16 @@ namespace script {
 
 class Script : public Trigger<> {
  public:
-  void execute() { this->trigger(); }
+  void execute() {
+    bool prev = this->in_stack_;
+    this->in_stack_ = true;
+    this->trigger();
+    this->in_stack_ = prev;
+  }
+  bool script_is_running() { return this->in_stack_ || this->is_running(); }
+
+ protected:
+  bool in_stack_{false};
 };
 
 template<typename... Ts> class ScriptExecuteAction : public Action<Ts...> {
@@ -28,6 +37,16 @@ template<typename... Ts> class ScriptStopAction : public Action<Ts...> {
 
  protected:
   Script *script_;
+};
+
+template<typename... Ts> class IsRunningCondition : public Condition<Ts...> {
+ public:
+  explicit IsRunningCondition(Script *parent) : parent_(parent) {}
+
+  bool check(Ts... x) override { return this->parent_->script_is_running(); }
+
+ protected:
+  Script *parent_;
 };
 
 }  // namespace script

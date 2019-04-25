@@ -2,6 +2,7 @@
 
 #include "esphome/core/automation.h"
 #include "light_state.h"
+#include "addressable_light.h"
 
 namespace esphome {
 namespace light {
@@ -83,7 +84,7 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
 template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  public:
   explicit LightIsOnCondition(LightState *state) : state_(state) {}
-  bool check(Ts... x) override { return this->state_->get_current_values().is_on(); }
+  bool check(Ts... x) override { return this->state_->current_values.is_on(); }
 
  protected:
   LightState *state_;
@@ -91,10 +92,40 @@ template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
 template<typename... Ts> class LightIsOffCondition : public Condition<LightState, Ts...> {
  public:
   explicit LightIsOffCondition(LightState *state) : state_(state) {}
-  bool check(Ts... x) override { return !this->state_->get_current_values().is_on(); }
+  bool check(Ts... x) override { return !this->state_->current_values.is_on(); }
 
  protected:
   LightState *state_;
+};
+
+template<typename... Ts> class AddressableSet : public Action<Ts...> {
+ public:
+  explicit AddressableSet(LightState *parent) : parent_(parent) {}
+
+  TEMPLATABLE_VALUE(int32_t, range_from)
+  TEMPLATABLE_VALUE(int32_t, range_to)
+  TEMPLATABLE_VALUE(uint8_t, red)
+  TEMPLATABLE_VALUE(uint8_t, green)
+  TEMPLATABLE_VALUE(uint8_t, blue)
+  TEMPLATABLE_VALUE(uint8_t, white)
+
+  void play(Ts... x) override {
+    auto *out = (AddressableLight *) this->parent_->get_output();
+    int32_t range_from = this->range_from_.value_or(x..., 0);
+    int32_t range_to = this->range_to_.value_or(x..., out->size());
+    auto range = out->range(range_from, range_to);
+    if (this->red_.has_value())
+      range.set_red(this->red_.value(x...));
+    if (this->green_.has_value())
+      range.set_green(this->green_.value(x...));
+    if (this->blue_.has_value())
+      range.set_blue(this->blue_.value(x...));
+    if (this->white_.has_value())
+      range.set_white(this->white_.value(x...));
+  }
+
+ protected:
+  LightState *parent_;
 };
 
 }  // namespace light
