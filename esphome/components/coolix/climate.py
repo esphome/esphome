@@ -3,6 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import climate, remote_transmitter, sensor
 from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
 
+AUTO_LOAD = ['sensor']
+
 coolix_ns = cg.esphome_ns.namespace('coolix')
 CoolixClimate = coolix_ns.class_('CoolixClimate', climate.ClimateDevice)
 
