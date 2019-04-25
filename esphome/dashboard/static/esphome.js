@@ -552,6 +552,7 @@ editor.session.setOption('useSoftTabs', true);
 editor.session.setOption('tabSize', 2);
 
 const saveButton = editModalElem.querySelector(".save-button");
+const saveValidateButton = editModalElem.querySelector(".save-validate-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -572,6 +573,7 @@ editor.commands.addCommand({
 });
 
 saveButton.addEventListener('click', saveEditor);
+saveValidateButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
