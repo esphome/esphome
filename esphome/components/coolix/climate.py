@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import climate, remote_transmitter
-from esphome.const import CONF_ID, CONF_NAME
+from esphome.components import climate, remote_transmitter, sensor
+from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
 
 coolix_ns = cg.esphome_ns.namespace('coolix')
 CoolixClimate = coolix_ns.class_('CoolixClimate', climate.ClimateDevice)
@@ -15,6 +15,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(remote_transmitter.RemoteTransmitterComponent),
     cv.Optional(CONF_SUPPORTS_COOL, default=True): cv.boolean,
     cv.Optional(CONF_SUPPORTS_HEAT, default=True): cv.boolean,
+    cv.Optional(CONF_SENSOR): cv.use_id(sensor.Sensor),
 }).extend(cv.COMPONENT_SCHEMA))
 
 
@@ -27,6 +28,9 @@ def to_code(config):
         cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     if CONF_SUPPORTS_HEAT in config:
         cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
+    if CONF_SENSOR in config:
+        sens = yield cg.get_variable(config[CONF_SENSOR])
+        cg.add(var.set_sensor(sens))
 
     transmitter = yield cg.get_variable(config[CONF_TRANSMITTER_ID])
     cg.add(var.set_transmitter(transmitter))
