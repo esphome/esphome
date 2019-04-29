@@ -10,7 +10,7 @@ pca9685_ns = cg.esphome_ns.namespace('pca9685')
 PCA9685Output = pca9685_ns.class_('PCA9685Output', cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(PCA9685Output),
+    cv.GenerateID(): cv.declare_id(PCA9685Output),
     cv.Required(CONF_FREQUENCY): cv.All(cv.frequency,
                                         cv.Range(min=23.84, max=1525.88)),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x40))

@@ -1,10 +1,10 @@
-#include "ttp229.h"
+#include "ttp229_lsf.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace ttp229 {
+namespace ttp229_lsf {
 
-static const char *TAG = "ttp229";
+static const char *TAG = "ttp229_lsf";
 
 void TTP229LSFComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ttp229...");
@@ -39,5 +39,5 @@ void TTP229LSFComponent::loop() {
   }
 }
 
-}  // namespace ttp229
+}  // namespace ttp229_lsf
 }  // namespace esphome

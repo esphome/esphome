@@ -9,7 +9,7 @@ namespace ssd1306_spi {
 
 class SPISSD1306 : public ssd1306_base::SSD1306, public spi::SPIDevice {
  public:
-  SPISSD1306(GPIOPin *dc_pin) : dc_pin_(dc_pin) {}
+  void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
 
   void setup() override;
 

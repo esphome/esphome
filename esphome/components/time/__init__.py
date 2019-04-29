@@ -12,7 +12,7 @@ from esphome import automation
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
     CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
-from esphome.core import coroutine
+from esphome.core import coroutine, coroutine_with_priority
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ IS_PLATFORM_COMPONENT = True
 
 time_ns = cg.esphome_ns.namespace('time')
 RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
-CronTrigger = time_ns.class_('CronTrigger', cg.Trigger.template(), cg.Component)
+CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 
 
@@ -252,7 +252,7 @@ def validate_tz(value):
 TIME_SCHEMA = cv.Schema({
     cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
     cv.Optional(CONF_ON_TIME): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
         cv.Optional(CONF_SECONDS): validate_cron_seconds,
         cv.Optional(CONF_MINUTES): validate_cron_minutes,
         cv.Optional(CONF_HOURS): validate_cron_hours,
@@ -293,6 +293,7 @@ def register_time(time_var, config):
     yield setup_time_core_(time_var, config)
 
 
+@coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_define('USE_TIME')
     cg.add_global(time_ns.using)

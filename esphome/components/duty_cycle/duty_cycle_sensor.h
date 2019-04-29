@@ -17,10 +17,9 @@ struct DutyCycleSensorStore {
   static void gpio_intr(DutyCycleSensorStore *arg);
 };
 
-class DutyCycleSensor : public sensor::PollingSensorComponent {
+class DutyCycleSensor : public sensor::Sensor, public PollingComponent {
  public:
-  DutyCycleSensor(const std::string &name, uint32_t update_interval, GPIOPin *pin)
-      : PollingSensorComponent(name, update_interval), pin_(pin) {}
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
 
   void setup() override;
   float get_setup_priority() const override;

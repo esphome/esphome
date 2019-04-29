@@ -16,8 +16,6 @@ using lcd_writer_t = std::function<void(LCDDisplay &)>;
 
 class LCDDisplay : public PollingComponent {
  public:
-  LCDDisplay(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void set_writer(lcd_writer_t &&writer) { this->writer_ = std::move(writer); }
   void set_dimensions(uint8_t columns, uint8_t rows) {
     this->columns_ = columns;

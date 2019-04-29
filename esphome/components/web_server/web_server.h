@@ -28,8 +28,7 @@ struct UrlMatch {
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
-  /// Initialize the web server with the specified port
-  explicit WebServer(uint16_t port);
+  void set_port(uint16_t port) { port_ = port; }
 
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css

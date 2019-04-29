@@ -52,6 +52,8 @@ std::string to_lowercase_underscore(std::string s);
 
 /// Compare string a to string b (ignoring case) and return whether they are equal.
 bool str_equals_case_insensitive(const std::string &a, const std::string &b);
+bool str_startswith(const std::string &full, const std::string &start);
+bool str_endswith(const std::string &full, const std::string &ending);
 
 class HighFrequencyLoopRequester {
  public:

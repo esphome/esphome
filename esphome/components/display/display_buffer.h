@@ -396,17 +396,13 @@ template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
     if (page != nullptr) {
       page->show();
     }
-    this->play_next(x...);
   }
 };
 
 template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> {
  public:
   DisplayPageShowNextAction(DisplayBuffer *buffer) : buffer_(buffer) {}
-  void play(Ts... x) override {
-    this->buffer_->show_next_page();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->buffer_->show_next_page(); }
 
  protected:
   DisplayBuffer *buffer_;
@@ -415,10 +411,7 @@ template<typename... Ts> class DisplayPageShowNextAction : public Action<Ts...> 
 template<typename... Ts> class DisplayPageShowPrevAction : public Action<Ts...> {
  public:
   DisplayPageShowPrevAction(DisplayBuffer *buffer) : buffer_(buffer) {}
-  void play(Ts... x) override {
-    this->buffer_->show_prev_page();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->buffer_->show_prev_page(); }
 
  protected:
   DisplayBuffer *buffer_;

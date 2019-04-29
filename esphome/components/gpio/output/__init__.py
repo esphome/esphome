@@ -9,13 +9,15 @@ GPIOBinaryOutput = gpio_ns.class_('GPIOBinaryOutput', output.BinaryOutput,
                                   cg.Component)
 
 CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_variable_id(GPIOBinaryOutput),
+    cv.Required(CONF_ID): cv.declare_id(GPIOBinaryOutput),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield output.register_output(var, config)
+    yield cg.register_component(var, config)
+
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    gpio = cg.new_Pvariable(config[CONF_ID], pin)
-    yield output.register_output(gpio, config)
-    yield cg.register_component(gpio, config)
+    cg.add(var.set_pin(pin))

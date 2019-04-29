@@ -88,7 +88,7 @@ std::string to_lowercase_underscore(std::string s) {
 std::string sanitize_string_whitelist(const std::string &s, const std::string &whitelist) {
   std::string out(s);
   out.erase(std::remove_if(out.begin(), out.end(),
-                           [&out, &whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
+                           [&whitelist](const char &c) { return whitelist.find(c) == std::string::npos; }),
             out.end());
   return out;
 }
@@ -303,5 +303,10 @@ float clamp(float val, float min, float max) {
   return val;
 }
 float lerp(float completion, float start, float end) { return start + (end - start) * completion; }
+
+bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }
+bool str_endswith(const std::string &full, const std::string &ending) {
+  return full.rfind(ending) == (full.size() - ending.size());
+}
 
 }  // namespace esphome

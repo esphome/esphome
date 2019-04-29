@@ -19,8 +19,6 @@ void GPIOBinarySensor::dump_config() {
 void GPIOBinarySensor::loop() { this->publish_state(this->pin_->digital_read()); }
 
 float GPIOBinarySensor::get_setup_priority() const { return setup_priority::HARDWARE; }
-GPIOBinarySensor::GPIOBinarySensor(const std::string &name, GPIOPin *pin)
-    : binary_sensor::BinarySensor(name), pin_(pin) {}
 
 }  // namespace gpio
 }  // namespace esphome

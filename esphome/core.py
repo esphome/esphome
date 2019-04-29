@@ -2,6 +2,7 @@ import functools
 import heapq
 import inspect
 import logging
+
 import math
 import os
 import re
@@ -136,18 +137,18 @@ class TimePeriod(object):
 
     def __str__(self):
         if self.microseconds is not None:
-            return '{} us'.format(self.total_microseconds)
+            return '{}us'.format(self.total_microseconds)
         if self.milliseconds is not None:
-            return '{} ms'.format(self.total_milliseconds)
+            return '{}ms'.format(self.total_milliseconds)
         if self.seconds is not None:
-            return '{} s'.format(self.total_seconds)
+            return '{}s'.format(self.total_seconds)
         if self.minutes is not None:
-            return '{} min'.format(self.total_minutes)
+            return '{}min'.format(self.total_minutes)
         if self.hours is not None:
-            return '{} h'.format(self.total_hours)
+            return '{}h'.format(self.total_hours)
         if self.days is not None:
-            return '{} d'.format(self.total_days)
-        return '0'
+            return '{}d'.format(self.total_days)
+        return '0s'
 
     @property
     def total_microseconds(self):
@@ -225,7 +226,11 @@ LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 class Lambda(object):
     def __init__(self, value):
-        self._value = value
+        # pylint: disable=protected-access
+        if isinstance(value, Lambda):
+            self._value = value._value
+        else:
+            self._value = value
         self._parts = None
         self._requires_ids = None
 
@@ -259,11 +264,14 @@ class Lambda(object):
 
 
 class ID(object):
-    def __init__(self, id, is_declaration=False, type=None):
+    def __init__(self, id, is_declaration=False, type=None, is_manual=None):
         self.id = id
-        self.is_manual = id is not None
+        if is_manual is None:
+            self.is_manual = id is not None
+        else:
+            self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type = type
+        self.type = type  # type: Optional[MockObjClass]
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -291,6 +299,46 @@ class ID(object):
 
     def __hash__(self):
         return hash(self.id)
+
+    def copy(self):
+        return ID(self.id, is_declaration=self.is_declaration, type=self.type,
+                  is_manual=self.is_manual)
+
+
+class DocumentLocation(object):
+    def __init__(self, document, line, column):
+        # type: (basestring, int, int) -> None
+        self.document = document  # type: basestring
+        self.line = line  # type: int
+        self.column = column  # type: int
+
+    @classmethod
+    def from_mark(cls, mark):
+        return cls(
+            mark.name,
+            mark.line,
+            mark.column
+        )
+
+    def __str__(self):
+        return u'{} {}:{}'.format(self.document, self.line, self.column)
+
+
+class DocumentRange(object):
+    def __init__(self, start_mark, end_mark):
+        # type: (DocumentLocation, DocumentLocation) -> None
+        self.start_mark = start_mark  # type: DocumentLocation
+        self.end_mark = end_mark  # type: DocumentLocation
+
+    @classmethod
+    def from_marks(cls, start_mark, end_mark):
+        return cls(
+            DocumentLocation.from_mark(start_mark),
+            DocumentLocation.from_mark(end_mark)
+        )
+
+    def __str__(self):
+        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
 
 
 class Define(object):
@@ -354,10 +402,13 @@ def coroutine_with_priority(priority):
             return func
 
         @functools.wraps(func)
-        def wrapper(*args, **kwargs):
+        def _wrapper_generator(*args, **kwargs):
+            instance_id = kwargs.pop('__esphome_coroutine_instance__')
             if not inspect.isgeneratorfunction(func):
                 # If func is not a generator, return result immediately
                 yield func(*args, **kwargs)
+                # pylint: disable=protected-access
+                CORE._remove_coroutine(instance_id)
                 return
             gen = func(*args, **kwargs)
             var = None
@@ -376,6 +427,18 @@ def coroutine_with_priority(priority):
             except StopIteration:
                 # Stopping iteration
                 yield var
+            # pylint: disable=protected-access
+            CORE._remove_coroutine(instance_id)
+
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            import random
+            instance_id = random.randint(0, 2**32)
+            kwargs['__esphome_coroutine_instance__'] = instance_id
+            gen = _wrapper_generator(*args, **kwargs)
+            # pylint: disable=protected-access
+            CORE._add_active_coroutine(instance_id, gen)
+            return gen
 
         # pylint: disable=protected-access
         wrapper._esphome_coroutine = True
@@ -402,6 +465,8 @@ class EsphomeCore(object):
     def __init__(self):
         # True if command is run from dashboard
         self.dashboard = False
+        # True if command is run from vscode api
+        self.vscode = False
         # The name of the node
         self.name = None  # type: str
         # The relative path to the configuration YAML
@@ -434,6 +499,11 @@ class EsphomeCore(object):
         self.build_flags = set()  # type: Set[str]
         # A set of defines to set for the compile process in esphome/core/defines.h
         self.defines = set()  # type: Set[Define]
+        # A dictionary of started coroutines, used to warn when a coroutine was not
+        # awaited.
+        self.active_coroutines = {}  # type: Dict[int, Any]
+        # A set of strings of names of loaded integrations, used to find namespace ID conflicts
+        self.loaded_integrations = set()
 
     def reset(self):
         self.dashboard = False
@@ -452,6 +522,8 @@ class EsphomeCore(object):
         self.libraries = set()
         self.build_flags = set()
         self.defines = set()
+        self.active_coroutines = {}
+        self.loaded_integrations = set()
 
     @property
     def address(self):  # type: () -> str
@@ -462,6 +534,12 @@ class EsphomeCore(object):
             return self.config['ethernet'][CONF_USE_ADDRESS]
 
         return None
+
+    def _add_active_coroutine(self, instance_id, obj):
+        self.active_coroutines[instance_id] = obj
+
+    def _remove_coroutine(self, instance_id):
+        self.active_coroutines.pop(instance_id)
 
     @property
     def arduino_version(self):  # type: () -> str
@@ -475,7 +553,7 @@ class EsphomeCore(object):
     def config_filename(self):
         return os.path.basename(self.config_path)
 
-    def relative_path(self, *path):
+    def relative_config_path(self, *path):
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
@@ -540,6 +618,14 @@ class EsphomeCore(object):
                 heapq.heappush(self.pending_tasks, item)
             except StopIteration:
                 _LOGGER.debug(" -> finished")
+
+        # Print not-awaited coroutines
+        for obj in self.active_coroutines.values():
+            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
+            _LOGGER.warning(u"Please file a bug report with your configuration.")
+        if self.active_coroutines:
+            raise EsphomeError()
+        self.active_coroutines.clear()
 
     def add(self, expression):
         from esphome.cpp_generator import Expression, Statement, statement
@@ -643,8 +729,19 @@ class EsphomeCore(object):
         return u'\n'.join(global_code) + u'\n'
 
 
-class AutoLoad(dict):
+class AutoLoad(OrderedDict):
     pass
+
+
+class EnumValue(object):
+    """Special type used by ESPHome to mark enum values for cv.enum."""
+    @property
+    def enum_value(self):
+        return getattr(self, '_enum_value', None)
+
+    @enum_value.setter
+    def enum_value(self, value):
+        setattr(self, '_enum_value', value)
 
 
 CORE = EsphomeCore()

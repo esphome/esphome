@@ -11,10 +11,7 @@ template<typename... Ts> class OpenAction : public Action<Ts...> {
  public:
   explicit OpenAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override {
-    this->cover_->open();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->cover_->open(); }
 
  protected:
   Cover *cover_;
@@ -24,10 +21,7 @@ template<typename... Ts> class CloseAction : public Action<Ts...> {
  public:
   explicit CloseAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override {
-    this->cover_->close();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->cover_->close(); }
 
  protected:
   Cover *cover_;
@@ -37,10 +31,7 @@ template<typename... Ts> class StopAction : public Action<Ts...> {
  public:
   explicit StopAction(Cover *cover) : cover_(cover) {}
 
-  void play(Ts... x) override {
-    this->cover_->stop();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->cover_->stop(); }
 
  protected:
   Cover *cover_;
@@ -59,7 +50,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     if (this->tilt_.has_value())
       call.set_tilt(this->tilt_.value(x...));
     call.perform();
-    this->play_next(x...);
   }
 
   TEMPLATABLE_VALUE(bool, stop)
@@ -81,7 +71,6 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
     if (this->current_operation_.has_value())
       this->cover_->current_operation = this->current_operation_.value(x...);
     this->cover_->publish_state();
-    this->play_next(x...);
   }
 
   TEMPLATABLE_VALUE(float, position)

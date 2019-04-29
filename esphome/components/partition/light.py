@@ -15,14 +15,14 @@ def validate_from_to(value):
     return value
 
 
-CONFIG_SCHEMA = cv.nameable(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(PartitionLightOutput),
+CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend({
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(PartitionLightOutput),
     cv.Required(CONF_SEGMENTS): cv.All(cv.ensure_list({
-        cv.Required(CONF_ID): cv.use_variable_id(light.AddressableLightState),
+        cv.Required(CONF_ID): cv.use_id(light.AddressableLightState),
         cv.Required(CONF_FROM): cv.positive_int,
         cv.Required(CONF_TO): cv.positive_int,
     }, validate_from_to), cv.Length(min=1)),
-}))
+})
 
 
 def to_code(config):

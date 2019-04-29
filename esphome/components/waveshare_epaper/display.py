@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_BUSY_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN, CONF_UPDATE_INTERVAL
+    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN
 
 DEPENDENCIES = ['spi']
 
@@ -38,27 +38,24 @@ def validate_full_update_every_only_type_a(value):
 
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(WaveshareEPaper),
+    cv.GenerateID(): cv.declare_id(WaveshareEPaper),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_MODEL): cv.one_of(*MODELS, lower=True),
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='1s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
+}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
                        validate_full_update_every_only_type_a,
                        cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):
-    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
-
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
-        rhs = WaveshareEPaperTypeA.new(dc, model)
+        rhs = WaveshareEPaperTypeA.new(model)
         var = cg.Pvariable(config[CONF_ID], rhs, type=WaveshareEPaperTypeA)
     elif model_type == 'b':
-        rhs = model.new(dc)
+        rhs = model.new()
         var = cg.Pvariable(config[CONF_ID], rhs, type=model)
     else:
         raise NotImplementedError()
@@ -66,6 +63,9 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
     yield spi.register_spi_device(var, config)
+
+    dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])
+    cg.add(var.set_dc_pin(dc))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(display.DisplayBufferRef, 'it')],

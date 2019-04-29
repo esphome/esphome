@@ -6,9 +6,6 @@ namespace adc {
 
 static const char *TAG = "adc";
 
-ADCSensor::ADCSensor(const std::string &name, uint8_t pin, uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval), pin_(pin) {}
-
 #ifdef ARDUINO_ARCH_ESP32
 void ADCSensor::set_attenuation(adc_attenuation_t attenuation) { this->attenuation_ = attenuation; }
 #endif

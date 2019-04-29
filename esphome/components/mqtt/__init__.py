@@ -1,10 +1,10 @@
 import re
 
-from esphome import automation
-from esphome.automation import ACTION_REGISTRY, CONDITION_REGISTRY, Condition
-from esphome.components import logger
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import Condition
+from esphome.components import logger
 from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CONF_CLIENT_ID, \
     CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, \
     CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, \
@@ -14,6 +14,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_WILL_MESSAGE
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
+DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']
 
 
@@ -37,11 +38,12 @@ MQTT_MESSAGE_SCHEMA = cv.Any(None, MQTT_MESSAGE_BASE.extend({
 mqtt_ns = cg.esphome_ns.namespace('mqtt')
 MQTTMessage = mqtt_ns.struct('MQTTMessage')
 MQTTClientComponent = mqtt_ns.class_('MQTTClientComponent', cg.Component)
-MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', cg.Action)
-MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', cg.Action)
-MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger', cg.Trigger.template(cg.std_string))
+MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', automation.Action)
+MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', automation.Action)
+MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger',
+                                    automation.Trigger.template(cg.std_string))
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
-                                        cg.Trigger.template(cg.JsonObjectConstRef))
+                                        automation.Trigger.template(cg.JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', cg.Component)
 MQTTConnectedCondition = mqtt_ns.class_('MQTTConnectedCondition', Condition)
 
@@ -97,12 +99,12 @@ def validate_fingerprint(value):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.declare_id(MQTTClientComponent),
     cv.Required(CONF_BROKER): cv.string_strict,
     cv.Optional(CONF_PORT, default=1883): cv.port,
     cv.Optional(CONF_USERNAME, default=''): cv.string,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.All(cv.string, cv.Length(max=23)),
+    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.string,
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,
@@ -120,13 +122,13 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_KEEPALIVE, default='15s'): cv.positive_time_period_seconds,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTMessageTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
         cv.Optional(CONF_PAYLOAD): cv.string_strict,
     }),
     cv.Optional(CONF_ON_JSON_MESSAGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(MQTTJsonMessageTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTJsonMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
         cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
     }),
@@ -148,6 +150,10 @@ def exp_mqtt_message(config):
 
 @coroutine_with_priority(40.0)
 def to_code(config):
+    cg.add_library('AsyncMqttClient', '0.8.2')
+    cg.add_define('USE_MQTT')
+    cg.add_global(mqtt_ns.using)
+
     var = cg.new_Pvariable(config[CONF_ID])
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
@@ -215,13 +221,9 @@ def to_code(config):
         trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_TOPIC], conf[CONF_QOS])
         yield automation.build_automation(trig, [(cg.JsonObjectConstRef, 'x')], conf)
 
-    cg.add_library('AsyncMqttClient', '0.8.2')
-    cg.add_define('USE_MQTT')
-    cg.add_global(mqtt_ns.using)
-
 
 MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
     cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     cv.Required(CONF_PAYLOAD): cv.templatable(cv.mqtt_payload),
     cv.Optional(CONF_QOS, default=0): cv.templatable(cv.mqtt_qos),
@@ -229,26 +231,24 @@ MQTT_PUBLISH_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register('mqtt.publish', MQTT_PUBLISH_ACTION_SCHEMA)
+@automation.register_action('mqtt.publish', MQTTPublishAction, MQTT_PUBLISH_ACTION_SCHEMA)
 def mqtt_publish_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(action.set_topic(template_))
+    cg.add(var.set_topic(template_))
 
     template_ = yield cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
-    cg.add(action.set_payload(template_))
+    cg.add(var.set_payload(template_))
     template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(action.set_qos(template_))
+    cg.add(var.set_qos(template_))
     template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(action.set_retain(template_))
-    yield action
+    cg.add(var.set_retain(template_))
+    yield var
 
 
 MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
     cv.Required(CONF_TOPIC): cv.templatable(cv.publish_topic),
     cv.Required(CONF_PAYLOAD): cv.lambda_,
     cv.Optional(CONF_QOS, default=0): cv.templatable(cv.mqtt_qos),
@@ -256,23 +256,22 @@ MQTT_PUBLISH_JSON_ACTION_SCHEMA = cv.Schema({
 })
 
 
-@ACTION_REGISTRY.register('mqtt.publish_json', MQTT_PUBLISH_JSON_ACTION_SCHEMA)
+@automation.register_action('mqtt.publish_json', MQTTPublishJsonAction,
+                            MQTT_PUBLISH_JSON_ACTION_SCHEMA)
 def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTPublishJsonAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_TOPIC], args, cg.std_string)
-    cg.add(action.set_topic(template_))
+    cg.add(var.set_topic(template_))
 
     args_ = args + [(cg.JsonObjectRef, 'root')]
     lambda_ = yield cg.process_lambda(config[CONF_PAYLOAD], args_, return_type=cg.void)
-    cg.add(action.set_payload(lambda_))
+    cg.add(var.set_payload(lambda_))
     template_ = yield cg.templatable(config[CONF_QOS], args, cg.uint8)
-    cg.add(action.set_qos(template_))
+    cg.add(var.set_qos(template_))
     template_ = yield cg.templatable(config[CONF_RETAIN], args, bool)
-    cg.add(action.set_retain(template_))
-    yield action
+    cg.add(var.set_retain(template_))
+    yield var
 
 
 def get_default_topic_for(data, component_type, name, suffix):
@@ -304,11 +303,9 @@ def register_mqtt_component(var, config):
                                         availability[CONF_PAYLOAD_NOT_AVAILABLE]))
 
 
-@CONDITION_REGISTRY.register('mqtt.connected', cv.Schema({
-    cv.GenerateID(): cv.use_variable_id(MQTTClientComponent),
+@automation.register_condition('mqtt.connected', MQTTConnectedCondition, cv.Schema({
+    cv.GenerateID(): cv.use_id(MQTTClientComponent),
 }))
 def mqtt_connected_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = MQTTConnectedCondition.template(template_arg)
-    rhs = type.new(var)
-    yield cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

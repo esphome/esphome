@@ -10,8 +10,6 @@ namespace endstop {
 
 class EndstopCover : public cover::Cover, public Component {
  public:
-  EndstopCover(const std::string &name) : cover::Cover(name) {}
-
   void setup() override;
   void loop() override;
   void dump_config() override;

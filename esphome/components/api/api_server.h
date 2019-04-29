@@ -226,10 +226,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->resp_.set_data_template(data_template);
   }
   void set_variables(const std::vector<TemplatableKeyValuePair> &variables) { this->resp_.set_variables(variables); }
-  void play(Ts... x) override {
-    this->parent_->send_service_call(this->resp_);
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->parent_->send_service_call(this->resp_); }
 
  protected:
   APIServer *parent_;

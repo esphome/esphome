@@ -25,8 +25,6 @@ enum TCS34725Gain {
 
 class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  TCS34725Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void set_integration_time(TCS34725IntegrationTime integration_time);
   void set_gain(TCS34725Gain gain);
 

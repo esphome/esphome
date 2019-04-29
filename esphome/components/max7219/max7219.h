@@ -18,8 +18,6 @@ using max7219_writer_t = std::function<void(MAX7219Component &)>;
 
 class MAX7219Component : public PollingComponent, public spi::SPIDevice {
  public:
-  MAX7219Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   void set_writer(max7219_writer_t &&writer);
 
   void setup() override;

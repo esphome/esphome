@@ -12,7 +12,7 @@ CONF_MAJOR = 'major'
 CONF_MINOR = 'minor'
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ESP32BLEBeacon),
+    cv.GenerateID(): cv.declare_id(ESP32BLEBeacon),
     cv.Required(CONF_TYPE): cv.one_of('IBEACON', upper=True),
     cv.Required(CONF_UUID): cv.uuid,
     cv.Optional(CONF_MAJOR, default=10167): cv.uint16_t,

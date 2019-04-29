@@ -9,9 +9,11 @@
 namespace esphome {
 namespace ledc {
 
+extern uint8_t next_ledc_channel;
+
 class LEDCOutput : public output::FloatOutput, public Component {
  public:
-  explicit LEDCOutput(GPIOPin *pin) : pin_(pin) {}
+  explicit LEDCOutput(GPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_bit_depth(uint8_t bit_depth) { this->bit_depth_ = bit_depth; }
@@ -34,8 +36,6 @@ class LEDCOutput : public output::FloatOutput, public Component {
   uint8_t bit_depth_{};
   float frequency_{};
 };
-
-extern uint8_t next_ledc_channel;
 
 }  // namespace ledc
 }  // namespace esphome

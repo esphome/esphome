@@ -143,6 +143,13 @@ struct ESPColor {
     return ESPColor(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
                     uint8_t((uint16_t(b) * 255U / max_rgb)), w);
   }
+  ESPColor fade_to_white(uint8_t amnt) { return ESPColor(255, 255, 255, 255) - (*this * amnt); }
+  ESPColor fade_to_black(uint8_t amnt) { return *this * amnt; }
+  ESPColor lighten(uint8_t delta) { return *this + delta; }
+  ESPColor darken(uint8_t delta) { return *this - delta; }
+
+  static const ESPColor BLACK;
+  static const ESPColor WHITE;
 };
 
 struct ESPHSVColor {
@@ -168,72 +175,7 @@ struct ESPHSVColor {
   inline ESPHSVColor(uint8_t hue, uint8_t saturation, uint8_t value) ALWAYS_INLINE : hue(hue),
                                                                                      saturation(saturation),
                                                                                      value(value) {}
-  ESPColor to_rgb() const {
-    // based on FastLED's hsv rainbow to rgb
-    const uint8_t hue = this->hue;
-    const uint8_t sat = this->saturation;
-    const uint8_t val = this->value;
-    // upper 3 hue bits are for branch selection, lower 5 are for values
-    const uint8_t offset8 = (hue & 0x1F) << 3;  // 0..248
-    // third of the offset, 255/3 = 85 (actually only up to 82; 164)
-    const uint8_t third = esp_scale8(offset8, 85);
-    const uint8_t two_thirds = esp_scale8(offset8, 170);
-    ESPColor rgb(255, 255, 255, 0);
-    switch (hue >> 5) {
-      case 0b000:
-        rgb.r = 255 - third;
-        rgb.g = third;
-        rgb.b = 0;
-        break;
-      case 0b001:
-        rgb.r = 171;
-        rgb.g = 85 + third;
-        rgb.b = 0;
-        break;
-      case 0b010:
-        rgb.r = 171 - two_thirds;
-        rgb.g = 170 + third;
-        rgb.b = 0;
-        break;
-      case 0b011:
-        rgb.r = 0;
-        rgb.g = 255 - third;
-        rgb.b = third;
-        break;
-      case 0b100:
-        rgb.r = 0;
-        rgb.g = 171 - two_thirds;
-        rgb.b = 85 + two_thirds;
-        break;
-      case 0b101:
-        rgb.r = third;
-        rgb.g = 0;
-        rgb.b = 255 - third;
-        break;
-      case 0b110:
-        rgb.r = 85 + third;
-        rgb.g = 0;
-        rgb.b = 171 - third;
-        break;
-      case 0b111:
-        rgb.r = 170 + third;
-        rgb.g = 0;
-        rgb.b = 85 - third;
-        break;
-      default:
-        break;
-    }
-    // low saturation -> add uniform color to orig. hue
-    // high saturation -> use hue directly
-    // scales with square of saturation
-    // (r,g,b) = (r,g,b) * sat + (1 - sat)^2
-    rgb *= sat;
-    const uint8_t desat = 255 - sat;
-    rgb += esp_scale8(desat, desat);
-    // (r,g,b) = (r,g,b) * val
-    rgb *= val;
-    return rgb;
-  }
+  ESPColor to_rgb() const;
 };
 
 class ESPColorCorrection {
@@ -321,75 +263,85 @@ class ESPColorCorrection {
   uint8_t local_brightness_{255};
 };
 
-class ESPColorView {
+class ESPColorSettable {
  public:
-  inline ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint8_t *effect_data,
-                      const ESPColorCorrection *color_correction) ALWAYS_INLINE : red_(red),
-                                                                                  green_(green),
-                                                                                  blue_(blue),
-                                                                                  white_(white),
-                                                                                  effect_data_(effect_data),
-                                                                                  color_correction_(color_correction) {}
-  inline const ESPColorView &operator=(const ESPColor &rhs) const ALWAYS_INLINE {
-    this->set(rhs);
-    return *this;
-  }
-  inline const ESPColorView &operator=(const ESPHSVColor &rhs) const ALWAYS_INLINE {
-    this->set(rhs);
-    return *this;
-  }
-  inline void set(const ESPColor &color) const ALWAYS_INLINE { this->set_rgbw(color.r, color.g, color.b, color.w); }
-  inline void set(const ESPHSVColor &color) const ALWAYS_INLINE {
+  virtual void set(const ESPColor &color) = 0;
+  virtual void set_red(uint8_t red) = 0;
+  virtual void set_green(uint8_t green) = 0;
+  virtual void set_blue(uint8_t blue) = 0;
+  virtual void set_white(uint8_t white) = 0;
+  virtual void set_effect_data(uint8_t effect_data) = 0;
+  virtual void fade_to_white(uint8_t amnt) = 0;
+  virtual void fade_to_black(uint8_t amnt) = 0;
+  virtual void lighten(uint8_t delta) = 0;
+  virtual void darken(uint8_t delta) = 0;
+  void set(const ESPHSVColor &color) { this->set_hsv(color); }
+  void set_hsv(const ESPHSVColor &color) {
     ESPColor rgb = color.to_rgb();
     this->set_rgb(rgb.r, rgb.g, rgb.b);
   }
-  inline void set_red(uint8_t red) const ALWAYS_INLINE {
-    *this->red_ = this->color_correction_->color_correct_red(red);
-  }
-  inline void set_green(uint8_t green) const ALWAYS_INLINE {
-    *this->green_ = this->color_correction_->color_correct_green(green);
-  }
-  inline void set_blue(uint8_t blue) const ALWAYS_INLINE {
-    *this->blue_ = this->color_correction_->color_correct_blue(blue);
-  }
-  inline void set_white(uint8_t white) const ALWAYS_INLINE {
-    if (this->white_ == nullptr)
-      return;
-    *this->white_ = this->color_correction_->color_correct_white(white);
-  }
-  inline void set_rgb(uint8_t red, uint8_t green, uint8_t blue) const ALWAYS_INLINE {
+  void set_rgb(uint8_t red, uint8_t green, uint8_t blue) {
     this->set_red(red);
     this->set_green(green);
     this->set_blue(blue);
   }
-  inline void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) const ALWAYS_INLINE {
+  void set_rgbw(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) {
     this->set_rgb(red, green, blue);
     this->set_white(white);
   }
-  inline void set_effect_data(uint8_t effect_data) const ALWAYS_INLINE {
+};
+
+class ESPColorView : public ESPColorSettable {
+ public:
+  ESPColorView(uint8_t *red, uint8_t *green, uint8_t *blue, uint8_t *white, uint8_t *effect_data,
+               const ESPColorCorrection *color_correction)
+      : red_(red),
+        green_(green),
+        blue_(blue),
+        white_(white),
+        effect_data_(effect_data),
+        color_correction_(color_correction) {}
+  ESPColorView &operator=(const ESPColor &rhs) {
+    this->set(rhs);
+    return *this;
+  }
+  ESPColorView &operator=(const ESPHSVColor &rhs) {
+    this->set_hsv(rhs);
+    return *this;
+  }
+  void set(const ESPColor &color) override { this->set_rgbw(color.r, color.g, color.b, color.w); }
+  void set_red(uint8_t red) override { *this->red_ = this->color_correction_->color_correct_red(red); }
+  void set_green(uint8_t green) override { *this->green_ = this->color_correction_->color_correct_green(green); }
+  void set_blue(uint8_t blue) override { *this->blue_ = this->color_correction_->color_correct_blue(blue); }
+  void set_white(uint8_t white) override {
+    if (this->white_ == nullptr)
+      return;
+    *this->white_ = this->color_correction_->color_correct_white(white);
+  }
+  void set_effect_data(uint8_t effect_data) override {
     if (this->effect_data_ == nullptr)
       return;
     *this->effect_data_ = effect_data;
   }
-  inline ESPColor get() const ALWAYS_INLINE {
-    return ESPColor(this->get_red(), this->get_green(), this->get_blue(), this->get_white());
-  }
-  inline uint8_t get_red() const ALWAYS_INLINE { return this->color_correction_->color_uncorrect_red(*this->red_); }
-  inline uint8_t get_green() const ALWAYS_INLINE {
-    return this->color_correction_->color_uncorrect_green(*this->green_);
-  }
-  inline uint8_t get_blue() const ALWAYS_INLINE { return this->color_correction_->color_uncorrect_blue(*this->blue_); }
-  inline uint8_t get_white() const ALWAYS_INLINE {
+  void fade_to_white(uint8_t amnt) override { this->set(this->get().fade_to_white(amnt)); }
+  void fade_to_black(uint8_t amnt) override { this->set(this->get().fade_to_black(amnt)); }
+  void lighten(uint8_t delta) override { this->set(this->get().lighten(delta)); }
+  void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
+  ESPColor get() const { return ESPColor(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
+  uint8_t get_red() const { return this->color_correction_->color_uncorrect_red(*this->red_); }
+  uint8_t get_green() const { return this->color_correction_->color_uncorrect_green(*this->green_); }
+  uint8_t get_blue() const { return this->color_correction_->color_uncorrect_blue(*this->blue_); }
+  uint8_t get_white() const {
     if (this->white_ == nullptr)
       return 0;
     return this->color_correction_->color_uncorrect_white(*this->white_);
   }
-  inline uint8_t get_effect_data() const ALWAYS_INLINE {
+  uint8_t get_effect_data() const {
     if (this->effect_data_ == nullptr)
       return 0;
     return *this->effect_data_;
   }
-  inline void raw_set_color_correction(const ESPColorCorrection *color_correction) ALWAYS_INLINE {
+  void raw_set_color_correction(const ESPColorCorrection *color_correction) {
     this->color_correction_ = color_correction;
   }
 
@@ -402,11 +354,153 @@ class ESPColorView {
   const ESPColorCorrection *color_correction_;
 };
 
+class AddressableLight;
+
+int32_t interpret_index(int32_t index, int32_t size);
+
+class ESPRangeView : public ESPColorSettable {
+ public:
+  class Iterator {
+   public:
+    Iterator(ESPRangeView *range, int32_t i) : range_(range), i_(i) {}
+    Iterator operator++() {
+      this->i_++;
+      return *this;
+    }
+    bool operator!=(const Iterator &other) const { return this->i_ != other.i_; }
+    ESPColorView operator*() const;
+
+   protected:
+    ESPRangeView *range_;
+    int32_t i_;
+  };
+
+  ESPRangeView(AddressableLight *parent, int32_t begin, int32_t an_end) : parent_(parent), begin_(begin), end_(an_end) {
+    if (this->end_ < this->begin_) {
+      this->end_ = this->begin_;
+    }
+  }
+
+  ESPColorView operator[](int32_t index) const;
+  Iterator begin() { return {this, this->begin_}; }
+  Iterator end() { return {this, this->end_}; }
+
+  void set(const ESPColor &color) override;
+  ESPRangeView &operator=(const ESPColor &rhs) {
+    this->set(rhs);
+    return *this;
+  }
+  ESPRangeView &operator=(const ESPColorView &rhs) {
+    this->set(rhs.get());
+    return *this;
+  }
+  ESPRangeView &operator=(const ESPHSVColor &rhs) {
+    this->set_hsv(rhs);
+    return *this;
+  }
+  ESPRangeView &operator=(const ESPRangeView &rhs) {
+    // If size doesn't match, error (todo warning)
+    if (rhs.size() != this->size())
+      return *this;
+
+    if (this->parent_ != rhs.parent_) {
+      for (int32_t i = 0; i < this->size(); i++)
+        (*this)[i].set(rhs[i].get());
+      return *this;
+    }
+
+    // If both equal, already done
+    if (rhs.begin_ == this->begin_)
+      return *this;
+
+    if (rhs.begin_ < this->begin_) {
+      // Copy into rhs
+      for (int32_t i = 0; i < this->size(); i++)
+        rhs[i].set((*this)[i].get());
+    } else {
+      // Copy into this
+      for (int32_t i = 0; i < this->size(); i++)
+        (*this)[i].set(rhs[i].get());
+    }
+
+    return *this;
+  }
+  void set_red(uint8_t red) override {
+    for (auto c : *this)
+      c.set_red(red);
+  }
+  void set_green(uint8_t green) override {
+    for (auto c : *this)
+      c.set_green(green);
+  }
+  void set_blue(uint8_t blue) override {
+    for (auto c : *this)
+      c.set_blue(blue);
+  }
+  void set_white(uint8_t white) override {
+    for (auto c : *this)
+      c.set_white(white);
+  }
+  void set_effect_data(uint8_t effect_data) override {
+    for (auto c : *this)
+      c.set_effect_data(effect_data);
+  }
+  void fade_to_white(uint8_t amnt) override {
+    for (auto c : *this)
+      c.fade_to_white(amnt);
+  }
+  void fade_to_black(uint8_t amnt) override {
+    for (auto c : *this)
+      c.fade_to_white(amnt);
+  }
+  void lighten(uint8_t delta) override {
+    for (auto c : *this)
+      c.lighten(delta);
+  }
+  void darken(uint8_t delta) override {
+    for (auto c : *this)
+      c.darken(delta);
+  }
+  int32_t size() const { return this->end_ - this->begin_; }
+
+ protected:
+  AddressableLight *parent_;
+  int32_t begin_;
+  int32_t end_;
+};
+
 class AddressableLight : public LightOutput {
  public:
   virtual int32_t size() const = 0;
-  virtual ESPColorView operator[](int32_t index) const = 0;
+  ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
+  ESPColorView get(int32_t index) { return this->get_view_internal(interpret_index(index, this->size())); }
   virtual void clear_effect_data() = 0;
+  ESPRangeView range(int32_t from, int32_t to) {
+    from = interpret_index(from, this->size());
+    to = interpret_index(to, this->size());
+    return ESPRangeView(this, from, to);
+  }
+  ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
+  ESPRangeView::Iterator begin() { return this->all().begin(); }
+  ESPRangeView::Iterator end() { return this->all().end(); }
+  void shift_left(int32_t amnt) {
+    if (amnt < 0) {
+      this->shift_right(-amnt);
+      return;
+    }
+    if (amnt > this->size())
+      amnt = this->size();
+    this->range(0, -amnt) = this->range(amnt, this->size());
+  }
+  void shift_right(int32_t amnt) {
+    if (amnt < 0) {
+      this->shift_left(-amnt);
+      return;
+    }
+    if (amnt > this->size())
+      amnt = this->size();
+    this->range(amnt, this->size()) = this->range(0, -amnt);
+  }
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
   void write_state(LightState *state) override {
@@ -423,10 +517,7 @@ class AddressableLight : public LightOutput {
                               // white is not affected by brightness; so manually scale by state
                               uint8_t(roundf(val.get_white() * val.get_state() * 255.0f)));
 
-    for (int i = 0; i < this->size(); i++) {
-      (*this)[i] = color;
-    }
-
+    this->all() = color;
     this->schedule_show();
   }
   void set_correction(float red, float green, float blue, float white = 1.0f) {
@@ -439,6 +530,7 @@ class AddressableLight : public LightOutput {
  protected:
   bool should_show_() const { return this->effect_active_ || this->next_show_; }
   void mark_shown_() { this->next_show_ = false; }
+  virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   bool effect_active_{false};
   bool next_show_{true};

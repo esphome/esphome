@@ -11,10 +11,10 @@ class DallasTemperatureSensor;
 
 class DallasComponent : public PollingComponent {
  public:
-  explicit DallasComponent(ESPOneWire *one_wire, uint32_t update_interval);
+  explicit DallasComponent(ESPOneWire *one_wire);
 
-  DallasTemperatureSensor *get_sensor_by_address(const std::string &name, uint64_t address, uint8_t resolution);
-  DallasTemperatureSensor *get_sensor_by_index(const std::string &name, uint8_t index, uint8_t resolution);
+  DallasTemperatureSensor *get_sensor_by_address(uint64_t address, uint8_t resolution);
+  DallasTemperatureSensor *get_sensor_by_index(uint8_t index, uint8_t resolution);
 
   void setup() override;
   void dump_config() override;
@@ -33,7 +33,7 @@ class DallasComponent : public PollingComponent {
 /// Internal class that helps us create multiple sensors for one Dallas hub.
 class DallasTemperatureSensor : public sensor::Sensor {
  public:
-  DallasTemperatureSensor(const std::string &name, uint64_t address, uint8_t resolution, DallasComponent *parent);
+  DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent);
 
   /// Helper to get a pointer to the address as uint8_t.
   uint8_t *get_address8();

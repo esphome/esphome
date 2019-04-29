@@ -19,6 +19,7 @@ class PulseWidthSensorStore {
   static void gpio_intr(PulseWidthSensorStore *arg);
   uint32_t get_pulse_width_us() const { return this->last_width_; }
   float get_pulse_width_s() const { return this->last_width_ / 1e6f; }
+  uint32_t get_last_rise() const { return last_rise_; }
 
  protected:
   ISRInternalGPIOPin *pin_;
@@ -26,9 +27,8 @@ class PulseWidthSensorStore {
   volatile uint32_t last_rise_{0};
 };
 
-class PulseWidthSensor : public sensor::PollingSensorComponent {
+class PulseWidthSensor : public sensor::Sensor, public PollingComponent {
  public:
-  PulseWidthSensor(const std::string &name, uint32_t update_interval) : PollingSensorComponent(name, update_interval) {}
   void set_pin(GPIOPin *pin) { pin_ = pin; }
   void setup() override { this->store_.setup(this->pin_); }
   void dump_config() override;

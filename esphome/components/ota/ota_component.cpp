@@ -349,8 +349,6 @@ size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_discon
   return bytes;
 }
 
-OTAComponent::OTAComponent(uint16_t port) : port_(port) {}
-
 void OTAComponent::set_auth_password(const std::string &password) { this->password_ = password; }
 
 float OTAComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }

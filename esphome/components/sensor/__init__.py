@@ -3,18 +3,15 @@ import math
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import CONDITION_REGISTRY
 from esphome.components import mqtt
 from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
-    CONF_CALIBRATE_LINEAR, CONF_DEBOUNCE, CONF_DELTA, CONF_EXPIRE_AFTER, \
-    CONF_FILTERS, CONF_FROM, \
-    CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_LAMBDA, CONF_MULTIPLY, CONF_OFFSET, \
-    CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_OR, \
-    CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_THROTTLE, CONF_TO, CONF_TRIGGER_ID, \
+    CONF_EXPIRE_AFTER, CONF_FILTERS, CONF_FROM, CONF_ICON, CONF_ID, CONF_INTERNAL, \
+    CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, \
+    CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_TO, CONF_TRIGGER_ID, \
     CONF_UNIT_OF_MEASUREMENT, \
-    CONF_WINDOW_SIZE, CONF_VALUE, CONF_HEARTBEAT, CONF_NAME, CONF_MQTT_ID
-from esphome.core import CORE, coroutine
-from esphome.util import ServiceRegistry
+    CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID
+from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.util import Registry
 
 IS_PLATFORM_COMPONENT = True
 
@@ -28,8 +25,8 @@ def validate_send_first_at(value):
     return value
 
 
-FILTER_REGISTRY = ServiceRegistry()
-validate_filters = cv.validate_registry('filter', FILTER_REGISTRY, [CONF_ID])
+FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry('filter', FILTER_REGISTRY)
 
 
 def validate_datapoint(value):
@@ -57,11 +54,12 @@ SensorPtr = Sensor.operator('ptr')
 PollingSensorComponent = sensor_ns.class_('PollingSensorComponent', cg.PollingComponent, Sensor)
 
 # Triggers
-SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', cg.Trigger.template(cg.float_))
-SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger', cg.Trigger.template(cg.float_))
-ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', cg.Trigger.template(cg.float_),
+SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', automation.Trigger.template(cg.float_))
+SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger',
+                                         automation.Trigger.template(cg.float_))
+ValueRangeTrigger = sensor_ns.class_('ValueRangeTrigger', automation.Trigger.template(cg.float_),
                                      cg.Component)
-SensorPublishAction = sensor_ns.class_('SensorPublishAction', cg.Action)
+SensorPublishAction = sensor_ns.class_('SensorPublishAction', automation.Action)
 
 # Filters
 Filter = sensor_ns.class_('Filter')
@@ -84,8 +82,8 @@ accuracy_decimals = cv.int_
 icon = cv.icon
 
 SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_variable_id(mqtt.MQTTSensorComponent),
-    cv.GenerateID(): cv.declare_variable_id(Sensor),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTSensorComponent),
+    cv.GenerateID(): cv.declare_id(Sensor),
     cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
@@ -93,13 +91,13 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
                                            cv.Any(None, cv.positive_time_period_milliseconds)),
     cv.Optional(CONF_FILTERS): validate_filters,
     cv.Optional(CONF_ON_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorStateTrigger),
     }),
     cv.Optional(CONF_ON_RAW_VALUE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(SensorRawStateTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SensorRawStateTrigger),
     }),
     cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(ValueRangeTrigger),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
         cv.Optional(CONF_ABOVE): cv.float_,
         cv.Optional(CONF_BELOW): cv.float_,
     }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW)),
@@ -115,117 +113,87 @@ def sensor_schema(unit_of_measurement_, icon_, accuracy_decimals_):
     })
 
 
-@FILTER_REGISTRY.register(CONF_OFFSET, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(OffsetFilter),
-    cv.Required(CONF_VALUE): cv.float_,
-})))
-def offset_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
+@FILTER_REGISTRY.register('offset', OffsetFilter, cv.float_)
+def offset_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register(CONF_MULTIPLY, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MultiplyFilter),
-    cv.Required(CONF_VALUE): cv.float_,
-})))
-def multiply_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
+@FILTER_REGISTRY.register('multiply', MultiplyFilter, cv.float_)
+def multiply_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register('filter_out', cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(FilterOutValueFilter),
-    cv.Required(CONF_VALUE): cv.float_,
-})))
-def filter_out_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
+@FILTER_REGISTRY.register('filter_out', FilterOutValueFilter, cv.float_)
+def filter_out_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register('sliding_window_moving_average', cv.All(cv.Schema({
-    cv.GenerateID():
-        cv.declare_variable_id(SlidingWindowMovingAverageFilter),
+SLIDING_AVERAGE_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
-}), validate_send_first_at))
-def sliding_window_moving_average_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('sliding_window_moving_average', SlidingWindowMovingAverageFilter,
+                          SLIDING_AVERAGE_SCHEMA)
+def sliding_window_moving_average_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
                            config[CONF_SEND_FIRST_AT])
 
 
-@FILTER_REGISTRY.register('exponential_moving_average', cv.Schema({
-    cv.GenerateID():
-        cv.declare_variable_id(ExponentialMovingAverageFilter),
+@FILTER_REGISTRY.register('exponential_moving_average', ExponentialMovingAverageFilter, cv.Schema({
     cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
 }))
-def exponential_moving_average_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_ALPHA], config[CONF_SEND_EVERY])
+def exponential_moving_average_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
 
 
-@FILTER_REGISTRY.register(CONF_LAMBDA, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(LambdaFilter),
-    cv.Required(CONF_VALUE): cv.lambda_,
-})))
-def lambda_filter_to_code(config):
-    lambda_ = yield cg.process_lambda(config[CONF_VALUE], [(float, 'x')],
+@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.lambda_)
+def lambda_filter_to_code(config, filter_id):
+    lambda_ = yield cg.process_lambda(config, [(float, 'x')],
                                       return_type=cg.optional.template(float))
-    yield cg.new_Pvariable(config[CONF_ID], lambda_)
+    yield cg.new_Pvariable(filter_id, lambda_)
 
 
-@FILTER_REGISTRY.register(CONF_DELTA, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DeltaFilter),
-    cv.Required(CONF_VALUE): cv.float_,
-})))
-def delta_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
+@FILTER_REGISTRY.register('delta', DeltaFilter, cv.float_)
+def delta_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register(CONF_OR, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(OrFilter),
-    cv.Required(CONF_VALUE): validate_filters,
-})))
-def or_filter_to_code(config):
-    filters = yield build_filters(config[CONF_VALUE])
-    yield cg.new_Pvariable(config[CONF_ID], filters)
+@FILTER_REGISTRY.register('or', OrFilter, validate_filters)
+def or_filter_to_code(config, filter_id):
+    filters = yield build_filters(config)
+    yield cg.new_Pvariable(filter_id, filters)
 
 
-@FILTER_REGISTRY.register(CONF_THROTTLE, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(ThrottleFilter),
-    cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-})))
-def throttle_filter_to_code(config):
-    yield cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
+@FILTER_REGISTRY.register('throttle', ThrottleFilter, cv.positive_time_period_milliseconds)
+def throttle_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config)
 
 
-@FILTER_REGISTRY.register(CONF_HEARTBEAT, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HeartbeatFilter),
-    cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA)))
-def heartbeat_filter_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
-    yield cg.register_component(var, config)
+@FILTER_REGISTRY.register('heartbeat', HeartbeatFilter, cv.positive_time_period_milliseconds)
+def heartbeat_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
     yield var
 
 
-@FILTER_REGISTRY.register(CONF_DEBOUNCE, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(DebounceFilter),
-    cv.Required(CONF_VALUE): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA)))
-def debounce_filter_to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_VALUE])
-    yield cg.register_component(var, config)
+@FILTER_REGISTRY.register('debounce', DebounceFilter, cv.positive_time_period_milliseconds)
+def debounce_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
     yield var
 
 
-@FILTER_REGISTRY.register(CONF_CALIBRATE_LINEAR, cv.maybe_simple_value(cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(CalibrateLinearFilter),
-    cv.Required(CONF_VALUE): cv.All(
-        cv.ensure_list(validate_datapoint), cv.Length(min=2)),
-}).extend(cv.COMPONENT_SCHEMA)))
-def calibrate_linear_filter_to_code(config):
-    x = [conf[CONF_FROM] for conf in config[CONF_VALUE]]
-    y = [conf[CONF_TO] for conf in config[CONF_VALUE]]
+@FILTER_REGISTRY.register('calibrate_linear', CalibrateLinearFilter, cv.All(
+    cv.ensure_list(validate_datapoint), cv.Length(min=2)))
+def calibrate_linear_filter_to_code(config, filter_id):
+    x = [conf[CONF_FROM] for conf in config]
+    y = [conf[CONF_TO] for conf in config]
     k, b = fit_linear(x, y)
-    yield cg.new_Pvariable(config[CONF_ID], k, b)
+    yield cg.new_Pvariable(filter_id, k, b)
 
 
 @coroutine
@@ -235,6 +203,7 @@ def build_filters(config):
 
 @coroutine
 def setup_sensor_core_(var, config):
+    cg.add(var.set_name(config[CONF_NAME]))
     if CONF_INTERNAL in config:
         cg.add(var.set_internal(config[CONF_INTERNAL]))
     if CONF_UNIT_OF_MEASUREMENT in config:
@@ -285,32 +254,30 @@ def register_sensor(var, config):
 
 @coroutine
 def new_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield register_sensor(var, config)
     yield var
 
 
-CONF_SENSOR_IN_RANGE = 'sensor.in_range'
 SENSOR_IN_RANGE_CONDITION_SCHEMA = cv.All({
-    cv.Required(CONF_ID): cv.use_variable_id(Sensor),
+    cv.Required(CONF_ID): cv.use_id(Sensor),
     cv.Optional(CONF_ABOVE): cv.float_,
     cv.Optional(CONF_BELOW): cv.float_,
 }, cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW))
 
 
-@CONDITION_REGISTRY.register(CONF_SENSOR_IN_RANGE, SENSOR_IN_RANGE_CONDITION_SCHEMA)
+@automation.register_condition('sensor.in_range', SensorInRangeCondition,
+                               SENSOR_IN_RANGE_CONDITION_SCHEMA)
 def sensor_in_range_to_code(config, condition_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    rhs = var.make_sensor_in_range_condition(template_arg)
-    type = SensorInRangeCondition.template(template_arg)
-    cond = cg.Pvariable(condition_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(condition_id, template_arg, paren)
 
     if CONF_ABOVE in config:
-        cg.add(cond.set_min(config[CONF_ABOVE]))
+        cg.add(var.set_min(config[CONF_ABOVE]))
     if CONF_BELOW in config:
-        cg.add(cond.set_max(config[CONF_BELOW]))
+        cg.add(var.set_max(config[CONF_BELOW]))
 
-    yield cond
+    yield var
 
 
 def _mean(xs):
@@ -338,6 +305,7 @@ def fit_linear(x, y):
     return k, b
 
 
+@coroutine_with_priority(40.0)
 def to_code(config):
     cg.add_define('USE_SENSOR')
     cg.add_global(sensor_ns.using)

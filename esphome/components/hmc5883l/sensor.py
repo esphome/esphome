@@ -2,8 +2,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ADDRESS, CONF_ID, CONF_RANGE, CONF_UPDATE_INTERVAL, \
-    ICON_MAGNET, UNIT_MICROTESLA, UNIT_DEGREES, ICON_SCREEN_ROTATION
+from esphome.const import CONF_ADDRESS, CONF_ID, CONF_RANGE, ICON_MAGNET, UNIT_MICROTESLA, \
+    UNIT_DEGREES, ICON_SCREEN_ROTATION
 
 DEPENDENCIES = ['i2c']
 
@@ -33,30 +33,29 @@ def validate_range(value):
     value = cv.string(value)
     if value.endswith(u'µT') or value.endswith('uT'):
         value = value[:-2]
-    return cv.one_of(*HMC5883L_RANGES, int=True)(value)
+    return cv.enum(HMC5883L_RANGES, int=True)(value)
 
 
 field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1)
 heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(HMC5883LComponent),
+    cv.GenerateID(): cv.declare_id(HMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
-    cv.Optional(CONF_FIELD_STRENGTH_X): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_FIELD_STRENGTH_Y): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_FIELD_STRENGTH_Z): cv.nameable(field_strength_schema),
-    cv.Optional(CONF_HEADING): cv.nameable(heading_schema),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
+    cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
+    cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
+    cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
+    cv.Optional(CONF_HEADING): heading_schema,
     cv.Optional(CONF_RANGE, default='130uT'): validate_range,
-}).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x1E))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x1E))
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_UPDATE_INTERVAL])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_range(HMC5883L_RANGES[config[CONF_RANGE]]))
+    cg.add(var.set_range(config[CONF_RANGE]))
     if CONF_FIELD_STRENGTH_X in config:
         sens = yield sensor.new_sensor(config[CONF_FIELD_STRENGTH_X])
         cg.add(var.set_x_sensor(sens))

@@ -13,14 +13,14 @@ from esphome.cpp_generator import (  # noqa
     StructInitializer, ArrayInitializer, safe_exp, Statement,
     progmem_array, statement, variable, Pvariable, new_Pvariable,
     add, add_global, add_library, add_build_flag, add_define,
-    get_variable, process_lambda, is_template, templatable, MockObj,
+    get_variable, get_variable_with_full_id, process_lambda, is_template, templatable, MockObj,
     MockObjClass)
 from esphome.cpp_helpers import (  # noqa
     gpio_pin_expression, register_component, build_registry_entry,
-    build_registry_list)
+    build_registry_list, extract_registry_entry_config)
 from esphome.cpp_types import (  # noqa
     global_ns, void, nullptr, float_, bool_, std_ns, std_string,
     std_vector, uint8, uint16, uint32, int32, const_char_ptr, NAN,
-    esphome_ns, App, Nameable, Trigger, Action, Component, ComponentPtr,
+    esphome_ns, App, Nameable, Component, ComponentPtr,
     PollingComponent, Application, optional, arduino_json_ns, JsonObject,
     JsonObjectRef, JsonObjectConstRef, Controller, GPIOPin)

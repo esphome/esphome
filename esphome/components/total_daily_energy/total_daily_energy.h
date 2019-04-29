@@ -10,8 +10,8 @@ namespace total_daily_energy {
 
 class TotalDailyEnergy : public sensor::Sensor, public Component {
  public:
-  TotalDailyEnergy(const std::string &name, time::RealTimeClock *time, Sensor *parent)
-      : Sensor(name), time_(time), parent_(parent) {}
+  void set_time(time::RealTimeClock *time) { time_ = time; }
+  void set_parent(Sensor *parent) { parent_ = parent; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }

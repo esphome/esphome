@@ -242,6 +242,8 @@ class Component {
  */
 class PollingComponent : public Component {
  public:
+  PollingComponent() : PollingComponent(0) {}
+
   /** Initialize this polling component with the given update interval in ms.
    *
    * @param update_interval The update interval in ms.
@@ -274,6 +276,7 @@ class PollingComponent : public Component {
 /// Helper class that enables naming of objects so that it doesn't have to be re-implement every time.
 class Nameable {
  public:
+  Nameable() : Nameable("") {}
   explicit Nameable(const std::string &name);
   const std::string &get_name() const;
   void set_name(const std::string &name);

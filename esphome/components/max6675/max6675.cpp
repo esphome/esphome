@@ -6,9 +6,6 @@ namespace max6675 {
 
 static const char *TAG = "max6675";
 
-MAX6675Sensor::MAX6675Sensor(const std::string &name, uint32_t update_interval)
-    : PollingSensorComponent(name, update_interval) {}
-
 void MAX6675Sensor::update() {
   this->enable();
   delay(1);

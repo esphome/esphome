@@ -1,7 +1,7 @@
-from esphome.components import text_sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_BSSID, CONF_ID, CONF_IP_ADDRESS, CONF_NAME, CONF_SSID
+import esphome.config_validation as cv
+from esphome.components import text_sensor
+from esphome.const import CONF_BSSID, CONF_ID, CONF_IP_ADDRESS, CONF_SSID
 from esphome.core import coroutine
 
 DEPENDENCIES = ['wifi']
@@ -12,15 +12,15 @@ SSIDWiFiInfo = wifi_info_ns.class_('SSIDWiFiInfo', text_sensor.TextSensor, cg.Co
 BSSIDWiFiInfo = wifi_info_ns.class_('BSSIDWiFiInfo', text_sensor.TextSensor, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.Optional(CONF_IP_ADDRESS): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
-        cv.GenerateID(): cv.declare_variable_id(IPAddressWiFiInfo),
-    })),
-    cv.Optional(CONF_SSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
-        cv.GenerateID(): cv.declare_variable_id(SSIDWiFiInfo),
-    })),
-    cv.Optional(CONF_BSSID): cv.nameable(text_sensor.TEXT_SENSOR_SCHEMA.extend({
-        cv.GenerateID(): cv.declare_variable_id(BSSIDWiFiInfo),
-    })),
+    cv.Optional(CONF_IP_ADDRESS): text_sensor.TEXT_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_id(IPAddressWiFiInfo),
+    }),
+    cv.Optional(CONF_SSID): text_sensor.TEXT_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_id(SSIDWiFiInfo),
+    }),
+    cv.Optional(CONF_BSSID): text_sensor.TEXT_SENSOR_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_id(BSSIDWiFiInfo),
+    }),
 })
 
 
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema({
 def setup_conf(config, key):
     if key in config:
         conf = config[key]
-        var = cg.new_Pvariable(conf[CONF_ID], conf[CONF_NAME])
+        var = cg.new_Pvariable(conf[CONF_ID])
         yield cg.register_component(var, conf)
         yield text_sensor.register_text_sensor(var, conf)
 

@@ -13,91 +13,53 @@ namespace esphome {
   TemplatableValue<type, Ts...> name##_{}; \
 \
  public: \
-  template<typename V> void set_##name(V value_) { this->name##_ = value_; }
+  template<typename V> void set_##name(V name) { this->name##_ = name; }
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
+/** Base class for all automation conditions.
+ *
+ * @tparam Ts The template parameters to pass when executing.
+ */
 template<typename... Ts> class Condition {
  public:
+  /// Check whether this condition passes. This condition check must be instant, and not cause any delays.
   virtual bool check(Ts... x) = 0;
 
-  bool check_tuple(const std::tuple<Ts...> &tuple);
+  /// Call check with a tuple of values as parameter.
+  bool check_tuple(const std::tuple<Ts...> &tuple) {
+    return this->check_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+  }
 
  protected:
-  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...>);
-};
-
-template<typename... Ts> class AndCondition : public Condition<Ts...> {
- public:
-  explicit AndCondition(const std::vector<Condition<Ts...> *> &conditions);
-  bool check(Ts... x) override;
-
- protected:
-  std::vector<Condition<Ts...> *> conditions_;
-};
-
-template<typename... Ts> class OrCondition : public Condition<Ts...> {
- public:
-  explicit OrCondition(const std::vector<Condition<Ts...> *> &conditions);
-  bool check(Ts... x) override;
-
- protected:
-  std::vector<Condition<Ts...> *> conditions_;
-};
-
-template<typename... Ts> class LambdaCondition : public Condition<Ts...> {
- public:
-  explicit LambdaCondition(std::function<bool(Ts...)> &&f);
-  bool check(Ts... x) override;
-
- protected:
-  std::function<bool(Ts...)> f_;
-};
-
-class RangeCondition : public Condition<float> {
- public:
-  explicit RangeCondition();
-  bool check(float x) override;
-
-  template<typename V> void set_min(V value) { this->min_ = value; }
-  template<typename V> void set_max(V value) { this->max_ = value; }
-
- protected:
-  TemplatableValue<float, float> min_{NAN};
-  TemplatableValue<float, float> max_{NAN};
+  template<int... S> bool check_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
+    return this->check(std::get<S>(tuple)...);
+  }
 };
 
 template<typename... Ts> class Automation;
 
 template<typename... Ts> class Trigger {
  public:
-  void trigger(Ts... x);
-  void set_parent(Automation<Ts...> *parent);
-  void stop();
+  void trigger(Ts... x) {
+    if (this->automation_parent_ == nullptr)
+      return;
+    this->automation_parent_->trigger(x...);
+  }
+  void set_automation_parent(Automation<Ts...> *automation_parent) { this->automation_parent_ = automation_parent; }
+  void stop() {
+    if (this->automation_parent_ == nullptr)
+      return;
+    this->automation_parent_->stop();
+  }
+  bool is_running() {
+    if (this->automation_parent_ == nullptr)
+      return false;
+    return this->automation_parent_.is_running();
+  }
 
  protected:
-  Automation<Ts...> *parent_{nullptr};
-};
-
-class StartupTrigger : public Trigger<>, public Component {
- public:
-  explicit StartupTrigger(float setup_priority = setup_priority::LATE);
-  void setup() override;
-  float get_setup_priority() const override;
-
- protected:
-  float setup_priority_;
-};
-
-class ShutdownTrigger : public Trigger<>, public Component {
- public:
-  void on_shutdown() override;
-};
-
-class LoopTrigger : public Trigger<>, public Component {
- public:
-  void loop() override;
-  float get_setup_priority() const override;
+  Automation<Ts...> *automation_parent_{nullptr};
 };
 
 template<typename... Ts> class ActionList;
@@ -105,137 +67,100 @@ template<typename... Ts> class ActionList;
 template<typename... Ts> class Action {
  public:
   virtual void play(Ts... x) = 0;
-  void play_next(Ts... x);
-  virtual void stop();
-  void stop_next();
+  virtual void play_complex(Ts... x) {
+    this->play(x...);
+    this->play_next(x...);
+  }
+  void play_next(Ts... x) {
+    if (this->next_ != nullptr) {
+      this->next_->play_complex(x...);
+    }
+  }
+  virtual void stop() {}
+  virtual void stop_complex() {
+    this->stop();
+    this->stop_next();
+  }
+  void stop_next() {
+    if (this->next_ != nullptr) {
+      this->next_->stop_complex();
+    }
+  }
+  virtual bool is_running() { return this->is_running_next(); }
+  bool is_running_next() {
+    if (this->next_ == nullptr)
+      return false;
+    return this->next_->is_running();
+  }
 
-  void play_next_tuple(const std::tuple<Ts...> &tuple);
+  void play_next_tuple(const std::tuple<Ts...> &tuple) {
+    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+  }
 
  protected:
   friend ActionList<Ts...>;
 
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>);
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
+    this->play_next(std::get<S>(tuple)...);
+  }
 
   Action<Ts...> *next_ = nullptr;
 };
 
-template<typename... Ts> class DelayAction : public Action<Ts...>, public Component {
- public:
-  explicit DelayAction();
-
-  template<typename V> void set_delay(V value) { this->delay_ = value; }
-  void stop() override;
-
-  void play(Ts... x) override;
-  float get_setup_priority() const override;
-
- protected:
-  TemplatableValue<uint32_t, Ts...> delay_{0};
-};
-
-template<typename... Ts> class LambdaAction : public Action<Ts...> {
- public:
-  explicit LambdaAction(std::function<void(Ts...)> &&f);
-  void play(Ts... x) override;
-
- protected:
-  std::function<void(Ts...)> f_;
-};
-
-template<typename... Ts> class IfAction : public Action<Ts...> {
- public:
-  explicit IfAction(std::vector<Condition<Ts...> *> conditions);
-
-  void add_then(const std::vector<Action<Ts...> *> &actions);
-
-  void add_else(const std::vector<Action<Ts...> *> &actions);
-
-  void play(Ts... x) override;
-
-  void stop() override;
-
- protected:
-  std::vector<Condition<Ts...> *> conditions_;
-  ActionList<Ts...> then_;
-  ActionList<Ts...> else_;
-};
-
-template<typename... Ts> class WhileAction : public Action<Ts...> {
- public:
-  WhileAction(const std::vector<Condition<Ts...> *> &conditions);
-
-  void add_then(const std::vector<Action<Ts...> *> &actions);
-
-  void play(Ts... x) override;
-
-  void stop() override;
-
- protected:
-  std::vector<Condition<Ts...> *> conditions_;
-  ActionList<Ts...> then_;
-  bool is_running_{false};
-};
-
-template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Component {
- public:
-  WaitUntilAction(const std::vector<Condition<Ts...> *> &conditions);
-
-  void play(Ts... x) override;
-
-  void stop() override;
-
-  void loop() override;
-
-  float get_setup_priority() const override;
-
- protected:
-  std::vector<Condition<Ts...> *> conditions_;
-  bool triggered_{false};
-  std::tuple<Ts...> var_{};
-};
-
-template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
- public:
-  UpdateComponentAction(PollingComponent *component);
-  void play(Ts... x) override;
-
- protected:
-  PollingComponent *component_;
-};
-
 template<typename... Ts> class ActionList {
  public:
-  Action<Ts...> *add_action(Action<Ts...> *action);
-  void add_actions(const std::vector<Action<Ts...> *> &actions);
-  void play(Ts... x);
-  void stop();
-  bool empty() const;
+  void add_action(Action<Ts...> *action) {
+    if (this->actions_end_ == nullptr) {
+      this->actions_begin_ = action;
+    } else {
+      this->actions_end_->next_ = action;
+    }
+    this->actions_end_ = action;
+  }
+  void add_actions(const std::vector<Action<Ts...> *> &actions) {
+    for (auto *action : actions) {
+      this->add_action(action);
+    }
+  }
+  void play(Ts... x) {
+    if (this->actions_begin_ != nullptr)
+      this->actions_begin_->play_complex(x...);
+  }
+  void play_tuple(const std::tuple<Ts...> &tuple) { this->play_tuple_(tuple, typename gens<sizeof...(Ts)>::type()); }
+  void stop() {
+    if (this->actions_begin_ != nullptr)
+      this->actions_begin_->stop_complex();
+  }
+  bool empty() const { return this->actions_begin_ == nullptr; }
+  bool is_running() {
+    if (this->actions_begin_ == nullptr)
+      return false;
+    return this->actions_begin_->is_running();
+  }
 
  protected:
+  template<int... S> void play_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) { this->play(std::get<S>(tuple)...); }
+
   Action<Ts...> *actions_begin_{nullptr};
   Action<Ts...> *actions_end_{nullptr};
 };
 
 template<typename... Ts> class Automation {
  public:
-  explicit Automation(Trigger<Ts...> *trigger);
+  explicit Automation(Trigger<Ts...> *trigger) : trigger_(trigger) { this->trigger_->set_automation_parent(this); }
 
-  Condition<Ts...> *add_condition(Condition<Ts...> *condition);
-  void add_conditions(const std::vector<Condition<Ts...> *> &conditions);
+  Action<Ts...> *add_action(Action<Ts...> *action) { this->actions_.add_action(action); }
+  void add_actions(const std::vector<Action<Ts...> *> &actions) { this->actions_.add_actions(actions); }
 
-  Action<Ts...> *add_action(Action<Ts...> *action);
-  void add_actions(const std::vector<Action<Ts...> *> &actions);
+  void stop() { this->actions_.stop(); }
 
-  void stop();
+  void trigger(Ts... x) { this->actions_.play(x...); }
 
-  void trigger(Ts... x);
+  bool is_running() { return this->actions_.is_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;
-  std::vector<Condition<Ts...> *> conditions_;
   ActionList<Ts...> actions_;
 };
 
 }  // namespace esphome
-
-#include "esphome/core/automation.tcc"

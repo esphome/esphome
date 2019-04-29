@@ -23,7 +23,6 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
       call.set_speed(this->speed_.value(x...));
     }
     call.perform();
-    this->play_next(x...);
   }
 
  protected:
@@ -34,10 +33,7 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   explicit TurnOffAction(FanState *state) : state_(state) {}
 
-  void play(Ts... x) override {
-    this->state_->turn_off().perform();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->state_->turn_off().perform(); }
 
  protected:
   FanState *state_;
@@ -47,10 +43,7 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(FanState *state) : state_(state) {}
 
-  void play(Ts... x) override {
-    this->state_->toggle().perform();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->state_->toggle().perform(); }
 
  protected:
   FanState *state_;

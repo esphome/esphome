@@ -1,21 +1,21 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import ACTION_REGISTRY
+from esphome import automation
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_STATE
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE
 from .. import template_ns
 
 TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.BinarySensor,
                                           cg.Component)
 
-CONFIG_SCHEMA = cv.nameable(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(TemplateBinarySensor),
+CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
     cv.Optional(CONF_LAMBDA): cv.lambda_,
-}).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME])
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield binary_sensor.register_binary_sensor(var, config)
 
@@ -25,15 +25,15 @@ def to_code(config):
         cg.add(var.set_template(template_))
 
 
-@ACTION_REGISTRY.register('binary_sensor.template.publish', cv.Schema({
-    cv.Required(CONF_ID): cv.use_variable_id(binary_sensor.BinarySensor),
-    cv.Required(CONF_STATE): cv.templatable(cv.boolean),
-}))
+@automation.register_action('binary_sensor.template.publish',
+                            binary_sensor.BinarySensorPublishAction,
+                            cv.Schema({
+                                cv.Required(CONF_ID): cv.use_id(binary_sensor.BinarySensor),
+                                cv.Required(CONF_STATE): cv.templatable(cv.boolean),
+                            }))
 def binary_sensor_template_publish_to_code(config, action_id, template_arg, args):
-    var = yield cg.get_variable(config[CONF_ID])
-    type = binary_sensor.BinarySensorPublishAction.template(template_arg)
-    rhs = type.new(var)
-    action = cg.Pvariable(action_id, rhs, type=type)
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = yield cg.templatable(config[CONF_STATE], args, bool)
-    cg.add(action.set_state(template_))
-    yield action
+    cg.add(var.set_state(template_))
+    yield var

@@ -15,10 +15,8 @@ enum BH1750Resolution {
 };
 
 /// This class implements support for the i2c-based BH1750 ambient light sensor.
-class BH1750Sensor : public sensor::PollingSensorComponent, public i2c::I2CDevice {
+class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-  BH1750Sensor(const std::string &name, uint32_t update_interval);
-
   /** Set the resolution of this sensor.
    *
    * Possible values are:

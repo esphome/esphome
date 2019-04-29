@@ -302,7 +302,6 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                            this->retain_.value(x...));
-    this->play_next(x...);
   }
 
  protected:
@@ -323,7 +322,6 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
     this->parent_->publish_json(topic, f, qos, retain);
-    this->play_next(x...);
   }
 
  protected:

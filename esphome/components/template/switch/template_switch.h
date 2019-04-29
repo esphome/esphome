@@ -9,7 +9,7 @@ namespace template_ {
 
 class TemplateSwitch : public switch_::Switch, public Component {
  public:
-  explicit TemplateSwitch(const std::string &name);
+  TemplateSwitch();
 
   void setup() override;
   void dump_config() override;

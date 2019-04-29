@@ -163,10 +163,10 @@ optional<float> DeltaFilter::new_value(float value) {
 
 // OrFilter
 OrFilter::OrFilter(std::vector<Filter *> filters) : filters_(std::move(filters)), phi_(this) {}
-OrFilter::PhiNode::PhiNode(OrFilter *parent) : parent_(parent) {}
+OrFilter::PhiNode::PhiNode(OrFilter *or_parent) : or_parent_(or_parent) {}
 
 optional<float> OrFilter::PhiNode::new_value(float value) {
-  this->parent_->output(value);
+  this->or_parent_->output(value);
 
   return {};
 }

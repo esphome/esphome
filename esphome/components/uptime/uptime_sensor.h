@@ -6,10 +6,8 @@
 namespace esphome {
 namespace uptime {
 
-class UptimeSensor : public sensor::PollingSensorComponent {
+class UptimeSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit UptimeSensor(const std::string &name, uint32_t update_interval);
-
   void update() override;
 
   float get_setup_priority() const override;

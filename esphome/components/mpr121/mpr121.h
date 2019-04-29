@@ -47,11 +47,11 @@ enum {
 
 class MPR121Channel : public binary_sensor::BinarySensor {
  public:
-  MPR121Channel(const std::string &name, int channel) : BinarySensor(name), channel_(channel) {}
+  void set_channel(uint8_t channel) { channel_ = channel; }
   void process(uint16_t data) { this->publish_state(static_cast<bool>(data & (1 << this->channel_))); }
 
  protected:
-  int channel_{0};
+  uint8_t channel_{0};
 };
 
 class MPR121Component : public Component, public i2c::I2CDevice {

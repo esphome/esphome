@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, uart
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_LAMBDA
 from . import nextion_ns
 
 DEPENDENCIES = ['uart']
@@ -11,9 +11,8 @@ Nextion = nextion_ns.class_('Nextion', cg.PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
 
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(Nextion),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='5s'): cv.update_interval,
-}).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
+    cv.GenerateID(): cv.declare_id(Nextion),
+}).extend(cv.polling_component_schema('5s')).extend(uart.UART_DEVICE_SCHEMA)
 
 
 def to_code(config):

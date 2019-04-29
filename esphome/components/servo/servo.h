@@ -13,15 +13,15 @@ extern uint32_t global_servo_id;
 
 class Servo : public Component {
  public:
-  Servo(output::FloatOutput *output) : output_(output) {}
+  void set_output(output::FloatOutput *output) { output_ = output; }
   void write(float value) {
     value = clamp(value, -1.0f, 1.0f);
 
     float level;
     if (value < 0.0)
-      level = lerp(this->idle_level_, this->min_level_, -value);
+      level = lerp(-value, this->idle_level_, this->min_level_);
     else
-      level = lerp(this->idle_level_, this->max_level_, value);
+      level = lerp(value, this->idle_level_, this->max_level_);
 
     this->output_->set_level(level);
     this->save_level_(level);
@@ -63,10 +63,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
   TEMPLATABLE_VALUE(float, value)
-  void play(Ts... x) override {
-    this->servo_->write(this->value_.value(x...));
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
 
  protected:
   Servo *servo_;
@@ -75,10 +72,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
 template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
-  void play(Ts... x) override {
-    this->servo_->detach();
-    this->play_next(x...);
-  }
+  void play(Ts... x) override { this->servo_->detach(); }
 
  protected:
   Servo *servo_;

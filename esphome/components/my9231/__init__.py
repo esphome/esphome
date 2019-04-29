@@ -10,7 +10,7 @@ MY9231OutputComponent = my9231_ns.class_('MY9231OutputComponent', cg.Component)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_variable_id(MY9231OutputComponent),
+    cv.GenerateID(): cv.declare_id(MY9231OutputComponent),
     cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_NUM_CHANNELS, default=6): cv.All(cv.int_, cv.Range(min=3, max=1020)),
@@ -20,10 +20,13 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
-    di = yield cg.gpio_pin_expression(config[CONF_DATA_PIN])
-    dcki = yield cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], di, dcki)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
+
+    di = yield cg.gpio_pin_expression(config[CONF_DATA_PIN])
+    cg.add(var.set_pin_di(di))
+    dcki = yield cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
+    cg.add(var.set_pin_dcki(dcki))
 
     cg.add(var.set_num_channels(config[CONF_NUM_CHANNELS]))
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))

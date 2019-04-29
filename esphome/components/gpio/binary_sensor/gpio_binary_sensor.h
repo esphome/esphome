@@ -8,8 +8,7 @@ namespace gpio {
 
 class GPIOBinarySensor : public binary_sensor::BinarySensor, public Component {
  public:
-  explicit GPIOBinarySensor(const std::string &name, GPIOPin *pin);
-
+  void set_pin(GPIOPin *pin) { pin_ = pin; }
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup pin

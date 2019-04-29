@@ -13,16 +13,16 @@ enum HX711Gain {
   HX711_GAIN_64 = 3,
 };
 
-class HX711Sensor : public sensor::PollingSensorComponent {
+class HX711Sensor : public sensor::Sensor, public PollingComponent {
  public:
-  HX711Sensor(const std::string &name, GPIOPin *dout, GPIOPin *sck, uint32_t update_interval);
+  void set_dout_pin(GPIOPin *dout_pin) { dout_pin_ = dout_pin; }
+  void set_sck_pin(GPIOPin *sck_pin) { sck_pin_ = sck_pin; }
+  void set_gain(HX711Gain gain) { gain_ = gain; }
 
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-
-  void set_gain(HX711Gain gain);
 
  protected:
   bool read_sensor_(uint32_t *result);

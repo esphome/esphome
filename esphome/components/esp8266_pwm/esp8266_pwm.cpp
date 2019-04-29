@@ -25,6 +25,8 @@ void ESP8266PWM::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 void HOT ESP8266PWM::write_state(float state) {
+  this->last_output_ = state;
+
   // Also check pin inversion
   if (this->pin_->is_inverted()) {
     state = 1.0f - state;

@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.components.ads1115 import ADS1115Component
-from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, CONF_UPDATE_INTERVAL, \
-    ICON_FLASH, UNIT_VOLT, CONF_ID, CONF_NAME
+from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
 from esphome.py_compat import string_types
 from . import ads1115_ns
 
@@ -38,27 +37,26 @@ def validate_gain(value):
     elif not isinstance(value, string_types):
         raise cv.Invalid('invalid gain "{}"'.format(value))
 
-    return cv.one_of(*GAIN)(value)
+    return cv.enum(GAIN)(value)
 
 
 ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor)
 
-
 CONF_ADS1115_ID = 'ads1115_id'
-CONFIG_SCHEMA = cv.nameable(sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
-    cv.GenerateID(): cv.declare_variable_id(ADS1115Sensor),
-    cv.GenerateID(CONF_ADS1115_ID): cv.use_variable_id(ADS1115Component),
-    cv.Required(CONF_MULTIPLEXER): cv.one_of(*MUX, upper=True, space='_'),
+CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
+    cv.GenerateID(): cv.declare_id(ADS1115Sensor),
+    cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
+    cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space='_'),
     cv.Required(CONF_GAIN): validate_gain,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
-}))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_ADS1115_ID])
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], config[CONF_UPDATE_INTERVAL])
-    cg.add(var.set_multiplexer(MUX[config[CONF_MULTIPLEXER]]))
-    cg.add(var.set_gain(GAIN[config[CONF_GAIN]]))
+    var = cg.new_Pvariable(config[CONF_ID])
     yield sensor.register_sensor(var, config)
 
+    cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
+    cg.add(var.set_gain(config[CONF_GAIN]))
+
+    hub = yield cg.get_variable(config[CONF_ADS1115_ID])
     cg.add(hub.register_sensor(var))

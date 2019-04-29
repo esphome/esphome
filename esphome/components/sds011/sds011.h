@@ -22,6 +22,8 @@ class SDS011Component : public Component, public uart::UARTDevice {
 
   float get_setup_priority() const override;
 
+  void set_update_interval(uint32_t val) { /* ignore */
+  }
   void set_update_interval_min(uint8_t update_interval_min);
 
  protected:

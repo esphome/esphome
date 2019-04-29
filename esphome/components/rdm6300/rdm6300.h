@@ -30,7 +30,7 @@ class RDM6300Component : public Component, public uart::UARTDevice {
 
 class RDM6300BinarySensor : public binary_sensor::BinarySensor {
  public:
-  RDM6300BinarySensor(const std::string &name, uint32_t id) : BinarySensor(name), id_(id) {}
+  void set_id(uint32_t id) { id_ = id; }
 
   bool process(uint32_t id) {
     if (this->id_ == id) {

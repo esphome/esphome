@@ -19,13 +19,13 @@ RGB_ORDERS = [
 ]
 
 BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_variable_id(FastLEDLightOutput),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
 
     cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
     cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
     cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
-    cv.Optional(CONF_POWER_SUPPLY): cv.use_variable_id(power_supply.PowerSupply),
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
 }).extend(cv.COMPONENT_SCHEMA)
 
 

@@ -68,8 +68,6 @@ struct BME680CalibrationData {
 
 class BME680Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  BME680Component(uint32_t update_interval) : PollingComponent(update_interval) {}
-
   /// Set the temperature oversampling value. Defaults to 16X.
   void set_temperature_oversampling(BME680Oversampling temperature_oversampling);
   /// Set the pressure oversampling value. Defaults to 16X.

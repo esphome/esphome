@@ -48,9 +48,6 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
 class ADS1115Sensor : public sensor::Sensor {
  public:
-  ADS1115Sensor(const std::string &name, uint32_t update_interval)
-      : sensor::Sensor(name), update_interval_(update_interval) {}
-
   void set_multiplexer(ADS1115Multiplexer multiplexer);
   void set_gain(ADS1115Gain gain);
 
