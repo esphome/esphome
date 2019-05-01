@@ -431,6 +431,8 @@ const validateModal = new LogModalElem({
   onPrepare: (modalElem, config) => {
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
     modalElem.querySelector(".action-edit").setAttribute('data-node', validateModal.activeConfig);
+    modalElem.querySelector(".action-upload").setAttribute('data-node', validateModal.activeConfig);
+    modalElem.querySelector(".action-upload").style.display = "none";
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
@@ -438,6 +440,7 @@ const validateModal = new LogModalElem({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is valid 👍`,
         displayLength: 5000,
       });
+      modalElem.querySelector(".action-upload").style.display = "block";
     } else {
       M.toast({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is invalid 😕`,
