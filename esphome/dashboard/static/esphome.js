@@ -430,6 +430,7 @@ const validateModal = new LogModalElem({
   name: 'validate',
   onPrepare: (modalElem, config) => {
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
+    modalElem.querySelector(".action-edit").setAttribute('data-node', validateModal.activeConfig);
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
@@ -580,6 +581,7 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
+    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
