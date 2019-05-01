@@ -2,5 +2,5 @@ ports:
 - port: 6052
   onOpen: open-preview
 tasks:
-- before: python setup.py install
-  command: python esphome config dashboard
+- before: script/setup
+  command: python -m esphome config dashboard
