@@ -25,7 +25,29 @@ const char *dump_data_buf(const uint8_t *data) {
   return hex_buf;
 }
 
+static bool setup_done;
+
+void MHZ19Component::setup() {
+  uint8_t response[MHZ19_PDU_LENGTH];
+  while (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
+    delay(500);
+  }
+
+  /* MH-Z19B(s == 0) and MH-Z19(s != 0) */
+  uint8_t s = response[5];
+  if (response[5] == 0 && this->model_b_ == false) {
+    ESP_LOGD(TAG, "MH-Z19B detected");
+    this->model_b_ = true;
+  }
+
+  setup_done = true;
+}
+
 void MHZ19Component::update() {
+  if (!setup_done) {
+    return;
+  }
+
   uint8_t response[MHZ19_PDU_LENGTH];
   if (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
     ESP_LOGW(TAG, "Reading data from MHZ19 failed!");
@@ -100,7 +122,7 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
 }
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
 void MHZ19Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MH-Z19:");
+  ESP_LOGCONFIG(TAG, "MH-Z19%s:", this->model_b_ ? "B" : "");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
