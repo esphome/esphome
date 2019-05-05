@@ -52,23 +52,42 @@ void MHZ19Component::update() {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  ESP_LOGD(TAG, "cmd [%s]", dump_data_buf(command));
-  this->write_array(command, MHZ19_PDU_LENGTH);
-  this->flush();
+  bool ret;
+  int rx_error = 0;
 
-  if (response == nullptr)
-    return true;
+  do {
+    ESP_LOGD(TAG, "cmd [%s]", dump_data_buf(command));
+    this->write_array(command, MHZ19_PDU_LENGTH);
+    this->flush();
 
-  bool ret = this->read_array(response, MHZ19_PDU_LENGTH);
-  ESP_LOGD(TAG, "resp [%s]", dump_data_buf(response));
+    if (response == nullptr)
+      return true;
 
-  uint8_t checksum = mhz19_checksum(response);
-  if (checksum != response[8]) {
-    ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X [%s]",
-             response[8], checksum, dump_data_buf(response));
-    this->status_set_warning();
-    return false;
-  }
+    memset(response, 0, MHZ19_PDU_LENGTH);
+    ret = this->read_array(response, MHZ19_PDU_LENGTH);
+    ESP_LOGD(TAG, "resp [%s]", dump_data_buf(response));
+
+    uint8_t checksum = mhz19_checksum(response);
+    if (checksum != response[8]) {
+      ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X [%s]",
+               response[8], checksum, dump_data_buf(response));
+
+      /*
+       * UART0 in NodeMCU v2, sometimes on boot has junk in RX buffer,
+       * check for it and drain all of it before sending commands to sensor
+       */
+      this->drain();
+      ret = false;
+      if (++rx_error > 2) {
+          this->status_set_warning();
+          /* give up trying to recover, hope that it will be fine next update cycle */
+          rx_error = 0;
+      }
+      delay(100);
+    } else {
+      rx_error = 0;
+    }
+  } while (rx_error);
 
   return ret;
 }
