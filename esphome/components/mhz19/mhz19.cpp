@@ -39,6 +39,13 @@ void MHZ19Component::update() {
     return;
   }
 
+  /* Sensor reports U(15000) during boot, ingnore reported CO2 until it boots */
+  uint16_t u = (response[6] << 8) + response[7];
+  if (u == 15000) {
+    ESP_LOGD(TAG, "Sensor is booting");
+    return;
+  }
+
   this->status_clear_warning();
   const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
   const int temp = int(response[4]) - 40;
