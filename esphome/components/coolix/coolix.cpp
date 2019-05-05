@@ -8,7 +8,7 @@ static const char *TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
 // On, 25C, Mode: Auto, Fan: Auto, Zone Follow: Off, Sensor Temp: Ignore.
-const uint32_t COOLIX_DEFAULT_STATE = 0xB2BFC8; 
+const uint32_t COOLIX_DEFAULT_STATE = 0xB2BFC8;
 const uint32_t COOLIX_DEFAULT_STATE_AUTO_24_FAN = 0xB21F48;
 const uint8_t COOLIX_COOL = 0b00;
 const uint8_t COOLIX_DRY = 0b01;
@@ -75,20 +75,19 @@ climate::ClimateTraits CoolixClimate::traits() {
 }
 
 void CoolixClimate::setup() {
-  if (this->sensor_)
-  {
+  if (this->sensor_) {
     this->sensor_->add_on_state_callback([this](float state) {
       this->current_temperature = state;
       // current temperature changed, publish state
       this->publish_state();
     });
     this->current_temperature = this->sensor_->state;
-  }
-  else this->current_temperature = NAN;
+  } else
+    this->current_temperature = NAN;
   // restore set points
   auto restore = this->restore_state_();
   if (restore.has_value()) {
-    restore->to_call(this).perform();
+    restore->apply(this);
   } else {
     // restore from defaults
     this->mode = climate::CLIMATE_MODE_AUTO;
@@ -141,7 +140,6 @@ void CoolixClimate::transmit_state_() {
     // Header
     data->mark(COOLIX_HEADER_MARK);
     data->space(COOLIX_HEADER_SPACE);
-
     // Data
     //   Break data into byte segments, starting at the Most Significant
     //   Byte. Each byte then being sent normal, then followed inverted.
@@ -149,61 +147,22 @@ void CoolixClimate::transmit_state_() {
       // Grab a bytes worth of data.
       uint8_t segment = (remote_state >> (COOLIX_BITS - i)) & 0xFF;
       // Normal
-      send_data_(data, COOLIX_BIT_MARK, COOLIX_ONE_SPACE, COOLIX_BIT_MARK, COOLIX_ZERO_SPACE, segment, 8, true);
-      // Inverted.
-      send_data_(data, COOLIX_BIT_MARK, COOLIX_ONE_SPACE, COOLIX_BIT_MARK, COOLIX_ZERO_SPACE, segment ^ 0xFF, 8, true);
+      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
+        data->mark(COOLIX_BIT_MARK);
+        data->space((segment & mask) ? COOLIX_ONE_SPACE : COOLIX_ZERO_SPACE);
+      }
+      // Inverted
+      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
+        data->mark(COOLIX_BIT_MARK);
+        data->space(!(segment & mask) ? COOLIX_ONE_SPACE : COOLIX_ZERO_SPACE);
+      }
     }
-
     // Footer
     data->mark(COOLIX_BIT_MARK);
     data->space(COOLIX_MIN_GAP);  // Pause before repeating
   }
 
   transmit.perform();
-}
-
-// Generic method for sending data that is common to most protocols.
-// Will send leading or trailing 0's if the nbits is larger than the number
-// of bits in data.
-//
-// Args:
-//   onemark:    Nr. of usecs for the led to be pulsed for a '1' bit.
-//   onespace:   Nr. of usecs for the led to be fully off for a '1' bit.
-//   zeromark:   Nr. of usecs for the led to be pulsed for a '0' bit.
-//   zerospace:  Nr. of usecs for the led to be fully off for a '0' bit.
-//   data:       The data to be transmitted.
-//   nbits:      Nr. of bits of data to be sent.
-//   msb_first:  Flag for bit transmission order. Defaults to MSB->LSB order.
-void CoolixClimate::send_data_(remote_base::RemoteTransmitData *transmit_data, uint16_t onemark, uint32_t onespace,
-                               uint16_t zeromark, uint32_t zerospace, uint64_t data, uint16_t nbits, bool msb_first) {
-  if (nbits == 0)  // If we are asked to send nothing, just return.
-    return;
-  if (msb_first) {  // Send the MSB first.
-    // Send 0's until we get down to a bit size we can actually manage.
-    while (nbits > sizeof(data) * 8) {
-      transmit_data->mark(zeromark);
-      transmit_data->space(zerospace);
-      nbits--;
-    }
-    // Send the supplied data.
-    for (uint64_t mask = 1ULL << (nbits - 1); mask; mask >>= 1)
-      if (data & mask) {  // Send a 1
-        transmit_data->mark(onemark);
-        transmit_data->space(onespace);
-      } else {  // Send a 0
-        transmit_data->mark(zeromark);
-        transmit_data->space(zerospace);
-      }
-  } else {  // Send the Least Significant Bit (LSB) first / MSB last.
-    for (uint16_t bit = 0; bit < nbits; bit++, data >>= 1)
-      if (data & 1) {  // Send a 1
-        transmit_data->mark(onemark);
-        transmit_data->space(onespace);
-      } else {  // Send a 0
-        transmit_data->mark(zeromark);
-        transmit_data->space(zerospace);
-      }
-  }
 }
 
 }  // namespace coolix

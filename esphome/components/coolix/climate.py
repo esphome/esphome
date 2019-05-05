@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
 AUTO_LOAD = ['sensor']
 
 coolix_ns = cg.esphome_ns.namespace('coolix')
-CoolixClimate = coolix_ns.class_('CoolixClimate', climate.ClimateDevice)
+CoolixClimate = coolix_ns.class_('CoolixClimate', climate.ClimateDevice, cg.Component)
 
 CONF_TRANSMITTER_ID = 'transmitter_id'
 CONF_SUPPORTS_HEAT = 'supports_heat'
@@ -26,10 +26,8 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield climate.register_climate(var, config)
 
-    if CONF_SUPPORTS_COOL in config:
-        cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
-    if CONF_SUPPORTS_HEAT in config:
-        cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
+    cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
+    cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     if CONF_SENSOR in config:
         sens = yield cg.get_variable(config[CONF_SENSOR])
         cg.add(var.set_sensor(sens))
