@@ -11,6 +11,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
  public:
   float get_setup_priority() const override;
 
+  void setup() override;
   void update() override;
   void dump_config() override;
 
@@ -22,6 +23,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
+  bool model_b_;
 };
 
 }  // namespace mhz19
