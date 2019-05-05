@@ -7,6 +7,8 @@ namespace mhz19 {
 static const char *TAG = "mhz19";
 static const uint8_t MHZ19_PDU_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79};
+static const uint8_t MHZ19_COMMAND_ABC_ENABLE[] = {0xFF, 0x01, 0x79, 0xA0, 0x00, 0x00, 0x00, 0x00, 0xE6};
+static const uint8_t MHZ19_COMMAND_ABC_DISABLE[] = {0xFF, 0x01, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00, 0x86};
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -40,6 +42,21 @@ void MHZ19Component::setup() {
     this->model_b_ = true;
   }
 
+  if (this->model_b_) {
+    /*
+     * MH-Z19B allows to enable/disable 'automatic baseline calibration' (datasheet MH-Z19B v1.2),
+     * disable it to prevent sensor baseline drift in not well ventilated areas
+     */
+    if (this->abc_enabled_ == false) {
+      ESP_LOGI(TAG, "Disabling ABC on boot");
+      /* per spec response isn't expected but sensor replies anyway.
+       * Read reply out and discard it so it won't get in the way of following commands */
+      this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, response);
+    } else {
+      ESP_LOGI(TAG, "Enabling ABC on boot");
+      this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, response);
+    }
+  }
   setup_done = true;
 }
 
@@ -123,6 +140,7 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
 void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19%s:", this->model_b_ ? "B" : "");
+  ESP_LOGCONFIG(TAG, "  Automatic calibration: %s", this->abc_enabled_ ? " enabled" : "disabled");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }

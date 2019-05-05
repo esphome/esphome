@@ -17,6 +17,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_co2_sensor(sensor::Sensor *co2_sensor) { co2_sensor_ = co2_sensor; }
+  void set_abc(bool enable_abc) { abc_enabled_ = enable_abc; }
 
  protected:
   bool mhz19_write_command_(const uint8_t *command, uint8_t *response);
@@ -24,6 +25,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
   bool model_b_;
+  bool abc_enabled_;
 };
 
 }  // namespace mhz19
