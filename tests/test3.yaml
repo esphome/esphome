@@ -185,6 +185,13 @@ binary_sensor:
   - platform: ttp229_lsf
     channel: 1
     name: TTP229 LSF Test
+  - platform: custom
+    lambda: |-
+      auto s = new binary_sensor::BinarySensor();
+      return {s};
+    sensors:
+      - id: custom_binary_sensor
+        name: Custom Binary Sensor
 
 remote_receiver:
   pin: GPIO12
@@ -240,6 +247,13 @@ switch:
     id: gpio_switch2
     pin: GPIO1
     interlock: *interlock
+  - platform: custom
+    lambda: |-
+      auto s = new switch::Switch();
+      return {s};
+    sensors:
+      - id: custom_switch
+        name: Custom Switch
 
 stepper:
   - platform: uln2003
