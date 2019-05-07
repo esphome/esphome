@@ -20,6 +20,6 @@ def to_code(config):
     rhs = CustomSensorConstructor(template_)
     var = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_SENSORS]):
-        sens = cg.new_Pvariable(conf[CONF_ID], var.get_switch(i))
+        sens = cg.new_Pvariable(conf[CONF_ID], var.get_sensor(i))
         cg.add(sens.set_name(conf[CONF_NAME]))
         yield sensor.register_sensor(sens, conf)
