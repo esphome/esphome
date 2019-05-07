@@ -122,6 +122,13 @@ sensor:
       name: Color Temperature
     integration_time: 700ms
     gain: 60x
+  - platform: custom
+    lambda: |-
+      auto s = new sensor::Sensor();
+      return {s};
+    sensors:
+      - id: custom_sensor
+        name: Custom Sensor
 
 time:
 - platform: homeassistant
@@ -129,7 +136,7 @@ time:
 apds9960:
   address: 0x20
   update_interval: 60s
-  
+
 mpr121:
   id: mpr121_first
   address: 0x5A
