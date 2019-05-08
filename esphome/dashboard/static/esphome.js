@@ -440,7 +440,7 @@ const validateModal = new LogModalElem({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is valid 👍`,
         displayLength: 5000,
       });
-      modalElem.querySelector(".action-upload").style.display = "block";
+      modalElem.querySelector(".action-upload").classList.remove('disabled');
     } else {
       M.toast({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is invalid 😕`,
@@ -448,7 +448,6 @@ const validateModal = new LogModalElem({
       });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
-    modalElem.querySelector(".action-upload").classList.remove('disabled');
   },
   onSocketClose: (modalElem) => {
     M.toast({html: 'Terminated process.'});
