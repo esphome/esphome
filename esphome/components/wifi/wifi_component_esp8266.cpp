@@ -196,6 +196,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     return false;
   }
 
+  this->wifi_apply_hostname_();
+
   ETS_UART_INTR_DISABLE();
   ret = wifi_station_connect();
   ETS_UART_INTR_ENABLE();

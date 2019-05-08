@@ -138,8 +138,6 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   return true;
 }
-void XiaomiListener::setup() { this->setup_ble(); }
-XiaomiListener::XiaomiListener(esp32_ble_tracker::ESP32BLETracker *parent) : ESPBTDeviceListener(parent) {}
 
 }  // namespace xiaomi_ble
 }  // namespace esphome

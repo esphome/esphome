@@ -22,11 +22,9 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
 
 optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device);
 
-class XiaomiListener : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
  public:
-  XiaomiListener(esp32_ble_tracker::ESP32BLETracker *parent);
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-  void setup() override;
 };
 
 }  // namespace xiaomi_ble

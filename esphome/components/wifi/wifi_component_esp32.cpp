@@ -173,6 +173,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     return false;
   }
 
+  this->wifi_apply_hostname_();
+
   err = esp_wifi_connect();
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "esp_wifi_connect failed! %d", err);

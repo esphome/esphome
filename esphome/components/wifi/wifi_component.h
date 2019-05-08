@@ -164,8 +164,6 @@ class WiFiComponent : public Component {
   /// Reconnect WiFi if required.
   void loop() override;
 
-  void on_safe_shutdown() override;
-
   bool has_sta() const;
   bool has_ap() const;
 

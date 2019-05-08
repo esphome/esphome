@@ -52,7 +52,26 @@ struct ESPTime {
 
   bool in_range() const;
 
-  static ESPTime from_tm(struct tm *c_tm, time_t c_time);
+  static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);
+
+  /** Convert an epoch timestamp to an ESPTime instance of local time.
+   *
+   * @param epoch Seconds since 1st January 1970. In UTC.
+   * @return The generated ESPTime
+   */
+  static ESPTime from_epoch_local(time_t epoch) {
+    struct tm *c_tm = ::localtime(&epoch);
+    return ESPTime::from_c_tm(c_tm, epoch);
+  }
+  /** Convert an epoch timestamp to an ESPTime instance of UTC time.
+   *
+   * @param epoch Seconds since 1st January 1970. In UTC.
+   * @return The generated ESPTime
+   */
+  static ESPTime from_epoch_utc(time_t epoch) {
+    struct tm *c_tm = ::gmtime(&epoch);
+    return ESPTime::from_c_tm(c_tm, epoch);
+  }
 
   struct tm to_c_tm();
 
@@ -81,10 +100,19 @@ class RealTimeClock : public Component {
   std::string get_timezone() { return this->timezone_; }
 
   /// Get the time in the currently defined timezone.
-  ESPTime now();
+  ESPTime now() {
+    return ESPTime::from_epoch_utc(this->timestamp_now());
+  }
 
   /// Get the time without any time zone or DST corrections.
-  ESPTime utcnow();
+  ESPTime utcnow() {
+    return ESPTime::from_epoch_local(this->timestamp_now());
+  }
+
+  /// Get the current time as the UTC epoch since January 1st 1970.
+  time_t timestamp_now() {
+    return ::time(nullptr);
+  }
 
   void call_setup() override;
 

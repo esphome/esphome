@@ -3,8 +3,9 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TRANSITION_LENGTH, CONF_STATE, CONF_FLASH_LENGTH, \
     CONF_EFFECT, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, CONF_WHITE, \
-    CONF_COLOR_TEMPERATURE
-from .types import DimRelativeAction, ToggleAction, LightState, LightControlAction
+    CONF_COLOR_TEMPERATURE, CONF_RANGE_FROM, CONF_RANGE_TO
+from .types import DimRelativeAction, ToggleAction, LightState, LightControlAction, \
+    AddressableLightState, AddressableSet
 
 
 @automation.register_action('light.toggle', ToggleAction, automation.maybe_simple_id({
@@ -87,7 +88,7 @@ def light_control_to_code(config, action_id, template_arg, args):
 CONF_RELATIVE_BRIGHTNESS = 'relative_brightness'
 LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.use_id(LightState),
-    cv.Required(CONF_RELATIVE_BRIGHTNESS): cv.templatable(cv.percentage),
+    cv.Required(CONF_RELATIVE_BRIGHTNESS): cv.templatable(cv.possibly_negative_percentage),
     cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
 })
 
@@ -102,4 +103,42 @@ def light_dim_relative_to_code(config, action_id, template_arg, args):
     if CONF_TRANSITION_LENGTH in config:
         templ = yield cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))
+    yield var
+
+
+LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA = cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(AddressableLightState),
+    cv.Optional(CONF_RANGE_FROM): cv.templatable(cv.positive_int),
+    cv.Optional(CONF_RANGE_TO): cv.templatable(cv.positive_int),
+    cv.Optional(CONF_RED): cv.templatable(cv.percentage),
+    cv.Optional(CONF_GREEN): cv.templatable(cv.percentage),
+    cv.Optional(CONF_BLUE): cv.templatable(cv.percentage),
+    cv.Optional(CONF_WHITE): cv.templatable(cv.percentage),
+})
+
+
+@automation.register_action('light.addressable_set', AddressableSet,
+                            LIGHT_ADDRESSABLE_SET_ACTION_SCHEMA)
+def light_addressable_set_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_RANGE_FROM in config:
+        templ = yield cg.templatable(config[CONF_RANGE_FROM], args, cg.int32)
+        cg.add(var.set_range_from(templ))
+    if CONF_RANGE_TO in config:
+        templ = yield cg.templatable(config[CONF_RANGE_TO], args, cg.int32)
+        cg.add(var.set_range_to(templ))
+    rgbw_to_exp = lambda x: int(round(x * 255))
+    if CONF_RED in config:
+        templ = yield cg.templatable(config[CONF_RED], args, cg.uint8, to_exp=rgbw_to_exp)
+        cg.add(var.set_red(templ))
+    if CONF_GREEN in config:
+        templ = yield cg.templatable(config[CONF_GREEN], args, cg.uint8, to_exp=rgbw_to_exp)
+        cg.add(var.set_green(templ))
+    if CONF_BLUE in config:
+        templ = yield cg.templatable(config[CONF_BLUE], args, cg.uint8, to_exp=rgbw_to_exp)
+        cg.add(var.set_blue(templ))
+    if CONF_WHITE in config:
+        templ = yield cg.templatable(config[CONF_WHITE], args, cg.uint8, to_exp=rgbw_to_exp)
+        cg.add(var.set_white(templ))
     yield var

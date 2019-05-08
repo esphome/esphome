@@ -201,6 +201,22 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
   }
 }
 
+std::string hexencode(const std::string &raw_data) {
+  char buf[20];
+  std::string res;
+  for (size_t i = 0; i < raw_data.size(); i++) {
+    if (i + 1 != raw_data.size()) {
+      sprintf(buf, "0x%02X.", static_cast<uint8_t>(raw_data[i]));
+    } else {
+      sprintf(buf, "0x%02X ", static_cast<uint8_t>(raw_data[i]));
+    }
+    res += buf;
+  }
+  sprintf(buf, "(%zu)", raw_data.size());
+  res += buf;
+  return res;
+}
+
 ESPBTUUID::ESPBTUUID() : uuid_() {}
 ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
   ESPBTUUID ret;
@@ -259,12 +275,22 @@ std::string ESPBTUUID::to_string() {
   return sbuf;
 }
 
+ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }
+optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const std::string &data) {
+  if (data.size() != 25)
+    return {};
+  if (data[0] != 0x4C || data[1] != 0x00)
+    return {};
+
+  return ESPBLEiBeacon(reinterpret_cast<const uint8_t *>(data.data()));
+}
+
 void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   for (uint8_t i = 0; i < ESP_BD_ADDR_LEN; i++)
     this->address_[i] = param.bda[i];
   this->address_type_ = param.ble_addr_type;
   this->rssi_ = param.rssi;
-  this->parse_adv(param);
+  this->parse_adv_(param);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   ESP_LOGVV(TAG, "Parse Result:");
@@ -287,7 +313,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
             this->address_[2], this->address_[3], this->address_[4], this->address_[5], address_type);
 
   ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
-  ESP_LOGVV(TAG, "  Name: %s", this->name_.c_str());
+  ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
   if (this->tx_power_.has_value()) {
     ESP_LOGVV(TAG, "  TX Power: %d", *this->tx_power_);
   }
@@ -300,26 +326,18 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   for (auto uuid : this->service_uuids_) {
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
-  ESP_LOGVV(TAG, "  Manufacturer data: '%s'", this->manufacturer_data_.c_str());
-  ESP_LOGVV(TAG, "  Service data: '%s'", this->service_data_.c_str());
+  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(this->manufacturer_data_).c_str());
+  ESP_LOGVV(TAG, "  Service data: %s", hexencode(this->service_data_).c_str());
 
   if (this->service_data_uuid_.has_value()) {
     ESP_LOGVV(TAG, "  Service Data UUID: %s", this->service_data_uuid_->to_string().c_str());
   }
 
-  char buffer[200];
-  size_t off = 0;
-  for (uint8_t i = 0; i < param.adv_data_len; i++) {
-    int ret = snprintf(buffer + off, sizeof(buffer) - off, "%02X.", param.ble_adv[i]);
-    if (ret < 0) {
-      break;
-    }
-    off += ret;
-  }
-  ESP_LOGVV(TAG, "Adv data: %s (%u bytes)", buffer, param.adv_data_len);
+  ESP_LOGVV(TAG, "Adv data: %s",
+            hexencode(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
 #endif
 }
-void ESPBTDevice::parse_adv(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
+void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   size_t offset = 0;
   const uint8_t *payload = param.ble_adv;
   uint8_t len = param.adv_data_len;
@@ -471,8 +489,6 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
     ESP_LOGD(TAG, "  TX Power: %d", *device.get_tx_power());
   }
 }
-
-void ESPBTDeviceListener::setup_ble() { this->parent_->add_listener(this); }
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome

@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include "esphome/components/voltage_sampler/voltage_sampler.h"
 
 namespace esphome {
 namespace ads1115 {
@@ -38,28 +39,30 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   /// HARDWARE_LATE setup priority
   float get_setup_priority() const override;
 
- protected:
   /// Helper method to request a measurement from a sensor.
-  void request_measurement_(ADS1115Sensor *sensor);
+  float request_measurement_(ADS1115Sensor *sensor);
 
+ protected:
   std::vector<ADS1115Sensor *> sensors_;
 };
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
-class ADS1115Sensor : public sensor::Sensor {
+class ADS1115Sensor : public sensor::Sensor, public PollingComponent,
+                      public voltage_sampler::VoltageSampler {
  public:
+  ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
+  void update() override;
   void set_multiplexer(ADS1115Multiplexer multiplexer);
   void set_gain(ADS1115Gain gain);
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
+  float sample() override;
   uint8_t get_multiplexer() const;
   uint8_t get_gain() const;
 
  protected:
+  ADS1115Component *parent_;
   ADS1115Multiplexer multiplexer_;
   ADS1115Gain gain_;
-  uint32_t update_interval_;
 };
 
 }  // namespace ads1115

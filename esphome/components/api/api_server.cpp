@@ -260,7 +260,6 @@ APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
 }
 APIConnection::~APIConnection() { delete this->client_; }
 void APIConnection::on_error_(int8_t error) {
-  ESP_LOGD(TAG, "Error from client '%s': %d", this->client_info_.c_str(), error);
   // disconnect will also be called, nothing to do here
   this->remove_ = true;
 }

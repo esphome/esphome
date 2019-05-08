@@ -15,6 +15,7 @@ LightColorValues = light_ns.class_('LightColorValues')
 ToggleAction = light_ns.class_('ToggleAction', automation.Action)
 LightControlAction = light_ns.class_('LightControlAction', automation.Action)
 DimRelativeAction = light_ns.class_('DimRelativeAction', automation.Action)
+AddressableSet = light_ns.class_('AddressableSet', automation.Action)
 
 # Effects
 LightEffect = light_ns.class_('LightEffect')

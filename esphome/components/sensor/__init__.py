@@ -51,8 +51,6 @@ sensor_ns = cg.esphome_ns.namespace('sensor')
 Sensor = sensor_ns.class_('Sensor', cg.Nameable)
 SensorPtr = Sensor.operator('ptr')
 
-PollingSensorComponent = sensor_ns.class_('PollingSensorComponent', cg.PollingComponent, Sensor)
-
 # Triggers
 SensorStateTrigger = sensor_ns.class_('SensorStateTrigger', automation.Trigger.template(cg.float_))
 SensorRawStateTrigger = sensor_ns.class_('SensorRawStateTrigger',

@@ -11,16 +11,6 @@ namespace time {
 static const char *TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
-ESPTime RealTimeClock::now() {
-  time_t t = ::time(nullptr);
-  struct tm *c_tm = ::localtime(&t);
-  return ESPTime::from_tm(c_tm, t);
-}
-ESPTime RealTimeClock::utcnow() {
-  time_t t = ::time(nullptr);
-  struct tm *c_tm = ::gmtime(&t);
-  return ESPTime::from_tm(c_tm, t);
-}
 void RealTimeClock::call_setup() {
   this->setup_internal_();
   setenv("TZ", this->timezone_.c_str(), 1);
@@ -44,7 +34,7 @@ size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
 }
-ESPTime ESPTime::from_tm(struct tm *c_tm, time_t c_time) {
+ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   return ESPTime{.second = uint8_t(c_tm->tm_sec),
                  .minute = uint8_t(c_tm->tm_min),
                  .hour = uint8_t(c_tm->tm_hour),
