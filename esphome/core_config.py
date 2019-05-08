@@ -152,7 +152,7 @@ def add_includes(includes):
     for include in includes:
         path = CORE.relative_config_path(include)
         res = os.path.relpath(path, CORE.relative_build_path('src')).replace(os.path.sep, '/')
-        cg.add_global(cg.RawExpression(u'#include "{}"'.format(res)))
+        cg.add_global(cg.RawStatement(u'#include "{}"'.format(res)))
 
 
 @coroutine_with_priority(100.0)

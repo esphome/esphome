@@ -24,6 +24,5 @@ def to_code(config):
     rhs = CustomSwitchConstructor(template_)
     var = cg.variable(config[CONF_ID], rhs)
     for i, conf in enumerate(config[CONF_SWITCHES]):
-        switch_ = cg.new_Pvariable(conf[CONF_ID], var.get_switch(i))
-        cg.add(switch_.set_name(conf[CONF_NAME]))
+        switch_ = cg.Pvariable(conf[CONF_ID], var.get_switch(i))
         yield switch.register_switch(switch_, conf)

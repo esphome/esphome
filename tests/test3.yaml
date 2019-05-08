@@ -7,6 +7,8 @@ esphome:
     - wait_until:
         - api.connected
         - wifi.connected
+  includes:
+    - custom.h
 
 substitutions:
   devicename: test3
@@ -65,6 +67,7 @@ ota:
 logger:
   hardware_uart: UART1
   level: DEBUG
+  esp8266_store_log_strings_in_flash: false
 
 web_server:
 
@@ -124,7 +127,8 @@ sensor:
     gain: 60x
   - platform: custom
     lambda: |-
-      auto s = new sensor::Sensor();
+      auto s = new CustomSensor();
+      App.register_component(s);
       return {s};
     sensors:
       - id: custom_sensor
@@ -187,9 +191,10 @@ binary_sensor:
     name: TTP229 LSF Test
   - platform: custom
     lambda: |-
-      auto s = new binary_sensor::BinarySensor();
+      auto s = new CustomBinarySensor();
+      App.register_component(s);
       return {s};
-    sensors:
+    binary_sensors:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
 
@@ -225,6 +230,14 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: custom
+    lambda: |-
+      auto s = new CustomTextSensor();
+      App.register_component(s);
+      return {s};
+    text_sensors:
+      - id: custom_text_sensor
+        name: Custom Text Sensor
 
 script:
   - id: my_script
@@ -249,11 +262,17 @@ switch:
     interlock: *interlock
   - platform: custom
     lambda: |-
-      auto s = new switch::Switch();
+      auto s = new CustomSwitch();
       return {s};
-    sensors:
+    switches:
       - id: custom_switch
         name: Custom Switch
+
+custom_component:
+   lambda: |-
+     auto s = new CustomComponent();
+     s->set_update_interval(15000);
+     return {s};
 
 stepper:
   - platform: uln2003

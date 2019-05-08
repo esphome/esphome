@@ -33,6 +33,7 @@ class ESPBTUUID {
 
 class ESPBLEiBeacon {
  public:
+  ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
   ESPBLEiBeacon(const uint8_t *data);
   static optional<ESPBLEiBeacon> from_manufacturer_data(const std::string &data);
 
@@ -98,9 +99,7 @@ class ESPBTDeviceListener {
  public:
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
-  void set_parent(ESP32BLETracker *parent) {
-    parent_ = parent;
-  }
+  void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
   ESP32BLETracker *parent_{nullptr};

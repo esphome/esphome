@@ -24,6 +24,5 @@ def to_code(config):
     var = cg.variable(config[CONF_ID], rhs)
 
     for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
-        text = cg.new_Pvariable(conf[CONF_ID], var.get_text_sensor(i))
-        cg.add(text.set_name(conf[CONF_NAME]))
+        text = cg.Pvariable(conf[CONF_ID], var.get_text_sensor(i))
         yield text_sensor.register_text_sensor(text, conf)
