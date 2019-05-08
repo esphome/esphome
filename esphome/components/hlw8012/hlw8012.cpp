@@ -13,8 +13,8 @@ void HLW8012Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HLW8012...");
   this->sel_pin_->setup();
   this->sel_pin_->digital_write(this->current_mode_);
-  this->cf_store_.setup(this->cf_pin_);
-  this->cf1_store_.setup(this->cf1_pin_);
+  this->cf_store_.pulse_counter_setup(this->cf_pin_);
+  this->cf1_store_.pulse_counter_setup(this->cf1_pin_);
 }
 void HLW8012Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLW8012:");
@@ -32,18 +32,18 @@ void HLW8012Component::dump_config() {
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
   // HLW8012 has 50% duty cycle
-  const uint32_t last_rise_cf = this->cf_store_.get_last_rise();
-  const uint32_t last_rise_cf1 = this->cf1_store_.get_last_rise();
-  const uint32_t now = micros();
-  float full_cycle_cf = this->cf_store_.get_pulse_width_s() * 2;
-  float full_cycle_cf1 = this->cf1_store_.get_pulse_width_s() * 2;
-  float cf_hz = 0.0f, cf1_hz = 0.0f;
-  auto update_interval_micros = static_cast<uint32_t>(this->update_interval_ * 1e3f);
-
-  if (full_cycle_cf != 0.0f && now - last_rise_cf < update_interval_micros * 3)
-    cf_hz = 1.0f / full_cycle_cf;
-  if (full_cycle_cf1 != 0.0f && now - last_rise_cf1 < update_interval_micros * 3)
-    cf1_hz = 1.0f / full_cycle_cf1;
+  pulse_counter::pulse_counter_t raw_cf = this->cf_store_.read_raw_value();
+  pulse_counter::pulse_counter_t raw_cf1 = this->cf1_store_.read_raw_value();
+  float cf_hz = raw_cf / (this->get_update_interval() / 1000.0f);
+  if (raw_cf <= 1) {
+    // don't count single pulse as power
+    cf_hz = 0.0f;
+  }
+  float cf1_hz = raw_cf1 / (this->get_update_interval() / 1000.0f);
+  if (raw_cf1 <= 1) {
+    // don't count single pulse as anything
+    cf1_hz = 0.0f;
+  }
 
   if (this->nth_value_++ < 2) {
     return;
