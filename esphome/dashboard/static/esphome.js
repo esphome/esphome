@@ -430,6 +430,9 @@ const validateModal = new LogModalElem({
   name: 'validate',
   onPrepare: (modalElem, config) => {
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
+    modalElem.querySelector(".action-edit").setAttribute('data-node', validateModal.activeConfig);
+    modalElem.querySelector(".action-upload").setAttribute('data-node', validateModal.activeConfig);
+    modalElem.querySelector(".action-upload").classList.add('disabled');
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
@@ -437,6 +440,7 @@ const validateModal = new LogModalElem({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is valid 👍`,
         displayLength: 5000,
       });
+      modalElem.querySelector(".action-upload").classList.remove('disabled');
     } else {
       M.toast({
         html: `<code class="inlinecode">${validateModal.activeConfig}</code> is invalid 😕`,
@@ -552,6 +556,7 @@ editor.session.setOption('useSoftTabs', true);
 editor.session.setOption('tabSize', 2);
 
 const saveButton = editModalElem.querySelector(".save-button");
+const saveValidateButton = editModalElem.querySelector(".save-validate-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -572,12 +577,14 @@ editor.commands.addCommand({
 });
 
 saveButton.addEventListener('click', saveEditor);
+saveValidateButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
+    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})

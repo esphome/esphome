@@ -1,7 +1,7 @@
-from esphome.components import text_sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_TEXT_SENSORS
+import esphome.config_validation as cv
+from esphome.components import text_sensor
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_TEXT_SENSORS
 from .. import custom_ns
 
 CustomTextSensorConstructor = custom_ns.class_('CustomTextSensorConstructor')
@@ -24,6 +24,5 @@ def to_code(config):
     var = cg.variable(config[CONF_ID], rhs)
 
     for i, conf in enumerate(config[CONF_TEXT_SENSORS]):
-        text = cg.new_Pvariable(conf[CONF_ID], var.get_text_sensor(i))
-        cg.add(text.set_name(conf[CONF_NAME]))
+        text = cg.Pvariable(conf[CONF_ID], var.get_text_sensor(i))
         yield text_sensor.register_text_sensor(text, conf)

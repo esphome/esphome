@@ -45,6 +45,8 @@ def run_tidy(args, tmpdir, queue, lock, failed_files):
         invocation.append('-p=.')
         if args.quiet:
             invocation.append('-quiet')
+        for arg in ['-Wfor-loop-analysis', '-Wshadow-field', '-Wshadow-field-in-constructor']:
+            invocation.append('-extra-arg={}'.format(arg))
         invocation.append(os.path.abspath(path))
         invocation_s = ' '.join(shlex_quote(x) for x in invocation)
 
@@ -135,9 +137,6 @@ def build_compile_commands():
     command.append('-Wall')
     command.append('-Wno-delete-non-virtual-dtor')
     command.append('-Wno-unused-variable')
-    command.append('-Wfor-loop-analysis')
-    command.append('-Wshadow-field')
-    command.append('-Wshadow-field-in-constructor')
     command.append('-Wunreachable-code')
 
     source_files = []
@@ -265,8 +264,6 @@ def main():
         print('Ctrl-C detected, goodbye.')
         if tmpdir:
             shutil.rmtree(tmpdir)
-        if os.path.exists(temp_header_file):
-            os.remove(temp_header_file)
         os.kill(0, 9)
 
     if args.fix and failed_files:
@@ -275,12 +272,8 @@ def main():
             subprocess.call(['clang-apply-replacements-7', tmpdir])
         except:
             print('Error applying fixes.\n', file=sys.stderr)
-            if os.path.exists(temp_header_file):
-                os.remove(temp_header_file)
             raise
 
-    if os.path.exists(temp_header_file):
-        os.remove(temp_header_file)
     sys.exit(return_code)
 
 

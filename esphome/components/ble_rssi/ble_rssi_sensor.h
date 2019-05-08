@@ -11,9 +11,7 @@ namespace ble_rssi {
 
 class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
-  BLERSSISensor(const std::string &name, esp32_ble_tracker::ESP32BLETracker *parent, uint64_t address)
-      : sensor::Sensor(name), esp32_ble_tracker::ESPBTDeviceListener(parent), address_(address) {}
-
+  void set_address(uint64_t address) { address_ = address; }
   void on_scan_end() override {
     if (!this->found_)
       this->publish_state(NAN);
@@ -27,7 +25,6 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
     }
     return false;
   }
-  void setup() override { this->setup_ble(); }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 

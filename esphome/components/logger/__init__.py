@@ -71,6 +71,7 @@ def validate_local_no_higher_than_global(value):
 
 Logger = logger_ns.class_('Logger', cg.Component)
 
+CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = 'esp8266_store_log_strings_in_flash'
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(Logger),
     cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
@@ -79,7 +80,10 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_LEVEL, default='DEBUG'): is_log_level,
     cv.Optional(CONF_LOGS, default={}): cv.Schema({
         cv.string: is_log_level,
-    })
+    }),
+
+    cv.SplitDefault(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True):
+        cv.All(cv.only_on_esp8266, cv.boolean),
 }).extend(cv.COMPONENT_SCHEMA), validate_local_no_higher_than_global)
 
 
@@ -126,7 +130,7 @@ def to_code(config):
         cg.add_build_flag('-DCORE_DEBUG_LEVEL=5')
     if CORE.is_esp32 and is_at_least_very_verbose:
         cg.add_build_flag('-DENABLE_I2C_DEBUG_BUFFER')
-    if CORE.is_esp8266:
+    if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag('-DUSE_STORE_LOG_STR_IN_FLASH')
 
     # Register at end for safe mode

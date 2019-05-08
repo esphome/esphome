@@ -468,10 +468,6 @@ std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return buf;
 }
-void WiFiComponent::on_safe_shutdown() {
-  // Disable WiFi interface on shutdown
-  this->wifi_mode_(false, false);
-}
 
 bool sta_field_equal(const uint8_t *field_a, const uint8_t *field_b, int len) {
   for (int i = 0; i < len; i++) {

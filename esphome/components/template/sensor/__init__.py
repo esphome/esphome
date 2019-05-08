@@ -5,7 +5,7 @@ from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, UNIT_EMPTY, ICON_EMPTY
 from .. import template_ns
 
-TemplateSensor = template_ns.class_('TemplateSensor', sensor.PollingSensorComponent)
+TemplateSensor = template_ns.class_('TemplateSensor', sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1).extend({
     cv.GenerateID(): cv.declare_id(TemplateSensor),

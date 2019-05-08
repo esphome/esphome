@@ -48,6 +48,11 @@ void ADCSensor::dump_config() {
 }
 float ADCSensor::get_setup_priority() const { return setup_priority::DATA; }
 void ADCSensor::update() {
+  float value_v = this->sample();
+  ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
+  this->publish_state(value_v);
+}
+float ADCSensor::sample() {
 #ifdef ARDUINO_ARCH_ESP32
   float value_v = analogRead(this->pin_) / 4095.0f;
   switch (this->attenuation_) {
@@ -64,19 +69,16 @@ void ADCSensor::update() {
       value_v *= 3.9;
       break;
   }
+  return value_v;
 #endif
 
 #ifdef ARDUINO_ARCH_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
-  float value_v = ESP.getVcc() / 1024.0f;
+  return ESP.getVcc() / 1024.0f;
 #else
-  float value_v = analogRead(this->pin_) / 1024.0f;
+  return analogRead(this->pin_) / 1024.0f;
 #endif
 #endif
-
-  ESP_LOGD(TAG, "'%s': Got voltage=%.2fV", this->get_name().c_str(), value_v);
-
-  this->publish_state(value_v);
 }
 #ifdef ARDUINO_ARCH_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }

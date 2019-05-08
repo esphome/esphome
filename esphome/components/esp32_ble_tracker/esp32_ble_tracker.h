@@ -31,11 +31,31 @@ class ESPBTUUID {
   esp_bt_uuid_t uuid_;
 };
 
+class ESPBLEiBeacon {
+ public:
+  ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
+  ESPBLEiBeacon(const uint8_t *data);
+  static optional<ESPBLEiBeacon> from_manufacturer_data(const std::string &data);
+
+  uint16_t get_major() { return reverse_bits_16(this->beacon_data_.major); }
+  uint16_t get_minor() { return reverse_bits_16(this->beacon_data_.minor); }
+  int8_t get_signal_power() { return this->beacon_data_.signal_power; }
+  ESPBTUUID get_uuid() { return ESPBTUUID::from_raw(this->beacon_data_.proximity_uuid); }
+
+ protected:
+  struct {
+    uint16_t manufacturer_id;
+    uint8_t sub_type;
+    uint8_t proximity_uuid[16];
+    uint16_t major;
+    uint16_t minor;
+    int8_t signal_power;
+  } PACKED beacon_data_;
+};
+
 class ESPBTDevice {
  public:
   void parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
-
-  void parse_adv(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
 
   std::string address_str() const;
 
@@ -51,8 +71,13 @@ class ESPBTDevice {
   const std::string &get_manufacturer_data() const;
   const std::string &get_service_data() const;
   const optional<ESPBTUUID> &get_service_data_uuid() const;
+  const optional<ESPBLEiBeacon> get_ibeacon() const {
+    return ESPBLEiBeacon::from_manufacturer_data(this->manufacturer_data_);
+  }
 
  protected:
+  void parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
+
   esp_bd_addr_t address_{
       0,
   };
@@ -72,28 +97,28 @@ class ESP32BLETracker;
 
 class ESPBTDeviceListener {
  public:
-  ESPBTDeviceListener(ESP32BLETracker *parent) : parent_(parent) {}
-  void setup_ble();
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
+  void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
-  ESP32BLETracker *parent_;
+  ESP32BLETracker *parent_{nullptr};
 };
 
 class ESP32BLETracker : public Component {
  public:
   void set_scan_interval(uint32_t scan_interval);
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
   void dump_config() override;
 
   void loop() override;
 
-  void add_listener(ESPBTDeviceListener *listener) { this->listeners_.push_back(listener); }
+  void register_listener(ESPBTDeviceListener *listener) {
+    listener->set_parent(this);
+    this->listeners_.push_back(listener);
+  }
 
   void print_bt_device_info(const ESPBTDevice &device);
 

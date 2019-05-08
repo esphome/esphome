@@ -55,7 +55,7 @@ template<typename... Ts> class Trigger {
   bool is_running() {
     if (this->automation_parent_ == nullptr)
       return false;
-    return this->automation_parent_.is_running();
+    return this->automation_parent_->is_running();
   }
 
  protected:
