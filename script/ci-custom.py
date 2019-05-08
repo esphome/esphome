@@ -22,8 +22,18 @@ files = []
 for root, _, fs in os.walk('esphome'):
     for f in fs:
         _, ext = os.path.splitext(f)
-        if ext in ('.h', '.c', '.cpp', '.tcc', '.py'):
+        if ext in ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt',
+                   '.py', '.html', '.js', '.md'):
             files.append(os.path.join(root, f))
+ignore = [
+    'esphome/dashboard/static/materialize.min.js',
+    'esphome/dashboard/static/ace.js',
+    'esphome/dashboard/static/mode-yaml.js',
+    'esphome/dashboard/static/theme-dreamweaver.js',
+    'esphome/dashboard/static/jquery.validate.min.js',
+    'esphome/dashboard/static/ext-searchbox.js',
+]
+files = [f for f in files if f not in ignore]
 files.sort()
 
 errors = collections.defaultdict(list)
