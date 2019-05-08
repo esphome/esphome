@@ -83,15 +83,9 @@ double Sun::hour_angle_(double sun_time) {
   double time_of_day = fmod(sun_time, 1.0) * 24.0;
   return -PI * (time_of_day - 12) / 12;
 }
-double Sun::elevation_(double sun_time) {
-  return this->elevation_rad_(sun_time) * TO_DEGREES;
-}
-double Sun::elevation_rad_(double sun_time) {
-  return asin(this->elevation_ratio_(sun_time));
-}
-double Sun::zenith_rad_(double sun_time) {
-  return acos(this->elevation_ratio_(sun_time));
-}
+double Sun::elevation_(double sun_time) { return this->elevation_rad_(sun_time) * TO_DEGREES; }
+double Sun::elevation_rad_(double sun_time) { return asin(this->elevation_ratio_(sun_time)); }
+double Sun::zenith_rad_(double sun_time) { return acos(this->elevation_ratio_(sun_time)); }
 double Sun::azimuth_rad_(double sun_time) {
   double hangle = -this->hour_angle_(sun_time);
   double decl = this->sun_declination_(sun_time);
@@ -106,20 +100,13 @@ double Sun::azimuth_rad_(double sun_time) {
     az += TAU;
   return az;
 }
-double Sun::azimuth_(double sun_time) {
-  return this->azimuth_rad_(sun_time) * TO_DEGREES;
-}
+double Sun::azimuth_(double sun_time) { return this->azimuth_rad_(sun_time) * TO_DEGREES; }
 double Sun::calc_sun_time_(const time::ESPTime &time) {
   // Time as seen at 0° longitude
   if (!time.is_valid())
     return NAN;
 
-  double base = (
-      time.day_of_year +
-          time.hour / 24.0 +
-          time.minute / 24.0 / 60.0 +
-          time.second / 24.0 / 60.0 / 60.0
-  );
+  double base = (time.day_of_year + time.hour / 24.0 + time.minute / 24.0 / 60.0 + time.second / 24.0 / 60.0 / 60.0);
   // Add longitude correction
   double add = this->longitude_ / 360.0;
   return base + add;

@@ -25,7 +25,7 @@ class SunTextSensor : public text_sensor::TextSensor, public PollingComponent {
       return;
     }
 
-    this->publish_state(res->strftime(this->format_.c_str()));
+    this->publish_state(res->strftime(this->format_));
   }
 
   void dump_config() override;

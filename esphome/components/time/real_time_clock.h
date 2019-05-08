@@ -53,15 +53,13 @@ struct ESPTime {
   std::string strftime(const std::string &format);
 
   /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
-  bool is_valid() const {
-    return this->year >= 2019 && this->fields_in_range();
-  }
+  bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
   /// Check if all time fields of this ESPTime are in range.
   bool fields_in_range() const {
-    return this->second < 61 && this->minute < 60 && this->hour < 24 &&
-        this->day_of_week > 0 && this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 &&
-        this->day_of_year > 0 && this->day_of_year < 367 && this->month > 0 && this->month < 13;
+    return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
+           this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
+           this->day_of_year < 367 && this->month > 0 && this->month < 13;
   }
 
   /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.

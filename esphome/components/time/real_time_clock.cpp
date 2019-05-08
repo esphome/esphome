@@ -49,7 +49,7 @@ ESPTime ESPTime::from_c_tm(struct tm *c_tm, time_t c_time) {
   return res;
 }
 struct tm ESPTime::to_c_tm() {
-  struct tm c_tm{};
+  struct tm c_tm {};
   c_tm.tm_sec = this->second;
   c_tm.tm_min = this->minute;
   c_tm.tm_hour = this->hour;
@@ -83,9 +83,7 @@ template<typename T> bool increment_time_value(T &current, uint16_t begin, uint1
   return false;
 }
 
-static bool is_leap_year(uint32_t year) {
-  return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0);
-}
+static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
 
 static bool days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};

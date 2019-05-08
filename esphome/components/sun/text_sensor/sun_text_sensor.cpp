@@ -6,9 +6,7 @@ namespace sun {
 
 static const char *TAG = "sun.text_sensor";
 
-void SunTextSensor::dump_config() {
-  LOG_TEXT_SENSOR("", "Sun Text Sensor", this);
-}
+void SunTextSensor::dump_config() { LOG_TEXT_SENSOR("", "Sun Text Sensor", this); }
 
 }  // namespace sun
 }  // namespace esphome

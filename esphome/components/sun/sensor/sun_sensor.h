@@ -31,6 +31,7 @@ class SunSensor : public sensor::Sensor, public PollingComponent {
     }
     this->publish_state(val);
   }
+
  protected:
   sun::Sun *parent_;
   SensorType type_;

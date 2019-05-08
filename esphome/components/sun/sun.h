@@ -22,9 +22,7 @@ class Sun {
   double azimuth();
 
  protected:
-  double current_sun_time_() {
-    return this->calc_sun_time_(this->time_->utcnow());
-  }
+  double current_sun_time_() { return this->calc_sun_time_(this->time_->utcnow()); }
 
   /** Calculate the declination of the sun in rad.
    *
@@ -112,6 +110,7 @@ class SunTrigger : public Trigger<>, public PollingComponent {
     }
     this->prev_check_ = now.timestamp;
   }
+
  protected:
   void recalc_() {
     if (this->sunrise_)
