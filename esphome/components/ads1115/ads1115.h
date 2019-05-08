@@ -47,8 +47,7 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
 };
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
-class ADS1115Sensor : public sensor::Sensor, public PollingComponent,
-                      public voltage_sampler::VoltageSampler {
+class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
   void update() override;

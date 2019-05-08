@@ -13,9 +13,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensor,
                           public esp32_ble_tracker::ESPBTDeviceListener,
                           public Component {
  public:
-  void set_address(uint64_t address) {
-    address_ = address;
-  }
+  void set_address(uint64_t address) { address_ = address; }
   void on_scan_end() override {
     if (!this->found_)
       this->publish_state(false);

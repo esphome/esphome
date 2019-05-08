@@ -59,9 +59,7 @@ void ADS1115Component::setup() {
   }
   for (auto *sensor : this->sensors_) {
     this->set_interval(sensor->get_name(), sensor->update_interval(),
-                       [this, sensor] {
-      this->request_measurement(sensor);
-    });
+                       [this, sensor] { this->request_measurement(sensor); });
   }
 }
 void ADS1115Component::dump_config() {
@@ -153,9 +151,7 @@ uint8_t ADS1115Sensor::get_multiplexer() const { return this->multiplexer_; }
 void ADS1115Sensor::set_multiplexer(ADS1115Multiplexer multiplexer) { this->multiplexer_ = multiplexer; }
 uint8_t ADS1115Sensor::get_gain() const { return this->gain_; }
 void ADS1115Sensor::set_gain(ADS1115Gain gain) { this->gain_ = gain; }
-float ADS1115Sensor::sample() {
-  return this->parent_->request_measurement(this);
-}
+float ADS1115Sensor::sample() { return this->parent_->request_measurement(this); }
 void ADS1115Sensor::update() {
   float v = this->parent_->request_measurement(this);
   if (!isnan(v)) {
