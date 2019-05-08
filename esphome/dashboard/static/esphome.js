@@ -432,7 +432,7 @@ const validateModal = new LogModalElem({
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
     modalElem.querySelector(".action-edit").setAttribute('data-node', validateModal.activeConfig);
     modalElem.querySelector(".action-upload").setAttribute('data-node', validateModal.activeConfig);
-    modalElem.querySelector(".action-upload").style.display = "none";
+    modalElem.querySelector(".action-upload").classList.add('disabled');
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
@@ -448,6 +448,7 @@ const validateModal = new LogModalElem({
       });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElem.querySelector(".action-upload").classList.remove('disabled');
   },
   onSocketClose: (modalElem) => {
     M.toast({html: 'Terminated process.'});
