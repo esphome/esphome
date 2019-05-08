@@ -120,14 +120,10 @@ def _lookup_module(domain, is_platform):
     try:
         module = importlib.import_module(path)
     except ImportError:
-        import traceback
-        _LOGGER.error("Unable to import component %s:", domain)
-        traceback.print_exc()
+        _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except
-        import traceback
-        _LOGGER.error("Unable to load component %s:", domain)
-        traceback.print_exc()
+        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
     else:
         manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)

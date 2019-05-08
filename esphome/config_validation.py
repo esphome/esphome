@@ -570,10 +570,15 @@ METRIC_SUFFIXES = {
 }
 
 
-def float_with_unit(quantity, regex_suffix):
+def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
 
     def validator(value):
+        if optional_unit:
+            try:
+                return float_(value)
+            except Invalid:
+                pass
         match = pattern.match(string(value))
 
         if match is None:
@@ -595,6 +600,7 @@ current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
 voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
 distance = float_with_unit("distance", u"(m)")
 framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
+angle = float_with_unit("angle", u"(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
