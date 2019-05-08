@@ -4,6 +4,8 @@ from esphome import pins
 from esphome.components import fastled_base
 from esphome.const import CONF_CHIPSET, CONF_NUM_LEDS, CONF_PIN, CONF_RGB_ORDER
 
+AUTO_LOAD = ['fastled_base']
+
 CHIPSETS = [
     'NEOPIXEL',
     'TM1829',
