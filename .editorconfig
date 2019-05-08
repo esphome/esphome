@@ -12,7 +12,7 @@ indent_style = space
 indent_size = 4
 
 # C++
-[*.{cpp,h}]
+[*.{cpp,h,tcc}]
 indent_style = space
 indent_size = 2
 
