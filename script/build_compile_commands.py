@@ -7,6 +7,7 @@ import sys
 
 root_path = os.path.abspath(os.path.normpath(os.path.join(__file__, '..', '..')))
 basepath = os.path.join(root_path, 'esphome')
+temp_header_file = os.path.join(root_path, '.temp-clang-tidy.cpp')
 
 
 def walk_files(path):
@@ -22,6 +23,24 @@ def shlex_quote(s):
         return s
 
     return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
+
+
+def build_all_include():
+    # Build a cpp file that includes all header files in this repo.
+    # Otherwise header-only integrations would not be tested by clang-tidy
+    headers = []
+    for path in walk_files(basepath):
+        filetypes = ('.h',)
+        ext = os.path.splitext(path)[1]
+        if ext in filetypes:
+            path = os.path.relpath(path, root_path)
+            include_p = path.replace(os.path.sep, '/')
+            headers.append('#include "{}"'.format(include_p))
+    headers.sort()
+    headers.append('')
+    content = '\n'.join(headers)
+    with codecs.open(temp_header_file, 'w', encoding='utf-8') as f:
+        f.write(content)
 
 
 def build_compile_commands():
@@ -52,6 +71,7 @@ def build_compile_commands():
         ext = os.path.splitext(path)[1]
         if ext in filetypes:
             source_files.append(os.path.abspath(path))
+    source_files.append(temp_header_file)
     source_files.sort()
     compile_commands = [{
         'directory': root_path,
@@ -71,6 +91,7 @@ def build_compile_commands():
 
 
 def main():
+    build_all_include()
     build_compile_commands()
     print("Done.")
 

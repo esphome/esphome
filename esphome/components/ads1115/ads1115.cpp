@@ -60,7 +60,7 @@ void ADS1115Component::setup() {
   for (auto *sensor : this->sensors_) {
     this->set_interval(sensor->get_name(), sensor->update_interval(),
                        [this, sensor] {
-      this->request_measurement_(sensor);
+      this->request_measurement(sensor);
     });
   }
 }
@@ -78,7 +78,7 @@ void ADS1115Component::dump_config() {
   }
 }
 float ADS1115Component::get_setup_priority() const { return setup_priority::DATA; }
-float ADS1115Component::request_measurement_(ADS1115Sensor *sensor) {
+float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   uint16_t config;
   if (!this->read_byte_16(ADS1115_REGISTER_CONFIG, &config)) {
     this->status_set_warning();
@@ -154,10 +154,10 @@ void ADS1115Sensor::set_multiplexer(ADS1115Multiplexer multiplexer) { this->mult
 uint8_t ADS1115Sensor::get_gain() const { return this->gain_; }
 void ADS1115Sensor::set_gain(ADS1115Gain gain) { this->gain_ = gain; }
 float ADS1115Sensor::sample() {
-  return this->parent_->request_measurement_(this);
+  return this->parent_->request_measurement(this);
 }
 void ADS1115Sensor::update() {
-  float v = this->parent_->request_measurement_(this);
+  float v = this->parent_->request_measurement(this);
   if (!isnan(v)) {
     ESP_LOGD(TAG, "'%s': Got Voltage=%fV", this->get_name().c_str(), v);
     this->publish_state(v);

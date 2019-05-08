@@ -40,7 +40,7 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
   /// Helper method to request a measurement from a sensor.
-  float request_measurement_(ADS1115Sensor *sensor);
+  float request_measurement(ADS1115Sensor *sensor);
 
  protected:
   std::vector<ADS1115Sensor *> sensors_;

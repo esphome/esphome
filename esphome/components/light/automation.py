@@ -128,7 +128,10 @@ def light_addressable_set_to_code(config, action_id, template_arg, args):
     if CONF_RANGE_TO in config:
         templ = yield cg.templatable(config[CONF_RANGE_TO], args, cg.int32)
         cg.add(var.set_range_to(templ))
-    rgbw_to_exp = lambda x: int(round(x * 255))
+
+    def rgbw_to_exp(x):
+        return int(round(x * 255))
+
     if CONF_RED in config:
         templ = yield cg.templatable(config[CONF_RED], args, cg.uint8, to_exp=rgbw_to_exp)
         cg.add(var.set_red(templ))

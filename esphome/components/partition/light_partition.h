@@ -37,7 +37,23 @@ class PartitionLightOutput : public light::AddressableLight, public Component {
     auto &last_seg = this->segments_[this->segments_.size() - 1];
     return last_seg.get_dst_offset() + last_seg.get_size();
   }
-  light::ESPColorView operator[](int32_t index) const override {
+  void clear_effect_data() override {
+    for (auto &seg : this->segments_) {
+      seg.get_src()->clear_effect_data();
+    }
+  }
+  light::LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
+  void loop() override {
+    if (this->should_show_()) {
+      for (auto seg : this->segments_) {
+        seg.get_src()->schedule_show();
+      }
+      this->mark_shown_();
+    }
+  }
+
+ protected:
+  light::ESPColorView get_view_internal(int32_t index) const override {
     uint32_t lo = 0;
     uint32_t hi = this->segments_.size() - 1;
     while (lo < hi) {
@@ -61,22 +77,7 @@ class PartitionLightOutput : public light::AddressableLight, public Component {
     view.raw_set_color_correction(&this->correction_);
     return view;
   }
-  void clear_effect_data() override {
-    for (auto &seg : this->segments_) {
-      seg.get_src()->clear_effect_data();
-    }
-  }
-  light::LightTraits get_traits() override { return this->segments_[0].get_src()->get_traits(); }
-  void loop() override {
-    if (this->should_show_()) {
-      for (auto seg : this->segments_) {
-        seg.get_src()->schedule_show();
-      }
-      this->mark_shown_();
-    }
-  }
 
- protected:
   std::vector<AddressableSegment> segments_;
 };
 

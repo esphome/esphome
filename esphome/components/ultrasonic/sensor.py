@@ -9,7 +9,7 @@ CONF_PULSE_TIME = 'pulse_time'
 
 ultrasonic_ns = cg.esphome_ns.namespace('ultrasonic')
 UltrasonicSensorComponent = ultrasonic_ns.class_('UltrasonicSensorComponent',
-                                                 sensor.PollingSensorComponent)
+                                                 sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
     cv.GenerateID(): cv.declare_id(UltrasonicSensorComponent),

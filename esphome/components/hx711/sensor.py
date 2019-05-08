@@ -5,7 +5,7 @@ from esphome.components import sensor
 from esphome.const import CONF_CLK_PIN, CONF_GAIN, CONF_ID, ICON_SCALE
 
 hx711_ns = cg.esphome_ns.namespace('hx711')
-HX711Sensor = hx711_ns.class_('HX711Sensor', sensor.PollingSensorComponent)
+HX711Sensor = hx711_ns.class_('HX711Sensor', sensor.Sensor, cg.PollingComponent)
 
 CONF_DOUT_PIN = 'dout_pin'
 

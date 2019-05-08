@@ -5,7 +5,7 @@ from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_PIN, UNIT_PERCENT, ICON_PERCENT
 
 duty_cycle_ns = cg.esphome_ns.namespace('duty_cycle')
-DutyCycleSensor = duty_cycle_ns.class_('DutyCycleSensor', sensor.PollingSensorComponent)
+DutyCycleSensor = duty_cycle_ns.class_('DutyCycleSensor', sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_PERCENT, 1).extend({
     cv.GenerateID(): cv.declare_id(DutyCycleSensor),
