@@ -1,7 +1,7 @@
-from esphome.components import text_sensor
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_TEXT_SENSORS
+import esphome.config_validation as cv
+from esphome.components import text_sensor
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_TEXT_SENSORS
 from .. import custom_ns
 
 CustomTextSensorConstructor = custom_ns.class_('CustomTextSensorConstructor')

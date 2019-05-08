@@ -1,9 +1,8 @@
-from esphome.components import switch
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_NAME, CONF_SWITCHES
+import esphome.config_validation as cv
+from esphome.components import switch
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_SWITCHES
 from .. import custom_ns
-
 
 CustomSwitchConstructor = custom_ns.class_('CustomSwitchConstructor')
 
