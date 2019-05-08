@@ -14,7 +14,7 @@ void MAX6675Sensor::update() {
 
   // Conversion time typ: 170ms, max: 220ms
   auto f = std::bind(&MAX6675Sensor::read_data_, this);
-  this->set_timeout("value", 220, f);
+  this->set_timeout("value", 250, f);
 }
 
 void MAX6675Sensor::setup() {
