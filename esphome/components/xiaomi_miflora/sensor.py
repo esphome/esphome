@@ -1,8 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor
-from esphome.components.esp32_ble_tracker import CONF_ESP32_BLE_ID, ESPBTDeviceListener, \
-    ESP_BLE_DEVICE_SCHEMA
+from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
     UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID, \
     CONF_MOISTURE, CONF_ILLUMINANCE, ICON_BRIGHTNESS_5, UNIT_LUX, CONF_CONDUCTIVITY, \
@@ -12,7 +10,8 @@ DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_miflora_ns = cg.esphome_ns.namespace('xiaomi_miflora')
-XiaomiMiflora = xiaomi_miflora_ns.class_('XiaomiMiflora', ESPBTDeviceListener, cg.Component)
+XiaomiMiflora = xiaomi_miflora_ns.class_('XiaomiMiflora', esp32_ble_tracker.ESPBTDeviceListener,
+                                         cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiMiflora),
@@ -23,13 +22,15 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CONDUCTIVITY):
         sensor.sensor_schema(UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, 0),
     cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(UNIT_PERCENT, ICON_BATTERY, 0),
-}).extend(ESP_BLE_DEVICE_SCHEMA)
+}).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
-    hub = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
-    var = cg.new_Pvariable(config[CONF_ID], hub, config[CONF_MAC_ADDRESS].as_hex)
+    var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
+    yield esp32_ble_tracker.register_ble_device(var, config)
+
+    cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
 
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])

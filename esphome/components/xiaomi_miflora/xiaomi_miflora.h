@@ -12,8 +12,7 @@ namespace xiaomi_miflora {
 
 class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
-  XiaomiMiflora(esp32_ble_tracker::ESP32BLETracker *parent, uint64_t address)
-      : ESPBTDeviceListener(parent), address_(address) {}
+  void set_address(uint64_t address) { address_ = address; }
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (device.address_uint64() != this->address_)

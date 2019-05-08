@@ -152,7 +152,7 @@ class NeoPixelRGBLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_COL
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
+  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
     uint8_t *base = this->controller_->Pixels() + 3ULL * index;
     return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
                                nullptr, this->effect_data_ + index, &this->correction_);
@@ -171,7 +171,7 @@ class NeoPixelRGBWLightOutput : public NeoPixelBusLightOutputBase<T_METHOD, T_CO
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
+  light::ESPColorView get_view_internal(int32_t index) const override {  // NOLINT
     uint8_t *base = this->controller_->Pixels() + 4ULL * index;
     return light::ESPColorView(base + this->rgb_offsets_[0], base + this->rgb_offsets_[1], base + this->rgb_offsets_[2],
                                base + this->rgb_offsets_[3], this->effect_data_ + index, &this->correction_);

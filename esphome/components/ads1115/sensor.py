@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor
+from esphome.components import sensor, voltage_sampler
 from esphome.components.ads1115 import ADS1115Component
 from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
 from esphome.py_compat import string_types
@@ -40,7 +40,8 @@ def validate_gain(value):
     return cv.enum(GAIN)(value)
 
 
-ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor)
+ADS1115Sensor = ads1115_ns.class_('ADS1115Sensor', sensor.Sensor, cg.PollingComponent,
+                                  voltage_sampler.VoltageSampler)
 
 CONF_ADS1115_ID = 'ads1115_id'
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
@@ -52,11 +53,12 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 3).extend({
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    paren = yield cg.get_variable(config[CONF_ADS1115_ID])
+    var = cg.new_Pvariable(config[CONF_ID], paren)
     yield sensor.register_sensor(var, config)
+    yield cg.register_component(var, config)
 
     cg.add(var.set_multiplexer(config[CONF_MULTIPLEXER]))
     cg.add(var.set_gain(config[CONF_GAIN]))
 
-    hub = yield cg.get_variable(config[CONF_ADS1115_ID])
-    cg.add(hub.register_sensor(var))
+    cg.add(paren.register_sensor(var))

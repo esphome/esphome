@@ -1,8 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import sensor
+from esphome.components import sensor, voltage_sampler
 from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_PIN, ICON_FLASH, UNIT_VOLT
+
+
+AUTO_LOAD = ['voltage_sampler']
 
 ATTENUATION_MODES = {
     '0db': cg.global_ns.ADC_0db,
@@ -20,7 +23,8 @@ def validate_adc_pin(value):
 
 
 adc_ns = cg.esphome_ns.namespace('adc')
-ADCSensor = adc_ns.class_('ADCSensor', sensor.PollingSensorComponent)
+ADCSensor = adc_ns.class_('ADCSensor', sensor.Sensor, cg.PollingComponent,
+                          voltage_sampler.VoltageSampler)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2).extend({
     cv.GenerateID(): cv.declare_id(ADCSensor),
@@ -37,7 +41,6 @@ def to_code(config):
 
     if config[CONF_PIN] == 'VCC':
         cg.add_define('USE_ADC_SENSOR_VCC')
-        cg.add_global(cg.global_ns.ADC_MODE(cg.global_ns.ADC_VCC))
     else:
         cg.add(var.set_pin(config[CONF_PIN]))
 

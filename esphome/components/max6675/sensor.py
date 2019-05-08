@@ -4,7 +4,7 @@ from esphome.components import sensor, spi
 from esphome.const import CONF_ID, ICON_THERMOMETER, UNIT_CELSIUS
 
 max6675_ns = cg.esphome_ns.namespace('max6675')
-MAX6675Sensor = max6675_ns.class_('MAX6675Sensor', sensor.PollingSensorComponent,
+MAX6675Sensor = max6675_ns.class_('MAX6675Sensor', sensor.Sensor, cg.PollingComponent,
                                   spi.SPIDevice)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({

@@ -8,11 +8,8 @@
 namespace esphome {
 namespace esp32_hall {
 
-class ESP32HallSensor : public sensor::PollingSensorComponent {
+class ESP32HallSensor : public sensor::Sensor, public PollingComponent {
  public:
-  explicit ESP32HallSensor(const std::string &name, uint32_t update_interval)
-      : sensor::PollingSensorComponent(name, update_interval) {}
-
   void dump_config() override;
 
   void update() override;

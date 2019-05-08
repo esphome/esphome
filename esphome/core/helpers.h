@@ -18,6 +18,7 @@
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
+#define PACKED __attribute__((packed))
 
 namespace esphome {
 

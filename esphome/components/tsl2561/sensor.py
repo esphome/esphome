@@ -27,7 +27,8 @@ def validate_integration_time(value):
     return cv.enum(INTEGRATION_TIMES, int=True)(value)
 
 
-TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.PollingSensorComponent, i2c.I2CDevice)
+TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.Sensor, cg.PollingComponent,
+                                  i2c.I2CDevice)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
     cv.GenerateID(): cv.declare_id(TSL2561Sensor),

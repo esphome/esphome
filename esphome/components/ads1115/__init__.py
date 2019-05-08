@@ -4,7 +4,7 @@ from esphome.components import i2c
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ['i2c']
-AUTO_LOAD = ['sensor']
+AUTO_LOAD = ['sensor', 'voltage_sampler']
 MULTI_CONF = True
 
 ads1115_ns = cg.esphome_ns.namespace('ads1115')

@@ -4,7 +4,7 @@ from esphome.components import sensor
 from esphome.const import CONF_ID, UNIT_SECOND, ICON_TIMER
 
 uptime_ns = cg.esphome_ns.namespace('uptime')
-UptimeSensor = uptime_ns.class_('UptimeSensor', sensor.PollingSensorComponent)
+UptimeSensor = uptime_ns.class_('UptimeSensor', sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_SECOND, ICON_TIMER, 0).extend({
     cv.GenerateID(): cv.declare_id(UptimeSensor),

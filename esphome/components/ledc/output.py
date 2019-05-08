@@ -10,8 +10,8 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 
 def validate_frequency_bit_depth(obj):
-    frequency = obj.get(CONF_FREQUENCY, 1000)
-    bit_depth = obj.get(CONF_BIT_DEPTH, 12)
+    frequency = obj[CONF_FREQUENCY]
+    bit_depth = obj[CONF_BIT_DEPTH]
     max_freq = APB_CLOCK_FREQ / (2**bit_depth)
     if frequency > max_freq:
         raise cv.Invalid('Maximum frequency for bit depth {} is {}Hz'.format(bit_depth, max_freq))

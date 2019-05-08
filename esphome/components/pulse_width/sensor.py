@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_PIN, UNIT_SECOND, ICON_TIMER
 
 pulse_width_ns = cg.esphome_ns.namespace('pulse_width')
 
-PulseWidthSensor = pulse_width_ns.class_('PulseWidthSensor', sensor.PollingSensorComponent)
+PulseWidthSensor = pulse_width_ns.class_('PulseWidthSensor', sensor.Sensor, cg.PollingComponent)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_SECOND, ICON_TIMER, 3).extend({
     cv.GenerateID(): cv.declare_id(PulseWidthSensor),

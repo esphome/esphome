@@ -150,11 +150,12 @@ def exp_mqtt_message(config):
 
 @coroutine_with_priority(40.0)
 def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
+
     cg.add_library('AsyncMqttClient', '0.8.2')
     cg.add_define('USE_MQTT')
     cg.add_global(mqtt_ns.using)
-
-    var = cg.new_Pvariable(config[CONF_ID])
 
     cg.add(var.set_broker_address(config[CONF_BROKER]))
     cg.add(var.set_broker_port(config[CONF_PORT]))
