@@ -100,19 +100,13 @@ class RealTimeClock : public Component {
   std::string get_timezone() { return this->timezone_; }
 
   /// Get the time in the currently defined timezone.
-  ESPTime now() {
-    return ESPTime::from_epoch_utc(this->timestamp_now());
-  }
+  ESPTime now() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
 
   /// Get the time without any time zone or DST corrections.
-  ESPTime utcnow() {
-    return ESPTime::from_epoch_local(this->timestamp_now());
-  }
+  ESPTime utcnow() { return ESPTime::from_epoch_local(this->timestamp_now()); }
 
   /// Get the current time as the UTC epoch since January 1st 1970.
-  time_t timestamp_now() {
-    return ::time(nullptr);
-  }
+  time_t timestamp_now() { return ::time(nullptr); }
 
   void call_setup() override;
 

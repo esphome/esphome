@@ -40,15 +40,14 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
   /// Helper method to request a measurement from a sensor.
-  float request_measurement_(ADS1115Sensor *sensor);
+  float request_measurement(ADS1115Sensor *sensor);
 
  protected:
   std::vector<ADS1115Sensor *> sensors_;
 };
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
-class ADS1115Sensor : public sensor::Sensor, public PollingComponent,
-                      public voltage_sampler::VoltageSampler {
+class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
   ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
   void update() override;

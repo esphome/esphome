@@ -264,8 +264,6 @@ def main():
         print('Ctrl-C detected, goodbye.')
         if tmpdir:
             shutil.rmtree(tmpdir)
-        if os.path.exists(temp_header_file):
-            os.remove(temp_header_file)
         os.kill(0, 9)
 
     if args.fix and failed_files:
@@ -274,12 +272,8 @@ def main():
             subprocess.call(['clang-apply-replacements-7', tmpdir])
         except:
             print('Error applying fixes.\n', file=sys.stderr)
-            if os.path.exists(temp_header_file):
-                os.remove(temp_header_file)
             raise
 
-    if os.path.exists(temp_header_file):
-        os.remove(temp_header_file)
     sys.exit(return_code)
 
 

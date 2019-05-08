@@ -12,8 +12,7 @@ namespace adc {
 ADC_MODE(ADC_VCC)
 #endif
 
-class ADCSensor : public sensor::Sensor, public PollingComponent,
-                  public voltage_sampler::VoltageSampler {
+class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
 #ifdef ARDUINO_ARCH_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.

@@ -18,7 +18,7 @@ COUNT_MODES = {
 COUNT_MODE_SCHEMA = cv.enum(COUNT_MODES, upper=True)
 
 PulseCounterSensor = pulse_counter_ns.class_('PulseCounterSensor',
-                                             sensor.PollingSensorComponent)
+                                             sensor.Sensor, cg.PollingComponent)
 
 
 def validate_internal_filter(value):

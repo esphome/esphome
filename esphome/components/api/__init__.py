@@ -67,6 +67,7 @@ def to_code(config):
         templ = cg.TemplateArguments(*template_args)
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], templ,
                                    conf[CONF_SERVICE], service_type_args)
+        cg.add(var.register_user_service(trigger))
         yield automation.build_automation(trigger, func_args, conf)
 
     cg.add_define('USE_API')

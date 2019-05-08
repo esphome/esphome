@@ -4,7 +4,7 @@ from esphome.const import CONF_ID, CONF_SCAN_INTERVAL, ESP_PLATFORM_ESP32
 from esphome.core import coroutine
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-AUTO_LOAD = ['xiaomi_ble', 'ble_ibeacon']
+AUTO_LOAD = ['xiaomi_ble']
 
 CONF_ESP32_BLE_ID = 'esp32_ble_id'
 esp32_ble_tracker_ns = cg.esphome_ns.namespace('esp32_ble_tracker')
