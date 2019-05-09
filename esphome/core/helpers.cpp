@@ -309,4 +309,13 @@ bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
 }
 
+uint16_t encode_uint16(uint8_t msb, uint8_t lsb) {
+  return (uint16_t(msb) << 8) | uint16_t(lsb);
+}
+std::array<uint8_t, 2> decode_uint16(uint16_t value) {
+  uint8_t msb = (value >> 8) & 0xFF;
+  uint8_t lsb = (value >> 0) & 0xFF;
+  return {msb, lsb};
+}
+
 }  // namespace esphome

@@ -127,6 +127,11 @@ uint8_t reverse_bits_8(uint8_t x);
 uint16_t reverse_bits_16(uint16_t x);
 uint32_t reverse_bits_32(uint32_t x);
 
+/// Encode a 16-bit unsigned integer given a most and least-significant byte.
+uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
+/// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
+std::array<uint8_t, 2> decode_uint16(uint16_t value);
+
 /** Cross-platform method to disable interrupts.
  *
  * Useful when you need to do some timing-dependent communication.
@@ -252,6 +257,18 @@ template<typename T> class Deduplicator {
  protected:
   bool has_value_{false};
   T last_value_{};
+};
+
+template<typename T> class Parented {
+ public:
+  Parented() {}
+  Parented(T *parent) : parent_(parent) {}
+
+  T *get_parent() const { return parent_; }
+  void set_parent(T *parent) { parent_ = parent; }
+
+ protected:
+  T *parent_{nullptr};
 };
 
 uint32_t fnv1_hash(const std::string &str);
