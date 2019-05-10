@@ -72,6 +72,6 @@ def read_config(args):
                 try:
                     range_ = _get_invalid_range(res, err)
                     vs.add_validation_error(range_, _format_vol_invalid(err, res))
-                except:
+                except Exception:  # pylint: disable=broad-except
                     continue
         print(vs.dump())
