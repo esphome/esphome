@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import json
+import os
 
 from esphome.config import load_config, _format_vol_invalid
 from esphome.core import CORE
@@ -53,13 +54,18 @@ class VSCodeResult(object):
         })
 
 
-def read_config():
+def read_config(args):
     while True:
         CORE.reset()
         data = json.loads(safe_input())
         assert data['type'] == 'validate'
         CORE.vscode = True
-        CORE.config_path = data['file']
+        CORE.ace = args.ace
+        f = data['file']
+        if CORE.ace:
+            CORE.config_path = os.path.join(args.configuration, f)
+        else:
+            CORE.config_path = data['file']
         vs = VSCodeResult()
         try:
             res = load_config()
@@ -67,6 +73,9 @@ def read_config():
             vs.add_yaml_error(text_type(err))
         else:
             for err in res.errors:
-                range_ = _get_invalid_range(res, err)
-                vs.add_validation_error(range_, _format_vol_invalid(err, res))
+                try:
+                    range_ = _get_invalid_range(res, err)
+                    vs.add_validation_error(range_, _format_vol_invalid(err, res))
+                except:
+                    continue
         print(vs.dump())
