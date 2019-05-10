@@ -28,7 +28,9 @@ void ICACHE_RAM_ATTR PulseCounterStorage::gpio_intr(PulseCounterStorage *arg) {
       break;
   }
 }
-bool PulseCounterStorage::pulse_counter_setup() {
+bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
   this->isr_pin = this->pin->to_isr();
   this->pin->attach_interrupt(PulseCounterStorage::gpio_intr, this, CHANGE);
   return true;
@@ -42,7 +44,9 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
-bool PulseCounterStorage::pulse_counter_setup() {
+bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
+  this->pin = pin;
+  this->pin->setup();
   this->pcnt_unit = next_pcnt_unit;
   next_pcnt_unit = pcnt_unit_t(int(next_pcnt_unit) + 1);  // NOLINT
 
@@ -133,9 +137,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 
 void PulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
-  this->pin_->setup();
-  this->storage_.pin = this->pin_;
-  if (!this->storage_.pulse_counter_setup()) {
+  if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;
   }
