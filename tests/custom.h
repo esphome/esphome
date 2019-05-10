@@ -1,3 +1,4 @@
+#include "esphome.h"
 
 class CustomSensor : public Component, public Sensor {
  public:

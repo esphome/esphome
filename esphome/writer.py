@@ -266,7 +266,7 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = u"""\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = u"""\
 #pragma once
 {}
 """
@@ -301,7 +301,7 @@ def copy_src_tree():
     source_files_l = [it for it in source_files.items()]
     source_files_l.sort()
 
-    # Build #include list for main.cpp
+    # Build #include list for esphome.h
     include_l = []
     for target, path in source_files_l:
         if os.path.splitext(path)[1] in HEADER_FILE_EXTENSIONS:
@@ -341,8 +341,8 @@ def copy_src_tree():
                           CORE.relative_src_path('esphome', 'core', 'defines.h'))
     write_file_if_changed(ESPHOME_README_TXT,
                           CORE.relative_src_path('esphome', 'README.txt'))
-
-    return include_s
+    write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
+                          CORE.relative_src_path('esphome.h'))
 
 
 def generate_defines_h():
@@ -361,8 +361,8 @@ def write_cpp(code_s):
     else:
         code_format = CPP_BASE_FORMAT
 
-    include_s = copy_src_tree()
-    global_s = include_s + u'\n'
+    copy_src_tree()
+    global_s = u'#include "esphome.h"\n'
     global_s += CORE.cpp_global_section
 
     full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + global_s + CPP_INCLUDE_END
