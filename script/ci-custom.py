@@ -53,6 +53,13 @@ for f in files:
     if content and not content.endswith('\n'):
         errors[f].append("File does not end with a newline, please add an empty line at the end of "
                          "the file.")
+    _, ext = os.path.splitext(f)
+    if ext in ('.h', '.c', '.cpp', '.tcc'):
+        for line, col in find_all(content, '"esphome.h"'):
+            errors[f].append("File contains reference to 'esphome.h' - This file is "
+                             "auto-generated and should only be used for *custom* "
+                             "components. Please replace with references to the direct "
+                             "files.")
 
 for f, errs in errors.items():
     print("\033[0;32m************* File \033[1;32m{}\033[0m".format(f))
