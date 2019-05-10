@@ -25,8 +25,16 @@ ELEVATION_MAP = {
     'astronomical': -18.0,
 }
 
-elevation = cv.All(cv.angle, cv.float_range(min=-180, max=180),
-                   cv.enum(ELEVATION_MAP, lower=True, space='_'))
+
+def elevation(value):
+    if isinstance(value, str):
+        try:
+            value = ELEVATION_MAP[cv.one_of(*ELEVATION_MAP, lower=True, space='_')]
+        except cv.Invalid:
+            pass
+    value = cv.angle(value)
+    return cv.float_range(min=-180, max=180)(value)
+
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(Sun),
