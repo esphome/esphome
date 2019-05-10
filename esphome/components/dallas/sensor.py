@@ -13,7 +13,7 @@ CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).e
 
     cv.Optional(CONF_ADDRESS): cv.hex_int,
     cv.Optional(CONF_INDEX): cv.positive_int,
-    cv.Optional(CONF_RESOLUTION, default=12): cv.All(cv.int_, cv.Range(min=9, max=12)),
+    cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
 }), cv.has_exactly_one_key(CONF_ADDRESS, CONF_INDEX))
 
 

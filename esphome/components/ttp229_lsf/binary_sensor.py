@@ -10,7 +10,7 @@ TTP229Channel = ttp229_lsf_ns.class_('TTP229Channel', binary_sensor.BinarySensor
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TTP229Channel),
     cv.GenerateID(CONF_TTP229_ID): cv.use_id(TTP229LSFComponent),
-    cv.Required(CONF_CHANNEL): cv.All(cv.int_, cv.Range(min=0, max=15))
+    cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=15),
 })
 
 

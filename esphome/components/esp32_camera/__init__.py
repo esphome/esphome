@@ -55,7 +55,7 @@ CONF_BRIGHTNESS = 'brightness'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
 
-camera_range_param = cv.All(cv.int_, cv.Range(min=-2, max=2))
+camera_range_param = cv.int_rRange(min=-2, max=2)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ESP32Camera),
@@ -81,7 +81,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_IDLE_FRAMERATE, default='0.1 fps'): cv.All(cv.framerate,
                                                                 cv.Range(min=0, max=1)),
     cv.Optional(CONF_RESOLUTION, default='640X480'): cv.enum(FRAME_SIZES, upper=True),
-    cv.Optional(CONF_JPEG_QUALITY, default=10): cv.All(cv.int_, cv.Range(min=10, max=63)),
+    cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
     cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
     cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
     cv.Optional(CONF_SATURATION, default=0): camera_range_param,

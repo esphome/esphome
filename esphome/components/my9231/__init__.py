@@ -13,8 +13,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MY9231OutputComponent),
     cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_NUM_CHANNELS, default=6): cv.All(cv.int_, cv.Range(min=3, max=1020)),
-    cv.Optional(CONF_NUM_CHIPS, default=2): cv.All(cv.int_, cv.Range(min=1, max=255)),
+    cv.Optional(CONF_NUM_CHANNELS, default=6): cv.int_range(min=3, max=1020),
+    cv.Optional(CONF_NUM_CHIPS, default=2): cv.int_range(min=1, max=255),
     cv.Optional(CONF_BIT_DEPTH, default=16): cv.one_of(8, 12, 14, 16, int=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
