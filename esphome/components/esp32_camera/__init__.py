@@ -55,7 +55,7 @@ CONF_BRIGHTNESS = 'brightness'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
 
-camera_range_param = cv.int_rRange(min=-2, max=2)
+camera_range_param = cv.int_range(min=-2, max=2)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ESP32Camera),
