@@ -84,9 +84,9 @@ class Sun {
   double longitude_;
 };
 
-class SunTrigger : public Trigger<>, public PollingComponent {
+class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Sun> {
  public:
-  SunTrigger(Sun *parent) : PollingComponent(1000), parent_(parent) {}
+  SunTrigger() : PollingComponent(1000) {}
 
   void set_sunrise(bool sunrise) { sunrise_ = sunrise; }
   void set_elevation(double elevation) { elevation_ = elevation; }
@@ -118,11 +118,29 @@ class SunTrigger : public Trigger<>, public PollingComponent {
     else
       this->last_result_ = this->parent_->sunset(this->elevation_);
   }
-  Sun *parent_;
   bool sunrise_;
   double elevation_;
   time_t prev_check_{-1};
   optional<time::ESPTime> last_result_{};
+};
+
+template<typename... Ts>
+class SunCondition : public Condition<Ts...>, public Parented<Sun> {
+ public:
+  TEMPLATABLE_VALUE(double, elevation);
+  void set_above(bool above) { above_ = above; }
+
+  bool check(Ts... x) override {
+    double elevation = this->elevation_.value(x...);
+    double current = this->parent_->elevation();
+    if (this->above_)
+      return current > elevation;
+    else
+      return current < elevation;
+  }
+
+ protected:
+  bool above_;
 };
 
 }  // namespace sun

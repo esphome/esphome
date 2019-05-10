@@ -424,10 +424,14 @@ def new_Pvariable(id,  # type: ID
     return Pvariable(id, rhs)
 
 
-def add(expression,  # type: Union[SafeExpType, Statement]
+def add(expression,  # type: Union[Expression, Statement]
         ):
     # type: (...) -> None
-    """Add an expression to the codegen setup() storage."""
+    """Add an expression to the codegen section.
+
+    After this is called, the given given expression will
+    show up in the setup() function after this has been called.
+    """
     CORE.add(expression)
 
 
