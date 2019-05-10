@@ -6,15 +6,11 @@ import os
 from esphome.config import load_config, _format_vol_invalid
 from esphome.core import CORE
 from esphome.py_compat import text_type, safe_input
-from esphome.yaml_util import ESPHomeDataBase
 
 
 def _get_invalid_range(res, invalid):
     # type: (Config, vol.Invalid) -> Optional[DocumentRange]
-    obj = res.get_deepest_value_for_path(invalid.path)
-    if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
-        return obj.esp_range
-    return None
+    return res.get_deepest_document_range_for_path(invalid.path)
 
 
 def _dump_range(range):
