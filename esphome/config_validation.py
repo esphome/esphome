@@ -333,7 +333,7 @@ def templatable(other_validators):
 
     def validator(value):
         if isinstance(value, Lambda):
-            return lambda_(value)
+            return returning_lambda(value)
         if isinstance(other_validators, dict):
             return schema(value)
         return schema(value)
@@ -971,6 +971,20 @@ def lambda_(value):
                       "The id() wrapper only works for ESPHome-internal types. For importing "
                       "states from Home Assistant use the 'homeassistant' sensor platforms."
                       "".format(entity_ids))
+    return value
+
+
+def returning_lambda(value):
+    """Coerce this configuration option to a lambda.
+
+    Additionally, make sure the lambda returns something.
+    """
+    value = lambda_(value)
+    if u'return' not in value.value:
+        raise Invalid("Lambda doesn't contain a 'return' statement, but the lambda "
+                      "is expected to return a value. \n"
+                      "Please make sure the lambda contains at least one "
+                      "return statement.")
     return value
 
 

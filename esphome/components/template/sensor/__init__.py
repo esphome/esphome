@@ -9,7 +9,7 @@ TemplateSensor = template_ns.class_('TemplateSensor', sensor.Sensor, cg.PollingC
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1).extend({
     cv.GenerateID(): cv.declare_id(TemplateSensor),
-    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
 }).extend(cv.polling_component_schema('60s'))
 
 
