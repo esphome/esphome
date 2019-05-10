@@ -9,6 +9,15 @@ static const char *TAG = "ccs811";
 // based on
 //  - https://cdn.sparkfun.com/datasheets/BreakoutBoards/CCS811_Programming_Guide.pdf
 
+#define CHECK_TRUE(f, error_code) \
+  if (!(f)) { \
+    this->mark_failed(); \
+    this->error_code_ = (error_code); \
+    return; \
+  }
+
+#define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICAITON_FAILED)
+
 void CCS811Component::setup() {
   // page 9 programming guide - hwid is always 0x81
   uint8_t hw_id;

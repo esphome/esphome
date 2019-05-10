@@ -13,7 +13,7 @@ CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
 
-PLATFORM_SCHEMA = cv.Schema({
+CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CCS811Component),
     cv.Required(CONF_ECO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_GAS_CYLINDER, 0),
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
@@ -27,7 +27,7 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     sens = yield sensor.new_sensor(config[CONF_ECO2])
-    cg.add(var.set_eco2(sens))
+    cg.add(var.set_co2(sens))
     sens = yield sensor.new_sensor(config[CONF_TVOC])
     cg.add(var.set_tvoc(sens))
 

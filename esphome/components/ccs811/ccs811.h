@@ -8,15 +8,6 @@
 namespace esphome {
 namespace ccs811 {
 
-#define CHECK_TRUE(f, error_code) \
-  if (!(f)) { \
-    this->mark_failed(); \
-    this->error_code_ = (error_code); \
-    return; \
-  }
-
-#define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICAITON_FAILED)
-
 class CCS811Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
