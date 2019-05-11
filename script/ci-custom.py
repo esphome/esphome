@@ -4,7 +4,6 @@ from __future__ import print_function
 import codecs
 import collections
 import fnmatch
-import functools
 import os.path
 import subprocess
 import sys
