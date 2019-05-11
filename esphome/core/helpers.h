@@ -254,6 +254,18 @@ template<typename T> class Deduplicator {
   T last_value_{};
 };
 
+template<typename T> class Parented {
+ public:
+  Parented() {}
+  Parented(T *parent) : parent_(parent) {}
+
+  T *get_parent() const { return parent_; }
+  void set_parent(T *parent) { parent_ = parent; }
+
+ protected:
+  T *parent_{nullptr};
+};
+
 uint32_t fnv1_hash(const std::string &str);
 
 }  // namespace esphome

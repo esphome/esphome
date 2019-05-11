@@ -88,10 +88,8 @@ std::string Sensor::unique_id() { return ""; }
 void Sensor::internal_send_state_to_frontend(float state) {
   this->has_state_ = true;
   this->state = state;
-  if (this->filter_list_ != nullptr) {
-    ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
-             this->get_unit_of_measurement().c_str(), this->get_accuracy_decimals());
-  }
+  ESP_LOGD(TAG, "'%s': Sending state %.5f %s with %d decimals of accuracy", this->get_name().c_str(), state,
+           this->get_unit_of_measurement().c_str(), this->get_accuracy_decimals());
   this->callback_.call(state);
 }
 bool Sensor::has_state() const { return this->has_state_; }
