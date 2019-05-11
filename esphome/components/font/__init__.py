@@ -70,7 +70,7 @@ FONT_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(Font),
     cv.Required(CONF_FILE): validate_truetype_file,
     cv.Optional(CONF_GLYPHS, default=DEFAULT_GLYPHS): validate_glyphs,
-    cv.Optional(CONF_SIZE, default=20): cv.All(cv.int_, cv.Range(min=1)),
+    cv.Optional(CONF_SIZE, default=20): cv.int_range(min=1),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 

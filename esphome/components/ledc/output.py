@@ -25,8 +25,8 @@ CONFIG_SCHEMA = cv.All(output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(LEDCOutput),
     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.frequency,
-    cv.Optional(CONF_BIT_DEPTH, default=12): cv.All(cv.int_, cv.Range(min=1, max=15)),
-    cv.Optional(CONF_CHANNEL): cv.All(cv.int_, cv.Range(min=0, max=15))
+    cv.Optional(CONF_BIT_DEPTH, default=12): cv.int_range(min=1, max=15),
+    cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
 }).extend(cv.COMPONENT_SCHEMA), validate_frequency_bit_depth)
 
 
