@@ -245,7 +245,7 @@ def command_vscode(args):
     from esphome import vscode
 
     CORE.config_path = args.configuration
-    vscode.read_config()
+    vscode.read_config(args)
 
 
 def command_compile(args, config):
@@ -423,7 +423,8 @@ def parse_args(argv):
     dashboard.add_argument("--socket",
                            help="Make the dashboard serve under a unix socket", type=str)
 
-    subparsers.add_parser('vscode', help=argparse.SUPPRESS)
+    vscode = subparsers.add_parser('vscode', help=argparse.SUPPRESS)
+    vscode.add_argument('--ace', action='store_true')
 
     return parser.parse_args(argv[1:])
 

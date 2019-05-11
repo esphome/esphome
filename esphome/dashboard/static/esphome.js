@@ -550,10 +550,75 @@ const editModalElem = document.getElementById("modal-editor");
 const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
 let activeEditorConfig = null;
+let aceWs = null;
+let aceValidationScheduled = false;
+let aceValidationRunning = false;
+const startAceWebsocket = () => {
+  aceWs = new WebSocket(`${wsUrl}ace`);
+  aceWs.addEventListener('message', (event) => {
+    const raw = JSON.parse(event.data);
+    if (raw.event === "line") {
+      const msg = JSON.parse(raw.data);
+      if (msg.type === "result") {
+        console.log(msg);
+        const arr = [];
+
+        for (const v of msg.validation_errors) {
+          let o = {
+            text: v.message,
+            type: 'error',
+            row: 0,
+            column: 0
+          };
+          if (v.range != null) {
+            o.row = v.range.start_line;
+            o.column = v.range.start_col;
+          }
+          arr.push(o);
+        }
+        for (const v of msg.yaml_errors) {
+          arr.push({
+            text: v.message,
+            type: 'error',
+            row: 0,
+            column: 0
+          });
+        }
+
+        editor.session.setAnnotations(arr);
+
+        aceValidationRunning = false;
+      } else if (msg.type === "read_file") {
+        sendAceStdin({
+          type: 'file_response',
+          content: editor.getValue()
+        });
+      }
+    }
+  });
+  aceWs.addEventListener('open', () => {
+    const msg = JSON.stringify({type: 'spawn'});
+    aceWs.send(msg);
+  });
+  aceWs.addEventListener('close', () => {
+    aceWs = null;
+    setTimeout(startAceWebsocket, 5000)
+  });
+};
+const sendAceStdin = (data) => {
+  let send = JSON.stringify({
+    type: 'stdin',
+    data: JSON.stringify(data)+'\n',
+  });
+  aceWs.send(send);
+};
+startAceWebsocket();
+
 editor.setTheme("ace/theme/dreamweaver");
 editor.session.setMode("ace/mode/yaml");
 editor.session.setOption('useSoftTabs', true);
 editor.session.setOption('tabSize', 2);
+editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
 const saveValidateButton = editModalElem.querySelector(".save-validate-button");
@@ -569,12 +634,43 @@ const saveEditor = () => {
     });
 };
 
+const debounce = (func, wait) => {
+  let timeout;
+  return function() {
+    let context = this, args = arguments;
+    let later = function() {
+      timeout = null;
+      func.apply(context, args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 editor.commands.addCommand({
   name: 'saveCommand',
   bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
   exec: saveEditor,
   readOnly: false
 });
+
+editor.session.on('change', debounce(() => {
+  aceValidationScheduled = true;
+}, 250));
+
+setInterval(() => {
+  if (!aceValidationScheduled || aceValidationRunning)
+    return;
+  if (aceWs == null)
+    return;
+
+  sendAceStdin({
+      type: 'validate',
+      file: activeEditorConfig
+  });
+  aceValidationRunning = true;
+  aceValidationScheduled = false;
+}, 100);
 
 saveButton.addEventListener('click', saveEditor);
 saveValidateButton.addEventListener('click', saveEditor);
