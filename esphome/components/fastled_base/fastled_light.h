@@ -32,6 +32,7 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
+  void set_power_supply_keep_on(bool power_supply_keep_on) { this->power_supply_keep_on_ = power_supply_keep_on; }
 #endif
 
   /// Add some LEDS, can only be called once.
@@ -244,6 +245,7 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
   optional<uint32_t> max_refresh_rate_{};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupply *power_supply_{nullptr};
+  bool power_supply_keep_on_{false};
   bool has_requested_high_power_{false};
 #endif
 };
