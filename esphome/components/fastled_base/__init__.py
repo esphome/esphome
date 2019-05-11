@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import light, power_supply
 from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_RGB_ORDER, CONF_MAX_REFRESH_RATE, \
-    CONF_POWER_SUPPLY
+    CONF_POWER_SUPPLY, CONF_POWER_SUPPLY_KEEP_ON
 from esphome.core import coroutine
 
 fastled_base_ns = cg.esphome_ns.namespace('fastled_base')
@@ -26,6 +26,7 @@ BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
 
     cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+    cv.Optional(CONF_POWER_SUPPLY_KEEP_ON): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -40,6 +41,9 @@ def new_fastled_light(config):
     if CONF_POWER_SUPPLY in config:
         var_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(var.set_power_supply(var_))
+
+    if CONF_POWER_SUPPLY_KEEP_ON in config:
+        cg.add(var.set_power_supply_keep_on(config[CONF_POWER_SUPPLY_KEEP_ON]))
 
     yield light.register_light(var, config)
     cg.add_library('FastLED', '3.2.0')
