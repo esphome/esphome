@@ -12,9 +12,6 @@ using namespace esphome::climate;
 
 void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   auto traits = this->device_->get_traits();
-  config.state_topic = false;
-  config.command_topic = false;
-
   // current_temperature_topic
   if (traits.get_supports_current_temperature()) {
     root["current_temperature_topic"] = this->get_current_temperature_state_topic();
