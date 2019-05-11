@@ -233,15 +233,19 @@ class Config(OrderedDict):
                 return err
         return None
 
-    def get_deepest_value_for_path(self, path):
-        # type: (ConfigPath) -> ConfigType
+    def get_deepest_document_range_for_path(self, path):
+        # type: (ConfigPath) -> Optional[ESPHomeDataBase]
         data = self
+        doc_range = None
         for item_index in path:
             try:
                 data = data[item_index]
             except (KeyError, IndexError, TypeError):
-                return data
-        return data
+                return doc_range
+            if isinstance(data, ESPHomeDataBase) and data.esp_range is not None:
+                doc_range = data.esp_range
+
+        return doc_range
 
     def get_nested_item(self, path):
         # type: (ConfigPath) -> ConfigType

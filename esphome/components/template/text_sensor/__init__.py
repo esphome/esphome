@@ -11,7 +11,7 @@ TemplateTextSensor = template_ns.class_('TemplateTextSensor', text_sensor.TextSe
 
 CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateTextSensor),
-    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
 }).extend(cv.polling_component_schema('60s'))
 
 
