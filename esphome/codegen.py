@@ -17,9 +17,9 @@ from esphome.cpp_generator import (  # noqa
     MockObjClass)
 from esphome.cpp_helpers import (  # noqa
     gpio_pin_expression, register_component, build_registry_entry,
-    build_registry_list, extract_registry_entry_config)
+    build_registry_list, extract_registry_entry_config, register_parented)
 from esphome.cpp_types import (  # noqa
-    global_ns, void, nullptr, float_, bool_, std_ns, std_string,
+    global_ns, void, nullptr, float_, double, bool_, std_ns, std_string,
     std_vector, uint8, uint16, uint32, int32, const_char_ptr, NAN,
     esphome_ns, App, Nameable, Component, ComponentPtr,
     PollingComponent, Application, optional, arduino_json_ns, JsonObject,
