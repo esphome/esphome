@@ -21,10 +21,14 @@ def find_all(a_str, sub):
             column += len(sub)
 
 
-command = ['git', 'ls-files']
+command = ['git', 'ls-files', '-s']
 proc = subprocess.Popen(command, stdout=subprocess.PIPE)
 output, err = proc.communicate()
-files = [s.strip() for s in output.decode('utf-8').splitlines()]
+lines = [x.split() for x in output.decode('utf-8').splitlines()]
+EXECUTABLE_BIT = {
+    s[3].strip(): int(s[0]) for s in lines
+}
+files = [s[3].strip() for s in lines]
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico',
@@ -92,7 +96,7 @@ def lint_content_find_check(find, **kwargs):
 
 
 @lint_file_check(include=['*.ino'])
-def lint_ino():
+def lint_ino(fname):
     return "This file extension (.ino) is not allowed. Please use either .cpp or .h"
 
 
@@ -100,9 +104,20 @@ def lint_ino():
     '.clang-*', '.dockerignore', '.editorconfig', '*.gitignore', 'LICENSE', 'pylintrc',
     'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*'
 ])
-def lint_ext_check():
+def lint_ext_check(fname):
     return "This file extension is not a registered file type. If this is an error, please " \
            "update the script/ci-custom.py script."
+
+
+@lint_file_check(exclude=[
+    'docker/rootfs/*', 'script/*', 'setup.py'
+])
+def lint_executable_bit(fname):
+    ex = EXECUTABLE_BIT[fname]
+    if ex != 100644:
+        return 'File has invalid executable bit {}. If running from a windows machine please ' \
+               'see disabling executable bit in git.'.format(ex)
+    return None
 
 
 @lint_content_find_check('\t', exclude=[
@@ -157,7 +172,7 @@ def add_errors(fname, errs):
 
 for fname in files:
     _, ext = os.path.splitext(fname)
-    run_checks(LINT_FILE_CHECKS, fname)
+    run_checks(LINT_FILE_CHECKS, fname, fname)
     if ext in ('.ico',):
         continue
     try:
