@@ -5,4 +5,3 @@ ace.define("ace/ext/searchbox",["require","exports","module","ace/lib/dom","ace/
                         }
                     });
                 })();
-            
