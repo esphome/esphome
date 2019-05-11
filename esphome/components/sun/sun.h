@@ -124,8 +124,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
   optional<time::ESPTime> last_result_{};
 };
 
-template<typename... Ts>
-class SunCondition : public Condition<Ts...>, public Parented<Sun> {
+template<typename... Ts> class SunCondition : public Condition<Ts...>, public Parented<Sun> {
  public:
   TEMPLATABLE_VALUE(double, elevation);
   void set_above(bool above) { above_ = above; }
