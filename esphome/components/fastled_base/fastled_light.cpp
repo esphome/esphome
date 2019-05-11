@@ -37,10 +37,14 @@ void FastLEDLightOutput::loop() {
 #ifdef USE_POWER_SUPPLY
   if (this->power_supply_ != nullptr) {
     bool is_on = false;
-    for (int i = 0; i < this->num_leds_; i++) {
-      if (bool(this->leds_[i])) {
-        is_on = true;
-        break;
+    if (this->power_supply_keep_on_ && this->effect_active_ && this->has_requested_high_power_) {
+      is_on = true;
+    } else {
+      for (int i = 0; i < this->num_leds_; i++) {
+        if (bool(this->leds_[i])) {
+          is_on = true;
+          break;
+        }
       }
     }
 
