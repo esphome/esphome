@@ -3,7 +3,10 @@ from __future__ import print_function
 
 import codecs
 import collections
+import fnmatch
+import functools
 import os.path
+import subprocess
 import sys
 
 
@@ -18,50 +21,154 @@ def find_all(a_str, sub):
             column += len(sub)
 
 
-files = []
-for root, _, fs in os.walk('esphome'):
-    for f in fs:
-        _, ext = os.path.splitext(f)
-        if ext in ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt',
-                   '.py', '.html', '.js', '.md'):
-            files.append(os.path.join(root, f))
-ignore = [
-    'esphome/dashboard/static/materialize.min.js',
-    'esphome/dashboard/static/ace.js',
-    'esphome/dashboard/static/mode-yaml.js',
-    'esphome/dashboard/static/theme-dreamweaver.js',
-    'esphome/dashboard/static/jquery.validate.min.js',
-    'esphome/dashboard/static/ext-searchbox.js',
-]
-files = [f for f in files if f not in ignore]
+command = ['git', 'ls-files']
+proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+output, err = proc.communicate()
+files = [s.strip() for s in output.decode('utf-8').splitlines()]
 files.sort()
 
+file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico',
+              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
+cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
+ignore_types = ('.ico',)
+
+LINT_FILE_CHECKS = []
+LINT_CONTENT_CHECKS = []
+
+
+def run_check(lint_obj, fname, *args):
+    include = lint_obj['include']
+    exclude = lint_obj['exclude']
+    func = lint_obj['func']
+    if include is not None:
+        for incl in include:
+            if fnmatch.fnmatch(fname, incl):
+                break
+        else:
+            return None
+    for excl in exclude:
+        if fnmatch.fnmatch(fname, excl):
+            return None
+    return func(*args)
+
+
+def run_checks(lints, fname, *args):
+    for lint in lints:
+        add_errors(fname, run_check(lint, fname, *args))
+
+
+def _add_check(checks, func, include=None, exclude=None):
+    checks.append({
+        'include': include,
+        'exclude': exclude or [],
+        'func': func,
+    })
+
+
+def lint_file_check(**kwargs):
+    def decorator(func):
+        _add_check(LINT_FILE_CHECKS, func, **kwargs)
+        return func
+    return decorator
+
+
+def lint_content_check(**kwargs):
+    def decorator(func):
+        _add_check(LINT_CONTENT_CHECKS, func, **kwargs)
+        return func
+    return decorator
+
+
+def lint_content_find_check(find, **kwargs):
+    decor = lint_content_check(**kwargs)
+
+    def decorator(func):
+        def new_func(content):
+            for line, col in find_all(content, find):
+                err = func()
+                return "{err} See line {line}:{col}.".format(err=err, line=line+1, col=col+1)
+        return decor(new_func)
+    return decorator
+
+
+@lint_file_check(include=['*.ino'])
+def lint_ino():
+    return "This file extension (.ino) is not allowed. Please use either .cpp or .h"
+
+
+@lint_file_check(exclude=['*{}'.format(f) for f in file_types] + [
+    '.clang-*', '.dockerignore', '.editorconfig', '*.gitignore', 'LICENSE', 'pylintrc',
+    'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*'
+])
+def lint_ext_check():
+    return "This file extension is not a registered file type. If this is an error, please " \
+           "update the script/ci-custom.py script."
+
+
+@lint_content_find_check('\t', exclude=[
+    'esphome/dashboard/static/ace.js', 'esphome/dashboard/static/ext-searchbox.js',
+    'script/.neopixelbus.patch',
+])
+def lint_tabs():
+    return "File contains tab character. Please convert tabs to spaces."
+
+
+@lint_content_find_check('\r')
+def lint_newline():
+    return "File contains windows newline. Please set your editor to unix newline mode."
+
+
+@lint_content_check()
+def lint_end_newline(content):
+    if content and not content.endswith('\n'):
+        return "File does not end with a newline, please add an empty line at the end of the file."
+    return None
+
+
+@lint_content_find_check('"esphome.h"', include=cpp_include, exclude=['tests/custom.h'])
+def lint_esphome_h():
+    return ("File contains reference to 'esphome.h' - This file is "
+            "auto-generated and should only be used for *custom* "
+            "components. Please replace with references to the direct files.")
+
+
+@lint_content_check(include=['*.h'])
+def lint_pragma_once(content):
+    if '#pragma once' not in content:
+        return ("Header file contains no 'pragma once' header guard. Please add a "
+                "'#pragma once' line at the top of the file.")
+    return None
+
+
 errors = collections.defaultdict(list)
-for f in files:
+
+
+def add_errors(fname, errs):
+    if not isinstance(errs, list):
+        errs = [errs]
+    errs = [x for x in errs if x is not None]
+    for err in errs:
+        if not isinstance(err, str):
+            raise ValueError("Error is not instance of string!")
+    if not errs:
+        return
+    errors[fname].extend(errs)
+
+
+for fname in files:
+    _, ext = os.path.splitext(fname)
+    run_checks(LINT_FILE_CHECKS, fname)
+    if ext in ('.ico',):
+        continue
     try:
-        with codecs.open(f, 'r', encoding='utf-8') as f_handle:
+        with codecs.open(fname, 'r', encoding='utf-8') as f_handle:
             content = f_handle.read()
     except UnicodeDecodeError:
-        errors[f].append("File is not readable as UTF-8. Please set your editor to UTF-8 mode.")
+        add_errors(fname, "File is not readable as UTF-8. Please set your editor to UTF-8 mode.")
         continue
-    for line, col in find_all(content, '\t'):
-        errors[f].append("File contains tab character on line {}:{}. "
-                         "Please convert tabs to spaces.".format(line, col))
-    for line, col in find_all(content, '\r'):
-        errors[f].append("File contains windows newline on line {}:{}. "
-                         "Please set your editor to unix newline mode.".format(line, col))
-    if content and not content.endswith('\n'):
-        errors[f].append("File does not end with a newline, please add an empty line at the end of "
-                         "the file.")
-    _, ext = os.path.splitext(f)
-    if ext in ('.h', '.c', '.cpp', '.tcc'):
-        for line, col in find_all(content, '"esphome.h"'):
-            errors[f].append("File contains reference to 'esphome.h' - This file is "
-                             "auto-generated and should only be used for *custom* "
-                             "components. Please replace with references to the direct "
-                             "files.")
+    run_checks(LINT_CONTENT_CHECKS, fname, content)
 
-for f, errs in errors.items():
+for f, errs in sorted(errors.items()):
     print("\033[0;32m************* File \033[1;32m{}\033[0m".format(f))
     for err in errs:
         print(err)
