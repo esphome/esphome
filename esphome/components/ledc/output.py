@@ -1,9 +1,10 @@
+import math
 
 from esphome import pins
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import APB_CLOCK_FREQ, CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
+from esphome.const import CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
     CONF_ID, CONF_PIN, ESP_PLATFORM_ESP32
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
@@ -12,9 +13,18 @@ ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 def validate_frequency_bit_depth(obj):
     frequency = obj[CONF_FREQUENCY]
     bit_depth = obj[CONF_BIT_DEPTH]
-    max_freq = APB_CLOCK_FREQ / (2**bit_depth)
+    apb_freq = 80e6
+    max_freq = apb_freq / (2**bit_depth)
     if frequency > max_freq:
-        raise cv.Invalid('Maximum frequency for bit depth {} is {}Hz'.format(bit_depth, max_freq))
+        raise cv.Invalid('Maximum frequency for bit depth {} is {}Hz. Please decrease the '
+                         'bit_depth.'.format(bit_depth, int(math.floor(max_freq))))
+    # LEDC_DIV_NUM_HSTIMER is 15-bit unsigned integer
+    # lower 8 bits represent fractional part
+    max_div_num = ((1 << 16) - 1) / 256.0
+    min_freq = apb_freq / (max_div_num * (2**bit_depth))
+    if frequency < min_freq:
+        raise cv.Invalid('Minimum frequency for bit depth {} is {}Hz. Please increase the '
+                         'bit_depth.'.format(bit_depth, int(math.ceil(min_freq))))
     return obj
 
 
