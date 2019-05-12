@@ -280,7 +280,7 @@ def validate_id_name(value):
         raise Invalid("First character in ID cannot be a digit.")
     if '-' in value:
         raise Invalid("Dashes are not supported in IDs, please use underscores instead.")
-    valid_chars = ascii_letters + digits
+    valid_chars = ascii_letters + digits + '_'
     for char in value:
         if char not in valid_chars:
             raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
