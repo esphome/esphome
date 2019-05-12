@@ -8,6 +8,7 @@ import re
 from contextlib import contextmanager
 import uuid as uuid_
 from datetime import datetime
+from string import ascii_letters, digits
 
 import voluptuous as vol
 
@@ -279,8 +280,9 @@ def validate_id_name(value):
         raise Invalid("First character in ID cannot be a digit.")
     if '-' in value:
         raise Invalid("Dashes are not supported in IDs, please use underscores instead.")
+    valid_chars = ascii_letters + digits + '_'
     for char in value:
-        if char != '_' and not char.isalnum():
+        if char not in valid_chars:
             raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
                           u"character and numbers. The character '{}' cannot be used"
                           u"".format(char))
@@ -611,7 +613,7 @@ if IS_PY2:
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
             if self.path else ''
         # pylint: disable=no-member
-        output = Exception.__unicode__(self)
+        output = self.message
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path

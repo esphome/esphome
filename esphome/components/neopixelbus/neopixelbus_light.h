@@ -9,10 +9,6 @@
 #error The NeoPixelBus library requires at least arduino_core_version 2.4.x
 #endif
 
-#ifdef USE_POWER_SUPPLY
-#include "esphome/components/power_supply/power_supply.h"
-#endif
-
 #include "NeoPixelBus.h"
 
 namespace esphome {
@@ -54,10 +50,6 @@ enum class ESPNeoPixelOrder {
 template<typename T_METHOD, typename T_COLOR_FEATURE>
 class NeoPixelBusLightOutputBase : public Component, public light::AddressableLight {
  public:
-#ifdef USE_POWER_SUPPLY
-  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
-#endif
-
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
 
   void clear_effect_data() override {
@@ -95,27 +87,6 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
     this->mark_shown_();
     this->controller_->Dirty();
 
-#ifdef USE_POWER_SUPPLY
-    if (this->power_supply_ != nullptr) {
-      bool is_light_on = false;
-      for (int i = 0; i < this->size(); i++) {
-        if ((*this)[i].get().is_on()) {
-          is_light_on = true;
-          break;
-        }
-      }
-
-      if (is_light_on && !this->has_requested_high_power_) {
-        this->power_supply_->request_high_power();
-        this->has_requested_high_power_ = true;
-      }
-      if (!is_light_on && this->has_requested_high_power_) {
-        this->power_supply_->unrequest_high_power();
-        this->has_requested_high_power_ = false;
-      }
-    }
-#endif
-
     this->controller_->Show();
   }
 
@@ -135,10 +106,6 @@ class NeoPixelBusLightOutputBase : public Component, public light::AddressableLi
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *controller_{nullptr};
   uint8_t *effect_data_{nullptr};
   uint8_t rgb_offsets_[4]{0, 1, 2, 3};
-#ifdef USE_POWER_SUPPLY
-  power_supply::PowerSupply *power_supply_{nullptr};
-  bool has_requested_high_power_{false};
-#endif
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE = NeoRgbFeature>

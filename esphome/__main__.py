@@ -1,16 +1,18 @@
 from __future__ import print_function
 
 import argparse
+import functools
 import logging
 import os
 import sys
 from datetime import datetime
 
 from esphome import const, writer, yaml_util
+import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
     CONF_PASSWORD, CONF_PORT
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
 from esphome.util import run_external_command, run_external_process, safe_print
@@ -117,12 +119,27 @@ def run_miniterm(config, port):
                 config, line, backtrace_state=backtrace_state)
 
 
+def wrap_to_code(name, comp):
+    coro = coroutine(comp.to_code)
+
+    @functools.wraps(comp.to_code)
+    @coroutine_with_priority(coro.priority)
+    def wrapped(conf):
+        cg.add(cg.LineComment(u"{}:".format(name)))
+        if comp.config_schema is not None:
+            cg.add(cg.LineComment(indent(yaml_util.dump(conf).decode('utf-8'))))
+        yield coro(conf)
+
+    return wrapped
+
+
 def write_cpp(config):
     _LOGGER.info("Generating C++ source...")
 
-    for _, component, conf in iter_components(CORE.config):
+    for name, component, conf in iter_components(CORE.config):
         if component.to_code is not None:
-            CORE.add_job(component.to_code, conf)
+            coro = wrap_to_code(name, component)
+            CORE.add_job(coro, conf)
 
     CORE.flush_tasks()
 

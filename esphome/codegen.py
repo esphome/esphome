@@ -10,7 +10,7 @@
 # pylint: disable=unused-import
 from esphome.cpp_generator import (  # noqa
     Expression, RawExpression, RawStatement, TemplateArguments,
-    StructInitializer, ArrayInitializer, safe_exp, Statement,
+    StructInitializer, ArrayInitializer, safe_exp, Statement, LineComment,
     progmem_array, statement, variable, Pvariable, new_Pvariable,
     add, add_global, add_library, add_build_flag, add_define,
     get_variable, get_variable_with_full_id, process_lambda, is_template, templatable, MockObj,

@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import light, power_supply
+from esphome.components import light
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_METHOD, CONF_NUM_LEDS, CONF_PIN, \
-    CONF_POWER_SUPPLY, CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID
+    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID
 from esphome.core import CORE
 
 neopixelbus_ns = cg.esphome_ns.namespace('neopixelbus')
@@ -138,8 +138,6 @@ CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.Optional(CONF_DATA_PIN): pins.output_pin,
 
     cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-
-    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
 }).extend(cv.COMPONENT_SCHEMA), validate, validate_method_pin)
 
 
@@ -161,9 +159,5 @@ def to_code(config):
         cg.add(var.add_leds(config[CONF_NUM_LEDS], config[CONF_CLOCK_PIN], config[CONF_DATA_PIN]))
 
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
-
-    if CONF_POWER_SUPPLY in config:
-        var_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
-        cg.add(var.set_power_supply(var_))
 
     cg.add_library('NeoPixelBus', '2.4.1')

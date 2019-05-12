@@ -4,7 +4,6 @@ from __future__ import print_function
 import codecs
 import collections
 import fnmatch
-import functools
 import os.path
 import subprocess
 import sys
@@ -153,6 +152,28 @@ def lint_pragma_once(content):
         return ("Header file contains no 'pragma once' header guard. Please add a "
                 "'#pragma once' line at the top of the file.")
     return None
+
+
+@lint_content_find_check('ESP_LOG', include=['*.h', '*.tcc'], exclude=[
+    'esphome/components/binary_sensor/binary_sensor.h',
+    'esphome/components/cover/cover.h',
+    'esphome/components/display/display_buffer.h',
+    'esphome/components/i2c/i2c.h',
+    'esphome/components/mqtt/mqtt_component.h',
+    'esphome/components/output/binary_output.h',
+    'esphome/components/output/float_output.h',
+    'esphome/components/sensor/sensor.h',
+    'esphome/components/stepper/stepper.h',
+    'esphome/components/switch/switch.h',
+    'esphome/components/text_sensor/text_sensor.h',
+    'esphome/core/component.h',
+    'esphome/core/esphal.h',
+    'esphome/core/log.h',
+    'tests/custom.h',
+])
+def lint_log_in_header():
+    return ('Found reference to ESP_LOG in header file. Using ESP_LOG* in header files '
+            'is currently not possible - please move the definition to a source file (.cpp)')
 
 
 errors = collections.defaultdict(list)

@@ -729,7 +729,7 @@ def start_web_server(args):
 
             webbrowser.open('localhost:{}'.format(args.port))
 
-    if not settings.status_use_ping:
+    if settings.status_use_ping:
         status_thread = PingStatusThread()
     else:
         status_thread = MDNSStatusThread()
