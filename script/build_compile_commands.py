@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-from .helpers import build_all_include, build_compile_commands
+import sys
+import os.path
+
+sys.path.append(os.path.dirname(__file__))
+from helpers import build_all_include, build_compile_commands
 
 
 def main():
