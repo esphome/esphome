@@ -54,6 +54,7 @@ class PowerSupplyRequester {
       this->requested_ = false;
     }
   }
+
  protected:
   PowerSupply *parent_{nullptr};
   bool requested_{false};
