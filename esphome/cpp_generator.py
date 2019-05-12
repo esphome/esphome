@@ -328,6 +328,17 @@ class ExpressionStatement(Statement):
         return u"{};".format(self.expression)
 
 
+class LineComment(Statement):
+    def __init__(self, value):  # type: (unicode) -> None
+        super(LineComment, self).__init__()
+        self._value = value
+
+    def __str__(self):
+        parts = self._value.split(u'\n')
+        parts = [u'// {}'.format(x) for x in parts]
+        return u'\n'.join(parts)
+
+
 class ProgmemAssignmentExpression(AssignmentExpression):
     def __init__(self, type, name, rhs, obj):
         super(ProgmemAssignmentExpression, self).__init__(
