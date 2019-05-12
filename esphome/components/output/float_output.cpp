@@ -24,15 +24,9 @@ void FloatOutput::set_level(float state) {
 
 #ifdef USE_POWER_SUPPLY
   if (state > 0.0f) {  // ON
-    if (this->power_supply_ != nullptr && !this->has_requested_high_power_) {
-      this->power_supply_->request_high_power();
-      this->has_requested_high_power_ = true;
-    }
+    this->power_.request();
   } else {  // OFF
-    if (this->power_supply_ != nullptr && this->has_requested_high_power_) {
-      this->power_supply_->unrequest_high_power();
-      this->has_requested_high_power_ = false;
-    }
+    this->power_.unrequest();
   }
 #endif
 
