@@ -10,8 +10,34 @@ from esphome.const import CONF_BIT_DEPTH, CONF_CHANNEL, CONF_FREQUENCY, \
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 
 
+def calc_max_frequency(bit_depth):
+    return 80e6 / (2**bit_depth)
+
+
+def calc_min_frequency(bit_depth):
+    max_div_num = ((1 << 16) - 1) / 256.0
+    return 80e6 / (max_div_num * (2**bit_depth))
+
+
 def validate_frequency_bit_depth(obj):
     frequency = obj[CONF_FREQUENCY]
+    if CONF_BIT_DEPTH not in obj:
+        obj = obj.copy()
+        for bit_depth in range(15, 0, -1):
+            if calc_min_frequency(bit_depth) < frequency < calc_max_frequency(bit_depth):
+                obj[CONF_BIT_DEPTH] = bit_depth
+                break
+        else:
+            min_freq = min(calc_min_frequency(x) for x in range(1, 16))
+            max_freq = max(calc_max_frequency(x) for x in range(1, 16))
+            if frequency < min_freq:
+                raise cv.Invalid("This frequency setting is not possible, please choose a higher "
+                                 "frequency (at least {}Hz)".format(min_freq))
+            if frequency > max_freq:
+                raise cv.Invalid("This frequency setting is not possible, please choose a lower "
+                                 "frequency (at most {}Hz)".format(min_freq))
+            raise cv.Invalid("Invalid frequency!")
+
     bit_depth = obj[CONF_BIT_DEPTH]
     apb_freq = 80e6
     max_freq = apb_freq / (2**bit_depth)
@@ -35,7 +61,7 @@ CONFIG_SCHEMA = cv.All(output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(LEDCOutput),
     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.frequency,
-    cv.Optional(CONF_BIT_DEPTH, default=12): cv.int_range(min=1, max=15),
+    cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=1, max=15),
     cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
 }).extend(cv.COMPONENT_SCHEMA), validate_frequency_bit_depth)
 
