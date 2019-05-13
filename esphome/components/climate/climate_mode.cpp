@@ -6,13 +6,13 @@ namespace climate {
 const char *climate_mode_to_string(ClimateMode mode) {
   switch (mode) {
     case CLIMATE_MODE_OFF:
-      return "OFF";
+      return "off";
     case CLIMATE_MODE_AUTO:
-      return "AUTO";
+      return "auto";
     case CLIMATE_MODE_COOL:
-      return "COOL";
+      return "cool";
     case CLIMATE_MODE_HEAT:
-      return "HEAT";
+      return "heat";
     default:
       return "UNKNOWN";
   }

@@ -60,7 +60,7 @@ void Application::setup() {
   this->dump_config();
 }
 void Application::dump_config() {
-  ESP_LOGI(TAG, "esphome-core version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+  ESP_LOGI(TAG, "esphome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
 
   for (auto component : this->components_) {
     component->dump_config();

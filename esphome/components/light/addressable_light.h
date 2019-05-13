@@ -1,8 +1,13 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "light_output.h"
 #include "light_state.h"
+
+#ifdef USE_POWER_SUPPLY
+#include "esphome/components/power_supply/power_supply.h"
+#endif
 
 namespace esphome {
 namespace light {
@@ -30,6 +35,7 @@ struct ESPColor {
       };
     };
     uint8_t raw[4];
+    uint32_t raw_32;
   };
   inline ESPColor() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
   inline ESPColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
@@ -47,7 +53,7 @@ struct ESPColor {
     this->b = rhs.b;
     this->w = rhs.w;
   }
-  inline bool is_on() ALWAYS_INLINE { return this->r != 0 || this->g != 0 || this->b != 0 || this->w != 0; }
+  inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
   inline ESPColor &operator=(const ESPColor &rhs) ALWAYS_INLINE {
     this->r = rhs.r;
     this->g = rhs.g;
@@ -527,14 +533,32 @@ class AddressableLight : public LightOutput {
   void setup_state(LightState *state) override { this->correction_.calculate_gamma_table(state->get_gamma_correct()); }
   void schedule_show() { this->next_show_ = true; }
 
+#ifdef USE_POWER_SUPPLY
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
+#endif
+
  protected:
   bool should_show_() const { return this->effect_active_ || this->next_show_; }
-  void mark_shown_() { this->next_show_ = false; }
+  void mark_shown_() {
+    this->next_show_ = false;
+#ifdef USE_POWER_SUPPLY
+    for (auto c : *this) {
+      if (c.get().is_on()) {
+        this->power_.request();
+        return;
+      }
+    }
+    this->power_.unrequest();
+#endif
+  }
   virtual ESPColorView get_view_internal(int32_t index) const = 0;
 
   bool effect_active_{false};
   bool next_show_{true};
   ESPColorCorrection correction_{};
+#ifdef USE_POWER_SUPPLY
+  power_supply::PowerSupplyRequester power_;
+#endif
 };
 
 }  // namespace light

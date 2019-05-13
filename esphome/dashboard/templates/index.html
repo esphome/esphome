@@ -189,7 +189,7 @@
               <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>)
             </p>
             <div class="input-field col s12">
-              <input id="node_name" class="validate" type="text" name="name" required>
+              <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true" data-rule-lowercase="true" required>
               <label for="node_name">Name of node</label>
             </div>
           </div>
@@ -207,8 +207,7 @@
               Please choose the board you're using below.
             </p>
             <p>
-              If you're not sure you can also use similar ones or even the
-              "Generic" option. In most cases that will work too.
+              <em>If unsure you can also select a similar board or choose the "Generic" option.</em>
             </p>
             <div class="input-field col s12">
               <select id="board" name="board" required>

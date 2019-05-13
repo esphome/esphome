@@ -256,12 +256,12 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             self.write_message({'event': 'exit', 'code': returncode})
 
     def on_close(self):
-        # Shutdown proc on WS close
-        self._is_closed = True
         # Check if proc exists (if 'start' has been run)
         if self.is_process_active:
             _LOGGER.debug("Terminating process")
             self._proc.proc.terminate()
+        # Shutdown proc on WS close
+        self._is_closed = True
 
     def build_command(self, json_message):
         raise NotImplementedError
@@ -308,6 +308,11 @@ class EsphomeCleanHandler(EsphomeCommandWebSocket):
 class EsphomeVscodeHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         return ["esphome", "--dashboard", "-q", 'dummy', "vscode"]
+
+
+class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        return ["esphome", "--dashboard", "-q", settings.config_dir, "vscode", "--ace"]
 
 
 class SerialPortRequestHandler(BaseHandler):
@@ -678,6 +683,7 @@ def make_app(debug=False):
         (rel + "clean-mqtt", EsphomeCleanMqttHandler),
         (rel + "clean", EsphomeCleanHandler),
         (rel + "vscode", EsphomeVscodeHandler),
+        (rel + "ace", EsphomeAceEditorHandler),
         (rel + "edit", EditRequestHandler),
         (rel + "download.bin", DownloadBinaryRequestHandler),
         (rel + "serial-ports", SerialPortRequestHandler),

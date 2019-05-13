@@ -8,7 +8,7 @@ CustomSwitchConstructor = custom_ns.class_('CustomSwitchConstructor')
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CustomSwitchConstructor),
-    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Required(CONF_LAMBDA): cv.returning_lambda,
     cv.Required(CONF_SWITCHES):
         cv.ensure_list(switch.SWITCH_SCHEMA.extend({
             cv.GenerateID(): cv.declare_id(switch.Switch),

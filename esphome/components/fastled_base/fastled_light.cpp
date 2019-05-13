@@ -33,27 +33,6 @@ void FastLEDLightOutput::loop() {
   this->mark_shown_();
 
   ESP_LOGVV(TAG, "Writing RGB values to bus...");
-
-#ifdef USE_POWER_SUPPLY
-  if (this->power_supply_ != nullptr) {
-    bool is_on = false;
-    for (int i = 0; i < this->num_leds_; i++) {
-      if (bool(this->leds_[i])) {
-        is_on = true;
-        break;
-      }
-    }
-
-    if (is_on && !this->has_requested_high_power_) {
-      this->power_supply_->request_high_power();
-      this->has_requested_high_power_ = true;
-    }
-    if (!is_on && this->has_requested_high_power_) {
-      this->power_supply_->unrequest_high_power();
-      this->has_requested_high_power_ = false;
-    }
-  }
-#endif
   this->controller_->showLeds();
 }
 

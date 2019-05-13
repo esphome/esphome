@@ -294,8 +294,6 @@ void HighFrequencyLoopRequester::stop() {
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
 float clamp(float val, float min, float max) {
-  if (min > max)
-    std::swap(min, max);
   if (val < min)
     return min;
   if (val > max)

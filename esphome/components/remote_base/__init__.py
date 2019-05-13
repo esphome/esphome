@@ -410,7 +410,7 @@ def rc5_action(var, config, args):
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
 
 RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
-    cv.All(cv.Coerce(int), cv.Range(min=1, max=7)),
+    cv.int_range(min=1, max=7),
     cv.Schema({
         cv.Required(CONF_PULSE_LENGTH): cv.uint32_t,
         cv.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
@@ -457,22 +457,22 @@ RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_B_SCHEMA = cv.Schema({
-    cv.Required(CONF_ADDRESS): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
-    cv.Required(CONF_CHANNEL): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
+    cv.Required(CONF_ADDRESS): cv.int_range(min=1, max=4),
+    cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=4),
     cv.Required(CONF_STATE): cv.boolean,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_C_SCHEMA = cv.Schema({
     cv.Required(CONF_FAMILY): cv.one_of('a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k',
                                         'l', 'm', 'n', 'o', 'p', lower=True),
-    cv.Required(CONF_GROUP): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
-    cv.Required(CONF_DEVICE): cv.All(cv.uint8_t, cv.Range(min=1, max=4)),
+    cv.Required(CONF_GROUP): cv.int_range(min=1, max=4),
+    cv.Required(CONF_DEVICE): cv.int_range(min=1, max=4),
     cv.Required(CONF_STATE): cv.boolean,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_D_SCHEMA = cv.Schema({
     cv.Required(CONF_GROUP): cv.one_of('a', 'b', 'c', 'd', lower=True),
-    cv.Required(CONF_DEVICE): cv.All(cv.uint8_t, cv.Range(min=1, max=3)),
+    cv.Required(CONF_DEVICE): cv.int_range(min=1, max=3),
     cv.Required(CONF_STATE): cv.boolean,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
