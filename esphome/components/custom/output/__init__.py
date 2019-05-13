@@ -9,7 +9,7 @@ CustomFloatOutputConstructor = custom_ns.class_('CustomFloatOutputConstructor')
 
 BINARY_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CustomBinaryOutputConstructor),
-    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Required(CONF_LAMBDA): cv.returning_lambda,
     cv.Required(CONF_TYPE): 'binary',
     cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
@@ -19,7 +19,7 @@ BINARY_SCHEMA = cv.Schema({
 
 FLOAT_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CustomFloatOutputConstructor),
-    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Required(CONF_LAMBDA): cv.returning_lambda,
     cv.Required(CONF_TYPE): 'float',
     cv.Required(CONF_OUTPUTS):
         cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({

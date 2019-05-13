@@ -33,7 +33,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
     cv.Optional(CONF_INTEGRATION_METHOD, default='trapezoid'):
         cv.enum(INTEGRATION_METHODS, lower=True),
-    cv.Optional(CONF_RESTORE, default=True): cv.boolean,
+    cv.Optional(CONF_RESTORE, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

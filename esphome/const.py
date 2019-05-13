@@ -11,8 +11,6 @@ ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-APB_CLOCK_FREQ = 80000000
-
 ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
 ARDUINO_VERSION_ESP32_1_0_0 = 'espressif32@1.5.0'
@@ -472,6 +470,9 @@ ICON_ROTATE_RIGHT = 'mdi:rotate-right'
 ICON_SCALE = 'mdi:scale'
 ICON_SCREEN_ROTATION = 'mdi:screen-rotation'
 ICON_SIGNAL = 'mdi:signal'
+ICON_WEATHER_SUNSET = 'mdi:weather-sunset'
+ICON_WEATHER_SUNSET_DOWN = 'mdi:weather-sunset-down'
+ICON_WEATHER_SUNSET_UP = 'mdi:weather-sunset-up'
 ICON_THERMOMETER = 'mdi:thermometer'
 ICON_TIMER = 'mdi:timer'
 ICON_WATER_PERCENT = 'mdi:water-percent'

@@ -8,6 +8,7 @@ import re
 from contextlib import contextmanager
 import uuid as uuid_
 from datetime import datetime
+from string import ascii_letters, digits
 
 import voluptuous as vol
 
@@ -279,8 +280,9 @@ def validate_id_name(value):
         raise Invalid("First character in ID cannot be a digit.")
     if '-' in value:
         raise Invalid("Dashes are not supported in IDs, please use underscores instead.")
+    valid_chars = ascii_letters + digits + '_'
     for char in value:
-        if char != '_' and not char.isalnum():
+        if char not in valid_chars:
             raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
                           u"character and numbers. The character '{}' cannot be used"
                           u"".format(char))
@@ -333,7 +335,7 @@ def templatable(other_validators):
 
     def validator(value):
         if isinstance(value, Lambda):
-            return lambda_(value)
+            return returning_lambda(value)
         if isinstance(other_validators, dict):
             return schema(value)
         return schema(value)
@@ -570,10 +572,15 @@ METRIC_SUFFIXES = {
 }
 
 
-def float_with_unit(quantity, regex_suffix):
+def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
 
     def validator(value):
+        if optional_unit:
+            try:
+                return float_(value)
+            except Invalid:
+                pass
         match = pattern.match(string(value))
 
         if match is None:
@@ -595,6 +602,7 @@ current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
 voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
 distance = float_with_unit("distance", u"(m)")
 framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
+angle = float_with_unit("angle", u"(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
@@ -605,7 +613,7 @@ if IS_PY2:
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
             if self.path else ''
         # pylint: disable=no-member
-        output = Exception.__unicode__(self)
+        output = self.message
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path
@@ -971,6 +979,20 @@ def lambda_(value):
                       "The id() wrapper only works for ESPHome-internal types. For importing "
                       "states from Home Assistant use the 'homeassistant' sensor platforms."
                       "".format(entity_ids))
+    return value
+
+
+def returning_lambda(value):
+    """Coerce this configuration option to a lambda.
+
+    Additionally, make sure the lambda returns something.
+    """
+    value = lambda_(value)
+    if u'return' not in value.value:
+        raise Invalid("Lambda doesn't contain a 'return' statement, but the lambda "
+                      "is expected to return a value. \n"
+                      "Please make sure the lambda contains at least one "
+                      "return statement.")
     return value
 
 

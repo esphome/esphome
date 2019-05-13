@@ -27,16 +27,13 @@ class BinaryOutput {
    *
    * @param power_supply The PowerSupplyComponent, set this to nullptr to disable the power supply.
    */
-  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
 #endif
 
   /// Enable this binary output.
   virtual void turn_on() {
 #ifdef USE_POWER_SUPPLY
-    if (this->power_supply_ != nullptr && !this->has_requested_high_power_) {
-      this->power_supply_->request_high_power();
-      this->has_requested_high_power_ = true;
-    }
+    this->power_.request();
 #endif
     this->write_state(!this->inverted_);
   }
@@ -44,10 +41,7 @@ class BinaryOutput {
   /// Disable this binary output.
   virtual void turn_off() {
 #ifdef USE_POWER_SUPPLY
-    if (this->power_supply_ != nullptr && this->has_requested_high_power_) {
-      this->power_supply_->unrequest_high_power();
-      this->has_requested_high_power_ = false;
-    }
+    this->power_.unrequest();
 #endif
     this->write_state(this->inverted_);
   }
@@ -62,8 +56,7 @@ class BinaryOutput {
 
   bool inverted_{false};
 #ifdef USE_POWER_SUPPLY
-  power_supply::PowerSupply *power_supply_{nullptr};
-  bool has_requested_high_power_{false};
+  power_supply::PowerSupplyRequester power_{};
 #endif
 };
 
