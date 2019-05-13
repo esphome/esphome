@@ -155,9 +155,7 @@ def _lookup_module(domain, is_platform):
     try:
         module = importlib.import_module('esphome.components.{}'.format(domain))
     except ImportError as e:
-        if 'No module named' in str(e):
-            _LOGGER.error("Unable to import component %s:", domain)
-        else:
+        if 'No module named' not in str(e):
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except
