@@ -163,8 +163,7 @@ class I2CDevice {
    */
   bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);  // NOLINT
 
-  template<size_t N>
-  optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {  // NOLINT
+  template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {  // NOLINT
     std::array<uint8_t, N> res;
     if (!this->read_bytes(a_register, res.data(), N)) {
       return {};
@@ -214,8 +213,7 @@ class I2CDevice {
     return this->write_bytes(a_register, data.data(), data.size());
   }
 
-  template<size_t N>
-  bool write_bytes(uint8_t a_register, const std::array<uint8_t, N> &data) {  // NOLINT
+  template<size_t N> bool write_bytes(uint8_t a_register, const std::array<uint8_t, N> &data) {  // NOLINT
     return this->write_bytes(a_register, data.data(), data.size());
   }
 

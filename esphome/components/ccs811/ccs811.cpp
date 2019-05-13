@@ -38,9 +38,12 @@ void CCS811Component::setup() {
   // set MEAS_MODE (page 5)
   uint8_t meas_mode = 0;
   uint32_t interval = this->get_update_interval();
-  if (interval <= 1000) meas_mode = 1 << 4;
-  else if (interval <= 10000) meas_mode = 2 << 4;
-  else meas_mode = 3 << 4;
+  if (interval <= 1000)
+    meas_mode = 1 << 4;
+  else if (interval <= 10000)
+    meas_mode = 2 << 4;
+  else
+    meas_mode = 3 << 4;
 
   CHECKED_IO(this->write_byte(0x01, meas_mode))
 
@@ -71,7 +74,7 @@ void CCS811Component::update() {
     baseline = encode_uint16((*baseline_data)[0], (*baseline_data)[1]);
   }
 
-  ESP_LOGD(TAG, "Got co2=%u ppm, tvoc=%u ppb, baseline=%04X", co2, tvoc, baseline);
+  ESP_LOGD(TAG, "Got co2=%u ppm, tvoc=%u ppb, baseline=0x%04X", co2, tvoc, baseline);
 
   if (this->co2_ != nullptr)
     this->co2_->publish_state(co2);
