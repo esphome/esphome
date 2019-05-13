@@ -10,6 +10,7 @@ GPS = gps_ns.class_('GPS', cg.Component, uart.UARTDevice)
 GPSListener = gps_ns.class_('GPSListener')
 
 CONF_GPS_ID = 'gps_id'
+MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(GPS),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
