@@ -1146,6 +1146,8 @@ pn532:
 
 rdm6300:
 
+gps:
+
 time:
 - platform: sntp
   id: sntp_time
@@ -1157,6 +1159,7 @@ time:
     cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
     then:
       - lambda: 'ESP_LOGD("main", "time");'
+- platform: gps
 
 cover:
   - platform: template
