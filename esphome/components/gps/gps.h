@@ -13,13 +13,14 @@ class GPSListener {
  public:
   virtual void on_update(TinyGPSPlus &tiny_gps) = 0;
   TinyGPSPlus &get_tiny_gps();
+
  protected:
   friend GPS;
 
   GPS *parent_;
 };
 
-class GPS : public Component, public uart::UARTDevice  {
+class GPS : public Component, public uart::UARTDevice {
  public:
   void register_listener(GPSListener *listener) {
     listener->parent_ = this;
