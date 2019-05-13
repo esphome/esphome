@@ -141,7 +141,7 @@ def _lookup_module(domain, is_platform):
     except ImportError as e:
         # ImportError when no such module
         if 'No module named' not in str(e):
-            _LOGGER.warn("Unable to import custom component %s:", domain, exc_info=True)
+            _LOGGER.warning("Unable to import custom component %s:", domain, exc_info=True)
     except Exception:  # pylint: disable=broad-except
         # Other error means component has an issue
         _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
