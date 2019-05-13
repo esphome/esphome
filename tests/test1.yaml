@@ -511,6 +511,13 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
+  - platform: ccs811
+    eco2:
+      name: CCS811 eCO2
+    tvoc:
+      name: CCS811 TVOC
+    update_interval: 30s
+    baseline: 0x4242
 
 
 esp32_touch:
