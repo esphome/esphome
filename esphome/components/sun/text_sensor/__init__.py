@@ -24,13 +24,13 @@ def validate_optional_icon(config):
     return config
 
 
-CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(text_sensor.TEXT_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SunTextSensor),
     cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
     cv.Required(CONF_TYPE): cv.one_of(*SUN_TYPES, lower=True),
     cv.Optional(CONF_ELEVATION, default=0): elevation,
     cv.Optional(CONF_FORMAT, default='%X'): cv.string_strict,
-}).extend(cv.polling_component_schema('60s'))
+}).extend(cv.polling_component_schema('60s')), validate_optional_icon)
 
 
 def to_code(config):
