@@ -11,6 +11,7 @@ ttp229_bsf_ns = cg.esphome_ns.namespace('ttp229_bsf')
 
 TTP229BSFComponent = ttp229_bsf_ns.class_('TTP229BSFComponent', cg.Component)
 
+MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TTP229BSFComponent),
     cv.Required(CONF_SDO_PIN): pins.gpio_input_pullup_pin_schema,
