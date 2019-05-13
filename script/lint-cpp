@@ -12,5 +12,5 @@ fi
 
 set -x
 
-script/clang-tidy -c --fix --all-headers
-script/clang-format -c -i
+script/clang-tidy $@ --fix --all-headers
+script/clang-format $@ -i

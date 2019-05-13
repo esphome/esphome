@@ -5,10 +5,10 @@ from esphome.const import CONF_CHANNEL, CONF_ID
 from . import ttp229_bsf_ns, TTP229BSFComponent, CONF_TTP229_ID
 
 DEPENDENCIES = ['ttp229_bsf']
-TTP229Channel = ttp229_bsf_ns.class_('TTP229Channel', binary_sensor.BinarySensor)
+TTP229BSFChannel = ttp229_bsf_ns.class_('TTP229BSFChannel', binary_sensor.BinarySensor)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(TTP229Channel),
+    cv.GenerateID(): cv.declare_id(TTP229BSFChannel),
     cv.GenerateID(CONF_TTP229_ID): cv.use_id(TTP229BSFComponent),
     cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=15),
 })

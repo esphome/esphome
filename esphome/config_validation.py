@@ -227,6 +227,11 @@ def int_(value):
     check_not_templatable(value)
     if isinstance(value, integer_types):
         return value
+    if isinstance(value, float):
+        if int(value) == value:
+            return int(value)
+        raise Invalid("This option only accepts integers with no fractional part. Please remove "
+                      "the fractional part from {}".format(value))
     value = string_strict(value).lower()
     base = 10
     if value.startswith('0x'):

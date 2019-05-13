@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID
+    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
 from esphome.core import coroutine
 from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
@@ -359,7 +359,9 @@ def raw_dumper(var, config):
     pass
 
 
-@register_action('raw', RawAction, RAW_SCHEMA)
+@register_action('raw', RawAction, RAW_SCHEMA.extend({
+    cv.Optional(CONF_CARRIER_FREQUENCY, default='0Hz'): cv.All(cv.frequency, cv.int_),
+}))
 def raw_action(var, config, args):
     code_ = config[CONF_CODE]
     if cg.is_template(code_):
@@ -369,6 +371,8 @@ def raw_action(var, config, args):
         code_ = config[CONF_CODE]
         arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
         cg.add(var.set_code_static(arr, len(code_)))
+    templ = yield cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
+    cg.add(var.set_carrier_frequency(templ))
 
 
 # RC5
@@ -476,6 +480,13 @@ RC_SWITCH_TYPE_D_SCHEMA = cv.Schema({
     cv.Required(CONF_STATE): cv.boolean,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
+RC_SWITCH_TRANSMITTER = cv.Schema({
+    cv.Optional(CONF_REPEAT, default={CONF_TIMES: 5}): cv.Schema({
+        cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
+        cv.Optional(CONF_WAIT_TIME, default='10ms'):
+            cv.templatable(cv.positive_time_period_milliseconds),
+    }),
+})
 
 rc_switch_protocols = ns.rc_switch_protocols
 RCSwitchBase = ns.class_('RCSwitchBase')
@@ -494,7 +505,8 @@ def rc_switch_raw_binary_sensor(var, config):
     cg.add(var.set_code(config[CONF_CODE]))
 
 
-@register_action('rc_switch_raw', RCSwitchRawAction, RC_SWITCH_RAW_SCHEMA)
+@register_action('rc_switch_raw', RCSwitchRawAction,
+                 RC_SWITCH_RAW_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_raw_action(var, config, args):
     proto = yield cg.templatable(config[CONF_PROTOCOL], args, RCSwitchBase,
                                  to_exp=build_rc_switch_protocol)
@@ -508,7 +520,8 @@ def rc_switch_type_a_binary_sensor(var, config):
     cg.add(var.set_type_a(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
-@register_action('rc_switch_type_a', RCSwitchTypeAAction, RC_SWITCH_TYPE_A_SCHEMA)
+@register_action('rc_switch_type_a', RCSwitchTypeAAction,
+                 RC_SWITCH_TYPE_A_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_type_a_action(var, config, args):
     proto = yield cg.templatable(config[CONF_PROTOCOL], args, RCSwitchBase,
                                  to_exp=build_rc_switch_protocol)
@@ -524,7 +537,8 @@ def rc_switch_type_b_binary_sensor(var, config):
     cg.add(var.set_type_b(config[CONF_ADDRESS], config[CONF_CHANNEL], config[CONF_STATE]))
 
 
-@register_action('rc_switch_type_b', RCSwitchTypeBAction, RC_SWITCH_TYPE_B_SCHEMA)
+@register_action('rc_switch_type_b', RCSwitchTypeBAction,
+                 RC_SWITCH_TYPE_B_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_type_b_action(var, config, args):
     proto = yield cg.templatable(config[CONF_PROTOCOL], args, RCSwitchBase,
                                  to_exp=build_rc_switch_protocol)
@@ -541,7 +555,8 @@ def rc_switch_type_c_binary_sensor(var, config):
                           config[CONF_STATE]))
 
 
-@register_action('rc_switch_type_c', RCSwitchTypeCAction, RC_SWITCH_TYPE_C_SCHEMA)
+@register_action('rc_switch_type_c', RCSwitchTypeCAction,
+                 RC_SWITCH_TYPE_C_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_type_c_action(var, config, args):
     proto = yield cg.templatable(config[CONF_PROTOCOL], args, RCSwitchBase,
                                  to_exp=build_rc_switch_protocol)
@@ -552,13 +567,15 @@ def rc_switch_type_c_action(var, config, args):
     cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, bool))))
 
 
-@register_binary_sensor('rc_switch_type_d', RCSwitchRawReceiver, RC_SWITCH_TYPE_D_SCHEMA)
+@register_binary_sensor('rc_switch_type_d', RCSwitchRawReceiver,
+                        RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_type_d_binary_sensor(var, config):
     cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
     cg.add(var.set_type_d(config[CONF_GROUP], config[CONF_DEVICE], config[CONF_STATE]))
 
 
-@register_action('rc_switch_type_d', RCSwitchTypeDAction, RC_SWITCH_TYPE_D_SCHEMA)
+@register_action('rc_switch_type_d', RCSwitchTypeDAction,
+                 RC_SWITCH_TYPE_D_SCHEMA.extend(RC_SWITCH_TRANSMITTER))
 def rc_switch_type_d_action(var, config, args):
     proto = yield cg.templatable(config[CONF_PROTOCOL], args, RCSwitchBase,
                                  to_exp=build_rc_switch_protocol)
