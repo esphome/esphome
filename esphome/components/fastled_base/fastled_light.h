@@ -4,10 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/light/addressable_light.h"
 
-#ifdef USE_POWER_SUPPLY
-#include "esphome/components/power_supply/power_supply.h"
-#endif
-
 #define FASTLED_ESP8266_RAW_PIN_ORDER
 #define FASTLED_ESP32_RAW_PIN_ORDER
 #define FASTLED_RMT_BUILTIN_DRIVER true
@@ -29,10 +25,6 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
 
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
-
-#ifdef USE_POWER_SUPPLY
-  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_supply_ = power_supply; }
-#endif
 
   /// Add some LEDS, can only be called once.
   CLEDController &add_leds(CLEDController *controller, int num_leds) {
@@ -242,10 +234,6 @@ class FastLEDLightOutput : public Component, public light::AddressableLight {
   int num_leds_{0};
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};
-#ifdef USE_POWER_SUPPLY
-  power_supply::PowerSupply *power_supply_{nullptr};
-  bool has_requested_high_power_{false};
-#endif
 };
 
 }  // namespace fastled_base

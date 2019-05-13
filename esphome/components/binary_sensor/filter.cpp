@@ -5,7 +5,7 @@ namespace esphome {
 
 namespace binary_sensor {
 
-static const char *TAG = "something.Filter";
+static const char *TAG = "sensor.filter";
 
 void Filter::output(bool value, bool is_initial) {
   if (!this->dedup_.next(value))

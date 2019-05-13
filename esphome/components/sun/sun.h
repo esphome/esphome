@@ -92,36 +92,27 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
   void set_elevation(double elevation) { elevation_ = elevation; }
 
   void update() override {
-    auto now = this->parent_->get_time()->utcnow();
-    if (!now.is_valid())
+    double current = this->parent_->elevation();
+    if (isnan(current))
       return;
 
-    if (!this->last_result_.has_value() || this->last_result_->day_of_year != now.day_of_year) {
-      this->recalc_();
-      return;
+    bool crossed;
+    if (this->sunrise_) {
+      crossed = this->last_elevation_ <= this->elevation_ && this->elevation_ < current;
+    } else {
+      crossed = this->last_elevation_ >= this->elevation_ && this->elevation_ > current;
     }
 
-    if (this->prev_check_ != -1) {
-      auto res = *this->last_result_;
-      // now >= sunrise > prev_check
-      if (now.timestamp >= res.timestamp && res.timestamp > this->prev_check_) {
-        this->trigger();
-      }
+    if (crossed) {
+      this->trigger();
     }
-    this->prev_check_ = now.timestamp;
+    this->last_elevation_ = current;
   }
 
  protected:
-  void recalc_() {
-    if (this->sunrise_)
-      this->last_result_ = this->parent_->sunrise(this->elevation_);
-    else
-      this->last_result_ = this->parent_->sunset(this->elevation_);
-  }
   bool sunrise_;
+  double last_elevation_;
   double elevation_;
-  time_t prev_check_{-1};
-  optional<time::ESPTime> last_result_{};
 };
 
 template<typename... Ts> class SunCondition : public Condition<Ts...>, public Parented<Sun> {

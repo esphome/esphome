@@ -89,8 +89,7 @@ def default_build_path():
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
-    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', 'ESPRESSIF32',
-                                          upper=True),
+    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
@@ -114,6 +113,10 @@ CONFIG_SCHEMA = cv.Schema({
     }),
     cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
     cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+
+    cv.Optional('esphome_core_version'): cv.invalid("The esphome_core_version option has been "
+                                                    "removed in 1.13 - the esphome core source "
+                                                    "files are now bundled with ESPHome.")
 })
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema({
