@@ -23,6 +23,8 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Set the text of a component to a static string.
    * @param component The component name.
    * @param text The static text to set.
+   * Example: `it.set_component_text("textview", "Hello World!");`
+   * Component named `textview` `txt` value has been changed to `Hello World`. 
    */
   void set_component_text(const char *component, const char *text);
   /**
@@ -30,18 +32,25 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param component The component name.
    * @param format The printf-style format string.
    * @param ... The arguments to the format.
+   * Example: `it.set_component_text_printf("textview", "The uptime is: %.1f", id(uptime_sensor).state);`
+   * Component named `textview` has been changed to `The uptime is:` Then the value of `uptime_sensor`.
+   * For example when `uptime_sensor` = 506, then, `The uptime is: 506` will be displayed.
    */
   void set_component_text_printf(const char *component, const char *format, ...) __attribute__((format(printf, 3, 4)));
   /**
    * Set the integer value of a component
    * @param component The component name.
    * @param value The value to set.
+   * Example: `it.set_component_value("gauge", 50);`
+   * Component named `gauge` has changed the `val`to 50.
    */
   void set_component_value(const char *component, int value);
   /**
    * Set the picture of an image component.
    * @param component The component name.
    * @param value The picture name.
+   * Example: `it.set_component_picture("pic", "4");`
+   * The picture component named `pic`, has changed the image which has the ID `4`, Which was set in the Nextion editor. 
    */
   void set_component_picture(const char *component, const char *picture) {
     this->send_command_printf("%s.val=%s", component, picture);
@@ -50,12 +59,18 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Set the background color of a component.
    * @param component The component name.
    * @param color The color (as a string).
+   * Example: `it.set_component_background_color("button", "17013");
+   * The background color of component named `button`, has been changed to blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors.
    */
   void set_component_background_color(const char *component, const char *color);
   /**
    * Set the pressed background color of a component.
    * @param component The component name.
    * @param color The color (as a string).
+   * Example: `it.set_component_pressed_background_color("button", "17013"`
+   * The pressed background color of the component named `button` has been changed to blue. 
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors
    */
   void set_component_pressed_background_color(const char *component, const char *color);
   /**
