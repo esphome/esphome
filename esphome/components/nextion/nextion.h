@@ -68,8 +68,8 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Set the pressed background color of a component.
    * @param component The component name.
    * @param color The color (as a string).
-   * Example: `it.set_component_pressed_background_color("button", "17013"`
-   * The pressed background color of the component named `button` has been changed to blue. 
+   * Example: `it.set_component_pressed_background_color("button", "17013");
+   * The pressed background color of the component named `button` has been changed to blue. So when the button is pressed, the background color will change to blue.
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors
    */
   void set_component_pressed_background_color(const char *component, const char *color);
@@ -77,12 +77,18 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Set the font color of a component.
    * @param component The component name.
    * @param color The color (as a string).
+   * Example: `it.set_component_font_color("textview", "17013);
+   * The font color of component named `textview` has been changed to blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors
    */
   void set_component_font_color(const char *component, const char *color);
   /**
    * Set the pressed font color of a component.
    * @param component The component name.
    * @param color The color (as a string).
+   * Example: `it.set_component_pressed_font_color("button", "17013");`
+   * The pressed font color for component named button has been changed to blue. So when `button` is pressed, the font color will change to blue
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors
    */
   void set_component_pressed_font_color(const char *component, const char *color);
   /**
@@ -90,12 +96,16 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param component The component name.
    * @param x The x coordinate.
    * @param y The y coordinate.
+   * Example: `it.set_component_coordinates("pic", 55, 100);`
+   * The component named `pic` has moved to the x coordinate `55` and y coordinate `100`.  
    */
   void set_component_coordinates(const char *component, int x, int y);
   /**
    * Set the font id for a component.
    * @param component The component name.
    * @param font_id The ID of the font (number).
+   * Example: `it.set_component_font("textview", "3");`
+   * Changes the font of the component named `textveiw`. Font IDs are set in the Nextion Editor.
    */
   void set_component_font(const char *component, uint8_t font_id);
 #ifdef USE_TIME
@@ -109,26 +119,36 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   /**
    * Show the page with a given name.
    * @param page The name of the page.
+   * Example: `it.goto_page("main");`
+   * Switches to the page named `main`. Pages are named in the Nextion Editor.
    */
   void goto_page(const char *page);
   /**
    * Hide a component.
    * @param component The component name.
+   * Example: `hide_component("button");`
+   * Hides the component named `button`.
    */
   void hide_component(const char *component);
   /**
    * Show a component.
    * @param component The component name.
+   * Example: `show_component("button");`
+   * Shows the component named `button`.
    */
   void show_component(const char *component);
   /**
    * Enable touch for a component.
    * @param component The component name.
+   * Example: `enable_component_touch("button");`
+   * Enables touch for component named `button`.
    */
   void enable_component_touch(const char *component);
   /**
    * Disable touch for a component.
    * @param component The component name.
+   * Examlple: `disable_component_touch("button");`
+   * Disables touch for component named `button`.
    */
   void disable_component_touch(const char *component);
   /**
@@ -143,6 +163,8 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param picture_id The picture id.
    * @param x1 The x coordinate.
    * @param y1 The y coordniate.
+   * Example: `display_picture(2, 15, 25);`
+   * Displays the picture who has the id `2` at the x coordinates `15` and y coordinates `25`.
    */
   void display_picture(int picture_id, int x_start, int y_start);
   /**
@@ -152,6 +174,9 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param width The width to draw.
    * @param height The height to draw.
    * @param color The color to draw with (as a string).
+   * Example: `fill_area(50, 50, 100, 100, "17013");`
+   * Fills an area that starts at x coordiante `50` and y coordinate `50` with a height of `100` and width of `100` with the color of blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors
    */
   void fill_area(int x1, int y1, int width, int height, const char *color);
   /**
@@ -161,6 +186,9 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param x2 The ending x coordinate.
    * @param y2 The ending y coordinate.
    * @param color The color to draw with (as a string).
+   * Example: `it.line(50, 50, 75, 75, "17013");`
+   * Makes a line that starts at x coordinate `50` and y coordinate `50` and ends at x coordinate `75` and y coordinate `75` with the color of blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors.
    */
   void line(int x1, int y1, int x2, int y2, const char *color);
   /**
@@ -170,6 +198,9 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param width The width of the rectangle.
    * @param height The height of the rectangle.
    * @param color The color to draw with (as a string).
+   * Example: `it.rectangle(25, 35, 40, 50, "17013");`
+   * Makes a outline of a rectangle that starts at x coordinate `25` and y coordinate `35` and has a width of `40` and a length of `50` with color of blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors.
    */
   void rectangle(int x1, int y1, int width, int height, const char *color);
   /**
@@ -186,17 +217,24 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * @param center_y The center y coordinate.
    * @param radius The circle radius.
    * @param color The color to draw with (as a string).
+   * Example: `it.filled_cricle(25, 25, 10, "17013");`
+   * Makes a filled circle at the x cordinates `25` and y coordinate `25` with a radius of `10` with a color of blue.
+   * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI colors.
    */
   void filled_circle(int center_x, int center_y, int radius, const char *color);
 
   /** Set the brightness of the backlight.
    *
    * @param brightness The brightness, from 0 to 100.
+   * Example: `it.set_backlight_brightness(30);`
+   * Changes the brightness of the display to 30%.
    */
   void set_backlight_brightness(uint8_t brightness);
   /**
    * Set the touch sleep timeout of the display.
    * @param timeout Timeout in seconds.
+   * Example: `it.set_touch_sleep_timeout(30);`
+   * After 30 seconds the display will go to sleep. Note: the display will only wakeup by a restart or by setting up `thup`.
    */
   void set_touch_sleep_timeout(uint16_t timeout);
 
