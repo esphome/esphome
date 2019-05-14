@@ -82,6 +82,30 @@ void CCS811Component::update() {
     this->tvoc_->publish_state(tvoc);
 
   this->status_clear_warning();
+
+  this->send_env_data_();
+}
+void CCS811Component::send_env_data_() {
+  if (this->humidity_ == nullptr && this->temperature_ == nullptr)
+    return;
+
+  float humidity = NAN;
+  if (this->humidity_ != nullptr)
+    humidity = this->humidity_->state;
+  if (isnan(humidity) || humidity < 0 || humidity > 100)
+    humidity = 50;
+  float temperature = NAN;
+  if (this->temperature_ != nullptr)
+    temperature = this->temperature_->state;
+  if (isnan(temperature) || temperature < -25 || temperature > 50)
+    temperature = 25;
+  // temperature has a 25° offset to allow negative temperatures
+  temperature += 25;
+
+  // only 0.5 fractions are supported (application note)
+  auto hum_value = static_cast<uint8_t>(roundf(humidity * 2));
+  auto temp_value = static_cast<uint8_t>(roundf(temperature * 2));
+  this->write_bytes(0x05, {hum_value, 0x00, temp_value, 0x00});
 }
 void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
