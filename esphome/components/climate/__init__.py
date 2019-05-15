@@ -12,7 +12,7 @@ IS_PLATFORM_COMPONENT = True
 
 climate_ns = cg.esphome_ns.namespace('climate')
 
-ClimateDevice = climate_ns.class_('Climate', cg.Nameable)
+Climate = climate_ns.class_('Climate', cg.Nameable)
 ClimateCall = climate_ns.class_('ClimateCall')
 ClimateTraits = climate_ns.class_('ClimateTraits')
 
@@ -30,7 +30,7 @@ validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
 ControlAction = climate_ns.class_('ControlAction', automation.Action)
 
 CLIMATE_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(ClimateDevice),
+    cv.GenerateID(): cv.declare_id(Climate),
     cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTClimateComponent),
     cv.Optional(CONF_VISUAL, default={}): cv.Schema({
         cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
@@ -68,7 +68,7 @@ def register_climate(var, config):
 
 
 CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(ClimateDevice),
+    cv.Required(CONF_ID): cv.use_id(Climate),
     cv.Optional(CONF_MODE): cv.templatable(validate_climate_mode),
     cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
     cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),

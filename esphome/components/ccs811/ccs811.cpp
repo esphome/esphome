@@ -111,7 +111,7 @@ void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "CO2 Sesnor", this->co2_)
+  LOG_SENSOR("  ", "CO2 Sensor", this->co2_)
   LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_)
   if (this->baseline_) {
     ESP_LOGCONFIG(TAG, "  Baseline: %04X", *this->baseline_);
