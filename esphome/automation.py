@@ -128,7 +128,7 @@ def or_condition_to_code(config, condition_id, template_arg, args):
     yield cg.new_Pvariable(condition_id, template_arg, conditions)
 
 
-@register_condition('not', NotCondition, validate_condition)
+@register_condition('not', NotCondition, validate_potentially_and_condition)
 def not_condition_to_code(config, condition_id, template_arg, args):
     condition = yield build_condition(config, template_arg, args)
     yield cg.new_Pvariable(condition_id, template_arg, condition)
