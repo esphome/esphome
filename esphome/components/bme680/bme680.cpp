@@ -17,8 +17,6 @@ static const uint8_t BME680_REGISTER_CONTROL_GAS0 = 0x70;
 static const uint8_t BME680_REGISTER_HEATER_HEAT0 = 0x5A;
 static const uint8_t BME680_REGISTER_HEATER_WAIT0 = 0x64;
 
-static const uint8_t BME680_RHRANGE_MSK = 0x30;
-static const uint8_t BME680_RSERROR_MSK = 0xf0;
 static const uint8_t BME680_REGISTER_CHIPID = 0xD0;
 
 static const uint8_t BME680_REGISTER_FIELD0 = 0x1D;
@@ -122,9 +120,6 @@ void BME680Component::setup() {
     this->mark_failed();
     return;
   }
-  &this->calibration_res_heat_range &= BME680_RHRANGE_MSK;
-  &this->calibration_res_heat_range /= 16;
-
   if (!this->read_byte(0x00, &this->calibration_.res_heat_val)) {
     this->mark_failed();
     return;
@@ -133,8 +128,6 @@ void BME680Component::setup() {
     this->mark_failed();
     return;
   }
-  &this->calibration_.range_sw_err &= BME680_RSERROR_MSK;
-  &this->calibration_.range_sw_err /= 16;
 
   this->calibration_.ambient_temperature = 25;  // prime ambient temperature
 
