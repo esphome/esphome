@@ -239,7 +239,7 @@ float BME680Component::get_setup_priority() const { return setup_priority::DATA;
 void BME680Component::update() {
   uint8_t meas_control = 0;  // No need to fetch, we're setting all fields
   meas_control |= (this->temperature_oversampling_ & 0b111) << 5;
-  meas_control |= (this->pressure_oversampling_ & 0b111) << 5;
+  meas_control |= (this->pressure_oversampling_ & 0b111) << 2;
   meas_control |= 0b01;  // forced mode
   if (!this->write_byte(BME680_REGISTER_CONTROL_MEAS, meas_control)) {
     this->status_set_warning();
