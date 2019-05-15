@@ -58,7 +58,8 @@ void Tcl112Climate::setup() {
     restore->apply(this);
   } else {
     // restore from defaults
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_OFF;
+    this->target_temperature = 24;
   }
 }
 
