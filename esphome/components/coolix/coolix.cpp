@@ -130,7 +130,7 @@ void CoolixClimate::transmit_state_() {
     remote_state |= (COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN] << 4);
   }
 
-  ESP_LOGD(TAG, "Sending coolix code: %u", remote_state);
+  ESP_LOGV(TAG, "Sending coolix code: %u", remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
