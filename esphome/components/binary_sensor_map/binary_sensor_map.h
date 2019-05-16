@@ -22,7 +22,6 @@ struct BinarySensorMapChannel {
  */
 class BinarySensorMap : public sensor::Sensor, public Component {
  public:
-  BinarySensorMap(const std::string &name);
   void dump_config() override;
   /**
    * The loop checks all binary_sensor states
@@ -33,7 +32,7 @@ class BinarySensorMap : public sensor::Sensor, public Component {
    * average value. When the value changed and no sensors ar active we publish NAN.
    * */
   void loop() override;
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::LATE; }
   /** Add binary_sensors to the group.
    * Each binary_sensor represents a float value when its state is true
    *

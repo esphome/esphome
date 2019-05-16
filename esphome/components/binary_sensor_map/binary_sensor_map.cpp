@@ -6,8 +6,6 @@ namespace binary_sensor_map {
 
 static const char *TAG = "sensor.binary_sensor_map";
 
-BinarySensorMap::BinarySensorMap(const std::string &name) : Sensor(name) {}
-
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 
 void BinarySensorMap::loop() {
@@ -53,8 +51,6 @@ void BinarySensorMap::process_group_() {
     }
   }
 }
-
-float BinarySensorMap::get_setup_priority() const { return setup_priority::HARDWARE_LATE; }
 
 void BinarySensorMap::add_sensor(binary_sensor::BinarySensor *sensor, float value) {
   BinarySensorMapChannel *sensor_channel = new BinarySensorMapChannel;
