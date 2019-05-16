@@ -4,7 +4,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
-//#include "esphome/components/status_led.h"
 
 #include <cstdio>
 #include <MD5Builder.h>

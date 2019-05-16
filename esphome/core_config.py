@@ -48,7 +48,7 @@ PLATFORMIO_ESP8266_LUT = {
     '2.4.1': 'espressif8266@1.7.3',
     '2.4.0': 'espressif8266@1.6.0',
     '2.3.0': 'espressif8266@1.5.0',
-    'RECOMMENDED': 'espressif8266@2.1.0',
+    'RECOMMENDED': 'espressif8266@1.8.0',
     'LATEST': 'espressif8266',
     'DEV': ARDUINO_VERSION_ESP8266_DEV,
 }
