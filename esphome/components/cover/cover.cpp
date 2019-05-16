@@ -128,6 +128,11 @@ CoverCall &CoverCall::set_stop(bool stop) {
 }
 bool CoverCall::get_stop() const { return this->stop_; }
 void Cover::set_device_class(const std::string &device_class) { this->device_class_override_ = device_class; }
+void Cover::set_tilt_closed_value(float tilt_closed_value) { this->tilt_closed_value_ = tilt_closed_value; }
+void Cover::set_tilt_opened_value(float tilt_opened_value) { this->tilt_opened_value_ = tilt_opened_value; }
+float Cover::get_tilt_closed_value() { return this->tilt_closed_value_; }
+float Cover::get_tilt_opened_value() { return this->tilt_opened_value_; }
+
 CoverCall Cover::make_call() { return {this}; }
 void Cover::open() {
   auto call = this->make_call();

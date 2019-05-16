@@ -155,6 +155,11 @@ class Cover : public Nameable {
   void set_device_class(const std::string &device_class);
   std::string get_device_class();
 
+  void set_tilt_closed_value(float tilt_closed_value);
+  float get_tilt_closed_value();
+  void set_tilt_opened_value(float tilt_opened_value);
+  float get_tilt_opened_value();
+
   /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
   bool is_fully_open() const;
   /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
@@ -165,6 +170,8 @@ class Cover : public Nameable {
 
   virtual void control(const CoverCall &call) = 0;
   virtual std::string device_class();
+  float tilt_closed_value_{0.0};
+  float tilt_opened_value_{100.0};
 
   optional<CoverRestoreState> restore_state_();
   uint32_t hash_base() override;

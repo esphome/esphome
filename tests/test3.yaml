@@ -416,6 +416,15 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: tilt
+    name: "Tilt Cover"
+    tilt_closed_value: 0%
+    tilt_opened_value: 100%
+    id: tilt_cover
+    tilt_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return id(tilt_cover)->tilt;"
 
 output:
   - platform: esp8266_pwm

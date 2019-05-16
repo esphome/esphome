@@ -72,6 +72,16 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
   if (traits.get_supports_tilt()) {
     root["tilt_status_topic"] = this->get_tilt_state_topic();
     root["tilt_command_topic"] = this->get_tilt_command_topic();
+    if (this->cover_->get_tilt_closed_value() > COVER_CLOSED) {
+      root["tilt_closed_value"] = this->cover_->get_tilt_closed_value() * 100;
+    }
+    if (this->cover_->get_tilt_opened_value() < COVER_OPEN) {
+      root["tilt_opened_value"] = this->cover_->get_tilt_opened_value() * 100;
+    }
+  }
+  // need this to suppress the position controls in HA if we only do tilt
+  if (traits.get_supports_tilt() && !traits.get_supports_position()) {
+    config.command_topic = false;
   }
 }
 
@@ -82,7 +92,7 @@ bool MQTTCoverComponent::is_internal() { return this->cover_->is_internal(); }
 bool MQTTCoverComponent::publish_state() {
   auto traits = this->cover_->get_traits();
   bool success = true;
-  if (!traits.get_supports_position()) {
+  if (!traits.get_supports_position() && !traits.get_supports_tilt()) {
     const char *state_s = "unknown";
     if (this->cover_->position == COVER_OPEN) {
       state_s = "open";
@@ -92,9 +102,19 @@ bool MQTTCoverComponent::publish_state() {
 
     if (!this->publish(this->get_state_topic_(), state_s))
       success = false;
-  } else {
+  } else if (traits.get_supports_position()) {
     std::string pos = value_accuracy_to_string(roundf(this->cover_->position * 100), 0);
     if (!this->publish(this->get_position_state_topic(), pos))
+      success = false;
+  } else if (!traits.get_supports_position() && traits.get_supports_tilt()) {
+    const char *state_s = "unknown";
+    if (this->cover_->tilt > this->cover_->get_tilt_closed_value()) {
+      state_s = "open";
+    } else if (this->cover_->tilt <= this->cover_->get_tilt_closed_value()) {
+      state_s = "closed";
+    }
+
+    if (!this->publish(this->get_state_topic_(), state_s))
       success = false;
   }
   if (traits.get_supports_tilt()) {
