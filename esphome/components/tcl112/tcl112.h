@@ -12,8 +12,6 @@ namespace tcl112 {
 
 class Tcl112Climate : public climate::Climate, public Component {
  public:
-  Tcl112Climate(const std::string &name) : climate::Climate(name) {}
-
   void setup() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
@@ -31,9 +29,6 @@ class Tcl112Climate : public climate::Climate, public Component {
   /// Transmit via IR the state of this climate controller.
   void transmit_state_();
 
-  void send_data_(remote_base::RemoteTransmitData *transmit_data, uint16_t onemark, uint32_t onespace,
-                  uint16_t zeromark, uint32_t zerospace, uint64_t data, uint16_t nbits, bool msb_first = true);
-
   bool supports_cool_{true};
   bool supports_heat_{true};
 
@@ -41,5 +36,5 @@ class Tcl112Climate : public climate::Climate, public Component {
   sensor::Sensor *sensor_{nullptr};
 };
 
-}  // namespace coolix
+}  // namespace tcl112
 }  // namespace esphome

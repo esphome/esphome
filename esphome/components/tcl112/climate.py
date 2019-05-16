@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
 AUTO_LOAD = ['sensor']
 
 tcl112_ns = cg.esphome_ns.namespace('tcl112')
-Tcl112Climate = tcl112_ns.class_('Tcl112Climate', climate.ClimateDevice, cg.Component)
+Tcl112Climate = tcl112_ns.class_('Tcl112Climate', climate.Climate, cg.Component)
 
 CONF_TRANSMITTER_ID = 'transmitter_id'
 CONF_SUPPORTS_HEAT = 'supports_heat'

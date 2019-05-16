@@ -74,10 +74,8 @@ void Tcl112Climate::control(const climate::ClimateCall &call) {
 }
 
 void Tcl112Climate::transmit_state_() {
-  uint8_t remote_state[TCL112_STATE_LENGTH];
+  uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
 
-  for (uint8_t i = 0; i < TCL112_STATE_LENGTH; i++)
-    remote_state[i] = 0x0;
   // A known good state. (On, Cool, 24C)
   remote_state[0] = 0x23;
   remote_state[1] = 0xCB;
@@ -113,7 +111,7 @@ void Tcl112Climate::transmit_state_() {
   float safecelsius = std::max(this->target_temperature, TCL112_TEMP_MIN);
   safecelsius = std::min(safecelsius, TCL112_TEMP_MAX);
   // Convert to integer nr. of half degrees.
-  uint8_t half_degrees = safecelsius * 2;
+  auto half_degrees = static_cast<uint8_t>(safecelsius * 2);
   if (half_degrees & 1)                      // Do we have a half degree celsius?
     remote_state[12] |= TCL112_HALF_DEGREE;  // Add 0.5 degrees
   else
@@ -123,10 +121,10 @@ void Tcl112Climate::transmit_state_() {
 
   // Calculate & set the checksum for the current internal state of the remote.
   // Stored the checksum value in the last byte.
-  for (uint8_t checksumByte = 0; checksumByte < TCL112_STATE_LENGTH - 1; checksumByte++)
-    remote_state[TCL112_STATE_LENGTH - 1] += remote_state[checksumByte];
+  for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
+    remote_state[TCL112_STATE_LENGTH - 1] += remote_state[checksum_byte];
 
-  ESP_LOGD(TAG, "Sending tcl code: %u", remote_state[7]);
+  ESP_LOGV(TAG, "Sending tcl code: %u", remote_state[7]);
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
@@ -137,10 +135,11 @@ void Tcl112Climate::transmit_state_() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  for (uint8_t i = 0; i < TCL112_STATE_LENGTH; i++)
-    for (uint8_t bit = 0; bit < 8; bit++, remote_state[i] >>= 1) {
+  for (uint8_t i : remote_state)
+    for (uint8_t j = 0; j < 8; j++) {
       data->mark(TCL112_BIT_MARK);
-      data->space((remote_state[i] & 1) ? TCL112_ONE_SPACE : TCL112_ZERO_SPACE);
+      bool bit = i & (1 << j);
+      data->space(bit ? TCL112_ONE_SPACE : TCL112_ZERO_SPACE);
     }
   // Footer
   data->mark(TCL112_BIT_MARK);
