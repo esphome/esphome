@@ -91,6 +91,8 @@ void CoolixClimate::setup() {
   } else {
     // restore from defaults
     this->mode = climate::CLIMATE_MODE_AUTO;
+    // initialize target temperature to some value so that it's not NAN
+    this->target_temperature = roundf(this->current_temperature);
   }
 }
 
