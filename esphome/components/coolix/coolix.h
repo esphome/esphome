@@ -15,7 +15,7 @@ class CoolixClimate : public climate::Climate, public Component {
   CoolixClimate(const std::string &name) : climate::Climate(name) {}
 
   void setup() override;
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) { 
+  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
   }
   void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
