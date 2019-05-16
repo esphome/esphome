@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
 AUTO_LOAD = ['sensor']
 
 coolix_ns = cg.esphome_ns.namespace('coolix')
-CoolixClimate = coolix_ns.class_('CoolixClimate', climate.ClimateDevice, cg.Component)
+CoolixClimate = coolix_ns.class_('CoolixClimate', climate.Climate, cg.Component)
 
 CONF_TRANSMITTER_ID = 'transmitter_id'
 CONF_SUPPORTS_HEAT = 'supports_heat'
