@@ -881,6 +881,15 @@ remote_transmitter:
   - pin: 32
     carrier_duty_percent: 100%
 
+climate:
+  - platform: coolix
+    name: Coolix Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: coolix
+    name: Coolix Climate
+
 switch:
   - platform: gpio
     pin: GPIO25
