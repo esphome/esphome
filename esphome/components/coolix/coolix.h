@@ -31,9 +31,6 @@ class CoolixClimate : public climate::Climate, public Component {
   /// Transmit via IR the state of this climate controller.
   void transmit_state_();
 
-  void send_data_(remote_base::RemoteTransmitData * transmit_data, uint16_t onemark, uint32_t onespace,
-                  uint16_t zeromark, uint32_t zerospace, uint64_t data, uint16_t nbits, bool msb_first = true);
-
   bool supports_cool_{true};
   bool supports_heat_{true};
 
