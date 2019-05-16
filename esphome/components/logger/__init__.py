@@ -112,7 +112,7 @@ def to_code(config):
 
     if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
-        cg.add_build_flag("-DDEBUG_ESP_PORT{}".format(debug_serial_port))
+        cg.add_build_flag("-DDEBUG_ESP_PORT={}".format(debug_serial_port))
         cg.add_build_flag("-DLWIP_DEBUG")
         DEBUG_COMPONENTS = {
             'HTTP_CLIENT',

@@ -16,7 +16,7 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with
@@ -1076,6 +1076,24 @@ def extract_keys(schema):
             raise ValueError()
     keys.sort()
     return keys
+
+
+def typed_schema(schemas, **kwargs):
+    """Create a schema that has a key to distinguish between schemas"""
+    key = kwargs.pop('key', CONF_TYPE)
+    key_validator = one_of(*schemas, **kwargs)
+
+    def validator(value):
+        if not isinstance(value, dict):
+            raise Invalid("Value must be dict")
+        if CONF_TYPE not in value:
+            raise Invalid("type not specified!")
+        value = value.copy()
+        key_v = key_validator(value.pop(key))
+        value = schemas[key_v](value)
+        value[key] = key_v
+
+    return validator
 
 
 class GenerateID(Optional):
