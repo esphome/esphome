@@ -12,8 +12,6 @@ namespace coolix {
 
 class CoolixClimate : public climate::Climate, public Component {
  public:
-  CoolixClimate(const std::string &name) : climate::Climate(name) {}
-
   void setup() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
