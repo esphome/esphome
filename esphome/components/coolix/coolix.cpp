@@ -125,8 +125,7 @@ void CoolixClimate::transmit_state_() {
       break;
   }
   if (this->mode != climate::CLIMATE_MODE_OFF) {
-    uint8_t temp = std::min((uint8_t) this->target_temperature, COOLIX_TEMP_MAX);
-    temp = std::max(temp, COOLIX_TEMP_MIN);
+    auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
     remote_state &= ~COOLIX_TEMP_MASK;  // Clear the old temp.
     remote_state |= (COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN] << 4);
   }
