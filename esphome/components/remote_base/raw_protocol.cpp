@@ -6,7 +6,7 @@ namespace remote_base {
 
 static const char *TAG = "remote.raw";
 
-void RawDumper::dump(RemoteReceiveData src) {
+bool RawDumper::dump(RemoteReceiveData src) {
   char buffer[256];
   uint32_t buffer_offset = 0;
   buffer_offset += sprintf(buffer, "Received Raw: ");
@@ -16,7 +16,7 @@ void RawDumper::dump(RemoteReceiveData src) {
     const uint32_t remaining_length = sizeof(buffer) - buffer_offset;
     int written;
 
-    if (i + 1 < src.size()) {
+    if (i + 1 < src.size() - 1) {
       written = snprintf(buffer + buffer_offset, remaining_length, "%d, ", value);
     } else {
       written = snprintf(buffer + buffer_offset, remaining_length, "%d", value);
@@ -40,6 +40,7 @@ void RawDumper::dump(RemoteReceiveData src) {
   if (buffer_offset != 0) {
     ESP_LOGD(TAG, "%s", buffer);
   }
+  return true;
 }
 
 }  // namespace remote_base

@@ -1,6 +1,10 @@
 #include "esphome/components/adc/adc_sensor.h"
 #include "esphome/core/log.h"
 
+#ifdef USE_ADC_SENSOR_VCC
+ADC_MODE(ADC_VCC)
+#endif
+
 namespace esphome {
 namespace adc {
 

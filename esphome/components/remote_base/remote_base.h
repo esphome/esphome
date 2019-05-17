@@ -212,14 +212,21 @@ class RemoteReceiverListener {
 
 class RemoteReceiverDumperBase {
  public:
-  virtual void dump(RemoteReceiveData src) = 0;
+  virtual bool dump(RemoteReceiveData src) = 0;
+  virtual bool is_secondary() { return false; }
 };
 
 class RemoteReceiverBase : public RemoteComponentBase {
  public:
   RemoteReceiverBase(GPIOPin *pin) : RemoteComponentBase(pin) {}
   void register_listener(RemoteReceiverListener *listener) { this->listeners_.push_back(listener); }
-  void register_dumper(RemoteReceiverDumperBase *dumper) { this->dumpers_.push_back(dumper); }
+  void register_dumper(RemoteReceiverDumperBase *dumper) {
+    if (dumper->is_secondary()) {
+      this->secondary_dumpers_.push_back(dumper);
+    } else {
+      this->dumpers_.push_back(dumper);
+    }
+  }
   void set_tolerance(uint8_t tolerance) { tolerance_ = tolerance; }
 
  protected:
@@ -233,9 +240,17 @@ class RemoteReceiverBase : public RemoteComponentBase {
     return success;
   }
   void call_dumpers_() {
+    bool success = false;
     for (auto *dumper : this->dumpers_) {
       auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
-      dumper->dump(data);
+      if (dumper->dump(data))
+        success = true;
+    }
+    if (!success) {
+      for (auto *dumper : this->secondary_dumpers_) {
+        auto data = RemoteReceiveData(&this->temp_, this->tolerance_);
+        dumper->dump(data);
+      }
     }
   }
   void call_listeners_dumpers_() {
@@ -247,6 +262,7 @@ class RemoteReceiverBase : public RemoteComponentBase {
 
   std::vector<RemoteReceiverListener *> listeners_;
   std::vector<RemoteReceiverDumperBase *> dumpers_;
+  std::vector<RemoteReceiverDumperBase *> secondary_dumpers_;
   std::vector<int32_t> temp_;
   uint8_t tolerance_{25};
 };
@@ -323,12 +339,13 @@ template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...
 
 template<typename T, typename D> class RemoteReceiverDumper : public RemoteReceiverDumperBase {
  public:
-  void dump(RemoteReceiveData src) override {
+  bool dump(RemoteReceiveData src) override {
     auto proto = T();
     auto decoded = proto.decode(src);
     if (!decoded.has_value())
-      return;
+      return false;
     proto.dump(*decoded);
+    return true;
   }
 };
 

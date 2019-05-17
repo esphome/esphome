@@ -6,7 +6,7 @@ from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_SEL_PIN, CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER, \
     ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
-AUTO_LOAD = ['pulse_width']
+AUTO_LOAD = ['pulse_counter']
 
 hlw8012_ns = cg.esphome_ns.namespace('hlw8012')
 HLW8012Component = hlw8012_ns.class_('HLW8012Component', cg.PollingComponent)

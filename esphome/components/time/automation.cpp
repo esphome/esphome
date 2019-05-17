@@ -4,7 +4,7 @@
 namespace esphome {
 namespace time {
 
-static const char *TAG = "something.something";
+static const char *TAG = "automation";
 
 void CronTrigger::add_second(uint8_t second) { this->seconds_[second] = true; }
 void CronTrigger::add_minute(uint8_t minute) { this->minutes_[minute] = true; }
@@ -38,11 +38,11 @@ void CronTrigger::loop() {
   }
 
   this->last_check_ = time;
-  if (!time.in_range()) {
+  if (!time.fields_in_range()) {
     ESP_LOGW(TAG, "Time is out of range!");
     ESP_LOGD(TAG, "Second=%02u Minute=%02u Hour=%02u DayOfWeek=%u DayOfMonth=%u DayOfYear=%u Month=%u time=%ld",
              time.second, time.minute, time.hour, time.day_of_week, time.day_of_month, time.day_of_year, time.month,
-             time.time);
+             time.timestamp);
   }
 
   if (this->matches(time))

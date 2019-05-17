@@ -44,9 +44,9 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
     this->code_static_ = code;
     this->code_static_len_ = len;
   }
+  TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    // dst->set_data(data);
     if (this->code_static_ != nullptr) {
       for (size_t i = 0; i < this->code_static_len_; i++) {
         auto val = this->code_static_[i];
@@ -58,6 +58,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
     } else {
       dst->set_data(this->code_func_(x...));
     }
+    dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
   }
 
  protected:
@@ -68,7 +69,8 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
 
 class RawDumper : public RemoteReceiverDumperBase {
  public:
-  void dump(RemoteReceiveData src) override;
+  bool dump(RemoteReceiveData src) override;
+  bool is_secondary() override { return true; }
 };
 
 }  // namespace remote_base

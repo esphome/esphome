@@ -53,6 +53,10 @@ void RemoteReceiverComponent::setup() {
 void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Receiver:");
   LOG_PIN("  Pin: ", this->pin_);
+  if (this->pin_->digital_read()) {
+    ESP_LOGW(TAG, "Remote Receiver Signal starts with a HIGH value. Usually this means you have to "
+                  "invert the signal using 'inverted: True' in the pin schema!");
+  }
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
   ESP_LOGCONFIG(TAG, "  Tolerance: %u%%", this->tolerance_);

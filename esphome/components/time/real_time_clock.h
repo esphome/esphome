@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include <stdlib.h>
 #include <time.h>
 #include <bitset>
@@ -30,8 +31,11 @@ struct ESPTime {
   uint16_t year;
   /// daylight savings time flag
   bool is_dst;
-  /// unix epoch time (seconds since UTC Midnight January 1, 1970)
-  time_t time;
+  union {
+    ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
+    /// unix epoch time (seconds since UTC Midnight January 1, 1970)
+    time_t timestamp;
+  };
 
   /** Convert this ESPTime struct to a null-terminated c string buffer as specified by the format argument.
    * Up to buffer_len bytes are written.
@@ -48,13 +52,20 @@ struct ESPTime {
    */
   std::string strftime(const std::string &format);
 
-  bool is_valid() const;
+  /// Check if this ESPTime is valid (all fields in range and year is greater than 2018)
+  bool is_valid() const { return this->year >= 2019 && this->fields_in_range(); }
 
-  bool in_range() const;
+  /// Check if all time fields of this ESPTime are in range.
+  bool fields_in_range() const {
+    return this->second < 61 && this->minute < 60 && this->hour < 24 && this->day_of_week > 0 &&
+           this->day_of_week < 8 && this->day_of_month > 0 && this->day_of_month < 32 && this->day_of_year > 0 &&
+           this->day_of_year < 367 && this->month > 0 && this->month < 13;
+  }
 
+  /// Convert a C tm struct instance with a C unix epoch timestamp to an ESPTime instance.
   static ESPTime from_c_tm(struct tm *c_tm, time_t c_time);
 
-  /** Convert an epoch timestamp to an ESPTime instance of local time.
+  /** Convert an UTC epoch timestamp to a local time ESPTime instance.
    *
    * @param epoch Seconds since 1st January 1970. In UTC.
    * @return The generated ESPTime
@@ -63,7 +74,7 @@ struct ESPTime {
     struct tm *c_tm = ::localtime(&epoch);
     return ESPTime::from_c_tm(c_tm, epoch);
   }
-  /** Convert an epoch timestamp to an ESPTime instance of UTC time.
+  /** Convert an UTC epoch timestamp to a UTC time ESPTime instance.
    *
    * @param epoch Seconds since 1st January 1970. In UTC.
    * @return The generated ESPTime
@@ -73,8 +84,13 @@ struct ESPTime {
     return ESPTime::from_c_tm(c_tm, epoch);
   }
 
+  /// Recalculate the timestamp field from the other fields of this ESPTime instance (must be UTC).
+  void recalc_timestamp_utc(bool use_day_of_year = true);
+
+  /// Convert this ESPTime instance back to a tm struct.
   struct tm to_c_tm();
 
+  /// Increment this clock instance by one second.
   void increment_second();
   bool operator<(ESPTime other);
   bool operator<=(ESPTime other);
@@ -100,10 +116,10 @@ class RealTimeClock : public Component {
   std::string get_timezone() { return this->timezone_; }
 
   /// Get the time in the currently defined timezone.
-  ESPTime now() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
+  ESPTime now() { return ESPTime::from_epoch_local(this->timestamp_now()); }
 
   /// Get the time without any time zone or DST corrections.
-  ESPTime utcnow() { return ESPTime::from_epoch_local(this->timestamp_now()); }
+  ESPTime utcnow() { return ESPTime::from_epoch_utc(this->timestamp_now()); }
 
   /// Get the current time as the UTC epoch since January 1st 1970.
   time_t timestamp_now() { return ::time(nullptr); }

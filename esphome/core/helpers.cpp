@@ -294,8 +294,6 @@ void HighFrequencyLoopRequester::stop() {
 bool HighFrequencyLoopRequester::is_high_frequency() { return high_freq_num_requests > 0; }
 
 float clamp(float val, float min, float max) {
-  if (min > max)
-    std::swap(min, max);
   if (val < min)
     return min;
   if (val > max)
@@ -307,6 +305,13 @@ float lerp(float completion, float start, float end) { return start + (end - sta
 bool str_startswith(const std::string &full, const std::string &start) { return full.rfind(start, 0) == 0; }
 bool str_endswith(const std::string &full, const std::string &ending) {
   return full.rfind(ending) == (full.size() - ending.size());
+}
+
+uint16_t encode_uint16(uint8_t msb, uint8_t lsb) { return (uint16_t(msb) << 8) | uint16_t(lsb); }
+std::array<uint8_t, 2> decode_uint16(uint16_t value) {
+  uint8_t msb = (value >> 8) & 0xFF;
+  uint8_t lsb = (value >> 0) & 0xFF;
+  return {msb, lsb};
 }
 
 }  // namespace esphome

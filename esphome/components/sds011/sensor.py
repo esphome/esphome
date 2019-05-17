@@ -33,7 +33,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 1),
 
     cv.Optional(CONF_RX_ONLY, default=False): cv.boolean,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='0min'): cv.positive_time_period_minutes,
+    cv.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_minutes,
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA), validate_sds011_rx_mode)
 
 
@@ -42,7 +42,8 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield uart.register_uart_device(var, config)
 
-    cg.add(var.set_update_interval_min(config[CONF_UPDATE_INTERVAL]))
+    if CONF_UPDATE_INTERVAL in config:
+        cg.add(var.set_update_interval_min(config[CONF_UPDATE_INTERVAL]))
     cg.add(var.set_rx_mode_only(config[CONF_RX_ONLY]))
 
     if CONF_PM_2_5 in config:
