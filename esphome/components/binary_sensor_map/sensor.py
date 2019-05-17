@@ -35,4 +35,4 @@ def to_code(config):
 
     for ch in config[CONF_CHANNELS]:
         input_var = yield cg.get_variable(ch[CONF_CHANNEL])
-        cg.add(var.add_sensor(input_var,ch[CONF_VALUE]))
+        cg.add(var.add_channel(input_var, ch[CONF_VALUE]))

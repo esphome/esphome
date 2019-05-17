@@ -39,7 +39,7 @@ class BinarySensorMap : public sensor::Sensor, public Component {
    * @param *sensor The binary sensor.
    * @param value  The value this binary_sensor represents
    */
-  void add_sensor(binary_sensor::BinarySensor *sensor, float value);
+  void add_channel(binary_sensor::BinarySensor *sensor, float value);
   void set_sensor_type(BinarySensorMapType sensor_type);
 
  protected:

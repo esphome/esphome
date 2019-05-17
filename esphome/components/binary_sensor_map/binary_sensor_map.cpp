@@ -52,7 +52,7 @@ void BinarySensorMap::process_group_() {
   }
 }
 
-void BinarySensorMap::add_sensor(binary_sensor::BinarySensor *sensor, float value) {
+void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float value) {
   BinarySensorMapChannel *sensor_channel = new BinarySensorMapChannel;
   sensor_channel->binary_sensor = sensor;
   sensor_channel->sensor_value = value;
