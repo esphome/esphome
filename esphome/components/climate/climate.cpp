@@ -207,11 +207,6 @@ ClimateTraits Climate::get_traits() {
   return traits;
 }
 
-#ifdef USE_MQTT_CLIMATE
-MQTTClimateComponent *Climate::get_mqtt() const { return this->mqtt_; }
-void Climate::set_mqtt(MQTTClimateComponent *mqtt) { this->mqtt_ = mqtt; }
-#endif
-
 void Climate::set_visual_min_temperature_override(float visual_min_temperature_override) {
   this->visual_min_temperature_override_ = visual_min_temperature_override;
 }

@@ -87,7 +87,7 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
         cv.string: cv.string,
     }),
     cv.Optional(CONF_VARIABLES): cv.Schema({
-        cv.string: cv.lambda_,
+        cv.string: cv.returning_lambda,
     }),
 })
 

@@ -2,15 +2,12 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
+#include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 
 namespace esphome {
 namespace adc {
-
-#ifdef USE_ADC_SENSOR_VCC
-ADC_MODE(ADC_VCC)
-#endif
 
 class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:

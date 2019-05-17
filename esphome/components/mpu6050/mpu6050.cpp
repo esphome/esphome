@@ -110,7 +110,7 @@ void MPU6050Component::update() {
   float accel_y = data[1] * MPU6050_RANGE_PER_DIGIT_2G * GRAVITY_EARTH;
   float accel_z = data[2] * MPU6050_RANGE_PER_DIGIT_2G * GRAVITY_EARTH;
 
-  float temperature = raw_data[3] / 340.0f + 36.53f;
+  float temperature = data[3] / 340.0f + 36.53f;
 
   float gyro_x = data[4] * MPU6050_SCALE_DPS_PER_DIGIT_2000;
   float gyro_y = data[5] * MPU6050_SCALE_DPS_PER_DIGIT_2000;

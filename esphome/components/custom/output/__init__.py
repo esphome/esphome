@@ -7,42 +7,27 @@ from .. import custom_ns
 CustomBinaryOutputConstructor = custom_ns.class_('CustomBinaryOutputConstructor')
 CustomFloatOutputConstructor = custom_ns.class_('CustomFloatOutputConstructor')
 
-BINARY_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(CustomBinaryOutputConstructor),
-    cv.Required(CONF_LAMBDA): cv.lambda_,
-    cv.Required(CONF_TYPE): 'binary',
-    cv.Required(CONF_OUTPUTS):
-        cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_id(output.BinaryOutput),
-        })),
-})
+CONF_BINARY = 'binary'
+CONF_FLOAT = 'float'
 
-FLOAT_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(CustomFloatOutputConstructor),
-    cv.Required(CONF_LAMBDA): cv.lambda_,
-    cv.Required(CONF_TYPE): 'float',
-    cv.Required(CONF_OUTPUTS):
-        cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({
-            cv.GenerateID(): cv.declare_id(output.FloatOutput),
-        })),
-})
-
-
-def validate_custom_output(value):
-    if not isinstance(value, dict):
-        raise cv.Invalid("Value must be dict")
-    if CONF_TYPE not in value:
-        raise cv.Invalid("type not specified!")
-    type = cv.string_strict(value[CONF_TYPE]).lower()
-    value[CONF_TYPE] = type
-    if type == 'binary':
-        return BINARY_SCHEMA(value)
-    if type == 'float':
-        return FLOAT_SCHEMA(value)
-    raise cv.Invalid("type must either be binary or float, not {}!".format(type))
-
-
-CONFIG_SCHEMA = validate_custom_output
+CONFIG_SCHEMA = cv.typed_schema({
+    CONF_BINARY: cv.Schema({
+        cv.GenerateID(): cv.declare_id(CustomBinaryOutputConstructor),
+        cv.Required(CONF_LAMBDA): cv.returning_lambda,
+        cv.Required(CONF_OUTPUTS):
+            cv.ensure_list(output.BINARY_OUTPUT_SCHEMA.extend({
+                cv.GenerateID(): cv.declare_id(output.BinaryOutput),
+            })),
+    }),
+    CONF_FLOAT: cv.Schema({
+        cv.GenerateID(): cv.declare_id(CustomFloatOutputConstructor),
+        cv.Required(CONF_LAMBDA): cv.returning_lambda,
+        cv.Required(CONF_OUTPUTS):
+            cv.ensure_list(output.FLOAT_OUTPUT_SCHEMA.extend({
+                cv.GenerateID(): cv.declare_id(output.FloatOutput),
+            })),
+    })
+}, lower=True)
 
 
 def to_code(config):

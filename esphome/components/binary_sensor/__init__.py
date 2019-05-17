@@ -70,7 +70,7 @@ def delayed_off_filter_to_code(config, filter_id):
     yield var
 
 
-@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.lambda_)
+@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.returning_lambda)
 def lambda_filter_to_code(config, filter_id):
     lambda_ = yield cg.process_lambda(config, [(bool, 'x')], return_type=cg.optional.template(bool))
     yield cg.new_Pvariable(filter_id, lambda_)

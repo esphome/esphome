@@ -51,6 +51,6 @@ matrix:
         - clang-format-7 -version
         - clang-apply-replacements-7 -version
       script:
-        - script/clang-tidy.py --all-headers -j 2 --fix
-        - script/clang-format.py -i -j 2
+        - script/clang-tidy --all-headers -j 2 --fix
+        - script/clang-format -i -j 2
         - script/ci-suggest-changes

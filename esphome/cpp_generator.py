@@ -328,6 +328,17 @@ class ExpressionStatement(Statement):
         return u"{};".format(self.expression)
 
 
+class LineComment(Statement):
+    def __init__(self, value):  # type: (unicode) -> None
+        super(LineComment, self).__init__()
+        self._value = value
+
+    def __str__(self):
+        parts = self._value.split(u'\n')
+        parts = [u'// {}'.format(x) for x in parts]
+        return u'\n'.join(parts)
+
+
 class ProgmemAssignmentExpression(AssignmentExpression):
     def __init__(self, type, name, rhs, obj):
         super(ProgmemAssignmentExpression, self).__init__(
@@ -424,10 +435,14 @@ def new_Pvariable(id,  # type: ID
     return Pvariable(id, rhs)
 
 
-def add(expression,  # type: Union[SafeExpType, Statement]
+def add(expression,  # type: Union[Expression, Statement]
         ):
     # type: (...) -> None
-    """Add an expression to the codegen setup() storage."""
+    """Add an expression to the codegen section.
+
+    After this is called, the given given expression will
+    show up in the setup() function after this has been called.
+    """
     CORE.add(expression)
 
 

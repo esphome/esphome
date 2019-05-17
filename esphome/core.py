@@ -467,6 +467,7 @@ class EsphomeCore(object):
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        self.ace = False
         # The name of the node
         self.name = None  # type: str
         # The relative path to the configuration YAML

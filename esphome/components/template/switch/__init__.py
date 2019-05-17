@@ -10,7 +10,7 @@ TemplateSwitch = template_ns.class_('TemplateSwitch', switch.Switch, cg.Componen
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateSwitch),
-    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
     cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),

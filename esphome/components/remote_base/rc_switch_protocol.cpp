@@ -53,6 +53,7 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
   }
 }
 void RCSwitchBase::transmit(RemoteTransmitData *dst, uint32_t code, uint8_t len) const {
+  dst->set_carrier_frequency(0);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & (1 << i))
       this->one(dst);
@@ -224,21 +225,25 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
 
   return decoded_nbits == this->nbits_ && decoded_code == this->code_;
 }
-void RCSwitchDumper::dump(RemoteReceiveData src) {
+bool RCSwitchDumper::dump(RemoteReceiveData src) {
   for (uint8_t i = 1; i <= 7; i++) {
     src.reset();
     uint32_t out_data;
     uint8_t out_nbits;
     RCSwitchBase *protocol = &rc_switch_protocols[i];
-    if (protocol->decode(src, &out_data, &out_nbits)) {
+    if (protocol->decode(src, &out_data, &out_nbits) && out_nbits >= 3) {
       char buffer[32];
       for (uint8_t j = 0; j < out_nbits; j++)
         buffer[j] = (out_data & (1 << (out_nbits - j - 1))) ? '1' : '0';
 
       buffer[out_nbits] = '\0';
       ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
+
+      // only send first decoded protocol
+      return true;
     }
   }
+  return false;
 }
 
 }  // namespace remote_base

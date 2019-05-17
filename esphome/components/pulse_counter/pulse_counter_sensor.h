@@ -25,7 +25,7 @@ using pulse_counter_t = int32_t;
 #endif
 
 struct PulseCounterStorage {
-  bool pulse_counter_setup();
+  bool pulse_counter_setup(GPIOPin *pin);
   pulse_counter_t read_raw_value();
 
   static void gpio_intr(PulseCounterStorage *arg);
@@ -42,9 +42,9 @@ struct PulseCounterStorage {
 #ifdef ARDUINO_ARCH_ESP8266
   ISRInternalGPIOPin *isr_pin;
 #endif
-  PulseCounterCountMode rising_edge_mode{};
-  PulseCounterCountMode falling_edge_mode{};
-  uint32_t filter_us{};
+  PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
+  PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
+  uint32_t filter_us{0};
   pulse_counter_t last_value{0};
 };
 

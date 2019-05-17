@@ -189,6 +189,9 @@ binary_sensor:
   - platform: ttp229_lsf
     channel: 1
     name: TTP229 LSF Test
+  - platform: ttp229_bsf
+    channel: 1
+    name: TTP229 BSF Test
   - platform: custom
     lambda: |-
       auto s = new CustomBinarySensor();
@@ -392,3 +395,7 @@ servo:
   output: out
 
 ttp229_lsf:
+
+ttp229_bsf:
+  sdo_pin: D0
+  scl_pin: D1
