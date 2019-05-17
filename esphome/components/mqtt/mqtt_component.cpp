@@ -72,11 +72,13 @@ bool MQTTComponent::send_discovery_() {
           root["command_topic"] = this->get_command_topic_();
 
         if (this->availability_ == nullptr) {
-          root["availability_topic"] = global_mqtt_client->get_availability().topic;
-          if (global_mqtt_client->get_availability().payload_available != "online")
-            root["payload_available"] = global_mqtt_client->get_availability().payload_available;
-          if (global_mqtt_client->get_availability().payload_not_available != "offline")
-            root["payload_not_available"] = global_mqtt_client->get_availability().payload_not_available;
+          if (!global_mqtt_client->get_availability().topic.empty()) {
+            root["availability_topic"] = global_mqtt_client->get_availability().topic;
+            if (global_mqtt_client->get_availability().payload_available != "online")
+              root["payload_available"] = global_mqtt_client->get_availability().payload_available;
+            if (global_mqtt_client->get_availability().payload_not_available != "offline")
+              root["payload_not_available"] = global_mqtt_client->get_availability().payload_not_available;
+          }
         } else if (!this->availability_->topic.empty()) {
           root["availability_topic"] = this->availability_->topic;
           if (this->availability_->payload_available != "online")
