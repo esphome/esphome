@@ -19,11 +19,15 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+    hub = yield cg.get_variable(config[CONF_MPR121_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     if CONF_TOUCH_THRESHOLD in config:
         cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
+    else:
+        cg.add(var.set_touch_threshold(hub.get_touch_threshold()))
     if CONF_RELEASE_THRESHOLD in config:
         cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
-    hub = yield cg.get_variable(config[CONF_MPR121_ID])
+    else:
+        cg.add(var.set_release_threshold(hub.get_release_threshold()))
     cg.add(hub.register_channel(var))

@@ -66,6 +66,10 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
   void set_touch_debounce(uint8_t debounce);
   void set_release_debounce(uint8_t debounce);
+  void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
+  void set_release_threshold(uint8_t release_threshold) { this->release_threshold = release_threshold; };
+  uint8_t get_touch_threshold() { return this->touch_threshold_; };
+  uint8_t get_release_threshold() { return this->release_threshold; };
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -75,6 +79,8 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   std::vector<MPR121Channel *> channels_{};
   uint16_t currtouched_{0};
   uint8_t debounce_{0};
+  uint8_t touch_threshold_{12};
+  uint8_t release_threshold{6};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
