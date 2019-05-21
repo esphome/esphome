@@ -7,7 +7,7 @@ from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OP
     CONF_STATE, CONF_STOP_ACTION
 from .. import template_ns
 
-TemplateCover = template_ns.class_('TemplateCover', cover.Cover)
+TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
 
 TemplateCoverRestoreMode = template_ns.enum('TemplateCoverRestoreMode')
 RESTORE_MODES = {

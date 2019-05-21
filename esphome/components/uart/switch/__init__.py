@@ -8,7 +8,7 @@ from .. import uart_ns
 
 DEPENDENCIES = ['uart']
 
-UARTSwitch = uart_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevice)
+UARTSwitch = uart_ns.class_('UARTSwitch', switch.Switch, uart.UARTDevice, cg.Component)
 
 
 def validate_data(value):
