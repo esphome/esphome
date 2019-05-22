@@ -70,9 +70,9 @@ class MPR121Component : public Component, public i2c::I2CDevice {
   void set_touch_debounce(uint8_t debounce);
   void set_release_debounce(uint8_t debounce);
   void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
-  void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
+  void set_release_threshold(uint8_t release_threshold) { this->release_threshold = release_threshold; };
   uint8_t get_touch_threshold() { return this->touch_threshold_; };
-  uint8_t get_release_threshold() { return this->release_threshold_; };
+  uint8_t get_release_threshold() { return this->release_threshold; };
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
