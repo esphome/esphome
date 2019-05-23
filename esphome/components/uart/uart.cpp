@@ -98,6 +98,14 @@ void UARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
   this->hw_serial_->flush();
 }
+
+void UARTComponent::drain() {
+  for (int i = 0; this->available(); i++) {
+    uint8_t junk;
+    this->read_byte(&junk);
+    ESP_LOGVV(TAG, "Draining RX[%d]: %0x", i, junk);
+  }
+}
 #endif  // ESP32
 
 #ifdef ARDUINO_ARCH_ESP8266
@@ -235,6 +243,19 @@ void UARTComponent::flush() {
   }
 }
 
+void UARTComponent::drain() {
+  if (this->hw_serial_ != nullptr) {
+    for (int i = 0; this->available(); i++) {
+      uint8_t junk;
+      this->read_byte(&junk);
+      ESP_LOGVV(TAG, "Draining RX[%d]: %0x", i, junk);
+    }
+  } else {
+    this->sw_serial_->drain();
+  }
+}
+
+
 void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate) {
   this->bit_time_ = F_CPU / baud_rate;
   if (tx_pin != -1) {
@@ -321,6 +342,14 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
   return this->rx_buffer_[this->rx_out_pos_];
 }
 void ESP8266SoftwareSerial::flush() { this->rx_in_pos_ = this->rx_out_pos_ = 0; }
+
+void ESP8266SoftwareSerial::drain() {
+  for (int i = 0; this->available(); i++) {
+    uint8_t junk = this->read_byte();
+    ESP_LOGVV(TAG, "Draining RX[%d]: %0x", i, junk);
+  }
+}
+
 int ESP8266SoftwareSerial::available() {
   int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
   if (avail < 0)
