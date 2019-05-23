@@ -39,13 +39,6 @@ void MHZ19Component::update() {
     return;
   }
 
-  uint8_t checksum = mhz19_checksum(response);
-  if (response[8] != checksum) {
-    ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X", response[8], checksum);
-    this->status_set_warning();
-    return;
-  }
-
   this->status_clear_warning();
   const uint16_t ppm = (uint16_t(response[2]) << 8) | response[3];
   const int temp = int(response[4]) - 40;
@@ -68,6 +61,15 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
 
   bool ret = this->read_array(response, MHZ19_PDU_LENGTH);
   ESP_LOGD(TAG, "resp [%s]", dump_data_buf(response));
+
+  uint8_t checksum = mhz19_checksum(response);
+  if (checksum != response[8]) {
+    ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X [%s]",
+             response[8], checksum, dump_data_buf(response));
+    this->status_set_warning();
+    return false;
+  }
+
   return ret;
 }
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
