@@ -18,9 +18,11 @@ from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 _LOGGER = logging.getLogger(__name__)
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = cg.esphome_ns.StartupTrigger
-ShutdownTrigger = cg.esphome_ns.ShutdownTrigger
-LoopTrigger = cg.esphome_ns.LoopTrigger
+StartupTrigger = cg.esphome_ns.class_('StartupTrigger', cg.Component, automation.Trigger.template())
+ShutdownTrigger = cg.esphome_ns.class_('ShutdownTrigger', cg.Component,
+                                       automation.Trigger.template())
+LoopTrigger = cg.esphome_ns.class_('LoopTrigger', cg.Component,
+                                   automation.Trigger.template())
 
 VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
 

@@ -285,6 +285,7 @@ def setup_time_core_(time_var, config):
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
         cg.add(trigger.add_days_of_week(days_of_week))
 
+        yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
 
