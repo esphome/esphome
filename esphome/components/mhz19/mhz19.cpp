@@ -34,7 +34,7 @@ void MHZ19Component::update() {
   }
 
   if (response[0] != 0xFF || response[1] != 0x86) {
-    ESP_LOGW(TAG, "Invalid preamble from MHZ19!");
+    ESP_LOGW(TAG, "Invalid response from MHZ19! [%s]", dump_data_buf(response));
     this->status_set_warning();
     return;
   }
