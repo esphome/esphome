@@ -420,6 +420,8 @@ cover:
     name: "Tilt Cover"
     tilt_closed_value: 0%
     tilt_opened_value: 100%
+    tilt_close_speed: 20
+    tilt_open_speed: 20
     id: tilt_cover
     tilt_action:
       - output.set_level:
