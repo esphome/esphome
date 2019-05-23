@@ -12,7 +12,7 @@ namespace am2320 {
 static const char *TAG = "am2320";
 
 // ---=== Calc CRC16 ===---
-uint16_t CRC16(uint8_t *ptr, uint8_t length)
+uint16_t crc_16(uint8_t *ptr, uint8_t length)
 {
 uint16_t crc = 0xFFFF;
 uint8_t i;
@@ -101,7 +101,7 @@ bool AM2320Component::read_data_(uint8_t *data) {
   checksum = data[7] << 8;
   checksum += data[6];
 
-  if (CRC16(data, 6) != checksum) {
+  if (crc_16(data, 6) != checksum) {
     ESP_LOGW(TAG, "AM2320 Checksum invalid!");
     return false;
   }
