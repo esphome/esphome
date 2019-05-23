@@ -12,13 +12,11 @@ namespace am2320 {
 static const char *TAG = "am2320";
 
 // ---=== Calc CRC16 ===---
-uint16_t crc_16(uint8_t *ptr, uint8_t length)
-{
+uint16_t crc_16(uint8_t *ptr, uint8_t length) {
   uint16_t crc = 0xFFFF;
   uint8_t i;
   //------------------------------
-  while (length--)
-  {
+  while (length--) {
     crc ^= *ptr++;
     for (i = 0; i < 8; i++)
       if ((crc & 0x01) != 0) {
