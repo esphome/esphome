@@ -296,6 +296,11 @@ stepper:
     max_speed: 0.1 steps/s
     acceleration: 10 steps/s^2
     deceleration: 10 steps/s^2
+  - platform: am2320
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
 
 interval:
   interval: 5s
