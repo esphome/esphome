@@ -135,8 +135,8 @@ void TiltCover::recompute_tilt_() {
   }
 
   const uint32_t now = millis();
-  if (action_speed == 0) {
-    // Special case if ction_speed is 0 just set tilt value immediately
+  if (action_speed >= 1e6) {
+    // Special case if action_speed is configured as 'inf' just set tilt value immediately
     this->tilt = this->target_tilt_;
   } else {
     // action_speed has units %/s so divide by 100000.0 to get fraction per ms
