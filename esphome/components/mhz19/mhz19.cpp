@@ -16,6 +16,15 @@ uint8_t mhz19_checksum(const uint8_t *command) {
   return 0xFF - sum + 0x01;
 }
 
+static char hex_buf[MHZ19_PDU_LENGTH * 3 + 1];
+const char *dump_data_buf(const uint8_t *data) {
+  memset(hex_buf, '\0', sizeof(hex_buf));
+  for (int i = 0; i < MHZ19_PDU_LENGTH; i++) {
+    sprintf(hex_buf, "%s%0x%s", hex_buf, data[i], i == MHZ19_PDU_LENGTH - 1 ? "" : " ");
+  }
+  return hex_buf;
+}
+
 void MHZ19Component::update() {
   uint8_t response[MHZ19_PDU_LENGTH];
   if (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
@@ -50,6 +59,7 @@ void MHZ19Component::update() {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
+  ESP_LOGD(TAG, "cmd [%s]", dump_data_buf(command));
   this->write_array(command, MHZ19_PDU_LENGTH);
   this->flush();
 
@@ -57,6 +67,7 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
     return true;
 
   bool ret = this->read_array(response, MHZ19_PDU_LENGTH);
+  ESP_LOGD(TAG, "resp [%s]", dump_data_buf(response));
   return ret;
 }
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
