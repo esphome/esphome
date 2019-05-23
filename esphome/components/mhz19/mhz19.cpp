@@ -5,20 +5,19 @@ namespace esphome {
 namespace mhz19 {
 
 static const char *TAG = "mhz19";
-static const uint8_t MHZ19_REQUEST_LENGTH = 8;
-static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
-static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t MHZ19_PDU_LENGTH = 9;
+static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00, 0x79};
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
-  for (uint8_t i = 1; i < MHZ19_REQUEST_LENGTH; i++) {
+  for (uint8_t i = 1; i < MHZ19_PDU_LENGTH - 1; i++) {
     sum += command[i];
   }
   return 0xFF - sum + 0x01;
 }
 
 void MHZ19Component::update() {
-  uint8_t response[MHZ19_RESPONSE_LENGTH];
+  uint8_t response[MHZ19_PDU_LENGTH];
   if (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
     ESP_LOGW(TAG, "Reading data from MHZ19 failed!");
     this->status_set_warning();
@@ -51,14 +50,13 @@ void MHZ19Component::update() {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  this->write_array(command, MHZ19_REQUEST_LENGTH);
-  this->write_byte(mhz19_checksum(command));
+  this->write_array(command, MHZ19_PDU_LENGTH);
   this->flush();
 
   if (response == nullptr)
     return true;
 
-  bool ret = this->read_array(response, MHZ19_RESPONSE_LENGTH);
+  bool ret = this->read_array(response, MHZ19_PDU_LENGTH);
   return ret;
 }
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
