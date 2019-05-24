@@ -41,7 +41,7 @@ void AM2320Component::update() {
   temperature = (data[4] & 0x80) ? -temperature : temperature;
   float humidity = ((data[2] << 8) + data[3]) / 10.0;
 
-  ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
+  ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temperature, humidity);
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
   if (this->humidity_sensor_ != nullptr)
