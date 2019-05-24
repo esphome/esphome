@@ -9,7 +9,7 @@ import re
 import sys
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import basepath, get_output, walk_files, filter_changed
+from helpers import get_output, git_ls_files, filter_changed
 
 
 def main():
@@ -21,10 +21,10 @@ def main():
     args = parser.parse_args()
 
     files = []
-    for path in walk_files(basepath):
+    for path in git_ls_files():
         filetypes = ('.py',)
         ext = os.path.splitext(path)[1]
-        if ext in filetypes:
+        if ext in filetypes and path.startswith('esphome'):
             path = os.path.relpath(path, os.getcwd())
             files.append(path)
     # Match against re
@@ -35,6 +35,8 @@ def main():
         files = filter_changed(files)
 
     files.sort()
+    if not files:
+        sys.exit(0)
 
     errors = collections.defaultdict(list)
     cmd = ['flake8'] + files

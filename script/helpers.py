@@ -126,3 +126,13 @@ def filter_changed(files):
     for c in files:
         print("    {}".format(c))
     return files
+
+
+def git_ls_files():
+    command = ['git', 'ls-files', '-s']
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+    output, err = proc.communicate()
+    lines = [x.split() for x in output.decode('utf-8').splitlines()]
+    return {
+        s[3].strip(): int(s[0]) for s in lines
+    }
