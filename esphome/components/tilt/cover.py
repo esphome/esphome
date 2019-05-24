@@ -8,6 +8,7 @@ from esphome.const import CONF_TILT_ACTION, CONF_ID, CONF_TILT_CLOSED_VALUE, \
 tilt_ns = cg.esphome_ns.namespace('tilt')
 TiltCover = tilt_ns.class_('TiltCover', cover.Cover, cg.Component)
 
+
 def validate_speed(value):
     value = cv.string(value)
     for suffix in ('%/s', '%/s'):
