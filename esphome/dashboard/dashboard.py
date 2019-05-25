@@ -430,6 +430,11 @@ class DashboardEntry(object):
     def update_new(self):
         return const.__version__
 
+    @property
+    def web_server_enabled(self):
+        if self.storage is None:
+            return False
+        return self.storage.web_server_enabled
 
 class MainRequestHandler(BaseHandler):
     @authenticated

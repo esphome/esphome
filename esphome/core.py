@@ -11,7 +11,7 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    SOURCE_FILE_EXTENSIONS
+    SOURCE_FILE_EXTENSIONS, CONF_WEB_SERVER
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
@@ -593,6 +593,13 @@ class EsphomeCore(object):
         if self.esp_platform is None:
             raise ValueError
         return self.esp_platform == 'ESP32'
+
+    @property
+    def web_server_enabled(self):
+        try:
+            return self.config[CONF_WEB_SERVER] is not None
+        except KeyError:
+            False
 
     def add_job(self, func, *args, **kwargs):
         coro = coroutine(func)
