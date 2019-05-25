@@ -452,6 +452,8 @@ def validate_config(config):
         # Ensure conf is a list
         if not isinstance(conf, list) and conf:
             result[domain] = conf = [conf]
+        elif not conf:
+            result[domain] = conf = []
 
         for i, p_config in enumerate(conf):
             path = [domain, i]
