@@ -436,6 +436,7 @@ class DashboardEntry(object):
             return False
         return self.storage.web_server_enabled
 
+
 class MainRequestHandler(BaseHandler):
     @authenticated
     def get(self):

@@ -599,7 +599,7 @@ class EsphomeCore(object):
         try:
             return self.config[CONF_WEB_SERVER] is not None
         except KeyError:
-            False
+            return False
 
     def add_job(self, func, *args, **kwargs):
         coro = coroutine(func)
