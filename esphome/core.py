@@ -11,7 +11,7 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    SOURCE_FILE_EXTENSIONS, CONF_LOADED_INTEGRATIONS
+    SOURCE_FILE_EXTENSIONS
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict

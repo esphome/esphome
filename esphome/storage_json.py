@@ -62,7 +62,7 @@ class StorageJSON(object):
         # The absolute path to the firmware binary
         self.firmware_bin_path = firmware_bin_path  # type: str
         # A list of strings of names of loaded integrations
-        self.loaded_integrations = loaded_integrations   # type: list[str]
+        self.loaded_integrations = loaded_integrations   # type: set[str]
 
     def as_dict(self):
         return {
@@ -76,7 +76,8 @@ class StorageJSON(object):
             'board': self.board,
             'build_path': self.build_path,
             'firmware_bin_path': self.firmware_bin_path,
-            'loaded_integrations ': self.loaded_integrations,
+            'loaded_integrations':
+                sorted(self.loaded_integrations) if self.loaded_integrations is not None else [],
         }
 
     def to_json(self):
@@ -100,7 +101,7 @@ class StorageJSON(object):
             board=esph.board,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
-            loaded_integrations=list(sorted(esph.loaded_integrations)),
+            loaded_integrations=esph.loaded_integrations,
         )
 
     @staticmethod

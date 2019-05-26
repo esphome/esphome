@@ -431,10 +431,10 @@ class DashboardEntry(object):
         return const.__version__
 
     @property
-    def web_server_enabled(self):
+    def loaded_integrations(self):
         if self.storage is None:
             return False
-        return self.storage.web_server_enabled
+        return self.storage.loaded_integrations
 
 
 class MainRequestHandler(BaseHandler):
