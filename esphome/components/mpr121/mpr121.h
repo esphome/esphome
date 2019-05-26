@@ -7,6 +7,9 @@
 namespace esphome {
 namespace mpr121 {
 
+#define DEFAULT_TOUCH_THRESHOLD 12
+#define DEFAULT_RELEASE_THRESHOLD 6
+
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
   MPR121_TOUCHSTATUS_H = 0x01,
@@ -49,14 +52,27 @@ class MPR121Channel : public binary_sensor::BinarySensor {
  public:
   void set_channel(uint8_t channel) { channel_ = channel; }
   void process(uint16_t data) { this->publish_state(static_cast<bool>(data & (1 << this->channel_))); }
+  int get_channel() { return this->channel_; };
+  void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
+  void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
+  uint8_t get_touch_threshold() { return this->touch_threshold_; };
+  uint8_t get_release_threshold() { return this->release_threshold_; };
 
  protected:
   uint8_t channel_{0};
+  uint8_t touch_threshold_{DEFAULT_TOUCH_THRESHOLD};
+  uint8_t release_threshold_{DEFAULT_RELEASE_THRESHOLD};
 };
 
 class MPR121Component : public Component, public i2c::I2CDevice {
  public:
   void register_channel(MPR121Channel *channel) { this->channels_.push_back(channel); }
+  void set_touch_debounce(uint8_t debounce);
+  void set_release_debounce(uint8_t debounce);
+  void set_touch_threshold(uint8_t touch_threshold) { this->touch_threshold_ = touch_threshold; };
+  void set_release_threshold(uint8_t release_threshold) { this->release_threshold_ = release_threshold; };
+  uint8_t get_touch_threshold() { return this->touch_threshold_; };
+  uint8_t get_release_threshold() { return this->release_threshold_; };
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -64,6 +80,9 @@ class MPR121Component : public Component, public i2c::I2CDevice {
 
  protected:
   std::vector<MPR121Channel *> channels_{};
+  uint8_t debounce_{0};
+  uint8_t touch_threshold_{DEFAULT_TOUCH_THRESHOLD};
+  uint8_t release_threshold_{DEFAULT_RELEASE_THRESHOLD};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

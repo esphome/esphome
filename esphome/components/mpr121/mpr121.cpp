@@ -18,9 +18,9 @@ void MPR121Component::setup() {
   }
 
   // set touch sensitivity for all 12 channels
-  for (uint8_t i = 0; i < 12; i++) {
-    this->write_byte(MPR121_TOUCHTH_0 + 2 * i, 12);
-    this->write_byte(MPR121_RELEASETH_0 + 2 * i, 6);
+  for (auto *channel : this->channels_) {
+    this->write_byte(MPR121_TOUCHTH_0 + 2 * channel->get_channel(), channel->get_touch_threshold());
+    this->write_byte(MPR121_RELEASETH_0 + 2 * channel->get_channel(), channel->get_release_threshold());
   }
   this->write_byte(MPR121_MHDR, 0x01);
   this->write_byte(MPR121_NHDR, 0x01);
@@ -44,6 +44,21 @@ void MPR121Component::setup() {
   // start with first 5 bits of baseline tracking
   this->write_byte(MPR121_ECR, 0x8F);
 }
+
+void MPR121Component::set_touch_debounce(uint8_t debounce) {
+  uint8_t mask = debounce << 4;
+  this->debounce_ &= 0x0f;
+  this->debounce_ |= mask;
+  ESP_LOGD(TAG, "debounce:%02x", this->debounce_);
+}
+
+void MPR121Component::set_release_debounce(uint8_t debounce) {
+  uint8_t mask = debounce & 0x0f;
+  this->debounce_ &= 0xf0;
+  this->debounce_ |= mask;
+  ESP_LOGD(TAG, "debounce:%02x", this->debounce_);
+};
+
 void MPR121Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MPR121:");
   LOG_I2C_DEVICE(this);

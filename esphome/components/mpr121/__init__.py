@@ -2,6 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
+from mpr121_const import CONF_RELEASE_DEBOUNCE, CONF_TOUCH_DEBOUNCE, \
+    CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']
@@ -13,10 +15,22 @@ MPR121Component = mpr121_ns.class_('MPR121Component', cg.Component, i2c.I2CDevic
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MPR121Component),
+    cv.Optional(CONF_RELEASE_DEBOUNCE, default=0): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_TOUCH_DEBOUNCE, default=0):  cv.All(cv.Coerce(int), cv.Range(min=0, max=7)),
+    cv.Optional(CONF_TOUCH_THRESHOLD, default=0x06): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
+    cv.Optional(CONF_RELEASE_THRESHOLD, default=0x0b): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x5A))
 
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    if CONF_TOUCH_DEBOUNCE in config:
+        cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
+    if CONF_RELEASE_DEBOUNCE in config:
+        cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
+    if CONF_TOUCH_THRESHOLD in config:
+        cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
+    if CONF_RELEASE_THRESHOLD in config:
+        cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
