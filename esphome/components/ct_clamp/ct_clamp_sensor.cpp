@@ -10,7 +10,7 @@ void CTClampSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CT Clamp '%s'...", this->get_name().c_str());
   GPIOPin(this->pin_, INPUT).setup();
 
-  offsetI = ADC_COUNTS>>1;
+  offsetI = ADC_COUNTS >> 1;
 
 }
 
@@ -27,33 +27,31 @@ float CTClampSensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void CTClampSensor::update() {
 
-  for (unsigned int n = 0; n < this->sample_size_; n++)
-  {
-    sampleI = analogRead(this->pin_);
+  for (unsigned int n = 0; n < this->sample_size_; n++) {
+    sample_i_ = analogRead(this->pin_);
 
     // Digital low pass filter extracts the 1.65 V dc offset,
     //  then subtract this - signal is now centered on 0 counts.
-    offsetI = (offsetI + (sampleI-offsetI)/(ADC_COUNTS));
-    filteredI = sampleI - offsetI;
+    offset_i_ = (offset_i_ + (sample_i_ - offset_i_) / (ADC_COUNTS));
+    filtered_i_ = sample_i_ - offset_i_;
 
     // Root-mean-square method current
     // 1) square current values
-    sqI = filteredI * filteredI;
+    sq_i_ = filtered_i_ * filtered_i_;
     // 2) sum
-    sumI += sqI;
+    sum_i_ += sq_i_;
   }
 
-  double I_RATIO = this->calibration_ * ((supply_voltage_) / (ADC_COUNTS));
-  Irms = I_RATIO * sqrt(sumI / this->sample_size_);
+  double i_ratio = this->calibration_ * ((supply_voltage_) / (ADC_COUNTS));
+  irms_ = i_ratio * sqrt(sum_i_ / this->sample_size_);
 
   //Reset accumulators
-  sumI = 0;
+  sum_i_ = 0;
 
-  ESP_LOGD(TAG, "'%s'", this->get_name().c_str(), Irms);
-  ESP_LOGD(TAG, "   Amps=%.2fA", Irms);
-  ESP_LOGD(TAG, "   Watts=%.0fW", Irms * 230.0);
+  ESP_LOGD(TAG, "'%s'", this->get_name().c_str(), irms_);
+  ESP_LOGD(TAG, "   Amps=%.2fA", irms_);
 
-  this->publish_state(Irms);
+  this->publish_state(irms_);
 }
 
 #ifdef ARDUINO_ARCH_ESP8266

@@ -32,17 +32,17 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   uint32_t sample_size_;
   double supply_voltage_;
 
-  int sampleI;
-  double Irms,filteredI,offsetI,sumI,sqI;
+  int sample_i_;
+  double irms_,filtered_i_,offset_i_,sum_i_,sq_i_;
 
 #ifdef ARDUINO_ARCH_ESP32
-#define ADC_BITS    12
+#define ADC_BITS 12
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-#define ADC_BITS    10
+#define ADC_BITS 10
 #endif
-#define ADC_COUNTS  (1<<ADC_BITS)
+#define ADC_COUNTS (1 << ADC_BITS)
 };
 
-} // namespace ct_clamp
-} // namespace esphome
+}  // namespace ct_clamp
+}  // namespace esphome
