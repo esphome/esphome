@@ -596,10 +596,7 @@ class EsphomeCore(object):
 
     @property
     def web_server_enabled(self):
-        try:
-            return self.config[CONF_WEB_SERVER] is not None
-        except KeyError:
-            return False
+        return CONF_WEB_SERVER in self.loaded_integrations
 
     def add_job(self, func, *args, **kwargs):
         coro = coroutine(func)
