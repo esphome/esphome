@@ -130,30 +130,23 @@ void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
   uint16_t tempWord;
   uint8_t tempByte;
 
-  // Disable input buffer
-  // Writing a 1 to the pin bit will disable that pins input buffer
   this->read_byte_16(REG_INPUT_DISABLE_B, &tempWord);
   tempWord |= (1 << pin);
   this->write_byte_16(REG_INPUT_DISABLE_B, tempWord);
 
-  // Disable pull-up
-  // Writing a 0 to the pin bit will disable that pull-up resistor
   this->read_byte_16(REG_PULL_UP_B, &tempWord);
   tempWord &= ~(1 << pin);
   this->write_byte_16(REG_PULL_UP_B, tempWord);
 
-  // Set direction to output (REG_DIR_B)
   this->read_byte_16(REG_DIR_B, &tempWord);
   tempWord &= ~(1 << pin);  // 0=output
   this->write_byte_16(REG_DIR_B, tempWord);
 
-  // Enable oscillator (REG_CLOCK)
   this->read_byte(REG_CLOCK, &tempByte);
   tempByte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
   tempByte &= ~(1 << 5);  // Internal 2MHz oscillator part 2 (clear bit 5)
   this->write_byte(REG_CLOCK, tempByte);
 
-  // Configure LED driver clock and mode (REG_MISC)
   this->read_byte(REG_MISC, &tempByte);
   if (log) {
     tempByte |= (1 << 7);  // set logarithmic mode bank B
@@ -163,7 +156,6 @@ void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
     tempByte &= ~(1 << 3);  // set linear mode bank A
   }
 
-  // Use configClock to setup the clock divder
   if (_clkX == 0)  // Make clckX non-zero
   {
     _clkX = 2000000.0 / (1 << (1 - 1));  // Update private clock variable
@@ -173,12 +165,10 @@ void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
   }
   this->write_byte(REG_MISC, tempByte);
 
-  // Enable LED driver operation (REG_LED_DRIVER_ENABLE)
   this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &tempWord);
   tempWord |= (1 << pin);
   this->write_byte_16(REG_LED_DRIVER_ENABLE_B, tempWord);
 
-  // Set REG_DATA bit low ~ LED driver started
   this->read_byte_16(REG_DATA_B, &tempWord);
   tempWord &= ~(1 << pin);
   this->write_byte_16(REG_DATA_B, tempWord);
@@ -290,22 +280,12 @@ uint8_t SX1509Component::calculate_slope_register(uint16_t ms, uint8_t onIntensi
 		return regSlope2;  
 }
 
-void SX1509FloatOutputChannel::write_state(float state) {
-  ESP_LOGD(TAG, "write_state %f", state);
-  const uint16_t max_duty = 255;
-  const float duty_rounded = roundf(state * max_duty);
-  auto duty = static_cast<uint16_t>(duty_rounded);
-  this->parent_->set_pin_value_(this->pin_, duty);
-}
-
-void SX1509FloatOutputChannel::setup_channel() { this->parent_->pin_mode(this->pin_, ANALOG_OUTPUT); }
-
-SX1509GPIOPin::SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted)
-    : GPIOPin(pin, mode, inverted), parent_(parent) {}
-void SX1509GPIOPin::setup() { this->pin_mode(this->mode_); }
-void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
-bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+// SX1509GPIOPin::SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted)
+//     : GPIOPin(pin, mode, inverted), parent_(parent) {}
+// void SX1509GPIOPin::setup() { this->pin_mode(this->mode_); }
+// void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
+// bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
+// void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 
 }  // namespace sx1509
 }  // namespace esphome

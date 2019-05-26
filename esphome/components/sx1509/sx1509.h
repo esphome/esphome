@@ -1,9 +1,10 @@
 #pragma once
 
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "sx1509_registers.h"
+#include "sx1509_float_output.h"
+#include "sx1509_gpio_pin.h"
 
 namespace esphome {
 namespace sx1509 {
@@ -20,42 +21,31 @@ namespace sx1509 {
 #define HARDWARE_RESET 1
 
 #define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
-#define BREATHE_OUTPUT 0x04
+// #define BREATHE_OUTPUT 0x04
 
-/// Modes for MCP23017 pins
-enum SX1509GPIOMode : uint8_t {
-  SX1509_INPUT = INPUT,                   // 0x00
-  SX1509_INPUT_PULLUP = INPUT_PULLUP,     // 0x02
-  SX1509_OUTPUT = OUTPUT,                 // 0x01
-  SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT  // 0x04
-};
+// /// Modes for SX1509 pins
+// enum SX1509GPIOMode : uint8_t {
+//   SX1509_INPUT = INPUT,                   // 0x00
+//   SX1509_INPUT_PULLUP = INPUT_PULLUP,     // 0x02
+//   SX1509_OUTPUT = OUTPUT,                 // 0x01
+//   SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT  // 0x04
+// };
 
-class SX1509Component;
+// class SX1509Component;
+// class SX1509FloatOutputChannel;
 
-class SX1509FloatOutputChannel : public output::FloatOutput {
- public:
-  SX1509FloatOutputChannel(SX1509Component *parent, uint8_t pin) : parent_(parent), pin_(pin) {}
-  void setup_channel();
+// class SX1509GPIOPin : public GPIOPin {
+//  public:
+//   SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted = false);
 
- protected:
-  void write_state(float state) override;
+//   void setup() override;
+//   void pin_mode(uint8_t mode) override;
+//   bool digital_read() override;
+//   void digital_write(bool value) override;
 
-  SX1509Component *parent_;
-  uint8_t pin_;
-};
-
-class SX1509GPIOPin : public GPIOPin {
- public:
-  SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted = false);
-
-  void setup() override;
-  void pin_mode(uint8_t mode) override;
-  bool digital_read() override;
-  void digital_write(bool value) override;
-
- protected:
-  SX1509Component *parent_;
-};
+//  protected:
+//   SX1509Component *parent_;
+// };
 
 /// SX1509 float output component.
 class SX1509Component : public Component, public i2c::I2CDevice {
