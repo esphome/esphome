@@ -448,10 +448,6 @@ CONF_WIFI = 'wifi'
 CONF_WILL_MESSAGE = 'will_message'
 CONF_WINDOW_SIZE = 'window_size'
 CONF_ZERO = 'zero'
-CONF_TOUCH_THRESHOLD = "touch_threshold"
-CONF_RELEASE_THRESHOLD = "release_threshold"
-CONF_TOUCH_DEBOUNCE = "touch_debounce"
-CONF_RELEASE_DEBOUNCE = "release_debounce"
 
 ICON_ARROW_EXPAND_VERTICAL = 'mdi:arrow-expand-vertical'
 ICON_BATTERY = 'mdi:battery'

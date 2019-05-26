@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_CHANNEL, CONF_ID, CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
+from esphome.const import CONF_ID, CONF_CHANNEL
+from init import CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
 from . import mpr121_ns, MPR121Component, CONF_MPR121_ID
 
 DEPENDENCIES = ['mpr121']
