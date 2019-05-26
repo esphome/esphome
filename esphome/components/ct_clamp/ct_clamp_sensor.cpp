@@ -10,8 +10,7 @@ void CTClampSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up CT Clamp '%s'...", this->get_name().c_str());
   GPIOPin(this->pin_, INPUT).setup();
 
-  offsetI = ADC_COUNTS >> 1;
-
+  offset_i_ = ADC_COUNTS >> 1;
 }
 
 void CTClampSensor::dump_config() {
@@ -26,7 +25,6 @@ void CTClampSensor::dump_config() {
 float CTClampSensor::get_setup_priority() const { return setup_priority::DATA; }
 
 void CTClampSensor::update() {
-
   for (unsigned int n = 0; n < this->sample_size_; n++) {
     sample_i_ = analogRead(this->pin_);
 
@@ -45,10 +43,10 @@ void CTClampSensor::update() {
   double i_ratio = this->calibration_ * ((supply_voltage_) / (ADC_COUNTS));
   irms_ = i_ratio * sqrt(sum_i_ / this->sample_size_);
 
-  //Reset accumulators
+  // Reset accumulators
   sum_i_ = 0;
 
-  ESP_LOGD(TAG, "'%s'", this->get_name().c_str(), irms_);
+  ESP_LOGD(TAG, "'%s'", this->get_name().c_str());
   ESP_LOGD(TAG, "   Amps=%.2fA", irms_);
 
   this->publish_state(irms_);

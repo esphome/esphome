@@ -33,7 +33,7 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   double supply_voltage_;
 
   int sample_i_;
-  double irms_,filtered_i_,offset_i_,sum_i_,sq_i_;
+  double irms_, filtered_i_, offset_i_, sum_i_, sq_i_;
 
 #ifdef ARDUINO_ARCH_ESP32
 #define ADC_BITS 12
