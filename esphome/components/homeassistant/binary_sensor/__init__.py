@@ -6,7 +6,8 @@ from .. import homeassistant_ns
 
 DEPENDENCIES = ['api']
 HomeassistantBinarySensor = homeassistant_ns.class_('HomeassistantBinarySensor',
-                                                    binary_sensor.BinarySensor)
+                                                    binary_sensor.BinarySensor,
+                                                    cg.Component)
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(HomeassistantBinarySensor),

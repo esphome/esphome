@@ -71,3 +71,5 @@ def to_code(config):
     yield output.register_output(var, config)
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    cg.add(var.set_bit_depth(config[CONF_BIT_DEPTH]))
