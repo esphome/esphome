@@ -1,6 +1,7 @@
 #include "status_binary_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
 #include "esphome/components/mqtt/mqtt_client.h"

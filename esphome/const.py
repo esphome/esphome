@@ -19,6 +19,7 @@ ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8
                               '/stage'
 ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
 ARDUINO_VERSION_ESP8266_2_5_1 = 'espressif8266@2.1.0'
+ARDUINO_VERSION_ESP8266_2_5_2 = 'espressif8266@2.2.0'
 ARDUINO_VERSION_ESP8266_2_3_0 = 'espressif8266@1.5.0'
 SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
 HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
