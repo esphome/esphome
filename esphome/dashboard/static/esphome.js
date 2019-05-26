@@ -412,21 +412,21 @@ const downloadAfterUploadButton = document.querySelector('.download-after-upload
 const uploadModal = new LogModalElem({
   name: 'upload',
   onPrepare: (modalElem, config) => {
-    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
-    retryUploadButton.classList.add('hide');
-    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
-    downloadAfterUploadButton.classList.remove('hide');
     downloadAfterUploadButton.classList.add('disabled');
+    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
+    retryUploadButton.classList.add('disabled');
+    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
       M.toast({html: "Program exited successfully."});
+      // if compilation succeeds but OTA fails, you can still download the binary and upload manually
       downloadAfterUploadButton.classList.remove('disabled');
     } else {
       M.toast({html: `Program failed with code ${code}`});
-      downloadAfterUploadButton.classList.add('hide');
-      retryUploadButton.classList.remove('hide');
+      downloadAfterUploadButton.classList.add('disabled');
+      retryUploadButton.classList.remove('disabled');
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
