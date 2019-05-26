@@ -14,7 +14,7 @@ MPR121Component = mpr121_ns.class_('MPR121Component', cg.Component, i2c.I2CDevic
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MPR121Component),
-    cv.Optional(CONF_RELEASE_DEBOUNCE):  cv.All(cv.Coerce(int), cv.Range(min=0, max=7)),
+    cv.Optional(CONF_RELEASE_DEBOUNCE): cv.int_range(min=0, max=7),
     cv.Optional(CONF_TOUCH_DEBOUNCE):  cv.All(cv.Coerce(int), cv.Range(min=0, max=7)),
     cv.Optional(CONF_TOUCH_THRESHOLD): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
     cv.Optional(CONF_RELEASE_THRESHOLD): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
