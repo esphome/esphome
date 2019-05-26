@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from mpr121_const import CONF_RELEASE_DEBOUNCE, CONF_TOUCH_DEBOUNCE, \
-    CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
 from esphome.const import CONF_ID
+from esphome.components.mpr121.mpr121_const import CONF_RELEASE_DEBOUNCE, \
+    CONF_TOUCH_DEBOUNCE, CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']
