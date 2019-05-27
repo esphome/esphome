@@ -903,6 +903,13 @@ climate:
     sensor: my_sensor
   - platform: tcl112
     name: TCL112 Climate
+  - platform: coolix
+    name: Coolix Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: coolix
+    name: Coolix Climate
 
 switch:
   - platform: gpio
