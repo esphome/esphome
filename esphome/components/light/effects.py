@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
     CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
     CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
-    CONF_THEN
+    CONF_THEN, CONF_SEQUENCE
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
@@ -63,11 +63,11 @@ def lambda_effect_to_code(config, effect_id):
 
 
 @register_effect('automation', AutomationLightEffect, "Automation", {
-    cv.Required(CONF_THEN): automation.validate_automation(single=True),
+    cv.Required(CONF_SEQUENCE): automation.validate_automation(single=True),
 })
 def automation_effect_to_code(config, effect_id):
     var = yield cg.new_Pvariable(effect_id, config[CONF_NAME])
-    yield automation.build_automation(var.get_trig(), [], config[CONF_THEN])
+    yield automation.build_automation(var.get_trig(), [], config[CONF_SEQUENCE])
     yield var
 
 
