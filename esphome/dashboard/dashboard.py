@@ -433,7 +433,7 @@ class DashboardEntry(object):
     @property
     def loaded_integrations(self):
         if self.storage is None:
-            return False
+            return []
         return self.storage.loaded_integrations
 
 
