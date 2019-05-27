@@ -78,7 +78,7 @@ class StorageJSON(object):
             'build_path': self.build_path,
             'firmware_bin_path': self.firmware_bin_path,
             'loaded_integrations':
-                sorted(self.loaded_integrations) if self.loaded_integrations is not None else [],
+                self.loaded_integrations,
         }
 
     def to_json(self):
