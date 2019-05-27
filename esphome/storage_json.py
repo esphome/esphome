@@ -137,7 +137,7 @@ class StorageJSON(object):
         board = storage.get('board')
         build_path = storage.get('build_path')
         firmware_bin_path = storage.get('firmware_bin_path')
-        loaded_integrations = storage.get('loaded_integrations')
+        loaded_integrations = storage.get('loaded_integrations', [])
         return StorageJSON(storage_version, name, esphome_version,
                            src_version, arduino_version, address, esp_platform, board, build_path,
                            firmware_bin_path, loaded_integrations)
