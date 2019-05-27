@@ -77,8 +77,7 @@ class StorageJSON(object):
             'board': self.board,
             'build_path': self.build_path,
             'firmware_bin_path': self.firmware_bin_path,
-            'loaded_integrations':
-                self.loaded_integrations,
+            'loaded_integrations': self.loaded_integrations,
         }
 
     def to_json(self):
