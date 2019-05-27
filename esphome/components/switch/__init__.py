@@ -83,13 +83,13 @@ def switch_toggle_to_code(config, action_id, template_arg, args):
 @automation.register_condition('switch.is_on', SwitchCondition, SWITCH_ACTION_SCHEMA)
 def switch_is_on_to_code(config, condition_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+    yield cg.new_Pvariable(condition_id, template_arg, paren, True)
 
 
 @automation.register_condition('switch.is_off', SwitchCondition, SWITCH_ACTION_SCHEMA)
 def switch_is_off_to_code(config, condition_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(condition_id, template_arg, paren)
+    yield cg.new_Pvariable(condition_id, template_arg, paren, False)
 
 
 @coroutine_with_priority(100.0)

@@ -13,7 +13,7 @@ import threading
 import click
 
 sys.path.append(os.path.dirname(__file__))
-from helpers import basepath, get_output, walk_files, filter_changed
+from helpers import basepath, get_output, git_ls_files, filter_changed
 
 is_py2 = sys.version[0] == '2'
 
@@ -83,7 +83,7 @@ def main():
         return 1
 
     files = []
-    for path in walk_files(basepath):
+    for path in git_ls_files():
         filetypes = ('.cpp', '.h', '.tcc')
         ext = os.path.splitext(path)[1]
         if ext in filetypes:

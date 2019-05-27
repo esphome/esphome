@@ -160,6 +160,13 @@ class LightCall {
   bool save_{true};
 };
 
+enum LightRestoreMode {
+  LIGHT_RESTORE_DEFAULT_OFF,
+  LIGHT_RESTORE_DEFAULT_ON,
+  LIGHT_ALWAYS_OFF,
+  LIGHT_ALWAYS_ON,
+};
+
 /** This class represents the communication layer between the front-end MQTT layer and the
  * hardware output layer.
  */
@@ -249,6 +256,7 @@ class LightState : public Nameable, public Component {
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
+  void set_restore_mode(LightRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
   const std::vector<LightEffect *> &get_effects() const;
 
@@ -292,6 +300,8 @@ class LightState : public Nameable, public Component {
 
   /// Object used to store the persisted values of the light.
   ESPPreferenceObject rtc_;
+  /// Restore mode of the light.
+  LightRestoreMode restore_mode_;
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Value for storing the index of the currently active effect. 0 if no effect is active

@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
     cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
-}), validate)
+}).extend(cv.COMPONENT_SCHEMA), validate)
 
 
 def manual_ip(config):
@@ -84,6 +84,7 @@ def manual_ip(config):
 @coroutine_with_priority(60.0)
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
+    yield cg.register_component(var, config)
 
     cg.add(var.set_phy_addr(config[CONF_PHY_ADDR]))
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))

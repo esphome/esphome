@@ -1,10 +1,9 @@
-#include "esphome/components/ota/ota_component.h"
+#include "ota_component.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
-//#include "esphome/components/status_led.h"
 
 #include <cstdio>
 #include <MD5Builder.h>

@@ -377,6 +377,22 @@ output:
     id: out
     pin: D3
     frequency: 50Hz
+  - platform: custom
+    type: binary
+    lambda: |-
+      auto s = new CustomBinaryOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_binary
+  - platform: custom
+    type: float
+    lambda: |-
+      auto s = new CustomFloatOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_float
 
 mcp23017:
   id: mcp

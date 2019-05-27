@@ -18,7 +18,7 @@ import threading
 
 sys.path.append(os.path.dirname(__file__))
 from helpers import basepath, shlex_quote, get_output, build_compile_commands, \
-    build_all_include, temp_header_file, walk_files, filter_changed
+    build_all_include, temp_header_file, git_ls_files, filter_changed
 
 is_py2 = sys.version[0] == '2'
 
@@ -100,7 +100,7 @@ def main():
     build_compile_commands()
 
     files = []
-    for path in walk_files(basepath):
+    for path in git_ls_files():
         filetypes = ('.cpp',)
         ext = os.path.splitext(path)[1]
         if ext in filetypes:
