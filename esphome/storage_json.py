@@ -102,7 +102,7 @@ class StorageJSON(object):
             board=esph.board,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
-            loaded_integrations=esph.loaded_integrations,
+            loaded_integrations=list(esph.loaded_integrations),
         )
 
     @staticmethod
