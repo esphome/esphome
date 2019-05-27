@@ -12,8 +12,8 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MPR121Channel),
     cv.GenerateID(CONF_MPR121_ID): cv.use_id(MPR121Component),
     cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=11),
-    cv.Optional(CONF_TOUCH_THRESHOLD): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
-    cv.Optional(CONF_RELEASE_THRESHOLD): cv.All(cv.Coerce(int), cv.Range(min=0x05, max=0x30)),
+    cv.Optional(CONF_TOUCH_THRESHOLD): cv.int_range(min=0x05, max=0x30),
+    cv.Optional(CONF_RELEASE_THRESHOLD): cv.int_range(min=0x05, max=0x30),
 })
 
 

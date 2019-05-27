@@ -19,8 +19,10 @@ void MPR121Component::setup() {
 
   // set touch sensitivity for all 12 channels
   for (auto *channel : this->channels_) {
-    this->write_byte(MPR121_TOUCHTH_0 + 2 * channel->get_channel(), channel->get_touch_threshold());
-    this->write_byte(MPR121_RELEASETH_0 + 2 * channel->get_channel(), channel->get_release_threshold());
+    this->write_byte(MPR121_TOUCHTH_0 + 2 * channel->channel_,
+                     channel->touch_threshold_.value_or(this->touch_threshold_));
+    this->write_byte(MPR121_RELEASETH_0 + 2 * channel->channel_,
+                     channel->release_threshold_.value_or(this->release_threshold_));
   }
   this->write_byte(MPR121_MHDR, 0x01);
   this->write_byte(MPR121_NHDR, 0x01);

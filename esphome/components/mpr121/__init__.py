@@ -27,13 +27,9 @@ CONFIG_SCHEMA = cv.Schema({
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    if CONF_TOUCH_DEBOUNCE in config:
-        cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
-    if CONF_RELEASE_DEBOUNCE in config:
-        cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
-    if CONF_TOUCH_THRESHOLD in config:
-        cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
-    if CONF_RELEASE_THRESHOLD in config:
-        cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
+    cg.add(var.set_touch_debounce(config[CONF_TOUCH_DEBOUNCE]))
+    cg.add(var.set_release_debounce(config[CONF_RELEASE_DEBOUNCE]))
+    cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
+    cg.add(var.set_release_threshold(config[CONF_RELEASE_THRESHOLD]))
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
