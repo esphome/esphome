@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED, CONF_TIME_ON
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -36,6 +36,7 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+    cv.Optional(CONF_TIME_ON): cv.int_,
 })
 SX1509_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
