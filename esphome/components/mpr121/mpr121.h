@@ -60,7 +60,7 @@ class MPR121Channel : public binary_sensor::BinarySensor {
 
  protected:
   uint8_t channel_{0};
-  uint8_t touch_threshold_{DEFAULT_TOUCH_THRESHOLD};
+  optional<uint8_t> touch_threshold_{};
   uint8_t release_threshold_{DEFAULT_RELEASE_THRESHOLD};
 };
 
