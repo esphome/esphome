@@ -94,6 +94,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: am2320
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: adc
     pin: VCC
     id: my_sensor
