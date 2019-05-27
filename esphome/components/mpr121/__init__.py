@@ -2,8 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
-from esphome.components.mpr121.mpr121_const import CONF_RELEASE_DEBOUNCE, \
-    CONF_TOUCH_DEBOUNCE, CONF_TOUCH_THRESHOLD, CONF_RELEASE_THRESHOLD
+
+CONF_TOUCH_THRESHOLD = "touch_threshold"
+CONF_RELEASE_THRESHOLD = "release_threshold"
+CONF_TOUCH_DEBOUNCE = "touch_debounce"
+CONF_RELEASE_DEBOUNCE = "release_debounce"
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']
@@ -16,11 +19,9 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MPR121Component),
     cv.Optional(CONF_RELEASE_DEBOUNCE, default=0): cv.int_range(min=0, max=7),
-    cv.Optional(CONF_TOUCH_DEBOUNCE, default=0):  cv.All(cv.Coerce(int), cv.Range(min=0, max=7)),
-    cv.Optional(CONF_TOUCH_THRESHOLD, default=0x06): cv.All(cv.Coerce(int),
-                                                            cv.Range(min=0x05, max=0x30)),
-    cv.Optional(CONF_RELEASE_THRESHOLD, default=0x0b): cv.All(cv.Coerce(int),
-                                                              cv.Range(min=0x05, max=0x30)),
+    cv.Optional(CONF_TOUCH_DEBOUNCE, default=0):  cv.int_range(min=0, max=7),
+    cv.Optional(CONF_TOUCH_THRESHOLD, default=0x06): cv.int_range(min=0x05, max=0x30),
+    cv.Optional(CONF_RELEASE_THRESHOLD, default=0x0b): cv.int_range(min=0x05, max=0x30),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x5A))
 
 

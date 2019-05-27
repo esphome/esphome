@@ -7,9 +7,6 @@
 namespace esphome {
 namespace mpr121 {
 
-#define DEFAULT_TOUCH_THRESHOLD 12
-#define DEFAULT_RELEASE_THRESHOLD 6
-
 enum {
   MPR121_TOUCHSTATUS_L = 0x00,
   MPR121_TOUCHSTATUS_H = 0x01,
@@ -81,8 +78,8 @@ class MPR121Component : public Component, public i2c::I2CDevice {
  protected:
   std::vector<MPR121Channel *> channels_{};
   uint8_t debounce_{0};
-  uint8_t touch_threshold_{DEFAULT_TOUCH_THRESHOLD};
-  uint8_t release_threshold_{DEFAULT_RELEASE_THRESHOLD};
+  uint8_t touch_threshold_{12};
+  uint8_t release_threshold_{6};
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,

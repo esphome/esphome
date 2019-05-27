@@ -49,14 +49,12 @@ void MPR121Component::set_touch_debounce(uint8_t debounce) {
   uint8_t mask = debounce << 4;
   this->debounce_ &= 0x0f;
   this->debounce_ |= mask;
-  ESP_LOGD(TAG, "debounce:%02x", this->debounce_);
 }
 
 void MPR121Component::set_release_debounce(uint8_t debounce) {
   uint8_t mask = debounce & 0x0f;
   this->debounce_ &= 0xf0;
   this->debounce_ |= mask;
-  ESP_LOGD(TAG, "debounce:%02x", this->debounce_);
 };
 
 void MPR121Component::dump_config() {
