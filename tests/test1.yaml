@@ -896,6 +896,13 @@ remote_transmitter:
     carrier_duty_percent: 100%
 
 climate:
+  - platform: tcl112
+    name: TCL112 Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: tcl112
+    name: TCL112 Climate
   - platform: coolix
     name: Coolix Climate With Sensor
     supports_heat: True
