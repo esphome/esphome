@@ -1,4 +1,4 @@
-#include "esphome/components/logger/logger.h"
+#include "logger.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <esp_log.h>

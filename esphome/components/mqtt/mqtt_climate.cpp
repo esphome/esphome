@@ -24,12 +24,12 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   JsonArray &modes = root.createNestedArray("modes");
   // sort array for nice UI in HA
   if (traits.supports_mode(CLIMATE_MODE_AUTO))
-    modes.add(climate_mode_to_string(CLIMATE_MODE_AUTO));
-  modes.add(climate_mode_to_string(CLIMATE_MODE_OFF));
+    modes.add("auto");
+  modes.add("off");
   if (traits.supports_mode(CLIMATE_MODE_COOL))
-    modes.add(climate_mode_to_string(CLIMATE_MODE_COOL));
+    modes.add("cool");
   if (traits.supports_mode(CLIMATE_MODE_HEAT))
-    modes.add(climate_mode_to_string(CLIMATE_MODE_HEAT));
+    modes.add("heat");
 
   if (traits.get_supports_two_point_target_temperature()) {
     // temperature_low_command_topic

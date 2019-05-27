@@ -1,4 +1,4 @@
-#include "esphome/components/uptime/uptime_sensor.h"
+#include "uptime_sensor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 

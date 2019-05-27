@@ -17,7 +17,7 @@ esphome:
           ESP_LOGV("main", "ON LOOP!");
       - light.addressable_set:
           id: addr1
-          range_from: 1
+          range_from: 0
           range_to: 100
           red: 100%
           green: !lambda 'return 255;'
@@ -839,6 +839,20 @@ light:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
+    - automation:
+        name: Custom Effect
+        sequence:
+          - light.addressable_set:
+              id: addr1
+              red: 100%
+              green: 100%
+              blue: 0%
+          - delay: 100ms
+          - light.addressable_set:
+              id: addr1
+              red: 0%
+              green: 100%
+              blue: 0%
   - platform: fastled_spi
     id: addr2
     chipset: WS2801

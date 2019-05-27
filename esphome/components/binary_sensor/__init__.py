@@ -254,6 +254,7 @@ def setup_binary_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
+        yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_STATE, []):

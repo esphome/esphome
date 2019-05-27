@@ -19,6 +19,7 @@ ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8
                               '/stage'
 ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
 ARDUINO_VERSION_ESP8266_2_5_1 = 'espressif8266@2.1.0'
+ARDUINO_VERSION_ESP8266_2_5_2 = 'espressif8266@2.2.0'
 ARDUINO_VERSION_ESP8266_2_3_0 = 'espressif8266@1.5.0'
 SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
 HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
@@ -365,6 +366,7 @@ CONF_SERVICE = 'service'
 CONF_SERVICES = 'services'
 CONF_SETUP_MODE = 'setup_mode'
 CONF_SETUP_PRIORITY = 'setup_priority'
+CONF_SEQUENCE = 'sequence'
 CONF_SHUNT_RESISTANCE = 'shunt_resistance'
 CONF_SHUNT_VOLTAGE = 'shunt_voltage'
 CONF_SHUTDOWN_MESSAGE = 'shutdown_message'
