@@ -13,8 +13,7 @@ stages:
   image: esphome/esphome-base-amd64
   stage: lint
   before_script:
-    - pip install -e .
-    - pip install flake8==3.6.0 pylint==1.9.4 pillow
+    - script/setup
   tags:
     - docker
 
@@ -22,7 +21,7 @@ stages:
   image: esphome/esphome-base-amd64
   stage: test
   before_script:
-    - pip install -e .
+    - script/setup
   tags:
     - docker
   variables:
@@ -94,15 +93,11 @@ stages:
     - docker
   stage: deploy
 
-flake8:
+lint-python:
   <<: *lint
   script:
-    - flake8 esphome
-
-pylint:
-  <<: *lint
-  script:
-    - pylint esphome
+    - script/ci-custom.py
+    - script/lint-python
 
 test1:
   <<: *test
