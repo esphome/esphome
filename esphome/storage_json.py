@@ -62,7 +62,8 @@ class StorageJSON(object):
         # The absolute path to the firmware binary
         self.firmware_bin_path = firmware_bin_path  # type: str
         # A list of strings of names of loaded integrations
-        self.loaded_integrations = loaded_integrations   # type: set[str]
+        self.loaded_integrations = loaded_integrations   # type: List[str]
+        self.loaded_integrations.sort()
 
     def as_dict(self):
         return {
