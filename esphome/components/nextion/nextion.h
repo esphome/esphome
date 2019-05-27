@@ -23,8 +23,13 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * Set the text of a component to a static string.
    * @param component The component name.
    * @param text The static text to set.
-   * Example: `it.set_component_text("textview", "Hello World!");`
-   * Component named `textview` `txt` value has been changed to `Hello World`. 
+   *
+   * Example:
+   * ```cpp
+   * it.set_component_text("textview", "Hello World!");
+   * ```
+   *
+   * This will set the `txt` property of the component `textview` to `Hello World`.
    */
   void set_component_text(const char *component, const char *text);
   /**
