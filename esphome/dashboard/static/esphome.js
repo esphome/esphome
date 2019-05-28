@@ -606,6 +606,12 @@ const startAceWebsocket = () => {
 
         editor.session.setAnnotations(arr);
 
+        if(arr.length) {
+          saveUploadButton.classList.add('disabled');
+        } else {
+          saveUploadButton.classList.remove('disabled');
+        }
+
         aceValidationRunning = false;
       } else if (msg.type === "read_file") {
         sendAceStdin({
@@ -640,7 +646,7 @@ editor.session.setOption('tabSize', 2);
 editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
-const saveValidateButton = editModalElem.querySelector(".save-validate-button");
+const saveUploadButton = editModalElem.querySelector(".save-upload-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -692,14 +698,14 @@ setInterval(() => {
 }, 100);
 
 saveButton.addEventListener('click', saveEditor);
-saveValidateButton.addEventListener('click', saveEditor);
+saveUploadButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
-    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
+    editModalElem.querySelector(".save-upload-button").setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
