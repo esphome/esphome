@@ -16,3 +16,4 @@ pylint==2.3.0 ; python_version>"3"
 flake8==3.6.0
 pillow
 pexpect
+twine

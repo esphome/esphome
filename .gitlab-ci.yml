@@ -3,6 +3,8 @@
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375/
+  BASE_VERSION: '1.5.1'
+  TZ: UTC
 
 stages:
   - lint
@@ -10,23 +12,20 @@ stages:
   - deploy
 
 .lint: &lint
-  image: esphome/esphome-base-amd64
+  image: esphome/esphome-lint:latest
   stage: lint
   before_script:
-    - pip install -e .
-    - pip install flake8==3.6.0 pylint==1.9.4 pillow
+    - script/setup
   tags:
     - docker
 
 .test: &test
-  image: esphome/esphome-base-amd64
+  image: esphome/esphome-base-amd64:${BASE_VERSION}
   stage: test
   before_script:
-    - pip install -e .
+    - script/setup
   tags:
     - docker
-  variables:
-    TZ: UTC
 
 .docker-base: &docker-base
   image: esphome/esphome-base-builder
@@ -41,11 +40,11 @@ stages:
 
     - |
       if [[ "${IS_HASSIO}" == "YES" ]]; then
-        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:1.5.1
+        BUILD_FROM=esphome/esphome-hassio-base-${BUILD_ARCH}:${BASE_VERSION}
         BUILD_TO=esphome/esphome-hassio-${BUILD_ARCH}
         DOCKERFILE=docker/Dockerfile.hassio
       else
-        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:1.5.1
+        BUILD_FROM=esphome/esphome-base-${BUILD_ARCH}:${BASE_VERSION}
         if [[ "${BUILD_ARCH}" == "amd64" ]]; then
           BUILD_TO=esphome/esphome
         else
@@ -94,15 +93,32 @@ stages:
     - docker
   stage: deploy
 
-flake8:
+lint-custom:
   <<: *lint
   script:
-    - flake8 esphome
+    - script/ci-custom.py
 
-pylint:
+lint-python:
   <<: *lint
   script:
-    - pylint esphome
+    - script/lint-python
+
+lint-tidy:
+  <<: *lint
+  script:
+    - pio init --ide atom
+    - |
+      if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
+        patch -p0 < script/.neopixelbus.patch
+      fi
+    - script/clang-tidy --all-headers --fix
+    - script/ci-suggest-changes
+
+lint-format:
+  <<: *lint
+  script:
+    - script/clang-format -i
+    - script/ci-suggest-changes
 
 test1:
   <<: *test
@@ -120,16 +136,11 @@ test3:
     - esphome tests/test3.yaml compile
 
 .deploy-pypi: &deploy-pypi
+  <<: *lint
   stage: deploy
-  image: python:2.7
-  before_script:
-  - pip install -e .
-  - pip install twine
   script:
-  - python setup.py sdist bdist_wheel
-  - twine upload dist/*
-  tags:
-  - docker
+    - python setup.py sdist bdist_wheel
+    - twine upload dist/*
 
 deploy-release:pypi:
   <<: *deploy-pypi
@@ -148,77 +159,64 @@ deploy-beta:pypi:
 .latest: &latest
   <<: *docker-base
   only:
-  - /^v([0-9\.]+)$/
+    - /^v([0-9\.]+)$/
   except:
-  - branches
-
-.latest-vars: &latest-vars
-  RELEASE: YES
-  LATEST: YES
-  # Also push to beta tag
-  BETA: YES
+    - branches
 
 .beta: &beta
   <<: *docker-base
   only:
-  - /^v([0-9\.]+b\d+)$/
+    - /^v([0-9\.]+b\d+)$/
   except:
-  - branches
-
-.beta-vars: &beta-vars
-  RELEASE: YES
-  BETA: YES
+    - branches
 
 .dev: &dev
   <<: *docker-base
   only:
-  - dev
+    - dev
 
-.dev-vars: &dev-vars
-  DEV: YES
-
-#aarch64-beta-docker:
-#  <<: *beta
-#  variables:
-#    BETA: "YES"
-#    BUILD_ARCH: aarch64
-#    IS_HASSIO: "NO"
-#    RELEASE: "YES"
-#aarch64-beta-hassio:
-#  <<: *beta
-#  variables:
-#    BETA: "YES"
-#    BUILD_ARCH: aarch64
-#    IS_HASSIO: "YES"
-#    RELEASE: "YES"
-#aarch64-dev-docker:
-#  <<: *dev
-#  variables:
-#    BUILD_ARCH: aarch64
-#    DEV: "YES"
-#    IS_HASSIO: "NO"
-#aarch64-dev-hassio:
-#  <<: *dev
-#  variables:
-#    BUILD_ARCH: aarch64
-#    DEV: "YES"
-#    IS_HASSIO: "YES"
-#aarch64-latest-docker:
-#  <<: *latest
-#  variables:
-#    BETA: "YES"
-#    BUILD_ARCH: aarch64
-#    IS_HASSIO: "NO"
-#    LATEST: "YES"
-#    RELEASE: "YES"
-#aarch64-latest-hassio:
-#  <<: *latest
-#  variables:
-#    BETA: "YES"
-#    BUILD_ARCH: aarch64
-#    IS_HASSIO: "YES"
-#    LATEST: "YES"
-#    RELEASE: "YES"
+aarch64-beta-docker:
+  <<: *beta
+  variables:
+    BETA: "YES"
+    BUILD_ARCH: aarch64
+    IS_HASSIO: "NO"
+    RELEASE: "YES"
+aarch64-beta-hassio:
+  <<: *beta
+  variables:
+    BETA: "YES"
+    BUILD_ARCH: aarch64
+    IS_HASSIO: "YES"
+    RELEASE: "YES"
+aarch64-dev-docker:
+  <<: *dev
+  variables:
+    BUILD_ARCH: aarch64
+    DEV: "YES"
+    IS_HASSIO: "NO"
+aarch64-dev-hassio:
+  <<: *dev
+  variables:
+    BUILD_ARCH: aarch64
+    DEV: "YES"
+    IS_HASSIO: "YES"
+aarch64-latest-docker:
+  <<: *latest
+  variables:
+    BETA: "YES"
+    BUILD_ARCH: aarch64
+    IS_HASSIO: "NO"
+    LATEST: "YES"
+    RELEASE: "YES"
+aarch64-latest-hassio:
+  <<: *latest
+  variables:
+    BETA: "YES"
+    BUILD_ARCH: aarch64
+    IS_HASSIO: "YES"
+    LATEST: "YES"
+    RELEASE: "YES"
 amd64-beta-docker:
   <<: *beta
   variables:
@@ -261,45 +259,45 @@ amd64-latest-hassio:
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
-armhf-beta-docker:
+armv7-beta-docker:
   <<: *beta
   variables:
     BETA: "YES"
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     IS_HASSIO: "NO"
     RELEASE: "YES"
-armhf-beta-hassio:
+armv7-beta-hassio:
   <<: *beta
   variables:
     BETA: "YES"
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     IS_HASSIO: "YES"
     RELEASE: "YES"
-armhf-dev-docker:
+armv7-dev-docker:
   <<: *dev
   variables:
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     DEV: "YES"
     IS_HASSIO: "NO"
-armhf-dev-hassio:
+armv7-dev-hassio:
   <<: *dev
   variables:
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     DEV: "YES"
     IS_HASSIO: "YES"
-armhf-latest-docker:
+armv7-latest-docker:
   <<: *latest
   variables:
     BETA: "YES"
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     IS_HASSIO: "NO"
     LATEST: "YES"
     RELEASE: "YES"
-armhf-latest-hassio:
+armv7-latest-hassio:
   <<: *latest
   variables:
     BETA: "YES"
-    BUILD_ARCH: armhf
+    BUILD_ARCH: armv7
     IS_HASSIO: "YES"
     LATEST: "YES"
     RELEASE: "YES"
