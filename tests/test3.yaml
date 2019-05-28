@@ -152,6 +152,16 @@ sensor:
     sensors:
       - id: custom_sensor
         name: Custom Sensor
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: group
+    channels:
+      - binary_sensor: bin1
+        value: 10.0
+      - binary_sensor: bin2
+        value: 15.0
+      - binary_sensor: bin3
+        value: 100.0
 
 time:
 - platform: homeassistant
@@ -196,12 +206,15 @@ binary_sensor:
   - platform: mpr121
     channel: 1
     name: "touchkey1"
+    id: bin1
   - platform: mpr121
     channel: 2
     name: "touchkey2"
+    id: bin2
   - platform: mpr121
     channel: 3
     name: "touchkey3"
+    id: bin3
     on_press:
       then:
         - switch.toggle: mpr121_toggle

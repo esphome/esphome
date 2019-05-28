@@ -4,7 +4,7 @@
 namespace esphome {
 namespace binary_sensor_map {
 
-static const char *TAG = "sensor.binary_sensor_map";
+static const char *TAG = "binary_sensor_map";
 
 void BinarySensorMap::dump_config() { LOG_SENSOR("  ", "binary_sensor_map", this); }
 
@@ -19,44 +19,39 @@ void BinarySensorMap::loop() {
 void BinarySensorMap::process_group_() {
   float total_current_value = 0.0;
   uint8_t num_active_sensors = 0;
-  bool any_active = false;
   uint64_t mask = 0x00;
   // check all binary_sensors for its state. when active add its value to total_current_value.
   // create a bitmask for the binary_sensor status on all channels
-  for (size_t i = 0; i < this->sensors_.size(); i++) {
-    auto *bs = this->sensors_[i];
-    if (bs->binary_sensor->state) {
-      any_active = true;
+  for (size_t i = 0; i < this->channels_.size(); i++) {
+    auto bs = this->channels_[i];
+    if (bs.binary_sensor->state) {
       num_active_sensors++;
-      total_current_value += bs->sensor_value;
+      total_current_value += bs.sensor_value;
       mask |= 1 << i;
     }
   }
   // check if the sensor map was touched
-  if (any_active) {
+  if (mask != 0ULL) {
     // did the bit_mask change or is it a new sensor touch
-    if ((last_mask_ != mask) || !this->last_any_active_) {
-      this->last_any_active_ = true;
+    if (this->last_mask_ != mask) {
       float publish_value = total_current_value / num_active_sensors;
-      ESP_LOGD(TAG, "%s - Publishing %.2f", this->name_.c_str(), publish_value);
+      ESP_LOGD(TAG, "'%s' - Publishing %.2f", this->name_.c_str(), publish_value);
       this->publish_state(publish_value);
-      this->last_mask_ = mask;
     }
-  } else {
+  } else if (this->last_mask_ != 0ULL) {
     // is this a new sensor release
-    if (this->last_any_active_) {
-      this->last_any_active_ = false;
-      ESP_LOGD(TAG, "%s - No binary sensor active, publishing NAN", this->name_.c_str());
-      this->publish_state(NAN);
-    }
+    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
+    this->publish_state(NAN);
   }
+  this->last_mask_ = mask;
 }
 
 void BinarySensorMap::add_channel(binary_sensor::BinarySensor *sensor, float value) {
-  BinarySensorMapChannel *sensor_channel = new BinarySensorMapChannel;
-  sensor_channel->binary_sensor = sensor;
-  sensor_channel->sensor_value = value;
-  this->sensors_.push_back(sensor_channel);
+  BinarySensorMapChannel sensor_channel{
+      .binary_sensor = sensor,
+      .sensor_value = value,
+  };
+  this->channels_.push_back(sensor_channel);
 }
 
 void BinarySensorMap::set_sensor_type(BinarySensorMapType sensor_type) { this->sensor_type_ = sensor_type; }

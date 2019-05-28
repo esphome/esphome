@@ -13,7 +13,7 @@ enum BinarySensorMapType {
 
 struct BinarySensorMapChannel {
   binary_sensor::BinarySensor *binary_sensor;
-  float sensor_value = 0;
+  float sensor_value;
 };
 
 /** Class to group binary_sensors to one Sensor.
@@ -28,11 +28,11 @@ class BinarySensorMap : public sensor::Sensor, public Component {
    * When the binary_sensor reports a true value for its state, then the float value it represents is added to the
    * total_current_value
    *
-   * Only when the  total_current_value changed and at least one sensor reports an active state we publish the sensors
+   * Only when the total_current_value changed and at least one sensor reports an active state we publish the sensors
    * average value. When the value changed and no sensors ar active we publish NAN.
    * */
   void loop() override;
-  float get_setup_priority() const override { return setup_priority::LATE; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
   /** Add binary_sensors to the group.
    * Each binary_sensor represents a float value when its state is true
    *
@@ -43,10 +43,9 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   void set_sensor_type(BinarySensorMapType sensor_type);
 
  protected:
-  std::vector<BinarySensorMapChannel *> sensors_{};
+  std::vector<BinarySensorMapChannel> channels_{};
   BinarySensorMapType sensor_type_{BINARY_SENSOR_MAP_TYPE_GROUP};
-  bool last_any_active_{false};
-  // this gives max 46 channels per binary_sensor_map
+  // this gives max 64 channels per binary_sensor_map
   uint64_t last_mask_{0x00};
   /**
    * methods to process the types of binary_sensor_maps
