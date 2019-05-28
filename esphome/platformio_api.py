@@ -19,12 +19,16 @@ def patch_structhash():
     # all issues
     from platformio.commands import run
     from platformio import util
+    try:
+        from platformio.util import get_project_dir
+    except ImportError:
+        from platformio.project.helpers import get_project_dir
     from os.path import join, isdir, getmtime, isfile
     from os import makedirs
 
     def patched_clean_build_dir(build_dir):
         structhash_file = join(build_dir, "structure.hash")
-        platformio_ini = join(util.get_project_dir(), "platformio.ini")
+        platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
         if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):

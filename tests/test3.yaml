@@ -115,6 +115,20 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+  - platform: resistance
+    sensor: my_sensor
+    configuration: DOWNSTREAM
+    resistor: 10kΩ
+    reference_voltage: 3.3V
+    name: Resistance
+    id: resist
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor
+    calibration:
+      b_constant: 3950
+      reference_resistance: 10k
+      reference_temperature: 25°C
   - platform: tcs34725
     red_channel:
       name: Red Channel
