@@ -37,7 +37,7 @@ def trash_storage_path(base_path):  # type: (str) -> str
 class StorageJSON(object):
     def __init__(self, storage_version, name, esphome_version,
                  src_version, arduino_version, address, esp_platform, board, build_path,
-                 firmware_bin_path):
+                 firmware_bin_path, loaded_integrations):
         # Version of the storage JSON schema
         assert storage_version is None or isinstance(storage_version, int)
         self.storage_version = storage_version  # type: int
@@ -61,6 +61,9 @@ class StorageJSON(object):
         self.build_path = build_path  # type: str
         # The absolute path to the firmware binary
         self.firmware_bin_path = firmware_bin_path  # type: str
+        # A list of strings of names of loaded integrations
+        self.loaded_integrations = loaded_integrations   # type: List[str]
+        self.loaded_integrations.sort()
 
     def as_dict(self):
         return {
@@ -74,6 +77,7 @@ class StorageJSON(object):
             'board': self.board,
             'build_path': self.build_path,
             'firmware_bin_path': self.firmware_bin_path,
+            'loaded_integrations': self.loaded_integrations,
         }
 
     def to_json(self):
@@ -97,6 +101,7 @@ class StorageJSON(object):
             board=esph.board,
             build_path=esph.build_path,
             firmware_bin_path=esph.firmware_bin,
+            loaded_integrations=list(esph.loaded_integrations),
         )
 
     @staticmethod
@@ -113,6 +118,7 @@ class StorageJSON(object):
             board=board,
             build_path=None,
             firmware_bin_path=None,
+            loaded_integrations=[],
         )
 
     @staticmethod
@@ -130,9 +136,10 @@ class StorageJSON(object):
         board = storage.get('board')
         build_path = storage.get('build_path')
         firmware_bin_path = storage.get('firmware_bin_path')
+        loaded_integrations = storage.get('loaded_integrations', [])
         return StorageJSON(storage_version, name, esphome_version,
                            src_version, arduino_version, address, esp_platform, board, build_path,
-                           firmware_bin_path)
+                           firmware_bin_path, loaded_integrations)
 
     @staticmethod
     def load(path):  # type: (str) -> Optional[StorageJSON]

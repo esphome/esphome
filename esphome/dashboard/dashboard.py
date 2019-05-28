@@ -430,6 +430,12 @@ class DashboardEntry(object):
     def update_new(self):
         return const.__version__
 
+    @property
+    def loaded_integrations(self):
+        if self.storage is None:
+            return []
+        return self.storage.loaded_integrations
+
 
 class MainRequestHandler(BaseHandler):
     @authenticated
