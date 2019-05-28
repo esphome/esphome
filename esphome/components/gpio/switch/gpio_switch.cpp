@@ -1,4 +1,4 @@
-#include "esphome/components/gpio/switch/gpio_switch.h"
+#include "gpio_switch.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

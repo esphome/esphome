@@ -19,7 +19,8 @@ void DeepSleepComponent::setup() {
 void DeepSleepComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Setting up Deep Sleep...");
   if (this->sleep_duration_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Sleep Duration: %llu ms", *this->sleep_duration_ / 1000);
+    uint32_t duration = *this->sleep_duration_ / 1000;
+    ESP_LOGCONFIG(TAG, "  Sleep Duration: %u ms", duration);
   }
   if (this->run_duration_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);

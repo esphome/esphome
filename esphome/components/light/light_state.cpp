@@ -98,12 +98,25 @@ void LightState::setup() {
     effect->init_internal(this);
   }
 
-  this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
-  LightStateRTCState recovered{};
-  // Attempt to load from preferences, else fall back to default values from struct
-  this->rtc_.load(&recovered);
-
   auto call = this->make_call();
+  LightStateRTCState recovered{};
+  switch (this->restore_mode_) {
+    case LIGHT_RESTORE_DEFAULT_OFF:
+    case LIGHT_RESTORE_DEFAULT_ON:
+      this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
+      // Attempt to load from preferences, else fall back to default values from struct
+      if (!this->rtc_.load(&recovered)) {
+        recovered.state = this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON;
+      }
+      break;
+    case LIGHT_ALWAYS_OFF:
+      recovered.state = false;
+      break;
+    case LIGHT_ALWAYS_ON:
+      recovered.state = true;
+      break;
+  }
+
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
   call.set_red_if_supported(recovered.red);

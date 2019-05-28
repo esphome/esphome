@@ -1,4 +1,4 @@
-#include "esphome/components/ota/ota_component.h"
+#include "ota_component.h"
 
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"

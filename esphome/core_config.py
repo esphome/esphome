@@ -11,16 +11,18 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
-    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1
+    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
 from esphome.core import CORE, coroutine_with_priority
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = cg.esphome_ns.StartupTrigger
-ShutdownTrigger = cg.esphome_ns.ShutdownTrigger
-LoopTrigger = cg.esphome_ns.LoopTrigger
+StartupTrigger = cg.esphome_ns.class_('StartupTrigger', cg.Component, automation.Trigger.template())
+ShutdownTrigger = cg.esphome_ns.class_('ShutdownTrigger', cg.Component,
+                                       automation.Trigger.template())
+LoopTrigger = cg.esphome_ns.class_('LoopTrigger', cg.Component,
+                                   automation.Trigger.template())
 
 VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
 
@@ -42,6 +44,7 @@ def validate_board(value):
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
+    '2.5.2': 'espressif8266@2.2.0',
     '2.5.1': 'espressif8266@2.1.0',
     '2.5.0': 'espressif8266@2.0.1',
     '2.4.2': 'espressif8266@1.8.0',
@@ -191,7 +194,7 @@ def to_code(config):
                                     'espressif8266@1.6.0'):
             ld_script = ld_scripts[0]
         elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0,
-                                      ARDUINO_VERSION_ESP8266_2_5_1):
+                                      ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:

@@ -86,9 +86,12 @@ def lint_content_find_check(find, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
-        def new_func(content):
-            for line, col in find_all(content, find):
-                err = func()
+        def new_func(fname, content):
+            find_ = find
+            if callable(find):
+                find_ = find(fname, content)
+            for line, col in find_all(content, find_):
+                err = func(fname)
                 return "{err} See line {line}:{col}.".format(err=err, line=line+1, col=col+1)
         return decor(new_func)
     return decorator
@@ -123,31 +126,63 @@ def lint_executable_bit(fname):
     'esphome/dashboard/static/ace.js', 'esphome/dashboard/static/ext-searchbox.js',
     'script/.neopixelbus.patch',
 ])
-def lint_tabs():
+def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
 
 
 @lint_content_find_check('\r')
-def lint_newline():
+def lint_newline(fname):
     return "File contains windows newline. Please set your editor to unix newline mode."
 
 
 @lint_content_check()
-def lint_end_newline(content):
+def lint_end_newline(fname, content):
     if content and not content.endswith('\n'):
         return "File does not end with a newline, please add an empty line at the end of the file."
     return None
 
 
+def relative_cpp_search_text(fname, content):
+    parts = fname.split('/')
+    integration = parts[2]
+    return '#include "esphome/components/{}'.format(integration)
+
+
+@lint_content_find_check(relative_cpp_search_text, include=['esphome/components/*.cpp'])
+def lint_relative_cpp_import(fname):
+    return ("Component contains absolute import - Components must always use "
+            "relative imports.\n"
+            "Change:\n"
+            '  #include "esphome/components/abc/abc.h"\n'
+            'to:\n'
+            '  #include "abc.h"\n\n')
+
+
+def relative_py_search_text(fname, content):
+    parts = fname.split('/')
+    integration = parts[2]
+    return 'esphome.components.{}'.format(integration)
+
+
+@lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'])
+def lint_relative_py_import(fname):
+    return ("Component contains absolute import - Components must always use "
+            "relative imports within the integration.\n"
+            "Change:\n"
+            '  from esphome.components.abc import abc_ns"\n'
+            'to:\n'
+            '  from . import abc_ns\n\n')
+
+
 @lint_content_find_check('"esphome.h"', include=cpp_include, exclude=['tests/custom.h'])
-def lint_esphome_h():
+def lint_esphome_h(fname):
     return ("File contains reference to 'esphome.h' - This file is "
             "auto-generated and should only be used for *custom* "
             "components. Please replace with references to the direct files.")
 
 
 @lint_content_check(include=['*.h'])
-def lint_pragma_once(content):
+def lint_pragma_once(fname, content):
     if '#pragma once' not in content:
         return ("Header file contains no 'pragma once' header guard. Please add a "
                 "'#pragma once' line at the top of the file.")
@@ -171,7 +206,7 @@ def lint_pragma_once(content):
     'esphome/core/log.h',
     'tests/custom.h',
 ])
-def lint_log_in_header():
+def lint_log_in_header(fname):
     return ('Found reference to ESP_LOG in header file. Using ESP_LOG* in header files '
             'is currently not possible - please move the definition to a source file (.cpp)')
 
@@ -202,7 +237,7 @@ for fname in files:
     except UnicodeDecodeError:
         add_errors(fname, "File is not readable as UTF-8. Please set your editor to UTF-8 mode.")
         continue
-    run_checks(LINT_CONTENT_CHECKS, fname, content)
+    run_checks(LINT_CONTENT_CHECKS, fname, fname, content)
 
 for f, errs in sorted(errors.items()):
     print("\033[0;32m************* File \033[1;32m{}\033[0m".format(f))

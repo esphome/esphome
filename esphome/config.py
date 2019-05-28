@@ -322,6 +322,7 @@ def iter_ids(config, path=None):
 
 def do_id_pass(result):  # type: (Config) -> None
     from esphome.cpp_generator import MockObjClass
+    from esphome.cpp_types import Component
 
     declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
     searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
@@ -340,6 +341,8 @@ def do_id_pass(result):  # type: (Config) -> None
     # Resolve default ids after manual IDs
     for id, _ in declare_ids:
         id.resolve([v[0].id for v in declare_ids])
+        if isinstance(id.type, MockObjClass) and id.type.inherits_from(Component):
+            CORE.component_ids.add(id.id)
 
     # Check searched IDs
     for id, path in searching_ids:
@@ -447,7 +450,9 @@ def validate_config(config):
         result.remove_output_path([domain], domain)
 
         # Ensure conf is a list
-        if not isinstance(conf, list) and conf:
+        if not conf:
+            result[domain] = conf = []
+        elif not isinstance(conf, list):
             result[domain] = conf = [conf]
 
         for i, p_config in enumerate(conf):

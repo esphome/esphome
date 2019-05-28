@@ -1,4 +1,4 @@
-#include "esphome/components/switch/switch.h"
+#include "switch.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
