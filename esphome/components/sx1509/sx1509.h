@@ -21,38 +21,14 @@ namespace sx1509 {
 #define HARDWARE_RESET 1
 
 #define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
-// #define BREATHE_OUTPUT 0x04
 
-// /// Modes for SX1509 pins
-// enum SX1509GPIOMode : uint8_t {
-//   SX1509_INPUT = INPUT,                   // 0x00
-//   SX1509_INPUT_PULLUP = INPUT_PULLUP,     // 0x02
-//   SX1509_OUTPUT = OUTPUT,                 // 0x01
-//   SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT  // 0x04
-// };
+class SX1509FloatOutputChannel;
 
-// class SX1509Component;
-// class SX1509FloatOutputChannel;
-
-// class SX1509GPIOPin : public GPIOPin {
-//  public:
-//   SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted = false);
-
-//   void setup() override;
-//   void pin_mode(uint8_t mode) override;
-//   bool digital_read() override;
-//   void digital_write(bool value) override;
-
-//  protected:
-//   SX1509Component *parent_;
-// };
-
-/// SX1509 float output component.
 class SX1509Component : public Component, public i2c::I2CDevice {
  public:
   SX1509Component() {}
 
-  SX1509FloatOutputChannel *create_float_output_channel(uint8_t pin);
+  //SX1509FloatOutputChannel *create_float_output_channel(uint8_t pin);
 
   void setup() override;
   void dump_config() override;
@@ -75,7 +51,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
  protected:
   friend SX1509FloatOutputChannel;
-  std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
+  //std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
 
   // Pin definitions:
   uint8_t pinInterrupt_;

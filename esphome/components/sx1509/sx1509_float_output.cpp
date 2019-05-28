@@ -5,7 +5,7 @@
 namespace esphome {
 namespace sx1509 {
 
-static const char *TAG = "sx1509";
+static const char *TAG = "sx1509_float_channel";
 
 void SX1509FloatOutputChannel::write_state(float state) {
   ESP_LOGD(TAG, "write_state %f", state);
@@ -15,7 +15,17 @@ void SX1509FloatOutputChannel::write_state(float state) {
   this->parent_->set_pin_value_(this->pin_, duty);
 }
 
-void SX1509FloatOutputChannel::setup_channel() { this->parent_->pin_mode(this->pin_, ANALOG_OUTPUT); }
+void SX1509FloatOutputChannel::setup() {
+  ESP_LOGD(TAG, "setup pin %d", this->pin_);
+  this->parent_->pin_mode(this->pin_, ANALOG_OUTPUT);
+  this->turn_off();
+}
+
+void SX1509FloatOutputChannel::dump_config() {
+  ESP_LOGCONFIG(TAG, "SX1509 PWM:");
+  ESP_LOGCONFIG(TAG, "  sx1509 pin: %d", this->pin_);
+  LOG_FLOAT_OUTPUT(this);
+}
 
 }  // namespace sx1509
 }  // namespace esphome

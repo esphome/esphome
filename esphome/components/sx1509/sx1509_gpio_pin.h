@@ -3,17 +3,19 @@
 #include "sx1509.h"
 
 #define BREATHE_OUTPUT 0x04
+#define BLINK_OUTPUT 0x04
+
+namespace esphome {
+namespace sx1509 {
 
 /// Modes for SX1509 pins
 enum SX1509GPIOMode : uint8_t {
   SX1509_INPUT = INPUT,                   // 0x00
   SX1509_INPUT_PULLUP = INPUT_PULLUP,     // 0x02
   SX1509_OUTPUT = OUTPUT,                 // 0x01
-  SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT  // 0x04
+  SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT, // 0x04
+  SX1509_BLINK_OUTPUT = BLINK_OUTPUT      // 0x05
 };
-
-namespace esphome {
-namespace sx1509 {
 
 class SX1509Component;
 

@@ -8,7 +8,7 @@ namespace sx1509 {
 static const char *TAG = "sx1509";
 
 void SX1509Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SX1509ComponentComponent...");
+  ESP_LOGCONFIG(TAG, "Setting up SX1509Component...");
 
   ESP_LOGV(TAG, "  Resetting devices...");
   this->write_byte(REG_RESET, 0x12);
@@ -24,8 +24,8 @@ void SX1509Component::setup() {
     return;
   }
 
-  for (auto *channel : this->float_output_channels_)
-    channel->setup_channel();
+  // for (auto *channel : this->float_output_channels_)
+  //   channel->setup();
 
   delayMicroseconds(500);
 
@@ -41,12 +41,12 @@ void SX1509Component::dump_config() {
 
 void SX1509Component::loop() {}
 
-SX1509FloatOutputChannel *SX1509Component::create_float_output_channel(uint8_t pin) {
-  ESP_LOGD(TAG, "Set pin mode for pin %d", pin);
-  auto *c = new SX1509FloatOutputChannel(this, pin);
-  float_output_channels_.push_back(c);
-  return c;
-}
+// SX1509FloatOutputChannel *SX1509Component::create_float_output_channel(uint8_t pin) {
+//   ESP_LOGD(TAG, "Create float channel for pin %d", pin);
+//   auto *channel = new SX1509FloatOutputChannel(this, pin);
+//   float_output_channels_.push_back(channel);
+//   return channel;
+// }
 
 uint8_t SX1509Component::digital_read(uint8_t pin) {
   uint16_t tempRegDir;

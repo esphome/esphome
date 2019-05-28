@@ -8,10 +8,13 @@ namespace sx1509 {
 
 class SX1509Component;
 
-class SX1509FloatOutputChannel : public output::FloatOutput {
+class SX1509FloatOutputChannel : public output::FloatOutput, public Component {
  public:
-  SX1509FloatOutputChannel(SX1509Component *parent, uint8_t pin) : parent_(parent), pin_(pin) {}
-  void setup_channel();
+  void set_parent(SX1509Component *parent) { this->parent_ = parent; }
+  void set_pin(uint8_t pin) { pin_ = pin; }
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
   void write_state(float state) override;
@@ -19,5 +22,6 @@ class SX1509FloatOutputChannel : public output::FloatOutput {
   SX1509Component *parent_;
   uint8_t pin_;
 };
+
 }  // namespace sx1509
 }  // namespace esphome

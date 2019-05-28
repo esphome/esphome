@@ -2,7 +2,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED, CONF_TIME_ON
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
+
+CONF_TIME_ON = 'time_on'
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -13,7 +15,8 @@ SX1509_GPIO_MODES = {
     'INPUT': SX1509GPIOMode.SX1509_INPUT,
     'INPUT_PULLUP': SX1509GPIOMode.SX1509_INPUT_PULLUP,
     'OUTPUT': SX1509GPIOMode.SX1509_OUTPUT,
-    'BREATHE_OUTPUT' : SX1509GPIOMode.SX1509_BREATHE_OUTPUT
+    'BREATHE_OUTPUT': SX1509GPIOMode.SX1509_BREATHE_OUTPUT,
+    'BLINK_OUTPUT': SX1509GPIOMode.SX1509_BLINK_OUTPUT
 }
 
 SX1509Component = sx1509_ns.class_('SX1509Component', cg.Component, i2c.I2CDevice)
