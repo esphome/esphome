@@ -20,8 +20,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MPR121Component),
     cv.Optional(CONF_RELEASE_DEBOUNCE, default=0): cv.int_range(min=0, max=7),
     cv.Optional(CONF_TOUCH_DEBOUNCE, default=0):  cv.int_range(min=0, max=7),
-    cv.Optional(CONF_TOUCH_THRESHOLD, default=0x06): cv.int_range(min=0x05, max=0x30),
-    cv.Optional(CONF_RELEASE_THRESHOLD, default=0x0b): cv.int_range(min=0x05, max=0x30),
+    cv.Optional(CONF_TOUCH_THRESHOLD, default=0x0b): cv.int_range(min=0x05, max=0x30),
+    cv.Optional(CONF_RELEASE_THRESHOLD, default=0x06): cv.int_range(min=0x05, max=0x30),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x5A))
 
 
