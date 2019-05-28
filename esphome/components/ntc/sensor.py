@@ -58,7 +58,7 @@ def calc_steinhart_hart(value):
     g3 = (y3-y1)/(l3-l1)
 
     c = (g3-g2)/(l3-l2) * 1/(l1+l2+l3)
-    b = g2 - c(l1*l1 + l1*l2 + l2*l2)
+    b = g2 - c*(l1*l1 + l1*l2 + l2*l2)
     a = y1 - (b + l1*l1*c) * l1
     return a, b, c
 
