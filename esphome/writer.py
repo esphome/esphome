@@ -130,8 +130,6 @@ def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
 
-    if old.esphome_version != new.esphome_version:
-        return True
     if old.src_version != new.src_version:
         return True
     if old.arduino_version != new.arduino_version:

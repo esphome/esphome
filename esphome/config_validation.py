@@ -1092,6 +1092,7 @@ def typed_schema(schemas, **kwargs):
         key_v = key_validator(value.pop(key))
         value = schemas[key_v](value)
         value[key] = key_v
+        return value
 
     return validator
 

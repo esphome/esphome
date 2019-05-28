@@ -257,7 +257,7 @@ std::string to_string(long double val) {
 optional<float> parse_float(const std::string &str) {
   char *end;
   float value = ::strtof(str.c_str(), &end);
-  if (end == nullptr)
+  if (end == nullptr || end != str.end().base())
     return {};
   return value;
 }

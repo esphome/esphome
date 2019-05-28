@@ -2,7 +2,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 13
+MINOR_VERSION = 14
 PATCH_VERSION = '0-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
@@ -19,6 +19,7 @@ ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8
                               '/stage'
 ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
 ARDUINO_VERSION_ESP8266_2_5_1 = 'espressif8266@2.1.0'
+ARDUINO_VERSION_ESP8266_2_5_2 = 'espressif8266@2.2.0'
 ARDUINO_VERSION_ESP8266_2_3_0 = 'espressif8266@1.5.0'
 SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
 HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
@@ -61,6 +62,7 @@ CONF_BUILD_PATH = 'build_path'
 CONF_BUSY_PIN = 'busy_pin'
 CONF_BUS_VOLTAGE = 'bus_voltage'
 CONF_CALIBRATE_LINEAR = 'calibrate_linear'
+CONF_CALIBRATION = 'calibration'
 CONF_CARRIER_DUTY_PERCENT = 'carrier_duty_percent'
 CONF_CARRIER_FREQUENCY = 'carrier_frequency'
 CONF_CHANGE_MODE_EVERY = 'change_mode_every'
@@ -200,6 +202,7 @@ CONF_LEVEL = 'level'
 CONF_LG = 'lg'
 CONF_LIBRARIES = 'libraries'
 CONF_LIGHT = 'light'
+CONF_LOADED_INTEGRATIONS = 'loaded_integrations'
 CONF_LOCAL = 'local'
 CONF_LOGGER = 'logger'
 CONF_LOGS = 'logs'
@@ -365,6 +368,7 @@ CONF_SERVICE = 'service'
 CONF_SERVICES = 'services'
 CONF_SETUP_MODE = 'setup_mode'
 CONF_SETUP_PRIORITY = 'setup_priority'
+CONF_SEQUENCE = 'sequence'
 CONF_SHUNT_RESISTANCE = 'shunt_resistance'
 CONF_SHUNT_VOLTAGE = 'shunt_voltage'
 CONF_SHUTDOWN_MESSAGE = 'shutdown_message'

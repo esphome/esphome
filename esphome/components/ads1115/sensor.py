@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.components.ads1115 import ADS1115Component
 from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
 from esphome.py_compat import string_types
-from . import ads1115_ns
+from . import ads1115_ns, ADS1115Component
 
 DEPENDENCIES = ['ads1115']
 

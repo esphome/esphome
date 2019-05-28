@@ -1,4 +1,4 @@
-#include "esphome/components/wifi/wifi_component.h"
+#include "wifi_component.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <esp_wifi.h>

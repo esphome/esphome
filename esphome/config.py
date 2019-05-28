@@ -450,7 +450,9 @@ def validate_config(config):
         result.remove_output_path([domain], domain)
 
         # Ensure conf is a list
-        if not isinstance(conf, list) and conf:
+        if not conf:
+            result[domain] = conf = []
+        elif not isinstance(conf, list):
             result[domain] = conf = [conf]
 
         for i, p_config in enumerate(conf):

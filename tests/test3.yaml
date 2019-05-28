@@ -94,6 +94,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: am2320
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -110,6 +115,20 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+  - platform: resistance
+    sensor: my_sensor
+    configuration: DOWNSTREAM
+    resistor: 10kΩ
+    reference_voltage: 3.3V
+    name: Resistance
+    id: resist
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor
+    calibration:
+      b_constant: 3950
+      reference_resistance: 10k
+      reference_temperature: 25°C
   - platform: tcs34725
     red_channel:
       name: Red Channel
@@ -377,6 +396,22 @@ output:
     id: out
     pin: D3
     frequency: 50Hz
+  - platform: custom
+    type: binary
+    lambda: |-
+      auto s = new CustomBinaryOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_binary
+  - platform: custom
+    type: float
+    lambda: |-
+      auto s = new CustomFloatOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_float
 
 mcp23017:
   id: mcp

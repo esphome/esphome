@@ -1,4 +1,4 @@
-#include "esphome/components/gpio/binary_sensor/gpio_binary_sensor.h"
+#include "gpio_binary_sensor.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

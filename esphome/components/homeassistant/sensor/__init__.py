@@ -6,7 +6,8 @@ from .. import homeassistant_ns
 
 DEPENDENCIES = ['api']
 
-HomeassistantSensor = homeassistant_ns.class_('HomeassistantSensor', sensor.Sensor)
+HomeassistantSensor = homeassistant_ns.class_('HomeassistantSensor', sensor.Sensor,
+                                              cg.Component)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 1).extend({
     cv.GenerateID(): cv.declare_id(HomeassistantSensor),
