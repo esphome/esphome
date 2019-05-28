@@ -127,7 +127,10 @@ def wrap_to_code(name, comp):
     def wrapped(conf):
         cg.add(cg.LineComment(u"{}:".format(name)))
         if comp.config_schema is not None:
-            cg.add(cg.LineComment(indent(yaml_util.dump(conf).decode('utf-8'))))
+            conf_str = yaml_util.dump(conf)
+            if IS_PY2:
+                conf_str = conf_str.decode('utf-8')
+            cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
 
     return wrapped
