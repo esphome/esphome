@@ -20,7 +20,7 @@ stages:
     - docker
 
 .test: &test
-  image: esphome/esphome-base-amd64:${BASE_VERSION}
+  image: esphome/esphome-lint:latest
   stage: test
   before_script:
     - script/setup
