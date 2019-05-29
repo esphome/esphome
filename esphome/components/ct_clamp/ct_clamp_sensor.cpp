@@ -39,9 +39,5 @@ void CTClampSensor::update() {
   this->publish_state(irms);
 }
 
-#ifdef ARDUINO_ARCH_ESP8266
-std::string CTClampSensor::unique_id() { return get_mac_address() + "-ct_clamp"; }
-#endif
-
 }  // namespace ct_clamp
 }  // namespace esphome

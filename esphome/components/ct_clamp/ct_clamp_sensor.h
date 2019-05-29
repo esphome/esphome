@@ -19,10 +19,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
 
   void set_source(voltage_sampler::VoltageSampler *source) { source_ = source; }
 
-#ifdef ARDUINO_ARCH_ESP8266
-  std::string unique_id() override;
-#endif
-
  protected:
   uint32_t sample_size_;
   voltage_sampler::VoltageSampler *source_;
