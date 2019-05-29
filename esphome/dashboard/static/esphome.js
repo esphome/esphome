@@ -406,16 +406,27 @@ const logsModal = new LogModalElem({
 });
 logsModal.setup();
 
+const retryUploadButton = document.querySelector('.retry-upload');
+const editAfterUploadButton = document.querySelector('.edit-after-upload');
+const downloadAfterUploadButton = document.querySelector('.download-after-upload');
 const uploadModal = new LogModalElem({
   name: 'upload',
   onPrepare: (modalElem, config) => {
+    downloadAfterUploadButton.classList.add('disabled');
+    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
+    retryUploadButton.classList.add('disabled');
+    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
       M.toast({html: "Program exited successfully."});
+      // if compilation succeeds but OTA fails, you can still download the binary and upload manually
+      downloadAfterUploadButton.classList.remove('disabled');
     } else {
       M.toast({html: `Program failed with code ${code}`});
+      downloadAfterUploadButton.classList.add('disabled');
+      retryUploadButton.classList.remove('disabled');
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
@@ -425,6 +436,14 @@ const uploadModal = new LogModalElem({
   dismissible: false,
 });
 uploadModal.setup();
+downloadAfterUploadButton.addEventListener('click', () => {
+  const link = document.createElement("a");
+  link.download = name;
+  link.href = `./download.bin?configuration=${encodeURIComponent(uploadModal.activeConfig)}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
 
 const validateModal = new LogModalElem({
   name: 'validate',
@@ -587,6 +606,12 @@ const startAceWebsocket = () => {
 
         editor.session.setAnnotations(arr);
 
+        if(arr.length) {
+          editorUploadButton.classList.add('disabled');
+        } else {
+          editorUploadButton.classList.remove('disabled');
+        }
+
         aceValidationRunning = false;
       } else if (msg.type === "read_file") {
         sendAceStdin({
@@ -621,7 +646,7 @@ editor.session.setOption('tabSize', 2);
 editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
-const saveValidateButton = editModalElem.querySelector(".save-validate-button");
+const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -673,14 +698,14 @@ setInterval(() => {
 }, 100);
 
 saveButton.addEventListener('click', saveEditor);
-saveValidateButton.addEventListener('click', saveEditor);
+editorUploadButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
-    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
+    editorUploadButton.setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})

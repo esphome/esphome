@@ -26,3 +26,13 @@ class CustomComponent : public PollingComponent {
   void setup() override { ESP_LOGD("custom_component", "Setup"); }
   void update() override { ESP_LOGD("custom_component", "Update"); }
 };
+
+class CustomBinaryOutput : public BinaryOutput, public Component {
+ protected:
+  void write_state(bool state) override { ESP_LOGD("custom_output", "Setting %s", ONOFF(state)); }
+};
+
+class CustomFloatOutput : public FloatOutput, public Component {
+ protected:
+  void write_state(float state) override { ESP_LOGD("custom_output", "Setting %f", state); }
+};
