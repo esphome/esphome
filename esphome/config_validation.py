@@ -61,6 +61,7 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'close', 'pause', 'sleep', 'open',
 ]
 
 
