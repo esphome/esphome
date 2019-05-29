@@ -15,7 +15,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_calibration(uint32_t calibration) { this->calibration_ = calibration; }
   void set_sample_size(uint32_t sample_size) { this->sample_size_ = sample_size; }
 
   void set_source(voltage_sampler::VoltageSampler *source) { source_ = source; }
@@ -25,7 +24,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
 #endif
 
  protected:
-  uint32_t calibration_;
   uint32_t sample_size_;
   voltage_sampler::VoltageSampler *source_;
 
