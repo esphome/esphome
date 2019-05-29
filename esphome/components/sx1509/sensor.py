@@ -13,13 +13,12 @@ CONF_DEBOUNCE_TIME = 'debounce_time'
 
 DEPENDENCIES = ['sx1509']
 
-sx1509_keypad_ns = cg.esphome_ns.namespace('sx1509_keypad')
-SX1509Keypad = sx1509_keypad_ns.class_('SX1509Keypad', cg.Component, sensor.Sensor)
+SX1509KeypadSensor = sx1509_ns.class_('SX1509KeypadSensor',sensor.Sensor, cg.Component)
 
 CONF_SX1509_ID = 'sx1509_id'
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0).extend({
-    cv.GenerateID(): cv.declare_id(SX1509Keypad),
+    cv.GenerateID(): cv.declare_id(SX1509KeypadSensor),
     cv.GenerateID(CONF_SX1509_ID): cv.use_id(SX1509Component),
     cv.Required(CONF_KEY_ROWS): cv.int_range(min=0, max=7),
     cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=0, max=7),

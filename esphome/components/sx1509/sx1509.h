@@ -49,6 +49,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
                uint8_t onInt = 255, uint8_t offInt = 0, bool log = LINEAR);
   uint8_t calculate_led_t_register(uint16_t ms);
   uint8_t calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity);
+  void setup_keypad(uint8_t rows, uint8_t columns, unsigned int sleepTime = 0, uint8_t scanTime = 1, uint8_t debounceTime = 0);
 
  protected:
   friend class SX1509FloatOutputChannel;

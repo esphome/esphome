@@ -256,36 +256,102 @@ uint8_t SX1509Component::calculate_led_t_register(uint16_t ms) {
 }
 
 uint8_t SX1509Component::calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity) {
-	uint16_t regSlope1, regSlope2;
-	float regTime1, regTime2;
+  uint16_t regSlope1, regSlope2;
+  float regTime1, regTime2;
 
-	if (_clkX == 0)
-		return 0;
-	
-	float tFactor = ((float) onIntensity - (4.0 * (float)offIntensity)) * 255.0 / (float) _clkX;
-	float timeS = float(ms) / 1000.0;
-	
-	regSlope1 = timeS / tFactor;
-	regSlope2 = regSlope1 / 16;
-	
-	regSlope1 = constrain(regSlope1, 1, 15);
-	regSlope2 = constrain(regSlope2, 16, 31);
+  if (_clkX == 0)
+    return 0;
 
-	regTime1 = regSlope1 * tFactor * 1000.0;
-	regTime2 = 16 * regTime1;
+  float tFactor = ((float) onIntensity - (4.0 * (float) offIntensity)) * 255.0 / (float) _clkX;
+  float timeS = float(ms) / 1000.0;
 
-	if (abs(regTime1 - ms) < abs(regTime2 - ms))
-		return regSlope1;
-	else
-		return regSlope2;  
+  regSlope1 = timeS / tFactor;
+  regSlope2 = regSlope1 / 16;
+
+  regSlope1 = constrain(regSlope1, 1, 15);
+  regSlope2 = constrain(regSlope2, 16, 31);
+
+  regTime1 = regSlope1 * tFactor * 1000.0;
+  regTime2 = 16 * regTime1;
+
+  if (abs(regTime1 - ms) < abs(regTime2 - ms))
+    return regSlope1;
+  else
+    return regSlope2;
 }
 
-// SX1509GPIOPin::SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted)
-//     : GPIOPin(pin, mode, inverted), parent_(parent) {}
-// void SX1509GPIOPin::setup() { this->pin_mode(this->mode_); }
-// void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
-// bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-// void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, unsigned int sleepTime, uint8_t scanTime,
+                                   uint8_t debounceTime) {
+  unsigned int tempWord;
+  byte tempByte;
+
+  // If clock hasn't been set up, set it to internal 2MHz
+  if (_clkX == 0)
+    clock(INTERNAL_CLOCK_2MHZ);
+
+  // Set regDir 0:7 outputs, 8:15 inputs:
+  tempWord = readWord(REG_DIR_B);
+  for (int i = 0; i < rows; i++)
+    tempWord &= ~(1 << i);
+  for (int i = 8; i < (columns * 2); i++)
+    tempWord |= (1 << i);
+  writeWord(REG_DIR_B, tempWord);
+
+  // Set regOpenDrain on 0:7:
+  tempByte = readByte(REG_OPEN_DRAIN_A);
+  for (int i = 0; i < rows; i++)
+    tempByte |= (1 << i);
+  writeByte(REG_OPEN_DRAIN_A, tempByte);
+
+  // Set regPullUp on 8:15:
+  tempByte = readByte(REG_PULL_UP_B);
+  for (int i = 0; i < columns; i++)
+    tempByte |= (1 << i);
+  writeByte(REG_PULL_UP_B, tempByte);
+
+  // Debounce Time must be less than scan time
+  debounceTime = constrain(debounceTime, 1, 64);
+  scanTime = constrain(scanTime, 1, 128);
+  if (debounceTime >= scanTime) {
+    debounceTime = scanTime >> 1;  // Force debounceTime to be less than scanTime
+  }
+  debounceKeypad(debounceTime, rows, columns);
+
+  // Calculate scanTimeBits, based on scanTime
+  byte scanTimeBits = 0;
+  for (byte i = 7; i > 0; i--) {
+    if (scanTime & (1 << i)) {
+      scanTimeBits = i;
+      break;
+    }
+  }
+
+  // Calculate sleepTimeBits, based on sleepTime
+  byte sleepTimeBits = 0;
+  if (sleepTime != 0) {
+    for (byte i = 7; i > 0; i--) {
+      if (sleepTime & ((unsigned int) 1 << (i + 6))) {
+        sleepTimeBits = i;
+        break;
+      }
+    }
+    // If sleepTime was non-zero, but less than 128,
+    // assume we wanted to turn sleep on, set it to minimum:
+    if (sleepTimeBits == 0)
+      sleepTimeBits = 1;
+  }
+
+  // RegKeyConfig1 sets the auto sleep time and scan time per row
+  sleepTimeBits = (sleepTimeBits & 0b111) << 4;
+  scanTimeBits &= 0b111;  // Scan time is bits 2:0
+  tempByte = sleepTime | scanTimeBits;
+  writeByte(REG_KEY_CONFIG_1, tempByte);
+
+  // RegKeyConfig2 tells the SX1509 how many rows and columns we've got going
+  rows = (rows - 1) & 0b111;        // 0 = off, 0b001 = 2 rows, 0b111 = 8 rows, etc.
+  columns = (columns - 1) & 0b111;  // 0b000 = 1 column, ob111 = 8 columns, etc.
+  writeByte(REG_KEY_CONFIG_2, (rows << 3) | columns);
+}
 
 }  // namespace sx1509
 }  // namespace esphome
