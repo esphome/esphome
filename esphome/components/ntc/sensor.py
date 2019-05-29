@@ -24,7 +24,7 @@ def validate_calibration_parameter(value):
         return cv.Schema({
             cv.Required(CONF_TEMPERATURE): cv.float_,
             cv.Required(CONF_VALUE): cv.float_,
-        })
+        })(value)
 
     value = cv.string(value)
     parts = value.split('->')
