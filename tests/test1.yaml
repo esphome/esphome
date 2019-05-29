@@ -103,6 +103,12 @@ mqtt:
         - light.control:
             id: living_room_lights
             brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+        - uart.write:
+            id: uart0
+            data: Hello World
+        - uart.write: [0x00, 0x20, 0x30]
+        - uart.write: !lambda |-
+            return {};
 
 i2c:
   sda: 21
@@ -120,6 +126,7 @@ uart:
   tx_pin: GPIO22
   rx_pin: GPIO23
   baud_rate: 115200
+  id: uart0
 
 ota:
   safe_mode: True
