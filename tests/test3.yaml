@@ -136,6 +136,12 @@ sensor:
       - 10.0kOhm -> 25°C
       - 27.219kOhm -> 0°C
       - 14.674kOhm -> 15°C
+  - platform: ct_clamp
+    sensor: my_sensor
+    name: CT Clamp
+    sample_duration: 500ms
+    update_interval: 5s
+
   - platform: tcs34725
     red_channel:
       name: Red Channel
