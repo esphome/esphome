@@ -5,6 +5,7 @@
 #include "sx1509_registers.h"
 #include "sx1509_float_output.h"
 #include "sx1509_gpio_pin.h"
+#include "sx1509_keypad_sensor.h"
 
 namespace esphome {
 namespace sx1509 {
@@ -50,7 +51,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint8_t calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity);
 
  protected:
-  friend SX1509FloatOutputChannel;
+  friend class SX1509FloatOutputChannel;
   //std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
 
   // Pin definitions:
