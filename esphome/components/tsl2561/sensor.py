@@ -32,7 +32,7 @@ TSL2561Sensor = tsl2561_ns.class_('TSL2561Sensor', sensor.Sensor, cg.PollingComp
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
     cv.GenerateID(): cv.declare_id(TSL2561Sensor),
-    cv.Optional(CONF_INTEGRATION_TIME, default=402): validate_integration_time,
+    cv.Optional(CONF_INTEGRATION_TIME, default='402ms'): validate_integration_time,
     cv.Optional(CONF_GAIN, default='1X'): cv.enum(GAINS, upper=True),
     cv.Optional(CONF_IS_CS_PACKAGE, default=False): cv.boolean,
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x39))
