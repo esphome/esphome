@@ -1210,13 +1210,14 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-def maybe_simple_value(*validators):
+def maybe_simple_value(*validators, **kwargs):
+    key = kwargs.pop('key', CONF_VALUE)
     validator = All(*validators)
 
     def validate(value):
-        if isinstance(value, dict) and CONF_VALUE in value:
+        if isinstance(value, dict) and key in value:
             return validator(value)
-        return validator({CONF_VALUE: value})
+        return validator({key: value})
 
     return validate
 
