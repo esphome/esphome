@@ -15,8 +15,6 @@ void CTClampSensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float CTClampSensor::get_setup_priority() const { return setup_priority::DATA; }
-
 void CTClampSensor::update() {
   float sum = 0;
   for (unsigned int n = 0; n < this->sample_size_; n++) {

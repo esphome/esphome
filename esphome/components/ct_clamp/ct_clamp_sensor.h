@@ -13,8 +13,7 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   /// Update CT Clamp sensor values.
   void update() override;
   void dump_config() override;
-  /// `HARDWARE_LATE` setup priority.
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_calibration(uint32_t calibration) { this->calibration_ = calibration; }
   void set_sample_size(uint32_t sample_size) { this->sample_size_ = sample_size; }
