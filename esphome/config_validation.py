@@ -20,7 +20,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with
-from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
+from esphome.py_compat import integer_types, string_types, text_type, IS_PY2, decode_text
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -617,9 +617,9 @@ if IS_PY2:
     # Override voluptuous invalid to unicode for py2
     def _vol_invalid_unicode(self):
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
-            if self.path else ''
+            if self.path else u''
         # pylint: disable=no-member
-        output = self.message
+        output = decode_text(self.message)
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path
