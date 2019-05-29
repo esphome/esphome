@@ -157,6 +157,12 @@ def copy_file_if_changed(src, dst):
     write_file(dst, src_text)
 
 
+def walk_files(path):
+    for root, _, files in os.walk(path):
+        for name in files:
+            yield os.path.join(root, name)
+
+
 def read_file(path):
     try:
         with codecs.open(path, 'r', encoding='utf-8') as f_handle:

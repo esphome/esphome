@@ -8,7 +8,7 @@ from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
     HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed
+from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files
 from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
@@ -279,12 +279,6 @@ run.
 For modifying esphome's core files, please use a development esphome install
 or use the custom_components folder.
 """
-
-
-def walk_files(path):
-    for root, _, files in os.walk(path):
-        for name in files:
-            yield os.path.join(root, name)
 
 
 def copy_src_tree():
