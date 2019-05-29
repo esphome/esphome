@@ -12,8 +12,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
  public:
   /// Update CT Clamp sensor values.
   void update() override;
-  /// Setup CT Sensor
-  void setup() override;
   void dump_config() override;
   /// `HARDWARE_LATE` setup priority.
   float get_setup_priority() const override;
@@ -22,7 +20,6 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   void set_sample_size(uint32_t sample_size) { this->sample_size_ = sample_size; }
 
   void set_source(voltage_sampler::VoltageSampler *source) { source_ = source; }
-
 
 #ifdef ARDUINO_ARCH_ESP8266
   std::string unique_id() override;

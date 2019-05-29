@@ -1,14 +1,12 @@
 #include "ct_clamp_sensor.h"
+
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace ct_clamp {
 
 static const char *TAG = "ct_clamp";
-
-void CTClampSensor::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up CT Clamp '%s'...", this->get_name().c_str());
-}
 
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
@@ -36,7 +34,7 @@ void CTClampSensor::update() {
     sum += sq;
   }
 
-  float irms = sqrt(sum / this->sample_size_);
+  float irms = std::sqrt(sum / this->sample_size_);
 
   ESP_LOGD(TAG, "'%s' - Raw Value: %.2f", this->name_.c_str(), irms);
 
