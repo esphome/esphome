@@ -110,6 +110,12 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+  - platform: ct_clamp
+    sensor: my_sensor
+    name: CT Clamp
+    sample_duration: 500ms
+    update_interval: 5s
+
   - platform: tcs34725
     red_channel:
       name: Red Channel
