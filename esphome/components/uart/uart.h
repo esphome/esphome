@@ -49,9 +49,7 @@ class UARTComponent : public Component, public Stream {
   void write_byte(uint8_t data);
 
   void write_array(const uint8_t *data, size_t len);
-  void write_array(const std::vector<uint8_t> &data) {
-    this->write_array(&data[0], data.size());
-  }
+  void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
 
   void write_str(const char *str);
 
