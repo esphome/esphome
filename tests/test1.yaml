@@ -84,6 +84,8 @@ mqtt:
         condition:
           - wifi.connected:
           - mqtt.connected:
+          - light.is_on: kitchen
+          - light.is_off: kitchen
         then:
         - lambda: |-
             int data = x["my_data"];
