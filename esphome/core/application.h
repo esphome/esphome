@@ -87,34 +87,7 @@ class Application {
   void setup();
 
   /// Make a loop iteration. Call this in your loop() function.
-  void loop() {
-    uint32_t new_app_state = 0;
-    for (Component *component : this->components_) {
-      if (!component->is_failed()) {
-        component->call_loop();
-      }
-      new_app_state |= component->get_component_state();
-      this->app_state_ |= new_app_state;
-      this->feed_wdt();
-    }
-    this->app_state_ = new_app_state;
-
-    const uint32_t now = millis();
-    if (HighFrequencyLoopRequester::is_high_frequency()) {
-      yield();
-    } else {
-      uint32_t delay_time = this->loop_interval_;
-      if (now - this->last_loop_ < this->loop_interval_)
-        delay_time = this->loop_interval_ - (now - this->last_loop_);
-      delay(delay_time);
-    }
-    this->last_loop_ = now;
-
-    if (this->dump_config_scheduled_) {
-      this->dump_config();
-      this->dump_config_scheduled_ = false;
-    }
-  }
+  void loop();
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }

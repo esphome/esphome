@@ -124,8 +124,14 @@
        class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
       <i class="material-icons flash-using-esphomeflasher">help_outline</i>
     </a>
+    <a class="modal-close waves-effect waves-green btn-flat action-edit edit-after-upload">Edit</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+    <div class="btn-flat"><i class="material-icons dropdown-trigger" data-target="dropdown-upload-actions">more_vert</i></div>
   </div>
+  <ul id="dropdown-upload-actions" class="select-action dropdown-content card-dropdown-action">
+    <li><a class="modal-close waves-effect waves-green btn-flat disabled download-after-upload">Download Binary</a></li>
+    <li><a class="waves-effect waves-green btn-flat disabled action-upload retry-upload">Retry</a></li>
+  </ul>
 </div>
 
 <div id="modal-compile" class="modal modal-fixed-footer">
@@ -434,7 +440,7 @@
   </div>
   <div class="modal-footer">
     <a class="waves-effect waves-green btn-flat save-button">Save</a>
-    <a class="modal-close waves-effect waves-green btn-flat action-validate save-validate-button">Save &amp; Validate</a>
+    <a class="modal-close waves-effect waves-green btn-flat action-upload editor-upload-button">Upload</a>
     <a class="modal-close waves-effect waves-green btn-flat">Close</a>
   </div>
 </div>

@@ -20,7 +20,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with
-from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
+from esphome.py_compat import integer_types, string_types, text_type, IS_PY2, decode_text
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,6 +61,7 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'close', 'pause', 'sleep', 'open',
 ]
 
 
@@ -616,9 +617,9 @@ if IS_PY2:
     # Override voluptuous invalid to unicode for py2
     def _vol_invalid_unicode(self):
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
-            if self.path else ''
+            if self.path else u''
         # pylint: disable=no-member
-        output = self.message
+        output = decode_text(self.message)
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path
@@ -1209,13 +1210,14 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-def maybe_simple_value(*validators):
+def maybe_simple_value(*validators, **kwargs):
+    key = kwargs.pop('key', CONF_VALUE)
     validator = All(*validators)
 
     def validate(value):
-        if isinstance(value, dict) and CONF_VALUE in value:
+        if isinstance(value, dict) and key in value:
             return validator(value)
-        return validator({CONF_VALUE: value})
+        return validator({key: value})
 
     return validate
 

@@ -612,9 +612,9 @@ def _format_vol_invalid(ex, config):
         else:
             message += u'[{}] is an invalid option for [{}]. Please check the indentation.'.format(
                 ex.path[-1], paren)
-    elif u'extra keys not allowed' in ex.error_message:
+    elif u'extra keys not allowed' in text_type(ex):
         message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
-    elif u'required key not provided' in ex.error_message:
+    elif u'required key not provided' in text_type(ex):
         message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(config, ex)
