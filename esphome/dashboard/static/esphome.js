@@ -9,7 +9,7 @@ const loc = window.location;
 const wsLoc = new URL("./",`${loc.protocol}//${loc.host}${loc.pathname}`);
 wsLoc.protocol = 'ws:';
 if (loc.protocol === "https:") {
-  wsLoc.protocol = 'wss:'
+  wsLoc.protocol = 'wss:';
 }
 const wsUrl = wsLoc.href;
 
