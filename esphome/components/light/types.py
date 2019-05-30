@@ -16,6 +16,8 @@ ToggleAction = light_ns.class_('ToggleAction', automation.Action)
 LightControlAction = light_ns.class_('LightControlAction', automation.Action)
 DimRelativeAction = light_ns.class_('DimRelativeAction', automation.Action)
 AddressableSet = light_ns.class_('AddressableSet', automation.Action)
+LightIsOnCondition = light_ns.class_('LightIsOnCondition', automation.Condition)
+LightIsOffCondition = light_ns.class_('LightIsOffCondition', automation.Condition)
 
 # Effects
 LightEffect = light_ns.class_('LightEffect')
