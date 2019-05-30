@@ -421,6 +421,14 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: template
+    name: Template Cover with Tilt
+    tilt_lambda: "return 0.5;"
+    tilt_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return tilt;"
+
 
 output:
   - platform: esp8266_pwm
