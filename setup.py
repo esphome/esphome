@@ -73,8 +73,7 @@ setup(
     keywords=['home', 'automation'],
     entry_points={
         'console_scripts': [
-            'esphome = esphome.__main__:main',
-            'esphomeyaml = esphome.legacy:main'
+            'esphome = esphome.__main__:main'
         ]
     },
     packages=find_packages()

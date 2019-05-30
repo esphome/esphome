@@ -1,9 +1,10 @@
 sudo: false
 language: python
-
+install: script/setup
 cache:
   directories:
     - "~/.platformio"
+    - "$TRAVIS_BUILD_DIR/.piolibdeps"
     - "$TRAVIS_BUILD_DIR/tests/build/test1/.piolibdeps"
     - "$TRAVIS_BUILD_DIR/tests/build/test2/.piolibdeps"
     - "$TRAVIS_BUILD_DIR/tests/build/test3/.piolibdeps"
@@ -13,26 +14,43 @@ matrix:
   include:
     - python: "2.7"
       env: TARGET=Lint2.7
-      install: pip install -e . && pip install flake8==3.6.0 pylint==1.9.4 pillow
       script:
+        - script/ci-custom.py
         - flake8 esphome
         - pylint esphome
     - python: "3.5.3"
       env: TARGET=Lint3.5
-      install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.3.0 pillow
       script:
+        - script/ci-custom.py
         - flake8 esphome
         - pylint esphome
     - python: "2.7"
       env: TARGET=Test2.7
-      install: pip install -e . && pip install flake8==3.6.0 pylint==1.9.4 pillow
       script:
         - esphome tests/test1.yaml compile
         - esphome tests/test2.yaml compile
         - esphome tests/test3.yaml compile
-    #- python: "3.5.3"
-    #  env: TARGET=Test3.5
-    #  install: pip install -U https://github.com/platformio/platformio-core/archive/develop.zip && pip install -e . && pip install flake8==3.6.0 pylint==2.3.0 pillow
-    #  script:
-    #    - esphome tests/test1.yaml compile
-    #    - esphome tests/test2.yaml compile
+    - env: TARGET=Cpp-Lint
+      dist: trusty
+      sudo: required
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+            - llvm-toolchain-trusty-7
+          packages:
+            - clang-tidy-7
+            - clang-format-7
+      before_script:
+        - pio init --ide atom
+        - |
+          if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
+            patch -p0 < script/.neopixelbus.patch
+          fi
+        - clang-tidy-7 -version
+        - clang-format-7 -version
+        - clang-apply-replacements-7 -version
+      script:
+        - script/clang-tidy --all-headers -j 2 --fix
+        - script/clang-format -i -j 2
+        - script/ci-suggest-changes

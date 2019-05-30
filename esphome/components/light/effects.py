@@ -1,0 +1,262 @@
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import automation
+from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
+    CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
+    CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
+    CONF_SEQUENCE
+from esphome.util import Registry
+from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
+    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
+    FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
+    AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
+    AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
+    AutomationLightEffect
+
+CONF_ADD_LED_INTERVAL = 'add_led_interval'
+CONF_REVERSE = 'reverse'
+CONF_MOVE_INTERVAL = 'move_interval'
+CONF_TWINKLE_PROBABILITY = 'twinkle_probability'
+CONF_PROGRESS_INTERVAL = 'progress_interval'
+CONF_SPARK_PROBABILITY = 'spark_probability'
+CONF_USE_RANDOM_COLOR = 'use_random_color'
+CONF_FADE_OUT_RATE = 'fade_out_rate'
+CONF_STROBE = 'strobe'
+CONF_FLICKER = 'flicker'
+CONF_ADDRESSABLE_LAMBDA = 'addressable_lambda'
+CONF_ADDRESSABLE_RAINBOW = 'addressable_rainbow'
+CONF_ADDRESSABLE_COLOR_WIPE = 'addressable_color_wipe'
+CONF_ADDRESSABLE_SCAN = 'addressable_scan'
+CONF_ADDRESSABLE_TWINKLE = 'addressable_twinkle'
+CONF_ADDRESSABLE_RANDOM_TWINKLE = 'addressable_random_twinkle'
+CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
+CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
+CONF_AUTOMATION = 'automation'
+
+BINARY_EFFECTS = ['lambda', 'automation', 'strobe']
+MONOCHROMATIC_EFFECTS = BINARY_EFFECTS + ['flicker']
+RGB_EFFECTS = MONOCHROMATIC_EFFECTS + ['random']
+ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_RAINBOW,
+                                     CONF_ADDRESSABLE_COLOR_WIPE, CONF_ADDRESSABLE_SCAN,
+                                     CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
+                                     CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
+
+EFFECTS_REGISTRY = Registry()
+
+
+def register_effect(name, effect_type, default_name, schema, *extra_validators):
+    schema = cv.Schema(schema).extend({
+        cv.Optional(CONF_NAME, default=default_name): cv.string_strict,
+    })
+    validator = cv.All(schema, *extra_validators)
+    return EFFECTS_REGISTRY.register(name, effect_type, validator)
+
+
+@register_effect('lambda', LambdaLightEffect, "Lambda", {
+    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.update_interval,
+})
+def lambda_effect_to_code(config, effect_id):
+    lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [], return_type=cg.void)
+    yield cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
+                           config[CONF_UPDATE_INTERVAL])
+
+
+@register_effect('automation', AutomationLightEffect, "Automation", {
+    cv.Required(CONF_SEQUENCE): automation.validate_automation(single=True),
+})
+def automation_effect_to_code(config, effect_id):
+    var = yield cg.new_Pvariable(effect_id, config[CONF_NAME])
+    yield automation.build_automation(var.get_trig(), [], config[CONF_SEQUENCE])
+    yield var
+
+
+@register_effect('random', RandomLightEffect, "Random", {
+    cv.Optional(CONF_TRANSITION_LENGTH, default='7.5s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_UPDATE_INTERVAL, default='10s'): cv.positive_time_period_milliseconds,
+})
+def random_effect_to_code(config, effect_id):
+    effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
+    cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    yield effect
+
+
+@register_effect('strobe', StrobeLightEffect, "Strobe", {
+    cv.Optional(CONF_COLORS, default=[
+        {CONF_STATE: True, CONF_DURATION: '0.5s'},
+        {CONF_STATE: False, CONF_DURATION: '0.5s'},
+    ]): cv.All(cv.ensure_list(cv.Schema({
+        cv.Optional(CONF_STATE, default=True): cv.boolean,
+        cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+        cv.Optional(CONF_RED, default=1.0): cv.percentage,
+        cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
+        cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
+    }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
+                                CONF_WHITE)), cv.Length(min=2)),
+})
+def strobe_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    colors = []
+    for color in config.get(CONF_COLORS, []):
+        colors.append(cg.StructInitializer(
+            StrobeLightEffectColor,
+            ('color', LightColorValues(color[CONF_STATE], color[CONF_BRIGHTNESS],
+                                       color[CONF_RED], color[CONF_GREEN], color[CONF_BLUE],
+                                       color[CONF_WHITE])),
+            ('duration', color[CONF_DURATION]),
+        ))
+    cg.add(var.set_colors(colors))
+    yield var
+
+
+@register_effect('flicker', FlickerLightEffect, "Flicker", {
+    cv.Optional(CONF_ALPHA, default=0.95): cv.percentage,
+    cv.Optional(CONF_INTENSITY, default=0.015): cv.percentage,
+})
+def flicker_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_alpha(config[CONF_ALPHA]))
+    cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    yield var
+
+
+@register_effect('addressable_lambda', AddressableLambdaLightEffect, "Addressable Lambda", {
+    cv.Required(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
+})
+def addressable_lambda_effect_to_code(config, effect_id):
+    args = [(AddressableLightRef, 'it')]
+    lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
+                           config[CONF_UPDATE_INTERVAL])
+    yield var
+
+
+@register_effect('addressable_rainbow', AddressableRainbowLightEffect, "Rainbow", {
+    cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
+    cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
+})
+def addressable_rainbow_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_speed(config[CONF_SPEED]))
+    cg.add(var.set_width(config[CONF_WIDTH]))
+    yield var
+
+
+@register_effect('addressable_color_wipe', AddressableColorWipeEffect, "Color Wipe", {
+    cv.Optional(CONF_COLORS, default=[{CONF_NUM_LEDS: 1, CONF_RANDOM: True}]): cv.ensure_list({
+        cv.Optional(CONF_RED, default=1.0): cv.percentage,
+        cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
+        cv.Optional(CONF_BLUE, default=1.0): cv.percentage,
+        cv.Optional(CONF_WHITE, default=1.0): cv.percentage,
+        cv.Optional(CONF_RANDOM, default=False): cv.boolean,
+        cv.Required(CONF_NUM_LEDS): cv.All(cv.uint32_t, cv.Range(min=1)),
+    }),
+    cv.Optional(CONF_ADD_LED_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_REVERSE, default=False): cv.boolean,
+})
+def addressable_color_wipe_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
+    cg.add(var.set_reverse(config[CONF_REVERSE]))
+    colors = []
+    for color in config.get(CONF_COLORS, []):
+        colors.append(cg.StructInitializer(
+            AddressableColorWipeEffectColor,
+            ('r', int(round(color[CONF_RED] * 255))),
+            ('g', int(round(color[CONF_GREEN] * 255))),
+            ('b', int(round(color[CONF_BLUE] * 255))),
+            ('w', int(round(color[CONF_WHITE] * 255))),
+            ('random', color[CONF_RANDOM]),
+            ('num_leds', color[CONF_NUM_LEDS]),
+        ))
+    cg.add(var.set_colors(colors))
+    yield var
+
+
+@register_effect('addressable_scan', AddressableScanEffect, "Scan", {
+    cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
+})
+def addressable_scan_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_move_interval(config[CONF_MOVE_INTERVAL]))
+    yield var
+
+
+@register_effect('addressable_twinkle', AddressableTwinkleEffect, "Twinkle", {
+    cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
+    cv.Optional(CONF_PROGRESS_INTERVAL, default='4ms'): cv.positive_time_period_milliseconds,
+})
+def addressable_twinkle_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
+    cg.add(var.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
+    yield var
+
+
+@register_effect('addressable_random_twinkle', AddressableRandomTwinkleEffect, "Random Twinkle", {
+    cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
+    cv.Optional(CONF_PROGRESS_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
+})
+def addressable_random_twinkle_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
+    cg.add(var.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
+    yield var
+
+
+@register_effect('addressable_fireworks', AddressableFireworksEffect, "Fireworks", {
+    cv.Optional(CONF_UPDATE_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_SPARK_PROBABILITY, default='10%'): cv.percentage,
+    cv.Optional(CONF_USE_RANDOM_COLOR, default=False): cv.boolean,
+    cv.Optional(CONF_FADE_OUT_RATE, default=120): cv.uint8_t,
+})
+def addressable_fireworks_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(var.set_spark_probability(config[CONF_SPARK_PROBABILITY]))
+    cg.add(var.set_use_random_color(config[CONF_USE_RANDOM_COLOR]))
+    cg.add(var.set_fade_out_rate(config[CONF_FADE_OUT_RATE]))
+    yield var
+
+
+@register_effect('addressable_flicker', AddressableFlickerEffect, "Addressable Flicker", {
+    cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_INTENSITY, default='5%'): cv.percentage,
+})
+def addressable_flicker_effect_to_code(config, effect_id):
+    var = cg.new_Pvariable(effect_id, config[CONF_NAME])
+    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    yield var
+
+
+def validate_effects(allowed_effects):
+    def validator(value):
+        value = cv.validate_registry('effect', EFFECTS_REGISTRY)(value)
+        errors = []
+        names = set()
+        for i, x in enumerate(value):
+            key = next(it for it in x.keys())
+            if key not in allowed_effects:
+                errors.append(
+                    cv.Invalid("The effect '{}' is not allowed for this "
+                               "light type".format(key), [i])
+                )
+                continue
+            name = x[key][CONF_NAME]
+            if name in names:
+                errors.append(
+                    cv.Invalid(u"Found the effect name '{}' twice. All effects must have "
+                               u"unique names".format(name), [i])
+                )
+                continue
+            names.add(name)
+        if errors:
+            raise cv.MultipleInvalid(errors)
+        return value
+
+    return validator

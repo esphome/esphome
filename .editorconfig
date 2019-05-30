@@ -1,0 +1,27 @@
+root = true
+
+# general
+[*]
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+# python
+[*.{py}]
+indent_style = space
+indent_size = 4
+
+# C++
+[*.{cpp,h,tcc}]
+indent_style = space
+indent_size = 2
+
+# Web
+[*.{js,html,css}]
+indent_style = space
+indent_size = 2
+
+# YAML
+[*.{yaml,yml}]
+indent_style = space
+indent_size = 2

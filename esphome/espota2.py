@@ -130,7 +130,7 @@ def check_error(data, expect):
                        "choose the correct 'board' option (esp01_1m always works) and try again.")
     if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
         raise OTAError("Error: ESP does not have enough space to store OTA file. Please try "
-                       "flashing a minimal firmware (see FAQ)")
+                       "flashing a minimal firmware (remove everything except ota)")
     if dat == RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE:
         raise OTAError("Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
                        "this partition, please flash over USB.")
@@ -221,6 +221,8 @@ def perform_ota(sock, password, file_handle, filename):
     # Limit send buffer (usually around 100kB) in order to have progress bar
     # show the actual progress
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 8192)
+    # Set higher timeout during upload
+    sock.settimeout(20.0)
 
     offset = 0
     progress = ProgressBar()
@@ -297,15 +299,3 @@ def run_ota(remote_host, remote_port, password, filename):
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
-        return 1
-
-
-def run_legacy_ota(verbose, host_port, remote_host, remote_port, password, filename):
-    from esphome import espota
-
-    espota_args = ['espota.py', '--debug', '--progress', '-i', remote_host,
-                   '-p', str(remote_port), '-f', filename,
-                   '-a', password, '-P', str(host_port)]
-    if verbose:
-        espota_args.append('-d')
-    return espota.main(espota_args)

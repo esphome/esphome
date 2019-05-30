@@ -2,12 +2,10 @@ from __future__ import division
 
 import logging
 
-import voluptuous as vol
-
 import esphome.config_validation as cv
-from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_PCF8574, CONF_MCP23017
+from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER
 from esphome.core import CORE
-from esphome.cpp_types import Component, esphome_ns, io_ns
+from esphome.util import SimpleRegistry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,12 +52,12 @@ ESP8266_BOARD_PINS = {
                   'D8': 12, 'D9': 13, 'D10': 15, 'D11': 13, 'D12': 12, 'D13': 14},
     'wifinfo': {'LED': 12, 'D0': 16, 'D1': 5, 'D2': 4, 'D3': 0, 'D4': 2, 'D5': 14, 'D6': 12,
                 'D7': 13, 'D8': 15, 'D9': 3, 'D10': 1},
-    'wio_link': {'LED': 2, 'GROVE': 15},
-    'wio_node': 'nodemcu',
+    'wio_link': {'LED': 2, 'GROVE': 15, 'D0': 14, 'D1': 12, 'D2': 13, 'BUTTON': 0},
+    'wio_node': {'LED': 2, 'GROVE': 15, 'D0': 3, 'D1': 5, 'BUTTON': 0},
     'xinabox_cw01': {'SDA': 2, 'SCL': 14, 'LED': 5, 'LED_RED': 12, 'LED_GREEN': 13}
 }
 
-FLASH_SIZE_1_MB = 2**20
+FLASH_SIZE_1_MB = 2 ** 20
 FLASH_SIZE_512_KB = FLASH_SIZE_1_MB // 2
 FLASH_SIZE_2_MB = 2 * FLASH_SIZE_1_MB
 FLASH_SIZE_4_MB = 4 * FLASH_SIZE_1_MB
@@ -247,13 +245,13 @@ def _lookup_pin(value):
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise vol.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
+    raise cv.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
 
 
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
-        raise vol.Invalid(u"This variable only supports pin numbers, not full pin schemas "
-                          u"(with inverted and mode).")
+        raise cv.Invalid(u"This variable only supports pin numbers, not full pin schemas "
+                         u"(with inverted and mode).")
     if isinstance(value, int):
         return value
     try:
@@ -261,7 +259,7 @@ def _translate_pin(value):
     except ValueError:
         pass
     if value.startswith('GPIO'):
-        return vol.Coerce(int)(value[len('GPIO'):].strip())
+        return cv.Coerce(int)(value[len('GPIO'):].strip())
     return _lookup_pin(value)
 
 
@@ -269,7 +267,7 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32:
         if value < 0 or value > 39:
-            raise vol.Invalid(u"ESP32: Invalid pin number: {}".format(value))
+            raise cv.Invalid(u"ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
             _LOGGER.warning(u"ESP32: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
@@ -282,7 +280,7 @@ def validate_gpio_pin(value):
             _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
                             u"flash interface. Be warned.", value)
         if value < 0 or value > 17:
-            raise vol.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
+            raise cv.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
         return value
     raise NotImplementedError
 
@@ -297,8 +295,8 @@ def input_pullup_pin(value):
         return output_pin(value)
     if CORE.is_esp8266:
         if value == 0:
-            raise vol.Invalid("GPIO Pin 0 does not support pullup pin mode. "
-                              "Please choose another pin.")
+            raise cv.Invalid("GPIO Pin 0 does not support pullup pin mode. "
+                             "Please choose another pin.")
         return value
     raise NotImplementedError
 
@@ -307,8 +305,8 @@ def output_pin(value):
     value = validate_gpio_pin(value)
     if CORE.is_esp32:
         if 34 <= value <= 39:
-            raise vol.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
-                              u"input pin.".format(value))
+            raise cv.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
+                             u"input pin.".format(value))
         return value
     if CORE.is_esp8266:
         return value
@@ -320,15 +318,15 @@ def analog_pin(value):
     if CORE.is_esp32:
         if 32 <= value <= 39:  # ADC1
             return value
-        raise vol.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
+        raise cv.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
     if CORE.is_esp8266:
         if value == 17:  # A0
             return value
-        raise vol.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
+        raise cv.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
     raise NotImplementedError
 
 
-input_output_pin = vol.All(input_pin, output_pin)
+input_output_pin = cv.All(input_pin, output_pin)
 
 PIN_MODES_ESP8266 = [
     'INPUT', 'OUTPUT', 'INPUT_PULLUP', 'OUTPUT_OPEN_DRAIN', 'SPECIAL', 'FUNCTION_1',
@@ -352,66 +350,61 @@ def pin_mode(value):
 
 
 GPIO_FULL_OUTPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_NUMBER): output_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    cv.Required(CONF_NUMBER): output_pin,
+    cv.Optional(CONF_MODE, default='OUTPUT'): pin_mode,
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 GPIO_FULL_INPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_NUMBER): input_pin,
-    vol.Optional(CONF_MODE): pin_mode,
-    vol.Optional(CONF_INVERTED): cv.boolean,
+    cv.Required(CONF_NUMBER): input_pin,
+    cv.Optional(CONF_MODE, default='INPUT'): pin_mode,
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+GPIO_FULL_INPUT_PULLUP_PIN_SCHEMA = cv.Schema({
+    cv.Required(CONF_NUMBER): input_pin,
+    cv.Optional(CONF_MODE, default='INPUT_PULLUP'): pin_mode,
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
+
+GPIO_FULL_ANALOG_PIN_SCHEMA = cv.Schema({
+    cv.Required(CONF_NUMBER): analog_pin,
+    cv.Optional(CONF_MODE, default='INPUT'): pin_mode,
 })
 
 
 def shorthand_output_pin(value):
     value = output_pin(value)
-    return {CONF_NUMBER: value}
+    return GPIO_FULL_OUTPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def shorthand_input_pin(value):
     value = input_pin(value)
-    return {CONF_NUMBER: value}
+    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def shorthand_input_pullup_pin(value):
     value = input_pullup_pin(value)
-    return {CONF_NUMBER: value}
+    return GPIO_FULL_INPUT_PIN_SCHEMA({
+        CONF_NUMBER: value,
+        CONF_MODE: 'INPUT_PULLUP',
+    })
+
+
+def shorthand_analog_pin(value):
+    value = analog_pin(value)
+    return GPIO_FULL_INPUT_PIN_SCHEMA({CONF_NUMBER: value})
 
 
 def validate_has_interrupt(value):
     if CORE.is_esp8266:
         if value[CONF_NUMBER] >= 16:
-            raise vol.Invalid("Pins GPIO16 and GPIO17 do not support interrupts and cannot be used "
-                              "here, got {}".format(value[CONF_NUMBER]))
+            raise cv.Invalid("Pins GPIO16 and GPIO17 do not support interrupts and cannot be used "
+                             "here, got {}".format(value[CONF_NUMBER]))
     return value
 
 
-I2CDevice = esphome_ns.class_('I2CDevice')
-PCF8574Component = io_ns.class_('PCF8574Component', Component, I2CDevice)
-MCP23017 = io_ns.class_('MCP23017', Component, I2CDevice)
-
-PCF8574_OUTPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_PCF8574): cv.use_variable_id(PCF8574Component),
-    vol.Required(CONF_NUMBER): vol.Coerce(int),
-    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
-    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
-})
-
-PCF8574_INPUT_PIN_SCHEMA = PCF8574_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
-})
-
-MCP23017_OUTPUT_PIN_SCHEMA = cv.Schema({
-    vol.Required(CONF_MCP23017): cv.use_variable_id(MCP23017),
-    vol.Required(CONF_NUMBER): vol.All(vol.Coerce(int), vol.Range(min=0, max=15)),
-    vol.Optional(CONF_MODE): cv.one_of("OUTPUT", upper=True),
-    vol.Optional(CONF_INVERTED, default=False): cv.boolean,
-})
-
-MCP23017_INPUT_PIN_SCHEMA = MCP23017_OUTPUT_PIN_SCHEMA.extend({
-    vol.Optional(CONF_MODE): cv.one_of("INPUT", "INPUT_PULLUP", upper=True),
-})
+PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
 
 def internal_gpio_output_pin_schema(value):
@@ -421,10 +414,10 @@ def internal_gpio_output_pin_schema(value):
 
 
 def gpio_output_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_OUTPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_OUTPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict):
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return entry[1][0](value)
     return internal_gpio_output_pin_schema(value)
 
 
@@ -434,23 +427,29 @@ def internal_gpio_input_pin_schema(value):
     return shorthand_input_pin(value)
 
 
+def internal_gpio_analog_pin_schema(value):
+    if isinstance(value, dict):
+        return GPIO_FULL_ANALOG_PIN_SCHEMA(value)
+    return shorthand_analog_pin(value)
+
+
 def gpio_input_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_INPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_INPUT_PIN_SCHEMA(value)
+    if isinstance(value, dict):
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return entry[1][1](value)
     return internal_gpio_input_pin_schema(value)
 
 
 def internal_gpio_input_pullup_pin_schema(value):
     if isinstance(value, dict):
-        return GPIO_FULL_INPUT_PIN_SCHEMA(value)
+        return GPIO_FULL_INPUT_PULLUP_PIN_SCHEMA(value)
     return shorthand_input_pullup_pin(value)
 
 
 def gpio_input_pullup_pin_schema(value):
-    if isinstance(value, dict) and CONF_PCF8574 in value:
-        return PCF8574_INPUT_PIN_SCHEMA(value)
-    if isinstance(value, dict) and CONF_MCP23017 in value:
-        return MCP23017_INPUT_PIN_SCHEMA(value)
-    return internal_gpio_input_pin_schema(value)
+    if isinstance(value, dict):
+        for key, entry in PIN_SCHEMA_REGISTRY.items():
+            if key in value:
+                return entry[1][1](value)
+    return internal_gpio_input_pullup_pin_schema(value)

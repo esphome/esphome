@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+if [[ ! -e ".gcc-flags.json" ]]; then
+  pio init --ide atom
+fi
+if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
+  patch -p0 < script/.neopixelbus.patch
+fi
+
+set -x
+
+script/clang-tidy $@ --fix --all-headers
+script/clang-format $@ -i

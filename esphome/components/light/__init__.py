@@ -1,501 +1,88 @@
-import voluptuous as vol
-
-from esphome.automation import ACTION_REGISTRY, maybe_simple_id
-from esphome.components import mqtt
-from esphome.components.mqtt import setup_mqtt_component
+import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, \
-    CONF_COLOR_TEMPERATURE, CONF_DEFAULT_TRANSITION_LENGTH, CONF_DURATION, CONF_EFFECT, \
-    CONF_EFFECTS, CONF_EFFECT_ID, CONF_FLASH_LENGTH, CONF_GAMMA_CORRECT, CONF_GREEN, CONF_ID, \
-    CONF_INTERNAL, CONF_LAMBDA, CONF_MQTT_ID, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, \
-    CONF_SPEED, CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH
-from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, StructInitializer, add, get_variable, process_lambda, \
-    templatable
-from esphome.cpp_types import Action, Application, Component, Nameable, esphome_ns, float_, \
-    std_string, uint32, void
+from esphome.components import mqtt, power_supply
+from esphome.const import CONF_COLOR_CORRECT, \
+    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_ID, \
+    CONF_INTERNAL, CONF_NAME, CONF_MQTT_ID, CONF_POWER_SUPPLY, CONF_RESTORE_MODE
+from esphome.core import coroutine, coroutine_with_priority
+from .automation import light_control_to_code  # noqa
+from .effects import validate_effects, BINARY_EFFECTS, \
+    MONOCHROMATIC_EFFECTS, RGB_EFFECTS, ADDRESSABLE_EFFECTS, EFFECTS_REGISTRY
+from .types import (  # noqa
+    LightState, AddressableLightState, light_ns, LightOutput, AddressableLight)
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
+IS_PLATFORM_COMPONENT = True
 
-})
-
-# Base
-light_ns = esphome_ns.namespace('light')
-LightState = light_ns.class_('LightState', Nameable, Component)
-# Fake class for addressable lights
-AddressableLightState = light_ns.class_('LightState', LightState)
-MakeLight = Application.struct('MakeLight')
-LightOutput = light_ns.class_('LightOutput')
-AddressableLight = light_ns.class_('AddressableLight')
-AddressableLightRef = AddressableLight.operator('ref')
-
-# Actions
-ToggleAction = light_ns.class_('ToggleAction', Action)
-TurnOffAction = light_ns.class_('TurnOffAction', Action)
-TurnOnAction = light_ns.class_('TurnOnAction', Action)
-
-LightColorValues = light_ns.class_('LightColorValues')
-
-MQTTJSONLightComponent = light_ns.class_('MQTTJSONLightComponent', mqtt.MQTTComponent)
-
-# Effects
-LightEffect = light_ns.class_('LightEffect')
-RandomLightEffect = light_ns.class_('RandomLightEffect', LightEffect)
-LambdaLightEffect = light_ns.class_('LambdaLightEffect', LightEffect)
-StrobeLightEffect = light_ns.class_('StrobeLightEffect', LightEffect)
-StrobeLightEffectColor = light_ns.class_('StrobeLightEffectColor', LightEffect)
-FlickerLightEffect = light_ns.class_('FlickerLightEffect', LightEffect)
-AddressableLightEffect = light_ns.class_('AddressableLightEffect', LightEffect)
-AddressableLambdaLightEffect = light_ns.class_('AddressableLambdaLightEffect',
-                                               AddressableLightEffect)
-AddressableRainbowLightEffect = light_ns.class_('AddressableRainbowLightEffect',
-                                                AddressableLightEffect)
-AddressableColorWipeEffect = light_ns.class_('AddressableColorWipeEffect', AddressableLightEffect)
-AddressableColorWipeEffectColor = light_ns.struct('AddressableColorWipeEffectColor')
-AddressableScanEffect = light_ns.class_('AddressableScanEffect', AddressableLightEffect)
-AddressableTwinkleEffect = light_ns.class_('AddressableTwinkleEffect', AddressableLightEffect)
-AddressableRandomTwinkleEffect = light_ns.class_('AddressableRandomTwinkleEffect',
-                                                 AddressableLightEffect)
-AddressableFireworksEffect = light_ns.class_('AddressableFireworksEffect', AddressableLightEffect)
-AddressableFlickerEffect = light_ns.class_('AddressableFlickerEffect', AddressableLightEffect)
-
-CONF_STROBE = 'strobe'
-CONF_FLICKER = 'flicker'
-CONF_ADDRESSABLE_LAMBDA = 'addressable_lambda'
-CONF_ADDRESSABLE_RAINBOW = 'addressable_rainbow'
-CONF_ADDRESSABLE_COLOR_WIPE = 'addressable_color_wipe'
-CONF_ADDRESSABLE_SCAN = 'addressable_scan'
-CONF_ADDRESSABLE_TWINKLE = 'addressable_twinkle'
-CONF_ADDRESSABLE_RANDOM_TWINKLE = 'addressable_random_twinkle'
-CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
-CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
-
-CONF_ADD_LED_INTERVAL = 'add_led_interval'
-CONF_REVERSE = 'reverse'
-CONF_MOVE_INTERVAL = 'move_interval'
-CONF_TWINKLE_PROBABILITY = 'twinkle_probability'
-CONF_PROGRESS_INTERVAL = 'progress_interval'
-CONF_SPARK_PROBABILITY = 'spark_probability'
-CONF_USE_RANDOM_COLOR = 'use_random_color'
-CONF_FADE_OUT_RATE = 'fade_out_rate'
-CONF_INTENSITY = 'intensity'
-
-BINARY_EFFECTS = [CONF_LAMBDA, CONF_STROBE]
-MONOCHROMATIC_EFFECTS = BINARY_EFFECTS + [CONF_FLICKER]
-RGB_EFFECTS = MONOCHROMATIC_EFFECTS + [CONF_RANDOM]
-ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_RAINBOW,
-                                     CONF_ADDRESSABLE_COLOR_WIPE, CONF_ADDRESSABLE_SCAN,
-                                     CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
-                                     CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
-
-EFFECTS_SCHEMA = cv.Schema({
-    vol.Optional(CONF_LAMBDA): cv.Schema({
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_LAMBDA): cv.lambda_,
-        vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_RANDOM): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(RandomLightEffect),
-        vol.Optional(CONF_NAME, default="Random"): cv.string,
-        vol.Optional(CONF_TRANSITION_LENGTH): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_STROBE): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(StrobeLightEffect),
-        vol.Optional(CONF_NAME, default="Strobe"): cv.string,
-        vol.Optional(CONF_COLORS): vol.All(cv.ensure_list(cv.Schema({
-            vol.Optional(CONF_STATE, default=True): cv.boolean,
-            vol.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-            vol.Optional(CONF_RED, default=1.0): cv.percentage,
-            vol.Optional(CONF_GREEN, default=1.0): cv.percentage,
-            vol.Optional(CONF_BLUE, default=1.0): cv.percentage,
-            vol.Optional(CONF_WHITE, default=1.0): cv.percentage,
-            vol.Required(CONF_DURATION): cv.positive_time_period_milliseconds,
-        }), cv.has_at_least_one_key(CONF_STATE, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE,
-                                    CONF_WHITE)), vol.Length(min=2)),
-    }),
-    vol.Optional(CONF_FLICKER): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(FlickerLightEffect),
-        vol.Optional(CONF_NAME, default="Flicker"): cv.string,
-        vol.Optional(CONF_ALPHA): cv.percentage,
-        vol.Optional(CONF_INTENSITY): cv.percentage,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_LAMBDA): cv.Schema({
-        vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_LAMBDA): cv.lambda_,
-        vol.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_RAINBOW): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRainbowLightEffect),
-        vol.Optional(CONF_NAME, default="Rainbow"): cv.string,
-        vol.Optional(CONF_SPEED): cv.uint32_t,
-        vol.Optional(CONF_WIDTH): cv.uint32_t,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_COLOR_WIPE): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableColorWipeEffect),
-        vol.Optional(CONF_NAME, default="Color Wipe"): cv.string,
-        vol.Optional(CONF_COLORS): cv.ensure_list({
-            vol.Optional(CONF_RED, default=1.0): cv.percentage,
-            vol.Optional(CONF_GREEN, default=1.0): cv.percentage,
-            vol.Optional(CONF_BLUE, default=1.0): cv.percentage,
-            vol.Optional(CONF_WHITE, default=1.0): cv.percentage,
-            vol.Optional(CONF_RANDOM, default=False): cv.boolean,
-            vol.Required(CONF_NUM_LEDS): vol.All(cv.uint32_t, vol.Range(min=1)),
-        }),
-        vol.Optional(CONF_ADD_LED_INTERVAL): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_REVERSE): cv.boolean,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_SCAN): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableScanEffect),
-        vol.Optional(CONF_NAME, default="Scan"): cv.string,
-        vol.Optional(CONF_MOVE_INTERVAL): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_TWINKLE): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableTwinkleEffect),
-        vol.Optional(CONF_NAME, default="Twinkle"): cv.string,
-        vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
-        vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_RANDOM_TWINKLE): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableRandomTwinkleEffect),
-        vol.Optional(CONF_NAME, default="Random Twinkle"): cv.string,
-        vol.Optional(CONF_TWINKLE_PROBABILITY): cv.percentage,
-        vol.Optional(CONF_PROGRESS_INTERVAL): cv.positive_time_period_milliseconds,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_FIREWORKS): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFireworksEffect),
-        vol.Optional(CONF_NAME, default="Fireworks"): cv.string,
-        vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_SPARK_PROBABILITY): cv.percentage,
-        vol.Optional(CONF_USE_RANDOM_COLOR): cv.boolean,
-        vol.Optional(CONF_FADE_OUT_RATE): cv.uint8_t,
-    }),
-    vol.Optional(CONF_ADDRESSABLE_FLICKER): cv.Schema({
-        cv.GenerateID(CONF_EFFECT_ID): cv.declare_variable_id(AddressableFlickerEffect),
-        vol.Optional(CONF_NAME, default="Addressable Flicker"): cv.string,
-        vol.Optional(CONF_UPDATE_INTERVAL): cv.positive_time_period_milliseconds,
-        vol.Optional(CONF_INTENSITY): cv.percentage,
-    }),
-})
-
-
-def validate_effects(allowed_effects):
-    def validator(value):
-        is_list = isinstance(value, list)
-        if not is_list:
-            value = [value]
-        names = set()
-        ret = []
-        errors = []
-        for i, effect in enumerate(value):
-            path = [i] if is_list else []
-            if not isinstance(effect, dict):
-                errors.append(
-                    vol.Invalid("Each effect must be a dictionary, not {}".format(type(value)),
-                                path)
-                )
-                continue
-            if len(effect) > 1:
-                errors.append(
-                    vol.Invalid("Each entry in the 'effects:' option must be a single effect.",
-                                path)
-                )
-                continue
-            if not effect:
-                errors.append(
-                    vol.Invalid("Found no effect for the {}th entry in 'effects:'!".format(i),
-                                path)
-                )
-                continue
-            key = next(iter(effect.keys()))
-            if key.startswith('fastled'):
-                errors.append(
-                    vol.Invalid("FastLED effects have been renamed to addressable effects. "
-                                "Please use '{}'".format(key.replace('fastled', 'addressable')),
-                                path)
-                )
-                continue
-            if key not in allowed_effects:
-                errors.append(
-                    vol.Invalid("The effect '{}' does not exist or is not allowed for this "
-                                "light type".format(key), path)
-                )
-                continue
-            effect[key] = effect[key] or {}
-            try:
-                conf = EFFECTS_SCHEMA(effect)
-            except vol.Invalid as err:
-                err.prepend(path)
-                errors.append(err)
-                continue
-            name = conf[key][CONF_NAME]
-            if name in names:
-                errors.append(
-                    vol.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                                u"unique names".format(name), [i])
-                )
-                continue
-            names.add(name)
-            ret.append(conf)
-        if errors:
-            raise vol.MultipleInvalid(errors)
-        return ret
-
-    return validator
-
+LightRestoreMode = light_ns.enum('LightRestoreMode')
+RESTORE_MODES = {
+    'RESTORE_DEFAULT_OFF': LightRestoreMode.LIGHT_RESTORE_DEFAULT_OFF,
+    'RESTORE_DEFAULT_ON': LightRestoreMode.LIGHT_RESTORE_DEFAULT_ON,
+    'ALWAYS_OFF': LightRestoreMode.LIGHT_ALWAYS_OFF,
+    'ALWAYS_ON': LightRestoreMode.LIGHT_ALWAYS_ON,
+}
 
 LIGHT_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_variable_id(LightState),
-    cv.GenerateID(CONF_MQTT_ID): cv.declare_variable_id(MQTTJSONLightComponent),
+    cv.GenerateID(): cv.declare_id(LightState),
+    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTJSONLightComponent),
+    cv.Optional(CONF_RESTORE_MODE, default='restore_default_off'):
+        cv.enum(RESTORE_MODES, upper=True, space='_'),
 })
 
-LIGHT_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend(LIGHT_SCHEMA.schema)
+BINARY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
+    cv.Optional(CONF_EFFECTS): validate_effects(BINARY_EFFECTS),
+})
+
+BRIGHTNESS_ONLY_LIGHT_SCHEMA = LIGHT_SCHEMA.extend({
+    cv.Optional(CONF_GAMMA_CORRECT, default=2.8): cv.positive_float,
+    cv.Optional(CONF_DEFAULT_TRANSITION_LENGTH, default='1s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_EFFECTS): validate_effects(MONOCHROMATIC_EFFECTS),
+})
+
+RGB_LIGHT_SCHEMA = BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
+    cv.Optional(CONF_EFFECTS): validate_effects(RGB_EFFECTS),
+})
+
+ADDRESSABLE_LIGHT_SCHEMA = RGB_LIGHT_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(AddressableLightState),
+    cv.Optional(CONF_EFFECTS): validate_effects(ADDRESSABLE_EFFECTS),
+    cv.Optional(CONF_COLOR_CORRECT): cv.All([cv.percentage], cv.Length(min=3, max=4)),
+    cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+})
 
 
-def build_effect(full_config):
-    key, config = next(iter(full_config.items()))
-    if key == CONF_LAMBDA:
-        lambda_ = None
-        for lambda_ in process_lambda(config[CONF_LAMBDA], [], return_type=void):
-            yield None
-        yield LambdaLightEffect.new(config[CONF_NAME], lambda_, config[CONF_UPDATE_INTERVAL])
-    elif key == CONF_RANDOM:
-        rhs = RandomLightEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_TRANSITION_LENGTH in config:
-            add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
-        if CONF_UPDATE_INTERVAL in config:
-            add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-        yield effect
-    elif key == CONF_STROBE:
-        rhs = StrobeLightEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        colors = []
-        for color in config.get(CONF_COLORS, []):
-            colors.append(StructInitializer(
-                StrobeLightEffectColor,
-                ('color', LightColorValues(color[CONF_STATE], color[CONF_BRIGHTNESS],
-                                           color[CONF_RED], color[CONF_GREEN], color[CONF_BLUE],
-                                           color[CONF_WHITE])),
-                ('duration', color[CONF_DURATION]),
-            ))
-        if colors:
-            add(effect.set_colors(colors))
-        yield effect
-    elif key == CONF_FLICKER:
-        rhs = FlickerLightEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_ALPHA in config:
-            add(effect.set_alpha(config[CONF_ALPHA]))
-        if CONF_INTENSITY in config:
-            add(effect.set_intensity(config[CONF_INTENSITY]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_LAMBDA:
-        args = [(AddressableLightRef, 'it')]
-        for lambda_ in process_lambda(config[CONF_LAMBDA], args, return_type=void):
-            yield None
-        yield AddressableLambdaLightEffect.new(config[CONF_NAME], lambda_,
-                                               config[CONF_UPDATE_INTERVAL])
-    elif key == CONF_ADDRESSABLE_RAINBOW:
-        rhs = AddressableRainbowLightEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_SPEED in config:
-            add(effect.set_speed(config[CONF_SPEED]))
-        if CONF_WIDTH in config:
-            add(effect.set_width(config[CONF_WIDTH]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_COLOR_WIPE:
-        rhs = AddressableColorWipeEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_ADD_LED_INTERVAL in config:
-            add(effect.set_add_led_interval(config[CONF_ADD_LED_INTERVAL]))
-        if CONF_REVERSE in config:
-            add(effect.set_reverse(config[CONF_REVERSE]))
-        colors = []
-        for color in config.get(CONF_COLORS, []):
-            colors.append(StructInitializer(
-                AddressableColorWipeEffectColor,
-                ('r', int(round(color[CONF_RED] * 255))),
-                ('g', int(round(color[CONF_GREEN] * 255))),
-                ('b', int(round(color[CONF_BLUE] * 255))),
-                ('w', int(round(color[CONF_WHITE] * 255))),
-                ('random', color[CONF_RANDOM]),
-                ('num_leds', color[CONF_NUM_LEDS]),
-            ))
-        if colors:
-            add(effect.set_colors(colors))
-        yield effect
-    elif key == CONF_ADDRESSABLE_SCAN:
-        rhs = AddressableScanEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_MOVE_INTERVAL in config:
-            add(effect.set_move_interval(config[CONF_MOVE_INTERVAL]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_TWINKLE:
-        rhs = AddressableTwinkleEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_TWINKLE_PROBABILITY in config:
-            add(effect.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
-        if CONF_PROGRESS_INTERVAL in config:
-            add(effect.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_RANDOM_TWINKLE:
-        rhs = AddressableRandomTwinkleEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_TWINKLE_PROBABILITY in config:
-            add(effect.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
-        if CONF_PROGRESS_INTERVAL in config:
-            add(effect.set_progress_interval(config[CONF_PROGRESS_INTERVAL]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_FIREWORKS:
-        rhs = AddressableFireworksEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_UPDATE_INTERVAL in config:
-            add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-        if CONF_SPARK_PROBABILITY in config:
-            add(effect.set_spark_probability(config[CONF_SPARK_PROBABILITY]))
-        if CONF_USE_RANDOM_COLOR in config:
-            add(effect.set_spark_probability(config[CONF_USE_RANDOM_COLOR]))
-        if CONF_FADE_OUT_RATE in config:
-            add(effect.set_spark_probability(config[CONF_FADE_OUT_RATE]))
-        yield effect
-    elif key == CONF_ADDRESSABLE_FLICKER:
-        rhs = AddressableFlickerEffect.new(config[CONF_NAME])
-        effect = Pvariable(config[CONF_EFFECT_ID], rhs)
-        if CONF_UPDATE_INTERVAL in config:
-            add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
-        if CONF_INTENSITY in config:
-            add(effect.set_intensity(config[CONF_INTENSITY]))
-        yield effect
-    else:
-        raise NotImplementedError("Effect {} not implemented".format(next(config.keys())))
-
-
-def setup_light_core_(light_var, config):
+@coroutine
+def setup_light_core_(light_var, output_var, config):
+    cg.add(light_var.set_restore_mode(config[CONF_RESTORE_MODE]))
     if CONF_INTERNAL in config:
-        add(light_var.set_internal(config[CONF_INTERNAL]))
+        cg.add(light_var.set_internal(config[CONF_INTERNAL]))
     if CONF_DEFAULT_TRANSITION_LENGTH in config:
-        add(light_var.set_default_transition_length(config[CONF_DEFAULT_TRANSITION_LENGTH]))
+        cg.add(light_var.set_default_transition_length(config[CONF_DEFAULT_TRANSITION_LENGTH]))
     if CONF_GAMMA_CORRECT in config:
-        add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
-    effects = []
-    for conf in config.get(CONF_EFFECTS, []):
-        for effect in build_effect(conf):
-            yield
-        effects.append(effect)
-    if effects:
-        add(light_var.add_effects(effects))
+        cg.add(light_var.set_gamma_correct(config[CONF_GAMMA_CORRECT]))
+    effects = yield cg.build_registry_list(EFFECTS_REGISTRY, config.get(CONF_EFFECTS, []))
+    cg.add(light_var.add_effects(effects))
 
-    setup_mqtt_component(light_var.Pget_mqtt(), config)
+    if CONF_COLOR_CORRECT in config:
+        cg.add(output_var.set_correction(*config[CONF_COLOR_CORRECT]))
 
+    if CONF_POWER_SUPPLY in config:
+        var_ = yield cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(output_var.set_power_supply(var_))
 
-def setup_light(light_obj, config):
-    light_var = Pvariable(config[CONF_ID], light_obj, has_side_effects=False)
-    CORE.add_job(setup_light_core_, light_var, config)
-
-
-BUILD_FLAGS = '-DUSE_LIGHT'
-
-CONF_LIGHT_TOGGLE = 'light.toggle'
-LIGHT_TOGGLE_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(LightState),
-    vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
-})
+    if CONF_MQTT_ID in config:
+        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
+        yield mqtt.register_mqtt_component(mqtt_, config)
 
 
-@ACTION_REGISTRY.register(CONF_LIGHT_TOGGLE, LIGHT_TOGGLE_ACTION_SCHEMA)
-def light_toggle_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_toggle_action(template_arg)
-    type = ToggleAction.template(template_arg)
-    action = Pvariable(action_id, rhs, type=type)
-    if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
-        add(action.set_transition_length(template_))
-    yield action
+@coroutine
+def register_light(output_var, config):
+    light_var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], output_var)
+    cg.add(cg.App.register_light(light_var))
+    yield cg.register_component(light_var, config)
+    yield setup_light_core_(light_var, output_var, config)
 
 
-CONF_LIGHT_TURN_OFF = 'light.turn_off'
-LIGHT_TURN_OFF_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(LightState),
-    vol.Optional(CONF_TRANSITION_LENGTH): cv.templatable(cv.positive_time_period_milliseconds),
-})
-
-
-@ACTION_REGISTRY.register(CONF_LIGHT_TURN_OFF, LIGHT_TURN_OFF_ACTION_SCHEMA)
-def light_turn_off_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_turn_off_action(template_arg)
-    type = TurnOffAction.template(template_arg)
-    action = Pvariable(action_id, rhs, type=type)
-    if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
-        add(action.set_transition_length(template_))
-    yield action
-
-
-CONF_LIGHT_TURN_ON = 'light.turn_on'
-LIGHT_TURN_ON_ACTION_SCHEMA = maybe_simple_id({
-    vol.Required(CONF_ID): cv.use_variable_id(LightState),
-    vol.Exclusive(CONF_TRANSITION_LENGTH, 'transformer'):
-        cv.templatable(cv.positive_time_period_milliseconds),
-    vol.Exclusive(CONF_FLASH_LENGTH, 'transformer'):
-        cv.templatable(cv.positive_time_period_milliseconds),
-    vol.Optional(CONF_BRIGHTNESS): cv.templatable(cv.percentage),
-    vol.Optional(CONF_RED): cv.templatable(cv.percentage),
-    vol.Optional(CONF_GREEN): cv.templatable(cv.percentage),
-    vol.Optional(CONF_BLUE): cv.templatable(cv.percentage),
-    vol.Optional(CONF_WHITE): cv.templatable(cv.percentage),
-    vol.Optional(CONF_COLOR_TEMPERATURE): cv.templatable(cv.positive_float),
-    vol.Optional(CONF_EFFECT): cv.templatable(cv.string),
-})
-
-
-@ACTION_REGISTRY.register(CONF_LIGHT_TURN_ON, LIGHT_TURN_ON_ACTION_SCHEMA)
-def light_turn_on_to_code(config, action_id, template_arg, args):
-    for var in get_variable(config[CONF_ID]):
-        yield None
-    rhs = var.make_turn_on_action(template_arg)
-    type = TurnOnAction.template(template_arg)
-    action = Pvariable(action_id, rhs, type=type)
-    if CONF_TRANSITION_LENGTH in config:
-        for template_ in templatable(config[CONF_TRANSITION_LENGTH], args, uint32):
-            yield None
-        add(action.set_transition_length(template_))
-    if CONF_FLASH_LENGTH in config:
-        for template_ in templatable(config[CONF_FLASH_LENGTH], args, uint32):
-            yield None
-        add(action.set_flash_length(template_))
-    if CONF_BRIGHTNESS in config:
-        for template_ in templatable(config[CONF_BRIGHTNESS], args, float_):
-            yield None
-        add(action.set_brightness(template_))
-    if CONF_RED in config:
-        for template_ in templatable(config[CONF_RED], args, float_):
-            yield None
-        add(action.set_red(template_))
-    if CONF_GREEN in config:
-        for template_ in templatable(config[CONF_GREEN], args, float_):
-            yield None
-        add(action.set_green(template_))
-    if CONF_BLUE in config:
-        for template_ in templatable(config[CONF_BLUE], args, float_):
-            yield None
-        add(action.set_blue(template_))
-    if CONF_WHITE in config:
-        for template_ in templatable(config[CONF_WHITE], args, float_):
-            yield None
-        add(action.set_white(template_))
-    if CONF_COLOR_TEMPERATURE in config:
-        for template_ in templatable(config[CONF_COLOR_TEMPERATURE], args, float_):
-            yield None
-        add(action.set_color_temperature(template_))
-    if CONF_EFFECT in config:
-        for template_ in templatable(config[CONF_EFFECT], args, std_string):
-            yield None
-        add(action.set_effect(template_))
-    yield action
+@coroutine_with_priority(100.0)
+def to_code(config):
+    cg.add_define('USE_LIGHT')
+    cg.add_global(light_ns.using)

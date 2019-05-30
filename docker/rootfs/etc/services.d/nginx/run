@@ -4,5 +4,11 @@
 # Runs the NGINX proxy
 # ==============================================================================
 
+bashio::log.info "Waiting for dashboard to come up..."
+
+while [[ ! -S /var/run/esphome.sock ]]; do
+  sleep 0.5
+done
+
 bashio::log.info "Starting NGINX..."
-exec nginx -g "daemon off;"
+exec nginx

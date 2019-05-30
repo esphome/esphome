@@ -2,12 +2,6 @@ esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s
-  # Use this for testing while developing:
-  # Note the travis check for esphome PRs will fail until the
-  # esphome-core PR has been merged.
-  # esphome_core_version:
-  #   local: ~/path/to/esphome-core
-  use_custom_code: false
   on_boot:
     priority: 150.0
     then:
@@ -21,6 +15,14 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
+      - light.addressable_set:
+          id: addr1
+          range_from: 0
+          range_to: 100
+          red: 100%
+          green: !lambda 'return 255;'
+          blue: 0%
+          white: 100%
   build_path: build/test1
 
 wifi:
@@ -82,22 +84,33 @@ mqtt:
         condition:
           - wifi.connected:
           - mqtt.connected:
+          - light.is_on: kitchen
+          - light.is_off: kitchen
         then:
         - lambda: |-
             int data = x["my_data"];
             ESP_LOGD("main", "The data is: %d", data);
         - light.turn_on:
             id: living_room_lights
-            transition_length: !lambda |-
-              int length = 1000;
-              if (x.containsKey("length"))
-                length = x["length"];
-              return length;
+            brightness: !lambda |-
+              float brightness = 1.0;
+              if (x.containsKey("brightness"))
+                brightness = x["brightness"];
+              return brightness;
             effect: !lambda |-
               const char *effect = "None";
               if (x.containsKey("effect"))
                 effect = x["effect"];
               return effect;
+        - light.control:
+            id: living_room_lights
+            brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+        - uart.write:
+            id: uart0
+            data: Hello World
+        - uart.write: [0x00, 0x20, 0x30]
+        - uart.write: !lambda |-
+            return {};
 
 i2c:
   sda: 21
@@ -115,6 +128,7 @@ uart:
   tx_pin: GPIO22
   rx_pin: GPIO23
   baud_rate: 115200
+  id: uart0
 
 ota:
   safe_mode: True
@@ -217,6 +231,8 @@ sensor:
           payload: Hello
           qos: 2
           retain: True
+  - platform: esp32_hall
+    name: ESP32 Hall Sensor
   - platform: ads1115
     multiplexer: 'A0_A1'
     gain: 1.024
@@ -439,6 +455,9 @@ sensor:
     resolution: 4
     min_value: -10
     max_value: 30
+  - platform: pulse_width
+    name: Pulse Width
+    pin: GPIO12
   - platform: sht3xd
     temperature:
       name: "Living Room Temperature 8"
@@ -501,6 +520,13 @@ sensor:
       name: "SDS011 PM10.0"
     update_interval: 5min
     rx_only: false
+  - platform: ccs811
+    eco2:
+      name: CCS811 eCO2
+    tvoc:
+      name: CCS811 TVOC
+    update_interval: 30s
+    baseline: 0x4242
 
 
 esp32_touch:
@@ -709,18 +735,6 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
-  - platform: copy
-    id: my_copy1
-    outputs:
-      - my_1
-      - my_2
-      - my_3
-  - platform: copy
-    id: my_copy2
-    type: binary
-    outputs:
-      - id22
-      - id2
 
 light:
   - platform: binary
@@ -834,6 +848,20 @@ light:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
+    - automation:
+        name: Custom Effect
+        sequence:
+          - light.addressable_set:
+              id: addr1
+              red: 100%
+              green: 100%
+              blue: 0%
+          - delay: 100ms
+          - light.addressable_set:
+              id: addr1
+              red: 0%
+              green: 100%
+              blue: 0%
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
@@ -874,6 +902,23 @@ light:
 
 remote_transmitter:
   - pin: 32
+    carrier_duty_percent: 100%
+
+climate:
+  - platform: tcl112
+    name: TCL112 Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: tcl112
+    name: TCL112 Climate
+  - platform: coolix
+    name: Coolix Climate With Sensor
+    supports_heat: True
+    supports_cool: True
+    sensor: my_sensor
+  - platform: coolix
+    name: Coolix Climate
 
 switch:
   - platform: gpio
@@ -883,92 +928,94 @@ switch:
     inverted: True
     command_topic: custom_command_topic
     restore_mode: ALWAYS_OFF
-  - platform: remote_transmitter
-    name: "JVC Off"
-    jvc:
-      data: 0x10EF
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    nec:
-      address: 0x4242
-      command: 0x8484
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    lg:
-      data: 4294967295
-      nbits: 28
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    samsung:
-      data: 0xABCDEF
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    sony:
-      data: 0xABCDEF
-      nbits: 12
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    panasonic:
-      address: 0x4004
-      command: 0x1000BCD
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    rc_switch_raw:
-      code: '001010011001111101011011'
-      protocol: 1
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    rc_switch_type_a:
-      group: '11001'
-      device: '01000'
-      state: True
-      protocol:
-        pulse_length: 175
-        sync: [1, 31]
-        zero: [1, 3]
-        one: [3, 1]
-        inverted: False
-    repeat: 25
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    rc_switch_type_b:
-      address: 4
-      channel: 2
-      state: True
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    rc_switch_type_c:
-      family: 'a'
-      group: 1
-      device: 2
-      state: True
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
+  - platform: template
+    name: JVC Off
     id: living_room_lights_on
-    rc_switch_type_d:
-      group: 'a'
-      device: 2
-      state: True
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
-    rc5:
-      address: 0x00
-      command: 0x0B
-  - platform: remote_transmitter
-    name: "Panasonic TV Off"
+    turn_on_action:
+      remote_transmitter.transmit_jvc:
+        data: 0x10EF
+  - platform: template
+    name: NEC
     id: living_room_lights_off
-    raw:
-      carrier_frequency: 35kHz
-      data:
-      - 1000
-      - -1000
+    turn_on_action:
+      remote_transmitter.transmit_nec:
+        address: 0x4242
+        command: 0x8484
+  - platform: template
+    name: LG
+    turn_on_action:
+      remote_transmitter.transmit_lg:
+        data: 4294967295
+        nbits: 28
+  - platform: template
+    name: Samsung
+    turn_on_action:
+      remote_transmitter.transmit_samsung:
+        data: 0xABCDEF
+  - platform: template
+    name: Sony
+    turn_on_action:
+      remote_transmitter.transmit_sony:
+        data: 0xABCDEF
+        nbits: 12
+  - platform: template
+    name: Panasonic
+    turn_on_action:
+      remote_transmitter.transmit_panasonic:
+        address: 0x4004
+        command: 0x1000BCD
+  - platform: template
+    name: RC Switch Raw
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_raw:
+        code: '001010011001111101011011'
+        protocol: 1
+  - platform: template
+    name: RC Switch Type A
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_a:
+        group: '11001'
+        device: '01000'
+        state: True
+        protocol:
+          pulse_length: 175
+          sync: [1, 31]
+          zero: [1, 3]
+          one: [3, 1]
+          inverted: False
+  - platform: template
+    name: RC Switch Type B
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_b:
+        address: 4
+        channel: 2
+        state: True
+  - platform: template
+    name: RC Switch Type C
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_c:
+        family: 'a'
+        group: 1
+        device: 2
+        state: True
+  - platform: template
+    name: RC Switch Type D
+    turn_on_action:
+      remote_transmitter.transmit_rc_switch_type_d:
+        group: 'a'
+        device: 2
+        state: True
+  - platform: template
+    name: RC5
+    turn_on_action:
+      remote_transmitter.transmit_rc5:
+        address: 0x00
+        command: 0x0B
+  - platform: template
+    name: RC5
+    turn_on_action:
+      remote_transmitter.transmit_raw:
+        code: [1000, -1000]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights
@@ -1061,8 +1108,8 @@ interval:
     then:
     - display.page.show: !lambda |-
         if (true) return id(page1); else return id(page2);
-    -  display.page.show_next: display
-    -  display.page.show_previous: display
+    -  display.page.show_next: display1
+    -  display.page.show_previous: display1
 
 display:
 - platform: lcd_gpio
@@ -1094,7 +1141,7 @@ display:
   model: "SSD1306 128x64"
   reset_pin: GPIO23
   address: 0x3C
-  id: display
+  id: display1
   pages:
     - id: page1
       lambda: |-
@@ -1138,6 +1185,8 @@ pn532:
 
 rdm6300:
 
+gps:
+
 time:
 - platform: sntp
   id: sntp_time
@@ -1149,6 +1198,7 @@ time:
     cron: '/30 0-30,30/5 * ? JAN-DEC MON,SAT-SUN,TUE-FRI'
     then:
       - lambda: 'ESP_LOGD("main", "time");'
+- platform: gps
 
 cover:
   - platform: template
@@ -1156,7 +1206,7 @@ cover:
     id: template_cover
     lambda: |-
       if (id(binary_sensor1).state) {
-        return cover::COVER_OPEN;
+        return COVER_OPEN;
       } else {
         return {};
       }

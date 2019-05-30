@@ -1,0 +1,17 @@
+server {
+    listen %%port%% default_server ssl http2;
+
+    include /etc/nginx/includes/server_params.conf;
+    include /etc/nginx/includes/proxy_params.conf;
+    include /etc/nginx/includes/ssl_params.conf;
+    # Clear Hass.io Ingress header
+    proxy_set_header X-Hassio-Ingress "";
+
+    # Redirect http requests to https on the same port.
+    # https://rageagainstshell.com/2016/11/redirect-http-to-https-on-the-same-port-in-nginx/
+    error_page 497 https://$http_host$request_uri;
+
+    location / {
+        proxy_pass http://esphome;
+    }
+}

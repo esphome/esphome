@@ -1,0 +1,12 @@
+server {
+    listen %%port%% default_server;
+
+    include /etc/nginx/includes/server_params.conf;
+    include /etc/nginx/includes/proxy_params.conf;
+    # Clear Hass.io Ingress header
+    proxy_set_header X-Hassio-Ingress "";
+
+    location / {
+        proxy_pass http://esphome;
+    }
+}

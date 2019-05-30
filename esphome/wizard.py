@@ -7,7 +7,6 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.const import ESP_PLATFORMS, ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266
 from esphome.helpers import color, get_bool_env
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
@@ -61,11 +60,15 @@ api:
 """
 
 
+def sanitize_double_quotes(value):
+    return value.replace('\\', '\\\\').replace('"', '\\"')
+
+
 def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u"  password: '{0}'\n\nota:\n  password: '{0}'\n".format(kwargs['password'])
+        config += u'  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
     else:
         config += u"\nota:\n"
 
@@ -75,6 +78,11 @@ def wizard_file(**kwargs):
 def wizard_write(path, **kwargs):
     name = kwargs['name']
     board = kwargs['board']
+
+    kwargs['ssid'] = sanitize_double_quotes(kwargs['ssid'])
+    kwargs['psk'] = sanitize_double_quotes(kwargs['psk'])
+    kwargs['password'] = sanitize_double_quotes(kwargs['password'])
+
     if 'platform' not in kwargs:
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
@@ -168,7 +176,7 @@ def wizard(path):
         safe_print("Please enter either ESP32 or ESP8266.")
         platform = safe_input(color("bold_white", "(ESP32/ESP8266): "))
         try:
-            platform = vol.All(vol.Upper, vol.Any(*ESP_PLATFORMS))(platform)
+            platform = vol.All(vol.Upper, vol.Any('ESP32', 'ESP8266'))(platform)
             break
         except vol.Invalid:
             safe_print(u"Unfortunately, I can't find an espressif microcontroller called "
@@ -177,7 +185,7 @@ def wizard(path):
     safe_print()
     sleep(1)
 
-    if platform == ESP_PLATFORM_ESP32:
+    if platform == 'ESP32':
         board_link = 'http://docs.platformio.org/en/latest/platforms/espressif32.html#boards'
     else:
         board_link = 'http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards'
@@ -185,11 +193,11 @@ def wizard(path):
     safe_print("Next, I need to know what " + color('green', 'board') + " you're using.")
     sleep(0.5)
     safe_print("Please go to {} and choose a board.".format(color('green', board_link)))
-    if platform == ESP_PLATFORM_ESP8266:
+    if platform == 'ESP32':
         safe_print("(Type " + color('green', 'esp01_1m') + " for Sonoff devices)")
     safe_print()
     # Don't sleep because user needs to copy link
-    if platform == ESP_PLATFORM_ESP32:
+    if platform == 'ESP32':
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcu-32s')))
         boards = list(ESP32_BOARD_PINS.keys())
     else:

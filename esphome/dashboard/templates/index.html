@@ -16,7 +16,6 @@
 
   <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <script>const relative_url = "{{ relative_url }}";</script>
 
   {% if streamer_mode %}
     <style>
@@ -68,6 +67,9 @@
           <div class="card-content">
             <span class="card-title">
               {{ escape(entry.name) }}
+              {% if 'web_server' in entry.loaded_integrations %}
+                <a href="http://{{ escape(entry.address) }}" target="_blank"><i class="material-icons icon-grey">launch</i></a>
+              {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
             <p>
@@ -86,7 +88,7 @@
           <div class="card-action">
             <a class="action-upload" data-node="{{ entry.filename }}">Upload</a>
             <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
-            <a class="action-show-logs" data-node="{{ entry.filename }}">Show Logs</a>
+            <a class="action-logs" data-node="{{ entry.filename }}">Show Logs</a>
             <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
           </div>
           <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action">
@@ -122,8 +124,14 @@
        class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
       <i class="material-icons flash-using-esphomeflasher">help_outline</i>
     </a>
+    <a class="modal-close waves-effect waves-green btn-flat action-edit edit-after-upload">Edit</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+    <div class="btn-flat"><i class="material-icons dropdown-trigger" data-target="dropdown-upload-actions">more_vert</i></div>
   </div>
+  <ul id="dropdown-upload-actions" class="select-action dropdown-content card-dropdown-action">
+    <li><a class="modal-close waves-effect waves-green btn-flat disabled download-after-upload">Download Binary</a></li>
+    <li><a class="waves-effect waves-green btn-flat disabled action-upload retry-upload">Retry</a></li>
+  </ul>
 </div>
 
 <div id="modal-compile" class="modal modal-fixed-footer">
@@ -148,13 +156,15 @@
     <pre class="log"></pre>
   </div>
   <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat action-edit">Edit</a>
+    <a class="modal-close waves-effect waves-green btn-flat action-upload">Upload</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
 
 <div id="modal-wizard" class="modal">
   <div class="modal-content">
-    <form action="/wizard.html" method="POST">
+    <form action="./wizard.html" method="POST">
     <ul class="stepper linear">
       <li class="step active">
         <div class="step-title waves-effect">Introduction And Name</div>
@@ -188,7 +198,7 @@
               <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>)
             </p>
             <div class="input-field col s12">
-              <input id="node_name" class="validate" type="text" name="name" required>
+              <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true" data-rule-lowercase="true" required>
               <label for="node_name">Name of node</label>
             </div>
           </div>
@@ -206,8 +216,7 @@
               Please choose the board you're using below.
             </p>
             <p>
-              If you're not sure you can also use similar ones or even the
-              "Generic" option. In most cases that will work too.
+              <em>If unsure you can also select a similar board or choose the "Generic" option.</em>
             </p>
             <div class="input-field col s12">
               <select id="board" name="board" required>
@@ -431,6 +440,7 @@
   </div>
   <div class="modal-footer">
     <a class="waves-effect waves-green btn-flat save-button">Save</a>
+    <a class="modal-close waves-effect waves-green btn-flat action-upload editor-upload-button">Upload</a>
     <a class="modal-close waves-effect waves-green btn-flat">Close</a>
   </div>
 </div>

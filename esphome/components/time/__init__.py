@@ -1,27 +1,27 @@
+import bisect
 import datetime
 import logging
 import math
 
-import voluptuous as vol
+import pytz
+import tzlocal
 
-from esphome import automation
+import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF_HOURS, \
-    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID
-from esphome.core import CORE
-from esphome.cpp_generator import Pvariable, add
-from esphome.cpp_types import App, Component, Trigger, esphome_ns
+    CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
+    CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
+from esphome.core import coroutine, coroutine_with_priority
 from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORM_SCHEMA = cv.PLATFORM_SCHEMA.extend({
+IS_PLATFORM_COMPONENT = True
 
-})
-
-time_ns = esphome_ns.namespace('time')
-RealTimeClockComponent = time_ns.class_('RealTimeClockComponent', Component)
-CronTrigger = time_ns.class_('CronTrigger', Trigger.template(), Component)
+time_ns = cg.esphome_ns.namespace('time')
+RealTimeClock = time_ns.class_('RealTimeClock', cg.Component)
+CronTrigger = time_ns.class_('CronTrigger', automation.Trigger.template(), cg.Component)
 ESPTime = time_ns.struct('ESPTime')
 
 
@@ -55,72 +55,46 @@ def _tz_dst_str(dt):
 def convert_tz(pytz_obj):
     tz = pytz_obj
 
-    def _dst(dt, is_dst):
-        try:
-            return tz.dst(dt, is_dst=is_dst)
-        except TypeError:  # stupid pytz...
-            return tz.dst(dt)
+    now = datetime.datetime.now()
+    first_january = datetime.datetime(year=now.year, month=1, day=1)
 
-    def _tzname(dt, is_dst):
-        try:
-            return tz.tzname(dt, is_dst=is_dst)
-        except TypeError:  # stupid pytz...
-            return tz.tzname(dt)
-
-    def _utcoffset(dt, is_dst):
-        try:
-            return tz.utcoffset(dt, is_dst=is_dst)
-        except TypeError:  # stupid pytz...
-            return tz.utcoffset(dt)
-
-    dst_begins = None
-    dst_tzname = None
-    dst_utcoffset = None
-    dst_ends = None
-    norm_tzname = None
-    norm_utcoffset = None
-
-    hour = datetime.timedelta(hours=1)
-    this_year = datetime.datetime.now().year
-    dt = datetime.datetime(year=this_year, month=1, day=1)
-    last_dst = None
-    while dt.year == this_year:
-        current_dst = _dst(dt, not last_dst)
-        is_dst = bool(current_dst)
-        if is_dst != last_dst:
-            if is_dst:
-                dst_begins = dt
-                dst_tzname = _tzname(dt, True)
-                dst_utcoffset = _utcoffset(dt, True)
-            else:
-                dst_ends = dt + hour
-                norm_tzname = _tzname(dt, False)
-                norm_utcoffset = _utcoffset(dt, False)
-            last_dst = is_dst
-        dt += hour
-
-    tzbase = '{}{}'.format(norm_tzname, _tz_timedelta(-1 * norm_utcoffset))
-    if dst_begins is None:
-        # No DST in this timezone
+    if not isinstance(tz, pytz.tzinfo.DstTzInfo):
+        tzname = tz.tzname(first_january)
+        utcoffset = tz.utcoffset(first_january)
         _LOGGER.info("Detected timezone '%s' with UTC offset %s",
-                     norm_tzname, _tz_timedelta(norm_utcoffset))
+                     tzname, _tz_timedelta(utcoffset))
+        tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
         return tzbase
-    tzext = '{}{},{},{}'.format(dst_tzname, _tz_timedelta(-1 * dst_utcoffset),
-                                _tz_dst_str(dst_begins), _tz_dst_str(dst_ends))
+
+    # pylint: disable=protected-access
+    transition_times = tz._utc_transition_times
+    transition_info = tz._transition_info
+    idx = max(0, bisect.bisect_right(transition_times, now))
+    idx1, idx2 = idx, idx + 1
+    dstoffset1 = transition_info[idx1][1]
+    if dstoffset1 == datetime.timedelta(seconds=0):
+        # Normalize to 1 being DST on
+        idx1, idx2 = idx + 1, idx + 2
+
+    utcoffset_on, _, tzname_on = transition_info[idx1]
+    utcoffset_off, _, tzname_off = transition_info[idx2]
+    dst_begins_utc = transition_times[idx1]
+    dst_begins_local = dst_begins_utc + utcoffset_off
+    dst_ends_utc = transition_times[idx2]
+    dst_ends_local = dst_ends_utc + utcoffset_on
+
+    tzbase = '{}{}'.format(tzname_off, _tz_timedelta(-1 * utcoffset_off))
+
+    tzext = '{}{},{},{}'.format(tzname_on, _tz_timedelta(-1 * utcoffset_on),
+                                _tz_dst_str(dst_begins_local), _tz_dst_str(dst_ends_local))
     _LOGGER.info("Detected timezone '%s' with UTC offset %s and daylight savings time from "
                  "%s to %s",
-                 norm_tzname, _tz_timedelta(norm_utcoffset), dst_begins.strftime("%x %X"),
-                 dst_ends.strftime("%x %X"))
+                 tzname_off, _tz_timedelta(utcoffset_off), dst_begins_local.strftime("%x %X"),
+                 dst_ends_local.strftime("%x %X"))
     return tzbase + tzext
 
 
 def detect_tz():
-    try:
-        import tzlocal
-        import pytz
-    except ImportError:
-        raise vol.Invalid("No timezone specified and 'tzlocal' not installed. To automatically "
-                          "detect the timezone please install tzlocal (pip install tzlocal)")
     try:
         tz = tzlocal.get_localzone()
     except pytz.exceptions.UnknownTimeZoneError:
@@ -137,7 +111,7 @@ def _parse_cron_int(value, special_mapping, message):
     try:
         return int(value)
     except ValueError:
-        raise vol.Invalid(message.format(value))
+        raise cv.Invalid(message.format(value))
 
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
@@ -146,8 +120,8 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
     if '/' in part:
         data = part.split('/')
         if len(data) > 2:
-            raise vol.Invalid(u"Can't have more than two '/' in one time expression, got {}"
-                              .format(part))
+            raise cv.Invalid(u"Can't have more than two '/' in one time expression, got {}"
+                             .format(part))
         offset, repeat = data
         offset_n = 0
         if offset:
@@ -157,14 +131,14 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         try:
             repeat_n = int(repeat)
         except ValueError:
-            raise vol.Invalid(u"Repeat for '/' time expression must be an integer, got {}"
-                              .format(repeat))
+            raise cv.Invalid(u"Repeat for '/' time expression must be an integer, got {}"
+                             .format(repeat))
         return set(x for x in range(offset_n, max_value + 1, repeat_n))
     if '-' in part:
         data = part.split('-')
         if len(data) > 2:
-            raise vol.Invalid(u"Can't have more than two '-' in range time expression '{}'"
-                              .format(part))
+            raise cv.Invalid(u"Can't have more than two '-' in range time expression '{}'"
+                             .format(part))
         begin, end = data
         begin_n = _parse_cron_int(begin, special_mapping, u"Number for time range must be integer, "
                                                           u"got {}")
@@ -184,10 +158,10 @@ def cron_expression_validator(name, min_value, max_value, special_mapping=None):
         if isinstance(value, list):
             for v in value:
                 if not isinstance(v, int):
-                    raise vol.Invalid(
+                    raise cv.Invalid(
                         "Expected integer for {} '{}', got {}".format(v, name, type(v)))
                 if v < min_value or v > max_value:
-                    raise vol.Invalid(
+                    raise cv.Invalid(
                         "{} {} is out of range (min={} max={}).".format(name, v, min_value,
                                                                         max_value))
             return list(sorted(value))
@@ -219,8 +193,8 @@ def validate_cron_raw(value):
     value = cv.string(value)
     value = value.split(' ')
     if len(value) != 6:
-        raise vol.Invalid("Cron expression must consist of exactly 6 space-separated parts, "
-                          "not {}".format(len(value)))
+        raise cv.Invalid("Cron expression must consist of exactly 6 space-separated parts, "
+                         "not {}".format(len(value)))
     seconds, minutes, hours, days_of_month, months, days_of_week = value
     return {
         CONF_SECONDS: validate_cron_seconds(seconds),
@@ -232,14 +206,36 @@ def validate_cron_raw(value):
     }
 
 
+def validate_time_at(value):
+    value = cv.time_of_day(value)
+    return {
+        CONF_HOURS: [value[CONF_HOUR]],
+        CONF_MINUTES: [value[CONF_MINUTE]],
+        CONF_SECONDS: [value[CONF_SECOND]],
+        CONF_DAYS_OF_MONTH: validate_cron_days_of_month('*'),
+        CONF_MONTHS: validate_cron_months('*'),
+        CONF_DAYS_OF_WEEK: validate_cron_days_of_week('*'),
+    }
+
+
 def validate_cron_keys(value):
     if CONF_CRON in value:
         for key in value.keys():
             if key in CRON_KEYS:
-                raise vol.Invalid("Cannot use option {} when cron: is specified.".format(key))
+                raise cv.Invalid("Cannot use option {} when cron: is specified.".format(key))
+        if CONF_AT in value:
+            raise cv.Invalid("Cannot use option at with cron!")
         cron_ = value[CONF_CRON]
         value = {x: value[x] for x in value if x != CONF_CRON}
         value.update(cron_)
+        return value
+    if CONF_AT in value:
+        for key in value.keys():
+            if key in CRON_KEYS:
+                raise cv.Invalid("Cannot use option {} when at: is specified.".format(key))
+        at_ = value[CONF_AT]
+        value = {x: value[x] for x in value if x != CONF_AT}
+        value.update(at_)
         return value
     return cv.has_at_least_one_key(*CRON_KEYS)(value)
 
@@ -248,58 +244,57 @@ def validate_tz(value):
     value = cv.string_strict(value)
 
     try:
-        import pytz
-
         return convert_tz(pytz.timezone(value))
     except Exception:  # pylint: disable=broad-except
         return value
 
 
-TIME_PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
-    vol.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
-    vol.Optional(CONF_ON_TIME): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_variable_id(CronTrigger),
-        vol.Optional(CONF_SECONDS): validate_cron_seconds,
-        vol.Optional(CONF_MINUTES): validate_cron_minutes,
-        vol.Optional(CONF_HOURS): validate_cron_hours,
-        vol.Optional(CONF_DAYS_OF_MONTH): validate_cron_days_of_month,
-        vol.Optional(CONF_MONTHS): validate_cron_months,
-        vol.Optional(CONF_DAYS_OF_WEEK): validate_cron_days_of_week,
-        vol.Optional(CONF_CRON): validate_cron_raw,
+TIME_SCHEMA = cv.Schema({
+    cv.Optional(CONF_TIMEZONE, default=detect_tz): validate_tz,
+    cv.Optional(CONF_ON_TIME): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CronTrigger),
+        cv.Optional(CONF_SECONDS): validate_cron_seconds,
+        cv.Optional(CONF_MINUTES): validate_cron_minutes,
+        cv.Optional(CONF_HOURS): validate_cron_hours,
+        cv.Optional(CONF_DAYS_OF_MONTH): validate_cron_days_of_month,
+        cv.Optional(CONF_MONTHS): validate_cron_months,
+        cv.Optional(CONF_DAYS_OF_WEEK): validate_cron_days_of_week,
+        cv.Optional(CONF_CRON): validate_cron_raw,
+        cv.Optional(CONF_AT): validate_time_at,
     }, validate_cron_keys),
 })
 
 
+@coroutine
 def setup_time_core_(time_var, config):
-    add(time_var.set_timezone(config[CONF_TIMEZONE]))
+    cg.add(time_var.set_timezone(config[CONF_TIMEZONE]))
 
     for conf in config.get(CONF_ON_TIME, []):
-        rhs = App.register_component(time_var.Pmake_cron_trigger())
-        trigger = Pvariable(conf[CONF_TRIGGER_ID], rhs)
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
         seconds = conf.get(CONF_SECONDS, [x for x in range(0, 61)])
-        add(trigger.add_seconds(seconds))
-
+        cg.add(trigger.add_seconds(seconds))
         minutes = conf.get(CONF_MINUTES, [x for x in range(0, 60)])
-        add(trigger.add_minutes(minutes))
-
+        cg.add(trigger.add_minutes(minutes))
         hours = conf.get(CONF_HOURS, [x for x in range(0, 24)])
-        add(trigger.add_hours(hours))
-
+        cg.add(trigger.add_hours(hours))
         days_of_month = conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)])
-        add(trigger.add_days_of_month(days_of_month))
-
+        cg.add(trigger.add_days_of_month(days_of_month))
         months = conf.get(CONF_MONTHS, [x for x in range(1, 13)])
-        add(trigger.add_months(months))
-
+        cg.add(trigger.add_months(months))
         days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
-        add(trigger.add_days_of_week(days_of_week))
+        cg.add(trigger.add_days_of_week(days_of_week))
 
-        automation.build_automations(trigger, [], conf)
-
-
-def setup_time(time_var, config):
-    CORE.add_job(setup_time_core_, time_var, config)
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
 
 
-BUILD_FLAGS = '-DUSE_TIME'
+@coroutine
+def register_time(time_var, config):
+    yield setup_time_core_(time_var, config)
+
+
+@coroutine_with_priority(100.0)
+def to_code(config):
+    cg.add_define('USE_TIME')
+    cg.add_global(time_ns.using)

@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+
+from __future__ import print_function
+
+import argparse
+import collections
+import os
+import re
+import sys
+
+sys.path.append(os.path.dirname(__file__))
+from helpers import get_output, git_ls_files, filter_changed
+
+curfile = None
+
+
+def print_error(file, lineno, msg):
+    global curfile
+
+    if curfile != file:
+        print()
+        print("\033[0;32m************* File \033[1;32m{}\033[0m".format(file))
+        curfile = file
+
+    print(u'{}:{} - {}'.format(file, lineno, msg))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('files', nargs='*', default=[],
+                        help='files to be processed (regex on path)')
+    parser.add_argument('-c', '--changed', action='store_true',
+                        help='Only run on changed files')
+    args = parser.parse_args()
+
+    files = []
+    for path in git_ls_files():
+        filetypes = ('.py',)
+        ext = os.path.splitext(path)[1]
+        if ext in filetypes and path.startswith('esphome'):
+            path = os.path.relpath(path, os.getcwd())
+            files.append(path)
+    # Match against re
+    file_name_re = re.compile('|'.join(args.files))
+    files = [p for p in files if file_name_re.search(p)]
+
+    if args.changed:
+        files = filter_changed(files)
+
+    files.sort()
+    if not files:
+        sys.exit(0)
+
+    errors = 0
+    cmd = ['flake8'] + files
+    print("Running flake8...")
+    log = get_output(*cmd)
+    for line in log.splitlines():
+        line = line.split(':')
+        if len(line) < 4:
+            continue
+        file_ = line[0]
+        linno = line[1]
+        msg = (u':'.join(line[3:])).strip()
+        print_error(file_, linno, msg)
+        errors += 1
+
+    cmd = ['pylint', '-f', 'parseable', '--persistent=n'] + files
+    print("Running pylint...")
+    log = get_output(*cmd)
+    for line in log.splitlines():
+        line = line.split(':')
+        if len(line) < 3:
+            continue
+        file_ = line[0]
+        linno = line[1]
+        msg = (u':'.join(line[3:])).strip()
+        print_error(file_, linno, msg)
+        errors += 1
+
+    sys.exit(errors)
+
+
+if __name__ == '__main__':
+    main()

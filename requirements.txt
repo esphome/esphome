@@ -8,5 +8,6 @@ protobuf>=3.7,<3.8
 tzlocal>=1.5.1
 pyserial>=3.4,<4
 ifaddr>=0.1.6,<1
-platformio>=3.6.5
+platformio>=3.6.5 ; python_version<"3"
+https://github.com/platformio/platformio-core/archive/develop.zip ; python_version>"3"
 esptool>=2.6,<3
