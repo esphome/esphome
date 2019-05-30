@@ -397,7 +397,7 @@ void SX1509Component::debounce_time(uint8_t time) {
 
 void SX1509Component::debounce_enable(uint8_t pin) {
   uint16_t debounce_enable;
-  this->read_byte_16(REG_DEBOUNCE_ENABLE_B,&debounce_enable);
+  this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable);
   debounce_enable |= (1 << pin);
   this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);
 }
