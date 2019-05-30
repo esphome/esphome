@@ -11,7 +11,7 @@ main .container {
 .ribbon {
   width: 100%;
   height: 17vh;
-  background-color: #3F51B5;
+  background-color: #03a9f4;
   flex-shrink: 0;
 }
 
