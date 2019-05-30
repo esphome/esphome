@@ -5,12 +5,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   M.AutoInit(document.body);
 });
-let wsProtocol = "ws:";
-if (window.location.protocol === "https:") {
-  wsProtocol = 'wss:';
+const loc = window.location;
+const wsLoc = new URL("./",`${loc.protocol}//${loc.host}${loc.pathname}`);
+wsLoc.protocol = 'ws:';
+if (loc.protocol === "https:") {
+  wsLoc.protocol = 'wss:';
 }
-const wsUrl = `${wsProtocol}//${window.location.host}${window.location.pathname}`;
-
+const wsUrl = wsLoc.href;
 
 // ============================= Color Log Parsing =============================
 const initializeColorState = () => {
