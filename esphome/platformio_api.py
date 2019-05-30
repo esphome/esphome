@@ -7,6 +7,7 @@ import re
 import subprocess
 
 from esphome.core import CORE
+from esphome.py_compat import IS_PY2
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,12 +18,10 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
+    # pylint: disable=no-member,no-name-in-module
     from platformio.commands import run
     from platformio import util
-    try:
-        from platformio.util import get_project_dir
-    except ImportError:
-        from platformio.project.helpers import get_project_dir
+    from platformio.util import get_project_dir
     from os.path import join, isdir, getmtime, isfile
     from os import makedirs
 
@@ -69,7 +68,8 @@ def run_platformio_cli(*args, **kwargs):
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
         import platformio.__main__
         try:
-            patch_structhash()
+            if IS_PY2:
+                patch_structhash()
         except Exception:  # pylint: disable=broad-except
             # Ignore when patch fails
             pass
