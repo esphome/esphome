@@ -127,33 +127,33 @@ void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
 }
 
 void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
-  uint16_t tempWord;
-  uint8_t tempByte;
+  uint16_t temp_word;
+  uint8_t temp_byte;
 
-  this->read_byte_16(REG_INPUT_DISABLE_B, &tempWord);
-  tempWord |= (1 << pin);
-  this->write_byte_16(REG_INPUT_DISABLE_B, tempWord);
+  this->read_byte_16(REG_INPUT_DISABLE_B, &temp_word);
+  temp_word |= (1 << pin);
+  this->write_byte_16(REG_INPUT_DISABLE_B, temp_word);
 
-  this->read_byte_16(REG_PULL_UP_B, &tempWord);
-  tempWord &= ~(1 << pin);
-  this->write_byte_16(REG_PULL_UP_B, tempWord);
+  this->read_byte_16(REG_PULL_UP_B, &temp_word);
+  temp_word &= ~(1 << pin);
+  this->write_byte_16(REG_PULL_UP_B, temp_word);
 
-  this->read_byte_16(REG_DIR_B, &tempWord);
-  tempWord &= ~(1 << pin);  // 0=output
-  this->write_byte_16(REG_DIR_B, tempWord);
+  this->read_byte_16(REG_DIR_B, &temp_word);
+  temp_word &= ~(1 << pin);  // 0=output
+  this->write_byte_16(REG_DIR_B, temp_word);
 
-  this->read_byte(REG_CLOCK, &tempByte);
-  tempByte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
-  tempByte &= ~(1 << 5);  // Internal 2MHz oscillator part 2 (clear bit 5)
-  this->write_byte(REG_CLOCK, tempByte);
+  this->read_byte(REG_CLOCK, &temp_byte);
+  temp_byte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
+  temp_byte &= ~(1 << 5);  // Internal 2MHz oscillator part 2 (clear bit 5)
+  this->write_byte(REG_CLOCK, temp_byte);
 
-  this->read_byte(REG_MISC, &tempByte);
+  this->read_byte(REG_MISC, &temp_byte);
   if (log) {
-    tempByte |= (1 << 7);  // set logarithmic mode bank B
-    tempByte |= (1 << 3);  // set logarithmic mode bank A
+    temp_byte |= (1 << 7);  // set logarithmic mode bank B
+    temp_byte |= (1 << 3);  // set logarithmic mode bank A
   } else {
-    tempByte &= ~(1 << 7);  // set linear mode bank B
-    tempByte &= ~(1 << 3);  // set linear mode bank A
+    temp_byte &= ~(1 << 7);  // set linear mode bank B
+    temp_byte &= ~(1 << 3);  // set linear mode bank A
   }
 
   if (_clkX == 0)  // Make clckX non-zero
@@ -161,17 +161,17 @@ void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
     _clkX = 2000000.0 / (1 << (1 - 1));  // Update private clock variable
 
     uint8_t freq = (1 & 0x07) << 4;  // freq should only be 3 bits from 6:4
-    tempByte |= freq;
+    temp_byte |= freq;
   }
-  this->write_byte(REG_MISC, tempByte);
+  this->write_byte(REG_MISC, temp_byte);
 
-  this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &tempWord);
-  tempWord |= (1 << pin);
-  this->write_byte_16(REG_LED_DRIVER_ENABLE_B, tempWord);
+  this->read_byte_16(REG_LED_DRIVER_ENABLE_B, &temp_word);
+  temp_word |= (1 << pin);
+  this->write_byte_16(REG_LED_DRIVER_ENABLE_B, temp_word);
 
-  this->read_byte_16(REG_DATA_B, &tempWord);
-  tempWord &= ~(1 << pin);
-  this->write_byte_16(REG_DATA_B, tempWord);
+  this->read_byte_16(REG_DATA_B, &temp_word);
+  temp_word &= ~(1 << pin);
+  this->write_byte_16(REG_DATA_B, temp_word);
 }
 
 void SX1509Component::breathe(uint8_t pin, unsigned long tOn, unsigned long tOff, unsigned long rise,
@@ -280,46 +280,46 @@ uint8_t SX1509Component::calculate_slope_register(uint16_t ms, uint8_t onIntensi
     return regSlope2;
 }
 
-void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, unsigned int sleepTime, uint8_t scanTime,
-                                   uint8_t debounceTime) {
-  unsigned int tempWord;
-  byte tempByte;
+void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleepTime, uint8_t scanTime,
+                                   uint8_t debounce_time) {
+  uint16_t temp_word;
+  uint8_t temp_byte;
 
   // If clock hasn't been set up, set it to internal 2MHz
   if (_clkX == 0)
     clock(INTERNAL_CLOCK_2MHZ);
 
   // Set regDir 0:7 outputs, 8:15 inputs:
-  tempWord = readWord(REG_DIR_B);
+  this->read_byte_16(REG_DIR_B, &temp_word);
   for (int i = 0; i < rows; i++)
-    tempWord &= ~(1 << i);
+    temp_word &= ~(1 << i);
   for (int i = 8; i < (columns * 2); i++)
-    tempWord |= (1 << i);
-  writeWord(REG_DIR_B, tempWord);
+    temp_word |= (1 << i);
+  this->write_byte_16(REG_DIR_B, temp_word);
 
   // Set regOpenDrain on 0:7:
-  tempByte = readByte(REG_OPEN_DRAIN_A);
+  this->read_byte(REG_OPEN_DRAIN_A, &temp_byte);
   for (int i = 0; i < rows; i++)
-    tempByte |= (1 << i);
-  writeByte(REG_OPEN_DRAIN_A, tempByte);
+    temp_byte |= (1 << i);
+  this->write_byte(REG_OPEN_DRAIN_A, temp_byte);
 
   // Set regPullUp on 8:15:
-  tempByte = readByte(REG_PULL_UP_B);
+  this->read_byte(REG_PULL_UP_B, &temp_byte);
   for (int i = 0; i < columns; i++)
-    tempByte |= (1 << i);
-  writeByte(REG_PULL_UP_B, tempByte);
+    temp_byte |= (1 << i);
+  this->write_byte(REG_PULL_UP_B, temp_byte);
 
   // Debounce Time must be less than scan time
-  debounceTime = constrain(debounceTime, 1, 64);
+  debounce_time = constrain(debounce_time, 1, 64);
   scanTime = constrain(scanTime, 1, 128);
-  if (debounceTime >= scanTime) {
-    debounceTime = scanTime >> 1;  // Force debounceTime to be less than scanTime
+  if (debounce_time >= scanTime) {
+    debounce_time = scanTime >> 1;  // Force debounce_time to be less than scanTime
   }
-  debounceKeypad(debounceTime, rows, columns);
+  debounce_keypad(debounce_time, rows, columns);
 
   // Calculate scanTimeBits, based on scanTime
-  byte scanTimeBits = 0;
-  for (byte i = 7; i > 0; i--) {
+  uint8_t scanTimeBits = 0;
+  for (uint8_t i = 7; i > 0; i--) {
     if (scanTime & (1 << i)) {
       scanTimeBits = i;
       break;
@@ -327,9 +327,9 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, unsigned int s
   }
 
   // Calculate sleepTimeBits, based on sleepTime
-  byte sleepTimeBits = 0;
+  uint8_t sleepTimeBits = 0;
   if (sleepTime != 0) {
-    for (byte i = 7; i > 0; i--) {
+    for (uint8_t i = 7; i > 0; i--) {
       if (sleepTime & ((unsigned int) 1 << (i + 6))) {
         sleepTimeBits = i;
         break;
@@ -344,13 +344,75 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, unsigned int s
   // RegKeyConfig1 sets the auto sleep time and scan time per row
   sleepTimeBits = (sleepTimeBits & 0b111) << 4;
   scanTimeBits &= 0b111;  // Scan time is bits 2:0
-  tempByte = sleepTime | scanTimeBits;
-  writeByte(REG_KEY_CONFIG_1, tempByte);
+  temp_byte = sleepTime | scanTimeBits;
+  this->write_byte(REG_KEY_CONFIG_1, temp_byte);
 
   // RegKeyConfig2 tells the SX1509 how many rows and columns we've got going
   rows = (rows - 1) & 0b111;        // 0 = off, 0b001 = 2 rows, 0b111 = 8 rows, etc.
   columns = (columns - 1) & 0b111;  // 0b000 = 1 column, ob111 = 8 columns, etc.
-  writeByte(REG_KEY_CONFIG_2, (rows << 3) | columns);
+  this->write_byte(REG_KEY_CONFIG_2, (rows << 3) | columns);
+}
+
+void SX1509Component::debounce_config(uint8_t configValue) {
+  // First make sure clock is configured
+  uint8_t temp_byte;
+  this->read_byte(REG_MISC, &temp_byte);
+  if ((temp_byte & 0x70) == 0) {
+    temp_byte |= (1 << 4);  // Just default to no divider if not set
+    this->write_byte(REG_MISC, temp_byte);
+  }
+  this->read_byte(REG_CLOCK, &temp_byte);
+  if ((temp_byte & 0x60) == 0) {
+    temp_byte |= (1 << 6);  // default to internal osc.
+    this->write_byte(REG_CLOCK, temp_byte);
+  }
+
+  configValue &= 0b111;  // 3-bit value
+  this->write_byte(REG_DEBOUNCE_CONFIG, configValue);
+}
+
+void SX1509Component::debounce_time(uint8_t time) {
+  if (_clkX == 0)                   // If clock hasn't been set up.
+    clock(INTERNAL_CLOCK_2MHZ, 1);  // Set clock to 2MHz.
+
+  // Debounce time-to-byte map: (assuming fOsc = 2MHz)
+  // 0: 0.5ms		1: 1ms
+  // 2: 2ms		3: 4ms
+  // 4: 8ms		5: 16ms
+  // 6: 32ms		7: 64ms
+  // 2^(n-1)
+  uint8_t configValue = 0;
+  // We'll check for the highest set bit position,
+  // and use that for debounce_config
+  for (int i = 7; i >= 0; i--) {
+    if (time & (1 << i)) {
+      configValue = i + 1;
+      break;
+    }
+  }
+  configValue = constrain(configValue, 0, 7);
+
+  debounce_config(configValue);
+}
+
+void SX1509Component::debounce_enable(uint8_t pin) {
+  uint16_t debounce_enable;
+  this->read_byte_16(REG_DEBOUNCE_ENABLE_B,&debounce_enable);
+  debounce_enable |= (1 << pin);
+  this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);
+}
+
+void SX1509Component::debounce_pin(uint8_t pin) { debounce_enable(pin); }
+
+void SX1509Component::debounce_keypad(uint8_t time, uint8_t numRows, uint8_t numCols) {
+  // Set up debounce time:
+  debounce_time(time);
+
+  // Set up debounce pins:
+  for (uint16_t i = 0; i < numRows; i++)
+    debounce_pin(i);
+  for (uint16_t i = 0; i < (8 + numCols); i++)
+    debounce_pin(i);
 }
 
 }  // namespace sx1509

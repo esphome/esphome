@@ -29,7 +29,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
  public:
   SX1509Component() {}
 
-  //SX1509FloatOutputChannel *create_float_output_channel(uint8_t pin);
+  // SX1509FloatOutputChannel *create_float_output_channel(uint8_t pin);
 
   void setup() override;
   void dump_config() override;
@@ -49,11 +49,17 @@ class SX1509Component : public Component, public i2c::I2CDevice {
                uint8_t onInt = 255, uint8_t offInt = 0, bool log = LINEAR);
   uint8_t calculate_led_t_register(uint16_t ms);
   uint8_t calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity);
-  void setup_keypad(uint8_t rows, uint8_t columns, unsigned int sleepTime = 0, uint8_t scanTime = 1, uint8_t debounceTime = 0);
+  void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleepTime = 0, uint8_t scanTime = 1,
+                    uint8_t debounceTime = 0);
+  void debounce_config(uint8_t configVaule);
+  void debounce_time(uint8_t time);
+  void debounce_pin(uint8_t pin);
+  void debounce_enable(uint8_t pin);  // Legacy, use debouncePin
+  void debounce_keypad(uint8_t time, uint8_t numRows, uint8_t numCols);
 
  protected:
   friend class SX1509FloatOutputChannel;
-  //std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
+  // std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
 
   // Pin definitions:
   uint8_t pinInterrupt_;
