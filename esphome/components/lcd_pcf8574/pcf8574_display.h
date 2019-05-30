@@ -11,11 +11,16 @@ class PCF8574LCDDisplay : public lcd_base::LCDDisplay, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
+  void backlight();
+  void no_backlight();
 
  protected:
   bool is_four_bit_mode() override { return true; }
   void write_n_bits(uint8_t value, uint8_t n) override;
   void send(uint8_t value, bool rs) override;
+
+  // Stores the current state of the backlight.
+  uint8_t backlight_value_;
 };
 
 }  // namespace lcd_pcf8574
