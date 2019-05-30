@@ -35,32 +35,32 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
-  void pin_mode(uint8_t pin, uint8_t inOut);
+  void pin_mode(uint8_t pin, uint8_t in_out);
   void led_driver_init(uint8_t pin, uint8_t freq = 1, bool log = false);
-  void clock(uint8_t oscSource = 2, uint8_t oscDivider = 1, uint8_t oscPinFunction = 0, uint8_t oscFreqOut = 0);
-  void digital_write(uint8_t pin, uint8_t highLow);
+  void clock(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
+  void digital_write(uint8_t pin, uint8_t high_low);
   uint8_t digital_read(uint8_t pin);
-  void set_pin_value_(uint8_t pin, uint8_t iOn);
+  void set_pin_value_(uint8_t pin, uint8_t i_on);
 
-  void setup_blink(uint8_t pin, uint8_t tOn, uint8_t toff, uint8_t onIntensity = 255, uint8_t offIntensity = 0,
-                   uint8_t tRise = 0, uint8_t tFall = 0, bool log = false);
-  void blink(uint8_t pin, unsigned long tOn, unsigned long tOff, uint8_t onIntensity = 255, uint8_t offIntensity = 0);
+  void setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0,
+                   uint8_t t_rise = 0, uint8_t t_fall = 0, bool log = false);
+  void blink(uint8_t pin, unsigned long tOn, unsigned long tOff, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
   void breathe(uint8_t pin, unsigned long tOn, unsigned long tOff, unsigned long rise, unsigned long fall,
                uint8_t onInt = 255, uint8_t offInt = 0, bool log = LINEAR);
   uint8_t calculate_led_t_register(uint16_t ms);
-  uint8_t calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity);
-  void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleepTime = 0, uint8_t scanTime = 1,
-                    uint8_t debounceTime = 0);
-  void debounce_config(uint8_t configVaule);
+  uint8_t calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity);
+  void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time = 0, uint8_t scan_time = 1,
+                    uint8_t debounce_time = 0);
+  uint16_t read_key_data();
+
+  void debounce_config(uint8_t config_vaule);
   void debounce_time(uint8_t time);
   void debounce_pin(uint8_t pin);
   void debounce_enable(uint8_t pin);  // Legacy, use debouncePin
-  void debounce_keypad(uint8_t time, uint8_t numRows, uint8_t numCols);
+  void debounce_keypad(uint8_t time, uint8_t num_rows, uint8_t num_cols);
 
  protected:
   friend class SX1509FloatOutputChannel;
-  // std::vector<SX1509FloatOutputChannel *> float_output_channels_{};
-
   // Pin definitions:
   uint8_t pinInterrupt_;
   uint8_t pinOscillator_;

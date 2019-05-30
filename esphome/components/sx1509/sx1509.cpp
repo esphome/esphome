@@ -237,18 +237,14 @@ void SX1509Component::set_pin_value_(uint8_t pin, uint8_t iOn) {
 uint8_t SX1509Component::calculate_led_t_register(uint16_t ms) {
   uint16_t regOn1, regOn2;
   float timeOn1, timeOn2;
-
   if (_clkX == 0)
     return 0;
-
   regOn1 = (float) (ms / 1000.0) / (64.0 * 255.0 / (float) _clkX);
   regOn2 = regOn1 / 8;
   regOn1 = constrain(regOn1, 1, 15);
   regOn2 = constrain(regOn2, 16, 31);
-
   timeOn1 = 64.0 * regOn1 * 255.0 / _clkX * 1000.0;
   timeOn2 = 512.0 * regOn2 * 255.0 / _clkX * 1000.0;
-
   if (abs(timeOn1 - ms) < abs(timeOn2 - ms))
     return regOn1;
   else
@@ -258,22 +254,16 @@ uint8_t SX1509Component::calculate_led_t_register(uint16_t ms) {
 uint8_t SX1509Component::calculate_slope_register(uint16_t ms, uint8_t onIntensity, uint8_t offIntensity) {
   uint16_t regSlope1, regSlope2;
   float regTime1, regTime2;
-
   if (_clkX == 0)
     return 0;
-
   float tFactor = ((float) onIntensity - (4.0 * (float) offIntensity)) * 255.0 / (float) _clkX;
   float timeS = float(ms) / 1000.0;
-
   regSlope1 = timeS / tFactor;
   regSlope2 = regSlope1 / 16;
-
   regSlope1 = constrain(regSlope1, 1, 15);
   regSlope2 = constrain(regSlope2, 16, 31);
-
   regTime1 = regSlope1 * tFactor * 1000.0;
   regTime2 = 16 * regTime1;
-
   if (abs(regTime1 - ms) < abs(regTime2 - ms))
     return regSlope1;
   else
@@ -285,39 +275,28 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
   uint16_t temp_word;
   uint8_t temp_byte;
 
-  // If clock hasn't been set up, set it to internal 2MHz
   if (_clkX == 0)
     clock(INTERNAL_CLOCK_2MHZ);
-
-  // Set regDir 0:7 outputs, 8:15 inputs:
   this->read_byte_16(REG_DIR_B, &temp_word);
   for (int i = 0; i < rows; i++)
     temp_word &= ~(1 << i);
   for (int i = 8; i < (columns * 2); i++)
     temp_word |= (1 << i);
   this->write_byte_16(REG_DIR_B, temp_word);
-
-  // Set regOpenDrain on 0:7:
   this->read_byte(REG_OPEN_DRAIN_A, &temp_byte);
   for (int i = 0; i < rows; i++)
     temp_byte |= (1 << i);
   this->write_byte(REG_OPEN_DRAIN_A, temp_byte);
-
-  // Set regPullUp on 8:15:
   this->read_byte(REG_PULL_UP_B, &temp_byte);
   for (int i = 0; i < columns; i++)
     temp_byte |= (1 << i);
   this->write_byte(REG_PULL_UP_B, temp_byte);
-
-  // Debounce Time must be less than scan time
   debounce_time = constrain(debounce_time, 1, 64);
   scanTime = constrain(scanTime, 1, 128);
   if (debounce_time >= scanTime) {
     debounce_time = scanTime >> 1;  // Force debounce_time to be less than scanTime
   }
   debounce_keypad(debounce_time, rows, columns);
-
-  // Calculate scanTimeBits, based on scanTime
   uint8_t scanTimeBits = 0;
   for (uint8_t i = 7; i > 0; i--) {
     if (scanTime & (1 << i)) {
@@ -325,8 +304,6 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
       break;
     }
   }
-
-  // Calculate sleepTimeBits, based on sleepTime
   uint8_t sleepTimeBits = 0;
   if (sleepTime != 0) {
     for (uint8_t i = 7; i > 0; i--) {
@@ -335,22 +312,22 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
         break;
       }
     }
-    // If sleepTime was non-zero, but less than 128,
-    // assume we wanted to turn sleep on, set it to minimum:
     if (sleepTimeBits == 0)
       sleepTimeBits = 1;
   }
-
-  // RegKeyConfig1 sets the auto sleep time and scan time per row
   sleepTimeBits = (sleepTimeBits & 0b111) << 4;
   scanTimeBits &= 0b111;  // Scan time is bits 2:0
   temp_byte = sleepTime | scanTimeBits;
   this->write_byte(REG_KEY_CONFIG_1, temp_byte);
-
-  // RegKeyConfig2 tells the SX1509 how many rows and columns we've got going
   rows = (rows - 1) & 0b111;        // 0 = off, 0b001 = 2 rows, 0b111 = 8 rows, etc.
   columns = (columns - 1) & 0b111;  // 0b000 = 1 column, ob111 = 8 columns, etc.
   this->write_byte(REG_KEY_CONFIG_2, (rows << 3) | columns);
+}
+
+uint16_t SX1509Component::read_key_data() {
+  uint16_t key_data;
+  this->read_byte_16(REG_KEY_DATA_1, &key_data);
+  return (0xFFFF ^ key_data);
 }
 
 void SX1509Component::debounce_config(uint8_t configValue) {
@@ -375,15 +352,8 @@ void SX1509Component::debounce_time(uint8_t time) {
   if (_clkX == 0)                   // If clock hasn't been set up.
     clock(INTERNAL_CLOCK_2MHZ, 1);  // Set clock to 2MHz.
 
-  // Debounce time-to-byte map: (assuming fOsc = 2MHz)
-  // 0: 0.5ms		1: 1ms
-  // 2: 2ms		3: 4ms
-  // 4: 8ms		5: 16ms
-  // 6: 32ms		7: 64ms
-  // 2^(n-1)
   uint8_t configValue = 0;
-  // We'll check for the highest set bit position,
-  // and use that for debounce_config
+
   for (int i = 7; i >= 0; i--) {
     if (time & (1 << i)) {
       configValue = i + 1;
@@ -405,10 +375,7 @@ void SX1509Component::debounce_enable(uint8_t pin) {
 void SX1509Component::debounce_pin(uint8_t pin) { debounce_enable(pin); }
 
 void SX1509Component::debounce_keypad(uint8_t time, uint8_t numRows, uint8_t numCols) {
-  // Set up debounce time:
   debounce_time(time);
-
-  // Set up debounce pins:
   for (uint16_t i = 0; i < numRows; i++)
     debounce_pin(i);
   for (uint16_t i = 0; i < (8 + numCols); i++)
