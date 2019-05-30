@@ -89,7 +89,7 @@ template<typename... Ts> class LightIsOnCondition : public Condition<Ts...> {
  protected:
   LightState *state_;
 };
-template<typename... Ts> class LightIsOffCondition : public Condition<LightState, Ts...> {
+template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
  public:
   explicit LightIsOffCondition(LightState *state) : state_(state) {}
   bool check(Ts... x) override { return !this->state_->current_values.is_on(); }
