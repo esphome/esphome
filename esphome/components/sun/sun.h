@@ -103,7 +103,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
       crossed = this->last_elevation_ >= this->elevation_ && this->elevation_ > current;
     }
 
-    if (crossed) {
+    if (crossed && !isnan(this->last_elevation_)) {
       this->trigger();
     }
     this->last_elevation_ = current;
@@ -111,7 +111,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
 
  protected:
   bool sunrise_;
-  double last_elevation_;
+  double last_elevation_{NAN};
   double elevation_;
 };
 
