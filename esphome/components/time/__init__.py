@@ -71,8 +71,8 @@ def convert_tz(pytz_obj):
     transition_info = tz._transition_info
     idx = max(0, bisect.bisect_right(transition_times, now))
     if idx >= len(transition_times):
-        tzname = tz.tzname(first_january)
-        utcoffset = tz.utcoffset(first_january)
+        tzname = tz.tzname(now)
+        utcoffset = tz.utcoffset(now)
         _LOGGER.info("Detected timezone '%s' with UTC offset %s",
                      tzname, _tz_timedelta(utcoffset))
         tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
