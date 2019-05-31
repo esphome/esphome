@@ -15,7 +15,10 @@ namespace mqtt {
 
 static const char *TAG = "mqtt";
 
-MQTTClientComponent::MQTTClientComponent() { global_mqtt_client = this; }
+MQTTClientComponent::MQTTClientComponent() {
+  global_mqtt_client = this;
+  this->credentials_.client_id = App.get_name() + "-" + get_mac_address();
+}
 
 // Connection
 void MQTTClientComponent::setup() {
