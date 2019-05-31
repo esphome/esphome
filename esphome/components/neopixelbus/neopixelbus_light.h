@@ -48,7 +48,7 @@ enum class ESPNeoPixelOrder {
 };
 
 template<typename T_METHOD, typename T_COLOR_FEATURE>
-class NeoPixelBusLightOutputBase : public Component, public light::AddressableLight {
+class NeoPixelBusLightOutputBase : public light::AddressableLight {
  public:
   NeoPixelBus<T_COLOR_FEATURE, T_METHOD> *get_controller() const { return this->controller_; }
 

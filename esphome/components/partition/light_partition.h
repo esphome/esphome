@@ -24,7 +24,7 @@ class AddressableSegment {
   int32_t dst_offset_;
 };
 
-class PartitionLightOutput : public light::AddressableLight, public Component {
+class PartitionLightOutput : public light::AddressableLight {
  public:
   explicit PartitionLightOutput(std::vector<AddressableSegment> segments) : segments_(segments) {
     int32_t off = 0;
