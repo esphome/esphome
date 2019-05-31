@@ -41,7 +41,8 @@ MQTTClientComponent = mqtt_ns.class_('MQTTClientComponent', cg.Component)
 MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger',
-                                    automation.Trigger.template(cg.std_string))
+                                    automation.Trigger.template(cg.std_string),
+                                    cg.Component)
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
                                         automation.Trigger.template(cg.JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', cg.Component)
@@ -217,6 +218,7 @@ def to_code(config):
         cg.add(trig.set_qos(conf[CONF_QOS]))
         if CONF_PAYLOAD in conf:
             cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
+        yield cg.register_component(trig, conf)
         yield automation.build_automation(trig, [(cg.std_string, 'x')], conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):
