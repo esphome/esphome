@@ -50,7 +50,7 @@ void I2CComponent::dump_config() {
     }
   }
 }
-float I2CComponent::get_setup_priority() const { return setup_priority::HARDWARE; }
+float I2CComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void I2CComponent::raw_begin_transmission(uint8_t address) {
   ESP_LOGVV(TAG, "Beginning Transmission to 0x%02X:", address);
