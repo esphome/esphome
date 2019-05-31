@@ -145,12 +145,16 @@ class AddressableScanEffect : public AddressableLightEffect {
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     it.all() = ESPColor::BLACK;
-    it[this->at_led_] = current_color;
+
+    for (auto i = 0; i < this->scan_length_; i++) {
+        it[this->at_led_ + i] = current_color;
+    }
+
     const uint32_t now = millis();
     if (now - this->last_move_ > this->move_interval_) {
       if (direction_) {
         this->at_led_++;
-        if (this->at_led_ == it.size() - 1)
+        if (this->at_led_ == it.size() - scan_length_)
           this->direction_ = false;
       } else {
         this->at_led_--;
@@ -163,6 +167,7 @@ class AddressableScanEffect : public AddressableLightEffect {
 
  protected:
   uint32_t move_interval_{};
+  uint32_t scan_length_{10};    //TODO check less than it.size()
   uint32_t last_move_{0};
   int at_led_{0};
   bool direction_{true};
