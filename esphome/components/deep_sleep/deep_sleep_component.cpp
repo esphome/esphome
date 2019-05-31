@@ -87,7 +87,7 @@ void DeepSleepComponent::begin_sleep(bool manual) {
   ESP.deepSleep(*this->sleep_duration_);
 #endif
 }
-float DeepSleepComponent::get_setup_priority() const { return -100.0f; }
+float DeepSleepComponent::get_setup_priority() const { return setup_priority::LATE; }
 void DeepSleepComponent::prevent_deep_sleep() { this->prevent_ = true; }
 
 }  // namespace deep_sleep
