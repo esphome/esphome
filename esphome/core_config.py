@@ -38,7 +38,7 @@ def validate_board(value):
 
     if value not in board_pins:
         raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
-            value, u', '.join(pins.ESP8266_BOARD_PINS.keys())))
+            value, u', '.join(sorted(board_pins.keys()))))
     return value
 
 
