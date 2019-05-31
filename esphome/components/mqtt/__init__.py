@@ -104,7 +104,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_PORT, default=1883): cv.port,
     cv.Optional(CONF_USERNAME, default=''): cv.string,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.string,
+    cv.Optional(CONF_CLIENT_ID): cv.string,
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,
@@ -161,7 +161,8 @@ def to_code(config):
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    if CONF_CLIENT_ID in config:
+        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
