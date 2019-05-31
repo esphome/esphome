@@ -10,7 +10,7 @@ TemplateBinarySensor = template_ns.class_('TemplateBinarySensor', binary_sensor.
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateBinarySensor),
-    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
 }).extend(cv.COMPONENT_SCHEMA)
 
 

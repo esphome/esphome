@@ -1,11 +1,11 @@
-#include "esphome/components/binary_sensor/filter.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "filter.h"
+#include "binary_sensor.h"
 
 namespace esphome {
 
 namespace binary_sensor {
 
-static const char *TAG = "something.Filter";
+static const char *TAG = "sensor.filter";
 
 void Filter::output(bool value, bool is_initial) {
   if (!this->dedup_.next(value))

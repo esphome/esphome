@@ -11,16 +11,19 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
-    ARDUINO_VERSION_ESP8266_2_5_0
+    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
 from esphome.core import CORE, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, walk_files
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
 
 BUILD_FLASH_MODES = ['qio', 'qout', 'dio', 'dout']
-StartupTrigger = cg.esphome_ns.StartupTrigger
-ShutdownTrigger = cg.esphome_ns.ShutdownTrigger
-LoopTrigger = cg.esphome_ns.LoopTrigger
+StartupTrigger = cg.esphome_ns.class_('StartupTrigger', cg.Component, automation.Trigger.template())
+ShutdownTrigger = cg.esphome_ns.class_('ShutdownTrigger', cg.Component,
+                                       automation.Trigger.template())
+LoopTrigger = cg.esphome_ns.class_('LoopTrigger', cg.Component,
+                                   automation.Trigger.template())
 
 VERSION_REGEX = re.compile(r'^[0-9]+\.[0-9]+\.[0-9]+(?:[ab]\d+)?$')
 
@@ -42,6 +45,8 @@ def validate_board(value):
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
+    '2.5.2': 'espressif8266@2.2.0',
+    '2.5.1': 'espressif8266@2.1.0',
     '2.5.0': 'espressif8266@2.0.1',
     '2.4.2': 'espressif8266@1.8.0',
     '2.4.1': 'espressif8266@1.7.3',
@@ -55,6 +60,7 @@ PLATFORMIO_ESP8266_LUT = {
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
+    '1.0.2': 'espressif32@1.8.0',
     'RECOMMENDED': 'espressif32@1.6.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
@@ -87,10 +93,25 @@ def default_build_path():
     return CORE.name
 
 
+VALID_INCLUDE_EXTS = {'.h', '.hpp', '.tcc', '.ino', '.cpp', '.c'}
+
+
+def valid_include(value):
+    try:
+        return cv.directory(value)
+    except cv.Invalid:
+        pass
+    value = cv.file_(value)
+    _, ext = os.path.splitext(value)
+    if ext not in VALID_INCLUDE_EXTS:
+        raise cv.Invalid(u"Include has invalid file extension {} - valid extensions are {}"
+                         u"".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
-    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', 'ESPRESSIF32',
-                                          upper=True),
+    cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
@@ -112,8 +133,12 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
     }),
-    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
+    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
     cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
+
+    cv.Optional('esphome_core_version'): cv.invalid("The esphome_core_version option has been "
+                                                    "removed in 1.13 - the esphome core source "
+                                                    "files are now bundled with ESPHome.")
 })
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema({
@@ -146,13 +171,31 @@ def preload_core_config(config):
     CORE.build_path = CORE.relative_config_path(out2[CONF_BUILD_PATH])
 
 
+def include_file(path, basename):
+    parts = basename.split(os.path.sep)
+    dst = CORE.relative_src_path(*parts)
+    copy_file_if_changed(path, dst)
+
+    _, ext = os.path.splitext(path)
+    if ext in ['.h', '.hpp', '.tcc']:
+        # Header, add include statement
+        cg.add_global(cg.RawStatement(u'#include "{}"'.format(basename)))
+
+
 @coroutine_with_priority(-1000.0)
 def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        res = os.path.relpath(path, CORE.relative_build_path('src')).replace(os.path.sep, '/')
-        cg.add_global(cg.RawStatement(u'#include "{}"'.format(res)))
+        if os.path.isdir(path):
+            # Directory, copy tree
+            for p in walk_files(path):
+                basename = os.path.relpath(p, os.path.dirname(path))
+                include_file(p, basename)
+        else:
+            # Copy file
+            basename = os.path.basename(path)
+            include_file(path, basename)
 
 
 @coroutine_with_priority(100.0)
@@ -186,15 +229,14 @@ def to_code(config):
         if CORE.arduino_version in ('espressif8266@1.8.0', 'espressif8266@1.7.3',
                                     'espressif8266@1.6.0'):
             ld_script = ld_scripts[0]
-        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0):
+        elif CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0,
+                                      ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
             cg.add_build_flag('-Wl,-T{}'.format(ld_script))
 
-    if CORE.is_esp8266 and CORE.arduino_version in (ARDUINO_VERSION_ESP8266_DEV,
-                                                    ARDUINO_VERSION_ESP8266_2_5_0):
-        cg.add_build_flag('-fno-exceptions')
+    cg.add_build_flag('-fno-exceptions')
 
     # Libraries
     if CORE.is_esp32:

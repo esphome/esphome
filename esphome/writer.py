@@ -8,7 +8,7 @@ from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
     HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed
+from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files
 from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
@@ -130,8 +130,6 @@ def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
 
-    if old.esphome_version != new.esphome_version:
-        return True
     if old.src_version != new.src_version:
         return True
     if old.arduino_version != new.arduino_version:
@@ -266,7 +264,7 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = u"""\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = u"""\
 #pragma once
 {}
 """
@@ -283,12 +281,6 @@ or use the custom_components folder.
 """
 
 
-def walk_files(path):
-    for root, _, files in os.walk(path):
-        for name in files:
-            yield os.path.join(root, name)
-
-
 def copy_src_tree():
     import filecmp
     import shutil
@@ -301,7 +293,7 @@ def copy_src_tree():
     source_files_l = [it for it in source_files.items()]
     source_files_l.sort()
 
-    # Build #include list for main.cpp
+    # Build #include list for esphome.h
     include_l = []
     for target, path in source_files_l:
         if os.path.splitext(path)[1] in HEADER_FILE_EXTENSIONS:
@@ -341,8 +333,8 @@ def copy_src_tree():
                           CORE.relative_src_path('esphome', 'core', 'defines.h'))
     write_file_if_changed(ESPHOME_README_TXT,
                           CORE.relative_src_path('esphome', 'README.txt'))
-
-    return include_s
+    write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
+                          CORE.relative_src_path('esphome.h'))
 
 
 def generate_defines_h():
@@ -361,8 +353,8 @@ def write_cpp(code_s):
     else:
         code_format = CPP_BASE_FORMAT
 
-    include_s = copy_src_tree()
-    global_s = include_s + u'\n'
+    copy_src_tree()
+    global_s = u'#include "esphome.h"\n'
     global_s += CORE.cpp_global_section
 
     full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + global_s + CPP_INCLUDE_END

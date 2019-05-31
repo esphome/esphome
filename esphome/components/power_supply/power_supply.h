@@ -39,5 +39,26 @@ class PowerSupply : public Component {
   int16_t active_requests_{0};  // use signed integer to make catching negative requests easier.
 };
 
+class PowerSupplyRequester {
+ public:
+  void set_parent(PowerSupply *parent) { parent_ = parent; }
+  void request() {
+    if (!this->requested_ && this->parent_ != nullptr) {
+      this->parent_->request_high_power();
+      this->requested_ = true;
+    }
+  }
+  void unrequest() {
+    if (this->requested_ && this->parent_ != nullptr) {
+      this->parent_->unrequest_high_power();
+      this->requested_ = false;
+    }
+  }
+
+ protected:
+  PowerSupply *parent_{nullptr};
+  bool requested_{false};
+};
+
 }  // namespace power_supply
 }  // namespace esphome

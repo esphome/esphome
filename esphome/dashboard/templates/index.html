@@ -67,6 +67,9 @@
           <div class="card-content">
             <span class="card-title">
               {{ escape(entry.name) }}
+              {% if 'web_server' in entry.loaded_integrations %}
+                <a href="http://{{ escape(entry.address) }}" target="_blank"><i class="material-icons icon-grey">launch</i></a>
+              {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
             <p>
@@ -121,8 +124,14 @@
        class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
       <i class="material-icons flash-using-esphomeflasher">help_outline</i>
     </a>
+    <a class="modal-close waves-effect waves-green btn-flat action-edit edit-after-upload">Edit</a>
     <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+    <div class="btn-flat"><i class="material-icons dropdown-trigger" data-target="dropdown-upload-actions">more_vert</i></div>
   </div>
+  <ul id="dropdown-upload-actions" class="select-action dropdown-content card-dropdown-action">
+    <li><a class="modal-close waves-effect waves-green btn-flat disabled download-after-upload">Download Binary</a></li>
+    <li><a class="waves-effect waves-green btn-flat disabled action-upload retry-upload">Retry</a></li>
+  </ul>
 </div>
 
 <div id="modal-compile" class="modal modal-fixed-footer">
@@ -189,7 +198,7 @@
               <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>)
             </p>
             <div class="input-field col s12">
-              <input id="node_name" class="validate" type="text" name="name" required>
+              <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true" data-rule-lowercase="true" required>
               <label for="node_name">Name of node</label>
             </div>
           </div>
@@ -207,8 +216,7 @@
               Please choose the board you're using below.
             </p>
             <p>
-              If you're not sure you can also use similar ones or even the
-              "Generic" option. In most cases that will work too.
+              <em>If unsure you can also select a similar board or choose the "Generic" option.</em>
             </p>
             <div class="input-field col s12">
               <select id="board" name="board" required>
@@ -432,7 +440,7 @@
   </div>
   <div class="modal-footer">
     <a class="waves-effect waves-green btn-flat save-button">Save</a>
-    <a class="modal-close waves-effect waves-green btn-flat action-validate save-validate-button">Save &amp; Validate</a>
+    <a class="modal-close waves-effect waves-green btn-flat action-upload editor-upload-button">Upload</a>
     <a class="modal-close waves-effect waves-green btn-flat">Close</a>
   </div>
 </div>
@@ -461,7 +469,7 @@
   </div>
   <div class="footer-copyright">
     <div class="container">
-      © 2019 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
+      © 2019 Copyright ESPHome, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
       <a class="grey-text text-lighten-4 right" href="{{ docs_link }}" target="_blank" rel="noreferrer">ESPHome {{ version }} Documentation</a>
     </div>
   </div>

@@ -148,7 +148,7 @@ def exponential_moving_average_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
 
 
-@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.lambda_)
+@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.returning_lambda)
 def lambda_filter_to_code(config, filter_id):
     lambda_ = yield cg.process_lambda(config, [(float, 'x')],
                                       return_type=cg.optional.template(float))

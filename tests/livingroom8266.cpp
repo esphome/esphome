@@ -29,6 +29,4 @@ void setup() {
   App.setup();
 }
 
-void loop() {
-  App.loop();
-}
+void loop() { App.loop(); }

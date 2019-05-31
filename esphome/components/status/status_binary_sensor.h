@@ -16,9 +16,6 @@ class StatusBinarySensor : public binary_sensor::BinarySensor, public Component 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   bool is_status_binary_sensor() const override { return true; }
-
- protected:
-  bool last_status_{false};
 };
 
 }  // namespace status

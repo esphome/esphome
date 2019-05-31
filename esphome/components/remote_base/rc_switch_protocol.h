@@ -197,7 +197,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
 
 class RCSwitchDumper : public RemoteReceiverDumperBase {
  public:
-  void dump(RemoteReceiveData src) override;
+  bool dump(RemoteReceiveData src) override;
 };
 
 }  // namespace remote_base

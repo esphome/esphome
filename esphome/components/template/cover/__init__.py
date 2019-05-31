@@ -7,7 +7,7 @@ from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OP
     CONF_STATE, CONF_STOP_ACTION
 from .. import template_ns
 
-TemplateCover = template_ns.class_('TemplateCover', cover.Cover)
+TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
 
 TemplateCoverRestoreMode = template_ns.enum('TemplateCoverRestoreMode')
 RESTORE_MODES = {
@@ -18,7 +18,7 @@ RESTORE_MODES = {
 
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateCover),
-    cv.Optional(CONF_LAMBDA): cv.lambda_,
+    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
     cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),

@@ -5,12 +5,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   M.AutoInit(document.body);
 });
-let wsProtocol = "ws:";
-if (window.location.protocol === "https:") {
-  wsProtocol = 'wss:';
+const loc = window.location;
+const wsLoc = new URL("./",`${loc.protocol}//${loc.host}${loc.pathname}`);
+wsLoc.protocol = 'ws:';
+if (loc.protocol === "https:") {
+  wsLoc.protocol = 'wss:';
 }
-const wsUrl = `${wsProtocol}//${window.location.host}${window.location.pathname}`;
-
+const wsUrl = wsLoc.href;
 
 // ============================= Color Log Parsing =============================
 const initializeColorState = () => {
@@ -406,16 +407,27 @@ const logsModal = new LogModalElem({
 });
 logsModal.setup();
 
+const retryUploadButton = document.querySelector('.retry-upload');
+const editAfterUploadButton = document.querySelector('.edit-after-upload');
+const downloadAfterUploadButton = document.querySelector('.download-after-upload');
 const uploadModal = new LogModalElem({
   name: 'upload',
   onPrepare: (modalElem, config) => {
+    downloadAfterUploadButton.classList.add('disabled');
+    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
+    retryUploadButton.classList.add('disabled');
+    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
       M.toast({html: "Program exited successfully."});
+      // if compilation succeeds but OTA fails, you can still download the binary and upload manually
+      downloadAfterUploadButton.classList.remove('disabled');
     } else {
       M.toast({html: `Program failed with code ${code}`});
+      downloadAfterUploadButton.classList.add('disabled');
+      retryUploadButton.classList.remove('disabled');
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
@@ -425,6 +437,14 @@ const uploadModal = new LogModalElem({
   dismissible: false,
 });
 uploadModal.setup();
+downloadAfterUploadButton.addEventListener('click', () => {
+  const link = document.createElement("a");
+  link.download = name;
+  link.href = `./download.bin?configuration=${encodeURIComponent(uploadModal.activeConfig)}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
 
 const validateModal = new LogModalElem({
   name: 'validate',
@@ -550,13 +570,84 @@ const editModalElem = document.getElementById("modal-editor");
 const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
 let activeEditorConfig = null;
+let aceWs = null;
+let aceValidationScheduled = false;
+let aceValidationRunning = false;
+const startAceWebsocket = () => {
+  aceWs = new WebSocket(`${wsUrl}ace`);
+  aceWs.addEventListener('message', (event) => {
+    const raw = JSON.parse(event.data);
+    if (raw.event === "line") {
+      const msg = JSON.parse(raw.data);
+      if (msg.type === "result") {
+        console.log(msg);
+        const arr = [];
+
+        for (const v of msg.validation_errors) {
+          let o = {
+            text: v.message,
+            type: 'error',
+            row: 0,
+            column: 0
+          };
+          if (v.range != null) {
+            o.row = v.range.start_line;
+            o.column = v.range.start_col;
+          }
+          arr.push(o);
+        }
+        for (const v of msg.yaml_errors) {
+          arr.push({
+            text: v.message,
+            type: 'error',
+            row: 0,
+            column: 0
+          });
+        }
+
+        editor.session.setAnnotations(arr);
+
+        if(arr.length) {
+          editorUploadButton.classList.add('disabled');
+        } else {
+          editorUploadButton.classList.remove('disabled');
+        }
+
+        aceValidationRunning = false;
+      } else if (msg.type === "read_file") {
+        sendAceStdin({
+          type: 'file_response',
+          content: editor.getValue()
+        });
+      }
+    }
+  });
+  aceWs.addEventListener('open', () => {
+    const msg = JSON.stringify({type: 'spawn'});
+    aceWs.send(msg);
+  });
+  aceWs.addEventListener('close', () => {
+    aceWs = null;
+    setTimeout(startAceWebsocket, 5000)
+  });
+};
+const sendAceStdin = (data) => {
+  let send = JSON.stringify({
+    type: 'stdin',
+    data: JSON.stringify(data)+'\n',
+  });
+  aceWs.send(send);
+};
+startAceWebsocket();
+
 editor.setTheme("ace/theme/dreamweaver");
 editor.session.setMode("ace/mode/yaml");
 editor.session.setOption('useSoftTabs', true);
 editor.session.setOption('tabSize', 2);
+editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
-const saveValidateButton = editModalElem.querySelector(".save-validate-button");
+const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -569,6 +660,19 @@ const saveEditor = () => {
     });
 };
 
+const debounce = (func, wait) => {
+  let timeout;
+  return function() {
+    let context = this, args = arguments;
+    let later = function() {
+      timeout = null;
+      func.apply(context, args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 editor.commands.addCommand({
   name: 'saveCommand',
   bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
@@ -576,15 +680,33 @@ editor.commands.addCommand({
   readOnly: false
 });
 
+editor.session.on('change', debounce(() => {
+  aceValidationScheduled = true;
+}, 250));
+
+setInterval(() => {
+  if (!aceValidationScheduled || aceValidationRunning)
+    return;
+  if (aceWs == null)
+    return;
+
+  sendAceStdin({
+      type: 'validate',
+      file: activeEditorConfig
+  });
+  aceValidationRunning = true;
+  aceValidationScheduled = false;
+}, 100);
+
 saveButton.addEventListener('click', saveEditor);
-saveValidateButton.addEventListener('click', saveEditor);
+editorUploadButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
-    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
+    editorUploadButton.setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
@@ -612,3 +734,11 @@ const startWizard = () => {
 };
 
 setupWizardStart.addEventListener('click', startWizard);
+
+jQuery.validator.addMethod("nospaces", (value, element) => {
+  return value.indexOf(' ') < 0;
+}, "Name must not contain spaces.");
+
+jQuery.validator.addMethod("lowercase", (value, element) => {
+  return value === value.toLowerCase();
+}, "Name must be lowercase.");

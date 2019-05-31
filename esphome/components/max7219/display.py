@@ -12,8 +12,8 @@ MAX7219ComponentRef = MAX7219Component.operator('ref')
 CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MAX7219Component),
 
-    cv.Optional(CONF_NUM_CHIPS, default=1): cv.All(cv.uint8_t, cv.Range(min=1)),
-    cv.Optional(CONF_INTENSITY, default=15): cv.All(cv.uint8_t, cv.Range(min=0, max=15)),
+    cv.Optional(CONF_NUM_CHIPS, default=1): cv.int_range(min=1, max=255),
+    cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 

@@ -467,6 +467,7 @@ class EsphomeCore(object):
         self.dashboard = False
         # True if command is run from vscode api
         self.vscode = False
+        self.ace = False
         # The name of the node
         self.name = None  # type: str
         # The relative path to the configuration YAML
@@ -504,6 +505,8 @@ class EsphomeCore(object):
         self.active_coroutines = {}  # type: Dict[int, Any]
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
+        # A set of component IDs to track what Component subclasses are declared
+        self.component_ids = set()
 
     def reset(self):
         self.dashboard = False
@@ -524,6 +527,7 @@ class EsphomeCore(object):
         self.defines = set()
         self.active_coroutines = {}
         self.loaded_integrations = set()
+        self.component_ids = set()
 
     @property
     def address(self):  # type: () -> str
@@ -624,6 +628,12 @@ class EsphomeCore(object):
             _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
             _LOGGER.warning(u"Please file a bug report with your configuration.")
         if self.active_coroutines:
+            raise EsphomeError()
+        if self.component_ids:
+            comps = u', '.join(u"'{}'".format(x) for x in self.component_ids)
+            _LOGGER.warning(u"Components %s were never registered. Please create a bug report",
+                            comps)
+            _LOGGER.warning(u"with your configuration.")
             raise EsphomeError()
         self.active_coroutines.clear()
 

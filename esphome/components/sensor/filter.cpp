@@ -1,5 +1,5 @@
-#include "esphome/components/sensor/filter.h"
-#include "esphome/components/sensor/sensor.h"
+#include "filter.h"
+#include "sensor.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

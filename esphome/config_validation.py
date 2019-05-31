@@ -8,6 +8,7 @@ import re
 from contextlib import contextmanager
 import uuid as uuid_
 from datetime import datetime
+from string import ascii_letters, digits
 
 import voluptuous as vol
 
@@ -15,11 +16,11 @@ from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
     CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
     CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID
+    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with
-from esphome.py_compat import integer_types, string_types, text_type, IS_PY2
+from esphome.py_compat import integer_types, string_types, text_type, IS_PY2, decode_text
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,6 +61,7 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
+    'close', 'pause', 'sleep', 'open',
 ]
 
 
@@ -226,6 +228,11 @@ def int_(value):
     check_not_templatable(value)
     if isinstance(value, integer_types):
         return value
+    if isinstance(value, float):
+        if int(value) == value:
+            return int(value)
+        raise Invalid("This option only accepts integers with no fractional part. Please remove "
+                      "the fractional part from {}".format(value))
     value = string_strict(value).lower()
     base = 10
     if value.startswith('0x'):
@@ -279,8 +286,9 @@ def validate_id_name(value):
         raise Invalid("First character in ID cannot be a digit.")
     if '-' in value:
         raise Invalid("Dashes are not supported in IDs, please use underscores instead.")
+    valid_chars = ascii_letters + digits + '_'
     for char in value:
-        if char != '_' and not char.isalnum():
+        if char not in valid_chars:
             raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
                           u"character and numbers. The character '{}' cannot be used"
                           u"".format(char))
@@ -333,7 +341,7 @@ def templatable(other_validators):
 
     def validator(value):
         if isinstance(value, Lambda):
-            return lambda_(value)
+            return returning_lambda(value)
         if isinstance(other_validators, dict):
             return schema(value)
         return schema(value)
@@ -570,10 +578,15 @@ METRIC_SUFFIXES = {
 }
 
 
-def float_with_unit(quantity, regex_suffix):
+def float_with_unit(quantity, regex_suffix, optional_unit=False):
     pattern = re.compile(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*?)" + regex_suffix + r"$", re.UNICODE)
 
     def validator(value):
+        if optional_unit:
+            try:
+                return float_(value)
+            except Invalid:
+                pass
         match = pattern.match(string(value))
 
         if match is None:
@@ -595,6 +608,7 @@ current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
 voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
 distance = float_with_unit("distance", u"(m)")
 framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
+angle = float_with_unit("angle", u"(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
@@ -603,9 +617,9 @@ if IS_PY2:
     # Override voluptuous invalid to unicode for py2
     def _vol_invalid_unicode(self):
         path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
-            if self.path else ''
+            if self.path else u''
         # pylint: disable=no-member
-        output = Exception.__unicode__(self)
+        output = decode_text(self.message)
         if self.error_type:
             output += u' for ' + self.error_type
         return output + path
@@ -974,6 +988,20 @@ def lambda_(value):
     return value
 
 
+def returning_lambda(value):
+    """Coerce this configuration option to a lambda.
+
+    Additionally, make sure the lambda returns something.
+    """
+    value = lambda_(value)
+    if u'return' not in value.value:
+        raise Invalid("Lambda doesn't contain a 'return' statement, but the lambda "
+                      "is expected to return a value. \n"
+                      "Please make sure the lambda contains at least one "
+                      "return statement.")
+    return value
+
+
 def dimensions(value):
     if isinstance(value, list):
         if len(value) != 2:
@@ -1049,6 +1077,25 @@ def extract_keys(schema):
             raise ValueError()
     keys.sort()
     return keys
+
+
+def typed_schema(schemas, **kwargs):
+    """Create a schema that has a key to distinguish between schemas"""
+    key = kwargs.pop('key', CONF_TYPE)
+    key_validator = one_of(*schemas, **kwargs)
+
+    def validator(value):
+        if not isinstance(value, dict):
+            raise Invalid("Value must be dict")
+        if CONF_TYPE not in value:
+            raise Invalid("type not specified!")
+        value = value.copy()
+        key_v = key_validator(value.pop(key))
+        value = schemas[key_v](value)
+        value[key] = key_v
+        return value
+
+    return validator
 
 
 class GenerateID(Optional):
@@ -1163,13 +1210,14 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-def maybe_simple_value(*validators):
+def maybe_simple_value(*validators, **kwargs):
+    key = kwargs.pop('key', CONF_VALUE)
     validator = All(*validators)
 
     def validate(value):
-        if isinstance(value, dict) and CONF_VALUE in value:
+        if isinstance(value, dict) and key in value:
             return validator(value)
-        return validator({CONF_VALUE: value})
+        return validator({key: value})
 
     return validate
 

@@ -6,6 +6,19 @@ __pycache__/
 # C extensions
 *.so
 
+# Hide sublime text stuff
+*.sublime-project
+*.sublime-workspace
+
+# Hide some OS X stuff
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Thumbnails
+._*
+
 # Distribution / packaging
 .Python
 build/

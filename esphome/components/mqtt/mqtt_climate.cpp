@@ -60,6 +60,8 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // away_mode_state_topic
     root["away_mode_state_topic"] = this->get_away_state_topic();
   }
+  config.state_topic = false;
+  config.command_topic = false;
 }
 void MQTTClimateComponent::setup() {
   auto traits = this->device_->get_traits();
@@ -144,7 +146,7 @@ bool MQTTClimateComponent::publish_state_() {
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;
   int8_t accuracy = traits.get_temperature_accuracy_decimals();
-  if (traits.get_supports_current_temperature()) {
+  if (traits.get_supports_current_temperature() && !isnan(this->device_->current_temperature)) {
     std::string payload = value_accuracy_to_string(this->device_->current_temperature, accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;

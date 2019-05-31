@@ -70,7 +70,7 @@ def delayed_off_filter_to_code(config, filter_id):
     yield var
 
 
-@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.lambda_)
+@FILTER_REGISTRY.register('lambda', LambdaFilter, cv.returning_lambda)
 def lambda_filter_to_code(config, filter_id):
     lambda_ = yield cg.process_lambda(config, [(bool, 'x')], return_type=cg.optional.template(bool))
     yield cg.new_Pvariable(filter_id, lambda_)
@@ -254,6 +254,7 @@ def setup_binary_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, timings)
         if CONF_INVALID_COOLDOWN in conf:
             cg.add(trigger.set_invalid_cooldown(conf[CONF_INVALID_COOLDOWN]))
+        yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_STATE, []):
