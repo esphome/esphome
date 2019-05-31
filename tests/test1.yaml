@@ -105,6 +105,9 @@ mqtt:
         - light.control:
             id: living_room_lights
             brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
+        - light.dim_relative:
+            id: living_room_lights
+            relative_brightness: 5%
         - uart.write:
             id: uart0
             data: Hello World
