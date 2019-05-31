@@ -335,12 +335,20 @@ class ESPColorView : public ESPColorSettable {
   void darken(uint8_t delta) override { this->set(this->get().darken(delta)); }
   ESPColor get() const { return ESPColor(this->get_red(), this->get_green(), this->get_blue(), this->get_white()); }
   uint8_t get_red() const { return this->color_correction_->color_uncorrect_red(*this->red_); }
+  uint8_t get_red_raw() const { return *this->red_; }
   uint8_t get_green() const { return this->color_correction_->color_uncorrect_green(*this->green_); }
+  uint8_t get_green_raw() const { return *this->green_; }
   uint8_t get_blue() const { return this->color_correction_->color_uncorrect_blue(*this->blue_); }
+  uint8_t get_blue_raw() const { return *this->blue_; }
   uint8_t get_white() const {
     if (this->white_ == nullptr)
       return 0;
     return this->color_correction_->color_uncorrect_white(*this->white_);
+  }
+  uint8_t get_white_raw() const {
+    if (this->white_ == nullptr)
+      return 0;
+    return *this->white_;
   }
   uint8_t get_effect_data() const {
     if (this->effect_data_ == nullptr)
@@ -475,7 +483,7 @@ class ESPRangeView : public ESPColorSettable {
   int32_t end_;
 };
 
-class AddressableLight : public LightOutput {
+class AddressableLight : public LightOutput, public Component {
  public:
   virtual int32_t size() const = 0;
   ESPColorView operator[](int32_t index) const { return this->get_view_internal(interpret_index(index, this->size())); }
@@ -530,12 +538,17 @@ class AddressableLight : public LightOutput {
     this->correction_.set_max_brightness(ESPColor(uint8_t(roundf(red * 255.0f)), uint8_t(roundf(green * 255.0f)),
                                                   uint8_t(roundf(blue * 255.0f)), uint8_t(roundf(white * 255.0f))));
   }
-  void setup_state(LightState *state) override { this->correction_.calculate_gamma_table(state->get_gamma_correct()); }
+  void setup_state(LightState *state) override {
+    this->correction_.calculate_gamma_table(state->get_gamma_correct());
+    this->state_parent_ = state;
+  }
   void schedule_show() { this->next_show_ = true; }
 
 #ifdef USE_POWER_SUPPLY
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
 #endif
+
+  void call_setup() override;
 
  protected:
   bool should_show_() const { return this->effect_active_ || this->next_show_; }
@@ -559,6 +572,7 @@ class AddressableLight : public LightOutput {
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_;
 #endif
+  LightState *state_parent_{nullptr};
 };
 
 }  // namespace light

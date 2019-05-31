@@ -7,7 +7,7 @@ LightState = light_ns.class_('LightState', cg.Nameable, cg.Component)
 # Fake class for addressable lights
 AddressableLightState = light_ns.class_('LightState', LightState)
 LightOutput = light_ns.class_('LightOutput')
-AddressableLight = light_ns.class_('AddressableLight')
+AddressableLight = light_ns.class_('AddressableLight', cg.Component)
 AddressableLightRef = AddressableLight.operator('ref')
 LightColorValues = light_ns.class_('LightColorValues')
 
