@@ -33,4 +33,5 @@ def to_code(config):
                                            conf[CONF_TO] - conf[CONF_FROM] + 1))
 
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID], segments)
+    yield cg.register_component(var, config)
     yield light.register_light(var, config)
