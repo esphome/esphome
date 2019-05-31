@@ -370,13 +370,13 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(prog='esphome')
+    parser = argparse.ArgumentParser(description='ESPHome v{}'.format(const.__version__))
     parser.add_argument('-v', '--verbose', help="Enable verbose esphome logs.",
                         action='store_true')
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
-    parser.add_argument('configuration', help='Your YAML configuration file.')
+    parser.add_argument('configuration', help='Your YAML configuration file.', nargs='?')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
@@ -454,6 +454,10 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
+    if args.command != 'version' and args.configuration is None:
+        _LOGGER.error("Missing configuration parameter, see esphome --help.")
+        return 1
+
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
