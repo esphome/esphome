@@ -230,6 +230,9 @@ void UARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
   if (this->hw_serial_ != nullptr) {
     this->hw_serial_->flush();
+    // ESP8266 HWSerial does not always flush
+    while (this->available() > 0)
+      this->read();
   } else {
     this->sw_serial_->flush();
   }

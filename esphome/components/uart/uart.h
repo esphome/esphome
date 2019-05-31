@@ -99,6 +99,9 @@ class UARTDevice : public Stream {
 
   void write_array(const uint8_t *data, size_t len) { this->parent_->write_array(data, len); }
   void write_array(const std::vector<uint8_t> &data) { this->parent_->write_array(data); }
+  template<size_t N> void write_array(const std::array<uint8_t, N> &data) {
+    this->parent_->write_array(data.data(), data.size());
+  }
 
   void write_str(const char *str) { this->parent_->write_str(str); }
 
@@ -106,6 +109,13 @@ class UARTDevice : public Stream {
   bool peek_byte(uint8_t *data) { return this->parent_->peek_byte(data); }
 
   bool read_array(uint8_t *data, size_t len) { return this->parent_->read_array(data, len); }
+  template<size_t N> optional<std::array<uint8_t, N>> read_array() {  // NOLINT
+    std::array<uint8_t, N> res;
+    if (!this->read_array(res.data(), N)) {
+      return {};
+    }
+    return res;
+  }
 
   int available() override { return this->parent_->available(); }
 
