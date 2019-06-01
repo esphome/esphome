@@ -42,6 +42,7 @@ class I2CComponent : public Component {
    * @return If the operation was successful.
    */
   bool read_bytes(uint8_t address, uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
+  bool read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len);
 
   /** Read len amount of 16-bit words (MSB first) from a register into data.
    *
@@ -69,6 +70,7 @@ class I2CComponent : public Component {
    * @return If the operation was successful.
    */
   bool write_bytes(uint8_t address, uint8_t a_register, const uint8_t *data, uint8_t len);
+  bool write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len);
 
   /** Write len amount of 16-bit words (MSB first) to the specified register for address.
    *
@@ -162,10 +164,20 @@ class I2CDevice {
    * @return If the operation was successful.
    */
   bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);  // NOLINT
+  bool read_bytes_raw(uint8_t *data, uint8_t len) {  // NOLINT
+    this->parent_->read_bytes_raw(data, len);
+  }
 
   template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {  // NOLINT
     std::array<uint8_t, N> res;
     if (!this->read_bytes(a_register, res.data(), N)) {
+      return {};
+    }
+    return res;
+  }
+  template<size_t N> optional<std::array<uint8_t, N>> read_bytes_raw() {  // NOLINT
+    std::array<uint8_t, N> res;
+    if (!this->read_bytes(res.data(), N)) {
       return {};
     }
     return res;
@@ -202,6 +214,9 @@ class I2CDevice {
    * @return If the operation was successful.
    */
   bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len);  // NOLINT
+  bool write_bytes_raw(const uint8_t *data, uint8_t len) {  // NOLINT
+    return this->parent_->write_bytes_raw(this->address_, data, len);
+  }
 
   /** Write a vector of data to a register.
    *
@@ -212,9 +227,15 @@ class I2CDevice {
   bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {  // NOLINT
     return this->write_bytes(a_register, data.data(), data.size());
   }
+  bool write_bytes_raw(const std::vector<uint8_t> &data) {  // NOLINT
+    return this->write_bytes_raw(data.data(), data.size());
+  }
 
   template<size_t N> bool write_bytes(uint8_t a_register, const std::array<uint8_t, N> &data) {  // NOLINT
     return this->write_bytes(a_register, data.data(), data.size());
+  }
+  template<size_t N> bool write_bytes_raw(const std::array<uint8_t, N> &data) {  // NOLINT
+    return this->write_bytes_raw(data.data(), data.size());
   }
 
   /** Write len amount of 16-bit words (MSB first) to the specified register.
