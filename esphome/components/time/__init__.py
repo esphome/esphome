@@ -70,6 +70,14 @@ def convert_tz(pytz_obj):
     transition_times = tz._utc_transition_times
     transition_info = tz._transition_info
     idx = max(0, bisect.bisect_right(transition_times, now))
+    if idx >= len(transition_times):
+        tzname = tz.tzname(now)
+        utcoffset = tz.utcoffset(now)
+        _LOGGER.info("Detected timezone '%s' with UTC offset %s",
+                     tzname, _tz_timedelta(utcoffset))
+        tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
+        return tzbase
+
     idx1, idx2 = idx, idx + 1
     dstoffset1 = transition_info[idx1][1]
     if dstoffset1 == datetime.timedelta(seconds=0):
@@ -244,9 +252,11 @@ def validate_tz(value):
     value = cv.string_strict(value)
 
     try:
-        return convert_tz(pytz.timezone(value))
-    except Exception:  # pylint: disable=broad-except
+        pytz_obj = pytz.timezone(value)
+    except pytz.UnknownTimeZoneError:  # pylint: disable=broad-except
         return value
+
+    return convert_tz(pytz_obj)
 
 
 TIME_SCHEMA = cv.Schema({
