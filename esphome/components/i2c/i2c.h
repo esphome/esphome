@@ -132,6 +132,23 @@ class I2CComponent : public Component {
 extern uint8_t next_i2c_bus_num_;
 #endif
 
+class I2CDevice;
+
+class I2CRegister {
+ public:
+  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
+
+  I2CRegister &operator=(uint8_t value);
+  I2CRegister &operator=(const std::vector<uint8_t> &value);
+  I2CRegister &operator&=(uint8_t value);
+  I2CRegister &operator|=(uint8_t value);
+
+  uint8_t get();
+ protected:
+  I2CDevice *parent_;
+  uint8_t register_;
+};
+
 /** All components doing communication on the I2C bus should subclass I2CDevice.
  *
  * This class stores 1. the address of the i2c device and has a helper function to allow
@@ -151,7 +168,8 @@ class I2CDevice {
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
- protected:
+  I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
    *
@@ -161,9 +179,9 @@ class I2CDevice {
    * @param conversion The time in ms between writing the register value and reading out the value.
    * @return If the operation was successful.
    */
-  bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);  // NOLINT
+  bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
 
-  template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {  // NOLINT
+  template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
     if (!this->read_bytes(a_register, res.data(), N)) {
       return {};
@@ -232,6 +250,7 @@ class I2CDevice {
   /// Write a single 16-bit word of data into the specified register. Return true if successful.
   bool write_byte_16(uint8_t a_register, uint16_t data);  // NOLINT
 
+ protected:
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
 };
