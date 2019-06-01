@@ -85,8 +85,46 @@ ESPColorView ESPRangeView::operator[](int32_t index) const {
   index = interpret_index(index, this->size());
   return (*this->parent_)[index];
 }
+ESPRangeIterator ESPRangeView::begin() { return {*this, this->begin_}; }
+ESPRangeIterator ESPRangeView::end() { return {*this, this->end_}; }
+void ESPRangeView::set_red(uint8_t red) {
+  for (auto c : *this)
+    c.set_red(red);
+}
+void ESPRangeView::set_green(uint8_t green) {
+  for (auto c : *this)
+    c.set_green(green);
+}
+void ESPRangeView::set_blue(uint8_t blue) {
+  for (auto c : *this)
+    c.set_blue(blue);
+}
+void ESPRangeView::set_white(uint8_t white) {
+  for (auto c : *this)
+    c.set_white(white);
+}
+void ESPRangeView::set_effect_data(uint8_t effect_data) {
+  for (auto c : *this)
+    c.set_effect_data(effect_data);
+}
+void ESPRangeView::fade_to_white(uint8_t amnt) {
+  for (auto c : *this)
+    c.fade_to_white(amnt);
+}
+void ESPRangeView::fade_to_black(uint8_t amnt) {
+  for (auto c : *this)
+    c.fade_to_white(amnt);
+}
+void ESPRangeView::lighten(uint8_t delta) {
+  for (auto c : *this)
+    c.lighten(delta);
+}
+void ESPRangeView::darken(uint8_t delta) {
+  for (auto c : *this)
+    c.darken(delta);
+}
 
-ESPColorView ESPRangeView::Iterator::operator*() const { return (*this->range_->parent_)[this->i_]; }
+ESPColorView ESPRangeIterator::operator*() const { return this->range_.parent_->get(this->i_); }
 
 int32_t HOT interpret_index(int32_t index, int32_t size) {
   if (index < 0)

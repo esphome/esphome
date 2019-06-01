@@ -476,6 +476,7 @@ void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
 
   if (status != OK) {
     ESP_LOGV(TAG, "Scan failed! %d", status);
+    this->retry_connect();
     return;
   }
   auto *head = reinterpret_cast<bss_info *>(arg);
