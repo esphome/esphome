@@ -308,14 +308,15 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   explicit AddressableFlickerEffect(const std::string &name) : AddressableLightEffect(name) {}
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
-    const uint8_t delta_intensity = 255 - this->intensity_;
+    const uint8_t intensity = this->intensity_;
+    const uint8_t inv_intensity = 255 - intensity;
     if (now - this->last_update_ < this->update_interval_)
       return;
     this->last_update_ = now;
     fast_random_set_seed(random_uint32());
     for (auto var : it) {
-      const uint8_t flicker = fast_random_8() % this->intensity_;
-      var = (var.get() * delta_intensity) + (current_color * flicker);
+      const uint8_t flicker = fast_random_8() % intensity;
+      var = (var.get() * inv_intensity) + (current_color * flicker);
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
