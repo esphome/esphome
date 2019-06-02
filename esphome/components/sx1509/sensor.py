@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
-from esphome.const import CONF_ID,UNIT_EMPTY, ICON_EMPTY
+from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY
 from . import SX1509Component, sx1509_ns
 
 CONF_KEY_ROWS = 'key_rows'
@@ -13,7 +13,7 @@ CONF_DEBOUNCE_TIME = 'debounce_time'
 
 DEPENDENCIES = ['sx1509']
 
-SX1509KeypadSensor = sx1509_ns.class_('SX1509KeypadSensor',sensor.Sensor, cg.Component)
+SX1509KeypadSensor = sx1509_ns.class_('SX1509KeypadSensor', sensor.Sensor, cg.Component)
 
 CONF_SX1509_ID = 'sx1509_id'
 
@@ -35,5 +35,6 @@ def to_code(config):
     yield sensor.register_sensor(var, config)
     cg.add(var.set_parent(parent))
 
-    cg.add(var.set_rows_cols(config[CONF_KEY_ROWS] ,config[CONF_KEY_COLUMNS] ))
-    cg.add(var.set_timers(config[CONF_SLEEP_TIME],config[CONF_SCAN_TIME], config[CONF_DEBOUNCE_TIME] ))
+    cg.add(var.set_rows_cols(config[CONF_KEY_ROWS], config[CONF_KEY_COLUMNS]))
+    cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME], \
+        config[CONF_DEBOUNCE_TIME]))

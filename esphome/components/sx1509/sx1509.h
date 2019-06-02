@@ -34,7 +34,6 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void loop() override;
   void pin_mode(uint8_t pin, uint8_t in_out);
   void led_driver_init(uint8_t pin, uint8_t freq = 1, bool log = false);
   void clock(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
@@ -44,9 +43,9 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
   void setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0,
                    uint8_t t_rise = 0, uint8_t t_fall = 0, bool log = false);
-  void blink(uint8_t pin, unsigned long tOn, unsigned long tOff, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
-  void breathe(uint8_t pin, unsigned long tOn, unsigned long tOff, unsigned long rise, unsigned long fall,
-               uint8_t onInt = 255, uint8_t offInt = 0, bool log = LINEAR);
+  void blink(uint8_t pin, uint16_t tOn, uint16_t tOff, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
+  void breathe(uint8_t pin, uint16_t tOn, uint16_t tOff, uint16_t rise, uint16_t fall,
+               uint8_t on_intensity = 255, uint8_t off_intensity = 0, bool log = LINEAR);
   uint8_t calculate_led_t_register(uint16_t ms);
   uint8_t calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity);
   void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time = 0, uint8_t scan_time = 1,

@@ -28,8 +28,6 @@ void SX1509Component::setup() {
   //   channel->setup();
 
   delayMicroseconds(500);
-
-  this->loop();
 }
 
 void SX1509Component::dump_config() {
@@ -38,15 +36,6 @@ void SX1509Component::dump_config() {
     ESP_LOGE(TAG, "Setting up SX1509 failed!");
   }
 }
-
-void SX1509Component::loop() {}
-
-// SX1509FloatOutputChannel *SX1509Component::create_float_output_channel(uint8_t pin) {
-//   ESP_LOGD(TAG, "Create float channel for pin %d", pin);
-//   auto *channel = new SX1509FloatOutputChannel(this, pin);
-//   float_output_channels_.push_back(channel);
-//   return channel;
-// }
 
 uint8_t SX1509Component::digital_read(uint8_t pin) {
   uint16_t tempRegDir;
@@ -120,10 +109,6 @@ void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
   if (mode == ANALOG_OUTPUT) {
     led_driver_init(pin);
   }
-
-  if (mode == BREATHE_OUTPUT) {
-    breathe(pin, 1000, 1000, 1000, 1000);
-  }
 }
 
 void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
@@ -174,41 +159,41 @@ void SX1509Component::led_driver_init(uint8_t pin, uint8_t freq, bool log) {
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 
-void SX1509Component::breathe(uint8_t pin, unsigned long tOn, unsigned long tOff, unsigned long rise,
-                              unsigned long fall, uint8_t onInt, uint8_t offInt, bool log) {
-  offInt = constrain(offInt, 0, 7);
+void SX1509Component::breathe(uint8_t pin, uint16_t t_on, uint16_t t_off,uint16_t t_rise,
+                              uint16_t t_fall, uint8_t on_intensity, uint8_t off_intensity, bool log) {
+  off_intensity = constrain(off_intensity, 0, 7);
 
-  uint8_t onReg = calculate_led_t_register(tOn);
-  uint8_t offReg = calculate_led_t_register(tOff);
+  uint8_t onReg = calculate_led_t_register(t_on);
+  uint8_t offReg = calculate_led_t_register(t_off);
 
-  uint8_t riseTime = calculate_slope_register(rise, onInt, offInt);
-  uint8_t fallTime = calculate_slope_register(fall, onInt, offInt);
+  uint8_t rise_time = calculate_slope_register(t_rise, on_intensity, off_intensity);
+  uint8_t fall_time = calculate_slope_register(t_fall, on_intensity, off_intensity);
 
-  setup_blink(pin, onReg, offReg, onInt, offInt, riseTime, fallTime, log);
+  setup_blink(pin, onReg, offReg, on_intensity, off_intensity, rise_time, fall_time, log);
 }
 
-void SX1509Component::setup_blink(uint8_t pin, uint8_t tOn, uint8_t tOff, uint8_t onIntensity, uint8_t offIntensity,
-                                  uint8_t tRise, uint8_t tFall, bool log) {
+void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity, uint8_t off_intensity,
+                                  uint8_t t_rise, uint8_t t_fall, bool log) {
   led_driver_init(pin, log);
 
-  tOn &= 0x1F;   // tOn should be a 5-bit value
-  tOff &= 0x1F;  // tOff should be a 5-bit value
-  offIntensity &= 0x07;
+  t_on &= 0x1F;   // t_on should be a 5-bit value
+  t_off &= 0x1F;  // t_off should be a 5-bit value
+  off_intensity &= 0x07;
   // Write the time on
-  this->write_byte(REG_T_ON[pin], tOn);
+  this->write_byte(REG_T_ON[pin], t_on);
 
-  this->write_byte(REG_OFF[pin], (tOff << 3) | offIntensity);
+  this->write_byte(REG_OFF[pin], (t_off << 3) | off_intensity);
 
-  this->write_byte(REG_I_ON[pin], onIntensity);
+  this->write_byte(REG_I_ON[pin], on_intensity);
 
-  tRise &= 0x1F;
-  tFall &= 0x1F;
+  t_rise &= 0x1F;
+  t_fall &= 0x1F;
 
   if (REG_T_RISE[pin] != 0xFF)
-    this->write_byte(REG_T_RISE[pin], tRise);
+    this->write_byte(REG_T_RISE[pin], t_rise);
 
   if (REG_T_FALL[pin] != 0xFF)
-    this->write_byte(REG_T_FALL[pin], tFall);
+    this->write_byte(REG_T_FALL[pin], t_fall);
 }
 
 void SX1509Component::clock(byte oscSource, byte oscPinFunction, byte oscFreqOut, byte oscDivider) {
