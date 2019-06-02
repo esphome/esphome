@@ -187,7 +187,9 @@ class OrderedDict(collections.OrderedDict):
 
     def move_to_end(self, key, last=True):
         if IS_PY2:
-            if last:
+            if len(self) == 1:
+                return
+            elif last:
                 # When moving to end, just pop and re-add
                 val = self.pop(key)
                 self[key] = val
