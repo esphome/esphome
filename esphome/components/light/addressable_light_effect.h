@@ -113,7 +113,7 @@ class AddressableColorWipeEffect : public AddressableLightEffect {
       it.shift_right(1);
     const AddressableColorWipeEffectColor color = this->colors_[this->at_color_];
     const ESPColor esp_color = ESPColor(color.r, color.g, color.b, color.w);
-    if (!this->reverse_)
+    if (this->reverse_)
       it[-1] = esp_color;
     else
       it[0] = esp_color;
