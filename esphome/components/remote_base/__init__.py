@@ -83,14 +83,20 @@ def register_dumper(name, type):
     return decorator
 
 
-def register_action(name, type_, schema):
-    validator = templatize(schema).extend({
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
-        cv.Optional(CONF_REPEAT): cv.Schema({
+def validate_repeat(value):
+    if isinstance(value, dict):
+        return cv.Schema({
             cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
             cv.Optional(CONF_WAIT_TIME, default='10ms'):
                 cv.templatable(cv.positive_time_period_milliseconds),
-        }),
+        })(value)
+    return validate_repeat({CONF_TIMES: value})
+
+
+def register_action(name, type_, schema):
+    validator = templatize(schema).extend({
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
+        cv.Optional(CONF_REPEAT): validate_repeat,
     })
     registerer = automation.register_action('remote_transmitter.transmit_{}'.format(name),
                                             type_, validator)
