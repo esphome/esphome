@@ -393,6 +393,16 @@ def validate_config(config):
             result.add_error(err)
             return result
 
+    if 'esphomeyaml' in config:
+        _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
+                        "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
+        config[CONF_ESPHOME] = config.pop('esphomeyaml')
+
+    if CONF_ESPHOME not in config:
+        result.add_str_error("'esphome' section missing from configuration. Please make sure "
+                             "your configuration has an 'esphome:' line in it.", [])
+        return result
+
     # 2. Load partial core config
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
