@@ -35,7 +35,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void pin_mode(uint8_t pin, uint8_t in_out);
-  void led_driver_init(uint8_t pin, uint8_t freq = 1, bool log = false);
+  void setup_led_driver(uint8_t pin, uint8_t freq = 1, bool log = false);
   void clock(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
   void digital_write(uint8_t pin, uint8_t high_low);
   uint8_t digital_read(uint8_t pin);
@@ -43,8 +43,8 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
   void setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0,
                    uint8_t t_rise = 0, uint8_t t_fall = 0, bool log = false);
-  void blink(uint8_t pin, uint16_t tOn, uint16_t tOff, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
-  void breathe(uint8_t pin, uint16_t tOn, uint16_t tOff, uint16_t rise, uint16_t fall,
+  //void init_blink(uint8_t pin, uint16_t t_on, uint16_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
+  void setup_breathe(uint8_t pin, uint16_t t_on, uint16_t t_off, uint16_t t_rise, uint16_t t_fall,
                uint8_t on_intensity = 255, uint8_t off_intensity = 0, bool log = LINEAR);
   uint8_t calculate_led_t_register(uint16_t ms);
   uint8_t calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity);
@@ -65,7 +65,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint8_t pinOscillator_;
   uint8_t pinReset_;
   // variables:
-  u_long _clkX;
+  u_long clk_x_;
   uint8_t frequency_ = 0;
 
   bool update_{true};

@@ -8,22 +8,24 @@ namespace sx1509 {
 static const char *TAG = "sx1509_gpio_pin";
 
 SX1509GPIOPin::SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted, uint16_t t_on,
-                             uint16_t t_off, uint16_t t_rise, uint16_t t_fall)
+                             uint16_t t_off, uint16_t t_rise, uint16_t t_fall, uint8_t fading_mode)
     : GPIOPin(pin, mode, inverted), parent_(parent) {
   t_on_ = t_on;
   t_off_ = t_off;
   t_rise_ = t_rise;
   t_fall_ = t_fall;
+  fading_mode_ = fading_mode;
 }
+
 void SX1509GPIOPin::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);
   this->pin_mode(this->mode_);
   switch (this->mode_) {
     case BREATHE_OUTPUT:
-      this->parent_->breathe(this->pin_, t_on_, t_off_, t_rise_, t_fall_);
+      this->parent_->setup_breathe(this->pin_, t_on_, t_off_, t_rise_, t_fall_);
       break;
     case BLINK_OUTPUT:
-      this->parent_->blink(this->pin_, t_on_, t_off_);
+      this->parent_->setup_blink(this->pin_, t_on_, t_off_);
       break;
   }
 }

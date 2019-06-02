@@ -8,8 +8,9 @@ CONF_ON_TIME = 'on_time'
 CONF_OFF_TIME = 'off_time'
 CONF_RISE_TIME = 'rise_time'
 CONF_FALL_TIME = 'fall_time'
-CONF_ON_INT = 'on_intemsity'
+CONF_ON_INT = 'on_intensity'
 CONF_OFF_INT = 'off_intensity'
+CONF_FADING_MODE = 'fading_mode'
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -22,6 +23,10 @@ SX1509_GPIO_MODES = {
     'OUTPUT': SX1509GPIOMode.SX1509_OUTPUT,
     'BREATHE_OUTPUT': SX1509GPIOMode.SX1509_BREATHE_OUTPUT,
     'BLINK_OUTPUT': SX1509GPIOMode.SX1509_BLINK_OUTPUT
+}
+SX1509_FADING_MODES = {
+    'LINEAR': SX1509GPIOMode.SX1509_FADING_LINEAR,
+    'LOGARITHMIC': SX1509GPIOMode.SX1509_FADING_LOGARITHMIC
 }
 
 SX1509Component = sx1509_ns.class_('SX1509Component', cg.Component, i2c.I2CDevice)
@@ -44,6 +49,7 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+    cv.Optional(CONF_FADING_MODE, default="LINEAR"): cv.enum(SX1509_FADING_MODES, upper=True),
     cv.Optional(CONF_ON_TIME, default=500): cv.int_,
     cv.Optional(CONF_OFF_TIME, default=500): cv.int_,
     cv.Optional(CONF_RISE_TIME, default=500): cv.int_,
@@ -65,6 +71,6 @@ def sx1509_pin_to_code(config):
     if(config[CONF_MODE] == 'BREATHE_OUTPUT' or config[CONF_MODE] == 'BLINK_OUTPUT'):
         yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED],
                                 config[CONF_ON_TIME], config[CONF_OFF_TIME],
-                                config[CONF_RISE_TIME], config[CONF_FALL_TIME])
+                                config[CONF_RISE_TIME], config[CONF_FALL_TIME],config[CONF_FADING_MODE])
     else:
         yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])
