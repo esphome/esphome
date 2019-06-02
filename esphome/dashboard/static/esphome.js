@@ -709,9 +709,12 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     editorUploadButton.setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
+    editor.setValue("Loading configuration yaml...");
+    editor.setOption('readOnly', true)
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
+        editor.setOption('readOnly', false)
     });
 
     modalInstance.open();
