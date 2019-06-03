@@ -31,7 +31,7 @@ optional<SonyData> SonyProtocol::decode(RemoteReceiveData src) {
       .nbits = 0,
   };
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
-    return out;
+    return {};
 
   for (; out.nbits < 20; out.nbits++) {
     uint32_t bit;
