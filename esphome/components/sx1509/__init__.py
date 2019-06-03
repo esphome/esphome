@@ -50,12 +50,12 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     cv.Optional(CONF_FADING_MODE, default="LINEAR"): cv.enum(SX1509_FADING_MODES, upper=True),
-    cv.Optional(CONF_ON_TIME, default=500): cv.int_,
-    cv.Optional(CONF_OFF_TIME, default=500): cv.int_,
-    cv.Optional(CONF_RISE_TIME, default=500): cv.int_,
-    cv.Optional(CONF_FALL_TIME, default=500): cv.int_,
-    cv.Optional(CONF_ON_INT, default=7): cv.int_range(min=0, max=7),
-    cv.Optional(CONF_OFF_INT, default=0): cv.int_range(min=0, max=7), })
+    cv.Optional(CONF_ON_TIME, default=0): cv.int_,
+    cv.Optional(CONF_OFF_TIME, default=0): cv.int_,
+    cv.Optional(CONF_RISE_TIME, default=0): cv.int_,
+    cv.Optional(CONF_FALL_TIME, default=0): cv.int_,
+    cv.Optional(CONF_ON_INT, default=255): cv.int_range(min=0, max=255),
+    cv.Optional(CONF_OFF_INT, default=0): cv.int_range(min=0, max=255), })
 SX1509_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
@@ -70,7 +70,7 @@ def sx1509_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_SX1509])
     if(config[CONF_MODE] == 'BREATHE_OUTPUT' or config[CONF_MODE] == 'BLINK_OUTPUT'):
         yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED],
-                                config[CONF_ON_TIME], config[CONF_OFF_TIME],
-                                config[CONF_RISE_TIME], config[CONF_FALL_TIME],config[CONF_FADING_MODE])
+                                config[CONF_ON_TIME], config[CONF_OFF_TIME], config[CONF_ON_INT], config[CONF_OFF_INT],
+                                config[CONF_RISE_TIME], config[CONF_FALL_TIME], config[CONF_FADING_MODE])
     else:
         yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])

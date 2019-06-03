@@ -10,10 +10,6 @@
 namespace esphome {
 namespace sx1509 {
 
-// These are used for setting LED driver to linear or log mode:
-#define LINEAR 0
-#define LOGARITHMIC 1
-
 // These are used for clock config:
 #define INTERNAL_CLOCK_2MHZ 2
 #define EXTERNAL_CLOCK 1
@@ -24,6 +20,7 @@ namespace sx1509 {
 #define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
 
 class SX1509FloatOutputChannel;
+class SX1509GPIOPin;
 
 class SX1509Component : public Component, public i2c::I2CDevice {
  public:
@@ -43,11 +40,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
   void setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0,
                    uint8_t t_rise = 0, uint8_t t_fall = 0, bool log = false);
-  //void init_blink(uint8_t pin, uint16_t t_on, uint16_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0);
-  void setup_breathe(uint8_t pin, uint16_t t_on, uint16_t t_off, uint16_t t_rise, uint16_t t_fall,
-               uint8_t on_intensity = 255, uint8_t off_intensity = 0, bool log = LINEAR);
-  uint8_t calculate_led_t_register(uint16_t ms);
-  uint8_t calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity);
+
   void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time = 0, uint8_t scan_time = 1,
                     uint8_t debounce_time = 0);
   uint16_t read_key_data();
@@ -60,6 +53,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
  protected:
   friend class SX1509FloatOutputChannel;
+  friend class SX1509GPIOPin;
   // Pin definitions:
   uint8_t pinInterrupt_;
   uint8_t pinOscillator_;

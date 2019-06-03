@@ -159,19 +159,6 @@ void SX1509Component::setup_led_driver(uint8_t pin, uint8_t freq, bool log) {
   this->write_byte_16(REG_DATA_B, temp_word);
 }
 
-void SX1509Component::setup_breathe(uint8_t pin, uint16_t t_on, uint16_t t_off,uint16_t t_rise,
-                              uint16_t t_fall, uint8_t on_intensity, uint8_t off_intensity, bool log) {
-  off_intensity = constrain(off_intensity, 0, 7);
-
-  uint8_t onReg = calculate_led_t_register(t_on);
-  uint8_t offReg = calculate_led_t_register(t_off);
-
-  uint8_t rise_time = calculate_slope_register(t_rise, on_intensity, off_intensity);
-  uint8_t fall_time = calculate_slope_register(t_fall, on_intensity, off_intensity);
-
-  setup_blink(pin, onReg, offReg, on_intensity, off_intensity, rise_time, fall_time, log);
-}
-
 void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity, uint8_t off_intensity,
                                   uint8_t t_rise, uint8_t t_fall, bool log) {
   setup_led_driver(pin, log);
@@ -193,7 +180,7 @@ void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint
 }
 
 void SX1509Component::clock(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
-  osc_source = (osc_source & 0b11) << 5;         // 2-bit value, bits 6:5
+  osc_source = (osc_source & 0b11) << 5;           // 2-bit value, bits 6:5
   osc_pin_function = (osc_pin_function & 1) << 4;  // 1-bit value bit 4
   osc_freq_out = (osc_freq_out & 0b1111);          // 4-bit value, bits 3:0
   byte reg_clock = osc_source | osc_pin_function | osc_freq_out;
@@ -213,42 +200,6 @@ void SX1509Component::clock(byte osc_source, byte osc_pin_function, byte osc_fre
 void SX1509Component::set_pin_value_(uint8_t pin, uint8_t i_on) {
   ESP_LOGD(TAG, "set_pin_value_ for pin %d to %d", pin, i_on);
   this->write_byte(REG_I_ON[pin], i_on);
-}
-
-uint8_t SX1509Component::calculate_led_t_register(uint16_t ms) {
-  uint16_t reg_on_1, reg_on_2;
-  float timeOn1, timeOn2;
-  if (clk_x_ == 0)
-    return 0;
-  reg_on_1 = (float) (ms / 1000.0) / (64.0 * 255.0 / (float) clk_x_);
-  reg_on_2 = reg_on_1 / 8;
-  reg_on_1 = constrain(reg_on_1, 1, 15);
-  reg_on_2 = constrain(reg_on_2, 16, 31);
-  timeOn1 = 64.0 * reg_on_1 * 255.0 / clk_x_ * 1000.0;
-  timeOn2 = 512.0 * reg_on_2 * 255.0 / clk_x_ * 1000.0;
-  if (abs(timeOn1 - ms) < abs(timeOn2 - ms))
-    return reg_on_1;
-  else
-    return reg_on_2;
-}
-
-uint8_t SX1509Component::calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity) {
-  uint16_t reg_slope_1, reg_slope_2;
-  float reg_time_1, reg_time_2;
-  if (clk_x_ == 0)
-    return 0;
-  float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) clk_x_;
-  float time_s = float(ms) / 1000.0;
-  reg_slope_1 = time_s / t_factor;
-  reg_slope_2 = reg_slope_1 / 16;
-  reg_slope_1 = constrain(reg_slope_1, 1, 15);
-  reg_slope_2 = constrain(reg_slope_2, 16, 31);
-  reg_time_1 = reg_slope_1 * t_factor * 1000.0;
-  reg_time_2 = 16 * reg_time_1;
-  if (abs(reg_time_1 - ms) < abs(reg_time_2 - ms))
-    return reg_slope_1;
-  else
-    return reg_slope_2;
 }
 
 void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time, uint8_t scan_time,
@@ -330,7 +281,7 @@ void SX1509Component::debounce_config(uint8_t config_value) {
 }
 
 void SX1509Component::debounce_time(uint8_t time) {
-  if (clk_x_ == 0)                   // If clock hasn't been set up.
+  if (clk_x_ == 0)                  // If clock hasn't been set up.
     clock(INTERNAL_CLOCK_2MHZ, 1);  // Set clock to 2MHz.
 
   uint8_t config_value = 0;
