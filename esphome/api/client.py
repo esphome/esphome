@@ -108,7 +108,6 @@ class APIClient(threading.Thread):
         self._message_handlers = []
         self._keepalive = 5
         self._ping_timer = None
-        self._refresh_ping()
 
         self.on_disconnect = None
         self.on_connect = None
@@ -210,6 +209,7 @@ class APIClient(threading.Thread):
         _LOGGER.debug("Successfully connected to %s ('%s' API=%s.%s)", self._address,
                       resp.server_info, resp.api_version_major, resp.api_version_minor)
         self._connected = True
+        self._refresh_ping()
         if self.on_connect is not None:
             self.on_connect()
 
@@ -389,7 +389,6 @@ class APIClient(threading.Thread):
         for msg_handler in self._message_handlers[:]:
             msg_handler(msg)
         self._handle_internal_messages(msg)
-        self._refresh_ping()
 
     def run(self):
         self._running_event.set()

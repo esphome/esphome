@@ -127,13 +127,13 @@ def resolve_ip_address(host):
     from esphome.core import EsphomeError
     import socket
 
+    if host.endswith('.local'):
+        return _resolve_with_zeroconf(host)
+
     try:
         ip = socket.gethostbyname(host)
     except socket.error as err:
-        if host.endswith('.local'):
-            ip = _resolve_with_zeroconf(host)
-        else:
-            raise EsphomeError("Error resolving IP address: {}".format(err))
+        raise EsphomeError("Error resolving IP address: {}".format(err))
 
     return ip
 
