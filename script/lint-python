@@ -56,7 +56,7 @@ def main():
     print("Running flake8...")
     log = get_output(*cmd)
     for line in log.splitlines():
-        line = line.split(':')
+        line = line.split(':', 4)
         if len(line) < 4:
             continue
         file_ = line[0]
@@ -69,12 +69,12 @@ def main():
     print("Running pylint...")
     log = get_output(*cmd)
     for line in log.splitlines():
-        line = line.split(':')
+        line = line.split(':', 3)
         if len(line) < 3:
             continue
         file_ = line[0]
         linno = line[1]
-        msg = (u':'.join(line[3:])).strip()
+        msg = (u':'.join(line[2:])).strip()
         print_error(file_, linno, msg)
         errors += 1
 

@@ -446,8 +446,8 @@ def run_logs(config, address):
         try:
             cli.connect()
             cli.login()
-        except APIConnectionError as err:  # noqa
-            error = err
+        except APIConnectionError as err2:  # noqa
+            error = err2
 
         if error is None:
             _LOGGER.info("Successfully connected to %s", address)
