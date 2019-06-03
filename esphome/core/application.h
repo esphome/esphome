@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -196,6 +197,8 @@ class Application {
     return nullptr;
   }
 #endif
+
+  Scheduler scheduler;
 
  protected:
   friend Component;
