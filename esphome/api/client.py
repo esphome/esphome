@@ -108,7 +108,6 @@ class APIClient(threading.Thread):
         self._message_handlers = []
         self._keepalive = 5
         self._ping_timer = None
-        self._refresh_ping()
 
         self.on_disconnect = None
         self.on_connect = None
@@ -132,8 +131,8 @@ class APIClient(threading.Thread):
             if self._connected:
                 try:
                     self.ping()
-                except APIConnectionError:
-                    self._fatal_error()
+                except APIConnectionError as err:
+                    self._fatal_error(err)
                 else:
                     self._refresh_ping()
 
@@ -175,7 +174,7 @@ class APIClient(threading.Thread):
             raise APIConnectionError("You need to call start() first!")
 
         if self._connected:
-            raise APIConnectionError("Already connected!")
+            self.disconnect(on_disconnect=False)
 
         try:
             ip = resolve_ip_address(self._address)
@@ -193,8 +192,9 @@ class APIClient(threading.Thread):
         try:
             self._socket.connect((ip, self._port))
         except socket.error as err:
-            self._fatal_error()
-            raise APIConnectionError("Error connecting to {}: {}".format(ip, err))
+            err = APIConnectionError("Error connecting to {}: {}".format(ip, err))
+            self._fatal_error(err)
+            raise err
         self._socket.settimeout(0.1)
 
         self._socket_open_event.set()
@@ -204,18 +204,20 @@ class APIClient(threading.Thread):
         try:
             resp = self._send_message_await_response(hello, pb.HelloResponse)
         except APIConnectionError as err:
-            self._fatal_error()
+            self._fatal_error(err)
             raise err
         _LOGGER.debug("Successfully connected to %s ('%s' API=%s.%s)", self._address,
                       resp.server_info, resp.api_version_major, resp.api_version_minor)
         self._connected = True
+        self._refresh_ping()
         if self.on_connect is not None:
             self.on_connect()
 
     def _check_connected(self):
         if not self._connected:
-            self._fatal_error()
-            raise APIConnectionError("Must be connected!")
+            err = APIConnectionError("Must be connected!")
+            self._fatal_error(err)
+            raise err
 
     def login(self):
         self._check_connected()
@@ -233,13 +235,13 @@ class APIClient(threading.Thread):
         if self.on_login is not None:
             self.on_login()
 
-    def _fatal_error(self):
+    def _fatal_error(self, err):
         was_connected = self._connected
 
         self._close_socket()
 
         if was_connected and self.on_disconnect is not None:
-            self.on_disconnect()
+            self.on_disconnect(err)
 
     def _write(self, data):  # type: (bytes) -> None
         if self._socket is None:
@@ -250,8 +252,9 @@ class APIClient(threading.Thread):
             try:
                 self._socket.sendall(data)
             except socket.error as err:
-                self._fatal_error()
-                raise APIConnectionError("Error while writing data: {}".format(err))
+                err = APIConnectionError("Error while writing data: {}".format(err))
+                self._fatal_error(err)
+                raise err
 
     def _send_message(self, msg):
         # type: (message.Message) -> None
@@ -271,7 +274,6 @@ class APIClient(threading.Thread):
         req += _varuint_to_bytes(message_type)
         req += encoded
         self._write(req)
-        self._refresh_ping()
 
     def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=1):
         event = threading.Event()
@@ -309,7 +311,7 @@ class APIClient(threading.Thread):
         self._check_connected()
         return self._send_message_await_response(pb.PingRequest(), pb.PingResponse)
 
-    def disconnect(self):
+    def disconnect(self, on_disconnect=True):
         self._check_connected()
 
         try:
@@ -318,7 +320,7 @@ class APIClient(threading.Thread):
             pass
         self._close_socket()
 
-        if self.on_disconnect is not None:
+        if self.on_disconnect is not None and on_disconnect:
             self.on_disconnect()
 
     def _check_authenticated(self):
@@ -387,7 +389,6 @@ class APIClient(threading.Thread):
         for msg_handler in self._message_handlers[:]:
             msg_handler(msg)
         self._handle_internal_messages(msg)
-        self._refresh_ping()
 
     def run(self):
         self._running_event.set()
@@ -399,7 +400,7 @@ class APIClient(threading.Thread):
                     break
                 if self._connected:
                     _LOGGER.error("Error while reading incoming messages: %s", err)
-                    self._fatal_error()
+                    self._fatal_error(err)
         self._running_event.clear()
 
     def _handle_internal_messages(self, msg):
@@ -431,12 +432,12 @@ def run_logs(config, address):
 
     has_connects = []
 
-    def try_connect(tries=0, is_disconnect=True):
+    def try_connect(err, tries=0):
         if stopping:
             return
 
-        if is_disconnect:
-            _LOGGER.warning(u"Disconnected from API.")
+        if err:
+            _LOGGER.warning(u"Disconnected from API: %s", err)
 
         while retry_timer:
             retry_timer.pop(0).cancel()
@@ -445,8 +446,8 @@ def run_logs(config, address):
         try:
             cli.connect()
             cli.login()
-        except APIConnectionError as err:  # noqa
-            error = err
+        except APIConnectionError as err2:  # noqa
+            error = err2
 
         if error is None:
             _LOGGER.info("Successfully connected to %s", address)
@@ -460,7 +461,7 @@ def run_logs(config, address):
         else:
             _LOGGER.warning(u"Couldn't connect to API (%s). Trying to reconnect in %s seconds",
                             error, wait_time)
-        timer = threading.Timer(wait_time, functools.partial(try_connect, tries + 1, is_disconnect))
+        timer = threading.Timer(wait_time, functools.partial(try_connect, None, tries + 1))
         timer.start()
         retry_timer.append(timer)
 
@@ -484,7 +485,7 @@ def run_logs(config, address):
     cli.start()
 
     try:
-        try_connect(is_disconnect=False)
+        try_connect(None)
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
