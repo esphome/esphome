@@ -6,7 +6,7 @@ import re
 
 from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
-    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS
+    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files
 from esphome.storage_json import StorageJSON, storage_path
@@ -268,7 +268,12 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = u"""\
 #pragma once
 {}
 """
+VERSION_H_FORMAT = u"""\
+#pragma once
+#define ESPHOME_VERSION "{}"
+"""
 DEFINES_H_TARGET = 'esphome/core/defines.h'
+VERSION_H_TARGET = 'esphome/core/version.h'
 ESPHOME_README_TXT = u"""
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -335,6 +340,8 @@ def copy_src_tree():
                           CORE.relative_src_path('esphome', 'README.txt'))
     write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
                           CORE.relative_src_path('esphome.h'))
+    write_file_if_changed(VERSION_H_FORMAT.format(__version__),
+                          CORE.relative_src_path('esphome' 'core', 'version.h'))
 
 
 def generate_defines_h():

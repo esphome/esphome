@@ -1,5 +1,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_STATUS_LED
 #include "esphome/components/status_led/status_led.h"
