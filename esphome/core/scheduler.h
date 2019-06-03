@@ -9,9 +9,9 @@ class Component;
 
 class Scheduler {
  public:
-  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
+  void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func);
   bool cancel_timeout(Component *component, const std::string &name);
-  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);
+  void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> &&func);
   bool cancel_interval(Component *component, const std::string &name);
 
   optional<uint32_t> next_schedule_in();
@@ -36,9 +36,9 @@ class Scheduler {
 
   void process_to_add_();
   void cleanup_();
-  optional<SchedulerItem> peek_();
-  optional<SchedulerItem> pop_();
-  SchedulerItem pop_raw_();
+  bool peek_();
+  bool pop_();
+  void pop_raw_();
   void push_(const SchedulerItem& item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
 

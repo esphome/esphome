@@ -153,9 +153,9 @@ class Component {
    *
    * @see cancel_interval()
    */
-  void set_interval(const std::string &name, uint32_t interval, std::function<void()> f);  // NOLINT
+  void set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f);  // NOLINT
 
-  void set_interval(uint32_t interval, std::function<void()> f);  // NOLINT
+  void set_interval(uint32_t interval, std::function<void()> &&f);  // NOLINT
 
   /** Cancel an interval function.
    *
@@ -164,7 +164,7 @@ class Component {
    */
   bool cancel_interval(const std::string &name);  // NOLINT
 
-  void set_timeout(uint32_t timeout, std::function<void()> f);  // NOLINT
+  void set_timeout(uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Set a timeout function with a unique name.
    *
@@ -180,7 +180,7 @@ class Component {
    *
    * @see cancel_timeout()
    */
-  void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> f);  // NOLINT
+  void set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f);  // NOLINT
 
   /** Cancel a timeout function.
    *
@@ -196,10 +196,10 @@ class Component {
    * @param name The name of the defer function.
    * @param f The callback.
    */
-  void defer(const std::string &name, std::function<void()> f);  // NOLINT
+  void defer(const std::string &name, std::function<void()> &&f);  // NOLINT
 
   /// Defer a callback to the next loop() call.
-  void defer(std::function<void()> f);  // NOLINT
+  void defer(std::function<void()> &&f);  // NOLINT
 
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT

@@ -93,6 +93,9 @@ void Application::loop() {
       delay_time = this->loop_interval_ - (now - this->last_loop_);
 
     uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
     delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
   }

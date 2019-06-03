@@ -42,16 +42,16 @@ void Component::setup() {}
 
 void Component::loop() {}
 
-void Component::set_interval(const std::string &name, uint32_t interval, std::function<void()> f) {  // NOLINT
-  App.scheduler.set_interval(this, name, interval, f);
+void Component::set_interval(const std::string &name, uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_interval(this, name, interval, std::move(f));
 }
 
 bool Component::cancel_interval(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_interval(this, name);
 }
 
-void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> f) {  // NOLINT
-  return App.scheduler.set_timeout(this, name, timeout, f);
+void Component::set_timeout(const std::string &name, uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  return App.scheduler.set_timeout(this, name, timeout, std::move(f));
 }
 
 bool Component::cancel_timeout(const std::string &name) {  // NOLINT
@@ -82,18 +82,20 @@ void Component::mark_failed() {
   this->component_state_ |= COMPONENT_STATE_FAILED;
   this->status_set_error();
 }
-void Component::defer(std::function<void()> f) { App.scheduler.set_timeout(this, "", 0, f); }  // NOLINT
-bool Component::cancel_defer(const std::string &name) {                              // NOLINT
+void Component::defer(std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, "", 0, std::move(f));
+}
+bool Component::cancel_defer(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
-void Component::defer(const std::string &name, std::function<void()> f) {  // NOLINT
-  App.scheduler.set_timeout(this, name, 0, f);
+void Component::defer(const std::string &name, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, name, 0, std::move(f));
 }
-void Component::set_timeout(uint32_t timeout, std::function<void()> f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", timeout, f);
+void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, "", timeout, std::move(f));
 }
-void Component::set_interval(uint32_t interval, std::function<void()> f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", interval, f);
+void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
+  App.scheduler.set_timeout(this, "", interval, std::move(f));
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }
