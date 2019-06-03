@@ -39,7 +39,7 @@ class Scheduler {
   bool peek_();
   bool pop_();
   void pop_raw_();
-  void push_(const SchedulerItem& item);
+  void push_(const SchedulerItem &item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
 
   std::vector<SchedulerItem> items_;

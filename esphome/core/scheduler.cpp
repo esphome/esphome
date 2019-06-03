@@ -7,7 +7,8 @@ namespace esphome {
 
 static const char *TAG = "scheduler";
 
-void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> &&func) {
+void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
+                                std::function<void()> &&func) {
   const uint32_t now = millis();
 
   if (!name.empty())
@@ -28,10 +29,8 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
   return this->cancel_item_(component, name, SchedulerItem::TIMEOUT);
 }
-void HOT Scheduler::set_interval(Component *component,
-                             const std::string &name,
-                             uint32_t interval,
-                             std::function<void()> &&func) {
+void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
+                                 std::function<void()> &&func) {
   const uint32_t now = millis();
 
   // only put offset in lower half
@@ -89,8 +88,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       continue;
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-    const char *type =
-        item.type == SchedulerItem::INTERVAL ? "interval" : "timeout";
+    const char *type = item.type == SchedulerItem::INTERVAL ? "interval" : "timeout";
     ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", type, item.name.c_str(),
               item.interval, item.last_execution, now);
 #endif
@@ -127,24 +125,18 @@ void HOT Scheduler::cleanup_() {
 }
 bool HOT Scheduler::peek_() {
   this->cleanup_();
-  if (this->items_.empty())
-    return false;
-  return true;
+  return !this->items_.empty();
 }
 bool HOT Scheduler::pop_() {
   this->cleanup_();
-  if (this->items_.empty())
-    return false;
-  return true;
+  return !this->items_.empty();
 }
 void HOT Scheduler::pop_raw_() {
   std::pop_heap(this->items_.begin(), this->items_.end());
   auto item = this->items_.back();
   this->items_.pop_back();
 }
-void HOT Scheduler::push_(const Scheduler::SchedulerItem &item) {
-  this->to_add_.push_back(item);
-}
+void HOT Scheduler::push_(const Scheduler::SchedulerItem &item) { this->to_add_.push_back(item); }
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
   for (auto &it : this->items_)
