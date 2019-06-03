@@ -371,7 +371,7 @@ bool MQTTClientComponent::publish(const std::string &topic, const char *payload,
     if (ret != 0) {
       ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", topic.c_str(), payload, retain);
     } else {
-      ESP_LOGW(TAG, "Publish failed for topic='%s' will retry later..", topic.c_str());
+      ESP_LOGV(TAG, "Publish failed for topic='%s' will retry later..", topic.c_str());
       this->status_momentary_warning("publish", 1000);
     }
   }
