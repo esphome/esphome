@@ -57,14 +57,7 @@ void Application::setup() {
   }
 
   ESP_LOGI(TAG, "setup() finished successfully!");
-  this->dump_config();
-}
-void Application::dump_config() {
-  ESP_LOGI(TAG, "esphome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
-
-  for (auto component : this->components_) {
-    component->dump_config();
-  }
+  this->schedule_dump_config();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
@@ -97,9 +90,13 @@ void Application::loop() {
   }
   this->last_loop_ = now;
 
-  if (this->dump_config_scheduled_) {
-    this->dump_config();
-    this->dump_config_scheduled_ = false;
+  if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
+    if (this->dump_config_at_ == 0) {
+      ESP_LOGI(TAG, "esphome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+    }
+
+    this->components_[this->dump_config_at_]->dump_config();
+    this->dump_config_at_++;
   }
 }
 

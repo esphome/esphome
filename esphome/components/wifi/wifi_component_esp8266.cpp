@@ -330,7 +330,6 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
-#ifdef ESPHOME_LOG_HAS_VERBOSE
   // TODO: this callback is called while in cont context, so delay will fail
   // We need to defer the log messages until we're out of this context
   // only affects verbose log level
@@ -351,7 +350,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGV(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
+      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
                get_disconnect_reason_str(it.reason));
       break;
     }
@@ -403,7 +402,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     default:
       break;
   }
-#endif
 
   if (event->event == EVENT_STAMODE_DISCONNECTED) {
     global_wifi_component->error_from_callback_ = true;

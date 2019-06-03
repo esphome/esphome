@@ -127,15 +127,20 @@ def resolve_ip_address(host):
     from esphome.core import EsphomeError
     import socket
 
-    try:
-        ip = socket.gethostbyname(host)
-    except socket.error as err:
-        if host.endswith('.local'):
-            ip = _resolve_with_zeroconf(host)
-        else:
-            raise EsphomeError("Error resolving IP address: {}".format(err))
+    errs = []
 
-    return ip
+    if host.endswith('.local'):
+        try:
+            return _resolve_with_zeroconf(host)
+        except EsphomeError as err:
+            errs.append(str(err))
+
+    try:
+        return socket.gethostbyname(host)
+    except socket.error as err:
+        errs.append(str(err))
+        raise EsphomeError("Error resolving IP address: {}"
+                           "".format(', '.join(errs)))
 
 
 def get_bool_env(var, default=False):
