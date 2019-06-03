@@ -360,11 +360,11 @@ bool MQTTClientComponent::publish(const std::string &topic, const char *payload,
   }
   bool logging_topic = topic == this->log_message_.topic;
   uint16_t ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
-  yield();
+  delay(0);
   if (ret == 0 && !logging_topic && this->is_connected()) {
-    delay(5);
+    delay(0);
     ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
-    yield();
+    delay(0);
   }
 
   if (!logging_topic) {
