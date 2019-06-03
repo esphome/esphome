@@ -115,7 +115,7 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const char *name = res->type == XiaomiParseResult::TYPE_MIFLORA ? "Mi Flora" : "Mi Jia";
 
-  ESP_LOGD(TAG, "Got Xiaomi %s:", name);
+  ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
 
   if (res->temperature.has_value()) {
     ESP_LOGD(TAG, "  Temperature: %.1f°C", *res->temperature);
