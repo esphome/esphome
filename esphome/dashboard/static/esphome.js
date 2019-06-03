@@ -710,7 +710,7 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     filenameField.innerHTML = activeEditorConfig;
 
     editor.setValue("Loading configuration yaml...");
-    editor.setOption('readOnly', true)
+    editor.setOption('readOnly', true);
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
