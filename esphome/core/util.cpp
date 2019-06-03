@@ -1,6 +1,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/application.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"

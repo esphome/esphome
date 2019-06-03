@@ -201,7 +201,6 @@ def add_includes(includes):
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
-    cg.add_define('ESPHOME_VERSION', __version__)
     cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
 
     for conf in config.get(CONF_ON_BOOT, []):
