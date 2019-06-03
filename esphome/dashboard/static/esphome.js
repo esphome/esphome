@@ -714,7 +714,7 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
-        editor.setOption('readOnly', false)
+        editor.setOption('readOnly', false);
     });
 
     modalInstance.open();
