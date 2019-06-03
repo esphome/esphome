@@ -143,6 +143,7 @@ class AddressableScanEffect : public AddressableLightEffect {
  public:
   explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
+  void set_scan_length(uint32_t scan_length) { this->scan_length_ = scan_length; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     it.all() = ESPColor::BLACK;
 
@@ -168,7 +169,7 @@ class AddressableScanEffect : public AddressableLightEffect {
 
  protected:
   uint32_t move_interval_{};
-  uint32_t scan_length_{10};
+  uint32_t scan_length_{1};
   uint32_t last_move_{0};
   int at_led_{0};
   bool direction_{true};
