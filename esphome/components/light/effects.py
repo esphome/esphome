@@ -16,7 +16,7 @@ from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
 CONF_MOVE_INTERVAL = 'move_interval'
-CONF_SCAN_LENGTH = 'scan_length'
+CONF_SCAN_WIDTH = 'scan_width'
 CONF_TWINKLE_PROBABILITY = 'twinkle_probability'
 CONF_PROGRESS_INTERVAL = 'progress_interval'
 CONF_SPARK_PROBABILITY = 'spark_probability'
@@ -180,12 +180,12 @@ def addressable_color_wipe_effect_to_code(config, effect_id):
 
 @register_effect('addressable_scan', AddressableScanEffect, "Scan", {
     cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_SCAN_LENGTH, default=1): cv.All(cv.uint32_t, cv.Range(min=1))
+    cv.Optional(CONF_SCAN_WIDTH, default=1): cv.int_range(min=1),
 })
 def addressable_scan_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_move_interval(config[CONF_MOVE_INTERVAL]))
-    cg.add(var.set_scan_length(config[CONF_SCAN_LENGTH]))
+    cg.add(var.set_scan_width(config[CONF_SCAN_WIDTH]))
     yield var
 
 
