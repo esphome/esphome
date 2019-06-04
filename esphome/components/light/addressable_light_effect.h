@@ -148,7 +148,7 @@ class AddressableScanEffect : public AddressableLightEffect {
     it.all() = ESPColor::BLACK;
 
     for (auto i = 0; i < this->scan_width_; i++) {
-        it[this->at_led_ + i] = current_color;
+      it[this->at_led_ + i] = current_color;
     }
 
     const uint32_t now = millis();
