@@ -368,10 +368,10 @@ def command_update_all(args):
         print()
         rc = run_external_process('esphome', f, 'run', '--no-logs')
         if rc == 0:
-            print_bar("[{}] {}".format(color('green', 'SUCCESS'), f))
+            print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
             success[f] = True
         else:
-            print_bar("[{}] {}".format(color('red', 'ERROR'), f))
+            print_bar("[{}] {}".format(color('bold_red', 'ERROR'), f))
             success[f] = False
 
         print()
@@ -384,7 +384,7 @@ def command_update_all(args):
         if success[f]:
             print("  - {}: {}".format(f, color('green', 'SUCCESS')))
         else:
-            print("  - {}: {}".format(f, color('red', 'FAILED')))
+            print("  - {}: {}".format(f, color('bold_red', 'FAILED')))
             failed += 1
     return failed
 
