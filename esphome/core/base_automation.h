@@ -73,7 +73,7 @@ template<typename... Ts> class ForCondition : public Condition<Ts...>, public Co
   bool check(Ts... x) override {
     if (!this->check_internal())
       return false;
-    return millis() - this->last_inactive_ < this->time_.value(x...);
+    return millis() - this->last_inactive_ >= this->time_.value(x...);
   }
 
  protected:
