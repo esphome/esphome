@@ -55,7 +55,7 @@ UpdateComponentAction = cg.esphome_ns.class_('UpdateComponentAction', Action)
 Automation = cg.esphome_ns.class_('Automation')
 
 LambdaCondition = cg.esphome_ns.class_('LambdaCondition', Condition)
-ForCondition = cg.esphome_ns.class_('ForCondition', Condition)
+ForCondition = cg.esphome_ns.class_('ForCondition', Condition, cg.Component)
 
 
 def validate_automation(extra_schema=None, extra_validators=None, single=False):
