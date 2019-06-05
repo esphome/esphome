@@ -347,6 +347,7 @@ sensor:
     current_resistor: 0.001 ohm
     voltage_divider: 2351
     change_mode_every: 16
+    initial_mode: VOLTAGE
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: "HLW8012 Total Daily Energy"
