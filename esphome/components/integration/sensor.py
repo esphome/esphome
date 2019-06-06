@@ -46,7 +46,8 @@ def to_code(config):
 
     sens = yield cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
-    cg.add(var.set_time(config[CONF_TIME_ID]))
+    obj = yield cg.get_variable(config[CONF_TIME_ID])
+    cg.add(var.set_time(obj))
     cg.add(var.set_method(config[CONF_INTEGRATION_METHOD]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
 
