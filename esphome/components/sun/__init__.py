@@ -17,6 +17,10 @@ CONF_ELEVATION = 'elevation'
 CONF_ON_SUNRISE = 'on_sunrise'
 CONF_ON_SUNSET = 'on_sunset'
 
+# Default sun elevation is a bit below horizon because sunset
+# means time when the entire sun disk is below the horizon
+DEFAULT_ELEVATION = -0.883
+
 ELEVATION_MAP = {
     'sunrise': 0.0,
     'sunset': 0.0,
@@ -44,11 +48,11 @@ CONFIG_SCHEMA = cv.Schema({
 
     cv.Optional(CONF_ON_SUNRISE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SunTrigger),
-        cv.Optional(CONF_ELEVATION, default=0.0): elevation,
+        cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
     }),
     cv.Optional(CONF_ON_SUNSET): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SunTrigger),
-        cv.Optional(CONF_ELEVATION, default=0.0): elevation,
+        cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
     }),
 })
 
@@ -79,7 +83,7 @@ def to_code(config):
 
 @automation.register_condition('sun.is_above_horizon', SunCondition, cv.Schema({
     cv.GenerateID(): cv.use_id(Sun),
-    cv.Optional(CONF_ELEVATION, default=0): cv.templatable(elevation),
+    cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(elevation),
 }))
 def sun_above_horizon_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
@@ -92,7 +96,7 @@ def sun_above_horizon_to_code(config, condition_id, template_arg, args):
 
 @automation.register_condition('sun.is_below_horizon', SunCondition, cv.Schema({
     cv.GenerateID(): cv.use_id(Sun),
-    cv.Optional(CONF_ELEVATION, default=0): cv.templatable(elevation),
+    cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): cv.templatable(elevation),
 }))
 def sun_below_horizon_to_code(config, condition_id, template_arg, args):
     var = cg.new_Pvariable(condition_id, template_arg)
