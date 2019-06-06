@@ -74,18 +74,11 @@ void TemplateCover::control(const CoverCall &call) {
     this->stop_prev_trigger_();
     this->stop_trigger_->trigger();
     this->prev_command_trigger_ = this->stop_trigger_;
-    this->current_operation = COVER_OPERATION_IDLE;
     this->publish_state();
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
     this->stop_prev_trigger_();
-
-    if (pos < this->position) {
-      this->current_operation = COVER_OPERATION_CLOSING;
-    } else if (pos > this->position) {
-      this->current_operation = COVER_OPERATION_OPENING;
-    }
 
     if (pos == COVER_OPEN) {
       this->open_trigger_->trigger();
