@@ -163,10 +163,8 @@ template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 
 template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
 
-template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0>
-T id(T value) { return value; }
-template<typename T, enable_if_t<std::is_pointer<T*>::value, int> = 0>
-T &id(T *value) { return *value; }
+template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T value) { return value; }
+template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
 
 template<typename... X> class CallbackManager;
 

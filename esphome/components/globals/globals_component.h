@@ -65,8 +65,7 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
   C *parent_;
 };
 
-template<typename T>
-T &id(GlobalsComponent<T> *value) { return value->value(); }
+template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
 
 }  // namespace globals
 }  // namespace esphome
