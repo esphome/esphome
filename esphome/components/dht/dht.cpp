@@ -164,11 +164,18 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
-    *humidity = raw_humidity * 0.1f;
 
     if ((raw_temperature & 0x8000) != 0)
       raw_temperature = ~(raw_temperature & 0x7FFF);
 
+    if (raw_temperature == 1 && raw_humidity == 10) {
+      if (report_errors) {
+        ESP_LOGE(TAG, "Invalid temperature+humidity! Sensor reported 1°C and 1%% Hum");
+      }
+      return false;
+    }
+
+    *humidity = raw_humidity * 0.1f;
     *temperature = int16_t(raw_temperature) * 0.1f;
   }
 
