@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import sensor
+from esphome.components import sensor, time
 from esphome.const import CONF_ID, CONF_TIME_ID, CONF_SENSOR, CONF_RESTORE
 
 integration_ns = cg.esphome_ns.namespace('integration')
@@ -29,6 +29,7 @@ CONF_INTEGRATION_METHOD = 'integration_method'
 
 CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(IntegrationSensor),
+    cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
     cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
     cv.Optional(CONF_INTEGRATION_METHOD, default='trapezoid'):
