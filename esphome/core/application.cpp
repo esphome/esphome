@@ -37,6 +37,7 @@ void Application::setup() {
       continue;
 
     component->call_setup();
+    this->scheduler.process_to_add();
     if (component->can_proceed())
       continue;
 

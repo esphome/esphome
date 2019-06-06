@@ -18,6 +18,8 @@ class Scheduler {
 
   void call();
 
+  void process_to_add();
+
  protected:
   struct SchedulerItem {
     Component *component;
@@ -34,16 +36,14 @@ class Scheduler {
     bool operator<(const SchedulerItem &other) const;
   };
 
-  void process_to_add_();
   void cleanup_();
   bool peek_();
-  bool pop_();
   void pop_raw_();
-  void push_(const SchedulerItem &item);
+  void push_(SchedulerItem *item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
 
-  std::vector<SchedulerItem> items_;
-  std::vector<SchedulerItem> to_add_;
+  std::vector<SchedulerItem *> items_;
+  std::vector<SchedulerItem *> to_add_;
 };
 
 }  // namespace esphome
