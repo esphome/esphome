@@ -41,14 +41,14 @@ def to_code(config):
                                                     (cg.std_string, 'sender')], conf)
 
 
-SIM800L_SENS_SMS_SCHEMA = cv.Schema({
-    cv.Required(CONF_ID): cv.use_id(Sim800LComponent),
-    cv.Required(CONF_RECIPIENT): cv.templatable(cv.string),
+SIM800L_SEND_SMS_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.use_id(Sim800LComponent),
+    cv.Required(CONF_RECIPIENT): cv.templatable(cv.string_strict),
     cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
 })
 
 
-@automation.register_action('sim800l.send_sms', Sim800LSendSmsAction, SIM800L_SENS_SMS_SCHEMA)
+@automation.register_action('sim800l.send_sms', Sim800LSendSmsAction, SIM800L_SEND_SMS_SCHEMA)
 def sim800l_send_sms_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
