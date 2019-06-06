@@ -7,12 +7,17 @@ namespace esphome {
 
 static const char *TAG = "scheduler";
 
+static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
+
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
                                 std::function<void()> &&func) {
   const uint32_t now = millis();
 
   if (!name.empty())
     this->cancel_timeout(component, name);
+
+  if (timeout == SCHEDULER_DONT_RUN)
+    return;
 
   ESP_LOGVV(TAG, "set_timeout(name='%s', timeout=%u)", name.c_str(), timeout);
 
@@ -33,13 +38,16 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
                                  std::function<void()> &&func) {
   const uint32_t now = millis();
 
+  if (!name.empty())
+    this->cancel_interval(component, name);
+
+  if (interval == SCHEDULER_DONT_RUN)
+    return;
+
   // only put offset in lower half
   uint32_t offset = 0;
   if (interval != 0)
     offset = (random_uint32() % interval) / 2;
-
-  if (!name.empty())
-    this->cancel_interval(component, name);
 
   ESP_LOGVV(TAG, "set_interval(name='%s', interval=%u, offset=%u)", name.c_str(), interval, offset);
 
