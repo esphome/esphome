@@ -10,9 +10,10 @@ AUTO_LOAD = ['pulse_counter']
 
 hlw8012_ns = cg.esphome_ns.namespace('hlw8012')
 HLW8012Component = hlw8012_ns.class_('HLW8012Component', cg.PollingComponent)
+HLW8012InitialMode = hlw8012_ns.enum('HLW8012InitialMode')
 INITIAL_MODES = {
-    CONF_CURRENT.upper(): hlw8012_ns.HLW8012_INITIAL_MODE_CURRENT,
-    CONF_VOLTAGE.upper(): hlw8012_ns.HLW8012_INITIAL_MODE_VOLTAGE,
+    CONF_CURRENT: HLW8012InitialMode.HLW8012_INITIAL_MODE_CURRENT,
+    CONF_VOLTAGE: HLW8012InitialMode.HLW8012_INITIAL_MODE_VOLTAGE,
 }
 
 CONF_CF1_PIN = 'cf1_pin'
@@ -32,7 +33,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
     cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
     cv.Optional(CONF_CHANGE_MODE_EVERY, default=8): cv.All(cv.uint32_t, cv.Range(min=1)),
-    cv.Optional(CONF_INITIAL_MODE, default=CONF_VOLTAGE): cv.one_of(*INITIAL_MODES, upper=True),
+    cv.Optional(CONF_INITIAL_MODE, default=CONF_VOLTAGE): cv.one_of(*INITIAL_MODES, lower=True),
 }).extend(cv.polling_component_schema('60s'))
 
 
