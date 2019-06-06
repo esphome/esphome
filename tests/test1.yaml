@@ -350,6 +350,10 @@ sensor:
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: "HLW8012 Total Daily Energy"
+  - platform: integration
+    sensor: hlw8012_power
+    name: "Integration Sensor"
+    time_unit: s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
