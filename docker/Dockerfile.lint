@@ -1,4 +1,4 @@
-FROM esphome/esphome-base-amd64:1.7.0
+FROM esphome/esphome-base-amd64:1.8.0
 
 RUN \
     apt-get update \
