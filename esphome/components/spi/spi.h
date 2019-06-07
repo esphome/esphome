@@ -177,9 +177,7 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() {
-    this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_);
-  }
+  void enable() { this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_); }
 
   void disable() { this->parent_->disable(); }
 
