@@ -48,7 +48,5 @@ void MAX6675Sensor::read_data_() {
   this->status_clear_warning();
 }
 
-bool MAX6675Sensor::is_device_msb_first() { return true; }
-
 }  // namespace max6675
 }  // namespace esphome
