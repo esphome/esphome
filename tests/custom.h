@@ -3,7 +3,12 @@
 
 class CustomSensor : public Component, public Sensor {
  public:
-  void loop() override { publish_state(42.0); }
+  void loop() override {
+    // Test id() helper
+    float value = id(my_sensor).state;
+    id(my_global_string) = "Hello World";
+    publish_state(42.0);
+  }
 };
 
 class CustomTextSensor : public Component, public TextSensor {

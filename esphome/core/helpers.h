@@ -4,6 +4,7 @@
 #include <functional>
 #include <vector>
 #include <memory>
+#include <type_traits>
 
 #include "esphome/core/optional.h"
 #include "esphome/core/esphal.h"
@@ -160,6 +161,11 @@ template<int...> struct seq {};                                       // NOLINT
 template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT
 template<int... S> struct gens<0, S...> { using type = seq<S...>; };  // NOLINT
 
+template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
+
+template<typename T, enable_if_t<!std::is_pointer<T>::value, int> = 0> T id(T value) { return value; }
+template<typename T, enable_if_t<std::is_pointer<T *>::value, int> = 0> T &id(T *value) { return *value; }
+
 template<typename... X> class CallbackManager;
 
 /** Simple helper class to allow having multiple subscribers to a signal.
@@ -191,8 +197,6 @@ struct is_callable  // NOLINT
 
   static constexpr auto value = decltype(test<T>(nullptr))::value;  // NOLINT
 };
-
-template<bool B, class T = void> using enable_if_t = typename std::enable_if<B, T>::type;
 
 template<typename T, typename... X> class TemplatableValue {
  public:
