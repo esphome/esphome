@@ -8,9 +8,7 @@ namespace esphome {
 namespace ssd1306_spi {
 
 class SPISSD1306 : public ssd1306_base::SSD1306,
-                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                                         spi::CLOCK_POLARITY_LOW,
-                                         spi::CLOCK_PHASE_LEADING,
+                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                          spi::DATA_RATE_8MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }

@@ -12,9 +12,7 @@ class PN532BinarySensor;
 class PN532Trigger;
 
 class PN532 : public PollingComponent,
-              public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST,
-                                    spi::CLOCK_POLARITY_LOW,
-                                    spi::CLOCK_PHASE_LEADING,
+              public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                     spi::DATA_RATE_1MHZ> {
  public:
   void setup() override;

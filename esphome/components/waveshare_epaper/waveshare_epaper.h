@@ -7,11 +7,10 @@
 namespace esphome {
 namespace waveshare_epaper {
 
-class WaveshareEPaper : public PollingComponent, public display::DisplayBuffer,
-                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                                              spi::CLOCK_POLARITY_LOW,
-                                              spi::CLOCK_PHASE_LEADING,
-                                              spi::DATA_RATE_2MHZ> {
+class WaveshareEPaper : public PollingComponent,
+                        public display::DisplayBuffer,
+                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;

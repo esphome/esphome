@@ -37,8 +37,7 @@ class SPIComponent : public Component {
 
   void dump_config() override;
 
-  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
-  uint8_t read_byte() {
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE> uint8_t read_byte() {
     return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, false>(0x00);
   }
 
@@ -90,8 +89,8 @@ class SPIComponent : public Component {
       ;
   }
 
-  static void debug_tx_(uint8_t value);
-  static void debug_rx_(uint8_t value);
+  static void debug_tx(uint8_t value);
+  static void debug_rx(uint8_t value);
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, bool READ, bool WRITE>
   uint8_t transfer_(uint8_t data);
@@ -117,15 +116,11 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() {
-    this->parent_->enable(this->cs_, DATA_RATE / F_CPU);
-  }
+  void enable() { this->parent_->enable(this->cs_, DATA_RATE / F_CPU); }
 
   void disable() { this->parent_->disable(); }
 
-  uint8_t read_byte() {
-    return this->parent_->template read_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>();
-  }
+  uint8_t read_byte() { return this->parent_->template read_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(); }
 
   void read_array(uint8_t *data, size_t length) {
     return this->parent_->template read_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);

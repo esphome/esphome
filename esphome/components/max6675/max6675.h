@@ -7,11 +7,10 @@
 namespace esphome {
 namespace max6675 {
 
-class MAX6675Sensor : public sensor::Sensor, public PollingComponent,
-                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST,
-                                            spi::CLOCK_POLARITY_HIGH,
-                                            spi::CLOCK_PHASE_LEADING,
-                                            spi::DATA_RATE_1KHZ> {
+class MAX6675Sensor : public sensor::Sensor,
+                      public PollingComponent,
+                      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                            spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1KHZ> {
  public:
   void setup() override;
   void dump_config() override;
