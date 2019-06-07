@@ -16,12 +16,17 @@
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266WiFiType.h>
 #include <ESP8266WiFi.h>
+#include <esphome/components/captive_portal/captive_portal.h>
 
 #ifdef ARDUINO_ESP8266_RELEASE_2_3_0
 extern "C" {
 #include <user_interface.h>
 };
 #endif
+#endif
+
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
 namespace esphome {
@@ -122,7 +127,14 @@ class WiFiComponent : public Component {
   /// Construct a WiFiComponent.
   WiFiComponent();
 
+  void set_sta(const WiFiAP &ap);
   void add_sta(const WiFiAP &ap);
+
+#ifdef USE_CAPTIVE_PORTAL
+  void enable_captive_portal(web_server_base::WebServerBase *base) {
+    this->captive_portal_ = new captive_portal::CaptivePortal(base);
+  }
+#endif
 
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
@@ -171,6 +183,10 @@ class WiFiComponent : public Component {
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
+  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+
+  IPAddress wifi_soft_ap_ip();
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -188,7 +204,6 @@ class WiFiComponent : public Component {
   bool wifi_scan_start_();
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
-  IPAddress wifi_soft_ap_ip_();
 
 #ifdef ARDUINO_ARCH_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -211,12 +226,17 @@ class WiFiComponent : public Component {
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{300000};
+  uint32_t reboot_timeout_{900000};
+  // uint32_t ap_timeout_{60000};
+  uint32_t ap_timeout_{10000};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   bool error_from_callback_{false};
   std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
+#ifdef USE_CAPTIVE_PORTAL
+  captive_portal::CaptivePortal *captive_portal_;
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;

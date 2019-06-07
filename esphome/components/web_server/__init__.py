@@ -3,8 +3,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT
 from esphome.core import CORE, coroutine_with_priority
 
-DEPENDENCIES = ['network']
-AUTO_LOAD = ['json']
+AUTO_LOAD = ['json', 'web_server_base']
 
 web_server_ns = cg.esphome_ns.namespace('web_server')
 WebServer = web_server_ns.class_('WebServer', cg.Component, cg.Controller)
