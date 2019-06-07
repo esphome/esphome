@@ -138,7 +138,7 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() { this->parent_->template enable<CLOCK_POLARITY>(this->cs_, DATA_RATE / F_CPU); }
+  void enable() { this->parent_->template enable<CLOCK_POLARITY>(this->cs_, DATA_RATE / uint32_t(F_CPU) / 2ULL); }
 
   void disable() { this->parent_->disable(); }
 

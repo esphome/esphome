@@ -52,13 +52,14 @@ void SPIComponent::debug_tx(uint8_t value) {
 void SPIComponent::debug_rx(uint8_t value) {
   ESP_LOGVV(TAG, "    RX 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(value), value);
 }
-void SPIComponent::debug_enable(uint8_t pin) {
-  ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", pin);
-}
+void SPIComponent::debug_enable(uint8_t pin) { ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", pin); }
 
 void SPIComponent::cycle_clock_(bool value) {
+  uint32_t start = ESP.getCycleCount();
+  while (start - ESP.getCycleCount() < this->wait_cycle_)
+    ;
   this->clk_->digital_write(value);
-  const uint32_t start = ESP.getCycleCount();
+  start += this->wait_cycle_;
   while (start - ESP.getCycleCount() < this->wait_cycle_)
     ;
 }
