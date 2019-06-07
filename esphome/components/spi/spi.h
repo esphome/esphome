@@ -2,23 +2,51 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
-#include "esphome/core/application.h"
 
 namespace esphome {
 namespace spi {
 
+/// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
+  /// The least significant bit is transmitted/received first.
   BIT_ORDER_LSB_FIRST,
+  /// The most significant bit is transmitted/received first.
   BIT_ORDER_MSB_FIRST,
 };
+/** The SPI clock signal polarity,
+ *
+ * This defines how the clock signal is used. Flipping this effectively inverts the clock signal.
+ */
 enum SPIClockPolarity {
+  /** The clock signal idles on LOW. (CPOL=0)
+   *
+   * A rising edge means a leading edge for the clock.
+   */
   CLOCK_POLARITY_LOW = false,
+  /** The clock signal idles on HIGH. (CPOL=1)
+   *
+   * A falling edge means a trailing edge for the clock.
+   */
   CLOCK_POLARITY_HIGH = true,
 };
+/** The SPI clock signal phase.
+ *
+ * This defines when the data signals are sampled. Most SPI devices use the LEADING clock phase.
+ */
 enum SPIClockPhase {
+  /// The data is sampled on a leading clock edge. (CPHA=0)
   CLOCK_PHASE_LEADING,
+  /// The data is sampled on a trailing clock edge. (CPHA=1)
   CLOCK_PHASE_TRAILING,
 };
+/** The SPI clock signal data rate. This defines for what duration the clock signal is HIGH/LOW.
+ * So effectively the rate of bytes can be calculated using
+ *
+ * effective_byte_rate = spi_data_rate / 16
+ *
+ * Implementations can use the pre-defined constants here, or use an integer in the template definition
+ * to manually use a specific data rate.
+ */
 enum SPIDataRate : uint32_t {
   DATA_RATE_1KHZ = 1000,
   DATA_RATE_200KHZ = 200000,
@@ -45,7 +73,6 @@ class SPIComponent : public Component {
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void read_array(uint8_t *data, size_t length) {
     for (size_t i = 0; i < length; i++) {
-      App.feed_wdt();
       data[i] = this->read_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>();
     }
   }
@@ -56,9 +83,8 @@ class SPIComponent : public Component {
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
-  void write_array(uint8_t *data, size_t length) {
+  void write_array(const uint8_t *data, size_t length) {
     for (size_t i = 0; i < length; i++) {
-      App.feed_wdt();
       this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
     }
   }
@@ -71,24 +97,18 @@ class SPIComponent : public Component {
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void transfer_array(uint8_t *data, size_t length) {
     for (size_t i = 0; i < length; i++) {
-      App.feed_wdt();
       data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
     }
   }
 
-  void enable(GPIOPin *cs, uint32_t wait_cycle);
+  template<SPIClockPolarity CLOCK_POLARITY> void enable(GPIOPin *cs, uint32_t wait_cycle);
 
   void disable();
 
   float get_setup_priority() const override;
 
  protected:
-  inline void cycle_clock_(bool value) {
-    this->clk_->digital_write(value);
-    const uint32_t start = ESP.getCycleCount();
-    while (start - ESP.getCycleCount() < this->wait_cycle_)
-      ;
-  }
+  inline void cycle_clock_(bool value);
 
   static void debug_tx(uint8_t value);
   static void debug_rx(uint8_t value);
@@ -117,7 +137,7 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() { this->parent_->enable(this->cs_, DATA_RATE / F_CPU); }
+  void enable() { this->parent_->template enable<CLOCK_POLARITY>(this->cs_, DATA_RATE / F_CPU); }
 
   void disable() { this->parent_->disable(); }
 
@@ -127,13 +147,23 @@ class SPIDevice {
     return this->parent_->template read_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
+  template<size_t N> std::array<uint8_t, N> read_array() {
+    std::array<uint8_t, N> data;
+    this->read_array(data.data(), N);
+    return data;
+  }
+
   void write_byte(uint8_t data) {
     return this->parent_->template write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
   }
 
-  void write_array(uint8_t *data, size_t length) {
+  void write_array(const uint8_t *data, size_t length) {
     this->parent_->template write_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
+
+  template<size_t N> void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
+
+  void write_array(const std::vector<uint8_t> &data) { this->write_array(data.data(), data.size()); }
 
   uint8_t transfer_byte(uint8_t data) {
     return this->parent_->template transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data);
@@ -142,6 +172,8 @@ class SPIDevice {
   void transfer_array(uint8_t *data, size_t length) {
     this->parent_->template transfer_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
+
+  template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 
  protected:
   SPIComponent *parent_{nullptr};

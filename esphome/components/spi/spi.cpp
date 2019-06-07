@@ -8,12 +8,18 @@ namespace spi {
 
 static const char *TAG = "spi";
 
-void ICACHE_RAM_ATTR HOT SPIComponent::enable(GPIOPin *cs, uint32_t wait_cycle) {
+template<SPIClockPolarity CLOCK_POLARITY> void SPIComponent::enable(GPIOPin *cs, uint32_t wait_cycle) {
   ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", cs->get_pin());
   this->wait_cycle_ = wait_cycle;
+
+  this->clk_->digital_write(CLOCK_POLARITY);
+
   this->active_cs_ = cs;
   this->active_cs_->digital_write(false);
 }
+
+template void SPIComponent::enable<CLOCK_POLARITY_LOW>(GPIOPin *cs, uint32_t wait_cycle);
+template void SPIComponent::enable<CLOCK_POLARITY_HIGH>(GPIOPin *cs, uint32_t wait_cycle);
 
 void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
   ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
@@ -45,6 +51,13 @@ void SPIComponent::debug_tx(uint8_t value) {
 }
 void SPIComponent::debug_rx(uint8_t value) {
   ESP_LOGVV(TAG, "    RX 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(value), value);
+}
+
+void SPIComponent::cycle_clock_(bool value) {
+  this->clk_->digital_write(value);
+  const uint32_t start = ESP.getCycleCount();
+  while (start - ESP.getCycleCount() < this->wait_cycle_)
+    ;
 }
 
 // NOLINTNEXTLINE
@@ -80,7 +93,7 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
 
       this->cycle_clock_(CLOCK_POLARITY);
     } else {
-      // sampling on falling edge
+      // sampling on trailing edge
       this->cycle_clock_(!CLOCK_POLARITY);
 
       if (WRITE) {
@@ -104,6 +117,8 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
     SPIComponent::debug_rx(out_data);
   }
 #endif
+
+  App.feed_wdt();
 
   return out_data;
 }
