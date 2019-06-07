@@ -8,20 +8,10 @@ namespace spi {
 
 static const char *TAG = "spi";
 
-template<SPIClockPolarity CLOCK_POLARITY> void SPIComponent::enable(GPIOPin *cs, uint32_t wait_cycle) {
-  this->debug_enable(cs->get_pin());
-  this->wait_cycle_ = wait_cycle;
-
-  this->clk_->digital_write(CLOCK_POLARITY);
-
-  this->active_cs_ = cs;
-  this->active_cs_->digital_write(false);
-}
-
-template void SPIComponent::enable<CLOCK_POLARITY_LOW>(GPIOPin *cs, uint32_t wait_cycle);
-template void SPIComponent::enable<CLOCK_POLARITY_HIGH>(GPIOPin *cs, uint32_t wait_cycle);
-
 void ICACHE_RAM_ATTR HOT SPIComponent::disable() {
+  if (this->hw_spi_ != nullptr) {
+    this->hw_spi_->endTransaction();
+  }
   ESP_LOGVV(TAG, "Disabling SPI Chip on pin %u...", this->active_cs_->get_pin());
   this->active_cs_->digital_write(true);
   this->active_cs_ = nullptr;
@@ -30,6 +20,53 @@ void SPIComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI bus...");
   this->clk_->setup();
   this->clk_->digital_write(true);
+
+  bool use_hw_spi = true;
+  if (this->clk_->is_inverted())
+    use_hw_spi = false;
+  const bool has_miso = this->miso_ != nullptr;
+  const bool has_mosi = this->mosi_ != nullptr;
+  if (has_miso && this->miso_->is_inverted())
+    use_hw_spi = false;
+  if (has_mosi && this->mosi_->is_inverted())
+    use_hw_spi = false;
+  int8_t clk_pin = this->clk_->get_pin();
+  int8_t miso_pin = has_miso ? this->miso_->get_pin() : -1;
+  int8_t mosi_pin = has_mosi ? this->mosi_->get_pin() : -1;
+#ifdef ARDUINO_ARCH_ESP8266
+  if (clk_pin == 6 && miso_pin == 7 && mosi_pin == 8) {
+    // pass
+  } else if (clk_pin == 14 && miso_pin == 12 && mosi_pin == 13) {
+    // pass
+  } else {
+    use_hw_spi = false;
+  }
+
+  if (use_hw_spi) {
+    this->hw_spi_ = &SPI;
+    this->hw_spi_->pins(clk_pin, miso_pin, mosi_pin, 0);
+    this->hw_spi_->begin();
+    return;
+  }
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+  static uint8_t spi_bus_num = 0;
+  if (spi_bus_num >= 2) {
+    use_hw_spi = false;
+  }
+
+  if (use_hw_spi) {
+    if (spi_bus_num == 0) {
+      this->hw_spi_ = &SPI;
+    } else {
+      this->hw_spi_ = new SPIClass(VSPI);
+    }
+    spi_bus_num++;
+    this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
+    return;
+  }
+#endif
+
   if (this->miso_ != nullptr) {
     this->miso_->setup();
   }
@@ -43,6 +80,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_);
   LOG_PIN("  MISO Pin: ", this->miso_);
   LOG_PIN("  MOSI Pin: ", this->mosi_);
+  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->hw_spi_ != nullptr));
 }
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
@@ -122,7 +160,7 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
   }
 #endif
 
-  App.feed_wdt();
+  // App.feed_wdt();
 
   return out_data;
 }
