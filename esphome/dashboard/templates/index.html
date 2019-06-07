@@ -31,10 +31,16 @@
 <nav>
   <div class="nav-wrapper indigo">
     <a href="#" class="brand-logo left">ESPHome Dashboard</a>
+    <i class="material-icons dropdown-trigger right" id="dropdown-nav-trigger" data-target="dropdown-nav-actions">more_vert</i>
     <div class="select-port-container right" id="select-port-target">
       <select></select>
     </div>
   </div>
+
+  <ul id="dropdown-nav-actions" class="select-action dropdown-content card-dropdown-action">
+    <li><a id="update-all-button" class="modal-close waves-effect waves-green btn-flat"
+           data-node="{{ escape(config_dir) }}">Update All</a></li>
+  </ul>
 </nav>
 
 {% if begin %}
@@ -442,6 +448,16 @@
     <a class="waves-effect waves-green btn-flat save-button">Save</a>
     <a class="modal-close waves-effect waves-green btn-flat action-upload editor-upload-button">Upload</a>
     <a class="modal-close waves-effect waves-green btn-flat">Close</a>
+  </div>
+</div>
+
+<div id="modal-update-all" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Update All</h4>
+    <pre class="log"></pre>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
   </div>
 </div>
 

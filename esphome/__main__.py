@@ -15,7 +15,7 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
-from esphome.util import run_external_command, run_external_process, safe_print
+from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -187,8 +187,7 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf[CONF_PASSWORD]
-    res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
-    return res
+    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
 def show_logs(config, args, port):
@@ -350,11 +349,52 @@ def command_dashboard(args):
     return dashboard.start_web_server(args)
 
 
+def command_update_all(args):
+    import click
+
+    success = {}
+    files = list_yaml_files(args.configuration)
+    twidth = 60
+
+    def print_bar(middle_text):
+        middle_text = " {} ".format(middle_text)
+        width = len(click.unstyle(middle_text))
+        half_line = "=" * ((twidth - width) / 2)
+        click.echo("%s%s%s" % (half_line, middle_text, half_line))
+
+    for f in files:
+        print("Updating {}".format(color('cyan', f)))
+        print('-' * twidth)
+        print()
+        rc = run_external_process('esphome', f, 'run', '--no-logs')
+        if rc == 0:
+            print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
+            success[f] = True
+        else:
+            print_bar("[{}] {}".format(color('bold_red', 'ERROR'), f))
+            success[f] = False
+
+        print()
+        print()
+        print()
+
+    print_bar('[{}]'.format(color('bold_white', 'SUMMARY')))
+    failed = 0
+    for f in files:
+        if success[f]:
+            print("  - {}: {}".format(f, color('green', 'SUCCESS')))
+        else:
+            print("  - {}: {}".format(f, color('bold_red', 'FAILED')))
+            failed += 1
+    return failed
+
+
 PRE_CONFIG_ACTIONS = {
     'wizard': command_wizard,
     'version': command_version,
     'dashboard': command_dashboard,
     'vscode': command_vscode,
+    'update-all': command_update_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -445,6 +485,8 @@ def parse_args(argv):
 
     vscode = subparsers.add_parser('vscode', help=argparse.SUPPRESS)
     vscode.add_argument('--ace', action='store_true')
+
+    subparsers.add_parser('update-all', help=argparse.SUPPRESS)
 
     return parser.parse_args(argv[1:])
 

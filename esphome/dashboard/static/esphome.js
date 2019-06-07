@@ -333,6 +333,10 @@ class LogModalElem {
     this.activeSocket.close();
   }
 
+  open(event) {
+    this._onPress(event);
+  }
+
   _onPress(event) {
     this.activeConfig = event.target.getAttribute('data-node');
     this._setupModalInstance();
@@ -745,3 +749,32 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be lowercase.");
+
+
+
+const updateAllModal = new LogModalElem({
+  name: 'update-all',
+  onPrepare: (modalElem, config) => {
+    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
+    downloadButton.classList.add('disabled');
+  },
+  onProcessExit: (modalElem, code) => {
+    if (code === 0) {
+      M.toast({html: "Program exited successfully."});
+      downloadButton.classList.remove('disabled');
+    } else {
+      M.toast({html: `Program failed with code ${data.code}`});
+    }
+    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+  },
+  onSocketClose: (modalElem) => {
+    M.toast({html: 'Terminated process.'});
+  },
+  dismissible: false,
+});
+updateAllModal.setup();
+
+const updateAllButton = document.getElementById('update-all-button');
+updateAllButton.addEventListener('click', (e) => {
+  updateAllModal.open(e);
+});

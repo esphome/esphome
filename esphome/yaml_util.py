@@ -14,7 +14,7 @@ from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
 from esphome.py_compat import text_type, IS_PY2
-from esphome.util import OrderedDict
+from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -260,12 +260,12 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_list(self, node):
-        files = _filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
         return [_load_yaml_internal(f) for f in files]
 
     @_add_data_ref
     def construct_include_dir_merge_list(self, node):
-        files = _filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
         merged_list = []
         for fname in files:
             loaded_yaml = _load_yaml_internal(fname)
@@ -275,7 +275,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_named(self, node):
-        files = _filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
         mapping = OrderedDict()
         for fname in files:
             filename = os.path.splitext(os.path.basename(fname))[0]
@@ -284,7 +284,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_include_dir_merge_named(self, node):
-        files = _filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
+        files = filter_yaml_files(_find_files(self._rel_path(node.value), '*.yaml'))
         mapping = OrderedDict()
         for fname in files:
             loaded_yaml = _load_yaml_internal(fname)
@@ -295,12 +295,6 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     @_add_data_ref
     def construct_lambda(self, node):
         return Lambda(text_type(node.value))
-
-
-def _filter_yaml_files(files):
-    files = [f for f in files if os.path.basename(f) != SECRET_YAML]
-    files = [f for f in files if not os.path.basename(f).startswith('.')]
-    return files
 
 
 ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
