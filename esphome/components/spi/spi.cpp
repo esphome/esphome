@@ -160,7 +160,7 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
   }
 #endif
 
-  // App.feed_wdt();
+  App.feed_wdt();
 
   return out_data;
 }
