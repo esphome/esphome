@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include <vector>
+#include "Arduino.h"
 
 #include "esphome/core/optional.h"
 
@@ -207,31 +207,8 @@ class Component {
   void loop_internal_();
   void setup_internal_();
 
-  /// Internal struct for storing timeout/interval functions.
-  struct TimeFunction {
-    std::string name;                             ///< The name/id of this TimeFunction.
-    enum Type { TIMEOUT, INTERVAL, DEFER } type;  ///< The type of this TimeFunction. Either TIMEOUT, INTERVAL or DEFER.
-    uint32_t interval;                            ///< The interval/timeout of this function.
-    /// The last execution for interval functions and the time, SetInterval was called, for timeout functions.
-    uint32_t last_execution;
-    std::function<void()> f;  ///< The function (or callback) itself.
-    bool remove;
-
-    bool should_run(uint32_t now) const;
-  };
-
-  /// Cancel an only time function. If name is empty, won't do anything.
-  bool cancel_time_function_(const std::string &name, TimeFunction::Type type);
-
-  /** Storage for interval/timeout functions.
-   *
-   * Intentionally a vector despite its map-like nature, because of the
-   * memory overhead.
-   */
-  std::vector<TimeFunction> time_functions_;
-
   uint32_t component_state_{0x0000};  ///< State of this component.
-  optional<float> setup_priority_override_;
+  float setup_priority_override_{NAN};
 };
 
 /** This class simplifies creating components that periodically check a state.

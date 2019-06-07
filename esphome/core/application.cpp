@@ -37,6 +37,7 @@ void Application::setup() {
       continue;
 
     component->call_setup();
+    this->scheduler.process_to_add();
     if (component->can_proceed())
       continue;
 
@@ -45,6 +46,7 @@ void Application::setup() {
 
     do {
       uint32_t new_app_state = STATUS_LED_WARNING;
+      this->scheduler.call();
       for (uint32_t j = 0; j <= i; j++) {
         if (!this->components_[j]->is_failed()) {
           this->components_[j]->call_loop();
@@ -63,6 +65,8 @@ void Application::setup() {
 void Application::loop() {
   uint32_t new_app_state = 0;
   const uint32_t start = millis();
+
+  this->scheduler.call();
   for (Component *component : this->components_) {
     if (!component->is_failed()) {
       component->call_loop();
@@ -72,6 +76,7 @@ void Application::loop() {
     this->feed_wdt();
   }
   this->app_state_ = new_app_state;
+
   const uint32_t end = millis();
   if (end - start > 200) {
     ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.1f s).", (end - start) / 1e3f);
@@ -87,6 +92,12 @@ void Application::loop() {
     uint32_t delay_time = this->loop_interval_;
     if (now - this->last_loop_ < this->loop_interval_)
       delay_time = this->loop_interval_ - (now - this->last_loop_);
+
+    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
+    delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
   }
   this->last_loop_ = now;
