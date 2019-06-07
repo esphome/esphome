@@ -9,7 +9,7 @@ namespace spi {
 static const char *TAG = "spi";
 
 template<SPIClockPolarity CLOCK_POLARITY> void SPIComponent::enable(GPIOPin *cs, uint32_t wait_cycle) {
-  ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", cs->get_pin());
+  this->debug_enable(cs->get_pin());
   this->wait_cycle_ = wait_cycle;
 
   this->clk_->digital_write(CLOCK_POLARITY);
@@ -52,6 +52,9 @@ void SPIComponent::debug_tx(uint8_t value) {
 void SPIComponent::debug_rx(uint8_t value) {
   ESP_LOGVV(TAG, "    RX 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", BYTE_TO_BINARY(value), value);
 }
+void SPIComponent::debug_enable(uint8_t pin) {
+  ESP_LOGVV(TAG, "Enabling SPI Chip on pin %u...", pin);
+}
 
 void SPIComponent::cycle_clock_(bool value) {
   this->clk_->digital_write(value);
@@ -88,7 +91,7 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
       this->cycle_clock_(!CLOCK_POLARITY);
 
       if (READ) {
-        out_data |= this->miso_->digital_read() << shift;
+        out_data |= uint8_t(this->miso_->digital_read()) << shift;
       }
 
       this->cycle_clock_(CLOCK_POLARITY);
@@ -104,7 +107,7 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
       this->cycle_clock_(CLOCK_POLARITY);
 
       if (READ) {
-        out_data |= this->miso_->digital_read() << shift;
+        out_data |= uint8_t(this->miso_->digital_read()) << shift;
       }
     }
   }

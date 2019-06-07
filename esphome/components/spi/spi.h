@@ -79,7 +79,7 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_byte(uint8_t data) {
-    this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, false>(data);
+    this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, false, true>(data);
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
@@ -110,6 +110,7 @@ class SPIComponent : public Component {
  protected:
   inline void cycle_clock_(bool value);
 
+  static void debug_enable(uint8_t pin);
   static void debug_tx(uint8_t value);
   static void debug_rx(uint8_t value);
 
