@@ -16,17 +16,12 @@
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266WiFiType.h>
 #include <ESP8266WiFi.h>
-#include <esphome/components/captive_portal/captive_portal.h>
 
 #ifdef ARDUINO_ESP8266_RELEASE_2_3_0
 extern "C" {
 #include <user_interface.h>
 };
 #endif
-#endif
-
-#ifdef USE_CAPTIVE_PORTAL
-#include "esphome/components/captive_portal/captive_portal.h"
 #endif
 
 namespace esphome {
@@ -130,12 +125,6 @@ class WiFiComponent : public Component {
   void set_sta(const WiFiAP &ap);
   void add_sta(const WiFiAP &ap);
 
-#ifdef USE_CAPTIVE_PORTAL
-  void enable_captive_portal(web_server_base::WebServerBase *base) {
-    this->captive_portal_ = new captive_portal::CaptivePortal(base);
-  }
-#endif
-
   /** Setup an Access Point that should be created if no connection to a station can be made.
    *
    * This can also be used without set_sta(). Then the AP will always be active.
@@ -149,6 +138,7 @@ class WiFiComponent : public Component {
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
   void set_fast_connect(bool fast_connect);
+  void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 
   void check_connecting_finished();
 
@@ -205,6 +195,8 @@ class WiFiComponent : public Component {
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
 
+  bool is_captive_portal_active_();
+
 #ifdef ARDUINO_ARCH_ESP8266
   static void wifi_event_callback(System_Event_t *event);
   void wifi_scan_done_callback_(void *arg, STATUS status);
@@ -227,16 +219,12 @@ class WiFiComponent : public Component {
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
   uint32_t reboot_timeout_{900000};
-  // uint32_t ap_timeout_{60000};
-  uint32_t ap_timeout_{10000};
+  uint32_t ap_timeout_{60000};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   bool error_from_callback_{false};
   std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
-#ifdef USE_CAPTIVE_PORTAL
-  captive_portal::CaptivePortal *captive_portal_;
-#endif
 };
 
 extern WiFiComponent *global_wifi_component;

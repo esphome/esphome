@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import codecs
 import os
+import random
+import string
 import unicodedata
 
 import voluptuous as vol
@@ -51,6 +53,13 @@ BASE_CONFIG = u"""esphome:
 wifi:
   ssid: "{ssid}"
   password: "{psk}"
+  
+  # Enable fallback network (captive portal)
+  ap:
+    ssid: "{name} Fallback AP"
+    password: "{fallback_psk}"
+
+captive_portal:
 
 # Enable logging
 logger:
@@ -65,6 +74,9 @@ def sanitize_double_quotes(value):
 
 
 def wizard_file(**kwargs):
+    letters = string.ascii_letters + string.digits
+    kwargs['fallback_psk'] = ''.join(random.choice(letters) for _ in range(12))
+
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:

@@ -18,6 +18,10 @@
 #include "esphome/core/util.h"
 #include "esphome/core/application.h"
 
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -29,8 +33,8 @@ void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
 
 #ifdef USE_CAPTIVE_PORTAL
-  if (this->captive_portal_ != nullptr) {
-    this->captive_portal_->setup();
+  if (captive_portal::global_captive_portal != nullptr) {
+    captive_portal::global_captive_portal->setup();
   }
 #endif
 
@@ -112,7 +116,7 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        this->captive_portal_->start();
+        captive_portal::global_captive_portal->start();
 #endif
       }
     }
@@ -126,8 +130,8 @@ void WiFiComponent::loop() {
   }
 
 #ifdef USE_CAPTIVE_PORTAL
-  if (this->captive_portal_ != nullptr && this->captive_portal_->is_active()) {
-    this->captive_portal_->loop();
+  if (this->is_captive_portal_active_()) {
+    captive_portal::global_captive_portal->loop();
   }
 #endif
 
@@ -401,18 +405,17 @@ void WiFiComponent::check_connecting_finished() {
   wl_status_t status = this->wifi_sta_status_();
 
   if (status == WL_CONNECTED) {
-    ESP_LOGI(TAG, "WiFi connected!");
+    ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
     if (this->has_ap()) {
-      ESP_LOGD(TAG, "Disabling AP...");
-      this->wifi_mode_({}, false);
-
 #ifdef USE_CAPTIVE_PORTAL
-      if (this->captive_portal_ != nullptr && this->captive_portal_->is_active()) {
-        this->captive_portal_->end();
+      if (this->is_captive_portal_active_()) {
+        captive_portal::global_captive_portal->end();
       }
 #endif
+      ESP_LOGD(TAG, "Disabling AP...");
+      this->wifi_mode_({}, false);
     }
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
@@ -456,7 +459,7 @@ void WiFiComponent::check_connecting_finished() {
 
 void WiFiComponent::retry_connect() {
   delay(10);
-  if (this->num_retried_ > 5 || this->error_from_callback_) {
+  if (!this->is_captive_portal_active_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
@@ -497,6 +500,13 @@ std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
   char buf[20];
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
   return buf;
+}
+bool WiFiComponent::is_captive_portal_active_() {
+#ifdef USE_CAPTIVE_PORTAL
+  return captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active();
+#else
+  return false;
+#endif
 }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }

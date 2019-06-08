@@ -16,7 +16,7 @@ struct CaptivePortalSettings {
 
 class CaptivePortal : public AsyncWebHandler {
  public:
-  CaptivePortal(web_server_base::WebServerBase *base) : base_(base) {}
+  CaptivePortal(web_server_base::WebServerBase *base);
   void setup();
   void loop() {
     if (this->dns_server_ != nullptr)
@@ -50,15 +50,14 @@ class CaptivePortal : public AsyncWebHandler {
         return true;
       if (request->url() == "/lock.svg")
         return true;
+      if (request->url() == "/wifisave")
+        return true;
     }
-
-    if (request->url() == "/wifisave" && request->method() == HTTP_POST)
-      return true;
 
     return false;
   }
 
-  void handle_index(AsyncWebServerRequest *request, bool save);
+  void handle_index(AsyncWebServerRequest *request);
 
   void handle_wifisave(AsyncWebServerRequest *request);
 
@@ -73,6 +72,8 @@ class CaptivePortal : public AsyncWebHandler {
   ESPPreferenceObject pref_;
   DNSServer *dns_server_{nullptr};
 };
+
+extern CaptivePortal *global_captive_portal;
 
 }  // namespace captive_portal
 }  // namespace esphome
