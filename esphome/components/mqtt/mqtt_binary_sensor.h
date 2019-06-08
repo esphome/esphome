@@ -35,7 +35,6 @@ class MQTTBinarySensorComponent : public mqtt::MQTTComponent {
   std::string component_type() const override;
 
   binary_sensor::BinarySensor *binary_sensor_;
-  bool is_status_{false};
 };
 
 }  // namespace mqtt
