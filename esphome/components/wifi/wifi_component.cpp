@@ -246,7 +246,11 @@ void print_signal_bars(int8_t rssi, char *buf) {
 }
 
 void WiFiComponent::print_connect_params_() {
-  uint8_t *bssid = WiFi.BSSID();
+  uint8_t bssid[6] = {0,};
+  uint8_t *raw_bssid = WiFi.BSSID();
+  if (raw_bssid != nullptr)
+    memcpy(bssid, raw_bssid, sizeof(bssid));
+
   ESP_LOGCONFIG(TAG, "  SSID: " LOG_SECRET("'%s'"), WiFi.SSID().c_str());
   ESP_LOGCONFIG(TAG, "  IP Address: %s", WiFi.localIP().toString().c_str());
   ESP_LOGCONFIG(TAG, "  BSSID: " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X"), bssid[0], bssid[1], bssid[2], bssid[3],
