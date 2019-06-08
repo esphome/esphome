@@ -33,10 +33,8 @@ void Application::setup() {
 
   for (uint32_t i = 0; i < this->components_.size(); i++) {
     Component *component = this->components_[i];
-    if (component->is_failed())
-      continue;
 
-    component->call_setup();
+    component->call();
     this->scheduler.process_to_add();
     if (component->can_proceed())
       continue;
@@ -48,9 +46,7 @@ void Application::setup() {
       uint32_t new_app_state = STATUS_LED_WARNING;
       this->scheduler.call();
       for (uint32_t j = 0; j <= i; j++) {
-        if (!this->components_[j]->is_failed()) {
-          this->components_[j]->call_loop();
-        }
+        this->components_[j]->call();
         new_app_state |= this->components_[j]->get_component_state();
         this->app_state_ |= new_app_state;
       }
@@ -68,9 +64,7 @@ void Application::loop() {
 
   this->scheduler.call();
   for (Component *component : this->components_) {
-    if (!component->is_failed()) {
-      component->call_loop();
-    }
+    component->call();
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
     this->feed_wdt();
@@ -125,7 +119,7 @@ void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
     LAST_FEED = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
-      status_led::global_status_led->call_loop();
+      status_led::global_status_led->call();
     }
 #endif
   }

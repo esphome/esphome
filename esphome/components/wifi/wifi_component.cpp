@@ -38,6 +38,8 @@ void WiFiComponent::setup() {
   }
 #endif
 
+  this->last_connected_ = millis();
+
   this->wifi_register_callbacks_();
 
   bool ret = this->wifi_mode_(this->has_sta(), false);

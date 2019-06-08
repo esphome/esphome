@@ -162,7 +162,6 @@ int32_t HOT interpret_index(int32_t index, int32_t size) {
 }
 
 void AddressableLight::call_setup() {
-  this->setup_internal_();
   this->setup();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE

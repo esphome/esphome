@@ -370,14 +370,14 @@ def _list_dashboard_entries():
 
 
 class DashboardEntry(object):
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, path):
+        self.path = path
         self._storage = None
         self._loaded_storage = False
 
     @property
-    def full_path(self):  # type: () -> str
-        return os.path.join(settings.config_dir, self.filename)
+    def filename(self):
+        return os.path.basename(self.path)
 
     @property
     def storage(self):  # type: () -> Optional[StorageJSON]

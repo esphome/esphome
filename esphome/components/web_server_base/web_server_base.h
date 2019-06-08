@@ -30,6 +30,7 @@ class WebServerBase : public Component {
     }
   }
   AsyncWebServer *get_server() const { return server_; }
+  float get_setup_priority() const override;
 
   void add_handler(AsyncWebHandler *handler) {
     // remove all handlers

@@ -218,8 +218,8 @@ class WiFiComponent : public Component {
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{900000};
-  uint32_t ap_timeout_{60000};
+  uint32_t reboot_timeout_{};
+  uint32_t ap_timeout_{};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   bool error_from_callback_{false};
   std::vector<WiFiScanResult> scan_result_;

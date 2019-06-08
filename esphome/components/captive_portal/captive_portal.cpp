@@ -154,6 +154,10 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
 CaptivePortal::CaptivePortal(web_server_base::WebServerBase *base) : base_(base) {
   global_captive_portal = this;
 }
+float CaptivePortal::get_setup_priority() const {
+  // Before WiFi
+  return setup_priority::WIFI + 1.0f;
+}
 
 CaptivePortal *global_captive_portal = nullptr;
 

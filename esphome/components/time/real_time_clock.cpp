@@ -12,7 +12,6 @@ static const char *TAG = "time";
 
 RealTimeClock::RealTimeClock() = default;
 void RealTimeClock::call_setup() {
-  this->setup_internal_();
   setenv("TZ", this->timezone_.c_str(), 1);
   tzset();
   this->setup();

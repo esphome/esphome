@@ -95,6 +95,10 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
 void WebServerBase::add_ota_handler() {
   this->add_handler(new OTARequestHandler(this));
 }
+float WebServerBase::get_setup_priority() const {
+  // Before WiFi (captive portal)
+  return setup_priority::WIFI + 2.0f;
+}
 
 }  // namespace web_server_base
 }  // namespace esphome

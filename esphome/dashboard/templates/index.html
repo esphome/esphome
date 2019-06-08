@@ -82,7 +82,7 @@
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
                 <span class="status-indicator-text"></span></span>.
-              Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
+              Full path: <code class="inlinecode">{{ escape(entry.path) }}</code>
             </p>
             {% if entry.update_available %}
               <p class="update-available" data-node="{{ entry.filename }}">

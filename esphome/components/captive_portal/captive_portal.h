@@ -14,14 +14,15 @@ struct CaptivePortalSettings {
   char password[65];
 } PACKED;
 
-class CaptivePortal : public AsyncWebHandler {
+class CaptivePortal : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
-  void setup();
-  void loop() {
+  void setup() override;
+  void loop() override {
     if (this->dns_server_ != nullptr)
       this->dns_server_->processNextRequest();
   }
+  float get_setup_priority() const override;
   void start();
   bool is_active() const { return this->active_; }
   void end() {
