@@ -42,7 +42,6 @@ void WaveshareEPaper::data(uint8_t value) {
   this->write_byte(value);
   this->end_data_();
 }
-bool WaveshareEPaper::is_device_msb_first() { return true; }
 bool WaveshareEPaper::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
@@ -81,7 +80,6 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, int color) 
     this->buffer_[pos] &= ~(0x80 >> subpos);
 }
 uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
-bool WaveshareEPaper::is_device_high_speed() { return true; }
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -495,7 +493,6 @@ void HOT WaveshareEPaper4P2In::display() {
 }
 int WaveshareEPaper4P2In::get_width_internal() { return 400; }
 int WaveshareEPaper4P2In::get_height_internal() { return 300; }
-bool WaveshareEPaper4P2In::is_device_high_speed() { return false; }
 void WaveshareEPaper4P2In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 4.2in");

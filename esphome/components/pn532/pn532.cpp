@@ -335,7 +335,6 @@ bool PN532::wait_ready_() {
   return true;
 }
 
-bool PN532::is_device_msb_first() { return false; }
 void PN532::dump_config() {
   ESP_LOGCONFIG(TAG, "PN532:");
   switch (this->error_code_) {
