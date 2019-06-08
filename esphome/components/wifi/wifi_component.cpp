@@ -246,7 +246,7 @@ void print_signal_bars(int8_t rssi, char *buf) {
 }
 
 void WiFiComponent::print_connect_params_() {
-  uint8_t bssid[6] = {0,};
+  uint8_t bssid[6] = {};
   uint8_t *raw_bssid = WiFi.BSSID();
   if (raw_bssid != nullptr)
     memcpy(bssid, raw_bssid, sizeof(bssid));
