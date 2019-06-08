@@ -97,7 +97,8 @@ class SPIComponent : public Component {
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_array(const uint8_t *data, size_t length) {
     if (this->hw_spi_ != nullptr) {
-      this->hw_spi_->writeBytes(data, length);
+      auto *data_c = const_cast<uint8_t *>(data);
+      this->hw_spi_->writeBytes(data_c, length);
       return;
     }
     for (size_t i = 0; i < length; i++) {
