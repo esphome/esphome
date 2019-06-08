@@ -1,5 +1,6 @@
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -162,6 +163,11 @@ void ESP32BLETracker::start_scan(bool first) {
 
   esp_ble_gap_set_scan_params(&this->scan_params_);
   esp_ble_gap_start_scanning(this->scan_interval_);
+
+  this->set_timeout("scan", this->scan_interval_ * 2000, [] () {
+    ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
+    App.reboot();
+  });
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
