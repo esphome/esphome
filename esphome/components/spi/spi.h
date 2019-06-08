@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
+#include <SPI.h>
 
 namespace esphome {
 namespace spi {
@@ -67,11 +68,18 @@ class SPIComponent : public Component {
   void dump_config() override;
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE> uint8_t read_byte() {
+    if (this->hw_spi_ != nullptr) {
+      return this->hw_spi_->transfer(0x00);
+    }
     return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, false>(0x00);
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void read_array(uint8_t *data, size_t length) {
+    if (this->hw_spi_ != nullptr) {
+      this->hw_spi_->transfer(data, length);
+      return;
+    }
     for (size_t i = 0; i < length; i++) {
       data[i] = this->read_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>();
     }
@@ -79,11 +87,20 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_byte(uint8_t data) {
+    if (this->hw_spi_ != nullptr) {
+      this->hw_spi_->write(data);
+      return;
+    }
     this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, false, true>(data);
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void write_array(const uint8_t *data, size_t length) {
+    if (this->hw_spi_ != nullptr) {
+      auto *data_c = const_cast<uint8_t *>(data);
+      this->hw_spi_->writeBytes(data_c, length);
+      return;
+    }
     for (size_t i = 0; i < length; i++) {
       this->write_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
     }
@@ -91,17 +108,39 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   uint8_t transfer_byte(uint8_t data) {
+    if (this->hw_spi_ != nullptr) {
+      return this->hw_spi_->transfer(data);
+    }
     return this->transfer_<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, true, true>(data);
   }
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
   void transfer_array(uint8_t *data, size_t length) {
+    if (this->hw_spi_ != nullptr) {
+      this->hw_spi_->transfer(data, length);
+      return;
+    }
     for (size_t i = 0; i < length; i++) {
       data[i] = this->transfer_byte<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data[i]);
     }
   }
 
-  template<SPIClockPolarity CLOCK_POLARITY> void enable(GPIOPin *cs, uint32_t wait_cycle);
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, uint32_t DATA_RATE>
+  void enable(GPIOPin *cs) {
+    SPIComponent::debug_enable(cs->get_pin());
+
+    if (this->hw_spi_ != nullptr) {
+      uint8_t data_mode = (uint8_t(CLOCK_POLARITY) << 1) | uint8_t(CLOCK_PHASE);
+      SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
+      this->hw_spi_->beginTransaction(settings);
+    } else {
+      this->clk_->digital_write(CLOCK_POLARITY);
+      this->wait_cycle_ = uint32_t(F_CPU) / DATA_RATE / 2ULL;
+    }
+
+    this->active_cs_ = cs;
+    this->active_cs_->digital_write(false);
+  }
 
   void disable();
 
@@ -121,6 +160,7 @@ class SPIComponent : public Component {
   GPIOPin *miso_{nullptr};
   GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
+  SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
 };
 
@@ -138,7 +178,7 @@ class SPIDevice {
     this->cs_->digital_write(true);
   }
 
-  void enable() { this->parent_->template enable<CLOCK_POLARITY>(this->cs_, uint32_t(F_CPU) / DATA_RATE / 2ULL); }
+  void enable() { this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_); }
 
   void disable() { this->parent_->disable(); }
 
