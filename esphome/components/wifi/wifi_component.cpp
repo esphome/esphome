@@ -111,8 +111,6 @@ void WiFiComponent::loop() {
         break;
     }
 
-
-
     if (this->has_ap() && !this->ap_setup_) {
       if (now - this->last_connected_ > this->ap_timeout_) {
         ESP_LOGI(TAG, "Starting fallback AP!");
@@ -493,9 +491,7 @@ bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED && this->wifi_sta_status_() == WL_CONNECTED &&
          !this->error_from_callback_;
 }
-bool WiFiComponent::ready_for_ota() {
-  return this->is_connected();
-}
+bool WiFiComponent::ready_for_ota() { return this->is_connected(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 
 std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {

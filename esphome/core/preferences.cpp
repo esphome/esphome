@@ -95,7 +95,7 @@ static const uint32_t get_esp8266_flash_sector() {
 }
 static const uint32_t get_esp8266_flash_address() { return get_esp8266_flash_sector() * SPI_FLASH_SEC_SIZE; }
 
-void ESPPreferences::save_esp8266_flash() {
+void ESPPreferences::save_esp8266_flash_() {
   if (!esp8266_flash_dirty)
     return;
 
@@ -108,8 +108,7 @@ void ESPPreferences::save_esp8266_flash() {
     return;
   }
 
-  auto write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_,
-                                   ESP8266_FLASH_STORAGE_SIZE * 4);
+  auto write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
   enable_interrupts();
   if (write_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGV(TAG, "Write ESP8266 flash failed!");
@@ -131,7 +130,7 @@ bool ESPPreferenceObject::save_internal_() {
         esp8266_flash_dirty = true;
       *ptr = v;
     }
-    global_preferences.save_esp8266_flash();
+    global_preferences.save_esp8266_flash_();
     return true;
   }
 

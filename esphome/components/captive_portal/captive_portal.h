@@ -12,7 +12,7 @@ namespace captive_portal {
 struct CaptivePortalSettings {
   char ssid[33];
   char password[65];
-} PACKED;
+} PACKED;  // NOLINT
 
 class CaptivePortal : public AsyncWebHandler, public Component {
  public:
@@ -65,7 +65,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
   void handleRequest(AsyncWebServerRequest *req) override;
 
  protected:
-  void override_sta(const std::string &ssid, const std::string &password);
+  void override_sta_(const std::string &ssid, const std::string &password);
 
   web_server_base::WebServerBase *base_;
   bool initialized_{false};

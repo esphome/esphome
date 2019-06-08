@@ -53,7 +53,7 @@ BASE_CONFIG = u"""esphome:
 wifi:
   ssid: "{ssid}"
   password: "{psk}"
-  
+
   # Enable fallback network (captive portal)
   ap:
     ssid: "{name} Fallback AP"
@@ -62,7 +62,7 @@ wifi:
 captive_portal:
 
 # Enable logging
-logger:
+logger:1
 
 # Enable Home Assistant API
 api:
@@ -129,8 +129,8 @@ def default_input(text, default):
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(string):
-    return u''.join(c for c in unicodedata.normalize('NFD', text_type(string))
+def strip_accents(value):
+    return u''.join(c for c in unicodedata.normalize('NFD', text_type(value))
                     if unicodedata.category(c) != 'Mn')
 
 

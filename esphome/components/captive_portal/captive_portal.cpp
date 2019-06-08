@@ -10,15 +10,19 @@ static const char *TAG = "captive_portal";
 
 void CaptivePortal::handle_index(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1,user-scalable=no\"/><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" "
+                  "content=\"width=device-width,initial-scale=1,user-scalable=no\"/><title>"));
   stream->print(App.get_name().c_str());
   stream->print(F("</title><link rel=\"stylesheet\" href=\"/stylesheet.css\">"));
-  stream->print(F("<script>function c(l){document.getElementById('ssid').value=l.innerText||l.textContent; document.getElementById('psk').focus();}</script>"));
+  stream->print(F("<script>function c(l){document.getElementById('ssid').value=l.innerText||l.textContent; "
+                  "document.getElementById('psk').focus();}</script>"));
   stream->print(F("</head>"));
   stream->print(F("<body><div class=\"main\"><h1>WiFi Networks</h1>"));
 
   if (request->hasArg("save")) {
-    stream->print(F("<div class=\"info\">The ESP will now try to connect to the network...<br/>Please give it some time to connect.<br/>Note: Copy the changed network to your YAML file - the next OTA update will overwrite these settings.</div>"));
+    stream->print(F("<div class=\"info\">The ESP will now try to connect to the network...<br/>Please give it some "
+                    "time to connect.<br/>Note: Copy the changed network to your YAML file - the next OTA update will "
+                    "overwrite these settings.</div>"));
   }
 
   for (auto &scan : wifi::global_wifi_component->get_scan_result()) {
@@ -46,8 +50,11 @@ void CaptivePortal::handle_index(AsyncWebServerRequest *request) {
     stream->print(F("</div>"));
   }
 
-  stream->print(F("<h3>WiFi Settings</h3><form method=\"GET\" action=\"/wifisave\"><input id=\"ssid\" name=\"ssid\" length=32 placeholder=\"SSID\"><br/><input id=\"psk\" name=\"psk\" length=64 type=\"password\" placeholder=\"Password\"><br/><br/><button type=\"submit\">Save</button></form><br><hr><br>"));
-  stream->print(F("<h1>OTA Update</h1><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input type=\"file\" name=\"update\"><button type=\"submit\">Update</button></form>"));
+  stream->print(F("<h3>WiFi Settings</h3><form method=\"GET\" action=\"/wifisave\"><input id=\"ssid\" name=\"ssid\" "
+                  "length=32 placeholder=\"SSID\"><br/><input id=\"psk\" name=\"psk\" length=64 type=\"password\" "
+                  "placeholder=\"Password\"><br/><br/><button type=\"submit\">Save</button></form><br><hr><br>"));
+  stream->print(F("<h1>OTA Update</h1><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
+                  "type=\"file\" name=\"update\"><button type=\"submit\">Update</button></form>"));
   stream->print(F("</div></body></html>"));
   request->send(stream);
 }
@@ -57,10 +64,10 @@ void CaptivePortal::handle_wifisave(AsyncWebServerRequest *request) {
   ESP_LOGI(TAG, "Captive Portal Requested WiFi Settings Change:");
   ESP_LOGI(TAG, "  SSID='%s'", ssid.c_str());
   ESP_LOGI(TAG, "  Password=" LOG_SECRET("'%s'"), psk.c_str());
-  this->override_sta(ssid, psk);
+  this->override_sta_(ssid, psk);
   request->redirect("/?save=true");
 }
-void CaptivePortal::override_sta(const std::string &ssid, const std::string &password) {
+void CaptivePortal::override_sta_(const std::string &ssid, const std::string &password) {
   CaptivePortalSettings save{};
   strcpy(save.ssid, ssid.c_str());
   strcpy(save.password, password.c_str());
@@ -80,7 +87,7 @@ void CaptivePortal::setup() {
 
   CaptivePortalSettings save{};
   if (this->pref_.load(&save)) {
-    this->override_sta(save.ssid, save.password);
+    this->override_sta_(save.ssid, save.password);
   }
 }
 void CaptivePortal::start() {
@@ -116,8 +123,10 @@ void CaptivePortal::start() {
   this->active_ = true;
 }
 
-const char STYLESHEET_CSS[] PROGMEM = R"(*{box-sizing:inherit}div,input{padding:5px;font-size:1em}input{width:95%}body{text-align:center;font-family:sans-serif}button{border:0;border-radius:.3rem;background-color:#1fa3ec;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;padding:0}.main{text-align:left;display:inline-block;min-width:260px}.network{display:flex;justify-content:space-between;align-items:center}.network-left{display:flex;align-items:center}.network-ssid{margin-bottom:-7px;margin-left:10px}.info{border:1px solid;margin:10px 0;padding:15px 10px;color:#4f8a10;background-color:#dff2bf})";
-const char LOCK_SVG[] PROGMEM = R"(<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z"/></svg>)";
+const char STYLESHEET_CSS[] PROGMEM =
+    R"(*{box-sizing:inherit}div,input{padding:5px;font-size:1em}input{width:95%}body{text-align:center;font-family:sans-serif}button{border:0;border-radius:.3rem;background-color:#1fa3ec;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;padding:0}.main{text-align:left;display:inline-block;min-width:260px}.network{display:flex;justify-content:space-between;align-items:center}.network-left{display:flex;align-items:center}.network-ssid{margin-bottom:-7px;margin-left:10px}.info{border:1px solid;margin:10px 0;padding:15px 10px;color:#4f8a10;background-color:#dff2bf})";
+const char LOCK_SVG[] PROGMEM =
+    R"(<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"><path d="M12 17a2 2 0 0 0 2-2 2 2 0 0 0-2-2 2 2 0 0 0-2 2 2 2 0 0 0 2 2m6-9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2h1V6a5 5 0 0 1 5-5 5 5 0 0 1 5 5v2h1m-6-5a3 3 0 0 0-3 3v2h6V6a3 3 0 0 0-3-3z"/></svg>)";
 
 void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   if (req->url() == "/") {
@@ -135,7 +144,8 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   }
 
   AsyncResponseStream *stream = req->beginResponseStream("image/svg+xml");
-  stream->print(F("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\"><path d=\"M12 3A18.9 18.9 0 0 0 .38 7C4.41 12.06 7.89 16.37 12 21.5L23.65 7C20.32 4.41 16.22 3 12 "));
+  stream->print(F("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\"><path d=\"M12 3A18.9 18.9 0 0 "
+                  "0 .38 7C4.41 12.06 7.89 16.37 12 21.5L23.65 7C20.32 4.41 16.22 3 12 "));
   if (req->url() == "/wifi-strength-4.svg") {
     stream->print(F("3z"));
   } else {
@@ -151,9 +161,7 @@ void CaptivePortal::handleRequest(AsyncWebServerRequest *req) {
   stream->print(F("\"/></svg>"));
   req->send(stream);
 }
-CaptivePortal::CaptivePortal(web_server_base::WebServerBase *base) : base_(base) {
-  global_captive_portal = this;
-}
+CaptivePortal::CaptivePortal(web_server_base::WebServerBase *base) : base_(base) { global_captive_portal = this; }
 float CaptivePortal::get_setup_priority() const {
   // Before WiFi
   return setup_priority::WIFI + 1.0f;

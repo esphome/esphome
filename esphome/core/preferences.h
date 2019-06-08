@@ -80,7 +80,7 @@ class ESPPreferences {
   Preferences preferences_;
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-  void save_esp8266_flash();
+  void save_esp8266_flash_();
   bool prevent_write_{false};
   uint32_t *flash_storage_;
   uint32_t current_flash_offset_;

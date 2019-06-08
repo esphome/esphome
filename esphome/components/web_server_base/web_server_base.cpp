@@ -21,12 +21,8 @@ void report_ota_error() {
   ESP_LOGW(TAG, "OTA Update failed! Error: %s", ss.c_str());
 }
 
-void OTARequestHandler::handleUpload(AsyncWebServerRequest *request,
-                                     const String &filename,
-                                     size_t index,
-                                     uint8_t *data,
-                                     size_t len,
-                                     bool final) {
+void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index,
+                                     uint8_t *data, size_t len, bool final) {
   bool success;
   if (index == 0) {
     ESP_LOGI(TAG, "OTA Update Start: %s", filename.c_str());
@@ -70,9 +66,7 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request,
   if (final) {
     if (Update.end(true)) {
       ESP_LOGI(TAG, "OTA update successful!");
-      this->parent_->set_timeout(100, [](){
-        App.safe_reboot();
-      });
+      this->parent_->set_timeout(100, []() { App.safe_reboot(); });
     } else {
       report_ota_error();
     }
@@ -92,9 +86,7 @@ void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
   request->send(response);
 }
 
-void WebServerBase::add_ota_handler() {
-  this->add_handler(new OTARequestHandler(this));
-}
+void WebServerBase::add_ota_handler() { this->add_handler(new OTARequestHandler(this)); }
 float WebServerBase::get_setup_priority() const {
   // Before WiFi (captive portal)
   return setup_priority::WIFI + 2.0f;
