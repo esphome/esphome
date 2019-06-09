@@ -32,12 +32,6 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
 
-#ifdef USE_CAPTIVE_PORTAL
-  if (captive_portal::global_captive_portal != nullptr) {
-    captive_portal::global_captive_portal->setup();
-  }
-#endif
-
   this->last_connected_ = millis();
 
   this->wifi_register_callbacks_();
@@ -128,12 +122,6 @@ void WiFiComponent::loop() {
       }
     }
   }
-
-#ifdef USE_CAPTIVE_PORTAL
-  if (this->is_captive_portal_active_()) {
-    captive_portal::global_captive_portal->loop();
-  }
-#endif
 
   network_tick_mdns();
 }
@@ -495,7 +483,6 @@ bool WiFiComponent::is_connected() {
   return this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED && this->wifi_sta_status_() == WL_CONNECTED &&
          !this->error_from_callback_;
 }
-bool WiFiComponent::ready_for_ota() { return this->is_connected(); }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 
 std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {

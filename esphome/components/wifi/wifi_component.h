@@ -146,8 +146,6 @@ class WiFiComponent : public Component {
 
   bool can_proceed() override;
 
-  bool ready_for_ota();
-
   void set_reboot_timeout(uint32_t reboot_timeout);
 
   bool is_connected();
