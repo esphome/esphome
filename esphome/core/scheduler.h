@@ -33,11 +33,10 @@ class Scheduler {
     std::function<void()> f;
     bool remove;
 
-    bool operator<(const SchedulerItem &other) const;
+    static bool cmp(SchedulerItem *a, SchedulerItem *b);
   };
 
   void cleanup_();
-  bool peek_();
   void pop_raw_();
   void push_(SchedulerItem *item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
