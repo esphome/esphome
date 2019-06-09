@@ -244,6 +244,28 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: atm90e32
+    cs_pin: 5
+    voltage_a:
+      name: "EMON Line Voltage A"
+    current_a:
+      name: "EMON CT1 Current"
+    current_b:
+      name: "EMON CT2 Current"
+    current_c:
+      name: "EMON CT3 Current"
+    power:
+      name: "EMON Total Active Power CT1-3"
+    frequency:
+      name: "EMON Line Frequency"
+    line_freq: 50Hz
+    gain_pga: 2X
+    gain_volt_a: 47660
+    gain_volt_b: 47660
+    gain_volt_c: 47660
+    gain_ct_a: 12577
+    gain_ct_b: 12577
+    gain_ct_c: 12577
   - platform: bh1750
     name: "Living Room Brightness 3"
     internal: true
