@@ -1,3 +1,5 @@
+#pragma once
+
 /* STATUS REGISTERS */
 static const uint16_t ATM90E32_REGISTER_METEREN = 0x00;       // Metering Enable
 static const uint16_t ATM90E32_REGISTER_CHANNELMAPI = 0x01;   // Current Channel Mapping Configuration

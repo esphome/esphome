@@ -8,8 +8,8 @@ namespace esphome {
 namespace atm90e32 {
 
 class ATM90E32Component : public PollingComponent,
-	public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-	spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+  spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
  public:
   void setup() override;
   void dump_config() override;

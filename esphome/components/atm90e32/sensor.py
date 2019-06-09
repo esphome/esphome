@@ -24,9 +24,9 @@ LINE_FREQS = {
     '60HZ': 60,
 }
 PGA_GAINS = {
-    '1X' : 0x0,
-    '2X' : 0x15,
-    '4X' : 0x2A,
+    '1X': 0x0,
+    '2X': 0x15,
+    '4X': 0x2A,
 }
 
 atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
@@ -51,6 +51,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_GAIN_CT_B, default=25498): cv.uint16_t,
     cv.Optional(CONF_GAIN_CT_C, default=25498): cv.uint16_t,
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
