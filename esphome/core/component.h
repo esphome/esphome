@@ -91,18 +91,7 @@ class Component {
    */
   virtual float get_loop_priority() const;
 
-  /** Public loop() functions. These will be called by the Application instance.
-   *
-   * Note: This should normally not be overriden, unless you know what you're doing.
-   * They're basically to make creating custom components easier. For example the
-   * SensorComponent can override these methods to not have the user call some super
-   * methods within their custom sensors. These methods should ALWAYS call the loop_internal()
-   * and setup_internal() methods.
-   *
-   * Basically, it handles stuff like interval/timeout functions and eventually calls loop().
-   */
-  virtual void call_loop();
-  virtual void call_setup();
+  void call();
 
   virtual void on_shutdown() {}
   virtual void on_safe_shutdown() {}
@@ -138,6 +127,8 @@ class Component {
   void status_momentary_error(const std::string &name, uint32_t length = 5000);
 
  protected:
+  virtual void call_loop();
+  virtual void call_setup();
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
@@ -203,9 +194,6 @@ class Component {
 
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT
-
-  void loop_internal_();
-  void setup_internal_();
 
   uint32_t component_state_{0x0000};  ///< State of this component.
   float setup_priority_override_{NAN};

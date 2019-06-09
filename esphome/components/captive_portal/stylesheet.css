@@ -1,0 +1,58 @@
+* {
+    box-sizing: inherit;
+}
+
+div, input {
+    padding: 5px;
+    font-size: 1em;
+}
+
+input {
+    width: 95%;
+}
+
+body {
+    text-align: center;
+    font-family: sans-serif;
+}
+
+button {
+    border: 0;
+    border-radius: 0.3rem;
+    background-color: #1fa3ec;
+    color: #fff;
+    line-height: 2.4rem;
+    font-size: 1.2rem;
+    width: 100%;
+    padding: 0;
+}
+
+.main {
+    text-align: left;
+    display: inline-block;
+    min-width: 260px;
+}
+
+.network {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.network-left {
+    display: flex;
+    align-items: center;
+}
+
+.network-ssid {
+    margin-bottom: -7px;
+    margin-left: 10px;
+}
+
+.info {
+    border: 1px solid;
+    margin: 10px 0px;
+    padding: 15px 10px;
+    color: #4f8a10;
+    background-color: #dff2bf;
+}

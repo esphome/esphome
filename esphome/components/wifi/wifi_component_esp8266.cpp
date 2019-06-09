@@ -382,7 +382,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_PROBEREQRECVED: {
       auto it = event->event_info.ap_probereqrecved;
-      ESP_LOGV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
 #ifndef ARDUINO_ESP8266_RELEASE_2_3_0
@@ -583,7 +583,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip_() {
+IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return {ip.ip.addr};
