@@ -65,7 +65,7 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
-  if (!this->peek_())
+  if (this->items_.empty())
     return {};
   auto *item = this->items_[0];
   const uint32_t now = millis();
@@ -79,8 +79,8 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
   this->process_to_add();
 
   while (true) {
-    bool has_item = this->peek_();
-    if (!has_item)
+    this->cleanup_();
+    if (this->items_.empty())
       // No more item left, done!
       break;
 
@@ -132,14 +132,14 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
   this->process_to_add();
 }
 void HOT Scheduler::process_to_add() {
-  for (auto &it : this->to_add_) {
+  for (auto *it : this->to_add_) {
     if (it->remove) {
       delete it;
       continue;
     }
 
     this->items_.push_back(it);
-    std::push_heap(this->items_.begin(), this->items_.end());
+    std::push_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   }
   this->to_add_.clear();
 }
@@ -153,12 +153,8 @@ void HOT Scheduler::cleanup_() {
     this->pop_raw_();
   }
 }
-bool HOT Scheduler::peek_() {
-  this->cleanup_();
-  return !this->items_.empty();
-}
 void HOT Scheduler::pop_raw_() {
-  std::pop_heap(this->items_.begin(), this->items_.end());
+  std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->items_.pop_back();
 }
 void HOT Scheduler::push_(Scheduler::SchedulerItem *item) { this->to_add_.push_back(item); }
@@ -169,7 +165,7 @@ bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, 
       it->remove = true;
       ret = true;
     }
-  for (auto &it : this->to_add_)
+  for (auto *it : this->to_add_)
     if (it->component == component && it->name == name && it->type == type) {
       it->remove = true;
       ret = true;
@@ -178,16 +174,15 @@ bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, 
   return ret;
 }
 
-bool HOT Scheduler::SchedulerItem::operator<(const Scheduler::SchedulerItem &other) const {
+bool HOT Scheduler::SchedulerItem::cmp(Scheduler::SchedulerItem *a, Scheduler::SchedulerItem *b) {
   // min-heap
-  uint32_t this_next_exec = this->last_execution + this->timeout;
-  bool this_overflow = this_next_exec < this->last_execution;
-  uint32_t other_next_exec = other.last_execution + other.timeout;
-  bool other_overflow = other_next_exec < other.last_execution;
-  if (this_overflow == other_overflow)
-    return this_next_exec > other_next_exec;
+  uint32_t a_next_exec = a->last_execution + a->timeout;
+  bool a_overflow = a_next_exec < a->last_execution;
+  uint32_t b_next_exec = b->last_execution + b->timeout;
+  bool b_overflow = b_next_exec < b->last_execution;
+  if (a_overflow == b_overflow)
+    return a_next_exec > b_next_exec;
 
-  return this_overflow;
+  return a_overflow;
 }
-
 }  // namespace esphome

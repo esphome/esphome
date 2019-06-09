@@ -164,7 +164,7 @@ void ESP32BLETracker::start_scan(bool first) {
   esp_ble_gap_set_scan_params(&this->scan_params_);
   esp_ble_gap_start_scanning(this->scan_interval_);
 
-  this->set_timeout("scan", this->scan_interval_ * 2000, [] () {
+  this->set_timeout("scan", this->scan_interval_ * 2000, []() {
     ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
     App.reboot();
   });
