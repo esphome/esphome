@@ -116,6 +116,7 @@ void ESP32TouchComponent::loop() {
       touch_pad_read(child->get_touch_pad(), &value);
     }
 
+    child->value_ = value;
     child->publish_state(value < child->get_threshold());
 
     if (this->setup_mode_) {
@@ -157,7 +158,12 @@ ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pa
     : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold) {}
 touch_pad_t ESP32TouchBinarySensor::get_touch_pad() const { return this->touch_pad_; }
 uint16_t ESP32TouchBinarySensor::get_threshold() const { return this->threshold_; }
-
+void ESP32TouchBinarySensor::set_threshold(uint16_t threshold) {
+  this->threshold_ = threshold;
+}
+uint16_t ESP32TouchBinarySensor::get_value () const {
+  return this->value_;
+}
 }  // namespace esp32_touch
 }  // namespace esphome
 

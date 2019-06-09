@@ -56,12 +56,15 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
 
   touch_pad_t get_touch_pad() const;
   uint16_t get_threshold() const;
+  void set_threshold(uint16_t);
+  uint16_t get_value() const;
 
  protected:
   friend ESP32TouchComponent;
 
   touch_pad_t touch_pad_;
   uint16_t threshold_;
+  uint16_t value_;
 };
 
 }  // namespace esp32_touch
