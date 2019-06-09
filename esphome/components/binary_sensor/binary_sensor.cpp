@@ -30,7 +30,7 @@ void BinarySensor::publish_initial_state(bool state) {
   }
 }
 void BinarySensor::send_state_internal(bool state, bool is_initial) {
-  ESP_LOGD(TAG, "'%s': Sending state %s", this->get_name().c_str(), state ? "ON" : "OFF");
+  ESP_LOGD(TAG, "'%s': Sending %s state %s", this->get_name().c_str(), is_initial ? "initial" : "", ONOFF(state));
   this->has_state_ = true;
   this->state = state;
   if (!is_initial) {
