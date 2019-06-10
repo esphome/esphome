@@ -119,11 +119,18 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   return output;
 }
 
-uint32_t ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
-  uint32_t val_h = this->read16_(addr_h);
-  uint32_t val_l = this->read16_(addr_l);
+int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
+  int val_h = this->read16_(addr_h);
+  int val_l = this->read16_(addr_l);
+  int val = (val_h << 16) | val_l;
 
-  return (val_h << 16) | val_l;
+  if ((val & 0x80000000) != 0) {
+    // 2s compliment + 1 for negative values
+    val = (~val) + 1;
+  }
+  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d", addr_h, val_h, addr_l, val_l, val);
+
+  return val;
 }
 
 void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
