@@ -465,3 +465,13 @@ ttp229_lsf:
 ttp229_bsf:
   sdo_pin: D0
   scl_pin: D1
+
+sim800l:
+  on_sms_received:
+    - lambda: |-
+        std::string str;
+        str = sender;
+        str = message;
+    - sim800l.send_sms:
+        message: 'hello you'
+        recipient: '+1234'
