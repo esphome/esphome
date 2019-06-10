@@ -157,7 +157,8 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->state_ = STATE_RECEIVESMS;
       }
       // Otherwise we receive another OK, we do nothing just wait polling to continuously check for SMS
-      if (message == "OK") this->state_ = STATE_INIT;
+      if (message == "OK")
+        this->state_ = STATE_INIT;
       break;
     case STATE_RECEIVESMS:
       /* Our recipient is set and the message body is in message
@@ -227,10 +228,12 @@ void Sim800LComponent::loop() {
 
     ESP_LOGVV(TAG, "Buffer pos: %u %d", this->read_pos_, byte);  // NOLINT
 
-    if (byte == ASCII_CR) continue;
-    if (byte >= 0x7F) byte = '?'; // need to be valid utf8 string for log functions.
+    if (byte == ASCII_CR)
+      continue;
+    if (byte >= 0x7F)
+      byte = '?'; // need to be valid utf8 string for log functions.
     this->read_buffer_[this->read_pos_] = byte;
-    
+
     if (this->state_ == STATE_SENDINGSMS2 && this->read_pos_ == 0 && byte == '>')
       this->read_buffer_[++this->read_pos_] = ASCII_LF;
 
