@@ -60,6 +60,7 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);    // enable register config access
   this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);        // Enable Metering
   if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != 0x0001) {
+    ESP_LOGW(TAG, "Could not initialize ATM90E32 IC, check SPI settings");
     this->mark_failed();
     return;
   }
