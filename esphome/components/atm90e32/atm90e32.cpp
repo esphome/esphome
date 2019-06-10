@@ -64,12 +64,12 @@ void ATM90E32Component::setup() {
     return;
   }
 
-  this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0x0A55);  // ZX2, ZX1, ZX0 pin config
-  this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);    // Mode Config (frequency set in main program)
-  this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_); // PGA Gain Configuration for Current Channels
-  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x0AFC);  // Active Startup Power Threshold = 50%
-  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x0AEC);  // Reactive Startup Power Threshold = 50%
-  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x00BC);  // Active Phase Threshold = 10%
+  this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0x0A55);                    // ZX2, ZX1, ZX0 pin config
+  this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);                      // Mode Config (frequency set in main program)
+  this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_);                   // PGA Gain Configuration for Current Channels
+  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x0AFC);                    // Active Startup Power Threshold = 50%
+  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x0AEC);                    // Reactive Startup Power Threshold = 50%
+  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x00BC);                    // Active Phase Threshold = 10%
   this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);  // A Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);    // A line current gain
   this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);  // B Voltage rms gain
@@ -127,8 +127,8 @@ int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
     // 2s compliment + 1 for negative values
     val = (~val) + 1;
   }
-  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d",
-            addr_h, val_h, addr_l, val_l, val);
+  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d", addr_h, val_h, addr_l, val_l,
+            val);
 
   return val;
 }
