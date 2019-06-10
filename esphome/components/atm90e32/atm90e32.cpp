@@ -14,34 +14,34 @@ void ATM90E32Component::update() {
   }
 
   if (this->phase_[0].voltage_sensor_ != nullptr) {
-    this->phase_[0].voltage_sensor_->publish_state(this->GetLineVoltageA());
+    this->phase_[0].voltage_sensor_->publish_state(this->get_line_voltage_a_());
   }
   if (this->phase_[1].voltage_sensor_ != nullptr) {
-    this->phase_[1].voltage_sensor_->publish_state(this->GetLineVoltageB());
+    this->phase_[1].voltage_sensor_->publish_state(this->get_line_voltage_b_());
   }
   if (this->phase_[2].voltage_sensor_ != nullptr) {
-    this->phase_[2].voltage_sensor_->publish_state(this->GetLineVoltageC());
+    this->phase_[2].voltage_sensor_->publish_state(this->get_line_voltage_c_());
   }
   if (this->phase_[0].current_sensor_ != nullptr) {
-    this->phase_[0].current_sensor_->publish_state(this->GetLineCurrentA());
+    this->phase_[0].current_sensor_->publish_state(this->get_line_current_a_());
   }
   if (this->phase_[1].current_sensor_ != nullptr) {
-    this->phase_[1].current_sensor_->publish_state(this->GetLineCurrentB());
+    this->phase_[1].current_sensor_->publish_state(this->get_line_current_b_());
   }
   if (this->phase_[2].current_sensor_ != nullptr) {
-    this->phase_[2].current_sensor_->publish_state(this->GetLineCurrentC());
+    this->phase_[2].current_sensor_->publish_state(this->get_line_current_c_());
   }
   if (this->phase_[0].power_sensor_ != nullptr) {
-    this->phase_[0].power_sensor_->publish_state(this->GetActivePowerA());
+    this->phase_[0].power_sensor_->publish_state(this->get_active_power_a_());
   }
   if (this->phase_[1].power_sensor_ != nullptr) {
-    this->phase_[1].power_sensor_->publish_state(this->GetActivePowerB());
+    this->phase_[1].power_sensor_->publish_state(this->get_active_power_b_());
   }
   if (this->phase_[2].power_sensor_ != nullptr) {
-    this->phase_[2].power_sensor_->publish_state(this->GetActivePowerC());
+    this->phase_[2].power_sensor_->publish_state(this->get_active_power_c_());
   }
   if (this->freq_sensor_ != nullptr) {
-    this->freq_sensor_->publish_state(this->GetFrequency());
+    this->freq_sensor_->publish_state(this->get_frequency_());
   }
   this->status_clear_warning();
 }
