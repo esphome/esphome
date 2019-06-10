@@ -1122,7 +1122,7 @@ interval:
   - interval: 2s
     then:
       - lambda: |-
-            uint16_t btn_left_state = id(btn_left)->get_value();
+            static uint16_t btn_left_state = id(btn_left)->get_value();
 
             ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
             
