@@ -8,7 +8,6 @@ namespace atm90e32 {
 static const char *TAG = "atm90e32";
 
 void ATM90E32Component::update() {
-
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
     return;
@@ -56,28 +55,28 @@ void ATM90E32Component::setup() {
     mmode0 |= 1 << 12;
   }
 
-  this->write16_(ATM90E32_REGISTER_SOFTRESET, 0x789A);      // Perform soft reset
-  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);    // enable register config access
-  this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);        // Enable Metering
+  this->write16_(ATM90E32_REGISTER_SOFTRESET, 0x789A);    // Perform soft reset
+  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);  // enable register config access
+  this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);      // Enable Metering
   if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != 0x0001) {
     ESP_LOGW(TAG, "Could not initialize ATM90E32 IC, check SPI settings");
     this->mark_failed();
     return;
   }
 
-  this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0x0A55);       // ZX2, ZX1, ZX0 pin config
-  this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);         // Mode Config (frequency set in main program)
-  this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_);      // PGA Gain Configuration for Current Channels - 0x002A (x4) // 0x0015 (x2) // 0x0000 (1x)
-  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x0AFC);       // Active Startup Power Threshold - 50% of startup current = 0.9/0.00032 = 2812.5
-  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x0AEC);       // Reactive Startup Power Threshold
-  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x00BC);       // Active Phase Threshold = 10% of startup current = 0.06/0.00032 = 187.5
-  this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);   // A Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);     // A line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);   // B Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);     // B line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);   // C Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);     // C line current gain
-  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);    // end configuration
+  this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0x0A55);  // ZX2, ZX1, ZX0 pin config
+  this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);    // Mode Config (frequency set in main program)
+  this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_); // PGA Gain Configuration for Current Channels
+  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x0AFC);  // Active Startup Power Threshold = 50%
+  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x0AEC);  // Reactive Startup Power Threshold = 50%
+  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x00BC);  // Active Phase Threshold = 10%
+  this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);  // A Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);    // A line current gain
+  this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);  // B Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);    // B line current gain
+  this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);  // C Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);    // C line current gain
+  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);                 // end configuration
 }
 
 void ATM90E32Component::dump_config() {
@@ -128,7 +127,8 @@ int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
     // 2s compliment + 1 for negative values
     val = (~val) + 1;
   }
-  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d", addr_h, val_h, addr_l, val_l, val);
+  ESP_LOGVV(TAG, "read32_ addr_h 0x%04X val_h 0x%04X addr_l 0x%04X val_l 0x%04X = %d",
+            addr_h, val_h, addr_l, val_l, val);
 
   return val;
 }
@@ -148,45 +148,45 @@ void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
   this->disable();
 }
 
-float ATM90E32Component::GetLineVoltageA() {
+float ATM90E32Component::get_line_voltage_a_() {
   uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSA);
-  return (float)voltage / 100;
+  return (float) voltage / 100;
 }
-float ATM90E32Component::GetLineVoltageB() {
+float ATM90E32Component::get_line_voltage_b_() {
   uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSB);
-  return (float)voltage / 100;
+  return (float) voltage / 100;
 }
-float ATM90E32Component::GetLineVoltageC() {
+float ATM90E32Component::get_line_voltage_c_() {
   uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSC);
-  return (float)voltage / 100;
+  return (float) voltage / 100;
 }
-float ATM90E32Component::GetLineCurrentA() {
+float ATM90E32Component::get_line_current_a_() {
   uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSA);
-  return (float)current / 1000;
+  return (float) current / 1000;
 }
-float ATM90E32Component::GetLineCurrentB() {
+float ATM90E32Component::get_line_current_b_() {
   uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSB);
-  return (float)current / 1000;
+  return (float) current / 1000;
 }
-float ATM90E32Component::GetLineCurrentC() {
+float ATM90E32Component::get_line_current_c_() {
   uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSC);
-  return (float)current / 1000;
+  return (float) current / 1000;
 }
-float ATM90E32Component::GetActivePowerA() {
+float ATM90E32Component::get_active_power_a_() {
   int val = this->read32_(ATM90E32_REGISTER_PMEANA, ATM90E32_REGISTER_PMEANALSB);
   return val * 0.00032f;
 }
-float ATM90E32Component::GetActivePowerB() {
+float ATM90E32Component::get_active_power_b_() {
   int val = this->read32_(ATM90E32_REGISTER_PMEANB, ATM90E32_REGISTER_PMEANBLSB);
   return val * 0.00032f;
 }
-float ATM90E32Component::GetActivePowerC() {
+float ATM90E32Component::get_active_power_c_() {
   int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
   return val * 0.00032f;
 }
-float ATM90E32Component::GetFrequency() {
+float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
-  return (float)freq / 100;
+  return (float) freq / 100;
 }
 }  // namespace atm90e32
 }  // namespace esphome

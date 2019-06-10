@@ -8,8 +8,8 @@ namespace esphome {
 namespace atm90e32 {
 
 class ATM90E32Component : public PollingComponent,
-  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
-  spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
+                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
+                                                spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_200KHZ> {
  public:
   void setup() override;
   void dump_config() override;
@@ -29,18 +29,18 @@ class ATM90E32Component : public PollingComponent,
  protected:
   uint16_t read16_(uint16_t a_register);
   int read32_(uint16_t addr_h, uint16_t addr_l);
-  void write16_(uint16_t a_register, uint16_t data);
+  void write16_(uint16_t a_register, uint16_t val);
 
-  float GetLineVoltageA();
-  float GetLineVoltageB();
-  float GetLineVoltageC();
-  float GetLineCurrentA();
-  float GetLineCurrentB();
-  float GetLineCurrentC();
-  float GetActivePowerA();
-  float GetActivePowerB();
-  float GetActivePowerC();
-  float GetFrequency();
+  float get_line_voltage_a_();
+  float get_line_voltage_b_();
+  float get_line_voltage_c_();
+  float get_line_current_a_();
+  float get_line_current_b_();
+  float get_line_current_c_();
+  float get_active_power_a_();
+  float get_active_power_b_();
+  float get_active_power_c_();
+  float get_frequency_();
 
   struct ATM90E32Phase {
     uint16_t volt_gain_{41820};
