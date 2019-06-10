@@ -157,7 +157,7 @@ float ATM90E32Component::GetLineCurrentC() {
 }
 float ATM90E32Component::GetTotalActivePower() {
    int val = this->read32_(ATM90E32_REGISTER_PMEANT, ATM90E32_REGISTER_PMEANTLSB);
-   return (float)val * 0.00032;
+   return val * 0.00032f;
 }
 float ATM90E32Component::GetFrequency() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
