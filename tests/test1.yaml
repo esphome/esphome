@@ -271,7 +271,7 @@ sensor:
       gain_ct: 12577
     frequency:
       name: "EMON Line Frequency"
-    line_freq: 50Hz
+    line_frequency: 50Hz
     gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
