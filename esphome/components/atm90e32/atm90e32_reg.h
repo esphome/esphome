@@ -1,5 +1,8 @@
 #pragma once
 
+namespace esphome {
+namespace atm90e32 {
+
 /* STATUS REGISTERS */
 static const uint16_t ATM90E32_REGISTER_METEREN = 0x00;       // Metering Enable
 static const uint16_t ATM90E32_REGISTER_CHANNELMAPI = 0x01;   // Current Channel Mapping Configuration
@@ -245,3 +248,6 @@ static const uint16_t ATM90E32_REGISTER_TEMP = 0xFC;      // Measured Temperatur
 static const uint16_t ATM90E32_REGISTER_UANGLEA = 0xFD;   // A Voltage Phase Angle
 static const uint16_t ATM90E32_REGISTER_UANGLEB = 0xFE;   // B Voltage Phase Angle
 static const uint16_t ATM90E32_REGISTER_UANGLEC = 0xFF;   // C Voltage Phase Angle
+
+}  // namespace atm90e32
+}  // namespace esphome

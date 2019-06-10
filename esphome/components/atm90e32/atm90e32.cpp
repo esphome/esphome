@@ -1,11 +1,11 @@
 #include "atm90e32.h"
+#include "atm90e32_reg.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace atm90e32 {
 
 static const char *TAG = "atm90e32";
-#include "atm90e32_reg.h"
 
 void ATM90E32Component::update() {
 
