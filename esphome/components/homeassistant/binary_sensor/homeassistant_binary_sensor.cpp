@@ -17,12 +17,12 @@ void HomeassistantBinarySensor::setup() {
         break;
       case PARSE_ON:
       case PARSE_OFF:
-        bool newState = val == PARSE_ON;
-        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(newState));
+        bool new_state = val == PARSE_ON;
+        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
         if (this->initial_) 
-          this->publish_initial_state(newState);
+          this->publish_initial_state(new_state);
         else
-          this->publish_state(newState);
+          this->publish_state(new_state);
         break;
     }
     this->initial_ = false;
