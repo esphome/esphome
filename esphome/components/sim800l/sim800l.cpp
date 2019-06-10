@@ -231,7 +231,7 @@ void Sim800LComponent::loop() {
     if (byte == ASCII_CR)
       continue;
     if (byte >= 0x7F)
-      byte = '?'; // need to be valid utf8 string for log functions.
+      byte = '?';  // need to be valid utf8 string for log functions.
     this->read_buffer_[this->read_pos_] = byte;
 
     if (this->state_ == STATE_SENDINGSMS2 && this->read_pos_ == 0 && byte == '>')
