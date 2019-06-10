@@ -2,23 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
-    CONF_ID, CONF_POWER, CONF_FREQUENCY, \
+    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, \
     ICON_FLASH, UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
-CONF_VOLTAGE_A = 'voltage_a'
-CONF_VOLTAGE_B = 'voltage_b'
-CONF_VOLTAGE_C = 'voltage_c'
-CONF_CURRENT_A = 'current_a'
-CONF_CURRENT_B = 'current_b'
-CONF_CURRENT_C = 'current_c'
-CONF_LINE_FREQ = 'line_freq'
+CONF_PHASE_A = 'phase_a'
+CONF_PHASE_B = 'phase_b'
+CONF_PHASE_C = 'phase_c'
+
+CONF_LINE_FREQ = 'line_frequency'
 CONF_GAIN_PGA = 'gain_pga'
-CONF_GAIN_VOLT_A = 'gain_volt_a'
-CONF_GAIN_VOLT_B = 'gain_volt_b'
-CONF_GAIN_VOLT_C = 'gain_volt_c'
-CONF_GAIN_CT_A = 'gain_ct_a'
-CONF_GAIN_CT_B = 'gain_ct_b'
-CONF_GAIN_CT_C = 'gain_ct_c'
+CONF_GAIN_VOLT = 'gain_voltage'
+CONF_GAIN_CT = 'gain_ct'
 LINE_FREQS = {
     '50HZ': 50,
     '60HZ': 60,
@@ -32,24 +26,22 @@ PGA_GAINS = {
 atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
 ATM90E32Component = atm90e32_ns.class_('ATM90E32Component', cg.PollingComponent, spi.SPIDevice)
 
+ATM90E32_PHASE_SCHEMA = cv.Schema({
+    cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
+    cv.Optional(CONF_GAIN_VOLT, default=41820): cv.uint16_t,
+    cv.Optional(CONF_GAIN_CT, default=25498): cv.uint16_t,
+})
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(ATM90E32Component),
-    cv.Optional(CONF_VOLTAGE_A): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_VOLTAGE_B): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_VOLTAGE_C): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
-    cv.Optional(CONF_CURRENT_A): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT_B): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT_C): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
+    cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
+    cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HZ, ICON_FLASH, 1),
-    cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
     cv.Required(CONF_LINE_FREQ): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
-    cv.Optional(CONF_GAIN_VOLT_A, default=41820): cv.uint16_t,
-    cv.Optional(CONF_GAIN_VOLT_B, default=41820): cv.uint16_t,
-    cv.Optional(CONF_GAIN_VOLT_C, default=41820): cv.uint16_t,
-    cv.Optional(CONF_GAIN_CT_A, default=25498): cv.uint16_t,
-    cv.Optional(CONF_GAIN_CT_B, default=25498): cv.uint16_t,
-    cv.Optional(CONF_GAIN_CT_C, default=25498): cv.uint16_t,
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 
@@ -58,42 +50,26 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
 
-    if CONF_VOLTAGE_A in config:
-        sens = yield sensor.new_sensor(config[CONF_VOLTAGE_A])
-        cg.add(var.set_voltage_sensor_a(sens))
-    if CONF_VOLTAGE_B in config:
-        sens = yield sensor.new_sensor(config[CONF_VOLTAGE_B])
-        cg.add(var.set_voltage_sensor_b(sens))
-    if CONF_VOLTAGE_C in config:
-        sens = yield sensor.new_sensor(config[CONF_VOLTAGE_C])
-        cg.add(var.set_voltage_sensor_c(sens))
-    if CONF_CURRENT_A in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT_A])
-        cg.add(var.set_current_sensor_a(sens))
-    if CONF_CURRENT_B in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT_B])
-        cg.add(var.set_current_sensor_b(sens))
-    if CONF_CURRENT_C in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT_C])
-        cg.add(var.set_current_sensor_c(sens))
+    for i, phase in enumerate([CONF_PHASE_A, CONF_PHASE_B, CONF_PHASE_C]):
+        if phase not in config:
+            continue
+        conf = config[phase]
+        if CONF_GAIN_VOLT in conf:
+            cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLT]))
+        if CONF_GAIN_CT in conf:
+            cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
+        if CONF_VOLTAGE in conf:
+            sens = yield sensor.new_sensor(conf[CONF_VOLTAGE])
+            cg.add(var.set_voltage_sensor(i, sens))
+        if CONF_CURRENT in conf:
+            sens = yield sensor.new_sensor(conf[CONF_CURRENT])
+            cg.add(var.set_current_sensor(i, sens))
+        if CONF_POWER in conf:
+            sens = yield sensor.new_sensor(conf[CONF_POWER])
+            cg.add(var.set_power_sensor(i, sens))
     if CONF_FREQUENCY in config:
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
-    if CONF_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER])
-        cg.add(var.set_power_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQ]))
     if CONF_GAIN_PGA in config:
         cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
-    if CONF_GAIN_VOLT_A in config:
-        cg.add(var.set_volt_a_gain(config[CONF_GAIN_VOLT_A]))
-    if CONF_GAIN_VOLT_B in config:
-        cg.add(var.set_volt_b_gain(config[CONF_GAIN_VOLT_B]))
-    if CONF_GAIN_VOLT_C in config:
-        cg.add(var.set_volt_c_gain(config[CONF_GAIN_VOLT_C]))
-    if CONF_GAIN_CT_A in config:
-        cg.add(var.set_ct_a_gain(config[CONF_GAIN_CT_A]))
-    if CONF_GAIN_CT_B in config:
-        cg.add(var.set_ct_b_gain(config[CONF_GAIN_CT_B]))
-    if CONF_GAIN_CT_C in config:
-        cg.add(var.set_ct_c_gain(config[CONF_GAIN_CT_C]))

@@ -14,29 +14,35 @@ void ATM90E32Component::update() {
     return;
   }
 
-  if (this->voltage_sensor_a_ != nullptr) {
-    this->voltage_sensor_a_->publish_state(this->GetLineVoltageA());
+  if (this->phase_[0].voltage_sensor_ != nullptr) {
+    this->phase_[0].voltage_sensor_->publish_state(this->GetLineVoltageA());
   }
-  if (this->voltage_sensor_b_ != nullptr) {
-    this->voltage_sensor_b_->publish_state(this->GetLineVoltageB());
+  if (this->phase_[1].voltage_sensor_ != nullptr) {
+    this->phase_[1].voltage_sensor_->publish_state(this->GetLineVoltageB());
   }
-  if (this->voltage_sensor_c_ != nullptr) {
-    this->voltage_sensor_c_->publish_state(this->GetLineVoltageC());
+  if (this->phase_[2].voltage_sensor_ != nullptr) {
+    this->phase_[2].voltage_sensor_->publish_state(this->GetLineVoltageC());
   }
-  if (this->current_sensor_a_ != nullptr) {
-    this->current_sensor_a_->publish_state(this->GetLineCurrentA());
+  if (this->phase_[0].current_sensor_ != nullptr) {
+    this->phase_[0].current_sensor_->publish_state(this->GetLineCurrentA());
   }
-  if (this->current_sensor_b_ != nullptr) {
-    this->current_sensor_b_->publish_state(this->GetLineCurrentB());
+  if (this->phase_[1].current_sensor_ != nullptr) {
+    this->phase_[1].current_sensor_->publish_state(this->GetLineCurrentB());
   }
-  if (this->current_sensor_c_ != nullptr) {
-    this->current_sensor_c_->publish_state(this->GetLineCurrentC());
+  if (this->phase_[2].current_sensor_ != nullptr) {
+    this->phase_[2].current_sensor_->publish_state(this->GetLineCurrentC());
+  }
+  if (this->phase_[0].power_sensor_ != nullptr) {
+    this->phase_[0].power_sensor_->publish_state(this->GetActivePowerA());
+  }
+  if (this->phase_[1].power_sensor_ != nullptr) {
+    this->phase_[1].power_sensor_->publish_state(this->GetActivePowerB());
+  }
+  if (this->phase_[2].power_sensor_ != nullptr) {
+    this->phase_[2].power_sensor_->publish_state(this->GetActivePowerC());
   }
   if (this->freq_sensor_ != nullptr) {
     this->freq_sensor_->publish_state(this->GetFrequency());
-  }
-  if (this->power_sensor_ != nullptr) {
-    this->power_sensor_->publish_state(this->GetTotalActivePower());
   }
   this->status_clear_warning();
 }
@@ -64,12 +70,12 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x0AFC);       // Active Startup Power Threshold - 50% of startup current = 0.9/0.00032 = 2812.5
   this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x0AEC);       // Reactive Startup Power Threshold
   this->write16_(ATM90E32_REGISTER_PPHASETH, 0x00BC);       // Active Phase Threshold = 10% of startup current = 0.06/0.00032 = 187.5
-  this->write16_(ATM90E32_REGISTER_UGAINA, volt_a_gain_);   // A Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINA, ct_a_gain_);     // A line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINB, volt_b_gain_);   // B Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINB, ct_b_gain_);     // B line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINC, volt_c_gain_);   // C Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_IGAINC, ct_c_gain_);     // C line current gain
+  this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);   // A Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);     // A line current gain
+  this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);   // B Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);     // B line current gain
+  this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);   // C Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);     // C line current gain
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);    // end configuration
 }
 
@@ -80,13 +86,16 @@ void ATM90E32Component::dump_config() {
     ESP_LOGE(TAG, "Communication with ATM90E32 failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "VoltageA", this->voltage_sensor_a_)
-  LOG_SENSOR("  ", "VoltageB", this->voltage_sensor_b_)
-  LOG_SENSOR("  ", "CurrentA", this->current_sensor_a_)
-  LOG_SENSOR("  ", "CurrentB", this->current_sensor_b_)
-  LOG_SENSOR("  ", "CurrentC", this->current_sensor_c_)
+  LOG_SENSOR("  ", "Voltage A", this->phase_[0].voltage_sensor_);
+  LOG_SENSOR("  ", "Current A", this->phase_[0].current_sensor_);
+  LOG_SENSOR("  ", "Power A", this->phase_[0].power_sensor_);
+  LOG_SENSOR("  ", "Voltage B", this->phase_[1].voltage_sensor_);
+  LOG_SENSOR("  ", "Current B", this->phase_[1].current_sensor_);
+  LOG_SENSOR("  ", "Power B", this->phase_[1].power_sensor_);
+  LOG_SENSOR("  ", "Voltage C", this->phase_[2].voltage_sensor_);
+  LOG_SENSOR("  ", "Current C", this->phase_[2].current_sensor_);
+  LOG_SENSOR("  ", "Power C", this->phase_[2].power_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_)
-  LOG_SENSOR("  ", "Power", this->power_sensor_)
 }
 float ATM90E32Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -155,9 +164,17 @@ float ATM90E32Component::GetLineCurrentC() {
   uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSC);
   return (float)current / 1000;
 }
-float ATM90E32Component::GetTotalActivePower() {
-   int val = this->read32_(ATM90E32_REGISTER_PMEANT, ATM90E32_REGISTER_PMEANTLSB);
-   return val * 0.00032f;
+float ATM90E32Component::GetActivePowerA() {
+  int val = this->read32_(ATM90E32_REGISTER_PMEANA, ATM90E32_REGISTER_PMEANALSB);
+  return val * 0.00032f;
+}
+float ATM90E32Component::GetActivePowerB() {
+  int val = this->read32_(ATM90E32_REGISTER_PMEANB, ATM90E32_REGISTER_PMEANBLSB);
+  return val * 0.00032f;
+}
+float ATM90E32Component::GetActivePowerC() {
+  int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
+  return val * 0.00032f;
 }
 float ATM90E32Component::GetFrequency() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
