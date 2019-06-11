@@ -8,8 +8,7 @@
 namespace esphome {
 namespace api {
 
-template<typename... Ts>
-class TemplatableKeyValuePair {
+template<typename... Ts> class TemplatableKeyValuePair {
  public:
   template<typename T> TemplatableKeyValuePair(std::string key, T value) : key(std::move(key)), value(value) {}
   std::string key;
@@ -21,16 +20,13 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
   explicit HomeAssistantServiceCallAction(APIServer *parent) : parent_(parent) {}
 
   TEMPLATABLE_STRING_VALUE(service);
-  template<typename T>
-  void add_data(std::string key, T value) {
+  template<typename T> void add_data(std::string key, T value) {
     this->data_.push_back(TemplatableKeyValuePair<T>(key, value));
   }
-  template<typename T>
-  void add_data_template(std::string key, T value) {
+  template<typename T> void add_data_template(std::string key, T value) {
     this->data_template_.push_back(TemplatableKeyValuePair<T>(key, value));
   }
-  template<typename T>
-  void add_variable(std::string key, T value) {
+  template<typename T> void add_variable(std::string key, T value) {
     this->variables_.push_back(TemplatableKeyValuePair<T>(key, value));
   }
   void play(Ts... x) override {

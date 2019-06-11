@@ -18,9 +18,7 @@ static const char *TAG = "api.connection";
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
   this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
-  this->client_->onDisconnect([](void *s, AsyncClient *c) {
-    ((APIConnection *) s)->on_disconnect_();
-    }, this);
+  this->client_->onDisconnect([](void *s, AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
   this->client_->onTimeout([](void *s, AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
                            this);
   this->client_->onData([](void *s, AsyncClient *c, void *buf,
@@ -33,15 +31,9 @@ APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
   this->last_traffic_ = millis();
 }
 APIConnection::~APIConnection() { delete this->client_; }
-void APIConnection::on_error_(int8_t error) {
-  this->remove_ = true;
-}
-void APIConnection::on_disconnect_() {
-  this->remove_ = true;
-}
-void APIConnection::on_timeout_(uint32_t time) {
-  this->on_fatal_error();
-}
+void APIConnection::on_error_(int8_t error) { this->remove_ = true; }
+void APIConnection::on_disconnect_() { this->remove_ = true; }
+void APIConnection::on_timeout_(uint32_t time) { this->on_fatal_error(); }
 void APIConnection::on_data_(uint8_t *buf, size_t len) {
   if (len == 0 || buf == nullptr)
     return;

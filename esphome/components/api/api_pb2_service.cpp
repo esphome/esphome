@@ -137,7 +137,8 @@ bool APIServerConnectionBase::send_service_call_response(const ServiceCallRespon
   ESP_LOGVV(TAG, "send_service_call_response: %s", msg.dump().c_str());
   return this->send_message<ServiceCallResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
+    const SubscribeHomeAssistantStateResponse &msg) {
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
   return this->send_message<SubscribeHomeAssistantStateResponse>(msg, 39);
 }
@@ -182,7 +183,7 @@ bool APIServerConnectionBase::send_climate_state_response(const ClimateStateResp
 #ifdef USE_CLIMATE
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
-  switch(msg_type) {
+  switch (msg_type) {
     case 1: {
       HelloRequest msg;
       msg.decode(msg_data, msg_size);
@@ -254,39 +255,39 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 30: {
-      #ifdef USE_COVER
+#ifdef USE_COVER
       CoverCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_cover_command_request: %s", msg.dump().c_str());
       this->on_cover_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 31: {
-      #ifdef USE_FAN
+#ifdef USE_FAN
       FanCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_fan_command_request: %s", msg.dump().c_str());
       this->on_fan_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 32: {
-      #ifdef USE_LIGHT
+#ifdef USE_LIGHT
       LightCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_light_command_request: %s", msg.dump().c_str());
       this->on_light_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 33: {
-      #ifdef USE_SWITCH
+#ifdef USE_SWITCH
       SwitchCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_switch_command_request: %s", msg.dump().c_str());
       this->on_switch_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 34: {
@@ -332,24 +333,24 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 45: {
-      #ifdef USE_ESP32_CAMERA
+#ifdef USE_ESP32_CAMERA
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_camera_image_request: %s", msg.dump().c_str());
       this->on_camera_image_request(msg);
-      #endif
+#endif
       break;
     }
     case 48: {
-      #ifdef USE_CLIMATE
+#ifdef USE_CLIMATE
       ClimateCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_climate_command_request: %s", msg.dump().c_str());
       this->on_climate_command_request(msg);
-      #endif
+#endif
       break;
     }
-    default: 
+    default:
       return false;
   }
   return true;

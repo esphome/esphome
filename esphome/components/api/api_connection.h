@@ -296,13 +296,9 @@ class APIConnection : public APIServerConnection {
     DisconnectResponse resp;
     return resp;
   }
-  PingResponse ping(const PingRequest &msg) override {
-    return {};
-  }
+  PingResponse ping(const PingRequest &msg) override { return {}; }
   DeviceInfoResponse device_info(const DeviceInfoRequest &msg) override;
-  void list_entities(const ListEntitiesRequest &msg) override {
-    this->list_entities_iterator_.begin();
-  }
+  void list_entities(const ListEntitiesRequest &msg) override { this->list_entities_iterator_.begin(); }
   void subscribe_states(const SubscribeStatesRequest &msg) override {
     this->state_subscription_ = true;
     this->initial_state_iterator_.begin();
@@ -321,9 +317,7 @@ class APIConnection : public APIServerConnection {
     return {};
   }
   void execute_service(const ExecuteServiceRequest &msg) override;
-  bool is_authenticated() override {
-    return this->connection_state_ == ConnectionState::AUTHENTICATED;
-  }
+  bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
     return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
   }

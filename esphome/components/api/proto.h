@@ -122,9 +122,7 @@ class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
   void write(uint8_t value) { this->buffer_->push_back(value); }
-  void encode_varint_raw(uint32_t value) {
-    ProtoVarInt(value).encode(*this->buffer_);
-  }
+  void encode_varint_raw(uint32_t value) { ProtoVarInt(value).encode(*this->buffer_); }
   void encode_field_raw(uint32_t field_id, uint32_t type) {
     uint32_t val = (field_id << 3) | (type & 0b111);
     this->encode_varint_raw(val);
@@ -193,9 +191,7 @@ class ProtoWriteBuffer {
     ProtoVarInt(nested_length).encode(var);
     this->buffer_->insert(this->buffer_->begin() + begin, var.begin(), var.end());
   }
-  std::vector<uint8_t> *get_buffer() const {
-    return buffer_;
-  }
+  std::vector<uint8_t> *get_buffer() const { return buffer_; }
 
  protected:
   std::vector<uint8_t> *buffer_;
@@ -215,8 +211,7 @@ class ProtoMessage {
   virtual bool decode_64bit(uint32_t field_id, Proto64Bit value) { return false; }
 };
 
-template<typename T>
-const char *proto_enum_to_string(T value);
+template<typename T> const char *proto_enum_to_string(T value);
 
 class ProtoService {
  public:
@@ -230,8 +225,7 @@ class ProtoService {
   virtual bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) = 0;
   virtual bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
 
-  template<class C>
-  bool send_message(const C &msg, uint32_t message_type) {
+  template<class C> bool send_message(const C &msg, uint32_t message_type) {
     auto buffer = this->create_buffer();
     msg.encode(buffer);
     return this->send_buffer(buffer, message_type);
