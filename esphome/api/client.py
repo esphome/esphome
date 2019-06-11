@@ -247,7 +247,7 @@ class APIClient(threading.Thread):
         if self._socket is None:
             raise APIConnectionError("Socket closed")
 
-        _LOGGER.debug("Write: %s", format_bytes(data))
+        # _LOGGER.debug("Write: %s", format_bytes(data))
         with self._socket_write_lock:
             try:
                 self._socket.sendall(data)
@@ -327,7 +327,7 @@ class APIClient(threading.Thread):
         if not self._authenticated:
             raise APIConnectionError("Must login first!")
 
-    def subscribe_logs(self, on_log, log_level=None, dump_config=False):
+    def subscribe_logs(self, on_log, log_level=6, dump_config=False):
         self._check_authenticated()
 
         def on_msg(msg):
@@ -336,8 +336,7 @@ class APIClient(threading.Thread):
 
         self._message_handlers.append(on_msg)
         req = pb.SubscribeLogsRequest(dump_config=dump_config)
-        if log_level is not None:
-            req.level = log_level
+        req.level = log_level
         self._send_message(req)
 
     def _recv(self, amount):

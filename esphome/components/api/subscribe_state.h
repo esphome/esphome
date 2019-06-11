@@ -4,15 +4,9 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "util.h"
-#include "api_message.h"
 
 namespace esphome {
 namespace api {
-
-class SubscribeStatesRequest : public APIMessage {
- public:
-  APIMessageType message_type() const override;
-};
 
 class APIConnection;
 
@@ -45,23 +39,6 @@ class InitialStateIterator : public ComponentIterator {
 #endif
  protected:
   APIConnection *client_;
-};
-
-class SubscribeHomeAssistantStatesRequest : public APIMessage {
- public:
-  APIMessageType message_type() const override;
-};
-
-class HomeAssistantStateResponse : public APIMessage {
- public:
-  bool decode_length_delimited(uint32_t field_id, const uint8_t *value, size_t len) override;
-  APIMessageType message_type() const override;
-  const std::string &get_entity_id() const;
-  const std::string &get_state() const;
-
- protected:
-  std::string entity_id_;
-  std::string state_;
 };
 
 }  // namespace api

@@ -17,6 +17,15 @@ namespace esphome {
 
 #define TEMPLATABLE_VALUE(type, name) TEMPLATABLE_VALUE_(type, name)
 
+#define TEMPLATABLE_STRING_VALUE_(name) \
+ protected: \
+  TemplatableStringValue<Ts...> name##_{}; \
+\
+ public: \
+  template<typename V> void set_##name(V name) { this->name##_ = name; }
+
+#define TEMPLATABLE_STRING_VALUE(name) TEMPLATABLE_STRING_VALUE_(name)
+
 /** Base class for all automation conditions.
  *
  * @tparam Ts The template parameters to pass when executing.

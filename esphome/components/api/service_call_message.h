@@ -2,51 +2,66 @@
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/automation.h"
-#include "api_message.h"
+#include "api_pb2.h"
+#include "api_server.h"
 
 namespace esphome {
 namespace api {
 
-class SubscribeServiceCallsRequest : public APIMessage {
- public:
-  APIMessageType message_type() const override;
-};
-
-class KeyValuePair {
- public:
-  KeyValuePair(const std::string &key, const std::string &value);
-
-  std::string key;
-  std::string value;
-};
-
+template<typename... Ts>
 class TemplatableKeyValuePair {
  public:
-  template<typename T> TemplatableKeyValuePair(std::string key, T func);
-
+  template<typename T> TemplatableKeyValuePair(std::string key, T value) : key(std::move(key)), value(value) {}
   std::string key;
-  std::function<std::string()> value;
+  TemplatableStringValue<Ts...> value;
 };
-template<typename T> TemplatableKeyValuePair::TemplatableKeyValuePair(std::string key, T func) : key(key) {
-  this->value = [func]() -> std::string { return to_string(func()); };
-}
 
-class ServiceCallResponse : public APIMessage {
+template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
  public:
-  APIMessageType message_type() const override;
+  explicit HomeAssistantServiceCallAction(APIServer *parent) : parent_(parent) {}
 
-  void encode(APIBuffer &buffer) override;
-
-  void set_service(const std::string &service);
-  void set_data(const std::vector<KeyValuePair> &data);
-  void set_data_template(const std::vector<KeyValuePair> &data_template);
-  void set_variables(const std::vector<TemplatableKeyValuePair> &variables);
+  TEMPLATABLE_STRING_VALUE(service);
+  template<typename T>
+  void add_data(std::string key, T value) {
+    this->data_.push_back(TemplatableKeyValuePair<T>(key, value));
+  }
+  template<typename T>
+  void add_data_template(std::string key, T value) {
+    this->data_template_.push_back(TemplatableKeyValuePair<T>(key, value));
+  }
+  template<typename T>
+  void add_variable(std::string key, T value) {
+    this->variables_.push_back(TemplatableKeyValuePair<T>(key, value));
+  }
+  void play(Ts... x) override {
+    ServiceCallResponse resp;
+    resp.service = this->service_.value(x...);
+    for (auto &it : this->data_) {
+      ServiceCallMap kv;
+      kv.key = it.key;
+      kv.value = it.value.value(x...);
+      resp.data.push_back(kv);
+    }
+    for (auto &it : this->data_template_) {
+      ServiceCallMap kv;
+      kv.key = it.key;
+      kv.value = it.value.value(x...);
+      resp.data_template.push_back(kv);
+    }
+    for (auto &it : this->variables_) {
+      ServiceCallMap kv;
+      kv.key = it.key;
+      kv.value = it.value.value(x...);
+      resp.variables.push_back(kv);
+    }
+    this->parent_->send_service_call(resp);
+  }
 
  protected:
-  std::string service_;
-  std::vector<KeyValuePair> data_;
-  std::vector<KeyValuePair> data_template_;
-  std::vector<TemplatableKeyValuePair> variables_;
+  APIServer *parent_;
+  std::vector<TemplatableKeyValuePair<Ts...>> data_;
+  std::vector<TemplatableKeyValuePair<Ts...>> data_template_;
+  std::vector<TemplatableKeyValuePair<Ts...>> variables_;
 };
 
 }  // namespace api
