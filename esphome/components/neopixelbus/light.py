@@ -7,7 +7,7 @@ from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_METHOD, CONF_NUM_L
 from esphome.core import CORE
 
 neopixelbus_ns = cg.esphome_ns.namespace('neopixelbus')
-NeoPixelBusLightOutputBase = neopixelbus_ns.class_('NeoPixelBusLightOutputBase', cg.Component,
+NeoPixelBusLightOutputBase = neopixelbus_ns.class_('NeoPixelBusLightOutputBase',
                                                    light.AddressableLight)
 NeoPixelRGBLightOutput = neopixelbus_ns.class_('NeoPixelRGBLightOutput', NeoPixelBusLightOutputBase)
 NeoPixelRGBWLightOutput = neopixelbus_ns.class_('NeoPixelRGBWLightOutput',

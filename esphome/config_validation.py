@@ -1175,7 +1175,6 @@ def validate_registry_entry(name, registry):
         if not isinstance(value, dict):
             raise Invalid(u"{} must consist of key-value mapping! Got {}"
                           u"".format(name.title(), value))
-        value = base_schema(value)
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
             raise Invalid(u"Key missing from {}! Got {}".format(name, value))

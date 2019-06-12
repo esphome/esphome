@@ -144,7 +144,7 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   }
 
   this->status_clear_warning();
-  return millivolts / 1e4f;
+  return millivolts / 1e3f;
 }
 
 uint8_t ADS1115Sensor::get_multiplexer() const { return this->multiplexer_; }

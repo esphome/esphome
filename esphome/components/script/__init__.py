@@ -16,8 +16,13 @@ CONFIG_SCHEMA = automation.validate_automation({
 
 
 def to_code(config):
+    # Register all variables first, so that scripts can use other scripts
+    triggers = []
     for conf in config:
         trigger = cg.new_Pvariable(conf[CONF_ID])
+        triggers.append((trigger, conf))
+
+    for trigger, conf in triggers:
         yield automation.build_automation(trigger, [], conf)
 
 

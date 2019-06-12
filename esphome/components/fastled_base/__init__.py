@@ -5,8 +5,7 @@ from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_RGB_ORDER, CONF_MA
 from esphome.core import coroutine
 
 fastled_base_ns = cg.esphome_ns.namespace('fastled_base')
-FastLEDLightOutput = fastled_base_ns.class_('FastLEDLightOutput', cg.Component,
-                                            light.AddressableLight)
+FastLEDLightOutput = fastled_base_ns.class_('FastLEDLightOutput', light.AddressableLight)
 
 RGB_ORDERS = [
     'RGB',

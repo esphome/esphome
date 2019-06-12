@@ -1,5 +1,6 @@
 #include "hx711.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace hx711 {
@@ -10,6 +11,7 @@ void HX711Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HX711 '%s'...", this->name_.c_str());
   this->sck_pin_->setup();
   this->dout_pin_->setup();
+  this->sck_pin_->digital_write(false);
 
   // Read sensor once without publishing to set the gain
   this->read_sensor_(nullptr);
@@ -25,8 +27,9 @@ float HX711Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void HX711Sensor::update() {
   uint32_t result;
   if (this->read_sensor_(&result)) {
-    ESP_LOGD(TAG, "'%s': Got value %u", this->name_.c_str(), result);
-    this->publish_state(result);
+    int32_t value = static_cast<int32_t>(result);
+    ESP_LOGD(TAG, "'%s': Got value %d", this->name_.c_str(), value);
+    this->publish_state(value);
   }
 }
 bool HX711Sensor::read_sensor_(uint32_t *result) {
@@ -39,10 +42,11 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
   this->status_clear_warning();
   uint32_t data = 0;
 
+  disable_interrupts();
   for (uint8_t i = 0; i < 24; i++) {
     this->sck_pin_->digital_write(true);
     delayMicroseconds(1);
-    data |= uint32_t(this->dout_pin_->digital_read()) << (24 - i);
+    data |= uint32_t(this->dout_pin_->digital_read()) << (23 - i);
     this->sck_pin_->digital_write(false);
     delayMicroseconds(1);
   }
@@ -50,10 +54,16 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
   // Cycle clock pin for gain setting
   for (uint8_t i = 0; i < this->gain_; i++) {
     this->sck_pin_->digital_write(true);
+    delayMicroseconds(1);
     this->sck_pin_->digital_write(false);
+    delayMicroseconds(1);
+  }
+  enable_interrupts();
+
+  if (data & 0x800000ULL) {
+    data |= 0xFF000000ULL;
   }
 
-  data ^= 0x800000;
   if (result != nullptr)
     *result = data;
   return true;

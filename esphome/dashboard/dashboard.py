@@ -26,7 +26,7 @@ import tornado.process
 import tornado.web
 import tornado.websocket
 
-from esphome import const
+from esphome import const, util
 from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.py_compat import IS_PY2, decode_text
@@ -93,17 +93,7 @@ class DashboardSettings(object):
         return os.path.join(self.config_dir, *args)
 
     def list_yaml_files(self):
-        files = []
-        for file in os.listdir(self.config_dir):
-            if not file.endswith('.yaml'):
-                continue
-            if file.startswith('.'):
-                continue
-            if file == 'secrets.yaml':
-                continue
-            files.append(file)
-        files.sort()
-        return files
+        return util.list_yaml_files(self.config_dir)
 
 
 settings = DashboardSettings()
@@ -122,6 +112,7 @@ def template_args():
         'get_static_file_url': get_static_file_url,
         'relative_url': settings.relative_url,
         'streamer_mode': get_bool_env('ESPHOME_STREAMER_MODE'),
+        'config_dir': settings.config_dir,
     }
 
 
@@ -169,7 +160,7 @@ def websocket_class(cls):
     if not hasattr(cls, '_message_handlers'):
         cls._message_handlers = {}
 
-    for _, method in cls.__dict__.iteritems():
+    for _, method in cls.__dict__.items():
         if hasattr(method, "_message_handler"):
             cls._message_handlers[method._message_handler] = method
 
@@ -315,6 +306,11 @@ class EsphomeAceEditorHandler(EsphomeCommandWebSocket):
         return ["esphome", "--dashboard", "-q", settings.config_dir, "vscode", "--ace"]
 
 
+class EsphomeUpdateAllHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        return ["esphome", "--dashboard", settings.config_dir, "update-all"]
+
+
 class SerialPortRequestHandler(BaseHandler):
     @authenticated
     def get(self):
@@ -374,14 +370,14 @@ def _list_dashboard_entries():
 
 
 class DashboardEntry(object):
-    def __init__(self, filename):
-        self.filename = filename
+    def __init__(self, path):
+        self.path = path
         self._storage = None
         self._loaded_storage = False
 
     @property
-    def full_path(self):  # type: () -> str
-        return os.path.join(settings.config_dir, self.filename)
+    def filename(self):
+        return os.path.basename(self.path)
 
     @property
     def storage(self):  # type: () -> Optional[StorageJSON]
@@ -690,6 +686,7 @@ def make_app(debug=False):
         (rel + "clean", EsphomeCleanHandler),
         (rel + "vscode", EsphomeVscodeHandler),
         (rel + "ace", EsphomeAceEditorHandler),
+        (rel + "update-all", EsphomeUpdateAllHandler),
         (rel + "edit", EditRequestHandler),
         (rel + "download.bin", DownloadBinaryRequestHandler),
         (rel + "serial-ports", SerialPortRequestHandler),

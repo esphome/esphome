@@ -12,11 +12,8 @@ namespace lcd_base {
 
 class LCDDisplay;
 
-using lcd_writer_t = std::function<void(LCDDisplay &)>;
-
 class LCDDisplay : public PollingComponent {
  public:
-  void set_writer(lcd_writer_t &&writer) { this->writer_ = std::move(writer); }
   void set_dimensions(uint8_t columns, uint8_t rows) {
     this->columns_ = columns;
     this->rows_ = rows;
@@ -54,11 +51,11 @@ class LCDDisplay : public PollingComponent {
   virtual void send(uint8_t value, bool rs) = 0;
 
   void command_(uint8_t value);
+  virtual void call_writer() = 0;
 
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
-  lcd_writer_t writer_;
 };
 
 }  // namespace lcd_base

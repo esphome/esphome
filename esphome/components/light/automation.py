@@ -155,6 +155,6 @@ def light_addressable_set_to_code(config, action_id, template_arg, args):
                                automation.maybe_simple_id({
                                    cv.Required(CONF_ID): cv.use_id(LightState),
                                }))
-def binary_sensor_is_on_to_code(config, condition_id, template_arg, args):
+def light_is_on_off_to_code(config, condition_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(condition_id, template_arg, paren)

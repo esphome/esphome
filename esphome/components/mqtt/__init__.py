@@ -41,7 +41,8 @@ MQTTClientComponent = mqtt_ns.class_('MQTTClientComponent', cg.Component)
 MQTTPublishAction = mqtt_ns.class_('MQTTPublishAction', automation.Action)
 MQTTPublishJsonAction = mqtt_ns.class_('MQTTPublishJsonAction', automation.Action)
 MQTTMessageTrigger = mqtt_ns.class_('MQTTMessageTrigger',
-                                    automation.Trigger.template(cg.std_string))
+                                    automation.Trigger.template(cg.std_string),
+                                    cg.Component)
 MQTTJsonMessageTrigger = mqtt_ns.class_('MQTTJsonMessageTrigger',
                                         automation.Trigger.template(cg.JsonObjectConstRef))
 MQTTComponent = mqtt_ns.class_('MQTTComponent', cg.Component)
@@ -104,7 +105,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_PORT, default=1883): cv.port,
     cv.Optional(CONF_USERNAME, default=''): cv.string,
     cv.Optional(CONF_PASSWORD, default=''): cv.string,
-    cv.Optional(CONF_CLIENT_ID, default=lambda: CORE.name): cv.string,
+    cv.Optional(CONF_CLIENT_ID): cv.string,
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,
@@ -161,7 +162,8 @@ def to_code(config):
     cg.add(var.set_broker_port(config[CONF_PORT]))
     cg.add(var.set_username(config[CONF_USERNAME]))
     cg.add(var.set_password(config[CONF_PASSWORD]))
-    cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    if CONF_CLIENT_ID in config:
+        cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]
@@ -216,6 +218,7 @@ def to_code(config):
         cg.add(trig.set_qos(conf[CONF_QOS]))
         if CONF_PAYLOAD in conf:
             cg.add(trig.set_payload(conf[CONF_PAYLOAD]))
+        yield cg.register_component(trig, conf)
         yield automation.build_automation(trig, [(cg.std_string, 'x')], conf)
 
     for conf in config.get(CONF_ON_JSON_MESSAGE, []):

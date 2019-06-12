@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import lcd_base
-from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_PIN, CONF_ID
+from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_PIN, CONF_ID, \
+    CONF_LAMBDA
 
 AUTO_LOAD = ['lcd_base']
 
@@ -42,3 +43,9 @@ def to_code(config):
     if CONF_RW_PIN in config:
         rw = yield cg.gpio_pin_expression(config[CONF_RW_PIN])
         cg.add(var.set_rw_pin(rw))
+
+    if CONF_LAMBDA in config:
+        lambda_ = yield cg.process_lambda(config[CONF_LAMBDA],
+                                          [(GPIOLCDDisplay.operator('ref'), 'it')],
+                                          return_type=cg.void)
+        cg.add(var.set_writer(lambda_))

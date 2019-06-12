@@ -299,3 +299,4 @@ def run_ota(remote_host, remote_port, password, filename):
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
+        return 1

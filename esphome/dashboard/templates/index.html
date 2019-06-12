@@ -31,10 +31,16 @@
 <nav>
   <div class="nav-wrapper indigo">
     <a href="#" class="brand-logo left">ESPHome Dashboard</a>
+    <i class="material-icons dropdown-trigger right" id="dropdown-nav-trigger" data-target="dropdown-nav-actions">more_vert</i>
     <div class="select-port-container right" id="select-port-target">
       <select></select>
     </div>
   </div>
+
+  <ul id="dropdown-nav-actions" class="select-action dropdown-content card-dropdown-action">
+    <li><a id="update-all-button" class="modal-close waves-effect waves-green btn-flat"
+           data-node="{{ escape(config_dir) }}">Update All</a></li>
+  </ul>
 </nav>
 
 {% if begin %}
@@ -76,7 +82,7 @@
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
                 <span class="status-indicator-text"></span></span>.
-              Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
+              Full path: <code class="inlinecode">{{ escape(entry.path) }}</code>
             </p>
             {% if entry.update_available %}
               <p class="update-available" data-node="{{ entry.filename }}">
@@ -445,6 +451,16 @@
   </div>
 </div>
 
+<div id="modal-update-all" class="modal modal-fixed-footer">
+  <div class="modal-content">
+    <h4>Update All</h4>
+    <pre class="log"></pre>
+  </div>
+  <div class="modal-footer">
+    <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+  </div>
+</div>
+
 <a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
   <i class="material-icons">add</i>
 </a>
@@ -469,7 +485,7 @@
   </div>
   <div class="footer-copyright">
     <div class="container">
-      © 2019 Copyright Otto Winter, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
+      © 2019 Copyright ESPHome, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
       <a class="grey-text text-lighten-4 right" href="{{ docs_link }}" target="_blank" rel="noreferrer">ESPHome {{ version }} Documentation</a>
     </div>
   </div>

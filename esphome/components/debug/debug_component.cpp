@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/version.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <rom/rtc.h>
@@ -19,7 +20,7 @@ void DebugComponent::dump_config() {
   return;
 #endif
 
-  ESP_LOGD(TAG, "ESPHome Core version %s", ESPHOME_VERSION);
+  ESP_LOGD(TAG, "ESPHome version %s", ESPHOME_VERSION);
   this->free_heap_ = ESP.getFreeHeap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 

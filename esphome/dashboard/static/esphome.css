@@ -131,8 +131,12 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 
 .select-port-container {
   margin-top: 8px;
-  margin-right: 24px;
+  margin-right: 10px;
   width: 350px;
+}
+
+#dropdown-nav-trigger {
+  margin-right: 24px;
 }
 
 .select-port-container .select-dropdown {

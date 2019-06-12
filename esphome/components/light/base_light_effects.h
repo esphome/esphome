@@ -129,7 +129,7 @@ class FlickerLightEffect : public LightEffect {
     LightColorValues out;
     const float alpha = this->alpha_;
     const float beta = 1.0f - alpha;
-    out.set_state(remote.get_state());
+    out.set_state(true);
     out.set_brightness(remote.get_brightness() * beta + current.get_brightness() * alpha +
                        (random_cubic_float() * this->intensity_));
     out.set_red(remote.get_red() * beta + current.get_red() * alpha + (random_cubic_float() * this->intensity_));
@@ -144,6 +144,7 @@ class FlickerLightEffect : public LightEffect {
     if (traits.get_supports_brightness())
       call.set_transition_length(0);
     call.from_light_color_values(out);
+    call.set_state(true);
     call.perform();
   }
 

@@ -25,4 +25,4 @@ def to_code(config):
 
     wwhite = yield cg.get_variable(config[CONF_WARM_WHITE])
     cg.add(var.set_warm_white(wwhite))
-    cg.add(var.set_warm_white_temperature(config[CONF_COLD_WHITE_COLOR_TEMPERATURE]))
+    cg.add(var.set_warm_white_temperature(config[CONF_WARM_WHITE_COLOR_TEMPERATURE]))
