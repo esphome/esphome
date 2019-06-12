@@ -7,15 +7,24 @@ namespace coolix {
 static const char *TAG = "coolix.climate";
 
 const uint32_t COOLIX_OFF = 0xB27BE0;
+const uint32_t COOLIX_SWING = 0xB26BE0;
+const uint32_t COOLIX_LED = 0xB5F5A5;
+const uint32_t COOLIX_SILENCE_FP = 0xB5F5B6;
+
 // On, 25C, Mode: Auto, Fan: Auto, Zone Follow: Off, Sensor Temp: Ignore.
 const uint32_t COOLIX_DEFAULT_STATE = 0xB2BFC8;
 const uint32_t COOLIX_DEFAULT_STATE_AUTO_24_FAN = 0xB21F48;
-const uint8_t COOLIX_COOL = 0b00;
-const uint8_t COOLIX_DRY = 0b01;
-const uint8_t COOLIX_AUTO = 0b10;
-const uint8_t COOLIX_HEAT = 0b11;
-const uint8_t COOLIX_FAN = 4;                                  // Synthetic.
-const uint32_t COOLIX_MODE_MASK = 0b000000000000000000001100;  // 0xC
+const uint8_t COOLIX_COOL = 0b0000;
+const uint8_t COOLIX_DRY_FAN = 0b0100;
+const uint8_t COOLIX_AUTO = 0b1000;
+const uint8_t COOLIX_HEAT = 0b1100;
+const uint32_t COOLIX_MODE_MASK = 0b1100;
+const uint32_t COOLIX_FAN_MASK = 0xF000;
+const uint32_t COOLIX_FAN_DRY = 0x1000;
+const uint32_t COOLIX_FAN_AUTO = 0xB000;
+const uint32_t COOLIX_FAN_MIN = 0x9000;
+const uint32_t COOLIX_FAN_MED = 0x5000;
+const uint32_t COOLIX_FAN_MAX = 0x3000;
 
 // Temperature
 const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
@@ -41,22 +50,13 @@ const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
 };
 
 // Constants
-// Pulse parms are *50-100 for the Mark and *50+100 for the space
-// First MARK is the one after the long gap
-// pulse parameters in usec
-const uint16_t COOLIX_TICK = 560;  // Approximately 21 cycles at 38kHz
-const uint16_t COOLIX_BIT_MARK_TICKS = 1;
-const uint16_t COOLIX_BIT_MARK = COOLIX_BIT_MARK_TICKS * COOLIX_TICK;
-const uint16_t COOLIX_ONE_SPACE_TICKS = 3;
-const uint16_t COOLIX_ONE_SPACE = COOLIX_ONE_SPACE_TICKS * COOLIX_TICK;
-const uint16_t COOLIX_ZERO_SPACE_TICKS = 1;
-const uint16_t COOLIX_ZERO_SPACE = COOLIX_ZERO_SPACE_TICKS * COOLIX_TICK;
-const uint16_t COOLIX_HEADER_MARK_TICKS = 8;
-const uint16_t COOLIX_HEADER_MARK = COOLIX_HEADER_MARK_TICKS * COOLIX_TICK;
-const uint16_t COOLIX_HEADER_SPACE_TICKS = 8;
-const uint16_t COOLIX_HEADER_SPACE = COOLIX_HEADER_SPACE_TICKS * COOLIX_TICK;
-const uint16_t COOLIX_MIN_GAP_TICKS = COOLIX_HEADER_MARK_TICKS + COOLIX_ZERO_SPACE_TICKS;
-const uint16_t COOLIX_MIN_GAP = COOLIX_MIN_GAP_TICKS * COOLIX_TICK;
+static const uint32_t HEADER_MARK_US = 4500;
+static const uint32_t HEADER_SPACE_US = 4500;
+static const uint32_t BIT_MARK_US = 560;
+static const uint32_t BIT_ONE_SPACE_US = 1600;
+static const uint32_t BIT_ZERO_SPACE_US = 530;
+static const uint32_t FOOTER_MARK_US = BIT_MARK_US;
+static const uint32_t FOOTER_SPACE_US = HEADER_SPACE_US;
 
 const uint16_t COOLIX_BITS = 24;
 
@@ -111,10 +111,10 @@ void CoolixClimate::transmit_state_() {
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
-      remote_state = (COOLIX_DEFAULT_STATE & ~COOLIX_MODE_MASK) | (COOLIX_COOL << 2);
+      remote_state = (COOLIX_DEFAULT_STATE & ~COOLIX_MODE_MASK) | COOLIX_COOL;
       break;
     case climate::CLIMATE_MODE_HEAT:
-      remote_state = (COOLIX_DEFAULT_STATE & ~COOLIX_MODE_MASK) | (COOLIX_HEAT << 2);
+      remote_state = (COOLIX_DEFAULT_STATE & ~COOLIX_MODE_MASK) | COOLIX_HEAT;
       break;
     case climate::CLIMATE_MODE_AUTO:
       remote_state = COOLIX_DEFAULT_STATE_AUTO_24_FAN;
@@ -130,7 +130,7 @@ void CoolixClimate::transmit_state_() {
     remote_state |= (COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN] << 4);
   }
 
-  ESP_LOGV(TAG, "Sending coolix code: %u", remote_state);
+  ESP_LOGV(TAG, "Sending coolix code: 0x%02X", remote_state);
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
@@ -139,8 +139,8 @@ void CoolixClimate::transmit_state_() {
   uint16_t repeat = 1;
   for (uint16_t r = 0; r <= repeat; r++) {
     // Header
-    data->mark(COOLIX_HEADER_MARK);
-    data->space(COOLIX_HEADER_SPACE);
+    data->mark(HEADER_MARK_US);
+    data->space(HEADER_SPACE_US);
     // Data
     //   Break data into byte segments, starting at the Most Significant
     //   Byte. Each byte then being sent normal, then followed inverted.
@@ -149,21 +149,95 @@ void CoolixClimate::transmit_state_() {
       uint8_t segment = (remote_state >> (COOLIX_BITS - i)) & 0xFF;
       // Normal
       for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
-        data->mark(COOLIX_BIT_MARK);
-        data->space((segment & mask) ? COOLIX_ONE_SPACE : COOLIX_ZERO_SPACE);
+        data->mark(BIT_MARK_US);
+        data->space((segment & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
       }
       // Inverted
       for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
-        data->mark(COOLIX_BIT_MARK);
-        data->space(!(segment & mask) ? COOLIX_ONE_SPACE : COOLIX_ZERO_SPACE);
+        data->mark(BIT_MARK_US);
+        data->space(!(segment & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
       }
     }
     // Footer
-    data->mark(COOLIX_BIT_MARK);
-    data->space(COOLIX_MIN_GAP);  // Pause before repeating
+    data->mark(BIT_MARK_US);
+    data->space(FOOTER_SPACE_US);  // Pause before repeating
   }
 
   transmit.perform();
+}
+
+bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
+  if (data.size() != 200)
+    return false;
+  data.reset();
+  uint32_t state = 0;
+  uint32_t state_test;
+  for (uint16_t r = 0; r <= 1; r++) {
+    if (!data.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
+      return false;
+    state_test = 0;
+    for (uint8_t a_segment = 0; a_segment < 3; a_segment++) {
+      uint8_t segment = 0;
+      for (int8_t a_bit = 7; a_bit >= 0; a_bit--) {
+        if (data.peek_item(BIT_MARK_US, BIT_ONE_SPACE_US))
+          segment |= 1 << a_bit;
+        else if (!data.peek_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
+          return false;
+        data.advance(2);
+      }
+      // Need to see this segment inverted
+      for (int8_t a_bit = 7; a_bit >= 0; a_bit--)
+        if (!data.expect_item(BIT_MARK_US,
+          (segment & (1 << a_bit)) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
+          return false;
+      state_test |= segment << ((2-a_segment) * 8);
+    }
+    if (!data.expect_mark(BIT_MARK_US))
+      return false;
+    if (r == 0 && !data.expect_space(FOOTER_SPACE_US))
+      return false;
+    if (state == 0) state = state_test;
+  }
+
+  ESP_LOGV(TAG, "Decoded 0x%02X", state);
+  if (state != state_test || (state & 0xFF0000) != 0xB20000) return false;
+
+  if (state == COOLIX_OFF) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    if ((state & COOLIX_MODE_MASK) == COOLIX_HEAT)
+      this->mode = climate::CLIMATE_MODE_HEAT;
+    else if ((state & COOLIX_MODE_MASK) == COOLIX_AUTO)
+      this->mode = climate::CLIMATE_MODE_AUTO;
+    else if ((state & COOLIX_MODE_MASK) == COOLIX_DRY_FAN)  {
+      // climate::CLIMATE_MODE_DRY;
+      if ((state & COOLIX_FAN_MASK) == COOLIX_FAN_DRY)
+        ESP_LOGV("Not supported DRY mode. Reporting AUTO");
+      else
+        ESP_LOGV("Not supported FAN Auto mode. Reporting AUTO");
+      this->mode = climate::CLIMATE_MODE_AUTO;
+    }
+    else this->mode = climate::CLIMATE_MODE_COOL;
+
+    // Fan Speed
+    if ((state & COOLIX_FAN_AUTO) == COOLIX_FAN_AUTO) // || this->mode == climate::CLIMATE_MODE_DRY
+      ESP_LOGV("Not supported FAN speed AUTO");
+    else if ((state & COOLIX_FAN_MIN) == COOLIX_FAN_MIN)
+      ESP_LOGV("Not supported FAN speed MIN");
+    else if ((state & COOLIX_FAN_MED) == COOLIX_FAN_MED)
+      ESP_LOGV("Not supported FAN speed MED");
+    else if ((state & COOLIX_FAN_MAX) == COOLIX_FAN_MAX)
+      ESP_LOGV("Not supported FAN speed MAX");
+
+    // Temperature
+    uint8_t temperature_code = (state & COOLIX_TEMP_MASK) >> 4;
+    for (uint8_t i = 0; i < COOLIX_TEMP_RANGE; i++)
+      if (COOLIX_TEMP_MAP[i] == temperature_code)
+        this->target_temperature = i + COOLIX_TEMP_MIN;
+  }
+  this->publish_state();
+
+  return true;
 }
 
 }  // namespace coolix
