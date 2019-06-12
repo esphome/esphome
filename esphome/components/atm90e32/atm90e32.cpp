@@ -121,7 +121,9 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
 int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
   int val_h = this->read16_(addr_h);
   int val_l = this->read16_(addr_l);
-  int val = (val_h << 16) | val_l;
+  uint16_t val_h = this->read16_(addr_h);
+  uint16_t val_l = this->read16_(addr_l);
+  int32_t val = (val_h << 16) | val_l;
 
   if ((val & 0x80000000) != 0) {
     // 2s compliment + 1 for negative values
