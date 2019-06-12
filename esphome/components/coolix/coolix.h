@@ -10,7 +10,9 @@
 namespace esphome {
 namespace coolix {
 
-class CoolixClimate : public climate::Climate, public Component {
+using namespace remote_base;
+
+class CoolixClimate : public climate::Climate, public Component, public RemoteReceiverListener {
  public:
   void setup() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
@@ -29,8 +31,10 @@ class CoolixClimate : public climate::Climate, public Component {
   /// Transmit via IR the state of this climate controller.
   void transmit_state_();
 
-  bool supports_cool_{true};
-  bool supports_heat_{true};
+  bool on_receive(RemoteReceiveData data) override;
+
+  bool supports_cool_;
+  bool supports_heat_;
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};
