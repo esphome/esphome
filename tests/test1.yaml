@@ -1277,6 +1277,9 @@ text_sensor:
       id: template_text
       state: |-
         return "Hello World2";
+  - globals.set:
+      id: glob_int
+      value: '0'
 - platform: template
   name: Template Text Sensor
   id: template_text
