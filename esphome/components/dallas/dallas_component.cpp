@@ -136,6 +136,7 @@ void DallasComponent::update() {
         return;
       }
       if (!sensor->check_scratch_pad()) {
+        sensor->publish_state(NAN);
         this->status_set_warning();
         return;
       }
