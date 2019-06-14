@@ -350,7 +350,7 @@ RAW_SCHEMA = cv.Schema({
 @register_binary_sensor('raw', RawBinarySensor, RAW_SCHEMA)
 def raw_binary_sensor(var, config):
     code_ = config[CONF_CODE]
-    arr = cg.progmem_array(config[CONF_ID], code_)
+    arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
     cg.add(var.set_data(arr))
     cg.add(var.set_len(len(code_)))
 
