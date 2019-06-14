@@ -7,6 +7,7 @@
 #endif
 
 #include "esphome/core/esphal.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 
