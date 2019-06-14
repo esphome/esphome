@@ -18,10 +18,10 @@ bool CustomMQTTDevice::publish(const std::string &topic, int value) {
   sprintf(buffer, "%d", value);
   return this->publish(topic, buffer);
 }
-bool CustomMQTTDevice::publish_json(const std::string &topic, const json_build_t &f, uint8_t qos, bool retain) {
+bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_build_t &f, uint8_t qos, bool retain) {
   return global_mqtt_client->publish_json(topic, f, qos, retain);
 }
-bool CustomMQTTDevice::publish_json(const std::string &topic, const json_build_t &f) {
+bool CustomMQTTDevice::publish_json(const std::string &topic, const json::json_build_t &f) {
   return this->publish_json(topic, f, 0, false);
 }
 bool CustomMQTTDevice::is_connected() { return global_mqtt_client != nullptr && global_mqtt_client->is_connected(); }
