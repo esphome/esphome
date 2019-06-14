@@ -232,7 +232,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
     uint8_t out_nbits;
     RCSwitchBase *protocol = &rc_switch_protocols[i];
     if (protocol->decode(src, &out_data, &out_nbits) && out_nbits >= 3) {
-      char buffer[32];
+      char buffer[33];
       for (uint8_t j = 0; j < out_nbits; j++)
         buffer[j] = (out_data & (1 << (out_nbits - j - 1))) ? '1' : '0';
 
