@@ -661,6 +661,13 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: remote_receiver
+    name: "Raw Remote Receiver Test"
+    raw:
+      code: [5685, -4252, 1711, -2265, 1712, -2265, 1711, -2264, 1712, -2266,
+             3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
+             1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
+             1712, -2262, 1714, -2267, 1709]
 
 pca9685:
   frequency: 500
