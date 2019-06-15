@@ -54,10 +54,8 @@ def to_code(config):
         if phase not in config:
             continue
         conf = config[phase]
-        if CONF_GAIN_VOLT in conf:
-            cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLT]))
-        if CONF_GAIN_CT in conf:
-            cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
+        cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLT]))
+        cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
         if CONF_VOLTAGE in conf:
             sens = yield sensor.new_sensor(conf[CONF_VOLTAGE])
             cg.add(var.set_voltage_sensor(i, sens))
@@ -71,5 +69,4 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQ]))
-    if CONF_GAIN_PGA in config:
-        cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
+    cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
