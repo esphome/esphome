@@ -17,5 +17,35 @@ void ADE7953::dump_config() {
   LOG_SENSOR("  ", "Active Power B Sensor", this->active_power_b_sensor_);
 }
 
+#define ADE_PUBLISH_(name, factor) \
+  if (name) { \
+    float value = *name / factor; \
+    this->name##_sensor_->publish_state(value); \
+  }
+#define ADE_PUBLISH(name, factor) ADE_PUBLISH_(name, factor)
+
+void ADE7953::update() {
+  if (!this->is_setup_)
+    return;
+
+  auto active_power_a = this->ade_read_<int32_t>(0x0312);
+  ADE_PUBLISH(active_power_a, 154.0f);
+  auto active_power_b = this->ade_read_<int32_t>(0x0313);
+  ADE_PUBLISH(active_power_b, 154.0f);
+  auto current_a = this->ade_read_<uint32_t>(0x031A);
+  ADE_PUBLISH(current_a, 100000.0f);
+  auto current_b = this->ade_read_<uint32_t>(0x031B);
+  ADE_PUBLISH(current_b, 100000.0f);
+  auto voltage = this->ade_read_<uint32_t>(0x031C);
+  ADE_PUBLISH(voltage, 26000.0f);
+
+  //    auto apparent_power_a = this->ade_read_<int32_t>(0x0310);
+  //    auto apparent_power_b = this->ade_read_<int32_t>(0x0311);
+  //    auto reactive_power_a = this->ade_read_<int32_t>(0x0314);
+  //    auto reactive_power_b = this->ade_read_<int32_t>(0x0315);
+  //    auto power_factor_a = this->ade_read_<int16_t>(0x010A);
+  //    auto power_factor_b = this->ade_read_<int16_t>(0x010B);
+}
+
 }  // namespace ade7953
 }  // namespace esphome
