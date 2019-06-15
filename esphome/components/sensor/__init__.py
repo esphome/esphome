@@ -218,7 +218,6 @@ def calibrate_linear_filter_to_code(config, filter_id):
     # Column vector
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
-    res.reverse()
     yield cg.new_Pvariable(filter_id, res)
 
 
@@ -381,7 +380,7 @@ def _mat_inverse(m):
                 m[i][j] -= scaler * m[diag][j]
                 id[i][j] -= scaler * id[diag][j]
 
-        return id
+    return id
 
 
 def _lstsq(a, b):
