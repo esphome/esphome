@@ -247,6 +247,7 @@ class CalibratePolynomialFilter : public Filter {
  public:
   CalibratePolynomialFilter(const std::vector<float> &coefficients) : coefficients_(coefficients) {}
   optional<float> new_value(float value) override;
+
  protected:
   std::vector<float> coefficients_;
 };
