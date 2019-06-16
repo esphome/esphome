@@ -20,4 +20,5 @@ extend google.protobuf.MessageOptions {
     optional APISourceType source = 1037 [default=SOURCE_BOTH];
     optional string ifdef = 1038;
     optional bool log = 1039 [default=true];
+    optional bool no_delay = 1040 [default=false];
 }

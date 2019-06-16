@@ -115,12 +115,16 @@ message ConnectResponse {
 message DisconnectRequest {
   option (id) = 5;
   option (source) = SOURCE_BOTH;
+  option (no_delay) = true;
+
   // Do not close the connection before the acknowledgement arrives
 }
 
 message DisconnectResponse {
   option (id) = 6;
   option (source) = SOURCE_BOTH;
+  option (no_delay) = true;
+
   // Empty - Both parties are required to close the connection after this
   // message has been received.
 }
@@ -258,6 +262,7 @@ message CoverCommandRequest {
   option (id) = 30;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_COVER";
+  option (no_delay) = true;
 
   fixed32 key = 1;
 
@@ -306,6 +311,7 @@ message FanCommandRequest {
   option (id) = 31;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_FAN";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -354,6 +360,7 @@ message LightCommandRequest {
   option (id) = 32;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_LIGHT";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool has_state = 2;
@@ -426,6 +433,7 @@ message SwitchCommandRequest {
   option (id) = 33;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_SWITCH";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool state = 2;
@@ -494,6 +502,8 @@ message ServiceCallMap {
 message ServiceCallResponse {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
+
   string service = 1;
   repeated ServiceCallMap data = 2;
   repeated ServiceCallMap data_template = 3;
@@ -518,6 +528,8 @@ message SubscribeHomeAssistantStateResponse {
 message HomeAssistantStateResponse {
   option (id) = 40;
   option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+
   string entity_id = 1;
   string state = 2;
 }
@@ -531,6 +543,7 @@ message GetTimeRequest {
 message GetTimeResponse {
   option (id) = 37;
   option (source) = SOURCE_BOTH;
+
   fixed32 epoch_seconds = 1;
 }
 
@@ -562,6 +575,8 @@ message ExecuteServiceArgument {
 message ExecuteServiceRequest {
   option (id) = 42;
   option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
+
   fixed32 key = 1;
   repeated ExecuteServiceArgument args = 2;
 }
@@ -638,6 +653,7 @@ message ClimateCommandRequest {
   option (id) = 48;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_CLIMATE";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool has_mode = 2;

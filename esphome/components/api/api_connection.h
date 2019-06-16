@@ -338,6 +338,12 @@ class APIConnection : public APIServerConnection {
   void on_timeout_(uint32_t time);
   void on_data_(uint8_t *buf, size_t len);
   void parse_recv_buffer_();
+  void set_nodelay(bool nodelay) override {
+    if (nodelay == this->current_nodelay_)
+      return;
+    this->client_->setNoDelay(nodelay);
+    this->current_nodelay_ = nodelay;
+  }
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,
@@ -360,6 +366,7 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
+  bool current_nodelay_{false};
   bool next_close_{false};
   AsyncClient *client_;
   APIServer *parent_;

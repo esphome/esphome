@@ -3,32 +3,36 @@
 It's pretty crappy spaghetti code, but it works.
 """
 
-from pathlib import Path
-import google.protobuf.descriptor_pb2 as descriptor
-import google.protobuf.descriptor
-from textwrap import dedent
-import sys
-import api_options_pb2 as pb
 import re
+from pathlib import Path
+from textwrap import dedent
 
-root = Path(__file__) / '../../esphome/components/api'
-prot = root / 'api.protoc'
+# Generate with
+# protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
+import api_options_pb2 as pb
+import google.protobuf.descriptor_pb2 as descriptor
+
+cwd = Path(__file__).parent
+root = cwd.parent.parent / 'esphome' / 'components' / 'api'
+prot = cwd / 'api.protoc'
 content = prot.read_bytes()
 
 d = descriptor.FileDescriptorSet.FromString(content)
 
+
 def indent_list(text, padding=u'  '):
     return [padding + line for line in text.splitlines()]
 
+
 def indent(text, padding=u'  '):
-    v = u'\n'.join(indent_list(text, padding))
-    # print(text)
-    # print(v)
-    return v
+    return u'\n'.join(indent_list(text, padding))
+
 
 def camel_to_snake(name):
+    # https://stackoverflow.com/a/1176023
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
 
 class TypeInfo():
     def __init__(self, field):
@@ -152,10 +156,13 @@ class TypeInfo():
 
 TYPE_INFO = {}
 
+
 def register_type(name):
     def func(value):
         TYPE_INFO[name] = value
+
     return func
+
 
 @register_type(1)
 class DoubleType(TypeInfo):
@@ -169,6 +176,7 @@ class DoubleType(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(2)
 class FloatType(TypeInfo):
     cpp_type = 'float'
@@ -180,6 +188,7 @@ class FloatType(TypeInfo):
         o = f'sprintf(buffer, "%g", {name});\n'
         o += f'out.append(buffer);'
         return o
+
 
 @register_type(3)
 class Int64Type(TypeInfo):
@@ -193,6 +202,7 @@ class Int64Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(4)
 class UInt64Type(TypeInfo):
     cpp_type = 'uint64_t'
@@ -204,6 +214,7 @@ class UInt64Type(TypeInfo):
         o = f'sprintf(buffer, "%ull", {name});\n'
         o += f'out.append(buffer);'
         return o
+
 
 @register_type(5)
 class Int32Type(TypeInfo):
@@ -217,17 +228,19 @@ class Int32Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(6)
 class Fixed64Type(TypeInfo):
     cpp_type = 'uint64_t'
     default_value = '0'
-    decode_64bit ='value.as_fixed64()'
+    decode_64bit = 'value.as_fixed64()'
     encode_func = 'encode_fixed64'
 
     def dump(self, name):
         o = f'sprintf(buffer, "%ull", {name});\n'
         o += f'out.append(buffer);'
         return o
+
 
 @register_type(7)
 class Fixed32Type(TypeInfo):
@@ -241,6 +254,7 @@ class Fixed32Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(8)
 class BoolType(TypeInfo):
     cpp_type = 'bool'
@@ -251,6 +265,7 @@ class BoolType(TypeInfo):
     def dump(self, name):
         o = f'out.append(YESNO({name}));'
         return o
+
 
 @register_type(9)
 class StringType(TypeInfo):
@@ -264,6 +279,7 @@ class StringType(TypeInfo):
     def dump(self, name):
         o = f'out.append("\'").append({name}).append("\'");'
         return o
+
 
 @register_type(11)
 class MessageType(TypeInfo):
@@ -293,6 +309,7 @@ class MessageType(TypeInfo):
         o = f'{name}.dump_to(out);'
         return o
 
+
 @register_type(12)
 class BytesType(TypeInfo):
     cpp_type = 'std::string'
@@ -306,6 +323,7 @@ class BytesType(TypeInfo):
         o = f'out.append("\'").append({name}).append("\'");'
         return o
 
+
 @register_type(13)
 class UInt32Type(TypeInfo):
     cpp_type = 'uint32_t'
@@ -318,15 +336,19 @@ class UInt32Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(14)
 class EnumType(TypeInfo):
     @property
     def cpp_type(self):
         return self._field.type_name[1:]
+
     @property
     def decode_varint(self):
         return f'value.as_enum<{self.cpp_type}>()'
+
     default_value = ''
+
     @property
     def encode_func(self):
         return f'encode_enum<{self.cpp_type}>'
@@ -334,6 +356,7 @@ class EnumType(TypeInfo):
     def dump(self, name):
         o = f'out.append(proto_enum_to_string<{self.cpp_type}>({name}));'
         return o
+
 
 @register_type(15)
 class SFixed32Type(TypeInfo):
@@ -347,17 +370,19 @@ class SFixed32Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(16)
 class SFixed64Type(TypeInfo):
     cpp_type = 'int64_t'
     default_value = '0'
-    decode_64bit ='value.as_sfixed64()'
+    decode_64bit = 'value.as_sfixed64()'
     encode_func = 'encode_sfixed64'
 
     def dump(self, name):
         o = f'sprintf(buffer, "%ll", {name});\n'
         o += f'out.append(buffer);'
         return o
+
 
 @register_type(17)
 class SInt32Type(TypeInfo):
@@ -371,6 +396,7 @@ class SInt32Type(TypeInfo):
         o += f'out.append(buffer);'
         return o
 
+
 @register_type(18)
 class SInt64Type(TypeInfo):
     cpp_type = 'int64_t'
@@ -382,6 +408,7 @@ class SInt64Type(TypeInfo):
         o = f'sprintf(buffer, "%ll", {name});\n'
         o += f'out.append(buffer);'
         return o
+
 
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field):
@@ -579,6 +606,7 @@ def build_message_type(desc):
     out += "};\n"
     return out, cpp
 
+
 file = d.file[0]
 content = '''\
 #pragma once
@@ -628,7 +656,6 @@ with open(root / 'api_pb2.h', 'w') as f:
 with open(root / 'api_pb2.cpp', 'w') as f:
     f.write(cpp)
 
-
 SOURCE_BOTH = 0
 SOURCE_SERVER = 1
 SOURCE_CLIENT = 2
@@ -639,24 +666,24 @@ class_name = 'APIServerConnectionBase'
 
 ifdefs = {}
 
+
+def get_opt(desc, opt, default=None):
+    if not desc.options.HasExtension(opt):
+        return default
+    return desc.options.Extensions[opt]
+
+
 def build_service_message_type(mt):
-    opt = mt.options
     snake = camel_to_snake(mt.name)
-    if not opt.HasExtension(pb.id):
+    id_ = get_opt(mt, pb.id)
+    if id_ is None:
         return None
 
-    id_ = opt.Extensions[pb.id]
-    source = 0
-    if opt.HasExtension(pb.source):
-        source = int(opt.Extensions[pb.source])
+    source = get_opt(mt, pb.source, 0)
 
-    ifdef = None
-    if opt.HasExtension(pb.ifdef):
-        ifdef = str(opt.Extensions[pb.ifdef])
-    log = True
-    if opt.HasExtension(pb.log):
-        log = bool(opt.Extensions[pb.log])
-
+    ifdef = get_opt(mt, pb.ifdef)
+    log = get_opt(mt, pb.log, True)
+    nodelay = get_opt(mt, pb.no_delay, False)
     hout = ''
     cout = ''
 
@@ -672,6 +699,7 @@ def build_service_message_type(mt):
         cout += f'bool {class_name}::{func}(const {mt.name} &msg) {{\n'
         if log:
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
+        cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f'  return this->send_message<{mt.name}>(msg, {id_});\n'
         cout += f'}}\n'
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
@@ -696,6 +724,7 @@ def build_service_message_type(mt):
         cout += f'#endif\n'
 
     return hout, cout
+
 
 hpp = '''\
 #pragma once
@@ -765,13 +794,8 @@ for m in serv.method:
     is_void = ret == 'void'
     snake = camel_to_snake(inp)
     on_func = f'on_{snake}'
-    opt = m.options
-    needs_conn = True
-    if opt.HasExtension(pb.needs_setup_connection):
-        needs_conn = bool(opt.Extensions[pb.needs_setup_connection])
-    needs_auth = True
-    if opt.HasExtension(pb.needs_authentication):
-        needs_auth = bool(opt.Extensions[pb.needs_authentication])
+    needs_conn = get_opt(m, pb.needs_setup_connection, True)
+    needs_auth = get_opt(m, pb.needs_authentication, True)
 
     ifdef = ifdefs.get(inp, None)
 

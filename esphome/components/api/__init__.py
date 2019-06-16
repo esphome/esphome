@@ -16,7 +16,7 @@ TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
 APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
 UserService = api_ns.class_('UserService', automation.Trigger)
-ServiceTypeArgument = api_ns.class_('ServiceTypeArgument')
+ListEntitiesServicesArgument = api_ns.class_('ListEntitiesServicesArgument')
 ServiceArgType = api_ns.enum('ServiceArgType')
 SERVICE_ARG_TYPES = {
     'bool': ServiceArgType.SERVICE_ARG_TYPE_BOOL,
@@ -58,15 +58,15 @@ def to_code(config):
     for conf in config.get(CONF_SERVICES, []):
         template_args = []
         func_args = []
-        service_type_args = []
+        service_arg_names = []
         for name, var_ in conf[CONF_VARIABLES].items():
             native = SERVICE_ARG_NATIVE_TYPES[var_]
             template_args.append(native)
             func_args.append((native, name))
-            service_type_args.append(ServiceTypeArgument(name, SERVICE_ARG_TYPES[var_]))
+            service_arg_names.append(name)
         templ = cg.TemplateArguments(*template_args)
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], templ,
-                                   conf[CONF_SERVICE], service_type_args)
+                                   conf[CONF_SERVICE], service_arg_names)
         cg.add(var.register_user_service(trigger))
         yield automation.build_automation(trigger, func_args, conf)
 

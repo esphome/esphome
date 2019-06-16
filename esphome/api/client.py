@@ -327,7 +327,7 @@ class APIClient(threading.Thread):
         if not self._authenticated:
             raise APIConnectionError("Must login first!")
 
-    def subscribe_logs(self, on_log, log_level=6, dump_config=False):
+    def subscribe_logs(self, on_log, log_level=7, dump_config=False):
         self._check_authenticated()
 
         def on_msg(msg):

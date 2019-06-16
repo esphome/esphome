@@ -109,6 +109,11 @@ void APIConnection::loop() {
   if (this->remove_)
     return;
 
+  if (this->next_close_) {
+    this->disconnect_client();
+    return;
+  }
+
   if (!network_is_connected()) {
     // when network is disconnected force disconnect immediately
     // don't wait for timeout
@@ -117,7 +122,6 @@ void APIConnection::loop() {
   }
   if (this->client_->disconnected()) {
     // failsafe for disconnect logic
-    ESP_LOGV(TAG, "this->client_->disconnected()");
     this->on_disconnect_();
     return;
   }

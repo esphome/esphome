@@ -1,4 +1,5 @@
 #include "subscribe_state.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
