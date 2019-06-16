@@ -144,6 +144,7 @@ class I2CRegister {
   I2CRegister &operator|=(uint8_t value);
 
   uint8_t get();
+
  protected:
   I2CDevice *parent_;
   uint8_t register_;
