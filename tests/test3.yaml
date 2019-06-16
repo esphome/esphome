@@ -246,6 +246,11 @@ binary_sensor:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
 
+globals:
+  - id: my_global_string
+    type: std::string
+    initial_value: '""'
+
 remote_receiver:
   pin: GPIO12
   dump: []

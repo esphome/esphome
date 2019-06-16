@@ -10,8 +10,6 @@ bool network_is_connected();
 std::string network_get_address();
 
 /// Manually set up the network stack (outside of the App.setup() loop, for example in OTA safe mode)
-void network_setup();
-void network_tick();
 void network_setup_mdns();
 void network_tick_mdns();
 

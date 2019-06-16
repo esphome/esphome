@@ -1,12 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display
-from esphome.const import CONF_DIMENSIONS, CONF_LAMBDA
+from esphome.const import CONF_DIMENSIONS
 from esphome.core import coroutine
 
 lcd_base_ns = cg.esphome_ns.namespace('lcd_base')
 LCDDisplay = lcd_base_ns.class_('LCDDisplay', cg.PollingComponent)
-LCDDisplayRef = LCDDisplay.operator('ref')
 
 
 def validate_lcd_dimensions(value):
@@ -28,8 +27,3 @@ def setup_lcd_display(var, config):
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
     cg.add(var.set_dimensions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1]))
-
-    if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(LCDDisplayRef, 'it')],
-                                          return_type=cg.void)
-        cg.add(var.set_writer(lambda_))

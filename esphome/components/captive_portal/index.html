@@ -1,0 +1,55 @@
+<!-- HTTP_HEAD -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
+    <title>{{ App.get_name() }}</title>
+    <link rel="stylesheet" href="./stylesheet.css">
+    <script>
+        function c(l) {
+            document.getElementById('ssid').value = l.innerText || l.textContent;
+            document.getElementById('psk').focus();
+        }
+    </script>
+</head>
+<body>
+<div class="main">
+    <h1>WiFi Networks</h1>
+    <div class="info">
+        The ESP will now try to connect to the network...<br/>
+        Please give it some time to connect.<br/>
+        Note: Copy the changed network to your YAML file - the next OTA update will overwrite these settings.
+    </div>
+    <div class="network" onclick="c(this)">
+        <a href="#" class="network-left">
+            <img src="./wifi-strength-4.svg">
+            <span class="network-ssid">AP1</span>
+        </a>
+        <img src="./lock.svg">
+    </div>
+    <div class="network" onclick="c(this)">
+        <a href="#" class="network-left">
+            <img src="./wifi-strength-2.svg">
+            <span class="network-ssid">AP2</span>
+        </a>
+    </div>
+
+    <h3>WiFi Settings</h3>
+    <form method="GET" action="/wifisave">
+        <input id="ssid" name="ssid" length=32 placeholder="SSID"><br/>
+        <input id="psk" name="psk" length=64 type="password" placeholder="Password"><br/>
+        <br/>
+        <button type="submit">Save</button>
+    </form>
+    <br><hr>
+    <br>
+
+    <h1>OTA Update</h1>
+    <form method="POST" action="/update" enctype="multipart/form-data">
+        <input type="file" name="update">
+        <button type="submit">Update</button>
+    </form>
+</div>
+</body>
+</html>

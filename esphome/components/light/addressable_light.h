@@ -399,33 +399,7 @@ class ESPRangeView : public ESPColorSettable {
     this->set_hsv(rhs);
     return *this;
   }
-  ESPRangeView &operator=(const ESPRangeView &rhs) {
-    // If size doesn't match, error (todo warning)
-    if (rhs.size() != this->size())
-      return *this;
-
-    if (this->parent_ != rhs.parent_) {
-      for (int32_t i = 0; i < this->size(); i++)
-        (*this)[i].set(rhs[i].get());
-      return *this;
-    }
-
-    // If both equal, already done
-    if (rhs.begin_ == this->begin_)
-      return *this;
-
-    if (rhs.begin_ < this->begin_) {
-      // Copy into rhs
-      for (int32_t i = 0; i < this->size(); i++)
-        rhs[i].set((*this)[i].get());
-    } else {
-      // Copy into this
-      for (int32_t i = 0; i < this->size(); i++)
-        (*this)[i].set(rhs[i].get());
-    }
-
-    return *this;
-  }
+  ESPRangeView &operator=(const ESPRangeView &rhs);
   void set_red(uint8_t red) override;
   void set_green(uint8_t green) override;
   void set_blue(uint8_t blue) override;

@@ -7,13 +7,14 @@
 #endif
 
 #include "esphome/core/esphal.h"
+#include "esphome/core/defines.h"
 
 namespace esphome {
 
 class ESPPreferenceObject {
  public:
   ESPPreferenceObject();
-  ESPPreferenceObject(size_t rtc_offset, size_t length, uint32_t type);
+  ESPPreferenceObject(size_t offset, size_t length, uint32_t type);
 
   template<typename T> bool save(T *src);
 
@@ -22,6 +23,8 @@ class ESPPreferenceObject {
   bool is_initialized() const;
 
  protected:
+  friend class ESPPreferences;
+
   bool save_();
   bool load_();
   bool save_internal_();
@@ -29,18 +32,33 @@ class ESPPreferenceObject {
 
   uint32_t calculate_crc_() const;
 
-  size_t rtc_offset_;
+  size_t offset_;
   size_t length_words_;
   uint32_t type_;
   uint32_t *data_;
+#ifdef ARDUINO_ARCH_ESP8266
+  bool in_flash_{false};
+#endif
 };
+
+#ifdef ARDUINO_ARCH_ESP8266
+#ifdef USE_ESP8266_PREFERENCES_FLASH
+static bool DEFAULT_IN_FLASH = true;
+#else
+static bool DEFAULT_IN_FLASH = false;
+#endif
+#endif
+
+#ifdef ARDUINO_ARCH_ESP32
+static bool DEFAULT_IN_FLASH = true;
+#endif
 
 class ESPPreferences {
  public:
   ESPPreferences();
   void begin(const std::string &name);
-  ESPPreferenceObject make_preference(size_t length, uint32_t type);
-  template<typename T> ESPPreferenceObject make_preference(uint32_t type);
+  ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
+  template<typename T> ESPPreferenceObject make_preference(uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
 
 #ifdef ARDUINO_ARCH_ESP8266
   /** On the ESP8266, we can't override the first 128 bytes during OTA uploads
@@ -62,14 +80,17 @@ class ESPPreferences {
   Preferences preferences_;
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
+  void save_esp8266_flash_();
   bool prevent_write_{false};
+  uint32_t *flash_storage_;
+  uint32_t current_flash_offset_;
 #endif
 };
 
 extern ESPPreferences global_preferences;
 
-template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type) {
-  return this->make_preference((sizeof(T) + 3) / 4, type);
+template<typename T> ESPPreferenceObject ESPPreferences::make_preference(uint32_t type, bool in_flash) {
+  return this->make_preference((sizeof(T) + 3) / 4, type, in_flash);
 }
 
 template<typename T> bool ESPPreferenceObject::save(T *src) {

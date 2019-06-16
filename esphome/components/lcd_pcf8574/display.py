@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import lcd_base, i2c
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_LAMBDA
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['lcd_base']
@@ -18,3 +18,9 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield lcd_base.setup_lcd_display(var, config)
     yield i2c.register_i2c_device(var, config)
+
+    if CONF_LAMBDA in config:
+        lambda_ = yield cg.process_lambda(config[CONF_LAMBDA],
+                                          [(PCF8574LCDDisplay.operator('ref'), 'it')],
+                                          return_type=cg.void)
+        cg.add(var.set_writer(lambda_))

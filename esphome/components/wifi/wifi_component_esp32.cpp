@@ -359,7 +359,7 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     }
     case SYSTEM_EVENT_AP_PROBEREQRECVED: {
       auto it = info.ap_probereqrecved;
-      ESP_LOGV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
     default:
@@ -517,7 +517,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip_() {
+IPAddress WiFiComponent::wifi_soft_ap_ip() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
   return IPAddress(ip.ip.addr);

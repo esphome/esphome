@@ -3,7 +3,7 @@
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375/
-  BASE_VERSION: '1.5.1'
+  BASE_VERSION: '1.8.3'
   TZ: UTC
 
 stages:

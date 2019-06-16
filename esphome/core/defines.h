@@ -1,8 +1,6 @@
 #pragma once
 // This file is auto-generated! Do not edit!
 
-#define ESPHOME_VERSION "dev"
-
 #define USE_API
 #define USE_LOGGER
 #define USE_BINARY_SENSOR
@@ -24,3 +22,4 @@
 #endif
 #define USE_TIME
 #define USE_DEEP_SLEEP
+#define USE_CAPTIVE_PORTAL

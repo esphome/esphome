@@ -8,6 +8,8 @@
 namespace esphome {
 namespace hlw8012 {
 
+enum HLW8012InitialMode { HLW8012_INITIAL_MODE_CURRENT = 0, HLW8012_INITIAL_MODE_VOLTAGE };
+
 class HLW8012Component : public PollingComponent {
  public:
   void setup() override;
@@ -15,6 +17,9 @@ class HLW8012Component : public PollingComponent {
   float get_setup_priority() const override;
   void update() override;
 
+  void set_initial_mode(HLW8012InitialMode initial_mode) {
+    current_mode_ = initial_mode == HLW8012_INITIAL_MODE_CURRENT;
+  }
   void set_change_mode_every(uint32_t change_mode_every) { change_mode_every_ = change_mode_every; }
   void set_current_resistor(float current_resistor) { current_resistor_ = current_resistor; }
   void set_voltage_divider(float voltage_divider) { voltage_divider_ = voltage_divider; }

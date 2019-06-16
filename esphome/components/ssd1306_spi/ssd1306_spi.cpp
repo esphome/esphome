@@ -7,7 +7,6 @@ namespace ssd1306_spi {
 
 static const char *TAG = "ssd1306_spi";
 
-bool SPISSD1306::is_device_msb_first() { return true; }
 void SPISSD1306::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI SSD1306...");
   this->spi_setup();
@@ -52,7 +51,6 @@ void HOT SPISSD1306::write_display_data() {
     this->disable();
   }
 }
-bool SPISSD1306::is_device_high_speed() { return true; }
 
 }  // namespace ssd1306_spi
 }  // namespace esphome

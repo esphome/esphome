@@ -1,4 +1,4 @@
-FROM esphome/esphome-base-amd64:1.5.1
+FROM esphome/esphome-base-amd64:1.8.3
 
 RUN \
     apt-get update \
@@ -12,7 +12,7 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /requirements_test.txt
-RUN pip2 install -r /requirements_test.txt
+RUN pip2 install --no-cache-dir wheel && pip2 install --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome

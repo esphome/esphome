@@ -330,7 +330,6 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 void WiFiComponent::wifi_event_callback(System_Event_t *event) {
-#ifdef ESPHOME_LOG_HAS_VERBOSE
   // TODO: this callback is called while in cont context, so delay will fail
   // We need to defer the log messages until we're out of this context
   // only affects verbose log level
@@ -351,7 +350,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGV(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
+      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
                get_disconnect_reason_str(it.reason));
       break;
     }
@@ -383,7 +382,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     }
     case EVENT_SOFTAPMODE_PROBEREQRECVED: {
       auto it = event->event_info.ap_probereqrecved;
-      ESP_LOGV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
 #ifndef ARDUINO_ESP8266_RELEASE_2_3_0
@@ -403,7 +402,6 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
     default:
       break;
   }
-#endif
 
   if (event->event == EVENT_STAMODE_DISCONNECTED) {
     global_wifi_component->error_from_callback_ = true;
@@ -585,7 +583,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip_() {
+IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
   return {ip.ip.addr};

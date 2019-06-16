@@ -6,6 +6,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -712,12 +713,12 @@ bool APIConnection::send_buffer(APIMessageType type) {
   size_t needed_space = this->send_buffer_.size() + header_len;
 
   if (needed_space > this->client_->space()) {
-    delay(5);
+    delay(0);
     if (needed_space > this->client_->space()) {
       if (type != APIMessageType::SUBSCRIBE_LOGS_RESPONSE) {
         ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
       }
-      delay(5);
+      delay(0);
       return false;
     }
   }

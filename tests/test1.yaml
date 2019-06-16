@@ -244,6 +244,35 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: atm90e32
+    cs_pin: 5
+    phase_a:
+      voltage:
+        name: "EMON Line Voltage A"
+      current:
+        name: "EMON CT1 Current"
+      power:
+        name: "EMON Active Power CT1"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_b:
+      current:
+        name: "EMON CT2 Current"
+      power:
+        name: "EMON Active Power CT2"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_c:
+      current:
+        name: "EMON CT3 Current"
+      power:
+        name: "EMON Active Power CT3"
+      gain_voltage: 47660
+      gain_ct: 12577
+    frequency:
+      name: "EMON Line Frequency"
+    line_frequency: 50Hz
+    gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
     internal: true
@@ -347,9 +376,14 @@ sensor:
     current_resistor: 0.001 ohm
     voltage_divider: 2351
     change_mode_every: 16
+    initial_mode: VOLTAGE
   - platform: total_daily_energy
     power_id: hlw8012_power
     name: "HLW8012 Total Daily Energy"
+  - platform: integration
+    sensor: hlw8012_power
+    name: "Integration Sensor"
+    time_unit: s
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
@@ -657,6 +691,13 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: remote_receiver
+    name: "Raw Remote Receiver Test"
+    raw:
+      code: [5685, -4252, 1711, -2265, 1712, -2265, 1711, -2264, 1712, -2266,
+             3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
+             1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
+             1712, -2262, 1714, -2267, 1709]
 
 pca9685:
   frequency: 500
@@ -1272,6 +1313,9 @@ text_sensor:
       id: template_text
       state: |-
         return "Hello World2";
+  - globals.set:
+      id: glob_int
+      value: '0'
 - platform: template
   name: Template Text Sensor
   id: template_text
