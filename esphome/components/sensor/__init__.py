@@ -210,7 +210,7 @@ def validate_calibrate_polynomial(config):
     cv.Required(CONF_DATAPOINTS): cv.All(cv.ensure_list(validate_datapoint), cv.Length(min=1)),
     cv.Required(CONF_DEGREE): cv.positive_int,
 }), validate_calibrate_polynomial))
-def calibrate_linear_filter_to_code(config, filter_id):
+def calibrate_polynomial_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
     y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
     degree = config[CONF_DEGREE]
