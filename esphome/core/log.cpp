@@ -34,7 +34,8 @@ void HOT esp_log_vprintf_(int level, const char *tag, int line, const char *form
 }
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args) {  // NOLINT
+void HOT esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
+                          va_list args) {  // NOLINT
 #ifdef USE_LOGGER
   auto *log = logger::global_logger;
   if (log == nullptr)

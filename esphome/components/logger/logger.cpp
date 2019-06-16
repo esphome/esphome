@@ -11,29 +11,31 @@ namespace logger {
 static const char *TAG = "logger";
 
 static const char *LOG_LEVEL_COLORS[] = {
-    "",  // NONE
-    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),  // ERROR
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),  // WARNING
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),  // INFO
+    "",                                            // NONE
+    ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED),       // ERROR
+    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW),   // WARNING
+    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN),    // INFO
     ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA),  // CONFIG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),  // DEBUG
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),  // VERBOSE
-    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),  // VERY_VERBOSE
+    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN),     // DEBUG
+    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY),     // VERBOSE
+    ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE),    // VERY_VERBOSE
 };
 static const char *LOG_LEVEL_LETTERS[] = {
-    "",  // NONE
-    "E",  // ERROR
-    "W",  // WARNING
-    "I",  // INFO
-    "C",  // CONFIG
-    "D",  // DEBUG
-    "V",  // VERBOSE
+    "",    // NONE
+    "E",   // ERROR
+    "W",   // WARNING
+    "I",   // INFO
+    "C",   // CONFIG
+    "D",   // DEBUG
+    "V",   // VERBOSE
     "VV",  // VERY_VERBOSE
 };
 
 void Logger::write_header_(int level, const char *tag, int line) {
-  if (level < 0) level = 0;
-  if (level > 7) level = 7;
+  if (level < 0)
+    level = 0;
+  if (level > 7)
+    level = 7;
 
   const char *color = LOG_LEVEL_COLORS[level];
   const char *letter = LOG_LEVEL_LETTERS[level];
@@ -51,7 +53,8 @@ void HOT Logger::log_vprintf_(int level, const char *tag, int line, const char *
   this->log_message_(level, tag);
 }
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args) {  // NOLINT
+void Logger::log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format,
+                          va_list args) {  // NOLINT
   if (level > this->level_for(tag))
     return;
 
@@ -104,7 +107,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
-  : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
+    : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];
 }
@@ -145,7 +148,7 @@ void Logger::pre_setup() {
   global_logger = this;
 #ifdef ARDUINO_ARCH_ESP32
   esp_log_set_vprintf(esp_idf_log_vprintf_);
-  if (this->global_log_level_ >= ESPHOME_LOG_LEVEL_VERBOSE) {
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
     esp_log_level_set("*", ESP_LOG_VERBOSE);
   }
 #endif
@@ -177,9 +180,7 @@ void Logger::dump_config() {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }
 }
-void Logger::write_footer_() {
-  this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR));
-}
+void Logger::write_footer_() { this->write_to_buffer_(ESPHOME_LOG_RESET_COLOR, strlen(ESPHOME_LOG_RESET_COLOR)); }
 
 Logger *global_logger = nullptr;
 

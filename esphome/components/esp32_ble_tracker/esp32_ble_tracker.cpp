@@ -140,7 +140,7 @@ bool ESP32BLETracker::ble_setup() {
 
 void ESP32BLETracker::start_scan(bool first) {
   if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGW("Cannot start scan!");
+    ESP_LOGW(TAG, "Cannot start scan!");
     return;
   }
 
