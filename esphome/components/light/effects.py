@@ -7,11 +7,11 @@ from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRA
     CONF_SEQUENCE
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
-    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, ESPColorConstRef,\
+    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect
+    AutomationLightEffect, ESPColorConstRef
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
