@@ -7,7 +7,7 @@ from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRA
     CONF_SEQUENCE
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
-    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
+    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, ESPColorConstRef,\
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
@@ -129,7 +129,7 @@ def flicker_effect_to_code(config, effect_id):
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
 })
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it')]
+    args = [(AddressableLightRef, 'it'), (ESPColorConstRef, 'current_color')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])

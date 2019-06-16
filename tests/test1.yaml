@@ -893,6 +893,11 @@ light:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
+    - addressable_lambda:
+          name: "Test For Custom Lambda Effect"
+          lambda: |-
+            it[0] = current_color;
+                
     - automation:
         name: Custom Effect
         sequence:
