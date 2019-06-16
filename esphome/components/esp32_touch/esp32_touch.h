@@ -30,7 +30,7 @@ class ESP32TouchComponent : public Component {
     high_voltage_reference_ = high_voltage_reference;
   }
 
-  void set_voltage_attenuation(touch_volt_atten_t voltage_attenuation) { voltage_attenuation_ = voltage_attenuation }
+  void set_voltage_attenuation(touch_volt_atten_t voltage_attenuation) { voltage_attenuation_ = voltage_attenuation; }
 
   void setup() override;
   void dump_config() override;
