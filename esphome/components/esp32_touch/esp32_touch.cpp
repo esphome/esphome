@@ -116,6 +116,7 @@ void ESP32TouchComponent::loop() {
       touch_pad_read(child->get_touch_pad(), &value);
     }
 
+    child->value_ = value;
     child->publish_state(value < child->get_threshold());
 
     if (this->setup_mode_) {
@@ -128,23 +129,7 @@ void ESP32TouchComponent::loop() {
     delay(250);
   }
 }
-void ESP32TouchComponent::register_touch_pad(ESP32TouchBinarySensor *pad) { this->children_.push_back(pad); }
-void ESP32TouchComponent::set_setup_mode(bool setup_mode) { this->setup_mode_ = setup_mode; }
-bool ESP32TouchComponent::iir_filter_enabled_() const { return this->iir_filter_ > 0; }
 
-void ESP32TouchComponent::set_iir_filter(uint32_t iir_filter) { this->iir_filter_ = iir_filter; }
-float ESP32TouchComponent::get_setup_priority() const { return setup_priority::DATA; }
-void ESP32TouchComponent::set_sleep_duration(uint16_t sleep_duration) { this->sleep_cycle_ = sleep_duration; }
-void ESP32TouchComponent::set_measurement_duration(uint16_t meas_cycle) { this->meas_cycle_ = meas_cycle; }
-void ESP32TouchComponent::set_low_voltage_reference(touch_low_volt_t low_voltage_reference) {
-  this->low_voltage_reference_ = low_voltage_reference;
-}
-void ESP32TouchComponent::set_high_voltage_reference(touch_high_volt_t high_voltage_reference) {
-  this->high_voltage_reference_ = high_voltage_reference;
-}
-void ESP32TouchComponent::set_voltage_attenuation(touch_volt_atten_t voltage_attenuation) {
-  this->voltage_attenuation_ = voltage_attenuation;
-}
 void ESP32TouchComponent::on_shutdown() {
   if (this->iir_filter_enabled_()) {
     touch_pad_filter_stop();
@@ -155,8 +140,6 @@ void ESP32TouchComponent::on_shutdown() {
 
 ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold)
     : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold) {}
-touch_pad_t ESP32TouchBinarySensor::get_touch_pad() const { return this->touch_pad_; }
-uint16_t ESP32TouchBinarySensor::get_threshold() const { return this->threshold_; }
 
 }  // namespace esp32_touch
 }  // namespace esphome

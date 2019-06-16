@@ -244,6 +244,35 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: atm90e32
+    cs_pin: 5
+    phase_a:
+      voltage:
+        name: "EMON Line Voltage A"
+      current:
+        name: "EMON CT1 Current"
+      power:
+        name: "EMON Active Power CT1"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_b:
+      current:
+        name: "EMON CT2 Current"
+      power:
+        name: "EMON Active Power CT2"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_c:
+      current:
+        name: "EMON CT3 Current"
+      power:
+        name: "EMON Active Power CT3"
+      gain_voltage: 47660
+      gain_ct: 12577
+    frequency:
+      name: "EMON Line Frequency"
+    line_frequency: 50Hz
+    gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
     internal: true
@@ -618,6 +647,7 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
+    id: btn_left
   - platform: nextion
     page_id: 0
     component_id: 2
@@ -662,6 +692,13 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: True
+  - platform: remote_receiver
+    name: "Raw Remote Receiver Test"
+    raw:
+      code: [5685, -4252, 1711, -2265, 1712, -2265, 1711, -2264, 1712, -2266,
+             3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
+             1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
+             1712, -2262, 1714, -2267, 1709]
 
 pca9685:
   frequency: 500
@@ -1118,6 +1155,16 @@ interval:
         if (true) return id(page1); else return id(page2);
     -  display.page.show_next: display1
     -  display.page.show_previous: display1
+  - interval: 2s
+    then:
+      - lambda: |-
+            static uint16_t btn_left_state = id(btn_left)->get_value();
+
+            ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
+            
+            btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
+
+            id(btn_left)->set_threshold(btn_left_state * 0.9);
 
 display:
 - platform: lcd_gpio
@@ -1277,6 +1324,9 @@ text_sensor:
       id: template_text
       state: |-
         return "Hello World2";
+  - globals.set:
+      id: glob_int
+      value: '0'
 - platform: template
   name: Template Text Sensor
   id: template_text
