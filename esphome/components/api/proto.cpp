@@ -18,8 +18,8 @@ void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
       break;
     }
 
-    uint32_t field_type = (*res) & 0b111;
-    uint32_t field_id = (*res) >> 3;
+    uint32_t field_type = (res->as_uint32()) & 0b111;
+    uint32_t field_id = (res->as_uint32()) >> 3;
     i += consumed;
 
     switch (field_type) {
@@ -30,8 +30,8 @@ void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
           error = true;
           break;
         }
-        if (!this->decode_varint(field_id, ProtoVarInt(*res))) {
-          ESP_LOGV(TAG, "Cannot decode VarInt field %u with value %u!", field_id, *res);
+        if (!this->decode_varint(field_id, *res)) {
+          ESP_LOGV(TAG, "Cannot decode VarInt field %u with value %u!", field_id, res->as_uint32());
         }
         i += consumed;
         break;
@@ -43,16 +43,17 @@ void ProtoMessage::decode(const uint8_t *buffer, size_t length) {
           error = true;
           break;
         }
+        uint32_t field_length = res->as_uint32();
         i += consumed;
-        if (*res > length - i) {
+        if (field_length > length - i) {
           ESP_LOGV(TAG, "Out-of-bounds Length Delimited at %u", i);
           error = true;
           break;
         }
-        if (!this->decode_length(field_id, ProtoLengthDelimited(&buffer[i], *res))) {
+        if (!this->decode_length(field_id, ProtoLengthDelimited(&buffer[i], field_length))) {
           ESP_LOGV(TAG, "Cannot decode Length Delimited field %u!", field_id);
         }
-        i += *res;
+        i += field_length;
         break;
       }
       case 5: {  // 32-bit

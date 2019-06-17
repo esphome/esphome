@@ -9,23 +9,27 @@ namespace api {
 /// Representation of a VarInt - in ProtoBuf should be 64bit but we only use 32bit
 class ProtoVarInt {
  public:
-  explicit ProtoVarInt(uint32_t value) : value_(value) {}
+  ProtoVarInt() : value_(0) {}
+  explicit ProtoVarInt(uint64_t value) : value_(value) {}
 
-  static optional<uint32_t> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
+  static optional<ProtoVarInt> parse(const uint8_t *buffer, uint32_t len, uint32_t *consumed) {
+    if (consumed != nullptr)
+      *consumed = 0;
+
     if (len == 0)
       return {};
 
-    uint32_t result = 0;
+    uint64_t result = 0;
     uint8_t bitpos = 0;
 
     for (uint32_t i = 0; i < len; i++) {
       uint8_t val = buffer[i];
-      result |= uint32_t(val & 0x7F) << bitpos;
+      result |= uint64_t(val & 0x7F) << uint64_t(bitpos);
       bitpos += 7;
       if ((val & 0x80) == 0) {
         if (consumed != nullptr)
           *consumed = i + 1;
-        return result;
+        return ProtoVarInt(result);
       }
     }
 
@@ -33,18 +37,30 @@ class ProtoVarInt {
   }
 
   uint32_t as_uint32() const { return this->value_; }
+  uint64_t as_uint64() const { return this->value_; }
   bool as_bool() const { return this->value_; }
-  template<typename T> T as_enum() const { return static_cast<T>(this->value_); }
+  template<typename T> T as_enum() const { return static_cast<T>(this->as_uint32()); }
   int32_t as_int32() const {
     // Not ZigZag encoded
-    return static_cast<int32_t>(this->value_);
+    return static_cast<int32_t>(this->as_int64());
+  }
+  int64_t as_int64() const {
+    // Not ZigZag encoded
+    return static_cast<int64_t>(this->value_);
   }
   int32_t as_sint32() const {
     // with ZigZag encoding
     if (this->value_ & 1)
-      return uint32_t(~(this->value_ >> 1));
+      return static_cast<int32_t>(~(this->value_ >> 1));
     else
-      return uint32_t(this->value_ >> 1);
+      return static_cast<int32_t>(this->value_ >> 1);
+  }
+  int64_t as_sint64() const {
+    // with ZigZag encoding
+    if (this->value_ & 1)
+      return static_cast<int64_t>(~(this->value_ >> 1));
+    else
+      return static_cast<int64_t>(this->value_ >> 1);
   }
   void encode(std::vector<uint8_t> &out) {
     uint32_t val = this->value_;
@@ -64,7 +80,7 @@ class ProtoVarInt {
   }
 
  protected:
-  const uint32_t value_;
+  uint64_t value_;
 };
 
 class ProtoLengthDelimited {
@@ -122,7 +138,8 @@ class ProtoWriteBuffer {
  public:
   ProtoWriteBuffer(std::vector<uint8_t> *buffer) : buffer_(buffer) {}
   void write(uint8_t value) { this->buffer_->push_back(value); }
-  void encode_varint_raw(uint32_t value) { ProtoVarInt(value).encode(*this->buffer_); }
+  void encode_varint_raw(ProtoVarInt value) { value.encode(*this->buffer_); }
+  void encode_varint_raw(uint32_t value) { this->encode_varint_raw(ProtoVarInt(value)); }
   void encode_field_raw(uint32_t field_id, uint32_t type) {
     uint32_t val = (field_id << 3) | (type & 0b111);
     this->encode_varint_raw(val);
@@ -148,6 +165,12 @@ class ProtoWriteBuffer {
       return;
     this->encode_field_raw(field_id, 0);
     this->encode_varint_raw(value);
+  }
+  void encode_uint64(uint32_t field_id, uint64_t value, bool force = false) {
+    if (value == 0 && !force)
+      return;
+    this->encode_field_raw(field_id, 0);
+    this->encode_varint_raw(ProtoVarInt(value));
   }
   void encode_bool(uint32_t field_id, bool value, bool force = false) {
     if (!value && !force)
@@ -180,7 +203,23 @@ class ProtoWriteBuffer {
     this->encode_fixed32(field_id, val.raw);
   }
   void encode_int32(uint32_t field_id, int32_t value, bool force = false) {
+    if (value < 0) {
+      // negative int32 is always 10 byte long
+      this->encode_int64(field_id, value, force);
+      return;
+    }
     this->encode_uint32(field_id, static_cast<uint32_t>(value), force);
+  }
+  void encode_int64(uint32_t field_id, int64_t value, bool force = false) {
+    this->encode_uint64(field_id, static_cast<uint64_t>(value), force);
+  }
+  void encode_sint32(uint32_t field_id, int32_t value, bool force = false) {
+    uint32_t uvalue;
+    if (value < 0)
+      uvalue = ~(value << 1);
+    else
+      uvalue = value << 1;
+    this->encode_uint32(field_id, uvalue, force);
   }
   template<class C> void encode_message(uint32_t field_id, const C &value, bool force = false) {
     this->encode_field_raw(field_id, 2);

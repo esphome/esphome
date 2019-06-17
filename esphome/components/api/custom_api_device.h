@@ -13,7 +13,7 @@ template<typename T, typename... Ts> class CustomAPIDeviceService : public UserS
       : UserServiceBase<Ts...>(name, arg_names), obj_(obj), callback_(callback) {}
 
  protected:
-  void execute_(Ts... x) override { (this->obj_->*this->callback_)(x...); }
+  void execute(Ts... x) override { (this->obj_->*this->callback_)(x...); }
 
   T *obj_;
   void (T::*callback_)(Ts...);

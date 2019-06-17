@@ -4,23 +4,23 @@ import "api_options.proto";
 
 service APIConnection {
   rpc hello (HelloRequest) returns (HelloResponse) {
-      option (needs_setup_connection) = false;
-      option (needs_authentication) = false;
+    option (needs_setup_connection) = false;
+    option (needs_authentication) = false;
   }
   rpc connect (ConnectRequest) returns (ConnectResponse) {
-      option (needs_setup_connection) = false;
-      option (needs_authentication) = false;
+    option (needs_setup_connection) = false;
+    option (needs_authentication) = false;
   }
   rpc disconnect (DisconnectRequest) returns (DisconnectResponse) {
-      option (needs_setup_connection) = false;
-      option (needs_authentication) = false;
+    option (needs_setup_connection) = false;
+    option (needs_authentication) = false;
   }
   rpc ping (PingRequest) returns (PingResponse) {
-      option (needs_setup_connection) = false;
-      option (needs_authentication) = false;
+    option (needs_setup_connection) = false;
+    option (needs_authentication) = false;
   }
   rpc device_info (DeviceInfoRequest) returns (DeviceInfoResponse) {
-      option (needs_authentication) = false;
+    option (needs_authentication) = false;
   }
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
@@ -28,7 +28,7 @@ service APIConnection {
   rpc subscribe_service_calls (SubscribeServiceCallsRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
   rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
-      option (needs_authentication) = false;
+    option (needs_authentication) = false;
   }
   rpc execute_service (ExecuteServiceRequest) returns (void) {}
 
@@ -567,6 +567,10 @@ enum ServiceArgType {
   SERVICE_ARG_TYPE_INT = 1;
   SERVICE_ARG_TYPE_FLOAT = 2;
   SERVICE_ARG_TYPE_STRING = 3;
+  SERVICE_ARG_TYPE_BOOL_ARRAY = 4;
+  SERVICE_ARG_TYPE_INT_ARRAY = 5;
+  SERVICE_ARG_TYPE_FLOAT_ARRAY = 6;
+  SERVICE_ARG_TYPE_STRING_ARRAY = 7;
 }
 message ListEntitiesServicesArgument {
   string name = 1;
@@ -582,9 +586,15 @@ message ListEntitiesServicesResponse {
 }
 message ExecuteServiceArgument {
   bool bool_ = 1;
-  int32 int_ = 2;
+  int32 legacy_int = 2;
   float float_ = 3;
   string string_ = 4;
+  // ESPHome 1.14 (api v1.3) make int a signed value
+  sint32 int_ = 5;
+  repeated bool bool_array = 6 [packed=false];
+  repeated sint32 int_array = 7 [packed=false];
+  repeated float float_array = 8 [packed=false];
+  repeated string string_array = 9;
 }
 message ExecuteServiceRequest {
   option (id) = 42;

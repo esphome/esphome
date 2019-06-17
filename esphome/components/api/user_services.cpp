@@ -5,14 +5,34 @@ namespace esphome {
 namespace api {
 
 template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
-template<> int get_execute_arg_value<int>(const ExecuteServiceArgument &arg) { return arg.int_; }
+template<> int get_execute_arg_value<int>(const ExecuteServiceArgument &arg) {
+  if (arg.legacy_int != 0)
+    return arg.legacy_int;
+  return arg.int_;
+}
 template<> float get_execute_arg_value<float>(const ExecuteServiceArgument &arg) { return arg.float_; }
 template<> std::string get_execute_arg_value<std::string>(const ExecuteServiceArgument &arg) { return arg.string_; }
+template<> std::vector<bool> get_execute_arg_value<std::vector<bool>>(const ExecuteServiceArgument &arg) {
+  return arg.bool_array;
+}
+template<> std::vector<int> get_execute_arg_value<std::vector<int>>(const ExecuteServiceArgument &arg) {
+  return arg.int_array;
+}
+template<> std::vector<float> get_execute_arg_value<std::vector<float>>(const ExecuteServiceArgument &arg) {
+  return arg.float_array;
+}
+template<> std::vector<std::string> get_execute_arg_value<std::vector<std::string>>(const ExecuteServiceArgument &arg) {
+  return arg.string_array;
+}
 
 template<> ServiceArgType to_service_arg_type<bool>() { return SERVICE_ARG_TYPE_BOOL; }
 template<> ServiceArgType to_service_arg_type<int>() { return SERVICE_ARG_TYPE_INT; }
 template<> ServiceArgType to_service_arg_type<float>() { return SERVICE_ARG_TYPE_FLOAT; }
 template<> ServiceArgType to_service_arg_type<std::string>() { return SERVICE_ARG_TYPE_STRING; }
+template<> ServiceArgType to_service_arg_type<std::vector<bool>>() { return SERVICE_ARG_TYPE_BOOL_ARRAY; }
+template<> ServiceArgType to_service_arg_type<std::vector<int>>() { return SERVICE_ARG_TYPE_INT_ARRAY; }
+template<> ServiceArgType to_service_arg_type<std::vector<float>>() { return SERVICE_ARG_TYPE_FLOAT_ARRAY; }
+template<> ServiceArgType to_service_arg_type<std::vector<std::string>>() { return SERVICE_ARG_TYPE_STRING_ARRAY; }
 
 }  // namespace api
 }  // namespace esphome

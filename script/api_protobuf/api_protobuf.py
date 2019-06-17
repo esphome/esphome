@@ -162,6 +162,7 @@ TYPE_INFO = {}
 def register_type(name):
     def func(value):
         TYPE_INFO[name] = value
+        return value
 
     return func
 
@@ -474,15 +475,20 @@ class RepeatedTypeInfo(TypeInfo):
         }}''')
 
     @property
+    def _ti_is_bool(self):
+        # std::vector is specialized for bool, reference does not work
+        return isinstance(self._ti, BoolType)
+
+    @property
     def encode_content(self):
         return f"""\
-        for (auto &it : this->{self.field_name}) {{
+        for (auto {'' if self._ti_is_bool else '&'}it : this->{self.field_name}) {{
           buffer.{self._ti.encode_func}({self.number}, it, true);
         }}"""
 
     @property
     def dump_content(self):
-        o = f'for (const auto &it : this->{self.field_name}) {{\n'
+        o = f'for (const auto {"" if self._ti_is_bool else "&"}it : this->{self.field_name}) {{\n'
         o += f'  out.append("  {self.name}: ");\n'
         o += indent(self._ti.dump('it')) + '\n'
         o += f'  out.append("\\n");\n'

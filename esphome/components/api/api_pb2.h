@@ -38,6 +38,10 @@ enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_INT = 1,
   SERVICE_ARG_TYPE_FLOAT = 2,
   SERVICE_ARG_TYPE_STRING = 3,
+  SERVICE_ARG_TYPE_BOOL_ARRAY = 4,
+  SERVICE_ARG_TYPE_INT_ARRAY = 5,
+  SERVICE_ARG_TYPE_FLOAT_ARRAY = 6,
+  SERVICE_ARG_TYPE_STRING_ARRAY = 7,
 };
 enum ClimateMode : uint32_t {
   CLIMATE_MODE_OFF = 0,
@@ -555,10 +559,15 @@ class ListEntitiesServicesResponse : public ProtoMessage {
 };
 class ExecuteServiceArgument : public ProtoMessage {
  public:
-  bool bool_{false};      // NOLINT
-  int32_t int_{0};        // NOLINT
-  float float_{0.0f};     // NOLINT
-  std::string string_{};  // NOLINT
+  bool bool_{false};                        // NOLINT
+  int32_t legacy_int{0};                    // NOLINT
+  float float_{0.0f};                       // NOLINT
+  std::string string_{};                    // NOLINT
+  int32_t int_{0};                          // NOLINT
+  std::vector<bool> bool_array{};           // NOLINT
+  std::vector<int32_t> int_array{};         // NOLINT
+  std::vector<float> float_array{};         // NOLINT
+  std::vector<std::string> string_array{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

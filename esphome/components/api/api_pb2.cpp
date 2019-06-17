@@ -80,6 +80,14 @@ template<> const char *proto_enum_to_string<ServiceArgType>(ServiceArgType value
       return "SERVICE_ARG_TYPE_FLOAT";
     case SERVICE_ARG_TYPE_STRING:
       return "SERVICE_ARG_TYPE_STRING";
+    case SERVICE_ARG_TYPE_BOOL_ARRAY:
+      return "SERVICE_ARG_TYPE_BOOL_ARRAY";
+    case SERVICE_ARG_TYPE_INT_ARRAY:
+      return "SERVICE_ARG_TYPE_INT_ARRAY";
+    case SERVICE_ARG_TYPE_FLOAT_ARRAY:
+      return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
+    case SERVICE_ARG_TYPE_STRING_ARRAY:
+      return "SERVICE_ARG_TYPE_STRING_ARRAY";
     default:
       return "UNKNOWN";
   }
@@ -2054,7 +2062,19 @@ bool ExecuteServiceArgument::decode_varint(uint32_t field_id, ProtoVarInt value)
       return true;
     }
     case 2: {
-      this->int_ = value.as_int32();
+      this->legacy_int = value.as_int32();
+      return true;
+    }
+    case 5: {
+      this->int_ = value.as_sint32();
+      return true;
+    }
+    case 6: {
+      this->bool_array.push_back(value.as_bool());
+      return true;
+    }
+    case 7: {
+      this->int_array.push_back(value.as_sint32());
       return true;
     }
     default:
@@ -2067,6 +2087,10 @@ bool ExecuteServiceArgument::decode_length(uint32_t field_id, ProtoLengthDelimit
       this->string_ = value.as_string();
       return true;
     }
+    case 9: {
+      this->string_array.push_back(value.as_string());
+      return true;
+    }
     default:
       return false;
   }
@@ -2077,15 +2101,32 @@ bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, Proto32Bit value) {
       this->float_ = value.as_float();
       return true;
     }
+    case 8: {
+      this->float_array.push_back(value.as_float());
+      return true;
+    }
     default:
       return false;
   }
 }
 void ExecuteServiceArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(1, this->bool_);
-  buffer.encode_int32(2, this->int_);
+  buffer.encode_int32(2, this->legacy_int);
   buffer.encode_float(3, this->float_);
   buffer.encode_string(4, this->string_);
+  buffer.encode_sint32(5, this->int_);
+  for (auto it : this->bool_array) {
+    buffer.encode_bool(6, it, true);
+  }
+  for (auto &it : this->int_array) {
+    buffer.encode_sint32(7, it, true);
+  }
+  for (auto &it : this->float_array) {
+    buffer.encode_float(8, it, true);
+  }
+  for (auto &it : this->string_array) {
+    buffer.encode_string(9, it, true);
+  }
 }
 void ExecuteServiceArgument::dump_to(std::string &out) const {
   char buffer[64];
@@ -2094,8 +2135,8 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append(YESNO(this->bool_));
   out.append("\n");
 
-  out.append("  int_: ");
-  sprintf(buffer, "%d", this->int_);
+  out.append("  legacy_int: ");
+  sprintf(buffer, "%d", this->legacy_int);
   out.append(buffer);
   out.append("\n");
 
@@ -2107,6 +2148,37 @@ void ExecuteServiceArgument::dump_to(std::string &out) const {
   out.append("  string_: ");
   out.append("'").append(this->string_).append("'");
   out.append("\n");
+
+  out.append("  int_: ");
+  sprintf(buffer, "%d", this->int_);
+  out.append(buffer);
+  out.append("\n");
+
+  for (const auto it : this->bool_array) {
+    out.append("  bool_array: ");
+    out.append(YESNO(it));
+    out.append("\n");
+  }
+
+  for (const auto &it : this->int_array) {
+    out.append("  int_array: ");
+    sprintf(buffer, "%d", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+
+  for (const auto &it : this->float_array) {
+    out.append("  float_array: ");
+    sprintf(buffer, "%g", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+
+  for (const auto &it : this->string_array) {
+    out.append("  string_array: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
   out.append("}");
 }
 bool ExecuteServiceRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {

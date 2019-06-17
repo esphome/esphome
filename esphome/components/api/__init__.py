@@ -15,18 +15,15 @@ APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
 UserServiceTrigger = api_ns.class_('UserServiceTrigger', automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_('ListEntitiesServicesArgument')
-ServiceArgType = api_ns.enum('ServiceArgType')
-SERVICE_ARG_TYPES = {
-    'bool': ServiceArgType.SERVICE_ARG_TYPE_BOOL,
-    'int': ServiceArgType.SERVICE_ARG_TYPE_INT,
-    'float': ServiceArgType.SERVICE_ARG_TYPE_FLOAT,
-    'string': ServiceArgType.SERVICE_ARG_TYPE_STRING,
-}
 SERVICE_ARG_NATIVE_TYPES = {
     'bool': bool,
     'int': cg.int32,
     'float': float,
     'string': cg.std_string,
+    'bool[]': cg.std_vector.template(bool),
+    'int[]': cg.std_vector.template(cg.int32),
+    'float[]': cg.std_vector.template(float),
+    'string[]': cg.std_vector.template(cg.std_string),
 }
 
 CONFIG_SCHEMA = cv.Schema({
@@ -38,7 +35,7 @@ CONFIG_SCHEMA = cv.Schema({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Required(CONF_SERVICE): cv.valid_name,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema({
-            cv.validate_id_name: cv.one_of(*SERVICE_ARG_TYPES, lower=True),
+            cv.validate_id_name: cv.one_of(*SERVICE_ARG_NATIVE_TYPES, lower=True),
         }),
     }),
 }).extend(cv.COMPONENT_SCHEMA)

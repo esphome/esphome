@@ -51,39 +51,20 @@ void APIConnection::parse_recv_buffer_() {
     }
     uint32_t i = 1;
     const uint32_t size = this->recv_buffer_.size();
-    uint32_t msg_size = 0;
-    while (i < size) {
-      const uint8_t dat = this->recv_buffer_[i];
-      msg_size |= (dat & 0x7F);
-      // consume
-      i += 1;
-      if ((dat & 0x80) == 0x00) {
-        break;
-      } else {
-        msg_size <<= 7;
-      }
-    }
-    if (i == size)
+    uint32_t consumed;
+    auto msg_size_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
+    if (!msg_size_varint.has_value())
       // not enough data there yet
       return;
+    i += consumed;
+    uint32_t msg_size = msg_size_varint->as_uint32();
 
-    uint32_t msg_type = 0;
-    bool msg_type_done = false;
-    while (i < size) {
-      const uint8_t dat = this->recv_buffer_[i];
-      msg_type |= (dat & 0x7F);
-      // consume
-      i += 1;
-      if ((dat & 0x80) == 0x00) {
-        msg_type_done = true;
-        break;
-      } else {
-        msg_type <<= 7;
-      }
-    }
-    if (!msg_type_done)
+    auto msg_type_varint = ProtoVarInt::parse(&this->recv_buffer_[i], size - i, &consumed);
+    if (!msg_type_varint.has_value())
       // not enough data there yet
       return;
+    i += consumed;
+    uint32_t msg_type = msg_type_varint->as_uint32();
 
     if (size - i < msg_size)
       // message body not fully received
@@ -579,7 +560,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 2;
+  resp.api_version_minor = 3;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   this->connection_state_ = ConnectionState::CONNECTED;
   return resp;
