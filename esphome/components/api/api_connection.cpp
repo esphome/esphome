@@ -148,7 +148,7 @@ void APIConnection::loop() {
     // reserve 15 bytes for metadata, and at least 64 bytes of data
     if (space >= 15 + 64) {
       uint32_t to_send = std::min(space - 15, this->image_reader_.available());
-      auto buffer = this->get_buffer();
+      auto buffer = this->create_buffer();
       // fixed32 key = 1;
       buffer.encode_fixed32(1, esp32_camera::global_esp32_camera->get_object_id_hash());
       // bytes data = 2;
@@ -157,7 +157,7 @@ void APIConnection::loop() {
       bool done = this->image_reader_.available() == to_send;
       buffer.encode_bool(3, done);
       this->set_nodelay(false);
-      bool success = this->send_buffer(APIMessageType::CAMERA_IMAGE_RESPONSE);
+      bool success = this->send_buffer(buffer, 44);
 
       if (success) {
         this->image_reader_.consume_data(to_send);
@@ -512,6 +512,40 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_ESP32_CAMERA
+void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
+  if (!this->state_subscription_)
+    return;
+  if (this->image_reader_.available())
+    return;
+  this->image_reader_.set_image(image);
+}
+bool APIConnection::send_camera_info(esp32_camera::ESP32Camera *camera) {
+  ListEntitiesCameraResponse msg;
+  msg.key = camera->get_object_id_hash();
+  msg.object_id = camera->get_object_id();
+  msg.name = camera->get_name();
+  msg.unique_id = get_default_unique_id("camera", camera);
+  return this->send_list_entities_camera_response(msg);
+}
+void APIConnection::camera_image(const CameraImageRequest &msg) {
+  if (esp32_camera::global_esp32_camera == nullptr)
+    return;
+
+  if (msg.single)
+    esp32_camera::global_esp32_camera->request_image();
+  if (msg.stream)
+    esp32_camera::global_esp32_camera->request_stream();
+}
+#endif
+
+#ifdef USE_HOMEASSISTANT_TIME
+void APIConnection::on_get_time_response(const GetTimeResponse &value) {
+  if (homeassistant::global_homeassistant_time != nullptr)
+    homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -650,23 +684,6 @@ void APIConnection::on_fatal_error() {
   this->client_->close();
   this->remove_ = true;
 }
-
-#ifdef USE_HOMEASSISTANT_TIME
-void APIConnection::on_get_time_response(const GetTimeResponse &value) {
-  if (homeassistant::global_homeassistant_time != nullptr)
-    homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
-}
-#endif
-
-#ifdef USE_ESP32_CAMERA
-void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
-  if (!this->state_subscription_)
-    return;
-  if (this->image_reader_.available())
-    return;
-  this->image_reader_.set_image(image);
-}
-#endif
 
 }  // namespace api
 }  // namespace esphome

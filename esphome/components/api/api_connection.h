@@ -55,18 +55,8 @@ class APIConnection : public APIServerConnection {
 #endif
 #ifdef USE_ESP32_CAMERA
   void send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image);
-  bool send_camera_info() {
-    // TODO
-  }
-  void camera_image(const CameraImageRequest &msg) override {
-    if (esp32_camera::global_esp32_camera == nullptr)
-      return;
-
-    if (msg.single)
-      esp32_camera::global_esp32_camera->request_image();
-    if (msg.stream)
-      esp32_camera::global_esp32_camera->request_stream();
-  }
+  bool send_camera_info(esp32_camera::ESP32Camera *camera);
+  void camera_image(const CameraImageRequest &msg) override;
 #endif
 #ifdef USE_CLIMATE
   bool send_climate_state(climate::Climate *climate);

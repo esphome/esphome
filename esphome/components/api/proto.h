@@ -140,6 +140,9 @@ class ProtoWriteBuffer {
   void encode_string(uint32_t field_id, const std::string &value, bool force = false) {
     this->encode_string(field_id, value.data(), value.size());
   }
+  void encode_bytes(uint32_t field_id, const uint8_t *data, size_t len, bool force = false) {
+    this->encode_string(field_id, reinterpret_cast<const char *>(data), len, force);
+  }
   void encode_uint32(uint32_t field_id, uint32_t value, bool force = false) {
     if (value == 0 && !force)
       return;
