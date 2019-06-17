@@ -11,8 +11,6 @@ DEPENDENCIES = ['network']
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
 HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', automation.Action)
-KeyValuePair = api_ns.class_('KeyValuePair')
-TemplatableKeyValuePair = api_ns.class_('TemplatableKeyValuePair')
 APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
 UserService = api_ns.class_('UserService', automation.Trigger)
@@ -80,13 +78,13 @@ def to_code(config):
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
     cv.Required(CONF_SERVICE): cv.string,
-    cv.Optional(CONF_DATA): cv.Schema({
+    cv.Optional(CONF_DATA, default={}): cv.Schema({
         cv.string: cv.string,
     }),
-    cv.Optional(CONF_DATA_TEMPLATE): cv.Schema({
+    cv.Optional(CONF_DATA_TEMPLATE, default={}): cv.Schema({
         cv.string: cv.string,
     }),
-    cv.Optional(CONF_VARIABLES): cv.Schema({
+    cv.Optional(CONF_VARIABLES, default={}): cv.Schema({
         cv.string: cv.returning_lambda,
     }),
 })
@@ -98,18 +96,15 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
     serv = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv)
     cg.add(var.set_service(config[CONF_SERVICE]))
-    if CONF_DATA in config:
-        datas = [KeyValuePair(k, v) for k, v in config[CONF_DATA].items()]
-        cg.add(var.set_data(datas))
-    if CONF_DATA_TEMPLATE in config:
-        datas = [KeyValuePair(k, v) for k, v in config[CONF_DATA_TEMPLATE].items()]
-        cg.add(var.set_data_template(datas))
-    if CONF_VARIABLES in config:
-        datas = []
-        for key, value in config[CONF_VARIABLES].items():
-            value_ = yield cg.process_lambda(value, [])
-            datas.append(TemplatableKeyValuePair(key, value_))
-        cg.add(var.set_variables(datas))
+    for key, value in config[CONF_DATA].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_data(key, templ))
+    for key, value in config[CONF_DATA_TEMPLATE].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_data_template(key, templ))
+    for key, value in config[CONF_VARIABLES].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_variable(key, templ))
     yield var
 
 
