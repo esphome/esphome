@@ -111,7 +111,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_climate_command_request(const ClimateCommandRequest &value){};
 #endif
  protected:
-  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data);
+  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
 
 class APIServerConnection : public APIServerConnectionBase {

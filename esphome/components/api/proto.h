@@ -226,7 +226,7 @@ class ProtoService {
   virtual bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) = 0;
   virtual void set_nodelay(bool nodelay) = 0;
 
-  template<class C> bool send_message(const C &msg, uint32_t message_type) {
+  template<class C> bool send_message_(const C &msg, uint32_t message_type) {
     auto buffer = this->create_buffer();
     msg.encode(buffer);
     return this->send_buffer(buffer, message_type);

@@ -700,7 +700,7 @@ def build_service_message_type(mt):
         if log:
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
         cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
-        cout += f'  return this->send_message<{mt.name}>(msg, {id_});\n'
+        cout += f'  return this->send_message_<{mt.name}>(msg, {id_});\n'
         cout += f'}}\n'
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
         # Generate receive
@@ -762,7 +762,7 @@ for mt in file.message_type:
 cases = list(RECEIVE_CASES.items())
 cases.sort()
 hpp += ' protected:\n'
-hpp += f'  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data);\n'
+hpp += f'  bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;\n'
 out = f'bool {class_name}::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {{\n'
 out += f'  switch(msg_type) {{\n'
 for i, case in cases:
