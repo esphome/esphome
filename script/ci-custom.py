@@ -28,6 +28,7 @@ EXECUTABLE_BIT = {
     s[3].strip(): int(s[0]) for s in lines
 }
 files = [s[3].strip() for s in lines]
+files = filter(os.path.exists, files)
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',

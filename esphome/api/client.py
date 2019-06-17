@@ -14,7 +14,7 @@ import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
 from esphome.helpers import resolve_ip_address, indent, color
-from esphome.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte, format_bytes
+from esphome.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)

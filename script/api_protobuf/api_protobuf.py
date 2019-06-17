@@ -6,6 +6,7 @@ It's pretty crappy spaghetti code, but it works.
 import re
 from pathlib import Path
 from textwrap import dedent
+from subprocess import call
 
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
@@ -15,6 +16,7 @@ import google.protobuf.descriptor_pb2 as descriptor
 cwd = Path(__file__).parent
 root = cwd.parent.parent / 'esphome' / 'components' / 'api'
 prot = cwd / 'api.protoc'
+call(['protoc', '-o', prot, '-I', root, 'api.proto'])
 content = prot.read_bytes()
 
 d = descriptor.FileDescriptorSet.FromString(content)
@@ -854,3 +856,5 @@ with open(root / 'api_pb2_service.h', 'w') as f:
 
 with open(root / 'api_pb2_service.cpp', 'w') as f:
     f.write(cpp)
+
+prot.unlink()
