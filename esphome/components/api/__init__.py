@@ -13,7 +13,7 @@ APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
 HomeAssistantServiceCallAction = api_ns.class_('HomeAssistantServiceCallAction', automation.Action)
 APIConnectedCondition = api_ns.class_('APIConnectedCondition', Condition)
 
-UserService = api_ns.class_('UserService', automation.Trigger)
+UserServiceTrigger = api_ns.class_('UserServiceTrigger', automation.Trigger)
 ListEntitiesServicesArgument = api_ns.class_('ListEntitiesServicesArgument')
 ServiceArgType = api_ns.enum('ServiceArgType')
 SERVICE_ARG_TYPES = {
@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PASSWORD, default=''): cv.string_strict,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SERVICES): automation.validate_automation({
-        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserService),
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Required(CONF_SERVICE): cv.valid_name,
         cv.Optional(CONF_VARIABLES, default={}): cv.Schema({
             cv.validate_id_name: cv.one_of(*SERVICE_ARG_TYPES, lower=True),
@@ -69,6 +69,7 @@ def to_code(config):
         yield automation.build_automation(trigger, func_args, conf)
 
     cg.add_define('USE_API')
+    cg.add_global(api_ns.using)
     if CORE.is_esp32:
         cg.add_library('AsyncTCP', '1.0.3')
     elif CORE.is_esp8266:
