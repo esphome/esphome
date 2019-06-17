@@ -1800,9 +1800,11 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
-void SubscribeServiceCallsRequest::encode(ProtoWriteBuffer buffer) const {}
-void SubscribeServiceCallsRequest::dump_to(std::string &out) const { out.append("SubscribeServiceCallsRequest {}"); }
-bool ServiceCallMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+void SubscribeHomeassistantServicesRequest::encode(ProtoWriteBuffer buffer) const {}
+void SubscribeHomeassistantServicesRequest::dump_to(std::string &out) const {
+  out.append("SubscribeHomeassistantServicesRequest {}");
+}
+bool HomeassistantServiceMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->key = value.as_string();
@@ -1816,13 +1818,13 @@ bool ServiceCallMap::decode_length(uint32_t field_id, ProtoLengthDelimited value
       return false;
   }
 }
-void ServiceCallMap::encode(ProtoWriteBuffer buffer) const {
+void HomeassistantServiceMap::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->key);
   buffer.encode_string(2, this->value);
 }
-void ServiceCallMap::dump_to(std::string &out) const {
+void HomeassistantServiceMap::dump_to(std::string &out) const {
   char buffer[64];
-  out.append("ServiceCallMap {\n");
+  out.append("HomeassistantServiceMap {\n");
   out.append("  key: ");
   out.append("'").append(this->key).append("'");
   out.append("\n");
@@ -1832,43 +1834,54 @@ void ServiceCallMap::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
-bool ServiceCallResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+bool HomeassistantServiceResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
-    case 1: {
-      this->service = value.as_string();
-      return true;
-    }
-    case 2: {
-      this->data.push_back(value.as_message<ServiceCallMap>());
-      return true;
-    }
-    case 3: {
-      this->data_template.push_back(value.as_message<ServiceCallMap>());
-      return true;
-    }
-    case 4: {
-      this->variables.push_back(value.as_message<ServiceCallMap>());
+    case 5: {
+      this->is_event = value.as_bool();
       return true;
     }
     default:
       return false;
   }
 }
-void ServiceCallResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->service);
-  for (auto &it : this->data) {
-    buffer.encode_message<ServiceCallMap>(2, it, true);
-  }
-  for (auto &it : this->data_template) {
-    buffer.encode_message<ServiceCallMap>(3, it, true);
-  }
-  for (auto &it : this->variables) {
-    buffer.encode_message<ServiceCallMap>(4, it, true);
+bool HomeassistantServiceResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->service = value.as_string();
+      return true;
+    }
+    case 2: {
+      this->data.push_back(value.as_message<HomeassistantServiceMap>());
+      return true;
+    }
+    case 3: {
+      this->data_template.push_back(value.as_message<HomeassistantServiceMap>());
+      return true;
+    }
+    case 4: {
+      this->variables.push_back(value.as_message<HomeassistantServiceMap>());
+      return true;
+    }
+    default:
+      return false;
   }
 }
-void ServiceCallResponse::dump_to(std::string &out) const {
+void HomeassistantServiceResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->service);
+  for (auto &it : this->data) {
+    buffer.encode_message<HomeassistantServiceMap>(2, it, true);
+  }
+  for (auto &it : this->data_template) {
+    buffer.encode_message<HomeassistantServiceMap>(3, it, true);
+  }
+  for (auto &it : this->variables) {
+    buffer.encode_message<HomeassistantServiceMap>(4, it, true);
+  }
+  buffer.encode_bool(5, this->is_event);
+}
+void HomeassistantServiceResponse::dump_to(std::string &out) const {
   char buffer[64];
-  out.append("ServiceCallResponse {\n");
+  out.append("HomeassistantServiceResponse {\n");
   out.append("  service: ");
   out.append("'").append(this->service).append("'");
   out.append("\n");
@@ -1890,6 +1903,10 @@ void ServiceCallResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  is_event: ");
+  out.append(YESNO(this->is_event));
+  out.append("\n");
   out.append("}");
 }
 void SubscribeHomeAssistantStatesRequest::encode(ProtoWriteBuffer buffer) const {}

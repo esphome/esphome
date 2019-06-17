@@ -81,8 +81,8 @@ class APIServerConnectionBase : public ProtoService {
 #endif
   virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
   bool send_subscribe_logs_response(const SubscribeLogsResponse &msg);
-  virtual void on_subscribe_service_calls_request(const SubscribeServiceCallsRequest &value){};
-  bool send_service_call_response(const ServiceCallResponse &msg);
+  virtual void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &value){};
+  bool send_homeassistant_service_response(const HomeassistantServiceResponse &msg);
   virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
   bool send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg);
   virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
@@ -124,7 +124,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void list_entities(const ListEntitiesRequest &msg) = 0;
   virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
-  virtual void subscribe_service_calls(const SubscribeServiceCallsRequest &msg) = 0;
+  virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
   virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
@@ -155,7 +155,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_list_entities_request(const ListEntitiesRequest &msg) override;
   void on_subscribe_states_request(const SubscribeStatesRequest &msg) override;
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
-  void on_subscribe_service_calls_request(const SubscribeServiceCallsRequest &msg) override;
+  void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
   void on_get_time_request(const GetTimeRequest &msg) override;
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;

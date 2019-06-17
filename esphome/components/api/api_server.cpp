@@ -202,9 +202,9 @@ void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
-void APIServer::send_service_call(const ServiceCallResponse &call) {
+void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto *client : this->clients_) {
-    client->send_service_call(call);
+    client->send_homeassistant_service_call(call);
   }
 }
 APIServer::APIServer() { global_api_server = this; }

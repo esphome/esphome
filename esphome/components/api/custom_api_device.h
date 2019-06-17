@@ -50,7 +50,7 @@ class CustomAPIDevice {
   void call_homeassistant_service(const std::string &service_name) {
     ServiceCallResponse resp;
     resp.service = service_name;
-    global_api_server->send_service_call(resp);
+    global_api_server->send_homeassistant_service_call(resp);
   }
 
   void call_homeassistant_service(const std::string &service_name,
@@ -63,7 +63,7 @@ class CustomAPIDevice {
       kv.value = it.second;
       resp.data.push_back(kv);
     }
-    global_api_server->send_service_call(resp);
+    global_api_server->send_homeassistant_service_call(resp);
   }
 };
 

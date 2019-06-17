@@ -25,7 +25,7 @@ service APIConnection {
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
-  rpc subscribe_service_calls (SubscribeServiceCallsRequest) returns (void) {}
+  rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
   rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
     option (needs_authentication) = false;
@@ -502,25 +502,26 @@ message SubscribeLogsResponse {
 }
 
 // ==================== HOMEASSISTANT.SERVICE ====================
-message SubscribeServiceCallsRequest {
+message SubscribeHomeassistantServicesRequest {
   option (id) = 34;
   option (source) = SOURCE_CLIENT;
 }
 
-message ServiceCallMap {
+message HomeassistantServiceMap {
   string key = 1;
   string value = 2;
 }
 
-message ServiceCallResponse {
+message HomeassistantServiceResponse {
   option (id) = 35;
   option (source) = SOURCE_SERVER;
   option (no_delay) = true;
 
   string service = 1;
-  repeated ServiceCallMap data = 2;
-  repeated ServiceCallMap data_template = 3;
-  repeated ServiceCallMap variables = 4;
+  repeated HomeassistantServiceMap data = 2;
+  repeated HomeassistantServiceMap data_template = 3;
+  repeated HomeassistantServiceMap variables = 4;
+  bool is_event = 5;
 }
 
 // ==================== IMPORT HOME ASSISTANT STATES ====================

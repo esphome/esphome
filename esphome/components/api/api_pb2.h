@@ -463,14 +463,14 @@ class SubscribeLogsResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class SubscribeServiceCallsRequest : public ProtoMessage {
+class SubscribeHomeassistantServicesRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
 };
-class ServiceCallMap : public ProtoMessage {
+class HomeassistantServiceMap : public ProtoMessage {
  public:
   std::string key{};    // NOLINT
   std::string value{};  // NOLINT
@@ -480,17 +480,19 @@ class ServiceCallMap : public ProtoMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
-class ServiceCallResponse : public ProtoMessage {
+class HomeassistantServiceResponse : public ProtoMessage {
  public:
-  std::string service{};                        // NOLINT
-  std::vector<ServiceCallMap> data{};           // NOLINT
-  std::vector<ServiceCallMap> data_template{};  // NOLINT
-  std::vector<ServiceCallMap> variables{};      // NOLINT
+  std::string service{};                                 // NOLINT
+  std::vector<HomeassistantServiceMap> data{};           // NOLINT
+  std::vector<HomeassistantServiceMap> data_template{};  // NOLINT
+  std::vector<HomeassistantServiceMap> variables{};      // NOLINT
+  bool is_event{false};                                  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeHomeAssistantStatesRequest : public ProtoMessage {
  public:

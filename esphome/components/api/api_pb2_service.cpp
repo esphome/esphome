@@ -156,10 +156,10 @@ bool APIServerConnectionBase::send_subscribe_logs_response(const SubscribeLogsRe
   this->set_nodelay(false);
   return this->send_message_<SubscribeLogsResponse>(msg, 29);
 }
-bool APIServerConnectionBase::send_service_call_response(const ServiceCallResponse &msg) {
-  ESP_LOGVV(TAG, "send_service_call_response: %s", msg.dump().c_str());
+bool APIServerConnectionBase::send_homeassistant_service_response(const HomeassistantServiceResponse &msg) {
+  ESP_LOGVV(TAG, "send_homeassistant_service_response: %s", msg.dump().c_str());
   this->set_nodelay(true);
-  return this->send_message_<ServiceCallResponse>(msg, 35);
+  return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
 bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
     const SubscribeHomeAssistantStateResponse &msg) {
@@ -323,10 +323,10 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 34: {
-      SubscribeServiceCallsRequest msg;
+      SubscribeHomeassistantServicesRequest msg;
       msg.decode(msg_data, msg_size);
-      ESP_LOGVV(TAG, "on_subscribe_service_calls_request: %s", msg.dump().c_str());
-      this->on_subscribe_service_calls_request(msg);
+      ESP_LOGVV(TAG, "on_subscribe_homeassistant_services_request: %s", msg.dump().c_str());
+      this->on_subscribe_homeassistant_services_request(msg);
       break;
     }
     case 36: {
@@ -455,7 +455,8 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_service_calls_request(const SubscribeServiceCallsRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(
+    const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -464,7 +465,7 @@ void APIServerConnection::on_subscribe_service_calls_request(const SubscribeServ
     this->on_unauthenticated_access();
     return;
   }
-  this->subscribe_service_calls(msg);
+  this->subscribe_homeassistant_services(msg);
 }
 void APIServerConnection::on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) {
   if (!this->is_connection_setup()) {

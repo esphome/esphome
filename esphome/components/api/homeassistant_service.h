@@ -17,7 +17,7 @@ template<typename... Ts> class TemplatableKeyValuePair {
 
 template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts...> {
  public:
-  explicit HomeAssistantServiceCallAction(APIServer *parent) : parent_(parent) {}
+  explicit HomeAssistantServiceCallAction(APIServer *parent, bool is_event) : parent_(parent), is_event_(is_event) {}
 
   TEMPLATABLE_STRING_VALUE(service);
   template<typename T> void add_data(std::string key, T value) {
@@ -30,22 +30,23 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->variables_.push_back(TemplatableKeyValuePair<Ts...>(key, value));
   }
   void play(Ts... x) override {
-    ServiceCallResponse resp;
+    HomeassistantServiceResponse resp;
     resp.service = this->service_.value(x...);
+    resp.is_event = this->is_event_;
     for (auto &it : this->data_) {
-      ServiceCallMap kv;
+      HomeassistantServiceMap kv;
       kv.key = it.key;
       kv.value = it.value.value(x...);
       resp.data.push_back(kv);
     }
     for (auto &it : this->data_template_) {
-      ServiceCallMap kv;
+      HomeassistantServiceMap kv;
       kv.key = it.key;
       kv.value = it.value.value(x...);
       resp.data_template.push_back(kv);
     }
     for (auto &it : this->variables_) {
-      ServiceCallMap kv;
+      HomeassistantServiceMap kv;
       kv.key = it.key;
       kv.value = it.value.value(x...);
       resp.variables.push_back(kv);
@@ -55,6 +56,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
 
  protected:
   APIServer *parent_;
+  bool is_event_;
   std::vector<TemplatableKeyValuePair<Ts...>> data_;
   std::vector<TemplatableKeyValuePair<Ts...>> data_template_;
   std::vector<TemplatableKeyValuePair<Ts...>> variables_;

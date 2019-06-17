@@ -64,10 +64,10 @@ class APIConnection : public APIServerConnection {
   void climate_command(const ClimateCommandRequest &msg) override;
 #endif
   bool send_log_message(int level, const char *tag, const char *line);
-  void send_service_call(const ServiceCallResponse &call) {
+  void send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
     if (!this->service_call_subscription_)
       return;
-    this->send_service_call_response(call);
+    this->send_homeassistant_service_response(call);
   }
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
@@ -108,7 +108,7 @@ class APIConnection : public APIServerConnection {
     if (msg.dump_config)
       App.schedule_dump_config();
   }
-  void subscribe_service_calls(const SubscribeServiceCallsRequest &msg) override {
+  void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) override {
     this->service_call_subscription_ = true;
   }
   void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) override;

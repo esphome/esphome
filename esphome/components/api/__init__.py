@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
-    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID
+    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT
 from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ['network']
@@ -73,18 +73,14 @@ def to_code(config):
         cg.add_library('ESPAsyncTCP', '1.2.0')
 
 
+KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string)})
+
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
-    cv.Required(CONF_SERVICE): cv.string,
-    cv.Optional(CONF_DATA, default={}): cv.Schema({
-        cv.string: cv.string,
-    }),
-    cv.Optional(CONF_DATA_TEMPLATE, default={}): cv.Schema({
-        cv.string: cv.string,
-    }),
-    cv.Optional(CONF_VARIABLES, default={}): cv.Schema({
-        cv.string: cv.returning_lambda,
-    }),
+    cv.Required(CONF_SERVICE): cv.templatable(cv.string),
+    cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
 })
 
 
@@ -92,8 +88,45 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
                             HOMEASSISTANT_SERVICE_ACTION_SCHEMA)
 def homeassistant_service_to_code(config, action_id, template_arg, args):
     serv = yield cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, serv)
-    cg.add(var.set_service(config[CONF_SERVICE]))
+    var = cg.new_Pvariable(action_id, template_arg, serv, False)
+    templ = cg.templatable(config[CONF_SERVICE], args, None)
+    cg.add(var.set_service(templ))
+    for key, value in config[CONF_DATA].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_data(key, templ))
+    for key, value in config[CONF_DATA_TEMPLATE].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_data_template(key, templ))
+    for key, value in config[CONF_VARIABLES].items():
+        templ = yield cg.templatable(value, args, None)
+        cg.add(var.add_variable(key, templ))
+    yield var
+
+
+def validate_homeassistant_event(value):
+    value = cv.string(value)
+    if not value.startswith(u'esphome.'):
+        raise cv.Invalid("ESPHome can only generate Home Assistant events that begin with "
+                         "esphome. For example 'esphome.xyz'")
+    return value
+
+
+HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.use_id(APIServer),
+    cv.Required(CONF_EVENT): validate_homeassistant_event,
+    cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+})
+
+
+@automation.register_action('homeassistant.event', HomeAssistantServiceCallAction,
+                            HOMEASSISTANT_EVENT_ACTION_SCHEMA)
+def homeassistant_event_to_code(config, action_id, template_arg, args):
+    serv = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, serv, True)
+    templ = cg.templatable(config[CONF_SERVICE], args, None)
+    cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
         templ = yield cg.templatable(value, args, None)
         cg.add(var.add_data(key, templ))

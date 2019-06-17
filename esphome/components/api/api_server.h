@@ -9,7 +9,7 @@
 #include "util.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
-#include "service_call_message.h"
+#include "homeassistant_service.h"
 #include "user_services.h"
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -61,7 +61,7 @@ class APIServer : public Component, public Controller {
 #ifdef USE_CLIMATE
   void on_climate_update(climate::Climate *obj) override;
 #endif
-  void send_service_call(const ServiceCallResponse &call);
+  void send_homeassistant_service_call(const ServiceCallResponse &call);
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
