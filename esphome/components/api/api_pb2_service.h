@@ -8,108 +8,108 @@ namespace api {
 
 class APIServerConnectionBase : public ProtoService {
  public:
-  virtual void on_hello_request(const HelloRequest &value) {};
+  virtual void on_hello_request(const HelloRequest &value){};
   bool send_hello_response(const HelloResponse &msg);
-  virtual void on_connect_request(const ConnectRequest &value) {};
+  virtual void on_connect_request(const ConnectRequest &value){};
   bool send_connect_response(const ConnectResponse &msg);
   bool send_disconnect_request(const DisconnectRequest &msg);
-  virtual void on_disconnect_request(const DisconnectRequest &value) {};
+  virtual void on_disconnect_request(const DisconnectRequest &value){};
   bool send_disconnect_response(const DisconnectResponse &msg);
-  virtual void on_disconnect_response(const DisconnectResponse &value) {};
+  virtual void on_disconnect_response(const DisconnectResponse &value){};
   bool send_ping_request(const PingRequest &msg);
-  virtual void on_ping_request(const PingRequest &value) {};
+  virtual void on_ping_request(const PingRequest &value){};
   bool send_ping_response(const PingResponse &msg);
-  virtual void on_ping_response(const PingResponse &value) {};
-  virtual void on_device_info_request(const DeviceInfoRequest &value) {};
+  virtual void on_ping_response(const PingResponse &value){};
+  virtual void on_device_info_request(const DeviceInfoRequest &value){};
   bool send_device_info_response(const DeviceInfoResponse &msg);
-  virtual void on_list_entities_request(const ListEntitiesRequest &value) {};
+  virtual void on_list_entities_request(const ListEntitiesRequest &value){};
   bool send_list_entities_done_response(const ListEntitiesDoneResponse &msg);
-  virtual void on_subscribe_states_request(const SubscribeStatesRequest &value) {};
-  #ifdef USE_BINARY_SENSOR
+  virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
+#ifdef USE_BINARY_SENSOR
   bool send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg);
-  #endif
-  #ifdef USE_BINARY_SENSOR
+#endif
+#ifdef USE_BINARY_SENSOR
   bool send_binary_sensor_state_response(const BinarySensorStateResponse &msg);
-  #endif
-  #ifdef USE_COVER
+#endif
+#ifdef USE_COVER
   bool send_list_entities_cover_response(const ListEntitiesCoverResponse &msg);
-  #endif
-  #ifdef USE_COVER
+#endif
+#ifdef USE_COVER
   bool send_cover_state_response(const CoverStateResponse &msg);
-  #endif
-  #ifdef USE_COVER
-  virtual void on_cover_command_request(const CoverCommandRequest &value) {};
-  #endif
-  #ifdef USE_FAN
+#endif
+#ifdef USE_COVER
+  virtual void on_cover_command_request(const CoverCommandRequest &value){};
+#endif
+#ifdef USE_FAN
   bool send_list_entities_fan_response(const ListEntitiesFanResponse &msg);
-  #endif
-  #ifdef USE_FAN
+#endif
+#ifdef USE_FAN
   bool send_fan_state_response(const FanStateResponse &msg);
-  #endif
-  #ifdef USE_FAN
-  virtual void on_fan_command_request(const FanCommandRequest &value) {};
-  #endif
-  #ifdef USE_LIGHT
+#endif
+#ifdef USE_FAN
+  virtual void on_fan_command_request(const FanCommandRequest &value){};
+#endif
+#ifdef USE_LIGHT
   bool send_list_entities_light_response(const ListEntitiesLightResponse &msg);
-  #endif
-  #ifdef USE_LIGHT
+#endif
+#ifdef USE_LIGHT
   bool send_light_state_response(const LightStateResponse &msg);
-  #endif
-  #ifdef USE_LIGHT
-  virtual void on_light_command_request(const LightCommandRequest &value) {};
-  #endif
-  #ifdef USE_SENSOR
+#endif
+#ifdef USE_LIGHT
+  virtual void on_light_command_request(const LightCommandRequest &value){};
+#endif
+#ifdef USE_SENSOR
   bool send_list_entities_sensor_response(const ListEntitiesSensorResponse &msg);
-  #endif
-  #ifdef USE_SENSOR
+#endif
+#ifdef USE_SENSOR
   bool send_sensor_state_response(const SensorStateResponse &msg);
-  #endif
-  #ifdef USE_SWITCH
+#endif
+#ifdef USE_SWITCH
   bool send_list_entities_switch_response(const ListEntitiesSwitchResponse &msg);
-  #endif
-  #ifdef USE_SWITCH
+#endif
+#ifdef USE_SWITCH
   bool send_switch_state_response(const SwitchStateResponse &msg);
-  #endif
-  #ifdef USE_SWITCH
-  virtual void on_switch_command_request(const SwitchCommandRequest &value) {};
-  #endif
-  #ifdef USE_TEXT_SENSOR
+#endif
+#ifdef USE_SWITCH
+  virtual void on_switch_command_request(const SwitchCommandRequest &value){};
+#endif
+#ifdef USE_TEXT_SENSOR
   bool send_list_entities_text_sensor_response(const ListEntitiesTextSensorResponse &msg);
-  #endif
-  #ifdef USE_TEXT_SENSOR
+#endif
+#ifdef USE_TEXT_SENSOR
   bool send_text_sensor_state_response(const TextSensorStateResponse &msg);
-  #endif
-  virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value) {};
+#endif
+  virtual void on_subscribe_logs_request(const SubscribeLogsRequest &value){};
   bool send_subscribe_logs_response(const SubscribeLogsResponse &msg);
-  virtual void on_subscribe_service_calls_request(const SubscribeServiceCallsRequest &value) {};
+  virtual void on_subscribe_service_calls_request(const SubscribeServiceCallsRequest &value){};
   bool send_service_call_response(const ServiceCallResponse &msg);
-  virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value) {};
+  virtual void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &value){};
   bool send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg);
-  virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value) {};
+  virtual void on_home_assistant_state_response(const HomeAssistantStateResponse &value){};
   bool send_get_time_request(const GetTimeRequest &msg);
-  virtual void on_get_time_request(const GetTimeRequest &value) {};
+  virtual void on_get_time_request(const GetTimeRequest &value){};
   bool send_get_time_response(const GetTimeResponse &msg);
-  virtual void on_get_time_response(const GetTimeResponse &value) {};
+  virtual void on_get_time_response(const GetTimeResponse &value){};
   bool send_list_entities_services_response(const ListEntitiesServicesResponse &msg);
-  virtual void on_execute_service_request(const ExecuteServiceRequest &value) {};
-  #ifdef USE_ESP32_CAMERA
+  virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
+#ifdef USE_ESP32_CAMERA
   bool send_list_entities_camera_response(const ListEntitiesCameraResponse &msg);
-  #endif
-  #ifdef USE_ESP32_CAMERA
+#endif
+#ifdef USE_ESP32_CAMERA
   bool send_camera_image_response(const CameraImageResponse &msg);
-  #endif
-  #ifdef USE_ESP32_CAMERA
-  virtual void on_camera_image_request(const CameraImageRequest &value) {};
-  #endif
-  #ifdef USE_CLIMATE
+#endif
+#ifdef USE_ESP32_CAMERA
+  virtual void on_camera_image_request(const CameraImageRequest &value){};
+#endif
+#ifdef USE_CLIMATE
   bool send_list_entities_climate_response(const ListEntitiesClimateResponse &msg);
-  #endif
-  #ifdef USE_CLIMATE
+#endif
+#ifdef USE_CLIMATE
   bool send_climate_state_response(const ClimateStateResponse &msg);
-  #endif
-  #ifdef USE_CLIMATE
-  virtual void on_climate_command_request(const ClimateCommandRequest &value) {};
-  #endif
+#endif
+#ifdef USE_CLIMATE
+  virtual void on_climate_command_request(const ClimateCommandRequest &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data);
 };

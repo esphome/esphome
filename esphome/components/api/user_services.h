@@ -37,8 +37,7 @@ template<int... S>
 void UserService<Ts...>::execute_(std::vector<ExecuteServiceArgument> args, seq<S...>) {
   this->trigger((get_execute_arg_value<Ts>(args[S]))...);
 }
-template<typename T>
-ServiceArgType to_service_arg_type();
+template<typename T> ServiceArgType to_service_arg_type();
 
 template<typename... Ts> ListEntitiesServicesResponse UserService<Ts...>::encode_list_service_response() {
   ListEntitiesServicesResponse msg;

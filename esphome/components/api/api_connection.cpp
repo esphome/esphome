@@ -168,6 +168,10 @@ void APIConnection::loop() {
 #endif
 }
 
+std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
+  return App.get_name() + component_type + nameable->get_object_id();
+}
+
 #ifdef USE_BINARY_SENSOR
 bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor, bool state) {
   if (!this->state_subscription_)
@@ -177,6 +181,16 @@ bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary
   resp.key = binary_sensor->get_object_id_hash();
   resp.state = state;
   return this->send_binary_sensor_state_response(resp);
+}
+bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor) {
+  ListEntitiesBinarySensorResponse msg;
+  msg.object_id = binary_sensor->get_object_id();
+  msg.key = binary_sensor->get_object_id_hash();
+  msg.name = binary_sensor->get_name();
+  msg.unique_id = get_default_unique_id("binary_sensor", binary_sensor);
+  msg.device_class = binary_sensor->get_device_class();
+  msg.is_status_binary_sensor = binary_sensor->is_status_binary_sensor();
+  return this->send_list_entities_binary_sensor_response(msg);
 }
 #endif
 
@@ -195,6 +209,46 @@ bool APIConnection::send_cover_state(cover::Cover *cover) {
   resp.current_operation = static_cast<CoverOperation>(cover->current_operation);
   return this->send_cover_state_response(resp);
 }
+bool APIConnection::send_cover_info(cover::Cover *cover) {
+  auto traits = cover->get_traits();
+  ListEntitiesCoverResponse msg;
+  msg.key = cover->get_object_id_hash();
+  msg.object_id = cover->get_object_id();
+  msg.name = cover->get_name();
+  msg.unique_id = get_default_unique_id("cover", cover);
+  msg.assumed_state = traits.get_is_assumed_state();
+  msg.supports_position = traits.get_supports_position();
+  msg.supports_tilt = traits.get_supports_tilt();
+  msg.device_class = cover->get_device_class();
+  return this->send_list_entities_cover_response(msg);
+}
+void APIConnection::cover_command(const CoverCommandRequest &msg) {
+  cover::Cover *cover = App.get_cover_by_key(msg.key);
+  if (cover == nullptr)
+    return;
+
+  auto call = cover->make_call();
+  if (msg.has_legacy_command) {
+    switch (msg.legacy_command) {
+      case LEGACY_COVER_COMMAND_OPEN:
+        call.set_command_open();
+        break;
+      case LEGACY_COVER_COMMAND_CLOSE:
+        call.set_command_close();
+        break;
+      case LEGACY_COVER_COMMAND_STOP:
+        call.set_command_stop();
+        break;
+    }
+  }
+  if (msg.has_position)
+    call.set_position(msg.position);
+  if (msg.has_tilt)
+    call.set_tilt(msg.tilt);
+  if (msg.stop)
+    call.set_command_stop();
+  call.perform();
+}
 #endif
 
 #ifdef USE_FAN
@@ -211,6 +265,31 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (traits.supports_speed())
     resp.speed = static_cast<FanSpeed>(fan->speed);
   return this->send_fan_state_response(resp);
+}
+bool APIConnection::send_fan_info(fan::FanState *fan) {
+  auto traits = fan->get_traits();
+  ListEntitiesFanResponse msg;
+  msg.key = fan->get_object_id_hash();
+  msg.object_id = fan->get_object_id();
+  msg.name = fan->get_name();
+  msg.unique_id = get_default_unique_id("fan", fan);
+  msg.supports_oscillation = traits.supports_oscillation();
+  msg.supports_speed = traits.supports_speed();
+  return this->send_list_entities_fan_response(msg);
+}
+void APIConnection::fan_command(const FanCommandRequest &msg) {
+  fan::FanState *fan = App.get_fan_by_key(msg.key);
+  if (fan == nullptr)
+    return;
+
+  auto call = fan->make_call();
+  if (msg.has_state)
+    call.set_state(msg.state);
+  if (msg.has_oscillating)
+    call.set_oscillating(msg.oscillating);
+  if (msg.has_speed)
+    call.set_speed(static_cast<fan::FanSpeed>(msg.speed));
+  call.perform();
 }
 #endif
 
@@ -240,6 +319,54 @@ bool APIConnection::send_light_state(light::LightState *light) {
     resp.effect = light->get_effect_name();
   return this->send_light_state_response(resp);
 }
+bool APIConnection::send_light_info(light::LightState *light) {
+  auto traits = light->get_traits();
+  ListEntitiesLightResponse msg;
+  msg.key = light->get_object_id_hash();
+  msg.object_id = light->get_object_id();
+  msg.name = light->get_name();
+  msg.unique_id = get_default_unique_id("light", light);
+  msg.supports_brightness = traits.get_supports_brightness();
+  msg.supports_rgb = traits.get_supports_rgb();
+  msg.supports_white_value = traits.get_supports_rgb_white_value();
+  msg.supports_color_temperature = traits.get_supports_color_temperature();
+  if (msg.supports_color_temperature) {
+    msg.min_mireds = traits.get_min_mireds();
+    msg.max_mireds = traits.get_max_mireds();
+  }
+  if (light->supports_effects()) {
+    for (auto *effect : light->get_effects())
+      msg.effects.push_back(effect->get_name());
+  }
+  return this->send_list_entities_light_response(msg);
+}
+void APIConnection::light_command(const LightCommandRequest &msg) {
+  light::LightState *light = App.get_light_by_key(msg.key);
+  if (light == nullptr)
+    return;
+
+  auto call = light->make_call();
+  if (msg.has_state)
+    call.set_state(msg.state);
+  if (msg.has_brightness)
+    call.set_brightness(msg.brightness);
+  if (msg.has_rgb) {
+    call.set_red(msg.red);
+    call.set_green(msg.green);
+    call.set_blue(msg.blue);
+  }
+  if (msg.has_white)
+    call.set_white(msg.white);
+  if (msg.has_color_temperature)
+    call.set_color_temperature(msg.color_temperature);
+  if (msg.has_transition_length)
+    call.set_transition_length(msg.transition_length);
+  if (msg.has_flash_length)
+    call.set_flash_length(msg.flash_length);
+  if (msg.has_effect)
+    call.set_effect(msg.effect);
+  call.perform();
+}
 #endif
 
 #ifdef USE_SENSOR
@@ -251,6 +378,19 @@ bool APIConnection::send_sensor_state(sensor::Sensor *sensor, float state) {
   resp.key = sensor->get_object_id_hash();
   resp.state = state;
   return this->send_sensor_state_response(resp);
+}
+bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
+  ListEntitiesSensorResponse msg;
+  msg.key = sensor->get_object_id_hash();
+  msg.object_id = sensor->get_object_id();
+  msg.name = sensor->get_name();
+  msg.unique_id = sensor->unique_id();
+  if (msg.unique_id.empty())
+    msg.unique_id = get_default_unique_id("sensor", sensor);
+  msg.icon = sensor->get_icon();
+  msg.unit_of_measurement = sensor->get_unit_of_measurement();
+  msg.accuracy_decimals = sensor->get_accuracy_decimals();
+  return this->send_list_entities_sensor_response(msg);
 }
 #endif
 
@@ -264,6 +404,26 @@ bool APIConnection::send_switch_state(switch_::Switch *a_switch, bool state) {
   resp.state = state;
   return this->send_switch_state_response(resp);
 }
+bool APIConnection::send_switch_info(switch_::Switch *a_switch) {
+  ListEntitiesSwitchResponse msg;
+  msg.key = a_switch->get_object_id_hash();
+  msg.object_id = a_switch->get_object_id();
+  msg.name = a_switch->get_name();
+  msg.unique_id = get_default_unique_id("switch", a_switch);
+  msg.icon = a_switch->get_icon();
+  msg.assumed_state = a_switch->assumed_state();
+  return this->send_list_entities_switch_response(msg);
+}
+void APIConnection::switch_command(const SwitchCommandRequest &msg) {
+  switch_::Switch *a_switch = App.get_switch_by_key(msg.key);
+  if (a_switch == nullptr)
+    return;
+
+  if (msg.state)
+    a_switch->turn_on();
+  else
+    a_switch->turn_off();
+}
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -275,6 +435,17 @@ bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor,
   resp.key = text_sensor->get_object_id_hash();
   resp.state = std::move(state);
   return this->send_text_sensor_state_response(resp);
+}
+bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) {
+  ListEntitiesTextSensorResponse msg;
+  msg.key = text_sensor->get_object_id_hash();
+  msg.object_id = text_sensor->get_object_id();
+  msg.name = text_sensor->get_name();
+  msg.unique_id = text_sensor->unique_id();
+  if (msg.unique_id.empty())
+    msg.unique_id = get_default_unique_id("text_sensor", text_sensor);
+  msg.icon = text_sensor->get_icon();
+  return this->send_list_entities_text_sensor_response(msg);
 }
 #endif
 
@@ -298,6 +469,44 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   if (traits.get_supports_away())
     resp.away = climate->away;
   return this->send_climate_state_response(resp);
+}
+bool APIConnection::send_climate_info(climate::Climate *climate) {
+  auto traits = climate->get_traits();
+  ListEntitiesClimateResponse msg;
+  msg.key = climate->get_object_id_hash();
+  msg.object_id = climate->get_object_id();
+  msg.name = climate->get_name();
+  msg.unique_id = get_default_unique_id("climate", climate);
+  msg.supports_current_temperature = traits.get_supports_current_temperature();
+  msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
+  for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
+                    climate::CLIMATE_MODE_HEAT}) {
+    if (traits.supports_mode(mode))
+      msg.supported_modes.push_back(static_cast<ClimateMode>(mode));
+  }
+  msg.visual_min_temperature = traits.get_visual_min_temperature();
+  msg.visual_max_temperature = traits.get_visual_max_temperature();
+  msg.visual_temperature_step = traits.get_visual_temperature_step();
+  msg.supports_away = traits.get_supports_away();
+  return this->send_list_entities_climate_response(msg);
+}
+void APIConnection::climate_command(const ClimateCommandRequest &msg) {
+  climate::Climate *climate = App.get_climate_by_key(msg.key);
+  if (climate == nullptr)
+    return;
+
+  auto call = climate->make_call();
+  if (msg.has_mode)
+    call.set_mode(static_cast<climate::ClimateMode>(msg.mode));
+  if (msg.has_target_temperature)
+    call.set_target_temperature(msg.target_temperature);
+  if (msg.has_target_temperature_low)
+    call.set_target_temperature_low(msg.target_temperature_low);
+  if (msg.has_target_temperature_high)
+    call.set_target_temperature_high(msg.target_temperature_high);
+  if (msg.has_away)
+    call.set_away(msg.away);
+  call.perform();
 }
 #endif
 

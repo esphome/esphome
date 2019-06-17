@@ -705,7 +705,7 @@ def build_service_message_type(mt):
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
         # Generate receive
         func = f'on_{snake}'
-        hout += f'virtual void {func}(const {mt.name} &value) {{}};\n'
+        hout += f'virtual void {func}(const {mt.name} &value){{}};\n'
         case = ''
         if ifdef is not None:
             case += f'#ifdef {ifdef}\n'

@@ -7,10 +7,6 @@
 namespace esphome {
 namespace api {
 
-std::string get_default_unique_id(const std::string &component_type, Nameable *nameable) {
-  return App.get_name() + component_type + nameable->get_object_id();
-}
-
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
   return this->client_->send_binary_sensor_info(binary_sensor);

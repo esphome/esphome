@@ -8,22 +8,22 @@ static const char *TAG = "api.service";
 
 bool APIServerConnectionBase::send_hello_response(const HelloResponse &msg) {
   ESP_LOGVV(TAG, "send_hello_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<HelloResponse>(msg, 2);
 }
 bool APIServerConnectionBase::send_connect_response(const ConnectResponse &msg) {
   ESP_LOGVV(TAG, "send_connect_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<ConnectResponse>(msg, 4);
 }
 bool APIServerConnectionBase::send_disconnect_request(const DisconnectRequest &msg) {
   ESP_LOGVV(TAG, "send_disconnect_request: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<DisconnectRequest>(msg, 5);
 }
 bool APIServerConnectionBase::send_disconnect_response(const DisconnectResponse &msg) {
   ESP_LOGVV(TAG, "send_disconnect_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<DisconnectResponse>(msg, 6);
 }
 bool APIServerConnectionBase::send_ping_request(const PingRequest &msg) {
@@ -43,7 +43,7 @@ bool APIServerConnectionBase::send_device_info_response(const DeviceInfoResponse
 }
 bool APIServerConnectionBase::send_list_entities_done_response(const ListEntitiesDoneResponse &msg) {
   ESP_LOGVV(TAG, "send_list_entities_done_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<ListEntitiesDoneResponse>(msg, 19);
 }
 #ifdef USE_BINARY_SENSOR
@@ -56,7 +56,7 @@ bool APIServerConnectionBase::send_list_entities_binary_sensor_response(const Li
 #ifdef USE_BINARY_SENSOR
 bool APIServerConnectionBase::send_binary_sensor_state_response(const BinarySensorStateResponse &msg) {
   ESP_LOGVV(TAG, "send_binary_sensor_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<BinarySensorStateResponse>(msg, 21);
 }
 #endif
@@ -70,7 +70,7 @@ bool APIServerConnectionBase::send_list_entities_cover_response(const ListEntiti
 #ifdef USE_COVER
 bool APIServerConnectionBase::send_cover_state_response(const CoverStateResponse &msg) {
   ESP_LOGVV(TAG, "send_cover_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<CoverStateResponse>(msg, 22);
 }
 #endif
@@ -86,7 +86,7 @@ bool APIServerConnectionBase::send_list_entities_fan_response(const ListEntities
 #ifdef USE_FAN
 bool APIServerConnectionBase::send_fan_state_response(const FanStateResponse &msg) {
   ESP_LOGVV(TAG, "send_fan_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<FanStateResponse>(msg, 23);
 }
 #endif
@@ -102,7 +102,7 @@ bool APIServerConnectionBase::send_list_entities_light_response(const ListEntiti
 #ifdef USE_LIGHT
 bool APIServerConnectionBase::send_light_state_response(const LightStateResponse &msg) {
   ESP_LOGVV(TAG, "send_light_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<LightStateResponse>(msg, 24);
 }
 #endif
@@ -118,7 +118,7 @@ bool APIServerConnectionBase::send_list_entities_sensor_response(const ListEntit
 #ifdef USE_SENSOR
 bool APIServerConnectionBase::send_sensor_state_response(const SensorStateResponse &msg) {
   ESP_LOGVV(TAG, "send_sensor_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<SensorStateResponse>(msg, 25);
 }
 #endif
@@ -132,7 +132,7 @@ bool APIServerConnectionBase::send_list_entities_switch_response(const ListEntit
 #ifdef USE_SWITCH
 bool APIServerConnectionBase::send_switch_state_response(const SwitchStateResponse &msg) {
   ESP_LOGVV(TAG, "send_switch_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<SwitchStateResponse>(msg, 26);
 }
 #endif
@@ -148,7 +148,7 @@ bool APIServerConnectionBase::send_list_entities_text_sensor_response(const List
 #ifdef USE_TEXT_SENSOR
 bool APIServerConnectionBase::send_text_sensor_state_response(const TextSensorStateResponse &msg) {
   ESP_LOGVV(TAG, "send_text_sensor_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<TextSensorStateResponse>(msg, 27);
 }
 #endif
@@ -158,10 +158,11 @@ bool APIServerConnectionBase::send_subscribe_logs_response(const SubscribeLogsRe
 }
 bool APIServerConnectionBase::send_service_call_response(const ServiceCallResponse &msg) {
   ESP_LOGVV(TAG, "send_service_call_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<ServiceCallResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
+    const SubscribeHomeAssistantStateResponse &msg) {
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
   this->set_nodelay(false);
   return this->send_message<SubscribeHomeAssistantStateResponse>(msg, 39);
@@ -173,7 +174,7 @@ bool APIServerConnectionBase::send_get_time_request(const GetTimeRequest &msg) {
 }
 bool APIServerConnectionBase::send_get_time_response(const GetTimeResponse &msg) {
   ESP_LOGVV(TAG, "send_get_time_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<GetTimeResponse>(msg, 37);
 }
 bool APIServerConnectionBase::send_list_entities_services_response(const ListEntitiesServicesResponse &msg) {
@@ -207,14 +208,14 @@ bool APIServerConnectionBase::send_list_entities_climate_response(const ListEnti
 #ifdef USE_CLIMATE
 bool APIServerConnectionBase::send_climate_state_response(const ClimateStateResponse &msg) {
   ESP_LOGVV(TAG, "send_climate_state_response: %s", msg.dump().c_str());
-  this->set_nodelay(false);
+  this->set_nodelay(true);
   return this->send_message<ClimateStateResponse>(msg, 47);
 }
 #endif
 #ifdef USE_CLIMATE
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
-  switch(msg_type) {
+  switch (msg_type) {
     case 1: {
       HelloRequest msg;
       msg.decode(msg_data, msg_size);
@@ -286,39 +287,39 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 30: {
-      #ifdef USE_COVER
+#ifdef USE_COVER
       CoverCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_cover_command_request: %s", msg.dump().c_str());
       this->on_cover_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 31: {
-      #ifdef USE_FAN
+#ifdef USE_FAN
       FanCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_fan_command_request: %s", msg.dump().c_str());
       this->on_fan_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 32: {
-      #ifdef USE_LIGHT
+#ifdef USE_LIGHT
       LightCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_light_command_request: %s", msg.dump().c_str());
       this->on_light_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 33: {
-      #ifdef USE_SWITCH
+#ifdef USE_SWITCH
       SwitchCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_switch_command_request: %s", msg.dump().c_str());
       this->on_switch_command_request(msg);
-      #endif
+#endif
       break;
     }
     case 34: {
@@ -364,24 +365,24 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 45: {
-      #ifdef USE_ESP32_CAMERA
+#ifdef USE_ESP32_CAMERA
       CameraImageRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_camera_image_request: %s", msg.dump().c_str());
       this->on_camera_image_request(msg);
-      #endif
+#endif
       break;
     }
     case 48: {
-      #ifdef USE_CLIMATE
+#ifdef USE_CLIMATE
       ClimateCommandRequest msg;
       msg.decode(msg_data, msg_size);
       ESP_LOGVV(TAG, "on_climate_command_request: %s", msg.dump().c_str());
       this->on_climate_command_request(msg);
-      #endif
+#endif
       break;
     }
-    default: 
+    default:
       return false;
   }
   return true;
