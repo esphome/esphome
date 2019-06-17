@@ -275,7 +275,7 @@ class APIClient(threading.Thread):
         req += encoded
         self._write(req)
 
-    def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=1):
+    def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=5):
         event = threading.Event()
         responses = []
 
@@ -296,7 +296,7 @@ class APIClient(threading.Thread):
             raise APIConnectionError("Timeout while waiting for message response!")
         return responses
 
-    def _send_message_await_response(self, send_msg, response_type, timeout=1):
+    def _send_message_await_response(self, send_msg, response_type, timeout=5):
         def is_response(msg):
             return isinstance(msg, response_type)
 

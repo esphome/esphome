@@ -64,6 +64,7 @@ service APIConnection {
 message HelloRequest {
   option (id) = 1;
   option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
 
   // Description of client (like User Agent)
   // For example "Home Assistant"
@@ -77,6 +78,7 @@ message HelloRequest {
 message HelloResponse {
   option (id) = 2;
   option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
 
   // The version of the API to use. The _client_ (for example Home Assistant) needs to check
   // for compatibility and if necessary adopt to an older API.
@@ -96,6 +98,7 @@ message HelloResponse {
 message ConnectRequest {
   option (id) = 3;
   option (source) = SOURCE_CLIENT;
+  option (no_delay) = true;
 
   // The password to log in with
   string password = 1;
@@ -106,6 +109,7 @@ message ConnectRequest {
 message ConnectResponse {
   option (id) = 4;
   option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
 
   bool invalid_password = 1;
 }
@@ -181,6 +185,7 @@ message ListEntitiesRequest {
 message ListEntitiesDoneResponse {
   option (id) = 19;
   option (source) = SOURCE_SERVER;
+  option (no_delay) = true;
   // Empty
 }
 message SubscribeStatesRequest {
@@ -207,6 +212,7 @@ message BinarySensorStateResponse {
   option (id) = 21;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BINARY_SENSOR";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool state = 2;
@@ -242,6 +248,7 @@ message CoverStateResponse {
   option (id) = 22;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_COVER";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   // legacy: state has been removed in 1.13
@@ -301,6 +308,7 @@ message FanStateResponse {
   option (id) = 23;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_FAN";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool state = 2;
@@ -345,6 +353,7 @@ message LightStateResponse {
   option (id) = 24;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_LIGHT";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool state = 2;
@@ -402,6 +411,7 @@ message SensorStateResponse {
   option (id) = 25;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SENSOR";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   float state = 2;
@@ -425,6 +435,7 @@ message SwitchStateResponse {
   option (id) = 26;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_SWITCH";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   bool state = 2;
@@ -456,6 +467,7 @@ message TextSensorStateResponse {
   option (id) = 27;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_TEXT_SENSOR";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   string state = 2;
@@ -481,6 +493,7 @@ message SubscribeLogsResponse {
   option (id) = 29;
   option (source) = SOURCE_SERVER;
   option (log) = false;
+  option (no_delay) = false;
 
   LogLevel level = 1;
   string tag = 2;
@@ -543,6 +556,7 @@ message GetTimeRequest {
 message GetTimeResponse {
   option (id) = 37;
   option (source) = SOURCE_BOTH;
+  option (no_delay) = true;
 
   fixed32 epoch_seconds = 1;
 }
@@ -606,6 +620,7 @@ message CameraImageRequest {
   option (id) = 45;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ESP32_CAMERA";
+  option (no_delay) = true;
 
   bool single = 1;
   bool stream = 2;
@@ -640,6 +655,7 @@ message ClimateStateResponse {
   option (id) = 47;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_CLIMATE";
+  option (no_delay) = true;
 
   fixed32 key = 1;
   ClimateMode mode = 2;

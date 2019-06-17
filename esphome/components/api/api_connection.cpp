@@ -132,7 +132,8 @@ void APIConnection::loop() {
 
   const uint32_t keepalive = 60000;
   if (this->sent_ping_) {
-    if (millis() - this->last_traffic_ > (keepalive * 3) / 2) {
+    // Disconnect if not responded within 2.5*keepalive
+    if (millis() - this->last_traffic_ > (keepalive * 5) / 2) {
       ESP_LOGW(TAG, "'%s' didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
       this->disconnect_client();
     }
