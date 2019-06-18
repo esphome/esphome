@@ -63,6 +63,7 @@ def to_code(config):
     cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(cover.validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.zero_to_one_float),
     cv.Optional(CONF_CURRENT_OPERATION): cv.templatable(cover.validate_cover_operation),
+    cv.Optional(CONF_TILT, 'tilt'): cv.templatable(cv.zero_to_one_float),
 }))
 def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
