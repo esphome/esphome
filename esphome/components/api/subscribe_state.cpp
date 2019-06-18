@@ -1,4 +1,5 @@
 #include "subscribe_state.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -47,31 +48,6 @@ bool InitialStateIterator::on_climate(climate::Climate *climate) { return this->
 #endif
 InitialStateIterator::InitialStateIterator(APIServer *server, APIConnection *client)
     : ComponentIterator(server), client_(client) {}
-
-APIMessageType SubscribeStatesRequest::message_type() const { return APIMessageType::SUBSCRIBE_STATES_REQUEST; }
-
-bool HomeAssistantStateResponse::decode_length_delimited(uint32_t field_id, const uint8_t *value, size_t len) {
-  switch (field_id) {
-    case 1:
-      // string entity_id = 1;
-      this->entity_id_ = as_string(value, len);
-      return true;
-    case 2:
-      // string state = 2;
-      this->state_ = as_string(value, len);
-      return true;
-    default:
-      return false;
-  }
-}
-APIMessageType HomeAssistantStateResponse::message_type() const {
-  return APIMessageType::HOME_ASSISTANT_STATE_RESPONSE;
-}
-const std::string &HomeAssistantStateResponse::get_entity_id() const { return this->entity_id_; }
-const std::string &HomeAssistantStateResponse::get_state() const { return this->state_; }
-APIMessageType SubscribeHomeAssistantStatesRequest::message_type() const {
-  return APIMessageType::SUBSCRIBE_HOME_ASSISTANT_STATES_REQUEST;
-}
 
 }  // namespace api
 }  // namespace esphome

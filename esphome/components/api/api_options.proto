@@ -1,0 +1,24 @@
+syntax = "proto2";
+import "google/protobuf/descriptor.proto";
+
+
+enum APISourceType {
+    SOURCE_BOTH = 0;
+    SOURCE_SERVER = 1;
+    SOURCE_CLIENT = 2;
+}
+
+message void {}
+
+extend google.protobuf.MethodOptions {
+    optional bool needs_setup_connection = 1038 [default=true];
+    optional bool needs_authentication = 1039 [default=true];
+}
+
+extend google.protobuf.MessageOptions {
+    optional uint32 id = 1036 [default=0];
+    optional APISourceType source = 1037 [default=SOURCE_BOTH];
+    optional string ifdef = 1038;
+    optional bool log = 1039 [default=true];
+    optional bool no_delay = 1040 [default=false];
+}
