@@ -12,7 +12,6 @@ void XiaomiLYWSD02::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi LYWSD02");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
 }  // namespace xiaomi_lywsd02
