@@ -89,7 +89,7 @@ HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
 def homeassistant_service_to_code(config, action_id, template_arg, args):
     serv = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, False)
-    templ = cg.templatable(config[CONF_SERVICE], args, None)
+    templ = yield cg.templatable(config[CONF_SERVICE], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
         templ = yield cg.templatable(value, args, None)
@@ -125,7 +125,7 @@ HOMEASSISTANT_EVENT_ACTION_SCHEMA = cv.Schema({
 def homeassistant_event_to_code(config, action_id, template_arg, args):
     serv = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, serv, True)
-    templ = cg.templatable(config[CONF_SERVICE], args, None)
+    templ = yield cg.templatable(config[CONF_EVENT], args, None)
     cg.add(var.set_service(templ))
     for key, value in config[CONF_DATA].items():
         templ = yield cg.templatable(value, args, None)

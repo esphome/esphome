@@ -48,17 +48,17 @@ class CustomAPIDevice {
   }
 
   void call_homeassistant_service(const std::string &service_name) {
-    ServiceCallResponse resp;
+    HomeassistantServiceResponse resp;
     resp.service = service_name;
     global_api_server->send_homeassistant_service_call(resp);
   }
 
   void call_homeassistant_service(const std::string &service_name,
                                   const std::vector<std::pair<const std::string, const std::string>> &data) {
-    ServiceCallResponse resp;
+    HomeassistantServiceResponse resp;
     resp.service = service_name;
     for (auto &it : data) {
-      ServiceCallMap kv;
+      HomeassistantServiceMap kv;
       kv.key = it.first;
       kv.value = it.second;
       resp.data.push_back(kv);

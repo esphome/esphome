@@ -51,7 +51,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
       kv.value = it.value.value(x...);
       resp.variables.push_back(kv);
     }
-    this->parent_->send_service_call(resp);
+    this->parent_->send_homeassistant_service_call(resp);
   }
 
  protected:
