@@ -31,22 +31,15 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
-
   this->last_connected_ = millis();
-
-  this->wifi_register_callbacks_();
-
-  bool ret = this->wifi_mode_(this->has_sta(), false);
-  if (!ret) {
-    this->mark_failed();
-    return;
-  }
+  this->wifi_pre_setup_();
 
   if (this->has_sta()) {
-    this->wifi_disable_auto_connect_();
-    delay(10);
+    this->wifi_sta_pre_setup_();
 
-    this->wifi_apply_power_save_();
+    if (!this->wifi_apply_power_save_()) {
+      ESP_LOGV(TAG, "Setting Power Save Option failed!");
+    }
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];
