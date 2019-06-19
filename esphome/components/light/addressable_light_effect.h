@@ -50,8 +50,7 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const std::string &name,
-                               const std::function<void(AddressableLight &, ESPColor)> &f,
+  AddressableLambdaLightEffect(const std::string &name, const std::function<void(AddressableLight &, ESPColor)> &f,
                                uint32_t update_interval)
       : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void apply(AddressableLight &it, const ESPColor &current_color) override {
