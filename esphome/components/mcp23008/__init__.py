@@ -47,5 +47,5 @@ MCP23008_INPUT_PIN_SCHEMA = cv.Schema({
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23008,
                                    (MCP23008_OUTPUT_PIN_SCHEMA, MCP23008_INPUT_PIN_SCHEMA))
 def mcp23008_pin_to_code(config):
-     parent = yield cg.get_variable(config[CONF_MCP23008])
-     yield MCP23008GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])
+    parent = yield cg.get_variable(config[CONF_MCP23008])
+    yield MCP23008GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])
