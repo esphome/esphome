@@ -9,6 +9,8 @@ AddressableLightState = light_ns.class_('LightState', LightState)
 LightOutput = light_ns.class_('LightOutput')
 AddressableLight = light_ns.class_('AddressableLight', cg.Component)
 AddressableLightRef = AddressableLight.operator('ref')
+
+ESPColor = light_ns.class_('ESPColor')
 LightColorValues = light_ns.class_('LightColorValues')
 
 # Actions
