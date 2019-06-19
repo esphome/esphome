@@ -154,7 +154,7 @@ void PN532::loop() {
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }
 
-void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
+void PN532::pn532_write_command(const std::vector<uint8_t> &data) {
   this->enable();
   delay(2);
   // First byte, communication mode: Write data
@@ -193,7 +193,7 @@ void PN532::pn532_write_command_(const std::vector<uint8_t> &data) {
   this->disable();
 }
 
-bool PN532::pn532_write_command_check_ack_(const std::vector<uint8_t> &data) {
+bool PN532::pn532_write_command_check_ack(const std::vector<uint8_t> &data) {
   // 1. write command
   this->pn532_write_command_(data);
 
@@ -210,7 +210,7 @@ bool PN532::pn532_write_command_check_ack_(const std::vector<uint8_t> &data) {
   return true;
 }
 
-std::vector<uint8_t> PN532::pn532_read_data_() {
+std::vector<uint8_t> PN532::pn532_read_data() {
   this->enable();
   delay(2);
   // Read data (transmission from the PN532 to the host)

@@ -147,7 +147,7 @@ void report_ota_error() {
   ESP_LOGW(TAG, "OTA Update failed! Error: %s", ss.c_str());
 }
 
-void WebServer::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
+void WebServer::handle_upload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
                              size_t len, bool final) {
   bool success;
   if (index == 0) {
@@ -527,7 +527,7 @@ std::string WebServer::light_json(light::LightState *obj) {
 }
 #endif
 
-bool WebServer::canHandle(AsyncWebServerRequest *request) {
+bool WebServer::can_handle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
@@ -569,7 +569,7 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
   return false;
 }
-void WebServer::handleRequest(AsyncWebServerRequest *request) {
+void WebServer::handle_request(AsyncWebServerRequest *request) {
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;
@@ -624,7 +624,7 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #endif
 }
 
-bool WebServer::isRequestHandlerTrivial() { return false; }
+bool WebServer::is_request_handler_trivial() { return false; }
 
 }  // namespace web_server
 }  // namespace esphome

@@ -33,11 +33,11 @@ class BangBangClimate : public climate::Climate, public Component {
 
  protected:
   /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override;
+  void control_(const climate::ClimateCall &call) override;
   /// Change the away setting, will reset target temperatures to defaults.
   void change_away_(bool away);
   /// Return the traits of this controller.
-  climate::ClimateTraits traits() override;
+  climate::ClimateTraits traits_() override;
 
   /// Re-compute the state of this climate controller.
   void compute_state_();

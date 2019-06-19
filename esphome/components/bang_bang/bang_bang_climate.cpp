@@ -90,7 +90,7 @@ void BangBangClimate::compute_state_() {
 
   this->switch_to_mode_(target_mode);
 }
-void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
+void BangBangClimate::switch_to_mode(climate::ClimateMode mode) {
   if (mode == this->internal_mode_)
     // already in target mode
     return;

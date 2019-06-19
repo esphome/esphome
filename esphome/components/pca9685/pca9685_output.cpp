@@ -130,7 +130,7 @@ PCA9685Channel *PCA9685Output::create_channel(uint8_t channel) {
   return c;
 }
 
-void PCA9685Channel::write_state(float state) {
+void PCA9685Channel::write_state_(float state) {
   const uint16_t max_duty = 4096;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint16_t>(duty_rounded);

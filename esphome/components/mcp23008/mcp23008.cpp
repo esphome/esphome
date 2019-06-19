@@ -19,7 +19,7 @@ void MCP23008::setup() {
 }
 bool MCP23008::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
-  uint8_t reg_addr =  MCP23008_GPIO;
+  uint8_t reg_addr = MCP23008_GPIO;
   uint8_t value = 0;
   this->read_reg_(reg_addr, &value);
   return value & (1 << bit);
@@ -47,19 +47,19 @@ void MCP23008::pin_mode(uint8_t pin, uint8_t mode) {
   }
 }
 float MCP23008::get_setup_priority() const { return setup_priority::HARDWARE; }
-bool MCP23008::read_reg_(uint8_t reg, uint8_t *value) {
+bool MCP23008::read_reg(uint8_t reg, uint8_t *value) {
   if (this->is_failed())
     return false;
 
   return this->read_byte(reg, value);
 }
-bool MCP23008::write_reg_(uint8_t reg, uint8_t value) {
+bool MCP23008::write_reg(uint8_t reg, uint8_t value) {
   if (this->is_failed())
     return false;
 
   return this->write_byte(reg, value);
 }
-void MCP23008::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
+void MCP23008::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   uint8_t bit = pin % 8;
   uint8_t reg_value = 0;
   if (reg_addr == MCP23008_OLAT) {
@@ -77,7 +77,7 @@ void MCP23008::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
 
   if (reg_addr == MCP23008_OLAT) {
     this->olat_ = reg_value;
-  } 
+  }
 }
 
 MCP23008GPIOPin::MCP23008GPIOPin(MCP23008 *parent, uint8_t pin, uint8_t mode, bool inverted)

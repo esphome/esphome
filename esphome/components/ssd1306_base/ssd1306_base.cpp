@@ -143,7 +143,7 @@ void SSD1306::update() {
   this->do_update_();
   this->display();
 }
-int SSD1306::get_height_internal() {
+int SSD1306::get_height_internal_() {
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
     case SH1106_MODEL_128_32:
@@ -161,7 +161,7 @@ int SSD1306::get_height_internal() {
       return 0;
   }
 }
-int SSD1306::get_width_internal() {
+int SSD1306::get_width_internal_() {
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
     case SH1106_MODEL_128_32:
@@ -178,7 +178,7 @@ int SSD1306::get_width_internal() {
       return 0;
   }
 }
-size_t SSD1306::get_buffer_length_() {
+size_t SSD1306::get_buffer_length() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 

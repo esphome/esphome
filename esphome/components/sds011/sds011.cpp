@@ -93,7 +93,7 @@ float SDS011Component::get_setup_priority() const { return setup_priority::DATA;
 
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
-void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
+void SDS011Component::sds011_write_command(const uint8_t *command_data) {
   this->flush();
   this->write_byte(SDS011_MSG_HEAD);
   this->write_byte(SDS011_COMMAND_ID_REQUEST);
@@ -102,7 +102,7 @@ void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
   this->write_byte(SDS011_MSG_TAIL);
 }
 
-uint8_t SDS011Component::sds011_checksum_(const uint8_t *command_data, uint8_t length) const {
+uint8_t SDS011Component::sds011_checksum(const uint8_t *command_data, uint8_t length) const {
   uint8_t sum = 0;
   for (uint8_t i = 0; i < length; i++) {
     sum += command_data[i];
@@ -110,7 +110,7 @@ uint8_t SDS011Component::sds011_checksum_(const uint8_t *command_data, uint8_t l
   return sum;
 }
 
-optional<bool> SDS011Component::check_byte_() const {
+optional<bool> SDS011Component::check_byte() const {
   uint8_t index = this->data_index_;
   uint8_t byte = this->data_[index];
 
@@ -164,7 +164,7 @@ void SDS011Component::parse_data_() {
   }
 }
 
-uint16_t SDS011Component::get_16_bit_uint_(uint8_t start_index) const {
+uint16_t SDS011Component::get_16_bit_uint(uint8_t start_index) const {
   return (uint16_t(this->data_[start_index + 1]) << 8) | uint16_t(this->data_[start_index]);
 }
 void SDS011Component::set_update_interval_min(uint8_t update_interval_min) {

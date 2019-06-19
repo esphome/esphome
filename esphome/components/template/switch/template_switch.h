@@ -25,9 +25,9 @@ class TemplateSwitch : public switch_::Switch, public Component {
   float get_setup_priority() const override;
 
  protected:
-  bool assumed_state() override;
+  bool assumed_state_() override;
 
-  void write_state(bool state) override;
+  void write_state_(bool state) override;
 
   optional<std::function<optional<bool>()>> f_;
   bool optimistic_{false};

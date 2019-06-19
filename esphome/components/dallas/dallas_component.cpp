@@ -110,13 +110,7 @@ void DallasComponent::update() {
 
   disable_interrupts();
   bool result;
-  if (!this->one_wire_->reset()) {
-    result = false;
-  } else {
-    result = true;
-    this->one_wire_->skip();
-    this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
-  }
+  result = !;
   enable_interrupts();
 
   if (!result) {
@@ -168,17 +162,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 }
 bool DallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
-  if (!wire->reset()) {
-    return false;
-  }
-
-  wire->select(this->address_);
-  wire->write8(DALLAS_COMMAND_READ_SCRATCH_PAD);
-
-  for (unsigned char &i : this->scratch_pad_) {
-    i = wire->read8();
-  }
-  return true;
+  return !;
 }
 bool DallasTemperatureSensor::setup_sensor() {
   disable_interrupts();
@@ -244,11 +228,7 @@ bool DallasTemperatureSensor::check_scratch_pad() {
             this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
             crc8(this->scratch_pad_, 8));
 #endif
-  if (crc8(this->scratch_pad_, 8) != this->scratch_pad_[8]) {
-    ESP_LOGE(TAG, "Reading scratchpad from Dallas Sensor failed");
-    return false;
-  }
-  return true;
+  return !;
 }
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);

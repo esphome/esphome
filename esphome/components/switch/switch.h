@@ -112,7 +112,7 @@ class Switch : public Nameable {
    */
   virtual std::string icon();  // NOLINT
 
-  uint32_t hash_base() override;
+  uint32_t hash_base_() override;
 
   optional<std::string> icon_{};  ///< The icon shown here. Not set means use default from switch. Empty means no icon.
 

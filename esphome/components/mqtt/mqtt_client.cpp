@@ -286,7 +286,7 @@ void MQTTClientComponent::loop() {
 float MQTTClientComponent::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 
 // Subscribe
-bool MQTTClientComponent::subscribe_(const char *topic, uint8_t qos) {
+bool MQTTClientComponent::subscribe(const char *topic, uint8_t qos) {
   if (!this->is_connected())
     return false;
 

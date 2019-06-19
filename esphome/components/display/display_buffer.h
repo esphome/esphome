@@ -390,7 +390,7 @@ class Image {
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
  public:
-  TEMPLATABLE_VALUE(DisplayPage *, page)
+  templatable_value(DisplayPage *, page)
   void play(Ts... x) override {
     auto *page = this->page_.value(x...);
     if (page != nullptr) {

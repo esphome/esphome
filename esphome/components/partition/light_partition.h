@@ -53,7 +53,7 @@ class PartitionLightOutput : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
+  light::ESPColorView get_view_internal_(int32_t index) const override {
     uint32_t lo = 0;
     uint32_t hi = this->segments_.size() - 1;
     while (lo < hi) {

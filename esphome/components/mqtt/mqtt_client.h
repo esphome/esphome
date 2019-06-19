@@ -294,7 +294,7 @@ class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
 template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
  public:
   MQTTPublishAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
+  templatable_value(std::string, topic)
   TEMPLATABLE_VALUE(std::string, payload)
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
@@ -311,7 +311,7 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
 template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
  public:
   MQTTPublishJsonAction(MQTTClientComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, topic)
+  templatable_value(std::string, topic)
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 

@@ -205,7 +205,7 @@ bool UARTComponent::read_array(uint8_t *data, size_t len) {
 
   return true;
 }
-bool UARTComponent::check_read_timeout_(size_t len) {
+bool UARTComponent::check_read_timeout(size_t len) {
   if (this->available() >= int(len))
     return true;
 

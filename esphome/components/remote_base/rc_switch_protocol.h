@@ -57,8 +57,8 @@ uint32_t decode_binary_string(const std::string &data);
 
 template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(RCSwitchBase, protocol);
-  TEMPLATABLE_VALUE(std::string, code);
+  templatable_value(RCSwitchBase, protocol);
+  templatable_value(std::string, code);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto code = this->code_.value(x...);
@@ -72,10 +72,10 @@ template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActio
 
 template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(RCSwitchBase, protocol);
-  TEMPLATABLE_VALUE(std::string, group);
-  TEMPLATABLE_VALUE(std::string, device);
-  TEMPLATABLE_VALUE(bool, state);
+  templatable_value(RCSwitchBase, protocol);
+  templatable_value(std::string, group);
+  templatable_value(std::string, device);
+  templatable_value(bool, state);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto group = this->group_.value(x...);
@@ -95,10 +95,10 @@ template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(RCSwitchBase, protocol);
-  TEMPLATABLE_VALUE(uint8_t, address);
-  TEMPLATABLE_VALUE(uint8_t, channel);
-  TEMPLATABLE_VALUE(bool, state);
+  templatable_value(RCSwitchBase, protocol);
+  templatable_value(uint8_t, address);
+  templatable_value(uint8_t, channel);
+  templatable_value(bool, state);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto address = this->address_.value(x...);
@@ -116,11 +116,11 @@ template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterAct
 
 template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(RCSwitchBase, protocol);
-  TEMPLATABLE_VALUE(std::string, family);
-  TEMPLATABLE_VALUE(uint8_t, group);
-  TEMPLATABLE_VALUE(uint8_t, device);
-  TEMPLATABLE_VALUE(bool, state);
+  templatable_value(RCSwitchBase, protocol);
+  templatable_value(std::string, family);
+  templatable_value(uint8_t, group);
+  templatable_value(uint8_t, device);
+  templatable_value(bool, state);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto family = this->family_.value(x...);
@@ -140,10 +140,10 @@ template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterAct
 };
 template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  TEMPLATABLE_VALUE(RCSwitchBase, protocol);
-  TEMPLATABLE_VALUE(std::string, group);
-  TEMPLATABLE_VALUE(uint8_t, device);
-  TEMPLATABLE_VALUE(bool, state);
+  templatable_value(RCSwitchBase, protocol);
+  templatable_value(std::string, group);
+  templatable_value(uint8_t, device);
+  templatable_value(bool, state);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto group = this->group_.value(x...);

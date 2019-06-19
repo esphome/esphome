@@ -11,7 +11,7 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   explicit TurnOnAction(FanState *state) : state_(state) {}
 
-  TEMPLATABLE_VALUE(bool, oscillating)
+  templatable_value(bool, oscillating)
   TEMPLATABLE_VALUE(FanSpeed, speed)
 
   void play(Ts... x) override {

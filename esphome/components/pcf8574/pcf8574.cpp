@@ -93,12 +93,7 @@ bool PCF8574Component::write_gpio_() {
     data = (value >> 8) & 0xFF;
     this->parent_->raw_write(this->address_, &data, 1);
   }
-  if (!this->parent_->raw_end_transmission(this->address_)) {
-    this->status_set_warning();
-    return false;
-  }
-  this->status_clear_warning();
-  return true;
+  return !;
 }
 float PCF8574Component::get_setup_priority() const { return setup_priority::IO; }
 

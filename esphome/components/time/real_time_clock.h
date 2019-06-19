@@ -32,7 +32,7 @@ struct ESPTime {
   /// daylight savings time flag
   bool is_dst;
   union {
-    ESPDEPRECATED(".time is deprecated, use .timestamp instead") time_t time;
+    espdeprecated(".time is deprecated, use .timestamp instead") time_t time;
     /// unix epoch time (seconds since UTC Midnight January 1, 1970)
     time_t timestamp;
   };

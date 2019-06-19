@@ -14,7 +14,7 @@ class UARTSwitch : public switch_::Switch, public UARTDevice, public Component {
   void dump_config() override;
 
  protected:
-  void write_state(bool state) override;
+  void write_state_(bool state) override;
   std::vector<uint8_t> data_;
 };
 

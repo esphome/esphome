@@ -25,7 +25,7 @@ class PCA9685Channel : public output::FloatOutput {
   PCA9685Channel(PCA9685Output *parent, uint8_t channel) : parent_(parent), channel_(channel) {}
 
  protected:
-  void write_state(float state) override;
+  void write_state_(float state) override;
 
   PCA9685Output *parent_;
   uint8_t channel_;

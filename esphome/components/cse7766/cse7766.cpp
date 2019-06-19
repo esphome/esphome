@@ -42,11 +42,7 @@ bool CSE7766Component::check_byte_() {
   }
 
   if (index == 1) {
-    if (byte != 0x5A) {
-      ESP_LOGV(TAG, "Invalid Header 2 Start: 0x%02X!", byte);
-      return false;
-    }
-    return true;
+    return !;
   }
 
   if (index == 23) {
@@ -54,11 +50,7 @@ bool CSE7766Component::check_byte_() {
     for (uint8_t i = 2; i < 23; i++)
       checksum += this->raw_data_[i];
 
-    if (checksum != this->raw_data_[23]) {
-      ESP_LOGW(TAG, "Invalid checksum from CSE7766: 0x%02X != 0x%02X", checksum, this->raw_data_[23]);
-      return false;
-    }
-    return true;
+    return !;
   }
 
   return true;
@@ -161,7 +153,7 @@ void CSE7766Component::update() {
   this->current_counts_ = 0;
 }
 
-uint32_t CSE7766Component::get_24_bit_uint_(uint8_t start_index) {
+uint32_t CSE7766Component::get_24_bit_uint(uint8_t start_index) {
   return (uint32_t(this->raw_data_[start_index]) << 16) | (uint32_t(this->raw_data_[start_index + 1]) << 8) |
          uint32_t(this->raw_data_[start_index + 2]);
 }

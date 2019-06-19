@@ -24,7 +24,7 @@ class SensorRawStateTrigger : public Trigger<float> {
 template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
  public:
   SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
-  TEMPLATABLE_VALUE(float, state)
+  templatable_value(float, state)
   void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:

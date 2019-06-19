@@ -22,7 +22,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   cover::CoverTraits get_traits() override;
 
  protected:
-  void control(const cover::CoverCall &call) override;
+  void control_(const cover::CoverCall &call) override;
   void stop_prev_trigger_();
   bool is_at_target_() const;
 

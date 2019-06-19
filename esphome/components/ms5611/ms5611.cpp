@@ -65,7 +65,7 @@ void MS5611Component::read_temperature_() {
   auto f = std::bind(&MS5611Component::read_pressure_, this, raw_temperature);
   this->set_timeout("pressure", 10, f);
 }
-void MS5611Component::read_pressure_(uint32_t raw_temperature) {
+void MS5611Component::read_pressure(uint32_t raw_temperature) {
   uint8_t bytes[3];
   if (!this->read_bytes(MS5611_CMD_ADC_READ, bytes, 3)) {
     this->status_set_warning();
@@ -74,7 +74,7 @@ void MS5611Component::read_pressure_(uint32_t raw_temperature) {
   const uint32_t raw_pressure = (uint32_t(bytes[0]) << 16) | (uint32_t(bytes[1]) << 8) | (uint32_t(bytes[2]));
   this->calculate_values_(raw_temperature, raw_pressure);
 }
-void MS5611Component::calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure) {
+void MS5611Component::calculate_values(uint32_t raw_temperature, uint32_t raw_pressure) {
   const int32_t d_t = int32_t(raw_temperature) - (uint32_t(this->prom_[4]) << 8);
   float temperature = (2000 + (int64_t(d_t) * this->prom_[5]) / 8388608.0f) / 100.0f;
 

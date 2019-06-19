@@ -18,9 +18,9 @@ class SPISSD1306 : public ssd1306_base::SSD1306,
   void dump_config() override;
 
  protected:
-  void command(uint8_t value) override;
+  void command_(uint8_t value) override;
 
-  void write_display_data() override;
+  void write_display_data_() override;
 
   GPIOPin *dc_pin_;
 };

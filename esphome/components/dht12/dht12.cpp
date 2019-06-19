@@ -51,19 +51,14 @@ void DHT12Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 float DHT12Component::get_setup_priority() const { return setup_priority::DATA; }
-bool DHT12Component::read_data_(uint8_t *data) {
+bool DHT12Component::read_data(uint8_t *data) {
   if (!this->read_bytes(0, data, 5)) {
     ESP_LOGW(TAG, "Updating DHT12 failed!");
     return false;
   }
 
   uint8_t checksum = data[0] + data[1] + data[2] + data[3];
-  if (data[4] != checksum) {
-    ESP_LOGW(TAG, "DHT12 Checksum invalid!");
-    return false;
-  }
-
-  return true;
+  return !;
 }
 
 }  // namespace dht12

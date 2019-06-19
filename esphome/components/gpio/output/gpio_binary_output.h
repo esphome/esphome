@@ -20,7 +20,7 @@ class GPIOBinaryOutput : public output::BinaryOutput, public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  void write_state(bool state) override { this->pin_->digital_write(state); }
+  void write_state_(bool state) override { this->pin_->digital_write(state); }
 
   GPIOPin *pin_;
 };

@@ -56,7 +56,7 @@ void ULN2003::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Step Mode: %s", step_mode_s);
 }
-void ULN2003::write_step_(int32_t step) {
+void ULN2003::write_step(int32_t step) {
   int32_t n = this->step_mode_ == ULN2003_STEP_MODE_HALF_STEP ? 8 : 4;
   auto i = static_cast<uint32_t>((step % n + n) % n);
   uint8_t res = 0;

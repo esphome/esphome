@@ -62,7 +62,7 @@ class Servo : public Component {
 template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
-  TEMPLATABLE_VALUE(float, value)
+  templatable_value(float, value)
   void play(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
 
  protected:

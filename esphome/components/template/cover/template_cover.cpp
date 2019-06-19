@@ -8,7 +8,7 @@ using namespace esphome::cover;
 
 static const char *TAG = "template.cover";
 
-TemplateCover::TemplateCover()
+
     : open_trigger_(new Trigger<>()),
       close_trigger_(new Trigger<>),
       stop_trigger_(new Trigger<>()),

@@ -25,7 +25,7 @@ class ESP8266PWM : public output::FloatOutput, public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
  protected:
-  void write_state(float state) override;
+  void write_state_(float state) override;
 
   GPIOPin *pin_;
   float frequency_{1000.0};
@@ -36,7 +36,7 @@ class ESP8266PWM : public output::FloatOutput, public Component {
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
  public:
   SetFrequencyAction(ESP8266PWM *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(float, frequency);
+  templatable_value(float, frequency);
 
   void play(Ts... x) {
     float freq = this->frequency_.value(x...);

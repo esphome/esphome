@@ -223,7 +223,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   }
 
  protected:
-  light::ESPColorView get_view_internal(int32_t index) const override {
+  light::ESPColorView get_view_internal_(int32_t index) const override {
     return {&this->leds_[index].r,      &this->leds_[index].g, &this->leds_[index].b, nullptr,
             &this->effect_data_[index], &this->correction_};
   }

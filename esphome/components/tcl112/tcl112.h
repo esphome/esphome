@@ -22,9 +22,9 @@ class Tcl112Climate : public climate::Climate, public Component {
 
  protected:
   /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override;
+  void control_(const climate::ClimateCall &call) override;
   /// Return the traits of this controller.
-  climate::ClimateTraits traits() override;
+  climate::ClimateTraits traits_() override;
 
   /// Transmit via IR the state of this climate controller.
   void transmit_state_();

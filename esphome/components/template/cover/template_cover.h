@@ -37,8 +37,8 @@ class TemplateCover : public cover::Cover, public Component {
   float get_setup_priority() const override;
 
  protected:
-  void control(const cover::CoverCall &call) override;
-  cover::CoverTraits get_traits() override;
+  void control_(const cover::CoverCall &call) override;
+  cover::CoverTraits get_traits_() override;
   void stop_prev_trigger_();
 
   TemplateCoverRestoreMode restore_mode_{COVER_RESTORE};

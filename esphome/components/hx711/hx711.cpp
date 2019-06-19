@@ -32,7 +32,7 @@ void HX711Sensor::update() {
     this->publish_state(value);
   }
 }
-bool HX711Sensor::read_sensor_(uint32_t *result) {
+bool HX711Sensor::read_sensor(uint32_t *result) {
   if (this->dout_pin_->digital_read()) {
     ESP_LOGW(TAG, "HX711 is not ready for new measurements yet!");
     this->status_set_warning();

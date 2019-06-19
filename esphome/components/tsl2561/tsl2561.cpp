@@ -63,7 +63,7 @@ void TSL2561Sensor::update() {
   this->set_timeout("illuminance", timeout, [this]() { this->read_data_(); });
 }
 
-float TSL2561Sensor::calculate_lx_(uint16_t ch0, uint16_t ch1) {
+float TSL2561Sensor::calculate_lx(uint16_t ch0, uint16_t ch1) {
   if ((ch0 == 0xFFFF) || (ch1 == 0xFFFF)) {
     ESP_LOGW(TAG, "TSL2561 sensor is saturated.");
     return NAN;

@@ -72,7 +72,7 @@ class SwitchTurnOffTrigger : public Trigger<> {
 template<typename... Ts> class SwitchPublishAction : public Action<Ts...> {
  public:
   SwitchPublishAction(Switch *a_switch) : switch_(a_switch) {}
-  TEMPLATABLE_VALUE(bool, state)
+  templatable_value(bool, state)
   void play(Ts... x) override { this->switch_->publish_state(this->state_.value(x...)); }
 
  protected:

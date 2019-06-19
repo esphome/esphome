@@ -80,7 +80,7 @@ template<typename... Ts> class UserService : public UserServiceDescriptor, publi
 
 template<typename... Ts>
 template<int... S>
-void UserService<Ts...>::execute_(std::vector<ExecuteServiceArgument> args, seq<S...>) {
+void UserService<Ts...>::execute(std::vector<ExecuteServiceArgument> args, seq<S...>) {
   this->trigger((args[S].get_value<Ts>())...);
 }
 template<typename... Ts> void UserService<Ts...>::encode_list_service_response(APIBuffer &buffer) {

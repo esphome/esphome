@@ -242,7 +242,7 @@ void BME680Component::update() {
   this->set_timeout("data", this->calc_meas_duration_(), [this]() { this->read_data_(); });
 }
 
-uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
+uint8_t BME680Component::calc_heater_resistance(uint16_t temperature) {
   if (temperature < 200)
     temperature = 200;
   if (temperature > 400)
@@ -273,7 +273,7 @@ uint8_t BME680Component::calc_heater_resistance_(uint16_t temperature) {
 
   return heatr_res;
 }
-uint8_t BME680Component::calc_heater_duration_(uint16_t duration) {
+uint8_t BME680Component::calc_heater_duration(uint16_t duration) {
   uint8_t factor = 0;
   uint8_t duration_value;
 
@@ -323,7 +323,7 @@ void BME680Component::read_data_() {
   this->status_clear_warning();
 }
 
-float BME680Component::calc_temperature_(uint32_t raw_temperature) {
+float BME680Component::calc_temperature(uint32_t raw_temperature) {
   float var1 = 0;
   float var2 = 0;
   float var3 = 0;
@@ -349,7 +349,7 @@ float BME680Component::calc_temperature_(uint32_t raw_temperature) {
 
   return calc_temp;
 }
-float BME680Component::calc_pressure_(uint32_t raw_pressure) {
+float BME680Component::calc_pressure(uint32_t raw_pressure) {
   const float tfine = this->calibration_.tfine;
   const float p1 = this->calibration_.p1;
   const float p2 = this->calibration_.p2;
@@ -391,7 +391,7 @@ float BME680Component::calc_pressure_(uint32_t raw_pressure) {
   return calc_pres / 100.0f;
 }
 
-float BME680Component::calc_humidity_(uint16_t raw_humidity) {
+float BME680Component::calc_humidity(uint16_t raw_humidity) {
   const float tfine = this->calibration_.tfine;
   const float h1 = this->calibration_.h1;
   const float h2 = this->calibration_.h2;
@@ -426,7 +426,7 @@ float BME680Component::calc_humidity_(uint16_t raw_humidity) {
 
   return calc_hum;
 }
-uint32_t BME680Component::calc_gas_resistance_(uint16_t raw_gas, uint8_t range) {
+uint32_t BME680Component::calc_gas_resistance(uint16_t raw_gas, uint8_t range) {
   float calc_gas_res;
   float var1 = 0;
   float var2 = 0;
@@ -441,7 +441,7 @@ uint32_t BME680Component::calc_gas_resistance_(uint16_t raw_gas, uint8_t range) 
 
   return static_cast<uint32_t>(calc_gas_res);
 }
-uint32_t BME680Component::calc_meas_duration_() {
+uint32_t BME680Component::calc_meas_duration() {
   uint32_t tph_dur;  // Calculate in us
   uint32_t meas_cycles;
   const uint8_t os_to_meas_cycles[6] = {0, 1, 2, 4, 8, 16};

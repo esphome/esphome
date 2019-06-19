@@ -158,7 +158,7 @@ void APDS9960::update() {
 
 void APDS9960::loop() { this->read_gesture_data_(); }
 
-void APDS9960::read_color_data_(uint8_t status) {
+void APDS9960::read_color_data(uint8_t status) {
   if (!this->is_color_enabled_())
     return;
 
@@ -190,7 +190,7 @@ void APDS9960::read_color_data_(uint8_t status) {
   if (this->blue_channel_ != nullptr)
     this->blue_channel_->publish_state(blue_perc);
 }
-void APDS9960::read_proximity_data_(uint8_t status) {
+void APDS9960::read_proximity_data(uint8_t status) {
   if (this->proximity_ == nullptr)
     return;
 

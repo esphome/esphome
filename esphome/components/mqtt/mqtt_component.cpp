@@ -11,24 +11,24 @@ static const char *TAG = "mqtt.component";
 
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
-std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
+std::string MQTTComponent::get_discovery_topic(const MQTTDiscoveryInfo &discovery_info) const {
   std::string sanitized_name = sanitize_string_whitelist(App.get_name(), HOSTNAME_CHARACTER_WHITELIST);
   return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
 
-std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
+std::string MQTTComponent::get_default_topic_for(const std::string &suffix) const {
   return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_default_object_id_() +
          "/" + suffix;
 }
 
-const std::string MQTTComponent::get_state_topic_() const {
+const std::string MQTTComponent::get_state_topic() const {
   if (this->custom_state_topic_.empty())
     return this->get_default_topic_for_("state");
   return this->custom_state_topic_;
 }
 
-const std::string MQTTComponent::get_command_topic_() const {
+const std::string MQTTComponent::get_command_topic() const {
   if (this->custom_command_topic_.empty())
     return this->get_default_topic_for_("command");
   return this->custom_command_topic_;
@@ -116,7 +116,7 @@ bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
 }
 
-std::string MQTTComponent::get_default_object_id_() const {
+std::string MQTTComponent::get_default_object_id() const {
   return sanitize_string_whitelist(to_lowercase_underscore(this->friendly_name()), HOSTNAME_CHARACTER_WHITELIST);
 }
 

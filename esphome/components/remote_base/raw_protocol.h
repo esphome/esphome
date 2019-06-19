@@ -44,7 +44,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
     this->code_static_ = code;
     this->code_static_len_ = len;
   }
-  TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
+  templatable_value(uint32_t, carrier_frequency);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     if (this->code_static_ != nullptr) {
@@ -62,7 +62,7 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
   }
 
  protected:
-  std::function<std::vector<int32_t>(Ts...)> code_func_{};
+  std::function<std::vector<int32_t>(ts_...)> code_func_{};
   const int32_t *code_static_{nullptr};
   int32_t code_static_len_{0};
 };
