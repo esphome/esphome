@@ -470,11 +470,6 @@ bool WiFiComponent::wifi_scan_start_() {
   if (!this->wifi_mode_(true, {}))
     return false;
 
-  ETS_UART_INTR_DISABLE();
-  wifi_station_set_reconnect_policy(false);
-  wifi_station_disconnect();
-  ETS_UART_INTR_ENABLE();
-
   struct scan_config config {};
   memset(&config, 0, sizeof(config));
   config.ssid = nullptr;
