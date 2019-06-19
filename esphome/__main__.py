@@ -164,7 +164,7 @@ def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
            '--baud', config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200),
-           '-e', '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
+           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
         import esptool
