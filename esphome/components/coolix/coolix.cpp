@@ -50,11 +50,11 @@ const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
 };
 
 // Constants
-static const uint32_t HEADER_MARK_US = 4500;
-static const uint32_t HEADER_SPACE_US = 4500;
-static const uint32_t BIT_MARK_US = 560;
-static const uint32_t BIT_ONE_SPACE_US = 1600;
-static const uint32_t BIT_ZERO_SPACE_US = 530;
+static const uint32_t BIT_MARK_US = 660;
+static const uint32_t HEADER_MARK_US = 560*8;
+static const uint32_t HEADER_SPACE_US = 560*8;
+static const uint32_t BIT_ONE_SPACE_US = 1500;
+static const uint32_t BIT_ZERO_SPACE_US = 450;
 static const uint32_t FOOTER_MARK_US = BIT_MARK_US;
 static const uint32_t FOOTER_SPACE_US = HEADER_SPACE_US;
 
@@ -127,7 +127,7 @@ void CoolixClimate::transmit_state_() {
   if (this->mode != climate::CLIMATE_MODE_OFF) {
     auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
     remote_state &= ~COOLIX_TEMP_MASK;  // Clear the old temp.
-    remote_state |= (COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN] << 4);
+    remote_state |= COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN] << 4;
   }
 
   ESP_LOGV(TAG, "Sending coolix code: 0x%02X", remote_state);
