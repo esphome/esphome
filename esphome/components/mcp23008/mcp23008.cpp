@@ -19,7 +19,7 @@ void MCP23008::setup() {
 }
 bool MCP23008::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
-  uint8_t reg_addr =  MCP23008_GPIO;
+  uint8_t reg_addr = MCP23008_GPIO;
   uint8_t value = 0;
   this->read_reg_(reg_addr, &value);
   return value & (1 << bit);
