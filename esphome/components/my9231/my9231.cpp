@@ -73,7 +73,7 @@ void MY9231OutputComponent::loop() {
   this->send_di_pulses_(8);
   this->update_ = false;
 }
-void MY9231OutputComponent::set_channel_value(uint8_t channel, uint16_t value) {
+void MY9231OutputComponent::set_channel_value_(uint8_t channel, uint16_t value) {
   ESP_LOGV(TAG, "set channels %u to %u", channel, value);
   uint8_t index = this->num_channels_ - channel - 1;
   if (this->pwm_amounts_[index] != value) {
@@ -81,7 +81,7 @@ void MY9231OutputComponent::set_channel_value(uint8_t channel, uint16_t value) {
   }
   this->pwm_amounts_[index] = value;
 }
-void MY9231OutputComponent::init_chips(uint8_t command) {
+void MY9231OutputComponent::init_chips_(uint8_t command) {
   // Send 12 DI pulse. After 6 falling edges, the duty data are stored
   // and after 12 rising edges the command mode is activated.
   this->send_di_pulses_(12);
@@ -93,13 +93,13 @@ void MY9231OutputComponent::init_chips(uint8_t command) {
   // stored and after 16 falling edges the duty mode is activated.
   this->send_di_pulses_(16);
 }
-void MY9231OutputComponent::write_word(uint16_t value, uint8_t bits) {
+void MY9231OutputComponent::write_word_(uint16_t value, uint8_t bits) {
   for (uint8_t i = bits; i > 0; i--) {
     this->pin_di_->digital_write(value & (1 << (i - 1)));
     this->pin_dcki_->digital_write(!this->pin_dcki_->digital_read());
   }
 }
-void MY9231OutputComponent::send_di_pulses(uint8_t count) {
+void MY9231OutputComponent::send_di_pulses_(uint8_t count) {
   delayMicroseconds(12);
   for (uint8_t i = 0; i < count; i++) {
     this->pin_di_->digital_write(true);

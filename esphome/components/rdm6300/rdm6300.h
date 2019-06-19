@@ -33,7 +33,13 @@ class RDM6300BinarySensor : public binary_sensor::BinarySensor {
   void set_id(uint32_t id) { id_ = id; }
 
   bool process(uint32_t id) {
-    return ;
+    if (this->id_ == id) {
+      this->publish_state(true);
+      yield();
+      this->publish_state(false);
+      return true;
+    }
+    return false;
   }
 
  protected:

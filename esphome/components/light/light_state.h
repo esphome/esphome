@@ -203,11 +203,11 @@ class LightState : public Nameable, public Component {
   LightColorValues current_values;
 
   /// Deprecated method to access current_values.
-  espdeprecated("get_current_values() is deprecated, please use .current_values instead.")
+  ESPDEPRECATED("get_current_values() is deprecated, please use .current_values instead.")
   LightColorValues get_current_values();
 
   /// Deprecated method to access remote_values.
-  espdeprecated("get_remote_values() is deprecated, please use .remote_values instead.")
+  ESPDEPRECATED("get_remote_values() is deprecated, please use .remote_values instead.")
   LightColorValues get_remote_values();
 
   /** The remote color values reported to the frontend.
@@ -278,7 +278,7 @@ class LightState : public Nameable, public Component {
   friend LightOutput;
   friend LightCall;
 
-  uint32_t hash_base_() override;
+  uint32_t hash_base() override;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);

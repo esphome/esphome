@@ -77,7 +77,7 @@ class BinarySensor : public Nameable {
   virtual std::string device_class();
 
  protected:
-  uint32_t hash_base_() override;
+  uint32_t hash_base() override;
 
   CallbackManager<void(bool)> state_callback_{};
   optional<std::string> device_class_{};  ///< Stores the override of the device class

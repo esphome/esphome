@@ -113,7 +113,7 @@ bool EndstopCover::is_at_target_() const {
       return true;
   }
 }
-void EndstopCover::start_direction(CoverOperation dir) {
+void EndstopCover::start_direction_(CoverOperation dir) {
   if (dir == this->current_operation)
     return;
 

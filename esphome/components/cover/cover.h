@@ -117,7 +117,7 @@ class Cover : public Nameable {
      * COVER_CLOSED constants).
      */
     float position;
-    espdeprecated("<cover>.state is deprecated, please use .position instead") float state;
+    ESPDEPRECATED("<cover>.state is deprecated, please use .position instead") float state;
   };
   /// The current tilt value of the cover from 0.0 to 1.0.
   float tilt{COVER_OPEN};
@@ -164,10 +164,10 @@ class Cover : public Nameable {
   friend CoverCall;
 
   virtual void control(const CoverCall &call) = 0;
-  virtual std::string device_class_();
+  virtual std::string device_class();
 
   optional<CoverRestoreState> restore_state_();
-  uint32_t hash_base_() override;
+  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   optional<std::string> device_class_override_{};

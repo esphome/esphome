@@ -56,9 +56,9 @@ class IntegrationSensor : public sensor::Sensor, public Component {
     this->publish_state(result);
     this->rtc_.save(&result);
   }
-  std::string unit_of_measurement_() override;
-  std::string icon_() override { return this->sensor_->get_icon(); }
-  int8_t accuracy_decimals_() override { return this->sensor_->get_accuracy_decimals() + 2; }
+  std::string unit_of_measurement() override;
+  std::string icon() override { return this->sensor_->get_icon(); }
+  int8_t accuracy_decimals() override { return this->sensor_->get_accuracy_decimals() + 2; }
 
   sensor::Sensor *sensor_;
   IntegrationSensorTime time_;

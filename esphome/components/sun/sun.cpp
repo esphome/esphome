@@ -101,7 +101,7 @@ double Sun::azimuth_rad_(double sun_time) {
   return az;
 }
 double Sun::azimuth_(double sun_time) { return this->azimuth_rad_(sun_time) * TO_DEGREES; }
-double Sun::calc_sun_time(const time::ESPTime &time) {
+double Sun::calc_sun_time_(const time::ESPTime &time) {
   // Time as seen at 0° longitude
   if (!time.is_valid())
     return NAN;
@@ -111,7 +111,7 @@ double Sun::calc_sun_time(const time::ESPTime &time) {
   double add = this->longitude_ / 360.0;
   return base + add;
 }
-uint32_t Sun::calc_epoch(time::ESPTime base, double sun_time) {
+uint32_t Sun::calc_epoch_(time::ESPTime base, double sun_time) {
   sun_time -= this->longitude_ / 360.0;
   base.day_of_year = uint32_t(floor(sun_time));
 
@@ -127,7 +127,7 @@ uint32_t Sun::calc_epoch(time::ESPTime base, double sun_time) {
   base.recalc_timestamp_utc(true);
   return base.timestamp;
 }
-double Sun::sun_time_for_elevation(int32_t day_of_year, double elevation, bool rising) {
+double Sun::sun_time_for_elevation_(int32_t day_of_year, double elevation, bool rising) {
   // Use binary search, newton's method would be better but binary search already
   // converges quite well (19 cycles) and much simpler. Function is guaranteed to be
   // monotonous.

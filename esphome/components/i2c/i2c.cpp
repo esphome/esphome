@@ -82,7 +82,11 @@ bool I2CComponent::raw_end_transmission(uint8_t address) {
 bool I2CComponent::raw_request_from(uint8_t address, uint8_t len) {
   ESP_LOGVV(TAG, "Requesting %u bytes from 0x%02X:", len, address);
   uint8_t ret = this->wire_->requestFrom(address, len);
-  return !;
+  if (ret != len) {
+    ESP_LOGW(TAG, "Requesting %u bytes from 0x%02X failed!", len, address);
+    return false;
+  }
+  return true;
 }
 void HOT I2CComponent::raw_write(uint8_t address, const uint8_t *data, uint8_t len) {
   for (size_t i = 0; i < len; i++) {

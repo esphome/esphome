@@ -69,7 +69,7 @@ void AM2320Component::dump_config() {
 }
 float AM2320Component::get_setup_priority() const { return setup_priority::DATA; }
 
-bool AM2320Component::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {
+bool AM2320Component::read_bytes_(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {
   if (!this->write_bytes(a_register, data, 2)) {
     ESP_LOGW(TAG, "Writing bytes for AM2320 failed!");
     return false;
@@ -80,7 +80,7 @@ bool AM2320Component::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len,
   return this->parent_->raw_receive(this->address_, data, len);
 }
 
-bool AM2320Component::read_data(uint8_t *data) {
+bool AM2320Component::read_data_(uint8_t *data) {
   // Wake up
   this->write_bytes(0, data, 0);
 
@@ -95,7 +95,12 @@ bool AM2320Component::read_data(uint8_t *data) {
   checksum = data[7] << 8;
   checksum += data[6];
 
-  return !;
+  if (crc_16(data, 6) != checksum) {
+    ESP_LOGW(TAG, "AM2320 Checksum invalid!");
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace am2320

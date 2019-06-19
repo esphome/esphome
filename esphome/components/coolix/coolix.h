@@ -22,9 +22,9 @@ class CoolixClimate : public climate::Climate, public Component {
 
  protected:
   /// Override control to change settings of the climate device.
-  void control_(const climate::ClimateCall &call) override;
+  void control(const climate::ClimateCall &call) override;
   /// Return the traits of this controller.
-  climate::ClimateTraits traits_() override;
+  climate::ClimateTraits traits() override;
 
   /// Transmit via IR the state of this climate controller.
   void transmit_state_();

@@ -23,7 +23,7 @@ DECLARE_REMOTE_PROTOCOL(Samsung)
 
 template<typename... Ts> class SamsungAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  templatable_value(uint32_t, data)
+  TEMPLATABLE_VALUE(uint32_t, data)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     SamsungData data{};
     data.data = this->data_.value(x...);

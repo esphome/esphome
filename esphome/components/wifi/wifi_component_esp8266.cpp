@@ -20,7 +20,7 @@ namespace wifi {
 
 static const char *TAG = "wifi_esp8266";
 
-bool WiFiComponent::wifi_mode(optional<bool> sta, optional<bool> ap) {
+bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   uint8_t current_mode = wifi_get_opmode();
   bool current_sta = current_mode & 0b01;
   bool current_ap = current_mode & 0b10;
@@ -411,7 +411,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 }
 
 void WiFiComponent::wifi_register_callbacks_() { wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback); }
-wl_status_t WiFiComponent::wifi_sta_status() {
+wl_status_t WiFiComponent::wifi_sta_status_() {
   station_status_t status = wifi_station_get_connect_status();
   switch (status) {
     case STATION_GOT_IP:
@@ -469,7 +469,7 @@ void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
   global_wifi_component->wifi_scan_done_callback_(arg, status);
 }
 
-void WiFiComponent::wifi_scan_done_callback(void *arg, STATUS status) {
+void WiFiComponent::wifi_scan_done_callback_(void *arg, STATUS status) {
   this->scan_result_.clear();
 
   if (status != OK) {
@@ -486,7 +486,7 @@ void WiFiComponent::wifi_scan_done_callback(void *arg, STATUS status) {
   }
   this->scan_done_ = true;
 }
-bool WiFiComponent::wifi_ap_ip_config(optional<ManualIP> manual_ip) {
+bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   // enable AP
   if (!this->wifi_mode_({}, true))
     return false;

@@ -24,7 +24,7 @@ DECLARE_REMOTE_PROTOCOL(Sony)
 
 template<typename... Ts> class SonyAction : public RemoteTransmitterActionBase<Ts...> {
  public:
-  templatable_value(uint32_t, data)
+  TEMPLATABLE_VALUE(uint32_t, data)
   TEMPLATABLE_VALUE(uint8_t, nbits)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     SonyData data{};

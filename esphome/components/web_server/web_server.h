@@ -119,13 +119,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
   /// Override the web handler's canHandle method.
-  bool can_handle(AsyncWebServerRequest *request) override;
+  bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
-  void handle_request(AsyncWebServerRequest *request) override;
-  void handle_upload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
+  void handleRequest(AsyncWebServerRequest *request) override;
+  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
                     bool final) override;
   /// This web handle is not trivial.
-  bool is_request_handler_trivial() override;
+  bool isRequestHandlerTrivial() override;
 
  protected:
   uint16_t port_;

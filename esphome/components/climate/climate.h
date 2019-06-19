@@ -182,7 +182,7 @@ class Climate : public Nameable {
    * modes, temperature range etc. Each integration must implement this method and the return value must
    * be constant during all of execution time.
    */
-  virtual ClimateTraits traits_() = 0;
+  virtual ClimateTraits traits() = 0;
 
   /** Control the climate device, this is a virtual method that each climate integration must implement.
    *
@@ -200,7 +200,7 @@ class Climate : public Nameable {
    */
   void save_state_();
 
-  uint32_t hash_base_() override;
+  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

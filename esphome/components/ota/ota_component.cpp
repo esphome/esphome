@@ -300,7 +300,7 @@ error:
 #endif
 }
 
-size_t OTAComponent::wait_receive(uint8_t *buf, size_t bytes, bool check_disconnected) {
+size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_disconnected) {
   size_t available = 0;
   uint32_t start = millis();
   do {
@@ -387,8 +387,8 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
     this->write_rtc_(this->safe_mode_rtc_value_ + 1);
   }
 }
-void OTAComponent::write_rtc(uint32_t val) { this->rtc_.save(&val); }
-uint32_t OTAComponent::read_rtc() {
+void OTAComponent::write_rtc_(uint32_t val) { this->rtc_.save(&val); }
+uint32_t OTAComponent::read_rtc_() {
   uint32_t val;
   if (!this->rtc_.load(&val))
     return 0;

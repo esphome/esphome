@@ -7,12 +7,12 @@ namespace light {
 
 static const char *TAG = "light";
 
-void LightState::start_transition(const LightColorValues &target, uint32_t length) {
+void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
   this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);
   this->remote_values = this->transformer_->get_remote_values();
 }
 
-void LightState::start_flash(const LightColorValues &target, uint32_t length) {
+void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
   LightColorValues end_colors = this->current_values;
   // If starting a flash if one is already happening, set end values to end values of current flash
   // Hacky but works
@@ -24,7 +24,7 @@ void LightState::start_flash(const LightColorValues &target, uint32_t length) {
 
 LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
 
-void LightState::set_immediately(const LightColorValues &target) {
+void LightState::set_immediately_(const LightColorValues &target) {
   this->transformer_ = nullptr;
   this->current_values = this->remote_values = target;
   this->next_write_ = true;
@@ -46,7 +46,7 @@ std::string LightState::get_effect_name() {
     return "None";
 }
 
-void LightState::start_effect(uint32_t effect_index) {
+void LightState::start_effect_(uint32_t effect_index) {
   this->stop_effect_();
   if (effect_index == 0)
     return;
@@ -57,7 +57,7 @@ void LightState::start_effect(uint32_t effect_index) {
 }
 
 bool LightState::supports_effects() { return !this->effects_.empty(); }
-void LightState::set_transformer(std::unique_ptr<LightTransformer> transformer) {
+void LightState::set_transformer_(std::unique_ptr<LightTransformer> transformer) {
   this->transformer_ = std::move(transformer);
 }
 void LightState::stop_effect_() {
@@ -351,7 +351,7 @@ void LightCall::perform() {
   }
 }
 
-LightColorValues LightCall::validate() {
+LightColorValues LightCall::validate_() {
   // use remote values for fallback
   auto *name = this->parent_->get_name().c_str();
   auto traits = this->parent_->get_traits();

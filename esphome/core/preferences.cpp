@@ -55,7 +55,11 @@ bool ESPPreferenceObject::save_() {
 #define ESP_RTC_USER_MEM_SIZE_BYTES ESP_RTC_USER_MEM_SIZE_WORDS * 4
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
-  return !;
+  if (index >= ESP_RTC_USER_MEM_SIZE_WORDS) {
+    return false;
+  }
+  *dest = ESP_RTC_USER_MEM[index];
+  return true;
 }
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH

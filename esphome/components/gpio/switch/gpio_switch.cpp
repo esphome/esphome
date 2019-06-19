@@ -66,7 +66,7 @@ void GPIOSwitch::dump_config() {
     }
   }
 }
-void GPIOSwitch::write_state_(bool state) {
+void GPIOSwitch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
     for (auto *lock : this->interlock_) {

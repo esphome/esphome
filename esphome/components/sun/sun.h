@@ -117,7 +117,7 @@ class SunTrigger : public Trigger<>, public PollingComponent, public Parented<Su
 
 template<typename... Ts> class SunCondition : public Condition<Ts...>, public Parented<Sun> {
  public:
-  templatable_value(double, elevation);
+  TEMPLATABLE_VALUE(double, elevation);
   void set_above(bool above) { above_ = above; }
 
   bool check(Ts... x) override {

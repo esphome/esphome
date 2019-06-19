@@ -79,7 +79,12 @@ bool Nextion::send_command_printf(const char *format, ...) {
     return false;
   }
   this->send_command_no_ack(buffer);
-  return this->ack_();
+  if (!this->ack_()) {
+    ESP_LOGW(TAG, "Sending command '%s' failed because no ACK was received", buffer);
+    return false;
+  }
+
+  return true;
 }
 void Nextion::hide_component(const char *component) { this->send_command_printf("vis %s,0", component); }
 void Nextion::show_component(const char *component) { this->send_command_printf("vis %s,1", component); }

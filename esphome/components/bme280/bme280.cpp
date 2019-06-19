@@ -204,7 +204,7 @@ void BME280Component::update() {
     this->status_clear_warning();
   });
 }
-float BME280Component::read_temperature(int32_t *t_fine) {
+float BME280Component::read_temperature_(int32_t *t_fine) {
   uint8_t data[3];
   if (!this->read_bytes(BME280_REGISTER_TEMPDATA, data, 3))
     return NAN;
@@ -226,7 +226,7 @@ float BME280Component::read_temperature(int32_t *t_fine) {
   return temperature / 100.0f;
 }
 
-float BME280Component::read_pressure(int32_t t_fine) {
+float BME280Component::read_pressure_(int32_t t_fine) {
   uint8_t data[3];
   if (!this->read_bytes(BME280_REGISTER_PRESSUREDATA, data, 3))
     return NAN;
@@ -265,7 +265,7 @@ float BME280Component::read_pressure(int32_t t_fine) {
   return (p / 256.0f) / 100.0f;
 }
 
-float BME280Component::read_humidity(int32_t t_fine) {
+float BME280Component::read_humidity_(int32_t t_fine) {
   uint16_t raw_adc;
   if (!this->read_byte_16(BME280_REGISTER_HUMIDDATA, &raw_adc) || raw_adc == 0x8000)
     return NAN;
@@ -302,17 +302,17 @@ void BME280Component::set_humidity_oversampling(BME280Oversampling humidity_over
   this->humidity_oversampling_ = humidity_over_sampling;
 }
 void BME280Component::set_iir_filter(BME280IIRFilter iir_filter) { this->iir_filter_ = iir_filter; }
-uint8_t BME280Component::read_u8(uint8_t a_register) {
+uint8_t BME280Component::read_u8_(uint8_t a_register) {
   uint8_t data = 0;
   this->read_byte(a_register, &data);
   return data;
 }
-uint16_t BME280Component::read_u16_le(uint8_t a_register) {
+uint16_t BME280Component::read_u16_le_(uint8_t a_register) {
   uint16_t data = 0;
   this->read_byte_16(a_register, &data);
   return (data >> 8) | (data << 8);
 }
-int16_t BME280Component::read_s16_le(uint8_t a_register) { return this->read_u16_le_(a_register); }
+int16_t BME280Component::read_s16_le_(uint8_t a_register) { return this->read_u16_le_(a_register); }
 
 }  // namespace bme280
 }  // namespace esphome

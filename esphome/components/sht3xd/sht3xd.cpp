@@ -65,7 +65,7 @@ void SHT3XDComponent::update() {
   });
 }
 
-bool SHT3XDComponent::write_command(uint16_t command) {
+bool SHT3XDComponent::write_command_(uint16_t command) {
   // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
   return this->write_byte(command >> 8, command & 0xFF);
 }
@@ -93,11 +93,28 @@ uint8_t sht_crc(uint8_t data1, uint8_t data2) {
   return crc;
 }
 
-bool SHT3XDComponent::read_data(uint16_t *data, uint8_t len) {
+bool SHT3XDComponent::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   auto *buf = new uint8_t[num_bytes];
 
-  return !;
+  if (!this->parent_->raw_receive(this->address_, buf, num_bytes)) {
+    delete[](buf);
+    return false;
+  }
+
+  for (uint8_t i = 0; i < len; i++) {
+    const uint8_t j = 3 * i;
+    uint8_t crc = sht_crc(buf[j], buf[j + 1]);
+    if (crc != buf[j + 2]) {
+      ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
+      delete[](buf);
+      return false;
+    }
+    data[i] = (buf[j] << 8) | buf[j + 1];
+  }
+
+  delete[](buf);
+  return true;
 }
 
 }  // namespace sht3xd

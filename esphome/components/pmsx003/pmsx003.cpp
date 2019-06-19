@@ -45,7 +45,7 @@ void PMSX003Component::loop() {
   }
 }
 float PMSX003Component::get_setup_priority() const { return setup_priority::DATA; }
-optional<bool> PMSX003Component::check_byte() {
+optional<bool> PMSX003Component::check_byte_() {
   uint8_t index = this->data_index_;
   uint8_t byte = this->data_[index];
 
@@ -158,7 +158,7 @@ void PMSX003Component::parse_data_() {
 
   this->status_clear_warning();
 }
-uint16_t PMSX003Component::get_16_bit_uint(uint8_t start_index) {
+uint16_t PMSX003Component::get_16_bit_uint_(uint8_t start_index) {
   return (uint16_t(this->data_[start_index]) << 8) | uint16_t(this->data_[start_index + 1]);
 }
 void PMSX003Component::dump_config() {

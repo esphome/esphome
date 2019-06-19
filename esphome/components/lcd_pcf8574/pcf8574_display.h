@@ -16,11 +16,11 @@ class PCF8574LCDDisplay : public lcd_base::LCDDisplay, public i2c::I2CDevice {
   void no_backlight();
 
  protected:
-  bool is_four_bit_mode_() override { return true; }
-  void write_n_bits_(uint8_t value, uint8_t n) override;
-  void send_(uint8_t value, bool rs) override;
+  bool is_four_bit_mode() override { return true; }
+  void write_n_bits(uint8_t value, uint8_t n) override;
+  void send(uint8_t value, bool rs) override;
 
-  void call_writer_() override { this->writer_(*this); }
+  void call_writer() override { this->writer_(*this); }
 
   // Stores the current state of the backlight.
   uint8_t backlight_value_;

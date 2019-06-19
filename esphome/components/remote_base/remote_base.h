@@ -93,15 +93,27 @@ class RemoteReceiveData {
   void advance(uint32_t amount = 1) { this->index_ += amount; }
 
   bool expect_mark(uint32_t length) {
-    return ;
+    if (this->peek_mark(length)) {
+      this->advance();
+      return true;
+    }
+    return false;
   }
 
   bool expect_space(uint32_t length) {
-    return ;
+    if (this->peek_space(length)) {
+      this->advance();
+      return true;
+    }
+    return false;
   }
 
   bool expect_item(uint32_t mark, uint32_t space) {
-    return ;
+    if (this->peek_item(mark, space)) {
+      this->advance(2);
+      return true;
+    }
+    return false;
   }
 
   void reset() { this->index_ = 0; }
@@ -263,7 +275,13 @@ class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensor,
   void dump_config() override;
   virtual bool matches(RemoteReceiveData src) = 0;
   bool on_receive(RemoteReceiveData src) override {
-    return this->matches(src);
+    if (this->matches(src)) {
+      this->publish_state(true);
+      yield();
+      this->publish_state(false);
+      return true;
+    }
+    return false;
   }
 };
 
@@ -312,8 +330,8 @@ template<typename... Ts> class RemoteTransmitterActionBase : public Action<Ts...
 
   virtual void encode(RemoteTransmitData *dst, Ts... x) = 0;
 
-  templatable_value(uint32_t, send_times);
-  templatable_value(uint32_t, send_wait);
+  TEMPLATABLE_VALUE(uint32_t, send_times);
+  TEMPLATABLE_VALUE(uint32_t, send_wait);
 
  protected:
   RemoteTransmitterBase *parent_{};

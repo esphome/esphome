@@ -20,7 +20,7 @@ void RemoteTransmitterComponent::dump_config() {
   LOG_PIN("  Pin: ", this->pin_);
 }
 
-void RemoteTransmitterComponent::calculate_on_off_time(uint32_t carrier_frequency, uint32_t *on_time_period,
+void RemoteTransmitterComponent::calculate_on_off_time_(uint32_t carrier_frequency, uint32_t *on_time_period,
                                                         uint32_t *off_time_period) {
   if (carrier_frequency == 0) {
     *on_time_period = 0;
@@ -33,7 +33,7 @@ void RemoteTransmitterComponent::calculate_on_off_time(uint32_t carrier_frequenc
   *off_time_period = period - *on_time_period;
 }
 
-void RemoteTransmitterComponent::mark(uint32_t on_time, uint32_t off_time, uint32_t usec) {
+void RemoteTransmitterComponent::mark_(uint32_t on_time, uint32_t off_time, uint32_t usec) {
   if (this->carrier_duty_percent_ == 100 || (on_time == 0 && off_time == 0)) {
     this->pin_->digital_write(true);
     delay_microseconds_accurate(usec);
@@ -58,7 +58,7 @@ void RemoteTransmitterComponent::mark(uint32_t on_time, uint32_t off_time, uint3
     current_time = micros();
   }
 }
-void RemoteTransmitterComponent::space(uint32_t usec) {
+void RemoteTransmitterComponent::space_(uint32_t usec) {
   this->pin_->digital_write(false);
   delay_microseconds_accurate(usec);
 }

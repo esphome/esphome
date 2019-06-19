@@ -18,7 +18,7 @@ void OutputSwitch::setup() {
     this->turn_off();
   }
 }
-void OutputSwitch::write_state_(bool state) {
+void OutputSwitch::write_state(bool state) {
   if (state) {
     this->output_->turn_on();
   } else {

@@ -32,7 +32,7 @@ class MY9231OutputComponent : public Component {
     void set_channel(uint8_t channel) { channel_ = channel; }
 
    protected:
-    void write_state_(float state) override {
+    void write_state(float state) override {
       auto amount = uint16_t(state * this->parent_->get_max_amount_());
       this->parent_->set_channel_value_(this->channel_, amount);
     }

@@ -17,7 +17,7 @@ void TemplateSwitch::loop() {
 
   this->publish_state(*s);
 }
-void TemplateSwitch::write_state_(bool state) {
+void TemplateSwitch::write_state(bool state) {
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop();
   }
@@ -34,7 +34,7 @@ void TemplateSwitch::write_state_(bool state) {
     this->publish_state(state);
 }
 void TemplateSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-bool TemplateSwitch::assumed_state_() { return this->assumed_state_; }
+bool TemplateSwitch::assumed_state() { return this->assumed_state_; }
 void TemplateSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
 float TemplateSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 Trigger<> *TemplateSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }

@@ -41,7 +41,7 @@ template<typename... Ts> class SetTargetAction : public Action<Ts...> {
  public:
   explicit SetTargetAction(Stepper *parent) : parent_(parent) {}
 
-  templatable_value(int32_t, target)
+  TEMPLATABLE_VALUE(int32_t, target)
 
   void play(Ts... x) override { this->parent_->set_target(this->target_.value(x...)); }
 
@@ -53,7 +53,7 @@ template<typename... Ts> class ReportPositionAction : public Action<Ts...> {
  public:
   explicit ReportPositionAction(Stepper *parent) : parent_(parent) {}
 
-  templatable_value(int32_t, position)
+  TEMPLATABLE_VALUE(int32_t, position)
 
   void play(Ts... x) override { this->parent_->report_position(this->position_.value(x...)); }
 
@@ -65,7 +65,7 @@ template<typename... Ts> class SetSpeedAction : public Action<Ts...> {
  public:
   explicit SetSpeedAction(Stepper *parent) : parent_(parent) {}
 
-  templatable_value(float, speed);
+  TEMPLATABLE_VALUE(float, speed);
 
   void play(Ts... x) override {
     float speed = this->speed_.value(x...);

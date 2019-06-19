@@ -27,7 +27,7 @@ class EndstopCover : public cover::Cover, public Component {
   cover::CoverTraits get_traits() override;
 
  protected:
-  void control_(const cover::CoverCall &call) override;
+  void control(const cover::CoverCall &call) override;
   void stop_prev_trigger_();
   bool is_open_() const { return this->open_endstop_->state; }
   bool is_closed_() const { return this->close_endstop_->state; }

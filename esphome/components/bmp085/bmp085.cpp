@@ -128,7 +128,7 @@ void BMP085Component::read_pressure_() {
     this->pressure_->publish_state(pressure);
   this->status_clear_warning();
 }
-bool BMP085Component::set_mode(uint8_t mode) {
+bool BMP085Component::set_mode_(uint8_t mode) {
   ESP_LOGV(TAG, "Setting mode to 0x%02X...", mode);
   return this->write_byte(BMP085_REGISTER_CONTROL, mode);
 }

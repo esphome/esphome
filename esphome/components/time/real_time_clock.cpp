@@ -17,7 +17,7 @@ void RealTimeClock::call_setup() {
   tzset();
   this->setup();
 }
-void RealTimeClock::synchronize_epoch(uint32_t epoch) {
+void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
@@ -76,7 +76,11 @@ std::string ESPTime::strftime(const std::string &format) {
 
 template<typename T> bool increment_time_value(T &current, uint16_t begin, uint16_t end) {
   current++;
-  return ;
+  if (current >= end) {
+    current = begin;
+    return true;
+  }
+  return false;
 }
 
 static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }

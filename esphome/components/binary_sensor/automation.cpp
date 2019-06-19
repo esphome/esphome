@@ -79,14 +79,14 @@ void binary_sensor::MultiClickTrigger::schedule_cooldown_() {
   this->cancel_timeout("is_valid");
   this->cancel_timeout("is_not_valid");
 }
-void binary_sensor::MultiClickTrigger::schedule_is_valid(uint32_t min_length) {
+void binary_sensor::MultiClickTrigger::schedule_is_valid_(uint32_t min_length) {
   this->is_valid_ = false;
   this->set_timeout("is_valid", min_length, [this]() {
     ESP_LOGV(TAG, "Multi Click: You can now %s the button.", this->parent_->state ? "RELEASE" : "PRESS");
     this->is_valid_ = true;
   });
 }
-void binary_sensor::MultiClickTrigger::schedule_is_not_valid(uint32_t max_length) {
+void binary_sensor::MultiClickTrigger::schedule_is_not_valid_(uint32_t max_length) {
   this->set_timeout("is_not_valid", max_length, [this]() {
     ESP_LOGV(TAG, "Multi Click: You waited too long to %s.", this->parent_->state ? "RELEASE" : "PRESS");
     this->is_valid_ = false;

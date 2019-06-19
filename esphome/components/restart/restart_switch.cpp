@@ -7,7 +7,7 @@ namespace restart {
 
 static const char *TAG = "restart";
 
-void RestartSwitch::write_state_(bool state) {
+void RestartSwitch::write_state(bool state) {
   // Acknowledge
   this->publish_state(false);
 

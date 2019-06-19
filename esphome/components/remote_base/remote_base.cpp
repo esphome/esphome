@@ -16,7 +16,7 @@ RemoteComponentBase::RemoteComponentBase(GPIOPin *pin) : pin_(pin) {
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 
-void RemoteTransmitterBase::send(uint32_t send_times, uint32_t send_wait) {
+void RemoteTransmitterBase::send_(uint32_t send_times, uint32_t send_wait) {
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   const std::vector<int32_t> &vec = this->temp_.get_data();
   char buffer[256];

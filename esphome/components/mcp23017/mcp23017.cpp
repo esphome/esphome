@@ -48,19 +48,19 @@ void MCP23017::pin_mode(uint8_t pin, uint8_t mode) {
   }
 }
 float MCP23017::get_setup_priority() const { return setup_priority::HARDWARE; }
-bool MCP23017::read_reg(uint8_t reg, uint8_t *value) {
+bool MCP23017::read_reg_(uint8_t reg, uint8_t *value) {
   if (this->is_failed())
     return false;
 
   return this->read_byte(reg, value);
 }
-bool MCP23017::write_reg(uint8_t reg, uint8_t value) {
+bool MCP23017::write_reg_(uint8_t reg, uint8_t value) {
   if (this->is_failed())
     return false;
 
   return this->write_byte(reg, value);
 }
-void MCP23017::update_reg(uint8_t pin, bool pin_value, uint8_t reg_addr) {
+void MCP23017::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
   uint8_t bit = pin % 8;
   uint8_t reg_value = 0;
   if (reg_addr == MCP23017_OLATA) {

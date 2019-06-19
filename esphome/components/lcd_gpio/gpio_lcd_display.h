@@ -33,11 +33,11 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   void dump_config() override;
 
  protected:
-  bool is_four_bit_mode_() override { return this->data_pins_[4] == nullptr; }
-  void write_n_bits_(uint8_t value, uint8_t n) override;
-  void send_(uint8_t value, bool rs) override;
+  bool is_four_bit_mode() override { return this->data_pins_[4] == nullptr; }
+  void write_n_bits(uint8_t value, uint8_t n) override;
+  void send(uint8_t value, bool rs) override;
 
-  void call_writer_() override { this->writer_(*this); }
+  void call_writer() override { this->writer_(*this); }
 
   GPIOPin *rs_pin_{nullptr};
   GPIOPin *rw_pin_{nullptr};

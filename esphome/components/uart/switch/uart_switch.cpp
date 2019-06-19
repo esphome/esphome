@@ -6,7 +6,7 @@ namespace uart {
 
 static const char *TAG = "uart.switch";
 
-void UARTSwitch::write_state_(bool state) {
+void UARTSwitch::write_state(bool state) {
   if (!state) {
     this->publish_state(false);
     return;
