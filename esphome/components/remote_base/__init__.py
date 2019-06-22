@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
+    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_MASK
 from esphome.core import coroutine
 from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
@@ -459,6 +459,8 @@ def build_rc_switch_protocol(config):
 RC_SWITCH_RAW_SCHEMA = cv.Schema({
     cv.Required(CONF_CODE): validate_rc_switch_code,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
+    cv.Optional(CONF_MASK, default="11111111111111111111111111111111"):
+        validate_rc_switch_code,
 })
 RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
     cv.Required(CONF_GROUP): cv.All(validate_rc_switch_code, cv.Length(min=5, max=5)),
@@ -509,6 +511,7 @@ RCSwitchRawReceiver = ns.class_('RCSwitchRawReceiver', RemoteReceiverBinarySenso
 def rc_switch_raw_binary_sensor(var, config):
     cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
+    cg.add(var.set_mask(config[CONF_MASK]))
 
 
 @register_action('rc_switch_raw', RCSwitchRawAction,
@@ -518,6 +521,7 @@ def rc_switch_raw_action(var, config, args):
                                  to_exp=build_rc_switch_protocol)
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code((yield cg.templatable(config[CONF_CODE], args, cg.std_string))))
+    cg.add(var.set_mask((yield cg.templatable(config[CONF_MASK], args, cg.std_string))))
 
 
 @register_binary_sensor('rc_switch_type_a', RCSwitchRawReceiver, RC_SWITCH_TYPE_A_SCHEMA)

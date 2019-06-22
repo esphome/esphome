@@ -1019,6 +1019,7 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
         code: '001010011001111101011011'
+        mask: '111111111111111111110000'
         protocol: 1
   - platform: template
     name: RC Switch Type A

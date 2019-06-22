@@ -223,7 +223,7 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   if (!this->protocol_.decode(src, &decoded_code, &decoded_nbits))
     return false;
 
-  return decoded_nbits == this->nbits_ && decoded_code == this->code_;
+  return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
   for (uint8_t i = 1; i <= 7; i++) {
