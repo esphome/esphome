@@ -171,9 +171,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
     this->nbits_ = code.size();
   }
   void set_mask(uint32_t mask) { this->mask_ = mask; }
-  void set_mask(const std::string &mask) {
-    this->mask_ = decode_binary_string(mask);
-  }
+  void set_mask(const std::string &mask) { this->mask_ = decode_binary_string(mask); }
   void set_nbits(uint8_t nbits) { this->nbits_ = nbits; }
   void set_type_a(const std::string &group, const std::string &device, bool state) {
     uint8_t u_group = decode_binary_string(group);
