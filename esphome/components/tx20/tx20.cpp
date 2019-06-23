@@ -45,13 +45,11 @@ void Tx20Component::decode_and_publish_() {
   ESP_LOGVV(TAG, "Decode Tx20...");
 
   std::string string_buffer;
-  std::string string_buffer_2 = "";
+  std::string string_buffer_2;
   std::vector<bool> bit_buffer;
   bool current_bit = true;
-  uint32_t start_delay = 0;
 
   for (int i = 1; i <= this->store_.buffer_index; i++) {
-    start_delay = this->store_.buffer[i];
     string_buffer_2 += to_string(this->store_.buffer[i]) + ", ";
     uint8_t repeat = this->store_.buffer[i] / TX20_BIT_TIME;
     // ignore segments at the end that were too short
@@ -103,7 +101,7 @@ void Tx20Component::decode_and_publish_() {
 
   uint8_t chk = (tx20_sb + (tx20_sc & 0xf) + ((tx20_sc >> 4) & 0xf) + ((tx20_sc >> 8) & 0xf));
   chk &= 0xf;
-  bool valueSet = false;
+  bool value_set = false;
   // checks:
   // 1. Check that the start frame is 00100 (0x04)
   // 2. Check received checksum matches calculated checksum
@@ -112,28 +110,26 @@ void Tx20Component::decode_and_publish_() {
   ESP_LOGVV(TAG, "BUFFER %s", string_buffer_2.c_str());
   ESP_LOGVV(TAG, "Decoded bits %s", string_buffer.c_str());
 
-  if ((tx20_sa == 4)) {
+  if (tx20_sa == 4) {
     if (chk == tx20_sd) {
-      // if((chk == tx20_sd)){
-      if ((tx20_sf == tx20_sc)) {
+      if (tx20_sf == tx20_sc) {
         tx20_wind_speed_kmh = float(tx20_sc) * 0.36;
         ESP_LOGV(TAG, "WindSpeed %f", tx20_wind_speed_kmh);
-        if(this->wind_speed_sensor_  != nullptr)
+        if (this->wind_speed_sensor_ != nullptr)
           this->wind_speed_sensor_->publish_state(tx20_wind_speed_kmh);
-        valueSet = true;
+        value_set = true;
       }
-      if ((tx20_se == tx20_sb)) {
-
+      if (tx20_se == tx20_sb) {
         tx20_wind_direction = tx20_se;
         if (tx20_wind_direction >= 0 && tx20_wind_direction < 16) {
           wind_cardinal_direction_ = DIRECTIONS[tx20_wind_direction];
         }
         ESP_LOGV(TAG, "WindDirection %d", tx20_wind_direction);
-        if(this->wind_direction_degrees_sensor_  != nullptr)
+        if (this->wind_direction_degrees_sensor_ != nullptr)
           this->wind_direction_degrees_sensor_->publish_state(float(tx20_wind_direction) * 22.5f);
-        valueSet = true;
+        value_set = true;
       }
-      if (!valueSet) {
+      if (!value_set) {
         ESP_LOGE(TAG, "No value set!");
       }
     } else {
@@ -188,7 +184,6 @@ void ICACHE_RAM_ATTR Tx20ComponentStore::gpio_intr(Tx20ComponentStore *arg) {
   arg->buffer_index++;
 }
 void ICACHE_RAM_ATTR Tx20ComponentStore::reset() {
-  
   tx20_available = false;
   buffer_index = 0;
   spent_time = 0;
