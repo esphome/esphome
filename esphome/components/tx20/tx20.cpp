@@ -129,13 +129,13 @@ void Tx20Component::decode_and_publish_() {
         value_set = true;
       }
       if (!value_set) {
-        ESP_LOGE(TAG, "No value set!");
+        ESP_LOGW(TAG, "No value set!");
       }
     } else {
-      ESP_LOGE(TAG, "Checksum wrong!");
+      ESP_LOGW(TAG, "Checksum wrong!");
     }
   } else {
-    ESP_LOGE(TAG, "Start wrong!");
+    ESP_LOGW(TAG, "Start wrong!");
   }
 }
 
