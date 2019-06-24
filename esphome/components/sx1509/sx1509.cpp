@@ -18,15 +18,11 @@ void SX1509Component::setup() {
   uint16_t data;
   this->read_byte_16(REG_INTERRUPT_MASK_A, &data);
   if (data == 0xFF00) {
-    clock(INTERNAL_CLOCK_2MHZ);
+    clock_(INTERNAL_CLOCK_2MHZ);
   } else {
     this->mark_failed();
     return;
   }
-
-  // for (auto *channel : this->float_output_channels_)
-  //   channel->setup();
-
   delayMicroseconds(500);
 }
 
@@ -50,7 +46,7 @@ uint8_t SX1509Component::digital_read(uint8_t pin) {
   return 0;
 }
 
-void SX1509Component::digital_write(uint8_t pin, uint8_t bit_value) {
+void SX1509Component::digital_write_(uint8_t pin, uint8_t bit_value) {
   uint16_t temp_reg_dir = 0;
   this->read_byte_16(REG_DIR_B, &temp_reg_dir);
 
@@ -86,7 +82,7 @@ void SX1509Component::digital_write(uint8_t pin, uint8_t bit_value) {
   }
 }
 
-void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
+void SX1509Component::pin_mode_(uint8_t pin, uint8_t mode) {
   uint8_t mode_bit;
   if ((mode == OUTPUT) || (mode == ANALOG_OUTPUT))
     mode_bit = 0;
@@ -104,14 +100,14 @@ void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
   this->write_byte_16(REG_DIR_B, temp_reg_dir);
 
   if (mode == INPUT_PULLUP)
-    digital_write(pin, HIGH);
+    digital_write_(pin, HIGH);
 
   if (mode == ANALOG_OUTPUT) {
-    setup_led_driver(pin);
+    setup_led_driver_(pin);
   }
 }
 
-void SX1509Component::setup_led_driver(uint8_t pin, uint8_t freq, bool log) {
+void SX1509Component::setup_led_driver_(uint8_t pin, uint8_t freq, bool log) {
   uint16_t temp_word;
   uint8_t temp_byte;
 
@@ -141,9 +137,9 @@ void SX1509Component::setup_led_driver(uint8_t pin, uint8_t freq, bool log) {
     temp_byte &= ~(1 << 3);  // set linear mode bank A
   }
 
-  if (clk_x_ == 0)  // Make clckX non-zero
+  if (this->clk_x_ == 0)  // Make clckX non-zero
   {
-    clk_x_ = 2000000.0 / (1 << (1 - 1));  // Update private clock variable
+    this->clk_x_ = 2000000.0 / (1 << (1 - 1));  // Update private clock variable
 
     uint8_t freq = (1 & 0x07) << 4;  // freq should only be 3 bits from 6:4
     temp_byte |= freq;
@@ -161,7 +157,7 @@ void SX1509Component::setup_led_driver(uint8_t pin, uint8_t freq, bool log) {
 
 void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity, uint8_t off_intensity,
                                   uint8_t t_rise, uint8_t t_fall, bool log) {
-  setup_led_driver(pin, log);
+  setup_led_driver_(pin, log);
 
   t_on &= 0x1F;   // t_on should be a 5-bit value
   t_off &= 0x1F;  // t_off should be a 5-bit value
@@ -179,7 +175,7 @@ void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint
     this->write_byte(REG_T_FALL[pin], t_fall);
 }
 
-void SX1509Component::clock(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
+void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
   osc_source = (osc_source & 0b11) << 5;           // 2-bit value, bits 6:5
   osc_pin_function = (osc_pin_function & 1) << 4;  // 1-bit value bit 4
   osc_freq_out = (osc_freq_out & 0b1111);          // 4-bit value, bits 3:0
@@ -187,7 +183,7 @@ void SX1509Component::clock(byte osc_source, byte osc_pin_function, byte osc_fre
   this->write_byte(REG_CLOCK, reg_clock);
 
   osc_divider = constrain(osc_divider, 1, 7);
-  clk_x_ = 2000000.0 / (1 << (osc_divider - 1));  // Update private clock variable
+  this->clk_x_ = 2000000.0 / (1 << (osc_divider - 1));  // Update private clock variable
   osc_divider = (osc_divider & 0b111) << 4;       // 3-bit value, bits 6:4
 
   uint8_t reg_misc;
@@ -207,8 +203,6 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
   uint16_t temp_word;
   uint8_t temp_byte;
 
-  if (clk_x_ == 0)
-    clock(INTERNAL_CLOCK_2MHZ);
   this->read_byte_16(REG_DIR_B, &temp_word);
   for (int i = 0; i < rows; i++)
     temp_word &= ~(1 << i);
@@ -228,7 +222,7 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
   if (debounce_time >= scan_time) {
     debounce_time = scan_time >> 1;  // Force debounce_time to be less than scan_time
   }
-  debounce_keypad(debounce_time, rows, columns);
+  debounce_keypad_(debounce_time, rows, columns);
   uint8_t scan_time_bits = 0;
   for (uint8_t i = 7; i > 0; i--) {
     if (scan_time & (1 << i)) {
@@ -262,7 +256,7 @@ uint16_t SX1509Component::read_key_data() {
   return (0xFFFF ^ key_data);
 }
 
-void SX1509Component::debounce_config(uint8_t config_value) {
+void SX1509Component::debounce_config_(uint8_t config_value) {
   // First make sure clock is configured
   uint8_t temp_byte;
   this->read_byte(REG_MISC, &temp_byte);
@@ -280,10 +274,7 @@ void SX1509Component::debounce_config(uint8_t config_value) {
   this->write_byte(REG_DEBOUNCE_CONFIG, config_value);
 }
 
-void SX1509Component::debounce_time(uint8_t time) {
-  if (clk_x_ == 0)                  // If clock hasn't been set up.
-    clock(INTERNAL_CLOCK_2MHZ, 1);  // Set clock to 2MHz.
-
+void SX1509Component::debounce_time_(uint8_t time) {
   uint8_t config_value = 0;
 
   for (int i = 7; i >= 0; i--) {
@@ -294,24 +285,24 @@ void SX1509Component::debounce_time(uint8_t time) {
   }
   config_value = constrain(config_value, 0, 7);
 
-  debounce_config(config_value);
+  debounce_config_(config_value);
 }
 
-void SX1509Component::debounce_enable(uint8_t pin) {
+void SX1509Component::debounce_enable_(uint8_t pin) {
   uint16_t debounce_enable;
   this->read_byte_16(REG_DEBOUNCE_ENABLE_B, &debounce_enable);
   debounce_enable |= (1 << pin);
   this->write_byte_16(REG_DEBOUNCE_ENABLE_B, debounce_enable);
 }
 
-void SX1509Component::debounce_pin(uint8_t pin) { debounce_enable(pin); }
+void SX1509Component::debounce_pin_(uint8_t pin) { debounce_enable_(pin); }
 
-void SX1509Component::debounce_keypad(uint8_t time, uint8_t num_rows, uint8_t num_cols) {
-  debounce_time(time);
+void SX1509Component::debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols) {
+  debounce_time_(time);
   for (uint16_t i = 0; i < num_rows; i++)
-    debounce_pin(i);
+    debounce_pin_(i);
   for (uint16_t i = 0; i < (8 + num_cols); i++)
-    debounce_pin(i);
+    debounce_pin_(i);
 }
 
 }  // namespace sx1509

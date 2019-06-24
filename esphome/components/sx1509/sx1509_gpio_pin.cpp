@@ -32,13 +32,13 @@ void SX1509GPIOPin::setup() {
     this->parent_->setup_blink(this->pin_, on_reg, off_reg, this->on_intensity_, this->off_intensity_, rise_time,
                                fall_time);
   } else {
-    this->parent_->pin_mode(this->pin_,this->mode_);
+    this->parent_->pin_mode_(this->pin_,this->mode_);
   }
 }
 
-void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
+void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode_(this->pin_, mode); }
 bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
+void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write_(this->pin_, value != this->inverted_); }
 
 uint8_t SX1509GPIOPin::calculate_led_t_register(uint16_t ms) {
   uint16_t reg_on_1, reg_on_2;

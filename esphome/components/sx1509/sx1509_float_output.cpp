@@ -17,7 +17,7 @@ void SX1509FloatOutputChannel::write_state(float state) {
 
 void SX1509FloatOutputChannel::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);
-  this->parent_->pin_mode(this->pin_, ANALOG_OUTPUT);
+  this->parent_->pin_mode_(this->pin_, ANALOG_OUTPUT);
   this->turn_off();
 }
 

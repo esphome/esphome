@@ -28,7 +28,6 @@ void SX1509KeypadSensor::loop() {
       this->publish_state(key);
     }
   } else if (this->last_key_press_ != 0ULL) {
-    // is this a new sensor release
     ESP_LOGD(TAG, "'%s' - publishing NAN", this->name_.c_str());
     this->publish_state(NAN);
   }

@@ -29,10 +29,6 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void pin_mode(uint8_t pin, uint8_t in_out);
-  void setup_led_driver(uint8_t pin, uint8_t freq = 1, bool log = false);
-  void clock(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
-  void digital_write(uint8_t pin, uint8_t high_low);
   uint8_t digital_read(uint8_t pin);
   void set_pin_value_(uint8_t pin, uint8_t i_on);
 
@@ -42,12 +38,6 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time = 0, uint8_t scan_time = 1,
                     uint8_t debounce_time = 0);
   uint16_t read_key_data();
-
-  void debounce_config(uint8_t config_vaule);
-  void debounce_time(uint8_t time);
-  void debounce_pin(uint8_t pin);
-  void debounce_enable(uint8_t pin);  // Legacy, use debouncePin
-  void debounce_keypad(uint8_t time, uint8_t num_rows, uint8_t num_cols);
 
  protected:
   friend class SX1509FloatOutputChannel;
@@ -59,8 +49,17 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   // variables:
   u_long clk_x_;
   uint8_t frequency_ = 0;
-
   bool update_{true};
+
+  void debounce_config_(uint8_t config_vaule);
+  void debounce_time_(uint8_t time);
+  void debounce_pin_(uint8_t pin);
+  void debounce_enable_(uint8_t pin);  // Legacy, use debouncePin
+  void debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols);
+  void pin_mode_(uint8_t pin, uint8_t in_out);
+  void setup_led_driver_(uint8_t pin, uint8_t freq = 1, bool log = false);
+  void clock_(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
+  void digital_write_(uint8_t pin, uint8_t high_low);
 
   uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                           REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
