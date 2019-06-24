@@ -68,8 +68,10 @@ SX1509_INPUT_PIN_SCHEMA = cv.Schema({
 def sx1509_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_SX1509])
     if(config[CONF_MODE] == 'ANALOG_OUTPUT'):
-        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED],
-                                config[CONF_ON_TIME], config[CONF_OFF_TIME], config[CONF_ON_INT], config[CONF_OFF_INT],
-                                config[CONF_RISE_TIME], config[CONF_FALL_TIME])
+        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE],
+                                config[CONF_INVERTED], config[CONF_ON_TIME], config[CONF_OFF_TIME],
+                                config[CONF_ON_INT], config[CONF_OFF_INT], config[CONF_RISE_TIME],
+                                config[CONF_FALL_TIME])
     else:
-        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])
+        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE],
+                                config[CONF_INVERTED])
