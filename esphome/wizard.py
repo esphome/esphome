@@ -54,9 +54,9 @@ wifi:
   ssid: "{ssid}"
   password: "{psk}"
 
-  # Enable fallback network (captive portal)
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "{name} Fallback AP"
+    ssid: "{fallback_name}"
     password: "{fallback_psk}"
 
 captive_portal:
@@ -75,6 +75,7 @@ def sanitize_double_quotes(value):
 
 def wizard_file(**kwargs):
     letters = string.ascii_letters + string.digits
+    kwargs['fallback_name'] = "{} Fallback Hotspot".format(kwargs['name'].replace('_', ' ').title())
     kwargs['fallback_psk'] = ''.join(random.choice(letters) for _ in range(12))
 
     config = BASE_CONFIG.format(**kwargs)

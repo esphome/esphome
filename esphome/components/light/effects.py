@@ -11,7 +11,7 @@ from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect
+    AutomationLightEffect, ESPColor
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
@@ -129,7 +129,7 @@ def flicker_effect_to_code(config, effect_id):
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
 })
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it')]
+    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])

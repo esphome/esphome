@@ -11,7 +11,7 @@ from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
-    CONF_PASSWORD, CONF_PORT
+    CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
@@ -163,6 +163,7 @@ def compile_program(args, config):
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+           '--baud', config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200),
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:

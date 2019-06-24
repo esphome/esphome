@@ -17,11 +17,5 @@ class HomeassistantTime : public time::RealTimeClock {
 
 extern HomeassistantTime *global_homeassistant_time;
 
-class GetTimeResponse : public api::APIMessage {
- public:
-  bool decode_32bit(uint32_t field_id, uint32_t value) override;
-  api::APIMessageType message_type() const override;
-};
-
 }  // namespace homeassistant
 }  // namespace esphome
