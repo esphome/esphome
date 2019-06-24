@@ -17,8 +17,6 @@ namespace sx1509 {
 #define SOFTWARE_RESET 0
 #define HARDWARE_RESET 1
 
-#define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
-
 class SX1509FloatOutputChannel;
 class SX1509GPIOPin;
 

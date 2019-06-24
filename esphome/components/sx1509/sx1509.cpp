@@ -88,7 +88,7 @@ void SX1509Component::digital_write(uint8_t pin, uint8_t bit_value) {
 
 void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
   uint8_t mode_bit;
-  if ((mode == OUTPUT) || (mode == ANALOG_OUTPUT) || (mode == BREATHE_OUTPUT))
+  if ((mode == OUTPUT) || (mode == ANALOG_OUTPUT))
     mode_bit = 0;
   else
     mode_bit = 1;

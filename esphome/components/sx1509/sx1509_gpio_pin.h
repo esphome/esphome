@@ -2,11 +2,10 @@
 
 #include "sx1509.h"
 
-#define BREATHE_OUTPUT 0x50
-#define BLINK_OUTPUT 0x51
-
 #define LINEAR 0
 #define LOGARITHMIC 1
+
+#define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
 
 namespace esphome {
 namespace sx1509 {
@@ -16,8 +15,7 @@ enum SX1509GPIOMode : uint8_t {
   SX1509_INPUT = INPUT,                    // 0x00
   SX1509_INPUT_PULLUP = INPUT_PULLUP,      // 0x02
   SX1509_OUTPUT = OUTPUT,                  // 0x01
-  SX1509_BREATHE_OUTPUT = BREATHE_OUTPUT,  // 0x50
-  SX1509_BLINK_OUTPUT = BLINK_OUTPUT       // 0x51
+  SX1509_ANALOG_OUTPUT = ANALOG_OUTPUT,     // 0x03
 };
 
 class SX1509Component;
@@ -34,10 +32,10 @@ class SX1509GPIOPin : public GPIOPin {
 
  protected:
   SX1509Component *parent_;
-  uint8_t t_on_ = {0};
-  uint8_t t_off_ = {0};
-  uint8_t t_rise_ = {0};
-  uint8_t t_fall_ = {0};
+  uint16_t t_on_ = {0};
+  uint16_t t_off_ = {0};
+  uint16_t t_rise_ = {0};
+  uint16_t t_fall_ = {0};
   uint8_t on_intensity_ = {0};
   uint8_t off_intensity_ = {0};
 
