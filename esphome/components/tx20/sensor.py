@@ -12,9 +12,9 @@ Tx20Component = tx20_ns.class_('Tx20Component', cg.Component)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(Tx20Component),
     cv.Optional(CONF_WIND_SPEED):
-        sensor.sensor_schema(UNIT_KILOMETER_PER_HOUR, ICON_WEATHER_WINDY, 1).extend(),
+        sensor.sensor_schema(UNIT_KILOMETER_PER_HOUR, ICON_WEATHER_WINDY, 1),
     cv.Optional(CONF_WIND_DIRECTION_DEGREES):
-        sensor.sensor_schema(UNIT_EMPTY, ICON_SIGN_DIRECTION, 1).extend(),
+        sensor.sensor_schema(UNIT_EMPTY, ICON_SIGN_DIRECTION, 1),
     cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema,
                                   pins.validate_has_interrupt),
 }).extend(cv.COMPONENT_SCHEMA)
