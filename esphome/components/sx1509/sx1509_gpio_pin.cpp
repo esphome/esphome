@@ -9,23 +9,26 @@ static const char *TAG = "sx1509_gpio_pin";
 
 SX1509GPIOPin::SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted, uint16_t t_on,
                              uint16_t t_off, uint8_t on_intensity, uint8_t off_intensity, uint16_t t_rise,
-                             uint16_t t_fall, bool fading_mode)
+                             uint16_t t_fall)
     : GPIOPin(pin, mode, inverted), parent_(parent) {
-  this->t_on_ = calculate_led_t_register(t_on);
-  this->t_off_ = calculate_led_t_register(t_off);
-  this->t_rise_ = calculate_slope_register(t_rise, on_intensity, off_intensity);
-  this->t_fall_ = calculate_slope_register(t_fall, on_intensity, off_intensity);
-  this->on_intensity_ = on_intensity;
-  this->off_intensity_ = off_intensity;
-  this->fading_mode_ = fading_mode;
+  if (this->mode_ == SX1509_BREATHE_OUTPUT || this->mode_ == SX1509_BLINK_OUTPUT) {
+    this->t_on_ = calculate_led_t_register(t_on);
+    this->t_off_ = calculate_led_t_register(t_off);
+    this->t_rise_ = calculate_slope_register(t_rise, on_intensity, off_intensity);
+    this->t_fall_ = calculate_slope_register(t_fall, on_intensity, off_intensity);
+    this->on_intensity_ = on_intensity;
+    this->off_intensity_ = off_intensity;
+  }
 }
 
 void SX1509GPIOPin::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);
+  ESP_LOGD(TAG, "values: tOn:%02x tOff:%02x tRise:%02x tFall:%02x", this->t_on_, this->t_off_, this->t_rise_,
+           this->t_fall_);
   this->pin_mode(this->mode_);
   if (this->mode_ == SX1509_BREATHE_OUTPUT || this->mode_ == SX1509_BLINK_OUTPUT)
     this->parent_->setup_blink(this->pin_, this->t_on_, this->t_off_, this->on_intensity_, this->off_intensity_,
-                               this->t_rise_, this->t_fall_, this->fading_mode_);
+                               this->t_rise_, this->t_fall_);
 }
 
 void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
