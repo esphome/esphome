@@ -2,6 +2,8 @@ from __future__ import print_function
 
 import codecs
 import os
+import random
+import string
 import unicodedata
 
 import voluptuous as vol
@@ -52,6 +54,13 @@ wifi:
   ssid: "{ssid}"
   password: "{psk}"
 
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+
+captive_portal:
+
 # Enable logging
 logger:
 
@@ -65,6 +74,10 @@ def sanitize_double_quotes(value):
 
 
 def wizard_file(**kwargs):
+    letters = string.ascii_letters + string.digits
+    kwargs['fallback_name'] = "{} Fallback Hotspot".format(kwargs['name'].replace('_', ' ').title())
+    kwargs['fallback_psk'] = ''.join(random.choice(letters) for _ in range(12))
+
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
@@ -117,8 +130,8 @@ def default_input(text, default):
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(string):
-    return u''.join(c for c in unicodedata.normalize('NFD', text_type(string))
+def strip_accents(value):
+    return u''.join(c for c in unicodedata.normalize('NFD', text_type(value))
                     if unicodedata.category(c) != 'Mn')
 
 

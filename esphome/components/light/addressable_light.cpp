@@ -82,7 +82,7 @@ void ESPRangeView::set(const ESPColor &color) {
   }
 }
 ESPColorView ESPRangeView::operator[](int32_t index) const {
-  index = interpret_index(index, this->size());
+  index = interpret_index(index, this->size()) + this->begin_;
   return (*this->parent_)[index];
 }
 ESPRangeIterator ESPRangeView::begin() { return {*this, this->begin_}; }
@@ -123,6 +123,35 @@ void ESPRangeView::darken(uint8_t delta) {
   for (auto c : *this)
     c.darken(delta);
 }
+ESPRangeView &ESPRangeView::operator=(const ESPRangeView &rhs) {
+  // If size doesn't match, error (todo warning)
+  if (rhs.size() != this->size())
+    return *this;
+
+  if (this->parent_ != rhs.parent_) {
+    for (int32_t i = 0; i < this->size(); i++)
+      (*this)[i].set(rhs[i].get());
+    return *this;
+  }
+
+  // If both equal, already done
+  if (rhs.begin_ == this->begin_)
+    return *this;
+
+  if (rhs.begin_ > this->begin_) {
+    // Copy from left
+    for (int32_t i = 0; i < this->size(); i++) {
+      (*this)[i].set(rhs[i].get());
+    }
+  } else {
+    // Copy from right
+    for (int32_t i = this->size() - 1; i >= 0; i--) {
+      (*this)[i].set(rhs[i].get());
+    }
+  }
+
+  return *this;
+}
 
 ESPColorView ESPRangeIterator::operator*() const { return this->range_.parent_->get(this->i_); }
 
@@ -133,7 +162,6 @@ int32_t HOT interpret_index(int32_t index, int32_t size) {
 }
 
 void AddressableLight::call_setup() {
-  this->setup_internal_();
   this->setup();
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE

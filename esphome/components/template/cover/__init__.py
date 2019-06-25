@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import cover
 from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
     CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
-    CONF_STATE, CONF_STOP_ACTION
+    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA
 from .. import template_ns
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
@@ -24,6 +24,8 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -42,6 +44,14 @@ def to_code(config):
         yield automation.build_automation(var.get_close_trigger(), [], config[CONF_CLOSE_ACTION])
     if CONF_STOP_ACTION in config:
         yield automation.build_automation(var.get_stop_trigger(), [], config[CONF_STOP_ACTION])
+    if CONF_TILT_ACTION in config:
+        yield automation.build_automation(var.get_tilt_trigger(), [(float, 'tilt')],
+                                          config[CONF_TILT_ACTION])
+        cg.add(var.set_has_tilt(True))
+    if CONF_TILT_LAMBDA in config:
+        tilt_template_ = yield cg.process_lambda(config[CONF_TILT_LAMBDA], [],
+                                                 return_type=cg.optional.template(float))
+        cg.add(var.set_tilt_lambda(tilt_template_))
 
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
@@ -53,6 +63,7 @@ def to_code(config):
     cv.Exclusive(CONF_STATE, 'pos'): cv.templatable(cover.validate_cover_state),
     cv.Exclusive(CONF_POSITION, 'pos'): cv.templatable(cv.zero_to_one_float),
     cv.Optional(CONF_CURRENT_OPERATION): cv.templatable(cover.validate_cover_operation),
+    cv.Optional(CONF_TILT): cv.templatable(cv.zero_to_one_float),
 }))
 def cover_template_publish_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
@@ -63,6 +74,9 @@ def cover_template_publish_to_code(config, action_id, template_arg, args):
     if CONF_POSITION in config:
         template_ = yield cg.templatable(config[CONF_POSITION], args, float)
         cg.add(var.set_position(template_))
+    if CONF_TILT in config:
+        template_ = yield cg.templatable(config[CONF_TILT], args, float)
+        cg.add(var.set_tilt(template_))
     if CONF_CURRENT_OPERATION in config:
         template_ = yield cg.templatable(config[CONF_CURRENT_OPERATION], args, cover.CoverOperation)
         cg.add(var.set_current_operation(template_))

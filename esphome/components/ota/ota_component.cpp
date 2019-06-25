@@ -358,7 +358,7 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL);
+  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
   ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
@@ -369,19 +369,18 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
     ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
 
     this->status_set_error();
-    network_setup();
-    this->call_setup();
+    this->set_timeout(enable_time, []() {
+      ESP_LOGE(TAG, "No OTA attempt made, restarting.");
+      App.reboot();
+    });
+
+    App.setup();
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");
-    uint32_t begin = millis();
-    while ((millis() - begin) < enable_time) {
-      this->call_loop();
-      network_tick();
-      App.feed_wdt();
-      yield();
+
+    while (true) {
+      App.loop();
     }
-    ESP_LOGE(TAG, "No OTA attempt made, restarting.");
-    App.reboot();
   } else {
     // increment counter
     this->write_rtc_(this->safe_mode_rtc_value_ + 1);

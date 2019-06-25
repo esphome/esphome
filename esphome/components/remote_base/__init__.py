@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor
-from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
+from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
     CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
@@ -83,14 +83,20 @@ def register_dumper(name, type):
     return decorator
 
 
-def register_action(name, type_, schema):
-    validator = templatize(schema).extend({
-        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
-        cv.Optional(CONF_REPEAT): cv.Schema({
+def validate_repeat(value):
+    if isinstance(value, dict):
+        return cv.Schema({
             cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
             cv.Optional(CONF_WAIT_TIME, default='10ms'):
                 cv.templatable(cv.positive_time_period_milliseconds),
-        }),
+        })(value)
+    return validate_repeat({CONF_TIMES: value})
+
+
+def register_action(name, type_, schema):
+    validator = templatize(schema).extend({
+        cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
+        cv.Optional(CONF_REPEAT): validate_repeat,
     })
     registerer = automation.register_action('remote_transmitter.transmit_{}'.format(name),
                                             type_, validator)
@@ -344,7 +350,7 @@ RAW_SCHEMA = cv.Schema({
 @register_binary_sensor('raw', RawBinarySensor, RAW_SCHEMA)
 def raw_binary_sensor(var, config):
     code_ = config[CONF_CODE]
-    arr = cg.progmem_array(config[CONF_ID], code_)
+    arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
     cg.add(var.set_data(arr))
     cg.add(var.set_len(len(code_)))
 

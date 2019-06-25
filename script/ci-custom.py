@@ -28,9 +28,10 @@ EXECUTABLE_BIT = {
     s[3].strip(): int(s[0]) for s in lines
 }
 files = [s[3].strip() for s in lines]
+files = list(filter(os.path.exists, files))
 files.sort()
 
-file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico',
+file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
               '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
 cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
 ignore_types = ('.ico',)
@@ -104,7 +105,7 @@ def lint_ino(fname):
 
 @lint_file_check(exclude=['*{}'.format(f) for f in file_types] + [
     '.clang-*', '.dockerignore', '.editorconfig', '*.gitignore', 'LICENSE', 'pylintrc',
-    'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*'
+    'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*',
 ])
 def lint_ext_check(fname):
     return "This file extension is not a registered file type. If this is an error, please " \
@@ -135,7 +136,7 @@ def lint_newline(fname):
     return "File contains windows newline. Please set your editor to unix newline mode."
 
 
-@lint_content_check()
+@lint_content_check(exclude=['*.svg'])
 def lint_end_newline(fname, content):
     if content and not content.endswith('\n'):
         return "File does not end with a newline, please add an empty line at the end of the file."
@@ -164,7 +165,8 @@ def relative_py_search_text(fname, content):
     return 'esphome.components.{}'.format(integration)
 
 
-@lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'])
+@lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'],
+                         exclude=['esphome/components/web_server/__init__.py'])
 def lint_relative_py_import(fname):
     return ("Component contains absolute import - Components must always use "
             "relative imports within the integration.\n"

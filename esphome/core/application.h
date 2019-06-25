@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -109,8 +110,7 @@ class Application {
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
 
-  void dump_config();
-  void schedule_dump_config() { this->dump_config_scheduled_ = true; }
+  void schedule_dump_config() { this->dump_config_at_ = 0; }
 
   void feed_wdt();
 
@@ -198,6 +198,8 @@ class Application {
   }
 #endif
 
+  Scheduler scheduler;
+
  protected:
   friend Component;
 
@@ -234,7 +236,7 @@ class Application {
   std::string compilation_time_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  bool dump_config_scheduled_{false};
+  int dump_config_at_{-1};
   uint32_t app_state_{0};
 };
 

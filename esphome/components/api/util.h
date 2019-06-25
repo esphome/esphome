@@ -10,40 +10,6 @@
 namespace esphome {
 namespace api {
 
-class APIBuffer {
- public:
-  APIBuffer(std::vector<uint8_t> *buffer);
-
-  size_t get_length() const;
-  void write(uint8_t value);
-
-  void encode_int32(uint32_t field, int32_t value, bool force = false);
-  void encode_uint32(uint32_t field, uint32_t value, bool force = false);
-  void encode_sint32(uint32_t field, int32_t value, bool force = false);
-  void encode_bool(uint32_t field, bool value, bool force = false);
-  void encode_string(uint32_t field, const std::string &value);
-  void encode_string(uint32_t field, const char *string, size_t len);
-  void encode_bytes(uint32_t field, const uint8_t *data, size_t len);
-  void encode_fixed32(uint32_t field, uint32_t value, bool force = false);
-  void encode_float(uint32_t field, float value, bool force = false);
-  void encode_nameable(Nameable *nameable);
-
-  size_t begin_nested(uint32_t field);
-  void end_nested(size_t begin_index);
-
-  void encode_field_raw(uint32_t field, uint32_t type);
-  void encode_varint_raw(uint32_t value);
-
- protected:
-  std::vector<uint8_t> *buffer_;
-};
-
-optional<uint32_t> proto_decode_varuint32(const uint8_t *buf, size_t len, uint32_t *consumed = nullptr);
-
-std::string as_string(const uint8_t *value, size_t len);
-int32_t as_sint32(uint32_t val);
-float as_float(uint32_t val);
-
 class APIServer;
 class UserServiceDescriptor;
 

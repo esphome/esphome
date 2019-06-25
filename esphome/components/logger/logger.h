@@ -31,15 +31,8 @@ class Logger : public Component {
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
 
-  /// Set the buffer size that's used for constructing log messages. Log messages longer than this will be truncated.
-  void set_tx_buffer_size(size_t tx_buffer_size);
-
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
-
-  /// Set the global log level. Note: Use the ESPHOME_LOG_LEVEL define to also remove the logs from the build.
-  void set_global_log_level(int log_level);
-  int get_global_log_level() const { return this->global_log_level_; }
 
   /// Set the log level of the specified tag.
   void set_log_level(const std::string &tag, int log_level);
@@ -57,17 +50,58 @@ class Logger : public Component {
 
   float get_setup_priority() const override;
 
-  int log_vprintf_(int level, const char *tag, const char *format, va_list args);  // NOLINT
+  void log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-  int log_vprintf_(int level, const char *tag, const __FlashStringHelper *format, va_list args);  // NOLINT
+  void log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);  // NOLINT
 #endif
 
  protected:
-  void log_message_(int level, const char *tag, char *msg, int ret);
+  void write_header_(int level, const char *tag, int line);
+  void write_footer_();
+  void log_message_(int level, const char *tag, int offset = 0);
+
+  inline bool is_buffer_full_() const { return this->tx_buffer_at_ >= this->tx_buffer_size_; }
+  inline int buffer_remaining_capacity_() const { return this->tx_buffer_size_ - this->tx_buffer_at_; }
+  inline void reset_buffer_() { this->tx_buffer_at_ = 0; }
+  inline void set_null_terminator_() {
+    // does not increment buffer_at
+    this->tx_buffer_[this->tx_buffer_at_] = '\0';
+  }
+  inline void write_to_buffer_(char value) {
+    if (!this->is_buffer_full_())
+      this->tx_buffer_[this->tx_buffer_at_++] = value;
+  }
+  inline void write_to_buffer_(const char *value, int length) {
+    for (int i = 0; i < length && !this->is_buffer_full_(); i++) {
+      this->tx_buffer_[this->tx_buffer_at_++] = value[i];
+    }
+  }
+  inline void vprintf_to_buffer_(const char *format, va_list args) {
+    if (this->is_buffer_full_())
+      return;
+    int remaining = this->buffer_remaining_capacity_();
+    int ret = vsnprintf(this->tx_buffer_ + this->tx_buffer_at_, remaining, format, args);
+    if (ret < 0) {
+      // Encoding error, do not increment buffer_at
+      return;
+    }
+    if (ret >= remaining) {
+      // output was too long, truncated
+      ret = remaining;
+    }
+    this->tx_buffer_at_ += ret;
+  }
+  inline void printf_to_buffer_(const char *format, ...) {
+    va_list arg;
+    va_start(arg, format);
+    this->vprintf_to_buffer_(format, arg);
+    va_end(arg);
+  }
 
   uint32_t baud_rate_;
-  std::vector<char> tx_buffer_;
-  int global_log_level_{ESPHOME_LOG_LEVEL};
+  char *tx_buffer_{nullptr};
+  int tx_buffer_at_{0};
+  int tx_buffer_size_{0};
   UARTSelection uart_{UART_SELECTION_UART0};
   HardwareSerial *hw_serial_{nullptr};
   struct LogLevelOverride {
