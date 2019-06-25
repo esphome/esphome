@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_MASK
+    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
 from esphome.core import coroutine
 from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
@@ -446,6 +446,21 @@ def validate_rc_switch_code(value):
     return value
 
 
+def validate_rc_switch_raw_code(value):
+    if not isinstance(value, (str, text_type)):
+        raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
+    for c in value:
+        if c not in ('0', '1', 'x'):
+            raise cv.Invalid(u"Invalid RCSwitch raw code character '{}'. Only '0', '1' and 'x' are allowed"
+                             u"".format(c))
+    if len(value) > 32:
+        raise cv.Invalid("Maximum length for RCSwitch raw codes is 32, code '{}' has length {}"
+                         "".format(value, len(value)))
+    if not value:
+        raise cv.Invalid("RCSwitch raw code must not be empty")
+    return value
+
+
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
         return rc_switch_protocols[config]
@@ -457,10 +472,8 @@ def build_rc_switch_protocol(config):
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema({
-    cv.Required(CONF_CODE): validate_rc_switch_code,
+    cv.Required(CONF_CODE): validate_rc_switch_raw_code,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
-    cv.Optional(CONF_MASK, default="11111111111111111111111111111111"):
-        validate_rc_switch_code,
 })
 RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
     cv.Required(CONF_GROUP): cv.All(validate_rc_switch_code, cv.Length(min=5, max=5)),
@@ -511,7 +524,7 @@ RCSwitchRawReceiver = ns.class_('RCSwitchRawReceiver', RemoteReceiverBinarySenso
 def rc_switch_raw_binary_sensor(var, config):
     cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
-    cg.add(var.set_mask(config[CONF_MASK]))
+    cg.add(var.set_mask(config[CONF_CODE]))
 
 
 @register_action('rc_switch_raw', RCSwitchRawAction,
@@ -521,7 +534,6 @@ def rc_switch_raw_action(var, config, args):
                                  to_exp=build_rc_switch_protocol)
     cg.add(var.set_protocol(proto))
     cg.add(var.set_code((yield cg.templatable(config[CONF_CODE], args, cg.std_string))))
-    cg.add(var.set_mask((yield cg.templatable(config[CONF_MASK], args, cg.std_string))))
 
 
 @register_binary_sensor('rc_switch_type_a', RCSwitchRawReceiver, RC_SWITCH_TYPE_A_SCHEMA)

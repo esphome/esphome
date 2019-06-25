@@ -55,11 +55,12 @@ extern RCSwitchBase rc_switch_protocols[8];
 
 uint32_t decode_binary_string(const std::string &data);
 
+uint32_t decode_binary_string_mask(const std::string &data);
+
 template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, code);
-  TEMPLATABLE_VALUE(std::string, mask);
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     auto code = this->code_.value(x...);
@@ -170,8 +171,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
     this->code_ = decode_binary_string(code);
     this->nbits_ = code.size();
   }
-  void set_mask(uint32_t mask) { this->mask_ = mask; }
-  void set_mask(const std::string &mask) { this->mask_ = decode_binary_string(mask); }
+  void set_mask(const std::string &code) { this->mask_ = decode_binary_string_mask(code); }
   void set_nbits(uint8_t nbits) { this->nbits_ = nbits; }
   void set_type_a(const std::string &group, const std::string &device, bool state) {
     uint8_t u_group = decode_binary_string(group);
@@ -195,7 +195,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
 
   RCSwitchBase protocol_;
   uint32_t code_;
-  uint32_t mask_;
+  uint32_t mask_{0xFFFFFFFF};
   uint8_t nbits_;
 };
 

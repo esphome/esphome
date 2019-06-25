@@ -217,6 +217,15 @@ uint32_t decode_binary_string(const std::string &data) {
   return ret;
 }
 
+uint32_t decode_binary_string_mask(const std::string &data) {
+  uint32_t ret = 0;
+  for (char c : data) {
+    ret <<= 1UL;
+    ret |= (c != 'x');
+  }
+  return ret;
+}
+
 bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   uint32_t decoded_code;
   uint8_t decoded_nbits;
