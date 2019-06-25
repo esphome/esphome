@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_VOLTAGE, \
 
 DEPENDENCIES = ['i2c']
 
-ace7953_ns = cg.esphome_ns.namespace('ace7953')
+ace7953_ns = cg.esphome_ns.namespace('ade7953')
 ADE7953 = ace7953_ns.class_('ADE7953', cg.PollingComponent, i2c.I2CDevice)
 
 CONF_CURRENT_A = 'current_a'

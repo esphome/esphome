@@ -193,6 +193,17 @@ sensor:
         value: 15.0
       - binary_sensor: bin3
         value: 100.0
+  - platform: ade7953
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
 
 time:
 - platform: homeassistant
