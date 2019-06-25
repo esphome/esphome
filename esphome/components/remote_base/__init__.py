@@ -525,7 +525,6 @@ RCSwitchRawReceiver = ns.class_('RCSwitchRawReceiver', RemoteReceiverBinarySenso
 def rc_switch_raw_binary_sensor(var, config):
     cg.add(var.set_protocol(build_rc_switch_protocol(config[CONF_PROTOCOL])))
     cg.add(var.set_code(config[CONF_CODE]))
-    cg.add(var.set_mask(config[CONF_CODE]))
 
 
 @register_action('rc_switch_raw', RCSwitchRawAction,
