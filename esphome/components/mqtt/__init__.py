@@ -15,7 +15,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
 DEPENDENCIES = ['network']
-AUTO_LOAD = ['json']
+AUTO_LOAD = ['json', 'async_tcp']
 
 
 def validate_message_just_topic(value):
@@ -154,6 +154,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
+    # https://github.com/marvinroger/async-mqtt-client/blob/master/library.json
     cg.add_library('AsyncMqttClient', '0.8.2')
     cg.add_define('USE_MQTT')
     cg.add_global(mqtt_ns.using)

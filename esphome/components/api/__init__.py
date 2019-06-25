@@ -7,6 +7,7 @@ from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD,
 from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ['network']
+AUTO_LOAD = ['async_tcp']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -67,10 +68,6 @@ def to_code(config):
 
     cg.add_define('USE_API')
     cg.add_global(api_ns.using)
-    if CORE.is_esp32:
-        cg.add_library('AsyncTCP', '1.0.3')
-    elif CORE.is_esp8266:
-        cg.add_library('ESPAsyncTCP', '1.2.0')
 
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string)})
