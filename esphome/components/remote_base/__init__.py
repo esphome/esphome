@@ -88,7 +88,7 @@ def validate_repeat(value):
         return cv.Schema({
             cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
             cv.Optional(CONF_WAIT_TIME, default='10ms'):
-                cv.templatable(cv.positive_time_period_milliseconds),
+                cv.templatable(cv.positive_time_period_microseconds),
         })(value)
     return validate_repeat({CONF_TIMES: value})
 
@@ -490,7 +490,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema({
     cv.Optional(CONF_REPEAT, default={CONF_TIMES: 5}): cv.Schema({
         cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
         cv.Optional(CONF_WAIT_TIME, default='10ms'):
-            cv.templatable(cv.positive_time_period_milliseconds),
+            cv.templatable(cv.positive_time_period_microseconds),
     }),
 })
 
