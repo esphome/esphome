@@ -113,7 +113,7 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *o
   this->expect_sync(src);
 
   *out_data = 0;
-  for (*out_nbits = 1; *out_nbits < 32; *out_nbits += 1) {
+  for (*out_nbits = 0; *out_nbits < 32; *out_nbits += 1) {
     if (this->expect_zero(src)) {
       *out_data <<= 1;
       *out_data |= 0;
@@ -121,7 +121,6 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *o
       *out_data <<= 1;
       *out_data |= 1;
     } else {
-      *out_nbits -= 1;
       return *out_nbits >= 8;
     }
   }
