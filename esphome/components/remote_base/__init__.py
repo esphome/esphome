@@ -446,6 +446,22 @@ def validate_rc_switch_code(value):
     return value
 
 
+def validate_rc_switch_raw_code(value):
+    if not isinstance(value, (str, text_type)):
+        raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
+    for c in value:
+        if c not in ('0', '1', 'x'):
+            raise cv.Invalid(
+                "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed"
+                .format(c))
+    if len(value) > 32:
+        raise cv.Invalid("Maximum length for RCSwitch raw codes is 32, code '{}' has length {}"
+                         "".format(value, len(value)))
+    if not value:
+        raise cv.Invalid("RCSwitch raw code must not be empty")
+    return value
+
+
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
         return rc_switch_protocols[config]
@@ -457,7 +473,7 @@ def build_rc_switch_protocol(config):
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema({
-    cv.Required(CONF_CODE): validate_rc_switch_code,
+    cv.Required(CONF_CODE): validate_rc_switch_raw_code,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
