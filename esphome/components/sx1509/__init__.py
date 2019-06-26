@@ -8,7 +8,7 @@ CONF_ON_TIME = 'on_time'
 CONF_OFF_TIME = 'off_time'
 CONF_RISE_TIME = 'rise_time'
 CONF_FALL_TIME = 'fall_time'
-CONF_ON_INT = 'on_intensity'
+CONF_ON_INTENSITY = 'on_intensity'
 CONF_OFF_INTENSITY = 'off_intensity'
 CONF_FADING_MODE = 'fading_mode'
 
@@ -23,17 +23,12 @@ SX1509_GPIO_MODES = {
     'OUTPUT': SX1509GPIOMode.SX1509_OUTPUT,
     'ANALOG_OUTPUT': SX1509GPIOMode.SX1509_ANALOG_OUTPUT
 }
-SX1509_FADING_MODES = {
-    'LINEAR': SX1509GPIOMode.SX1509_FADING_LINEAR,
-    'LOGARITHMIC': SX1509GPIOMode.SX1509_FADING_LOGARITHMIC
-}
 
 SX1509Component = sx1509_ns.class_('SX1509Component', cg.Component, i2c.I2CDevice)
 SX1509GPIOPin = sx1509_ns.class_('SX1509GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SX1509Component),
-    cv.Optional(CONF_FADING_MODE, default=0): cv.int_,
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x3E))
 
 
@@ -53,8 +48,8 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Optional(CONF_OFF_TIME, default='0ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_RISE_TIME, default='0ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_FALL_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_ON_INT, default=255): cv.int_range(min=0, max=255),
-    cv.Optional(CONF_OFF_INT, default=0): cv.int_range(min=0, max=255), })
+    cv.Optional(CONF_ON_INTENSITY, default=255): cv.int_range(min=0, max=255),
+    cv.Optional(CONF_OFF_INTENSITY, default=0): cv.int_range(min=0, max=255), })
 SX1509_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,

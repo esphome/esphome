@@ -2,10 +2,7 @@
 
 #include "sx1509.h"
 
-#define LINEAR 0
-#define LOGARITHMIC 1
-
-#define ANALOG_OUTPUT 0x03  // To set a pin mode for PWM output
+static const uint8_t ANALOG_OUTPUT = 0x03 ; // To set a pin mode for PWM output
 
 namespace esphome {
 namespace sx1509 {

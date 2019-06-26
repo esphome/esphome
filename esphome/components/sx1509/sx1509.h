@@ -24,12 +24,9 @@ class SX1509Component : public Component, public i2c::I2CDevice {
  public:
   SX1509Component() {}
 
-  // SX1509FloatOutputChannel *create_float_output_channel(uint8_t pin);
-
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  uint8_t digital_read(uint8_t pin);
   void set_pin_value_(uint8_t pin, uint8_t i_on);
 
   void setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint8_t on_intensity = 255, uint8_t off_intensity = 0,
@@ -42,13 +39,12 @@ class SX1509Component : public Component, public i2c::I2CDevice {
  protected:
   friend class SX1509FloatOutputChannel;
   friend class SX1509GPIOPin;
-  // Pin definitions:
-  uint8_t pinInterrupt_;
-  uint8_t pinOscillator_;
-  uint8_t pinReset_;
   // variables:
   u_long clk_x_;
   uint8_t frequency_ = 0;
+  uint16_t ddr_mask_{0x00};
+  uint16_t input_mask_{0x00};
+  uint16_t port_mask_{0x00};
   bool update_{true};
 
   void debounce_config_(uint8_t config_vaule);
@@ -59,7 +55,8 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void pin_mode_(uint8_t pin, uint8_t in_out);
   void setup_led_driver_(uint8_t pin, uint8_t freq = 1, bool log = false);
   void clock_(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
-  void digital_write_(uint8_t pin, uint8_t high_low);
+  void digital_write_(uint8_t pin, bool high_low);
+  bool digital_read(uint8_t pin);
 
   uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                           REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,

@@ -11,10 +11,12 @@ void SX1509Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SX1509Component...");
 
   ESP_LOGV(TAG, "  Resetting devices...");
-  this->write_byte(REG_RESET, 0x12);
+  if (!this->write_byte(REG_RESET, 0x12)) {
+    this->mark_failed();
+    return;
+  }
   this->write_byte(REG_RESET, 0x34);
 
-  // Communication test.
   uint16_t data;
   this->read_byte_16(REG_INTERRUPT_MASK_A, &data);
   if (data == 0xFF00) {
@@ -33,7 +35,7 @@ void SX1509Component::dump_config() {
   }
 }
 
-uint8_t SX1509Component::digital_read(uint8_t pin) {
+bool SX1509Component::digital_read(uint8_t pin) {
   uint16_t tempRegDir;
   this->read_byte_16(REG_DIR_B, &tempRegDir);
 
@@ -46,7 +48,7 @@ uint8_t SX1509Component::digital_read(uint8_t pin) {
   return 0;
 }
 
-void SX1509Component::digital_write_(uint8_t pin, uint8_t bit_value) {
+void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
   uint16_t temp_reg_dir = 0;
   this->read_byte_16(REG_DIR_B, &temp_reg_dir);
 
@@ -139,7 +141,7 @@ void SX1509Component::setup_led_driver_(uint8_t pin, uint8_t freq, bool log) {
 
   if (this->clk_x_ == 0)  // Make clckX non-zero
   {
-    this->clk_x_ = 2000000.0 / (1 << (1 - 1));  // Update private clock variable
+    this->clk_x_ = 2000000.0;  // Update private clock variable
 
     uint8_t freq = (1 & 0x07) << 4;  // freq should only be 3 bits from 6:4
     temp_byte |= freq;
