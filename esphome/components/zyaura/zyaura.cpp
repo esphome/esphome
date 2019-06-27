@@ -93,8 +93,8 @@ bool ZaSensorStore::set_value_(ZaMessage *message) {
   return true;
 }
 
-void ZyAura::dump_config() {
-  ESP_LOGCONFIG(TAG, "ZyAura:");
+void ZyAuraSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "ZyAuraSensor:");
   LOG_PIN("  Pin Clock: ", this->pin_clock_);
   LOG_PIN("  Pin Data: ", this->pin_data_);
   LOG_UPDATE_INTERVAL(this);
@@ -104,7 +104,7 @@ void ZyAura::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-void ZyAura::update() {
+void ZyAuraSensor::update() {
   this->temperature_sensor_->publish_state(this->store_.temperature);
   this->co2_sensor_->publish_state(this->store_.co2);
   this->humidity_sensor_->publish_state(this->store_.humidity);

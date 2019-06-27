@@ -9,10 +9,10 @@ from esphome.const import CONF_ID, CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_UPDATE_IN
 from esphome.cpp_helpers import gpio_pin_expression
 
 zyaura_ns = cg.esphome_ns.namespace('zyaura')
-ZyAura = zyaura_ns.class_('ZyAura', cg.PollingComponent)
+ZyAuraSensor = zyaura_ns.class_('ZyAuraSensor', cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(ZyAura),
+    cv.GenerateID(): cv.declare_id(ZyAuraSensor),
     cv.Required(CONF_CLOCK_PIN): pins.gpio_input_pin_schema,
     cv.Required(CONF_DATA_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_PERIODIC_TABLE_CO2, 0),

@@ -64,7 +64,7 @@ class ZaSensorStore {
 };
 
 /// Component for reading temperature/co2/humidity measurements from ZyAura sensors.
-class ZyAura : public PollingComponent {
+class ZyAuraSensor : public PollingComponent {
  public:
   void set_pin_clock(GPIOPin *pin) { pin_clock_ = pin; }
   void set_pin_data(GPIOPin *pin) { pin_data_ = pin; }
