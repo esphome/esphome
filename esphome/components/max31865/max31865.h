@@ -18,9 +18,11 @@ class MAX31865Sensor : public sensor::Sensor,
 
   void update() override;
 
+  float temperature(unsigned short adc, float RTDnominal, float refResistor);
+
  protected:
   void read_data_();
-  void write_config_(void);
+  void write_config_();
 };
 
 }  // namespace max31865
