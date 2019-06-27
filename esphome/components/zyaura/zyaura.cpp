@@ -105,9 +105,12 @@ void ZyAuraSensor::dump_config() {
 }
 
 void ZyAuraSensor::update() {
-  this->temperature_sensor_->publish_state(this->store_.temperature);
-  this->co2_sensor_->publish_state(this->store_.co2);
-  this->humidity_sensor_->publish_state(this->store_.humidity);
+  if (this->co2_sensor_ != nullptr)
+    this->co2_sensor_->publish_state(this->store_.co2);
+  if (this->temperature_sensor_ != nullptr)
+    this->temperature_sensor_->publish_state(this->store_.temperature);
+  if (this->humidity_sensor_ != nullptr)
+    this->humidity_sensor_->publish_state(this->store_.humidity);
 }
 
 }  // namespace zyaura
