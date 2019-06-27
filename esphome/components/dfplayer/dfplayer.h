@@ -9,41 +9,144 @@
 namespace esphome {
 namespace dfplayer {
 
-class DFPlayerComponent : public uart::UARTDevice, public PollingComponent {
- public:
-  void setup() override;
-  void update() override;
-  void loop() override;
-
-  void play_track(uint16_t track);
-
- protected:
-  void send_cmd(uint8_t cmd, uint16_t argument = 0);
-
-  char read_buffer_[DFPLAYER_READ_BUFFER_LENGTH];
-  size_t read_pos_{0};
-  uint8_t parse_index_{0};
-  uint8_t watch_dog_{0};
-  bool expect_ack_{false};
-  bool registered_{false};
-
-  std::string recipient_;
-  std::string outgoing_message_;
-  bool send_pending_;
+enum EqPreset {
+  NORMAL = 0,
+  POP = 1,
+  ROCK = 2,
+  JAZZ = 3,
+  CLASSIC = 4,
+  BASS = 5,
 };
 
-template<typename... Ts> class PlayTrackAction : public Action<Ts...> {
+class DFPlayer : public uart::UARTDevice, public Component {
  public:
-  PlayTrackAction(DFPlayerComponent *dfplayer) : dfplayer_(dfplayer) {}
-  TEMPLATABLE_VALUE(uint16_t, track)
+  void setup() {};
+  void loop() override;
 
-  void play(Ts... x) override {
-    auto track = this->track_.value(x...);
-    this->dfplayer_->play_track(track);
+  void next() { this->send_cmd_(0x01); }
+  void previous() { this->send_cmd_(0x02); }
+  void play_file(uint16_t file) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x03, file);
+  }
+  void play_file_loop(uint16_t file) { this->send_cmd_(0x08, file); }
+  void play_folder(uint16_t folder, uint16_t track);
+  void play_folder_loop(uint16_t folder) { this->send_cmd_(0x17, folder); }
+  void volume_up() { this->send_cmd_(0x04); }
+  void volume_down() { this->send_cmd_(0x05); }
+  void set_volume(uint8_t volume) { this->send_cmd_(0x06, volume); }
+  void set_eq(EqPreset value) { this->send_cmd_(0x07, value); }
+  void sleep() { this->send_cmd_(0x0A); }
+  void reset() { this->send_cmd_(0x0C); }
+  void start() { this->send_cmd_(0x0D); }
+  void pause() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x0E);
+  }
+  void stop() { this->send_cmd_(0x16); }
+  void random(uint16_t folder) { this->send_cmd_(0x18, folder); }
+
+  bool is_playing() { return is_playing_; }
+
+  void add_on_finished_playback_callback(std::function<void()> callback) {
+    this->on_finished_playback_callback_.add(std::move(callback));
   }
 
  protected:
-  DFPlayerComponent *dfplayer_;
+  void send_cmd_(uint8_t cmd, uint16_t argument = 0);
+  void send_cmd_(uint8_t cmd, uint16_t high, uint16_t low) {
+    this->send_cmd_(cmd, ((high & 0xFF) << 8) | (low & 0xFF));
+  }
+  uint8_t sent_cmd_{0};
+
+  char read_buffer_[DFPLAYER_READ_BUFFER_LENGTH];
+  size_t read_pos_{0};
+
+  bool is_playing_{false};
+  bool ack_set_is_playing_{false};
+  bool ack_reset_is_playing_{false};
+
+  CallbackManager<void()> on_finished_playback_callback_;
+};
+
+template<typename... Ts> class NextAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  void play(Ts... x) override { this->parent_->next(); }
+};
+
+template<typename... Ts> class PreviousAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  void play(Ts... x) override { this->parent_->previous(); }
+};
+
+template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, file)
+  TEMPLATABLE_VALUE(boolean, loop)
+  void play(Ts... x) override {
+    auto file = this->file_.value(x...);
+    auto loop = this->loop_.value(x...);
+    if (loop) {
+      this->parent_->play_file_loop(file);
+    } else {
+      this->parent_->play_file(file);
+    }
+  }
+};
+
+template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, folder)
+  TEMPLATABLE_VALUE(uint16_t, file)
+  TEMPLATABLE_VALUE(boolean, loop)
+  void play(Ts... x) override {
+    auto folder = this->file_.value(x...);
+    auto file = this->file_.value(x...);
+    auto loop = this->loop_.value(x...);
+    if (loop) {
+      this->parent_->play_folder_loop(folder);
+    } else {
+      this->parent_->play_folder(folder, file);
+    }
+  }
+};
+
+template<typename... Ts> class PauseAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  void play(Ts... x) override { this->parent_->pause(); }
+};
+
+template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(uint8_t, volume)
+  void play(Ts... x) override {
+    auto volume = this->volume_.value(x...);
+    this->parent_->set_volume(volume);
+  }
+};
+
+template<typename... Ts> class RandomAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(uint16_t, folder)
+  void play(Ts... x) override {
+    auto folder = this->folder_.value(x...);
+    this->parent_->random(folder);
+  }
+};
+
+template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
+ public:
+  bool check(Ts... x) override {
+    return this->parent_->is_playing();
+  }
+};
+
+class DFPlayerFinishedPlaybackTrigger : public Trigger<> {
+ public:
+  explicit DFPlayerFinishedPlaybackTrigger(DFPlayer *parent) {
+    parent->add_on_finished_playback_callback(
+        [this]() { this->trigger(); });
+  }
 };
 
 }  // namespace dfplayer
