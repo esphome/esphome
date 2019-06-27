@@ -28,7 +28,6 @@ typedef struct {
   ZaDataType type;
   uint16_t value;
   bool checksumIsValid;
-  bool inBoot;
 } ZaMessage;
 
 class ZaDataProcessor {
@@ -61,7 +60,7 @@ class ZaSensorStore {
   GPIOPin *pin_data_;
   ZaDataProcessor processor_;
 
-  void process_(ZaMessage *message);
+  bool set_value_(ZaMessage *message);
 };
 
 /// Component for reading temperature/co2/humidity measurements from ZyAura sensors.

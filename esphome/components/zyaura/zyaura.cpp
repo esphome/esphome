@@ -39,7 +39,6 @@ void ZaDataProcessor::decode_() {
 
   this->msg_->type = (ZaDataType)this->buffer_[ZA_BYTE_TYPE];
   this->msg_->value = this->buffer_[ZA_BYTE_HIGH] << ZA_BITS_IN_BYTE | this->buffer_[ZA_BYTE_LOW];
-  this->msg_->inBoot = (this->msg_->type == CO2 && this->msg_->value > 10000);
 }
 
 void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
@@ -58,31 +57,40 @@ void ZaSensorStore::interrupt(ZaSensorStore *arg) {
   if (message) {
     if (!message->checksumIsValid) {
       ESP_LOGW(TAG, "Checksum validation error");
-    } else if (message->inBoot) {
+    } else if (!arg->set_value_(message)) {
       ESP_LOGW(TAG, "Sensor reported invalid data. Is the update interval too small?");
-    } else {
-      arg->process_(message);
     }
   }
 }
 
-void ZaSensorStore::process_(ZaMessage *message) {
+bool ZaSensorStore::set_value_(ZaMessage *message) {
   switch (message->type) {
     case HUMIDITY:
+      if (message->value > 9999) {
+        return false;
+      }
       this->humidity = (double)message->value / 100;
       break;
 
     case TEMPERATURE:
+      if (message->value > 5970) {
+        return false;
+      }
       this->temperature = (double)message->value / 16 - 273.15;
       break;
 
     case CO2:
+      if (message->value > 9999) {
+        return false;
+      }
       this->co2 = message->value;
       break;
 
     default:
       break;
   }
+
+  return true;
 }
 
 void ZyAura::dump_config() {
