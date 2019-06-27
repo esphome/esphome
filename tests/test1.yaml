@@ -564,6 +564,15 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
 
 
 esp32_touch:
