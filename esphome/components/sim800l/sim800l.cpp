@@ -67,12 +67,13 @@ void Sim800LComponent::parse_cmd_(std::string message) {
   }
 
   switch (this->state_) {
-    case STATE_INIT:
+    case STATE_INIT: {
       // While we were waiting for update to check for messages, this notifies a message
-      // is available. 
+      // is available.
       bool message_available = message.compare(0, 6, "+CMTI:") == 0;
       if (!message_available) break;
       // Else fall thru ...
+    }
     case STATE_CHECK_SMS:
       send_cmd_("AT+CMGL=\"ALL\"");
       this->state_ = STATE_PARSE_SMS;
