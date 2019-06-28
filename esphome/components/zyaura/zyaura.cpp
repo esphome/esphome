@@ -17,7 +17,7 @@ ZaMessage* ZaDataProcessor::process(unsigned long ms, bool data) {
   // number of bits received is basically the "state"
   if (this->num_bits_ < ZA_FRAME_SIZE) {
     // store it while it fits
-    int idx = this->num_bits_ / ZA_BITS_IN_BYTE;
+    int idx = this->num_bits_ / 8;
     this->buffer_[idx] = (this->buffer_[idx] << 1) | (data ? 1 : 0);
     // are we done yet?
     this->num_bits_++;
