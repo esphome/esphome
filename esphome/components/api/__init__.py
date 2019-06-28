@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.automation import Condition
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['async_tcp']
