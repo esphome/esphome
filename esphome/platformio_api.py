@@ -22,7 +22,7 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    # pylint: disable=no-member,no-name-in-module
+    # pylint: disable=no-member,no-name-in-module,import-error
     from platformio.commands import run
     from platformio import util
     if is_platformio4():
