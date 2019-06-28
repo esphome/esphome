@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/esphal.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -55,8 +56,8 @@ class ZaSensorStore {
   static void interrupt(ZaSensorStore *arg);
 
  protected:
-  GPIOPin *pin_clock_;
-  GPIOPin *pin_data_;
+  ISRInternalGPIOPin *pin_clock_;
+  ISRInternalGPIOPin *pin_data_;
   ZaDataProcessor processor_;
 
   bool set_value_(ZaMessage *message);

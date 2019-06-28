@@ -1,6 +1,5 @@
 #include "zyaura.h"
 #include "esphome/core/log.h"
-#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace zyaura {
@@ -44,12 +43,12 @@ void ZaDataProcessor::decode_() {
 void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
   pin_clock->setup();
   pin_data->setup();
-  this->pin_clock_ = pin_clock;
-  this->pin_data_ = pin_data;
+  this->pin_clock_ = pin_clock->to_isr();
+  this->pin_data_ = pin_data->to_isr();
   pin_clock->attach_interrupt(ZaSensorStore::interrupt, this, FALLING);
 }
 
-void ZaSensorStore::interrupt(ZaSensorStore *arg) {
+void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   uint32_t now = millis();
   bool dataBit = arg->pin_data_->digital_read();
   ZaMessage *message = arg->processor_.process(now, dataBit);
