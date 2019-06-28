@@ -37,7 +37,7 @@ void ZaDataProcessor::decode_() {
   }
 
   this->msg_->type = (ZaDataType)this->buffer_[ZA_BYTE_TYPE];
-  this->msg_->value = this->buffer_[ZA_BYTE_HIGH] << ZA_BITS_IN_BYTE | this->buffer_[ZA_BYTE_LOW];
+  this->msg_->value = this->buffer_[ZA_BYTE_HIGH] << 8 | this->buffer_[ZA_BYTE_LOW];
 }
 
 void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
@@ -54,41 +54,50 @@ void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   ZaMessage *message = arg->processor_.process(now, dataBit);
 
   if (message) {
-    if (!message->checksumIsValid) {
-      ESP_LOGW(TAG, "Checksum validation error");
-    } else if (!arg->set_value_(message)) {
-      ESP_LOGW(TAG, "Sensor reported invalid data. Is the update interval too small?");
-    }
+    arg->set_data_(message);
   }
 }
 
-bool ZaSensorStore::set_value_(ZaMessage *message) {
+void ZaSensorStore::set_data_(ZaMessage *message) {
+  if (!message->checksumIsValid) {
+    this->isValid = false;
+    return;
+  }
+
   switch (message->type) {
     case HUMIDITY:
-      if (message->value > 9999) {
-        return false;
-      }
-      this->humidity = message->value / 100.0f;
+      this->humidity = (message->value > 10000) ? NAN : (message->value / 100.0f);
       break;
 
     case TEMPERATURE:
-      if (message->value > 5970) {
-        return false;
-      }
-      this->temperature = message->value / 16.0f - 273.15f;
+      this->temperature = (message->value > 5970) ? NAN : (message->value / 16.0f - 273.15f);
       break;
 
     case CO2:
-      if (message->value > 9999) {
-        return false;
-      }
-      this->co2 = message->value;
+      this->co2 = (message->value > 10000) ? NAN : message->value;
       break;
 
     default:
       break;
   }
 
+  this->isValid = true;
+}
+
+bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, float value) {
+  // Sensor doesn't added to configuration
+  if (sensor == nullptr) {
+    return true;
+  }
+
+  // Sensor reported wrong value
+  if (isnan(value)) {
+    ESP_LOGW(TAG, "Sensor reported invalid data. Is the update interval too small?");
+    this->status_set_warning();
+    return false;
+  }
+
+  sensor->publish_state(value);
   return true;
 }
 
@@ -104,12 +113,19 @@ void ZyAuraSensor::dump_config() {
 }
 
 void ZyAuraSensor::update() {
-  if (this->co2_sensor_ != nullptr)
-    this->co2_sensor_->publish_state(this->store_.co2);
-  if (this->temperature_sensor_ != nullptr)
-    this->temperature_sensor_->publish_state(this->store_.temperature);
-  if (this->humidity_sensor_ != nullptr)
-    this->humidity_sensor_->publish_state(this->store_.humidity);
+  if (!this->store_.isValid) {
+    ESP_LOGW(TAG, "Sensor reported data with invalid checksum. Please check pins configuration.");
+    this->status_set_warning();
+    return;
+  }
+
+  bool co2_result = this->publish_state_(this->co2_sensor_, this->store_.co2);
+  bool temperature_result = this->publish_state_(this->temperature_sensor_, this->store_.temperature);
+  bool humidity_result = this->publish_state_(this->humidity_sensor_, this->store_.humidity);
+
+  if (co2_result && temperature_result && humidity_result) {
+    this->status_clear_warning();
+  }
 }
 
 }  // namespace zyaura
