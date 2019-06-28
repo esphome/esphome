@@ -69,7 +69,7 @@ bool ZaSensorStore::set_value_(ZaMessage *message) {
       if (message->value > 9999) {
         return false;
       }
-      this->humidity = (double)message->value / 100;
+      this->humidity = message->value / 100.0f;
       break;
 
     case TEMPERATURE:
