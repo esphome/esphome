@@ -6,7 +6,7 @@ namespace zyaura {
 
 static const char *TAG = "zyaura";
 
-ZaMessage* ICACHE_RAM_ATTR ZaDataProcessor::process(unsigned long ms, bool data) {
+ZaMessage * ICACHE_RAM_ATTR ZaDataProcessor::process(unsigned long ms, bool data) {
   // check if a new message has started, based on time since previous bit
   if ((ms - this->prev_ms_) > ZA_MAX_MS) {
     this->num_bits_ = 0;
@@ -31,12 +31,13 @@ ZaMessage* ICACHE_RAM_ATTR ZaDataProcessor::process(unsigned long ms, bool data)
 
 void ICACHE_RAM_ATTR ZaDataProcessor::decode_() {
   uint8_t checksum = this->buffer_[ZA_BYTE_TYPE] + this->buffer_[ZA_BYTE_HIGH] + this->buffer_[ZA_BYTE_LOW];
-  this->msg_->checksumIsValid = (checksum == this->buffer_[ZA_BYTE_SUM] && this->buffer_[ZA_BYTE_END] == ZA_MSG_DELIMETER);
+  this->msg_->checksumIsValid =
+      (checksum == this->buffer_[ZA_BYTE_SUM] && this->buffer_[ZA_BYTE_END] == ZA_MSG_DELIMETER);
   if (!this->msg_->checksumIsValid) {
     return;
   }
 
-  this->msg_->type = (ZaDataType)this->buffer_[ZA_BYTE_TYPE];
+  this->msg_->type = (ZaDataType) this->buffer_[ZA_BYTE_TYPE];
   this->msg_->value = this->buffer_[ZA_BYTE_HIGH] << 8 | this->buffer_[ZA_BYTE_LOW];
 }
 
@@ -50,8 +51,8 @@ void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
 
 void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   uint32_t now = millis();
-  bool dataBit = arg->pin_data_->digital_read();
-  ZaMessage *message = arg->processor_.process(now, dataBit);
+  bool data_bit = arg->pin_data_->digital_read();
+  ZaMessage *message = arg->processor_.process(now, data_bit);
 
   if (message && message->checksumIsValid) {
     arg->set_data_(message);

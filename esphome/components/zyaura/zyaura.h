@@ -32,7 +32,7 @@ struct ZaMessage {
 
 class ZaDataProcessor {
  public:
-  ZaMessage* process(unsigned long ms, bool data);
+  ZaMessage * process(unsigned long ms, bool data);
 
  protected:
   uint8_t buffer_[ZA_MSG_LEN];
