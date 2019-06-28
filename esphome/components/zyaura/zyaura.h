@@ -7,16 +7,16 @@
 namespace esphome {
 namespace zyaura {
 
-#define ZA_MAX_MS         2
-#define ZA_MSG_LEN        5
-#define ZA_FRAME_SIZE     40
-#define ZA_MSG_DELIMETER  0x0D
+static const uint8_t ZA_MAX_MS = 2;
+static const uint8_t ZA_MSG_LEN = 5;
+static const uint8_t ZA_FRAME_SIZE = 40;
+static const uint8_t ZA_MSG_DELIMETER = 0x0D;
 
-#define ZA_BYTE_TYPE      0
-#define ZA_BYTE_HIGH      1
-#define ZA_BYTE_LOW       2
-#define ZA_BYTE_SUM       3
-#define ZA_BYTE_END       4
+static const uint8_t ZA_BYTE_TYPE = 0;
+static const uint8_t ZA_BYTE_HIGH = 1;
+static const uint8_t ZA_BYTE_LOW = 2;
+static const uint8_t ZA_BYTE_SUM = 3;
+static const uint8_t ZA_BYTE_END = 4;
 
 typedef enum {
   HUMIDITY = 0x41,
