@@ -38,12 +38,9 @@ class ZaDataProcessor {
   uint8_t buffer_[ZA_MSG_LEN];
   int num_bits_ = 0;
   unsigned long prev_ms_;
-  ZaMessage *msg_ = &_msg;
+  ZaMessage *msg_ = new ZaMessage;
 
   void decode_();
-
- private:
-  ZaMessage _msg;
 };
 
 class ZaSensorStore {
