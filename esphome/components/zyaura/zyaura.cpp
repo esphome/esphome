@@ -50,7 +50,7 @@ void ZaSensorStore::setup(GPIOPin *pin_clock, GPIOPin *pin_data) {
 }
 
 void ZaSensorStore::interrupt(ZaSensorStore *arg) {
-  unsigned long now = millis();
+  uint32_t now = millis();
   bool dataBit = arg->pin_data_->digital_read();
   ZaMessage *message = arg->processor_.process(now, dataBit);
 
