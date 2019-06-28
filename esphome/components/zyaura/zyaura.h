@@ -48,7 +48,6 @@ class ZaSensorStore {
   float co2 = NAN;
   float temperature = NAN;
   float humidity = NAN;
-  bool isValid = false;
 
   void setup(GPIOPin *pin_clock, GPIOPin *pin_data);
   static void interrupt(ZaSensorStore *arg);
@@ -83,7 +82,7 @@ class ZyAuraSensor : public PollingComponent {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
 
-  bool publish_state_(sensor::Sensor *sensor, float value);
+  bool publish_state_(sensor::Sensor *sensor, float *value);
 };
 
 }  // namespace zyaura

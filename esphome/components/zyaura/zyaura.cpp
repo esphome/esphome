@@ -53,17 +53,12 @@ void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   bool dataBit = arg->pin_data_->digital_read();
   ZaMessage *message = arg->processor_.process(now, dataBit);
 
-  if (message) {
+  if (message && message->checksumIsValid) {
     arg->set_data_(message);
   }
 }
 
 void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
-  if (!message->checksumIsValid) {
-    this->isValid = false;
-    return;
-  }
-
   switch (message->type) {
     case HUMIDITY:
       this->humidity = (message->value > 10000) ? NAN : (message->value / 100.0f);
@@ -80,24 +75,24 @@ void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
     default:
       break;
   }
-
-  this->isValid = true;
 }
 
-bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, float value) {
+bool ZyAuraSensor::publish_state_(sensor::Sensor *sensor, float *value) {
   // Sensor doesn't added to configuration
   if (sensor == nullptr) {
     return true;
   }
 
+  sensor->publish_state(*value);
+
   // Sensor reported wrong value
-  if (isnan(value)) {
+  if (isnan(*value)) {
     ESP_LOGW(TAG, "Sensor reported invalid data. Is the update interval too small?");
     this->status_set_warning();
     return false;
   }
 
-  sensor->publish_state(value);
+  *value = NAN;
   return true;
 }
 
@@ -113,15 +108,9 @@ void ZyAuraSensor::dump_config() {
 }
 
 void ZyAuraSensor::update() {
-  if (!this->store_.isValid) {
-    ESP_LOGW(TAG, "Sensor reported data with invalid checksum. Please check pins configuration.");
-    this->status_set_warning();
-    return;
-  }
-
-  bool co2_result = this->publish_state_(this->co2_sensor_, this->store_.co2);
-  bool temperature_result = this->publish_state_(this->temperature_sensor_, this->store_.temperature);
-  bool humidity_result = this->publish_state_(this->humidity_sensor_, this->store_.humidity);
+  bool co2_result = this->publish_state_(this->co2_sensor_, &this->store_.co2);
+  bool temperature_result = this->publish_state_(this->temperature_sensor_, &this->store_.temperature);
+  bool humidity_result = this->publish_state_(this->humidity_sensor_, &this->store_.humidity);
 
   if (co2_result && temperature_result && humidity_result) {
     this->status_clear_warning();
