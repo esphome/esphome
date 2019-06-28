@@ -18,8 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_PERIODIC_TABLE_CO2, 0),
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='20s'): cv.update_interval,
-}).extend(cv.polling_component_schema('20s'))
+}).extend(cv.polling_component_schema('60s'))
 
 
 def to_code(config):

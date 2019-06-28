@@ -7,9 +7,8 @@ namespace esphome {
 namespace zyaura {
 
 #define ZA_MAX_MS         2
-#define ZA_BITS_IN_BYTE   8
 #define ZA_MSG_LEN        5
-#define ZA_FRAME_SIZE     ZA_BITS_IN_BYTE * ZA_MSG_LEN
+#define ZA_FRAME_SIZE     40
 #define ZA_MSG_DELIMETER  0x0D
 
 #define ZA_BYTE_TYPE      0
@@ -48,9 +47,9 @@ class ZaDataProcessor {
 
 class ZaSensorStore {
  public:
-  double temperature = 0;
-  uint16_t co2 = 0;
-  double humidity = 0;
+  float temperature = NAN;
+  uint16_t co2 = NAN;
+  float humidity = NAN;
 
   void setup(GPIOPin *pin_clock, GPIOPin *pin_data);
   static void interrupt(ZaSensorStore *arg);

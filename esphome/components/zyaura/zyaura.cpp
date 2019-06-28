@@ -76,7 +76,7 @@ bool ZaSensorStore::set_value_(ZaMessage *message) {
       if (message->value > 5970) {
         return false;
       }
-      this->temperature = (double)message->value / 16 - 273.15;
+      this->temperature = message->value / 16.0f - 273.15f;
       break;
 
     case CO2:
