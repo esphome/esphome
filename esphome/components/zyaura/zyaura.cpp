@@ -6,7 +6,7 @@ namespace zyaura {
 
 static const char *TAG = "zyaura";
 
-ZaMessage* ZaDataProcessor::process(unsigned long ms, bool data) {
+ZaMessage* ICACHE_RAM_ATTR ZaDataProcessor::process(unsigned long ms, bool data) {
   // check if a new message has started, based on time since previous bit
   if ((ms - this->prev_ms_) > ZA_MAX_MS) {
     this->num_bits_ = 0;
@@ -29,7 +29,7 @@ ZaMessage* ZaDataProcessor::process(unsigned long ms, bool data) {
   return nullptr;
 }
 
-void ZaDataProcessor::decode_() {
+void ICACHE_RAM_ATTR ZaDataProcessor::decode_() {
   uint8_t checksum = this->buffer_[ZA_BYTE_TYPE] + this->buffer_[ZA_BYTE_HIGH] + this->buffer_[ZA_BYTE_LOW];
   this->msg_->checksumIsValid = (checksum == this->buffer_[ZA_BYTE_SUM] && this->buffer_[ZA_BYTE_END] == ZA_MSG_DELIMETER);
   if (!this->msg_->checksumIsValid) {
@@ -58,7 +58,7 @@ void ICACHE_RAM_ATTR ZaSensorStore::interrupt(ZaSensorStore *arg) {
   }
 }
 
-void ZaSensorStore::set_data_(ZaMessage *message) {
+void ICACHE_RAM_ATTR ZaSensorStore::set_data_(ZaMessage *message) {
   if (!message->checksumIsValid) {
     this->isValid = false;
     return;
