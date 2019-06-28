@@ -18,17 +18,17 @@ static const uint8_t ZA_BYTE_LOW = 2;
 static const uint8_t ZA_BYTE_SUM = 3;
 static const uint8_t ZA_BYTE_END = 4;
 
-typedef enum {
+enum ZaDataType {
   HUMIDITY = 0x41,
   TEMPERATURE = 0x42,
   CO2 = 0x50,
-} ZaDataType;
+};
 
-typedef struct {
+struct ZaMessage {
   ZaDataType type;
   uint16_t value;
   bool checksumIsValid;
-} ZaMessage;
+};
 
 class ZaDataProcessor {
  public:
