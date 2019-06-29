@@ -3,6 +3,7 @@
 #include "sx1509.h"
 
 static const uint8_t ANALOG_OUTPUT = 0x03 ; // To set a pin mode for PWM output
+static const uint8_t BLINK_OUTPUT = 0x04 ;
 
 namespace esphome {
 namespace sx1509 {
@@ -12,7 +13,7 @@ enum SX1509GPIOMode : uint8_t {
   SX1509_INPUT = INPUT,                    // 0x00
   SX1509_INPUT_PULLUP = INPUT_PULLUP,      // 0x02
   SX1509_OUTPUT = OUTPUT,                  // 0x01
-  SX1509_ANALOG_OUTPUT = ANALOG_OUTPUT,     // 0x03
+  SX1509_BLINK_OUTPUT = BLINK_OUTPUT,     // 0x04
 };
 
 class SX1509Component;

@@ -24,7 +24,7 @@ void SX1509GPIOPin::setup() {
   ESP_LOGD(TAG, "values: tOn:%02x tOff:%02x tRise:%02x tFall:%02x", this->t_on_, this->t_off_, this->t_rise_,
            this->t_fall_);
 
-  if (this->mode_ == SX1509_ANALOG_OUTPUT) {
+  if (this->mode_ == SX1509_BLINK_OUTPUT) {
     uint8_t on_reg = this->calculate_led_t_register(this->t_on_);
     uint8_t off_reg = this->calculate_led_t_register(this->t_off_);
     uint8_t rise_time = this->calculate_slope_register(this->t_rise_, this->on_intensity_, this->off_intensity_);
