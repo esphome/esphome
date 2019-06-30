@@ -84,26 +84,31 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
 
   // Uncomment for debugging the scheduler:
 
-  //  if (random_uint32() % 400 == 0) {
-  //    std::vector<SchedulerItem *> old_items = this->items_;
-  //    ESP_LOGVV(TAG, "Items: (%u)", this->items_.size());
-  //    while (!this->empty_()) {
-  //      auto *item = this->items_[0];
-  //      const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
-  //      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u next=%u",
-  //               type, item->name.c_str(), item->interval, item->last_execution, item->last_execution +
-  //               item->interval);
-  //      this->pop_raw_();
-  //    }
-  //    ESP_LOGVV(TAG, "\n");
-  //    this->items_ = old_items;
+  // if (random_uint32() % 400 == 0) {
+  //  std::vector<SchedulerItem *> old_items = this->items_;
+  //  ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
+  //  while (!this->empty_()) {
+  //    auto *item = this->items_[0];
+  //    const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
+  //    ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u",
+  //             type, item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
+  //             item->last_execution + item->interval);
+  //    this->pop_raw_();
   //  }
+  //  ESP_LOGVV(TAG, "\n");
+  //  this->items_ = old_items;
+  //}
 
   while (!this->empty_()) {
     // Don't copy-by value yet
     auto *item = this->items_[0];
-    if ((now - item->last_execution) < item->interval || item->last_execution_major != this->millis_major_)
+    if ((now - item->last_execution) < item->interval)
       // Not reached timeout yet, done for this call
+      break;
+    uint8_t major = item->last_execution_major;
+    if (item->last_execution + item->interval < item->last_execution)
+      major++;
+    if (major != this->millis_major_)
       break;
 
     // Don't run on failed components
