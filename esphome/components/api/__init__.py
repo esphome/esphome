@@ -31,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(APIServer),
     cv.Optional(CONF_PORT, default=6053): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string_strict,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SERVICES): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Required(CONF_SERVICE): cv.valid_name,
