@@ -114,7 +114,6 @@ void SX1509Component::setup_led_driver_(uint8_t pin, uint8_t freq, bool log) {
   temp_word &= ~(1 << pin);
   this->write_byte_16(REG_PULL_UP_B, temp_word);
 
-//  this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   this->ddr_mask_ &= ~(1 << pin);  // 0=output
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
