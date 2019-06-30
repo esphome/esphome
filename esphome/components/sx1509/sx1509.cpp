@@ -36,10 +36,7 @@ void SX1509Component::dump_config() {
 }
 
 bool SX1509Component::digital_read(uint8_t pin) {
-  uint16_t tempRegDir;
-  this->read_byte_16(REG_DIR_B, &tempRegDir);
-
-  if (tempRegDir & (1 << pin)) {
+  if (this->ddr_mask_ & (1 << pin)) {
     uint16_t tempRegData;
     this->read_byte_16(REG_DATA_B, &tempRegData);
     if (tempRegData & (1 << pin))
@@ -49,10 +46,7 @@ bool SX1509Component::digital_read(uint8_t pin) {
 }
 
 void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
-  uint16_t temp_reg_dir = 0;
-  this->read_byte_16(REG_DIR_B, &temp_reg_dir);
-
-  if ((0xFFFF ^ temp_reg_dir) & (1 << pin))  // If the pin is an output, write high/low
+  if ((0xFFFF ^ this->ddr_mask_) & (1 << pin))  // If the pin is an output, write high/low
   {
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
@@ -85,26 +79,20 @@ void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
 }
 
 void SX1509Component::pin_mode_(uint8_t pin, uint8_t mode) {
-switch(mode) {
-  
-}
-
-
   uint8_t mode_bit;
   if ((mode == OUTPUT) || (mode == ANALOG_OUTPUT))
     mode_bit = 0;
   else
     mode_bit = 1;
 
-  uint16_t temp_reg_dir = 0;
-  this->read_byte_16(REG_DIR_B, &temp_reg_dir);
+  this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
 
   if (mode_bit)
-    temp_reg_dir |= (1 << pin);
+    this->ddr_mask_ |= (1 << pin);
   else
-    temp_reg_dir &= ~(1 << pin);
+    this->ddr_mask_ &= ~(1 << pin);
 
-  this->write_byte_16(REG_DIR_B, temp_reg_dir);
+  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
   if (mode == INPUT_PULLUP)
     digital_write_(pin, HIGH);
@@ -126,9 +114,9 @@ void SX1509Component::setup_led_driver_(uint8_t pin, uint8_t freq, bool log) {
   temp_word &= ~(1 << pin);
   this->write_byte_16(REG_PULL_UP_B, temp_word);
 
-  this->read_byte_16(REG_DIR_B, &temp_word);
-  temp_word &= ~(1 << pin);  // 0=output
-  this->write_byte_16(REG_DIR_B, temp_word);
+//  this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
+  this->ddr_mask_ &= ~(1 << pin);  // 0=output
+  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
   this->read_byte(REG_CLOCK, &temp_byte);
   temp_byte |= (1 << 6);   // Internal 2MHz oscillator part 1 (set bit 6)
@@ -191,7 +179,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
 
   osc_divider = constrain(osc_divider, 1, 7);
   this->clk_x_ = 2000000.0 / (1 << (osc_divider - 1));  // Update private clock variable
-  osc_divider = (osc_divider & 0b111) << 4;       // 3-bit value, bits 6:4
+  osc_divider = (osc_divider & 0b111) << 4;             // 3-bit value, bits 6:4
 
   uint8_t reg_misc;
   this->read_byte(REG_MISC, &reg_misc);
@@ -210,12 +198,12 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
   uint16_t temp_word;
   uint8_t temp_byte;
 
-  this->read_byte_16(REG_DIR_B, &temp_word);
+  //this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   for (int i = 0; i < rows; i++)
-    temp_word &= ~(1 << i);
+    this->ddr_mask_ &= ~(1 << i);
   for (int i = 8; i < (columns * 2); i++)
-    temp_word |= (1 << i);
-  this->write_byte_16(REG_DIR_B, temp_word);
+    this->ddr_mask_ |= (1 << i);
+  this->write_byte_16(REG_DIR_B, this->ddr_mask_);
   this->read_byte(REG_OPEN_DRAIN_A, &temp_byte);
   for (int i = 0; i < rows; i++)
     temp_byte |= (1 << i);
