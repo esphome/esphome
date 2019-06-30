@@ -25,10 +25,10 @@ void SX1509GPIOPin::setup() {
            this->t_fall_);
 
   if (this->mode_ == SX1509_BLINK_OUTPUT) {
-    uint8_t on_reg = this->calculate_led_t_register(this->t_on_);
-    uint8_t off_reg = this->calculate_led_t_register(this->t_off_);
-    uint8_t rise_time = this->calculate_slope_register(this->t_rise_, this->on_intensity_, this->off_intensity_);
-    uint8_t fall_time = this->calculate_slope_register(this->t_fall_, this->on_intensity_, this->off_intensity_);
+    uint8_t on_reg = this->calculate_led_t_register_(this->t_on_);
+    uint8_t off_reg = this->calculate_led_t_register_(this->t_off_);
+    uint8_t rise_time = this->calculate_slope_register_(this->t_rise_, this->on_intensity_, this->off_intensity_);
+    uint8_t fall_time = this->calculate_slope_register_(this->t_fall_, this->on_intensity_, this->off_intensity_);
     this->parent_->setup_blink(this->pin_, on_reg, off_reg, this->on_intensity_, this->off_intensity_, rise_time,
                                fall_time);
   } else {
@@ -40,7 +40,7 @@ void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode_(this->pin_
 bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
 void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write_(this->pin_, value != this->inverted_); }
 
-uint8_t SX1509GPIOPin::calculate_led_t_register(uint16_t ms) {
+uint8_t SX1509GPIOPin::calculate_led_t_register_(uint16_t ms) {
   uint16_t reg_on_1, reg_on_2;
   float time_on_1, time_on_2;
   reg_on_1 = (float) (ms / 1000.0) / (64.0 * 255.0 / (float) parent_->clk_x_);
@@ -55,7 +55,7 @@ uint8_t SX1509GPIOPin::calculate_led_t_register(uint16_t ms) {
     return reg_on_2;
 }
 
-uint8_t SX1509GPIOPin::calculate_slope_register(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity) {
+uint8_t SX1509GPIOPin::calculate_slope_register_(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity) {
   uint16_t reg_slope_1, reg_slope_2;
   float reg_time_1, reg_time_2;
   float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) parent_->clk_x_;

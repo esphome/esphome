@@ -37,12 +37,12 @@ void SX1509Component::dump_config() {
 
 bool SX1509Component::digital_read(uint8_t pin) {
   if (this->ddr_mask_ & (1 << pin)) {
-    uint16_t tempRegData;
-    this->read_byte_16(REG_DATA_B, &tempRegData);
-    if (tempRegData & (1 << pin))
-      return 1;
+    uint16_t temp_reg_data;
+    this->read_byte_16(REG_DATA_B, &temp_reg_data);
+    if (temp_reg_data & (1 << pin))
+      return true;
   }
-  return 0;
+  return false;
 }
 
 void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
@@ -157,16 +157,16 @@ void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint
   t_off &= 0x1F;  // t_off should be a 5-bit value
   off_intensity &= 0x07;
   // Write the time on
-  this->write_byte(REG_T_ON[pin], t_on);
-  this->write_byte(REG_OFF[pin], (t_off << 3) | off_intensity);
-  this->write_byte(REG_I_ON[pin], on_intensity);
+  this->write_byte(REG_T_ON_[pin], t_on);
+  this->write_byte(REG_OFF_[pin], (t_off << 3) | off_intensity);
+  this->write_byte(REG_I_ON_[pin], on_intensity);
 
   t_rise &= 0x1F;
   t_fall &= 0x1F;
-  if (REG_T_RISE[pin] != 0xFF)
-    this->write_byte(REG_T_RISE[pin], t_rise);
-  if (REG_T_FALL[pin] != 0xFF)
-    this->write_byte(REG_T_FALL[pin], t_fall);
+  if (REG_T_RISE_[pin] != 0xFF)
+    this->write_byte(REG_T_RISE_[pin], t_rise);
+  if (REG_T_FALL_[pin] != 0xFF)
+    this->write_byte(REG_T_FALL_[pin], t_fall);
 }
 
 void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
@@ -189,7 +189,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
 
 void SX1509Component::set_pin_value_(uint8_t pin, uint8_t i_on) {
   ESP_LOGD(TAG, "set_pin_value_ for pin %d to %d", pin, i_on);
-  this->write_byte(REG_I_ON[pin], i_on);
+  this->write_byte(REG_I_ON_[pin], i_on);
 }
 
 void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time, uint8_t scan_time,
@@ -197,7 +197,7 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
   uint16_t temp_word;
   uint8_t temp_byte;
 
-  //this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
+  // this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   for (int i = 0; i < rows; i++)
     this->ddr_mask_ &= ~(1 << i);
   for (int i = 8; i < (columns * 2); i++)
