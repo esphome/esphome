@@ -14,7 +14,7 @@ class SX1509BinarySensor : public binary_sensor::BinarySensor {
   friend class SX1509KeypadSensor;
 
  public:
-  void set_row_col(uint8_t row, uint8_t col) { this->key_ = (1 << (row + 8)) | (1 << col); }
+  void set_row_col(uint8_t row, uint8_t col) { this->key_ = (1 << (col + 8)) | (1 << row); }
   void process(uint16_t keydata) { this->publish_state(static_cast<bool>(keydata == key_)); }
 
  protected:

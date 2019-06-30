@@ -24,7 +24,7 @@ void SX1509KeypadSensor::loop() {
     uint8_t col = get_col_(key_data);
     uint8_t key = (row * cols_) + col;
     if (key_data != last_key_press_) {
-      ESP_LOGD(TAG, "'%s' - Publishing %d  rawdata: %04x", this->name_.c_str(), key, key_data);
+      ESP_LOGD(TAG, "'%s' - Publishing %d  rawdata: %04x  row: %d col: %d", this->name_.c_str(), key, key_data,row,col);
       this->publish_state(key);
     }
   } else if (this->last_key_press_ != 0ULL) {
