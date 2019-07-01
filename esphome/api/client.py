@@ -321,7 +321,7 @@ class APIClient(threading.Thread):
         self._close_socket()
 
         if self.on_disconnect is not None and on_disconnect:
-            self.on_disconnect()
+            self.on_disconnect(None)
 
     def _check_authenticated(self):
         if not self._authenticated:
@@ -410,7 +410,7 @@ class APIClient(threading.Thread):
                 self._socket = None
             self._connected = False
             if self.on_disconnect is not None:
-                self.on_disconnect()
+                self.on_disconnect(None)
         elif isinstance(msg, pb.PingRequest):
             self._send_message(pb.PingResponse())
         elif isinstance(msg, pb.GetTimeRequest):
