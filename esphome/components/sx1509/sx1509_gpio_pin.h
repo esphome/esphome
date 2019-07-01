@@ -22,7 +22,7 @@ class SX1509Component;
 class SX1509GPIOPin : public GPIOPin {
  public:
   SX1509GPIOPin(SX1509Component *parent, uint8_t pin, uint8_t mode, bool inverted = false, uint16_t t_on = 0,
-                uint16_t t_off = 0, uint8_t on_intensity = 255, uint8_t off_intensuty = 0, uint16_t t_rise = 0,
+                uint16_t t_off = 0, uint8_t on_intensity = 255, uint8_t off_intensity = 0, uint16_t t_rise = 0,
                 uint16_t t_fall = 0);
   void setup() override;
   void pin_mode(uint8_t mode) override;
