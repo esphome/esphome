@@ -31,6 +31,7 @@ REQUIRES = [
     'typing>=3.6.6;python_version<"3.5"',
     'protobuf>=3.7,<3.8',
     'tzlocal>=1.5.1',
+    'pytz>=2019.1',
     'pyserial>=3.4,<4',
     'ifaddr>=0.1.6,<1',
 ]

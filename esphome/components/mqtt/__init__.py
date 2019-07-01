@@ -15,7 +15,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
 DEPENDENCIES = ['network']
-AUTO_LOAD = ['json']
+AUTO_LOAD = ['json', 'async_tcp']
 
 
 def validate_message_just_topic(value):
@@ -121,7 +121,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(cv.only_on_esp8266,
                                                cv.ensure_list(validate_fingerprint)),
     cv.Optional(CONF_KEEPALIVE, default='15s'): cv.positive_time_period_seconds,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,
@@ -154,6 +154,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
+    # https://github.com/marvinroger/async-mqtt-client/blob/master/library.json
     cg.add_library('AsyncMqttClient', '0.8.2')
     cg.add_define('USE_MQTT')
     cg.add_global(mqtt_ns.using)

@@ -4,9 +4,10 @@ from esphome import automation
 from esphome.automation import Condition
 from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
     CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
+AUTO_LOAD = ['async_tcp']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -30,7 +31,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(APIServer),
     cv.Optional(CONF_PORT, default=6053): cv.port,
     cv.Optional(CONF_PASSWORD, default=''): cv.string_strict,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SERVICES): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(UserServiceTrigger),
         cv.Required(CONF_SERVICE): cv.valid_name,
@@ -67,10 +68,6 @@ def to_code(config):
 
     cg.add_define('USE_API')
     cg.add_global(api_ns.using)
-    if CORE.is_esp32:
-        cg.add_library('AsyncTCP', '1.0.3')
-    elif CORE.is_esp8266:
-        cg.add_library('ESPAsyncTCP', '1.2.0')
 
 
 KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string)})

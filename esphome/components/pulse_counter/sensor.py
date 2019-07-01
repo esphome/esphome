@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_PIN, CONF_RISING_EDGE, CONF_UPDATE_INTERVAL, CONF_NUMBER, \
+    CONF_PIN, CONF_RISING_EDGE, CONF_NUMBER, \
     ICON_PULSE, UNIT_PULSES_PER_MINUTE
 from esphome.core import CORE
 
@@ -49,7 +49,6 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).exte
         cv.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
     }),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 }).extend(cv.polling_component_schema('60s'))
 
 

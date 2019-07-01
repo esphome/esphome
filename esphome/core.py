@@ -495,7 +495,7 @@ class EsphomeCore(object):
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements = []  # type: List[Statement]
         # A set of platformio libraries to add to the project
-        self.libraries = set()  # type: Set[Library]
+        self.libraries = []  # type: List[Library]
         # A set of build flags to set in the platformio project
         self.build_flags = set()  # type: Set[str]
         # A set of defines to set for the compile process in esphome/core/defines.h
@@ -522,7 +522,7 @@ class EsphomeCore(object):
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
-        self.libraries = set()
+        self.libraries = []
         self.build_flags = set()
         self.defines = set()
         self.active_coroutines = {}
@@ -666,8 +666,25 @@ class EsphomeCore(object):
         if not isinstance(library, Library):
             raise ValueError(u"Library {} must be instance of Library, not {}"
                              u"".format(library, type(library)))
-        self.libraries.add(library)
         _LOGGER.debug("Adding library: %s", library)
+        for other in self.libraries[:]:
+            if other.name != library.name:
+                continue
+            if library.version is None:
+                # Other requirement is more specific
+                break
+            if other.version is None:
+                # Found more specific version requirement
+                self.libraries.remove(other)
+                continue
+            if other.version == library.version:
+                break
+
+            raise ValueError(u"Version pinning failed! Libraries {} and {} "
+                             u"requested with conflicting versions!"
+                             u"".format(library, other))
+        else:
+            self.libraries.append(library)
         return library
 
     def add_build_flag(self, build_flag):

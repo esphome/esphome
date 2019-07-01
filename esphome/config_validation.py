@@ -1191,6 +1191,8 @@ def validate_registry_entry(name, registry):
 
         registry_entry = registry[key]
 
+        value = value.copy()
+
         with prepend_path([key]):
             value[key] = registry_entry.schema(value[key])
 
