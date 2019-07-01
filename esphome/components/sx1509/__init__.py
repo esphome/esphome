@@ -10,7 +10,6 @@ CONF_RISE_TIME = 'rise_time'
 CONF_FALL_TIME = 'fall_time'
 CONF_ON_INTENSITY = 'on_intensity'
 CONF_OFF_INTENSITY = 'off_intensity'
-CONF_FADING_MODE = 'fading_mode'
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
