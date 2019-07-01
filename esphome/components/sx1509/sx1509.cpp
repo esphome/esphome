@@ -133,7 +133,7 @@ void SX1509Component::setup_led_driver_(uint8_t pin, uint8_t freq, bool log) {
 
   if (this->clk_x_ == 0)  // Make clckX non-zero
   {
-    this->clk_x_ = 2000000.0;  // Update private clock variable
+    this->clk_x_ = 2000000;  // Update private clock variable
 
     uint8_t freq = (1 & 0x07) << 4;  // freq should only be 3 bits from 6:4
     temp_byte |= freq;
@@ -157,16 +157,16 @@ void SX1509Component::setup_blink(uint8_t pin, uint8_t t_on, uint8_t t_off, uint
   t_off &= 0x1F;  // t_off should be a 5-bit value
   off_intensity &= 0x07;
   // Write the time on
-  this->write_byte(REG_T_ON_[pin], t_on);
-  this->write_byte(REG_OFF_[pin], (t_off << 3) | off_intensity);
-  this->write_byte(REG_I_ON_[pin], on_intensity);
+  this->write_byte(reg_t_on_[pin], t_on);
+  this->write_byte(reg_off_[pin], (t_off << 3) | off_intensity);
+  this->write_byte(reg_i_on_[pin], on_intensity);
 
   t_rise &= 0x1F;
   t_fall &= 0x1F;
-  if (REG_T_RISE_[pin] != 0xFF)
-    this->write_byte(REG_T_RISE_[pin], t_rise);
-  if (REG_T_FALL_[pin] != 0xFF)
-    this->write_byte(REG_T_FALL_[pin], t_fall);
+  if (reg_t_rise_[pin] != 0xFF)
+    this->write_byte(reg_t_rise_[pin], t_rise);
+  if (reg_t_fall_[pin] != 0xFF)
+    this->write_byte(reg_t_fall_[pin], t_fall);
 }
 
 void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_freq_out, byte osc_divider) {
@@ -177,7 +177,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
   this->write_byte(REG_CLOCK, reg_clock);
 
   osc_divider = constrain(osc_divider, 1, 7);
-  this->clk_x_ = 2000000.0 / (1 << (osc_divider - 1));  // Update private clock variable
+  this->clk_x_ = 2000000 / (1 << (osc_divider - 1));  // Update private clock variable
   osc_divider = (osc_divider & 0b111) << 4;             // 3-bit value, bits 6:4
 
   uint8_t reg_misc;
@@ -189,7 +189,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
 
 void SX1509Component::set_pin_value_(uint8_t pin, uint8_t i_on) {
   ESP_LOGD(TAG, "set_pin_value_ for pin %d to %d", pin, i_on);
-  this->write_byte(REG_I_ON_[pin], i_on);
+  this->write_byte(reg_i_on_[pin], i_on);
 }
 
 void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time, uint8_t scan_time,
@@ -224,18 +224,6 @@ void SX1509Component::setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep
       break;
     }
   }
-  uint8_t sleep_time_bits = 0;
-  if (sleep_time != 0) {
-    for (uint8_t i = 7; i > 0; i--) {
-      if (sleep_time & ((unsigned int) 1 << (i + 6))) {
-        sleep_time_bits = i;
-        break;
-      }
-    }
-    if (sleep_time_bits == 0)
-      sleep_time_bits = 1;
-  }
-  sleep_time_bits = (sleep_time_bits & 0b111) << 4;
   scan_time_bits &= 0b111;  // Scan time is bits 2:0
   temp_byte = sleep_time | scan_time_bits;
   this->write_byte(REG_KEY_CONFIG_1, temp_byte);

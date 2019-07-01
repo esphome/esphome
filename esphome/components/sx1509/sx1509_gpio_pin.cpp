@@ -32,7 +32,7 @@ void SX1509GPIOPin::setup() {
     this->parent_->setup_blink(this->pin_, on_reg, off_reg, this->on_intensity_, this->off_intensity_, rise_time,
                                fall_time);
   } else {
-    this->parent_->pin_mode_(this->pin_,this->mode_);
+    this->parent_->pin_mode_(this->pin_, this->mode_);
   }
 }
 
@@ -43,13 +43,13 @@ void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write_(th
 uint8_t SX1509GPIOPin::calculate_led_t_register_(uint16_t ms) {
   uint16_t reg_on_1, reg_on_2;
   float time_on_1, time_on_2;
-  reg_on_1 = (float) (ms / 1000.0) / (64.0 * 255.0 / (float) parent_->clk_x_);
+  reg_on_1 = (uint16_t)((float) (ms / 1000.0) / (64.0 * 255.0 / (float) parent_->clk_x_));
   reg_on_2 = reg_on_1 / 8;
   reg_on_1 = constrain(reg_on_1, 1, 15);
   reg_on_2 = constrain(reg_on_2, 16, 31);
   time_on_1 = 64.0 * reg_on_1 * 255.0 / parent_->clk_x_ * 1000.0;
   time_on_2 = 512.0 * reg_on_2 * 255.0 / parent_->clk_x_ * 1000.0;
-  if (abs(time_on_1 - ms) < abs(time_on_2 - ms))
+  if (std::abs(time_on_1 - ms) < std::abs(time_on_2 - ms))
     return reg_on_1;
   else
     return reg_on_2;
@@ -60,13 +60,13 @@ uint8_t SX1509GPIOPin::calculate_slope_register_(uint16_t ms, uint8_t on_intensi
   float reg_time_1, reg_time_2;
   float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) parent_->clk_x_;
   float time_s = float(ms) / 1000.0;
-  reg_slope_1 = time_s / t_factor;
+  reg_slope_1 = (uint16_t) (time_s / t_factor);
   reg_slope_2 = reg_slope_1 / 16;
   reg_slope_1 = constrain(reg_slope_1, 1, 15);
   reg_slope_2 = constrain(reg_slope_2, 16, 31);
   reg_time_1 = reg_slope_1 * t_factor * 1000.0;
   reg_time_2 = 16 * reg_time_1;
-  if (abs(reg_time_1 - ms) < abs(reg_time_2 - ms))
+  if (std::abs(reg_time_1 - ms) < std::abs(reg_time_2 - ms))
     return reg_slope_1;
   else
     return reg_slope_2;

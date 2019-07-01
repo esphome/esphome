@@ -45,32 +45,32 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint16_t port_mask_{0x00};
   bool update_{true};
 
-  void pin_mode_(uint8_t pin, uint8_t in_out);
-  void digital_write_(uint8_t pin, bool high_low);
+  void pin_mode_(uint8_t pin, uint8_t mode);
+  void digital_write_(uint8_t pin, bool bit_value);
   void set_pin_value_(uint8_t pin, uint8_t i_on);
-  void debounce_config_(uint8_t config_vaule);
+  void debounce_config_(uint8_t config_value);
   void debounce_time_(uint8_t time);
   void debounce_pin_(uint8_t pin);
   void debounce_enable_(uint8_t pin);  // Legacy, use debouncePin
   void debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols);
   void setup_led_driver_(uint8_t pin, uint8_t freq = 1, bool log = false);
-  void clock_(uint8_t osc_source = 2, uint8_t osc_divider = 1, uint8_t osc_pin_function = 0, uint8_t osc_freq_out = 0);
+  void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1, uint8_t osc_freq_out = 0, uint8_t osc_divider = 0);
 
-  uint8_t REG_I_ON_[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
+  uint8_t reg_i_on_[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                           REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                           REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
 
-  uint8_t REG_T_ON_[16] = {REG_T_ON_0,  REG_T_ON_1,  REG_T_ON_2,  REG_T_ON_3, REG_T_ON_4,  REG_T_ON_5,
+  uint8_t reg_t_on_[16] = {REG_T_ON_0,  REG_T_ON_1,  REG_T_ON_2,  REG_T_ON_3, REG_T_ON_4,  REG_T_ON_5,
                           REG_T_ON_6,  REG_T_ON_7,  REG_T_ON_8,  REG_T_ON_9, REG_T_ON_10, REG_T_ON_11,
                           REG_T_ON_12, REG_T_ON_13, REG_T_ON_14, REG_T_ON_15};
 
-  uint8_t REG_OFF_[16] = {REG_OFF_0, REG_OFF_1, REG_OFF_2,  REG_OFF_3,  REG_OFF_4,  REG_OFF_5,  REG_OFF_6,  REG_OFF_7,
+  uint8_t reg_off_[16] = {REG_OFF_0, REG_OFF_1, REG_OFF_2,  REG_OFF_3,  REG_OFF_4,  REG_OFF_5,  REG_OFF_6,  REG_OFF_7,
                          REG_OFF_8, REG_OFF_9, REG_OFF_10, REG_OFF_11, REG_OFF_12, REG_OFF_13, REG_OFF_14, REG_OFF_15};
 
-  uint8_t REG_T_RISE_[16] = {0xFF, 0xFF, 0xFF, 0xFF, REG_T_RISE_4,  REG_T_RISE_5,  REG_T_RISE_6,  REG_T_RISE_7,
+  uint8_t reg_t_rise_[16] = {0xFF, 0xFF, 0xFF, 0xFF, REG_T_RISE_4,  REG_T_RISE_5,  REG_T_RISE_6,  REG_T_RISE_7,
                             0xFF, 0xFF, 0xFF, 0xFF, REG_T_RISE_12, REG_T_RISE_13, REG_T_RISE_14, REG_T_RISE_15};
 
-  uint8_t REG_T_FALL_[16] = {0xFF, 0xFF, 0xFF, 0xFF, REG_T_FALL_4,  REG_T_FALL_5,  REG_T_FALL_6,  REG_T_FALL_7,
+  uint8_t reg_t_fall_[16] = {0xFF, 0xFF, 0xFF, 0xFF, REG_T_FALL_4,  REG_T_FALL_5,  REG_T_FALL_6,  REG_T_FALL_7,
                             0xFF, 0xFF, 0xFF, 0xFF, REG_T_FALL_12, REG_T_FALL_13, REG_T_FALL_14, REG_T_FALL_15};
 };
 
