@@ -27,20 +27,17 @@ enum ZaDataType {
 struct ZaMessage {
   ZaDataType type;
   uint16_t value;
-  bool checksumIsValid;
 };
 
 class ZaDataProcessor {
  public:
-  ZaMessage * process(unsigned long ms, bool data);
+  bool decode(unsigned long ms, bool data);
+  ZaMessage *message = new ZaMessage;
 
  protected:
   uint8_t buffer_[ZA_MSG_LEN];
   int num_bits_ = 0;
   unsigned long prev_ms_;
-  ZaMessage *msg_ = new ZaMessage;
-
-  void decode_();
 };
 
 class ZaSensorStore {
