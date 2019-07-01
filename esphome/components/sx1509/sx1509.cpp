@@ -46,7 +46,7 @@ bool SX1509Component::digital_read(uint8_t pin) {
 }
 
 void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
-  if ((0xFFFF ^ this->ddr_mask_) & (1 << pin))  // If the pin is an output, write high/low
+  if ((~this->ddr_mask_) & (1 << pin))  // If the pin is an output, write high/low
   {
     uint16_t temp_reg_data = 0;
     this->read_byte_16(REG_DATA_B, &temp_reg_data);
