@@ -308,6 +308,10 @@ void WiFiComponent::check_scanning_finished() {
     for (auto &ap : this->sta_) {
       if (res.matches(ap)) {
         res.set_matches(true);
+        if (!this->has_sta_priority(res.get_bssid())) {
+          this->set_sta_priority(res.get_bssid(), ap.get_priority());
+        }
+        res.set_priority(this->get_sta_priority(res.get_bssid()));
         break;
       }
     }
@@ -315,10 +319,17 @@ void WiFiComponent::check_scanning_finished() {
 
   std::stable_sort(this->scan_result_.begin(), this->scan_result_.end(),
                    [](const WiFiScanResult &a, const WiFiScanResult &b) {
+                     // return true if a is better than b
                      if (a.get_matches() && !b.get_matches())
                        return true;
                      if (!a.get_matches() && b.get_matches())
                        return false;
+
+                     if (a.get_matches() && b.get_matches()) {
+                       // if both match, check priority
+                       if (a.get_priority() != b.get_priority())
+                         return a.get_priority() > b.get_priority();
+                     }
 
                      return a.get_rssi() > b.get_rssi();
                    });
@@ -443,6 +454,12 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
+  if (this->selected_ap_.get_bssid()) {
+    auto bssid = *this->selected_ap_.get_bssid();
+    float priority = this->get_sta_priority(bssid);
+    this->set_sta_priority(bssid, priority - 1.0f);
+  }
+
   delay(10);
   if (!this->is_captive_portal_active_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
