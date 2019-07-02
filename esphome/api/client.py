@@ -14,7 +14,7 @@ import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
 from esphome.helpers import resolve_ip_address, indent, color
-from esphome.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte, format_bytes
+from esphome.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -247,7 +247,7 @@ class APIClient(threading.Thread):
         if self._socket is None:
             raise APIConnectionError("Socket closed")
 
-        _LOGGER.debug("Write: %s", format_bytes(data))
+        # _LOGGER.debug("Write: %s", format_bytes(data))
         with self._socket_write_lock:
             try:
                 self._socket.sendall(data)
@@ -275,7 +275,7 @@ class APIClient(threading.Thread):
         req += encoded
         self._write(req)
 
-    def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=1):
+    def _send_message_await_response_complex(self, send_msg, do_append, do_stop, timeout=5):
         event = threading.Event()
         responses = []
 
@@ -296,7 +296,7 @@ class APIClient(threading.Thread):
             raise APIConnectionError("Timeout while waiting for message response!")
         return responses
 
-    def _send_message_await_response(self, send_msg, response_type, timeout=1):
+    def _send_message_await_response(self, send_msg, response_type, timeout=5):
         def is_response(msg):
             return isinstance(msg, response_type)
 
@@ -321,13 +321,13 @@ class APIClient(threading.Thread):
         self._close_socket()
 
         if self.on_disconnect is not None and on_disconnect:
-            self.on_disconnect()
+            self.on_disconnect(None)
 
     def _check_authenticated(self):
         if not self._authenticated:
             raise APIConnectionError("Must login first!")
 
-    def subscribe_logs(self, on_log, log_level=None, dump_config=False):
+    def subscribe_logs(self, on_log, log_level=7, dump_config=False):
         self._check_authenticated()
 
         def on_msg(msg):
@@ -336,8 +336,7 @@ class APIClient(threading.Thread):
 
         self._message_handlers.append(on_msg)
         req = pb.SubscribeLogsRequest(dump_config=dump_config)
-        if log_level is not None:
-            req.level = log_level
+        req.level = log_level
         self._send_message(req)
 
     def _recv(self, amount):
@@ -411,7 +410,7 @@ class APIClient(threading.Thread):
                 self._socket = None
             self._connected = False
             if self.on_disconnect is not None:
-                self.on_disconnect()
+                self.on_disconnect(None)
         elif isinstance(msg, pb.PingRequest):
             self._send_message(pb.PingResponse())
         elif isinstance(msg, pb.GetTimeRequest):
@@ -453,7 +452,7 @@ def run_logs(config, address):
             _LOGGER.info("Successfully connected to %s", address)
             return
 
-        wait_time = min(2**tries, 300)
+        wait_time = int(min(1.5**min(tries, 100), 30))
         if not has_connects:
             _LOGGER.warning(u"Initial connection failed. The ESP might not be connected "
                             u"to WiFi yet (%s). Re-Trying in %s seconds",

@@ -73,6 +73,9 @@ void MQTTCoverComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCon
     root["tilt_status_topic"] = this->get_tilt_state_topic();
     root["tilt_command_topic"] = this->get_tilt_command_topic();
   }
+  if (traits.get_supports_tilt() && !traits.get_supports_position()) {
+    config.command_topic = false;
+  }
 }
 
 std::string MQTTCoverComponent::component_type() const { return "cover"; }

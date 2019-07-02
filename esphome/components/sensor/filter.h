@@ -243,5 +243,14 @@ class CalibrateLinearFilter : public Filter {
   float bias_;
 };
 
+class CalibratePolynomialFilter : public Filter {
+ public:
+  CalibratePolynomialFilter(const std::vector<float> &coefficients) : coefficients_(coefficients) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  std::vector<float> coefficients_;
+};
+
 }  // namespace sensor
 }  // namespace esphome
