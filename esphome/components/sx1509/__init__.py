@@ -36,6 +36,7 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
+
 CONF_SX1509 = 'sx1509'
 CONF_SX1509_ID = 'sx1509_id'
 

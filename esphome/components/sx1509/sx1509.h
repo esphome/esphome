@@ -46,9 +46,9 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   void setup_keypad(uint8_t rows, uint8_t columns, uint16_t sleep_time = 0, uint8_t scan_time = 1,
                     uint8_t debounce_time = 0);
   uint16_t read_key_data();
-  void set_pin_value_(uint8_t pin, uint8_t i_on);
-  void pin_mode_(uint8_t pin, uint8_t mode);
-  void digital_write_(uint8_t pin, bool bit_value);
+  void set_pin_value(uint8_t pin, uint8_t i_on);
+  void pin_mode(uint8_t pin, uint8_t mode);
+  void digital_write(uint8_t pin, bool bit_value);
   u_long get_clock() { return this->clk_x_; };
 
  protected:

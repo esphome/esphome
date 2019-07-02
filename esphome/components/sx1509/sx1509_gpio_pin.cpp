@@ -32,13 +32,13 @@ void SX1509GPIOPin::setup() {
     this->parent_->setup_blink(this->pin_, on_reg, off_reg, this->on_intensity_, this->off_intensity_, rise_time,
                                fall_time);
   } else {
-    this->parent_->pin_mode_(this->pin_, this->mode_);
+    this->parent_->pin_mode(this->pin_, this->mode_);
   }
 }
 
-void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode_(this->pin_, mode); }
+void SX1509GPIOPin::pin_mode(uint8_t mode) { this->parent_->pin_mode(this->pin_, mode); }
 bool SX1509GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
-void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write_(this->pin_, value != this->inverted_); }
+void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write(this->pin_, value != this->inverted_); }
 
 uint8_t SX1509GPIOPin::calculate_led_t_register_(uint16_t ms) {
   uint16_t reg_on_1, reg_on_2;
@@ -60,7 +60,7 @@ uint8_t SX1509GPIOPin::calculate_slope_register_(uint16_t ms, uint8_t on_intensi
   float reg_time_1, reg_time_2;
   float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) parent_->get_clock();
   float time_s = float(ms) / 1000.0;
-  reg_slope_1 = (uint16_t) (time_s / t_factor);
+  reg_slope_1 = (uint16_t)(time_s / t_factor);
   reg_slope_2 = reg_slope_1 / 16;
   reg_slope_1 = constrain(reg_slope_1, 1, 15);
   reg_slope_2 = constrain(reg_slope_2, 16, 31);

@@ -45,7 +45,7 @@ bool SX1509Component::digital_read(uint8_t pin) {
   return false;
 }
 
-void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
+void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
   if ((~this->ddr_mask_) & (1 << pin)) {
     // If the pin is an output, write high/low
     uint16_t temp_reg_data = 0;
@@ -62,7 +62,7 @@ void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
     uint16_t temp_pull_down;
     this->read_byte_16(REG_PULL_DOWN_B, &temp_pull_down);
 
-    if (bit_value)  {
+    if (bit_value) {
       // if HIGH, do pull-up, disable pull-down
       temp_pullup |= (1 << pin);
       temp_pull_down &= ~(1 << pin);
@@ -78,7 +78,7 @@ void SX1509Component::digital_write_(uint8_t pin, bool bit_value) {
   }
 }
 
-void SX1509Component::pin_mode_(uint8_t pin, uint8_t mode) {
+void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
   uint8_t mode_bit;
   if ((mode == OUTPUT) || (mode == ANALOG_OUTPUT))
     mode_bit = 0;
@@ -95,7 +95,7 @@ void SX1509Component::pin_mode_(uint8_t pin, uint8_t mode) {
   this->write_byte_16(REG_DIR_B, this->ddr_mask_);
 
   if (mode == INPUT_PULLUP)
-    digital_write_(pin, HIGH);
+    digital_write(pin, HIGH);
 
   if (mode == ANALOG_OUTPUT) {
     setup_led_driver_(pin);
@@ -178,7 +178,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
 
   osc_divider = constrain(osc_divider, 1, 7);
   this->clk_x_ = 2000000 / (1 << (osc_divider - 1));  // Update private clock variable
-  osc_divider = (osc_divider & 0b111) << 4;             // 3-bit value, bits 6:4
+  osc_divider = (osc_divider & 0b111) << 4;           // 3-bit value, bits 6:4
 
   uint8_t reg_misc;
   this->read_byte(REG_MISC, &reg_misc);
@@ -187,7 +187,7 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
   this->write_byte(REG_MISC, reg_misc);
 }
 
-void SX1509Component::set_pin_value_(uint8_t pin, uint8_t i_on) {
+void SX1509Component::set_pin_value(uint8_t pin, uint8_t i_on) {
   ESP_LOGD(TAG, "set_pin_value_ for pin %d to %d", pin, i_on);
   this->write_byte(reg_i_on_[pin], i_on);
 }
