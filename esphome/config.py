@@ -18,7 +18,7 @@ from esphome.components.substitutions import CONF_SUBSTITUTIONS
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type, IS_PY2
+from esphome.py_compat import text_type, IS_PY2, decode_text
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union  # noqa
@@ -634,8 +634,13 @@ def _format_vol_invalid(ex, config):
 
 class InvalidYAMLError(EsphomeError):
     def __init__(self, base_exc):
+        try:
+            base = str(base_exc)
+        except UnicodeDecodeError:
+            base = repr(base_exc)
+        base = decode_text(base)
         message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
-                  u"online YAML syntax validator:\n\n{}".format(base_exc)
+                  u"online YAML syntax validator:\n\n{}".format(base)
         super(InvalidYAMLError, self).__init__(message)
         self.base_exc = base_exc
 
@@ -798,7 +803,7 @@ def strip_default_ids(config):
 
 
 def read_config(verbose):
-    _LOGGER.info("Reading configuration...")
+    _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
         res = load_config()
     except EsphomeError as err:
