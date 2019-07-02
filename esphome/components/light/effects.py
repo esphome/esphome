@@ -4,18 +4,19 @@ from esphome import automation
 from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
     CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
     CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
-    CONF_THEN
+    CONF_SEQUENCE
 from esphome.util import Registry
 from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect
+    AutomationLightEffect, ESPColor
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
 CONF_MOVE_INTERVAL = 'move_interval'
+CONF_SCAN_WIDTH = 'scan_width'
 CONF_TWINKLE_PROBABILITY = 'twinkle_probability'
 CONF_PROGRESS_INTERVAL = 'progress_interval'
 CONF_SPARK_PROBABILITY = 'spark_probability'
@@ -63,11 +64,11 @@ def lambda_effect_to_code(config, effect_id):
 
 
 @register_effect('automation', AutomationLightEffect, "Automation", {
-    cv.Required(CONF_THEN): automation.validate_automation(single=True),
+    cv.Required(CONF_SEQUENCE): automation.validate_automation(single=True),
 })
 def automation_effect_to_code(config, effect_id):
     var = yield cg.new_Pvariable(effect_id, config[CONF_NAME])
-    yield automation.build_automation(var.get_trig(), [], config[CONF_THEN])
+    yield automation.build_automation(var.get_trig(), [], config[CONF_SEQUENCE])
     yield var
 
 
@@ -128,7 +129,7 @@ def flicker_effect_to_code(config, effect_id):
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
 })
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it')]
+    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
@@ -179,10 +180,12 @@ def addressable_color_wipe_effect_to_code(config, effect_id):
 
 @register_effect('addressable_scan', AddressableScanEffect, "Scan", {
     cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_SCAN_WIDTH, default=1): cv.int_range(min=1),
 })
 def addressable_scan_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_move_interval(config[CONF_MOVE_INTERVAL]))
+    cg.add(var.set_scan_width(config[CONF_SCAN_WIDTH]))
     yield var
 
 

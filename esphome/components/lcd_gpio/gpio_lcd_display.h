@@ -8,6 +8,7 @@ namespace lcd_gpio {
 
 class GPIOLCDDisplay : public lcd_base::LCDDisplay {
  public:
+  void set_writer(std::function<void(GPIOLCDDisplay &)> &&writer) { this->writer_ = std::move(writer); }
   void setup() override;
   void set_data_pins(GPIOPin *d0, GPIOPin *d1, GPIOPin *d2, GPIOPin *d3) {
     this->data_pins_[0] = d0;
@@ -36,10 +37,13 @@ class GPIOLCDDisplay : public lcd_base::LCDDisplay {
   void write_n_bits(uint8_t value, uint8_t n) override;
   void send(uint8_t value, bool rs) override;
 
+  void call_writer() override { this->writer_(*this); }
+
   GPIOPin *rs_pin_{nullptr};
   GPIOPin *rw_pin_{nullptr};
   GPIOPin *enable_pin_{nullptr};
   GPIOPin *data_pins_[8]{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr};
+  std::function<void(GPIOLCDDisplay &)> writer_;
 };
 
 }  // namespace lcd_gpio

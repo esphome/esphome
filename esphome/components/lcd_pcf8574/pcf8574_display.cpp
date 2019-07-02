@@ -6,9 +6,13 @@ namespace lcd_pcf8574 {
 
 static const char *TAG = "lcd_pcf8574";
 
+static const uint8_t LCD_DISPLAY_BACKLIGHT_ON = 0x08;
+static const uint8_t LCD_DISPLAY_BACKLIGHT_OFF = 0x00;
+
 void PCF8574LCDDisplay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCF8574 LCD Display...");
-  if (!this->write_bytes(0x08, nullptr, 0)) {
+  this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_ON;
+  if (!this->write_bytes(this->backlight_value_, nullptr, 0)) {
     this->mark_failed();
     return;
   }
@@ -29,7 +33,7 @@ void PCF8574LCDDisplay::write_n_bits(uint8_t value, uint8_t n) {
     // Ugly fix: in the super setup() with n == 4 value needs to be shifted left
     value <<= 4;
   }
-  uint8_t data = value | 0x08;  // Enable backlight
+  uint8_t data = value | this->backlight_value_;  // Set backlight state
   this->write_bytes(data, nullptr, 0);
   // Pulse ENABLE
   this->write_bytes(data | 0x04, nullptr, 0);
@@ -40,6 +44,14 @@ void PCF8574LCDDisplay::write_n_bits(uint8_t value, uint8_t n) {
 void PCF8574LCDDisplay::send(uint8_t value, bool rs) {
   this->write_n_bits((value & 0xF0) | rs, 0);
   this->write_n_bits(((value << 4) & 0xF0) | rs, 0);
+}
+void PCF8574LCDDisplay::backlight() {
+  this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_ON;
+  this->write_bytes(this->backlight_value_, nullptr, 0);
+}
+void PCF8574LCDDisplay::no_backlight() {
+  this->backlight_value_ = LCD_DISPLAY_BACKLIGHT_OFF;
+  this->write_bytes(this->backlight_value_, nullptr, 0);
 }
 
 }  // namespace lcd_pcf8574

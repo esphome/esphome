@@ -127,15 +127,20 @@ def resolve_ip_address(host):
     from esphome.core import EsphomeError
     import socket
 
-    try:
-        ip = socket.gethostbyname(host)
-    except socket.error as err:
-        if host.endswith('.local'):
-            ip = _resolve_with_zeroconf(host)
-        else:
-            raise EsphomeError("Error resolving IP address: {}".format(err))
+    errs = []
 
-    return ip
+    if host.endswith('.local'):
+        try:
+            return _resolve_with_zeroconf(host)
+        except EsphomeError as err:
+            errs.append(str(err))
+
+    try:
+        return socket.gethostbyname(host)
+    except socket.error as err:
+        errs.append(str(err))
+        raise EsphomeError("Error resolving IP address: {}"
+                           "".format(', '.join(errs)))
 
 
 def get_bool_env(var, default=False):
@@ -155,6 +160,12 @@ def copy_file_if_changed(src, dst):
     if src_text == dst_text:
         return
     write_file(dst, src_text)
+
+
+def walk_files(path):
+    for root, _, files in os.walk(path):
+        for name in files:
+            yield os.path.join(root, name)
 
 
 def read_file(path):

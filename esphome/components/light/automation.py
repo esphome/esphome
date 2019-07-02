@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_TRANSITION_LENGTH, CONF_STATE, CONF_FLAS
     CONF_EFFECT, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, CONF_WHITE, \
     CONF_COLOR_TEMPERATURE, CONF_RANGE_FROM, CONF_RANGE_TO
 from .types import DimRelativeAction, ToggleAction, LightState, LightControlAction, \
-    AddressableLightState, AddressableSet
+    AddressableLightState, AddressableSet, LightIsOnCondition, LightIsOffCondition
 
 
 @automation.register_action('light.toggle', ToggleAction, automation.maybe_simple_id({
@@ -145,3 +145,16 @@ def light_addressable_set_to_code(config, action_id, template_arg, args):
         templ = yield cg.templatable(config[CONF_WHITE], args, cg.uint8, to_exp=rgbw_to_exp)
         cg.add(var.set_white(templ))
     yield var
+
+
+@automation.register_condition('light.is_on', LightIsOnCondition,
+                               automation.maybe_simple_id({
+                                   cv.Required(CONF_ID): cv.use_id(LightState),
+                               }))
+@automation.register_condition('light.is_off', LightIsOffCondition,
+                               automation.maybe_simple_id({
+                                   cv.Required(CONF_ID): cv.use_id(LightState),
+                               }))
+def light_is_on_off_to_code(config, condition_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(condition_id, template_arg, paren)

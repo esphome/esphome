@@ -40,6 +40,24 @@ api:
         - stepper.set_target:
             id: my_stepper2
             target: !lambda 'return int_;'
+    - service: array_types
+      variables:
+        bool_arr: bool[]
+        int_arr: int[]
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - logger.log:
+            format: 'Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)'
+            args:
+              - YESNO(bool_arr[0])
+              - bool_arr.size()
+              - int_arr[0]
+              - int_arr.size()
+              - float_arr[0]
+              - float_arr.size()
+              - string_arr[0].c_str()
+              - string_arr.size()
 
 wifi:
   ssid: 'MySSID'
@@ -94,6 +112,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: am2320
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -110,6 +133,41 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+      - calibrate_polynomial:
+          degree: 3
+          datapoints:
+            - 0 -> 0
+            - 100 -> 200
+            - 400 -> 500
+            - -50 -> -1000
+            - -100 -> -10000
+  - platform: resistance
+    sensor: my_sensor
+    configuration: DOWNSTREAM
+    resistor: 10kΩ
+    reference_voltage: 3.3V
+    name: Resistance
+    id: resist
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor
+    calibration:
+      b_constant: 3950
+      reference_resistance: 10k
+      reference_temperature: 25°C
+  - platform: ntc
+    sensor: resist
+    name: NTC Sensor2
+    calibration:
+      - 10.0kOhm -> 25°C
+      - 27.219kOhm -> 0°C
+      - 14.674kOhm -> 15°C
+  - platform: ct_clamp
+    sensor: my_sensor
+    name: CT Clamp
+    sample_duration: 500ms
+    update_interval: 5s
+
   - platform: tcs34725
     red_channel:
       name: Red Channel
@@ -133,6 +191,16 @@ sensor:
     sensors:
       - id: custom_sensor
         name: Custom Sensor
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: group
+    channels:
+      - binary_sensor: bin1
+        value: 10.0
+      - binary_sensor: bin2
+        value: 15.0
+      - binary_sensor: bin3
+        value: 100.0
 
 time:
 - platform: homeassistant
@@ -177,12 +245,15 @@ binary_sensor:
   - platform: mpr121
     channel: 1
     name: "touchkey1"
+    id: bin1
   - platform: mpr121
     channel: 2
     name: "touchkey2"
+    id: bin2
   - platform: mpr121
     channel: 3
     name: "touchkey3"
+    id: bin3
     on_press:
       then:
         - switch.toggle: mpr121_toggle
@@ -200,6 +271,11 @@ binary_sensor:
     binary_sensors:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
+
+globals:
+  - id: my_global_string
+    type: std::string
+    initial_value: '""'
 
 remote_receiver:
   pin: GPIO12
@@ -371,12 +447,36 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: template
+    name: Template Cover with Tilt
+    tilt_lambda: "return 0.5;"
+    tilt_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return tilt;"
+
 
 output:
   - platform: esp8266_pwm
     id: out
     pin: D3
     frequency: 50Hz
+  - platform: custom
+    type: binary
+    lambda: |-
+      auto s = new CustomBinaryOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_binary
+  - platform: custom
+    type: float
+    lambda: |-
+      auto s = new CustomFloatOutput();
+      App.register_component(s);
+      return {s};
+    outputs:
+      - id: custom_float
 
 mcp23017:
   id: mcp
@@ -399,3 +499,13 @@ ttp229_lsf:
 ttp229_bsf:
   sdo_pin: D0
   scl_pin: D1
+
+sim800l:
+  on_sms_received:
+    - lambda: |-
+        std::string str;
+        str = sender;
+        str = message;
+    - sim800l.send_sms:
+        message: 'hello you'
+        recipient: '+1234'

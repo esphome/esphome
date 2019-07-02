@@ -5,8 +5,7 @@ from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_RGB_ORDER, CONF_MA
 from esphome.core import coroutine
 
 fastled_base_ns = cg.esphome_ns.namespace('fastled_base')
-FastLEDLightOutput = fastled_base_ns.class_('FastLEDLightOutput', cg.Component,
-                                            light.AddressableLight)
+FastLEDLightOutput = fastled_base_ns.class_('FastLEDLightOutput', light.AddressableLight)
 
 RGB_ORDERS = [
     'RGB',
@@ -35,5 +34,6 @@ def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     yield light.register_light(var, config)
-    cg.add_library('FastLED', '3.2.0')
+    # https://github.com/FastLED/FastLED/blob/master/library.json
+    cg.add_library('FastLED', '3.2.9')
     yield var

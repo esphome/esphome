@@ -101,15 +101,15 @@ void RotaryEncoderSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Rotary Encoder '%s'...", this->name_.c_str());
   this->pin_a_->setup();
   this->store_.pin_a = this->pin_a_->to_isr();
-  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
-
   this->pin_b_->setup();
   this->store_.pin_b = this->pin_b_->to_isr();
-  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
 
   if (this->pin_i_ != nullptr) {
     this->pin_i_->setup();
   }
+
+  this->pin_a_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
+  this->pin_b_->attach_interrupt(RotaryEncoderSensorStore::gpio_intr, &this->store_, CHANGE);
 }
 void RotaryEncoderSensor::dump_config() {
   LOG_SENSOR("", "Rotary Encoder", this);

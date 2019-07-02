@@ -7,8 +7,10 @@ LightState = light_ns.class_('LightState', cg.Nameable, cg.Component)
 # Fake class for addressable lights
 AddressableLightState = light_ns.class_('LightState', LightState)
 LightOutput = light_ns.class_('LightOutput')
-AddressableLight = light_ns.class_('AddressableLight')
+AddressableLight = light_ns.class_('AddressableLight', cg.Component)
 AddressableLightRef = AddressableLight.operator('ref')
+
+ESPColor = light_ns.class_('ESPColor')
 LightColorValues = light_ns.class_('LightColorValues')
 
 # Actions
@@ -16,6 +18,8 @@ ToggleAction = light_ns.class_('ToggleAction', automation.Action)
 LightControlAction = light_ns.class_('LightControlAction', automation.Action)
 DimRelativeAction = light_ns.class_('DimRelativeAction', automation.Action)
 AddressableSet = light_ns.class_('AddressableSet', automation.Action)
+LightIsOnCondition = light_ns.class_('LightIsOnCondition', automation.Condition)
+LightIsOffCondition = light_ns.class_('LightIsOffCondition', automation.Condition)
 
 # Effects
 LightEffect = light_ns.class_('LightEffect')

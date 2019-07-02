@@ -52,6 +52,15 @@ def _tz_dst_str(dt):
                                  _tz_timedelta(td))
 
 
+def _non_dst_tz(tz, dt):
+    tzname = tz.tzname(dt)
+    utcoffset = tz.utcoffset(dt)
+    _LOGGER.info("Detected timezone '%s' with UTC offset %s",
+                 tzname, _tz_timedelta(utcoffset))
+    tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
+    return tzbase
+
+
 def convert_tz(pytz_obj):
     tz = pytz_obj
 
@@ -59,22 +68,28 @@ def convert_tz(pytz_obj):
     first_january = datetime.datetime(year=now.year, month=1, day=1)
 
     if not isinstance(tz, pytz.tzinfo.DstTzInfo):
-        tzname = tz.tzname(first_january)
-        utcoffset = tz.utcoffset(first_january)
-        _LOGGER.info("Detected timezone '%s' with UTC offset %s",
-                     tzname, _tz_timedelta(utcoffset))
-        tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
-        return tzbase
+        return _non_dst_tz(tz, first_january)
 
     # pylint: disable=protected-access
     transition_times = tz._utc_transition_times
     transition_info = tz._transition_info
     idx = max(0, bisect.bisect_right(transition_times, now))
+    if idx >= len(transition_times):
+        return _non_dst_tz(tz, now)
+
     idx1, idx2 = idx, idx + 1
     dstoffset1 = transition_info[idx1][1]
     if dstoffset1 == datetime.timedelta(seconds=0):
         # Normalize to 1 being DST on
         idx1, idx2 = idx + 1, idx + 2
+
+    if idx2 >= len(transition_times):
+        return _non_dst_tz(tz, now)
+
+    if transition_times[idx2].year > now.year + 1:
+        # Next transition is scheduled after this year
+        # Probably a scheduler timezone change.
+        return _non_dst_tz(tz, now)
 
     utcoffset_on, _, tzname_on = transition_info[idx1]
     utcoffset_off, _, tzname_off = transition_info[idx2]
@@ -244,9 +259,11 @@ def validate_tz(value):
     value = cv.string_strict(value)
 
     try:
-        return convert_tz(pytz.timezone(value))
-    except Exception:  # pylint: disable=broad-except
+        pytz_obj = pytz.timezone(value)
+    except pytz.UnknownTimeZoneError:  # pylint: disable=broad-except
         return value
+
+    return convert_tz(pytz_obj)
 
 
 TIME_SCHEMA = cv.Schema({

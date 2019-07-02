@@ -30,7 +30,7 @@ class ESP8266SoftwareSerial {
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_{64};
+  size_t rx_buffer_size_{512};
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
   ISRInternalGPIOPin *tx_pin_{nullptr};
@@ -49,6 +49,7 @@ class UARTComponent : public Component, public Stream {
   void write_byte(uint8_t data);
 
   void write_array(const uint8_t *data, size_t len);
+  void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
 
   void write_str(const char *str);
 
@@ -97,6 +98,7 @@ class UARTDevice : public Stream {
   void write_byte(uint8_t data) { this->parent_->write_byte(data); }
 
   void write_array(const uint8_t *data, size_t len) { this->parent_->write_array(data, len); }
+  void write_array(const std::vector<uint8_t> &data) { this->parent_->write_array(data); }
 
   void write_str(const char *str) { this->parent_->write_str(str); }
 

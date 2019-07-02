@@ -2,7 +2,7 @@
 
 #include <string>
 #include <functional>
-#include <vector>
+#include "Arduino.h"
 
 #include "esphome/core/optional.h"
 
@@ -91,18 +91,7 @@ class Component {
    */
   virtual float get_loop_priority() const;
 
-  /** Public loop() functions. These will be called by the Application instance.
-   *
-   * Note: This should normally not be overriden, unless you know what you're doing.
-   * They're basically to make creating custom components easier. For example the
-   * SensorComponent can override these methods to not have the user call some super
-   * methods within their custom sensors. These methods should ALWAYS call the loop_internal()
-   * and setup_internal() methods.
-   *
-   * Basically, it handles stuff like interval/timeout functions and eventually calls loop().
-   */
-  virtual void call_loop();
-  virtual void call_setup();
+  void call();
 
   virtual void on_shutdown() {}
   virtual void on_safe_shutdown() {}
@@ -138,6 +127,8 @@ class Component {
   void status_momentary_error(const std::string &name, uint32_t length = 5000);
 
  protected:
+  virtual void call_loop();
+  virtual void call_setup();
   /** Set an interval function with a unique name. Empty name means no cancelling possible.
    *
    * This will call f every interval ms. Can be cancelled via CancelInterval().
@@ -204,34 +195,8 @@ class Component {
   /// Cancel a defer callback using the specified name, name must not be empty.
   bool cancel_defer(const std::string &name);  // NOLINT
 
-  void loop_internal_();
-  void setup_internal_();
-
-  /// Internal struct for storing timeout/interval functions.
-  struct TimeFunction {
-    std::string name;                             ///< The name/id of this TimeFunction.
-    enum Type { TIMEOUT, INTERVAL, DEFER } type;  ///< The type of this TimeFunction. Either TIMEOUT, INTERVAL or DEFER.
-    uint32_t interval;                            ///< The interval/timeout of this function.
-    /// The last execution for interval functions and the time, SetInterval was called, for timeout functions.
-    uint32_t last_execution;
-    std::function<void()> f;  ///< The function (or callback) itself.
-    bool remove;
-
-    bool should_run(uint32_t now) const;
-  };
-
-  /// Cancel an only time function. If name is empty, won't do anything.
-  bool cancel_time_function_(const std::string &name, TimeFunction::Type type);
-
-  /** Storage for interval/timeout functions.
-   *
-   * Intentionally a vector despite its map-like nature, because of the
-   * memory overhead.
-   */
-  std::vector<TimeFunction> time_functions_;
-
   uint32_t component_state_{0x0000};  ///< State of this component.
-  optional<float> setup_priority_override_;
+  float setup_priority_override_{NAN};
 };
 
 /** This class simplifies creating components that periodically check a state.

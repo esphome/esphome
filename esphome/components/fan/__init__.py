@@ -23,7 +23,7 @@ FanSpeed = fan_ns.enum('FanSpeed')
 FAN_SPEEDS = {
     'OFF': FanSpeed.FAN_SPEED_OFF,
     'LOW': FanSpeed.FAN_SPEED_LOW,
-    'MEDIuM': FanSpeed.FAN_SPEED_MEDIUM,
+    'MEDIUM': FanSpeed.FAN_SPEED_MEDIUM,
     'HIGH': FanSpeed.FAN_SPEED_HIGH,
 }
 

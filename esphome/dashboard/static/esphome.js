@@ -5,12 +5,13 @@
 document.addEventListener('DOMContentLoaded', () => {
   M.AutoInit(document.body);
 });
-let wsProtocol = "ws:";
-if (window.location.protocol === "https:") {
-  wsProtocol = 'wss:';
+const loc = window.location;
+const wsLoc = new URL("./",`${loc.protocol}//${loc.host}${loc.pathname}`);
+wsLoc.protocol = 'ws:';
+if (loc.protocol === "https:") {
+  wsLoc.protocol = 'wss:';
 }
-const wsUrl = `${wsProtocol}//${window.location.host}${window.location.pathname}`;
-
+const wsUrl = wsLoc.href;
 
 // ============================= Color Log Parsing =============================
 const initializeColorState = () => {
@@ -332,6 +333,10 @@ class LogModalElem {
     this.activeSocket.close();
   }
 
+  open(event) {
+    this._onPress(event);
+  }
+
   _onPress(event) {
     this.activeConfig = event.target.getAttribute('data-node');
     this._setupModalInstance();
@@ -406,16 +411,27 @@ const logsModal = new LogModalElem({
 });
 logsModal.setup();
 
+const retryUploadButton = document.querySelector('.retry-upload');
+const editAfterUploadButton = document.querySelector('.edit-after-upload');
+const downloadAfterUploadButton = document.querySelector('.download-after-upload');
 const uploadModal = new LogModalElem({
   name: 'upload',
   onPrepare: (modalElem, config) => {
+    downloadAfterUploadButton.classList.add('disabled');
+    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
+    retryUploadButton.classList.add('disabled');
+    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
     modalElem.querySelector(".stop-logs").innerHTML = "Stop";
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
       M.toast({html: "Program exited successfully."});
+      // if compilation succeeds but OTA fails, you can still download the binary and upload manually
+      downloadAfterUploadButton.classList.remove('disabled');
     } else {
       M.toast({html: `Program failed with code ${code}`});
+      downloadAfterUploadButton.classList.add('disabled');
+      retryUploadButton.classList.remove('disabled');
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
@@ -425,6 +441,14 @@ const uploadModal = new LogModalElem({
   dismissible: false,
 });
 uploadModal.setup();
+downloadAfterUploadButton.addEventListener('click', () => {
+  const link = document.createElement("a");
+  link.download = name;
+  link.href = `./download.bin?configuration=${encodeURIComponent(uploadModal.activeConfig)}`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+});
 
 const validateModal = new LogModalElem({
   name: 'validate',
@@ -587,6 +611,12 @@ const startAceWebsocket = () => {
 
         editor.session.setAnnotations(arr);
 
+        if(arr.length) {
+          editorUploadButton.classList.add('disabled');
+        } else {
+          editorUploadButton.classList.remove('disabled');
+        }
+
         aceValidationRunning = false;
       } else if (msg.type === "read_file") {
         sendAceStdin({
@@ -621,7 +651,7 @@ editor.session.setOption('tabSize', 2);
 editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
-const saveValidateButton = editModalElem.querySelector(".save-validate-button");
+const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
       credentials: "same-origin",
@@ -673,19 +703,22 @@ setInterval(() => {
 }, 100);
 
 saveButton.addEventListener('click', saveEditor);
-saveValidateButton.addEventListener('click', saveEditor);
+editorUploadButton.addEventListener('click', saveEditor);
 
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
-    editModalElem.querySelector(".save-validate-button").setAttribute('data-node', activeEditorConfig);
+    editorUploadButton.setAttribute('data-node', activeEditorConfig);
     filenameField.innerHTML = activeEditorConfig;
 
+    editor.setValue("Loading configuration yaml...");
+    editor.setOption('readOnly', true);
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
+        editor.setOption('readOnly', false);
     });
 
     modalInstance.open();
@@ -716,3 +749,32 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be lowercase.");
+
+
+
+const updateAllModal = new LogModalElem({
+  name: 'update-all',
+  onPrepare: (modalElem, config) => {
+    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
+    downloadButton.classList.add('disabled');
+  },
+  onProcessExit: (modalElem, code) => {
+    if (code === 0) {
+      M.toast({html: "Program exited successfully."});
+      downloadButton.classList.remove('disabled');
+    } else {
+      M.toast({html: `Program failed with code ${data.code}`});
+    }
+    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+  },
+  onSocketClose: (modalElem) => {
+    M.toast({html: 'Terminated process.'});
+  },
+  dismissible: false,
+});
+updateAllModal.setup();
+
+const updateAllButton = document.getElementById('update-all-button');
+updateAllButton.addEventListener('click', (e) => {
+  updateAllModal.open(e);
+});

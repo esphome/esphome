@@ -2,9 +2,9 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
+#include "esphome/components/web_server_base/web_server_base.h"
 
 #include <vector>
-#include <ESPAsyncWebServer.h>
 
 namespace esphome {
 namespace web_server {
@@ -28,8 +28,7 @@ struct UrlMatch {
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
-  void set_port(uint16_t port) { port_ = port; }
-
+  WebServer(web_server_base::WebServerBase *base) : base_(base) {}
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -56,8 +55,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
-
-  void handle_update_request(AsyncWebServerRequest *request);
 
 #ifdef USE_SENSOR
   void on_sensor_update(sensor::Sensor *obj, float state) override;
@@ -122,19 +119,14 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
   void handleRequest(AsyncWebServerRequest *request) override;
-  void handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data, size_t len,
-                    bool final) override;
   /// This web handle is not trivial.
   bool isRequestHandlerTrivial() override;
 
  protected:
-  uint16_t port_;
-  AsyncWebServer *server_;
+  web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
-  uint32_t last_ota_progress_{0};
-  uint32_t ota_read_length_{0};
 };
 
 }  // namespace web_server

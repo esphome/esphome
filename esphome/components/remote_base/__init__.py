@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import binary_sensor
-from esphome.const import CONF_DATA, CONF_ID, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
+from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
     CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
@@ -83,14 +83,20 @@ def register_dumper(name, type):
     return decorator
 
 
+def validate_repeat(value):
+    if isinstance(value, dict):
+        return cv.Schema({
+            cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
+            cv.Optional(CONF_WAIT_TIME, default='10ms'):
+                cv.templatable(cv.positive_time_period_microseconds),
+        })(value)
+    return validate_repeat({CONF_TIMES: value})
+
+
 def register_action(name, type_, schema):
     validator = templatize(schema).extend({
         cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
-        cv.Optional(CONF_REPEAT): cv.Schema({
-            cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
-            cv.Optional(CONF_WAIT_TIME, default='10ms'):
-                cv.templatable(cv.positive_time_period_milliseconds),
-        }),
+        cv.Optional(CONF_REPEAT): validate_repeat,
     })
     registerer = automation.register_action('remote_transmitter.transmit_{}'.format(name),
                                             type_, validator)
@@ -344,7 +350,7 @@ RAW_SCHEMA = cv.Schema({
 @register_binary_sensor('raw', RawBinarySensor, RAW_SCHEMA)
 def raw_binary_sensor(var, config):
     code_ = config[CONF_CODE]
-    arr = cg.progmem_array(config[CONF_ID], code_)
+    arr = cg.progmem_array(config[CONF_CODE_STORAGE_ID], code_)
     cg.add(var.set_data(arr))
     cg.add(var.set_len(len(code_)))
 
@@ -440,6 +446,22 @@ def validate_rc_switch_code(value):
     return value
 
 
+def validate_rc_switch_raw_code(value):
+    if not isinstance(value, (str, text_type)):
+        raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
+    for c in value:
+        if c not in ('0', '1', 'x'):
+            raise cv.Invalid(
+                "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed"
+                .format(c))
+    if len(value) > 32:
+        raise cv.Invalid("Maximum length for RCSwitch raw codes is 32, code '{}' has length {}"
+                         "".format(value, len(value)))
+    if not value:
+        raise cv.Invalid("RCSwitch raw code must not be empty")
+    return value
+
+
 def build_rc_switch_protocol(config):
     if isinstance(config, int):
         return rc_switch_protocols[config]
@@ -451,7 +473,7 @@ def build_rc_switch_protocol(config):
 
 
 RC_SWITCH_RAW_SCHEMA = cv.Schema({
-    cv.Required(CONF_CODE): validate_rc_switch_code,
+    cv.Required(CONF_CODE): validate_rc_switch_raw_code,
     cv.Optional(CONF_PROTOCOL, default=1): RC_SWITCH_PROTOCOL_SCHEMA,
 })
 RC_SWITCH_TYPE_A_SCHEMA = cv.Schema({
@@ -484,7 +506,7 @@ RC_SWITCH_TRANSMITTER = cv.Schema({
     cv.Optional(CONF_REPEAT, default={CONF_TIMES: 5}): cv.Schema({
         cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
         cv.Optional(CONF_WAIT_TIME, default='10ms'):
-            cv.templatable(cv.positive_time_period_milliseconds),
+            cv.templatable(cv.positive_time_period_microseconds),
     }),
 })
 

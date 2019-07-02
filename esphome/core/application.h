@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -87,34 +88,7 @@ class Application {
   void setup();
 
   /// Make a loop iteration. Call this in your loop() function.
-  void loop() {
-    uint32_t new_app_state = 0;
-    for (Component *component : this->components_) {
-      if (!component->is_failed()) {
-        component->call_loop();
-      }
-      new_app_state |= component->get_component_state();
-      this->app_state_ |= new_app_state;
-      this->feed_wdt();
-    }
-    this->app_state_ = new_app_state;
-
-    const uint32_t now = millis();
-    if (HighFrequencyLoopRequester::is_high_frequency()) {
-      yield();
-    } else {
-      uint32_t delay_time = this->loop_interval_;
-      if (now - this->last_loop_ < this->loop_interval_)
-        delay_time = this->loop_interval_ - (now - this->last_loop_);
-      delay(delay_time);
-    }
-    this->last_loop_ = now;
-
-    if (this->dump_config_scheduled_) {
-      this->dump_config();
-      this->dump_config_scheduled_ = false;
-    }
-  }
+  void loop();
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
@@ -136,8 +110,7 @@ class Application {
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
 
-  void dump_config();
-  void schedule_dump_config() { this->dump_config_scheduled_ = true; }
+  void schedule_dump_config() { this->dump_config_at_ = 0; }
 
   void feed_wdt();
 
@@ -225,6 +198,8 @@ class Application {
   }
 #endif
 
+  Scheduler scheduler;
+
  protected:
   friend Component;
 
@@ -261,7 +236,7 @@ class Application {
   std::string compilation_time_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  bool dump_config_scheduled_{false};
+  int dump_config_at_{-1};
   uint32_t app_state_{0};
 };
 

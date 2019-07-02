@@ -4,6 +4,11 @@ server {
     include /etc/nginx/includes/server_params.conf;
     include /etc/nginx/includes/proxy_params.conf;
     include /etc/nginx/includes/ssl_params.conf;
+
+    ssl on;
+    ssl_certificate /ssl/%%certfile%%;
+    ssl_certificate_key /ssl/%%keyfile%%;
+
     # Clear Hass.io Ingress header
     proxy_set_header X-Hassio-Ingress "";
 

@@ -1,5 +1,5 @@
-#include "esphome/components/sensor/filter.h"
-#include "esphome/components/sensor/sensor.h"
+#include "filter.h"
+#include "sensor.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -227,6 +227,16 @@ float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDW
 
 optional<float> CalibrateLinearFilter::new_value(float value) { return value * this->slope_ + this->bias_; }
 CalibrateLinearFilter::CalibrateLinearFilter(float slope, float bias) : slope_(slope), bias_(bias) {}
+
+optional<float> CalibratePolynomialFilter::new_value(float value) {
+  float res = 0.0f;
+  float x = 1.0f;
+  for (float coefficient : this->coefficients_) {
+    res += x * coefficient;
+    x *= value;
+  }
+  return res;
+}
 
 }  // namespace sensor
 }  // namespace esphome

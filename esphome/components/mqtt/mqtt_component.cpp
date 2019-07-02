@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {
 namespace mqtt {
@@ -72,11 +73,13 @@ bool MQTTComponent::send_discovery_() {
           root["command_topic"] = this->get_command_topic_();
 
         if (this->availability_ == nullptr) {
-          root["availability_topic"] = global_mqtt_client->get_availability().topic;
-          if (global_mqtt_client->get_availability().payload_available != "online")
-            root["payload_available"] = global_mqtt_client->get_availability().payload_available;
-          if (global_mqtt_client->get_availability().payload_not_available != "offline")
-            root["payload_not_available"] = global_mqtt_client->get_availability().payload_not_available;
+          if (!global_mqtt_client->get_availability().topic.empty()) {
+            root["availability_topic"] = global_mqtt_client->get_availability().topic;
+            if (global_mqtt_client->get_availability().payload_available != "online")
+              root["payload_available"] = global_mqtt_client->get_availability().payload_available;
+            if (global_mqtt_client->get_availability().payload_not_available != "offline")
+              root["payload_not_available"] = global_mqtt_client->get_availability().payload_not_available;
+          }
         } else if (!this->availability_->topic.empty()) {
           root["availability_topic"] = this->availability_->topic;
           if (this->availability_->payload_available != "online")
@@ -146,9 +149,6 @@ void MQTTComponent::set_availability(std::string topic, std::string payload_avai
 }
 void MQTTComponent::disable_availability() { this->set_availability("", "", ""); }
 void MQTTComponent::call_setup() {
-  // Call component internal setup.
-  this->setup_internal_();
-
   if (this->is_internal())
     return;
 
@@ -170,8 +170,6 @@ void MQTTComponent::call_setup() {
 }
 
 void MQTTComponent::call_loop() {
-  this->loop_internal_();
-
   if (this->is_internal())
     return;
 

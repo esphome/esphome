@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
-from esphome.components.my9231 import MY9231OutputComponent
 from esphome.const import CONF_CHANNEL, CONF_ID
+from . import MY9231OutputComponent
 
 DEPENDENCIES = ['my9231']
 

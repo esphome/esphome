@@ -10,9 +10,10 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
+    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
 from esphome.core import CORE, coroutine_with_priority
+from esphome.helpers import copy_file_if_changed, walk_files
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ def validate_board(value):
 
     if value not in board_pins:
         raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
-            value, u', '.join(pins.ESP8266_BOARD_PINS.keys())))
+            value, u', '.join(sorted(board_pins.keys()))))
     return value
 
 
@@ -59,6 +60,7 @@ PLATFORMIO_ESP8266_LUT = {
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
+    '1.0.2': 'espressif32@1.8.0',
     'RECOMMENDED': 'espressif32@1.6.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
@@ -91,6 +93,22 @@ def default_build_path():
     return CORE.name
 
 
+VALID_INCLUDE_EXTS = {'.h', '.hpp', '.tcc', '.ino', '.cpp', '.c'}
+
+
+def valid_include(value):
+    try:
+        return cv.directory(value)
+    except cv.Invalid:
+        pass
+    value = cv.file_(value)
+    _, ext = os.path.splitext(value)
+    if ext not in VALID_INCLUDE_EXTS:
+        raise cv.Invalid(u"Include has invalid file extension {} - valid extensions are {}"
+                         u"".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
@@ -115,7 +133,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_LOOP): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoopTrigger),
     }),
-    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(cv.file_),
+    cv.Optional(CONF_INCLUDES, default=[]): cv.ensure_list(valid_include),
     cv.Optional(CONF_LIBRARIES, default=[]): cv.ensure_list(cv.string_strict),
 
     cv.Optional('esphome_core_version'): cv.invalid("The esphome_core_version option has been "
@@ -153,19 +171,36 @@ def preload_core_config(config):
     CORE.build_path = CORE.relative_config_path(out2[CONF_BUILD_PATH])
 
 
+def include_file(path, basename):
+    parts = basename.split(os.path.sep)
+    dst = CORE.relative_src_path(*parts)
+    copy_file_if_changed(path, dst)
+
+    _, ext = os.path.splitext(path)
+    if ext in ['.h', '.hpp', '.tcc']:
+        # Header, add include statement
+        cg.add_global(cg.RawStatement(u'#include "{}"'.format(basename)))
+
+
 @coroutine_with_priority(-1000.0)
 def add_includes(includes):
     # Add includes at the very end, so that the included files can access global variables
     for include in includes:
         path = CORE.relative_config_path(include)
-        res = os.path.relpath(path, CORE.relative_build_path('src')).replace(os.path.sep, '/')
-        cg.add_global(cg.RawStatement(u'#include "{}"'.format(res)))
+        if os.path.isdir(path):
+            # Directory, copy tree
+            for p in walk_files(path):
+                basename = os.path.relpath(p, os.path.dirname(path))
+                include_file(p, basename)
+        else:
+            # Copy file
+            basename = os.path.basename(path)
+            include_file(path, basename)
 
 
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
-    cg.add_define('ESPHOME_VERSION', __version__)
     cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
 
     for conf in config.get(CONF_ON_BOOT, []):

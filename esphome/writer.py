@@ -6,9 +6,9 @@ import re
 
 from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
-    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS
+    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed
+from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files
 from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
@@ -130,8 +130,6 @@ def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
     if old is None:
         return True
 
-    if old.esphome_version != new.esphome_version:
-        return True
     if old.src_version != new.src_version:
         return True
     if old.arduino_version != new.arduino_version:
@@ -173,9 +171,7 @@ def format_ini(data):
 
 
 def gather_lib_deps():
-    lib_deps_l = [x.as_lib_dep for x in CORE.libraries]
-    lib_deps_l.sort()
-    return lib_deps_l
+    return [x.as_lib_dep for x in CORE.libraries]
 
 
 def gather_build_flags():
@@ -270,7 +266,12 @@ DEFINES_H_FORMAT = ESPHOME_H_FORMAT = u"""\
 #pragma once
 {}
 """
+VERSION_H_FORMAT = u"""\
+#pragma once
+#define ESPHOME_VERSION "{}"
+"""
 DEFINES_H_TARGET = 'esphome/core/defines.h'
+VERSION_H_TARGET = 'esphome/core/version.h'
 ESPHOME_README_TXT = u"""
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
@@ -281,12 +282,6 @@ run.
 For modifying esphome's core files, please use a development esphome install
 or use the custom_components folder.
 """
-
-
-def walk_files(path):
-    for root, _, files in os.walk(path):
-        for name in files:
-            yield os.path.join(root, name)
 
 
 def copy_src_tree():
@@ -318,7 +313,7 @@ def copy_src_tree():
             continue
         # Transform path to target path name
         target = os.path.relpath(path, CORE.relative_src_path()).replace(os.path.sep, '/')
-        if target == DEFINES_H_TARGET:
+        if target in (DEFINES_H_TARGET, VERSION_H_TARGET):
             # Ignore defines.h, will be dealt with later
             continue
         if target not in source_files_copy:
@@ -343,6 +338,8 @@ def copy_src_tree():
                           CORE.relative_src_path('esphome', 'README.txt'))
     write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
                           CORE.relative_src_path('esphome.h'))
+    write_file_if_changed(VERSION_H_FORMAT.format(__version__),
+                          CORE.relative_src_path('esphome', 'core', 'version.h'))
 
 
 def generate_defines_h():

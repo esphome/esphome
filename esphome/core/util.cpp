@@ -1,6 +1,7 @@
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/application.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -35,50 +36,6 @@ bool network_is_connected() {
 #endif
 
   return false;
-}
-
-void network_setup() {
-  bool ready = true;
-#ifdef USE_ETHERNET
-  if (ethernet::global_eth_component != nullptr) {
-    ethernet::global_eth_component->call_setup();
-    ready = false;
-  }
-#endif
-
-#ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr) {
-    wifi::global_wifi_component->call_setup();
-    ready = false;
-  }
-#endif
-
-  while (!ready) {
-#ifdef USE_ETHERNET
-    if (ethernet::global_eth_component != nullptr) {
-      ethernet::global_eth_component->call_loop();
-      ready = ready || ethernet::global_eth_component->can_proceed();
-    }
-#endif
-#ifdef USE_WIFI
-    if (wifi::global_wifi_component != nullptr) {
-      wifi::global_wifi_component->call_loop();
-      ready = ready || wifi::global_wifi_component->can_proceed();
-    }
-#endif
-
-    App.feed_wdt();
-  }
-}
-void network_tick() {
-#ifdef USE_ETHERNET
-  if (ethernet::global_eth_component != nullptr)
-    ethernet::global_eth_component->call_loop();
-#endif
-#ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    wifi::global_wifi_component->call_loop();
-#endif
 }
 
 void network_setup_mdns() {

@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_STEPS, ICON_ROTATE_RIGHT, 0).ex
                                     pins.validate_has_interrupt),
     cv.Required(CONF_PIN_B): cv.All(pins.internal_gpio_input_pin_schema,
                                     pins.validate_has_interrupt),
-    cv.Optional(CONF_PIN_RESET): pins.internal_gpio_input_pin_schema,
+    cv.Optional(CONF_PIN_RESET): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_RESOLUTION, default=1): cv.enum(RESOLUTIONS, int=True),
     cv.Optional(CONF_MIN_VALUE): cv.int_,
     cv.Optional(CONF_MAX_VALUE): cv.int_,
@@ -50,7 +50,7 @@ def to_code(config):
     pin_a = yield cg.gpio_pin_expression(config[CONF_PIN_A])
     cg.add(var.set_pin_a(pin_a))
     pin_b = yield cg.gpio_pin_expression(config[CONF_PIN_B])
-    cg.add(var.set_pin_a(pin_b))
+    cg.add(var.set_pin_b(pin_b))
 
     if CONF_PIN_RESET in config:
         pin_i = yield cg.gpio_pin_expression(config[CONF_PIN_RESET])

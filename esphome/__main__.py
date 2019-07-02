@@ -11,11 +11,11 @@ from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
-    CONF_PASSWORD, CONF_PORT
+    CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
-from esphome.util import run_external_command, run_external_process, safe_print
+from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,7 +127,10 @@ def wrap_to_code(name, comp):
     def wrapped(conf):
         cg.add(cg.LineComment(u"{}:".format(name)))
         if comp.config_schema is not None:
-            cg.add(cg.LineComment(indent(yaml_util.dump(conf).decode('utf-8'))))
+            conf_str = yaml_util.dump(conf)
+            if IS_PY2:
+                conf_str = conf_str.decode('utf-8')
+            cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
 
     return wrapped
@@ -160,6 +163,7 @@ def compile_program(args, config):
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200)),
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
@@ -184,8 +188,7 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf[CONF_PASSWORD]
-    res = espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
-    return res
+    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
 def show_logs(config, args, port):
@@ -247,7 +250,7 @@ def setup_log(debug=False, quiet=False):
 def command_wizard(args):
     from esphome import wizard
 
-    return wizard.wizard(args.configuration)
+    return wizard.wizard(args.configuration[0])
 
 
 def command_config(args, config):
@@ -261,7 +264,7 @@ def command_config(args, config):
 def command_vscode(args):
     from esphome import vscode
 
-    CORE.config_path = args.configuration
+    CORE.config_path = args.configuration[0]
     vscode.read_config(args)
 
 
@@ -347,11 +350,52 @@ def command_dashboard(args):
     return dashboard.start_web_server(args)
 
 
+def command_update_all(args):
+    import click
+
+    success = {}
+    files = list_yaml_files(args.configuration[0])
+    twidth = 60
+
+    def print_bar(middle_text):
+        middle_text = " {} ".format(middle_text)
+        width = len(click.unstyle(middle_text))
+        half_line = "=" * ((twidth - width) / 2)
+        click.echo("%s%s%s" % (half_line, middle_text, half_line))
+
+    for f in files:
+        print("Updating {}".format(color('cyan', f)))
+        print('-' * twidth)
+        print()
+        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs')
+        if rc == 0:
+            print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
+            success[f] = True
+        else:
+            print_bar("[{}] {}".format(color('bold_red', 'ERROR'), f))
+            success[f] = False
+
+        print()
+        print()
+        print()
+
+    print_bar('[{}]'.format(color('bold_white', 'SUMMARY')))
+    failed = 0
+    for f in files:
+        if success[f]:
+            print("  - {}: {}".format(f, color('green', 'SUCCESS')))
+        else:
+            print("  - {}: {}".format(f, color('bold_red', 'FAILED')))
+            failed += 1
+    return failed
+
+
 PRE_CONFIG_ACTIONS = {
     'wizard': command_wizard,
     'version': command_version,
     'dashboard': command_dashboard,
     'vscode': command_vscode,
+    'update-all': command_update_all,
 }
 
 POST_CONFIG_ACTIONS = {
@@ -367,13 +411,13 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(prog='esphome')
+    parser = argparse.ArgumentParser(description='ESPHome v{}'.format(const.__version__))
     parser.add_argument('-v', '--verbose', help="Enable verbose esphome logs.",
                         action='store_true')
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
-    parser.add_argument('configuration', help='Your YAML configuration file.')
+    parser.add_argument('configuration', help='Your YAML configuration file.', nargs='*')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
@@ -443,6 +487,8 @@ def parse_args(argv):
     vscode = subparsers.add_parser('vscode', help=argparse.SUPPRESS)
     vscode.add_argument('--ace', action='store_true')
 
+    subparsers.add_parser('update-all', help=argparse.SUPPRESS)
+
     return parser.parse_args(argv[1:])
 
 
@@ -451,6 +497,10 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
+    if args.command != 'version' and not args.configuration:
+        _LOGGER.error("Missing configuration parameter, see esphome --help.")
+        return 1
+
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
@@ -458,21 +508,28 @@ def run_esphome(argv):
             _LOGGER.error(e)
             return 1
 
-    CORE.config_path = args.configuration
+    for conf_path in args.configuration:
+        CORE.config_path = conf_path
+        CORE.dashboard = args.dashboard
 
-    config = read_config(args.verbose)
-    if config is None:
-        return 1
-    CORE.config = config
+        config = read_config(args.verbose)
+        if config is None:
+            return 1
+        CORE.config = config
 
-    if args.command in POST_CONFIG_ACTIONS:
+        if args.command not in POST_CONFIG_ACTIONS:
+            safe_print(u"Unknown command {}".format(args.command))
+
         try:
-            return POST_CONFIG_ACTIONS[args.command](args, config)
+            rc = POST_CONFIG_ACTIONS[args.command](args, config)
         except EsphomeError as e:
             _LOGGER.error(e)
             return 1
-    safe_print(u"Unknown command {}".format(args.command))
-    return 1
+        if rc != 0:
+            return rc
+
+        CORE.reset()
+    return 0
 
 
 def main():
