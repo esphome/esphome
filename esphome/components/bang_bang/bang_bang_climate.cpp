@@ -79,8 +79,8 @@ void BangBangClimate::compute_state_() {
       target_mode = climate::CLIMATE_MODE_OFF;
   } else {
     // neither too hot nor too cold -> in range
-    if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle mode
+    if (this->supports_cool_ || this->supports_heat_) {
+      // if supports either, go to idle mode
       target_mode = climate::CLIMATE_MODE_OFF;
     } else {
       // else use current mode and don't change (hysteresis)
