@@ -212,6 +212,7 @@ void VL53L0XSensor::loop() {
     } else {
       // done
       // wait until reg(0x13) & 0x07 is set
+      this->initiated_read_ = false;
       this->waiting_for_interrupt_ = true;
     }
   }
@@ -220,6 +221,14 @@ void VL53L0XSensor::loop() {
       uint16_t range_mm;
       this->read_byte_16(0x14 + 10, &range_mm);
       reg(0x0B) = 0x01;
+      this->waiting_for_interrupt_ = false;
+
+      if (range_mm >= 8190) {
+        ESP_LOGW(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        this->publish_state(NAN);
+        return;
+      }
+
       float range_m = range_mm / 1e3f;
       ESP_LOGD(TAG, "'%s' - Got distance %.3f m", this->name_.c_str(), range_m);
       this->publish_state(range_m);

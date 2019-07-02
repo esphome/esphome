@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
-#include "VL53L0X.h"
 
 namespace esphome {
 namespace vl53l0x {
@@ -28,6 +27,10 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void update() override;
 
   void loop() override;
+
+  void set_signal_rate_limit(float signal_rate_limit) {
+    signal_rate_limit_ = signal_rate_limit;
+  }
 
  protected:
   uint32_t get_measurement_timing_budget_() {
