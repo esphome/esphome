@@ -2,15 +2,14 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID
-from esphome.components.sx1509.sensor import SX1509KeypadSensor, sx1509_ns
+from esphome.components.sx1509.sensor import SX1509KeypadSensor, sx1509_ns, CONF_SX1509_KEYPAD_ID
 
 CONF_ROW = 'row'
 CONF_COLUMN = 'col'
 
+DEPENDENCIES = ['sx1509']
 
 SX1509BinarySensor = sx1509_ns.class_('SX1509BinarySensor', binary_sensor.BinarySensor)
-
-CONF_SX1509_KEYPAD_ID = 'sx1509_keypad_id'
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SX1509BinarySensor),

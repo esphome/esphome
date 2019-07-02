@@ -2,13 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
 from esphome.const import CONF_PIN, CONF_ID
-from . import SX1509Component, sx1509_ns
+from esphome.components.sx1509 import SX1509Component, sx1509_ns, CONF_SX1509_ID
 
 DEPENDENCIES = ['sx1509']
 
 SX1509FloatOutputChannel = sx1509_ns.class_('SX1509FloatOutputChannel',
                                             output.FloatOutput, cg.Component)
-CONF_SX1509_ID = 'sx1509_id'
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(SX1509FloatOutputChannel),

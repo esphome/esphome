@@ -43,12 +43,12 @@ void SX1509GPIOPin::digital_write(bool value) { this->parent_->digital_write_(th
 uint8_t SX1509GPIOPin::calculate_led_t_register_(uint16_t ms) {
   uint16_t reg_on_1, reg_on_2;
   float time_on_1, time_on_2;
-  reg_on_1 = (uint16_t)((float) (ms / 1000.0) / (64.0 * 255.0 / (float) parent_->clk_x_));
+  reg_on_1 = (uint16_t)((float) (ms / 1000.0) / (64.0 * 255.0 / (float) parent_->get_clock()));
   reg_on_2 = reg_on_1 / 8;
   reg_on_1 = constrain(reg_on_1, 1, 15);
   reg_on_2 = constrain(reg_on_2, 16, 31);
-  time_on_1 = 64.0 * reg_on_1 * 255.0 / parent_->clk_x_ * 1000.0;
-  time_on_2 = 512.0 * reg_on_2 * 255.0 / parent_->clk_x_ * 1000.0;
+  time_on_1 = 64.0 * reg_on_1 * 255.0 / parent_->get_clock() * 1000.0;
+  time_on_2 = 512.0 * reg_on_2 * 255.0 / parent_->get_clock() * 1000.0;
   if (std::abs(time_on_1 - ms) < std::abs(time_on_2 - ms))
     return reg_on_1;
   else
@@ -58,7 +58,7 @@ uint8_t SX1509GPIOPin::calculate_led_t_register_(uint16_t ms) {
 uint8_t SX1509GPIOPin::calculate_slope_register_(uint16_t ms, uint8_t on_intensity, uint8_t off_intensity) {
   uint16_t reg_slope_1, reg_slope_2;
   float reg_time_1, reg_time_2;
-  float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) parent_->clk_x_;
+  float t_factor = ((float) on_intensity - (4.0 * (float) off_intensity)) * 255.0 / (float) parent_->get_clock();
   float time_s = float(ms) / 1000.0;
   reg_slope_1 = (uint16_t) (time_s / t_factor);
   reg_slope_2 = reg_slope_1 / 16;

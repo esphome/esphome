@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sx1509.h"
+#include "esphome/components/sx1509/sx1509.h"
 #include "esphome/components/output/float_output.h"
 
 namespace esphome {

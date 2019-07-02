@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY
-from . import SX1509Component, sx1509_ns
+from esphome.components.sx1509 import SX1509Component, sx1509_ns, CONF_SX1509_ID
 
 CONF_KEY_ROWS = 'key_rows'
 CONF_KEY_COLUMNS = 'key_columns'
@@ -12,9 +12,9 @@ CONF_DEBOUNCE_TIME = 'debounce_time'
 
 DEPENDENCIES = ['sx1509']
 
-SX1509KeypadSensor = sx1509_ns.class_('SX1509KeypadSensor', sensor.Sensor, cg.Component)
+CONF_SX1509_KEYPAD_ID = 'sx1509_keypad_id'
 
-CONF_SX1509_ID = 'sx1509_id'
+SX1509KeypadSensor = sx1509_ns.class_('SX1509KeypadSensor', sensor.Sensor, cg.Component)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0).extend({
     cv.GenerateID(): cv.declare_id(SX1509KeypadSensor),

@@ -36,8 +36,9 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-
 CONF_SX1509 = 'sx1509'
+CONF_SX1509_ID = 'sx1509_id'
+
 SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
