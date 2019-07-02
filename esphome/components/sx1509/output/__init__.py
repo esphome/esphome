@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
 from esphome.const import CONF_PIN, CONF_ID
-from esphome.components.sx1509 import SX1509Component, sx1509_ns, CONF_SX1509_ID
+from .. import SX1509Component, sx1509_ns, CONF_SX1509_ID
 
 DEPENDENCIES = ['sx1509']
 

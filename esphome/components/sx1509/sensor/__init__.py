@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY
-from esphome.components.sx1509 import SX1509Component, sx1509_ns, CONF_SX1509_ID
+from .. import SX1509Component, sx1509_ns, CONF_SX1509_ID
 
 CONF_KEY_ROWS = 'key_rows'
 CONF_KEY_COLUMNS = 'key_columns'
