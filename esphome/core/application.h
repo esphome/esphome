@@ -40,7 +40,7 @@ class Application {
   void pre_setup(const std::string &name, const char *compilation_time) {
     this->name_ = name;
     this->compilation_time_ = compilation_time;
-    global_preferences.begin(this->name_);
+    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR
