@@ -564,6 +564,14 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+  - platform: tx20
+    wind_speed:
+      name: "Windspeed"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
+    pin: 
+      number: GPIO04
+      mode: INPUT
   - platform: zyaura
     clock_pin: GPIO5
     data_pin: GPIO4
