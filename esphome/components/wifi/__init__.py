@@ -5,7 +5,7 @@ from esphome.automation import Condition
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS
+    CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY
 from esphome.core import CORE, HexInt, coroutine_with_priority
 
 AUTO_LOAD = ['network']
@@ -72,6 +72,7 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
     cv.Optional(CONF_BSSID): cv.mac_address,
     cv.Optional(CONF_HIDDEN): cv.boolean,
+    cv.Optional(CONF_PRIORITY, default=0.0): cv.float_,
 })
 
 
@@ -161,6 +162,8 @@ def wifi_network(config, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
+    if CONF_PRIORITY in config:
+        cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
 
