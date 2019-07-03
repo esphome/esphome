@@ -321,7 +321,7 @@ class APIClient(threading.Thread):
         self._close_socket()
 
         if self.on_disconnect is not None and on_disconnect:
-            self.on_disconnect()
+            self.on_disconnect(None)
 
     def _check_authenticated(self):
         if not self._authenticated:
@@ -410,7 +410,7 @@ class APIClient(threading.Thread):
                 self._socket = None
             self._connected = False
             if self.on_disconnect is not None:
-                self.on_disconnect()
+                self.on_disconnect(None)
         elif isinstance(msg, pb.PingRequest):
             self._send_message(pb.PingResponse())
         elif isinstance(msg, pb.GetTimeRequest):
@@ -452,7 +452,7 @@ def run_logs(config, address):
             _LOGGER.info("Successfully connected to %s", address)
             return
 
-        wait_time = min(2**tries, 300)
+        wait_time = int(min(1.5**min(tries, 100), 30))
         if not has_connects:
             _LOGGER.warning(u"Initial connection failed. The ESP might not be connected "
                             u"to WiFi yet (%s). Re-Trying in %s seconds",

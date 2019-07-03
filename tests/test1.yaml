@@ -572,6 +572,16 @@ sensor:
     pin: 
       number: GPIO04
       mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
+
 
 esp32_touch:
   setup_mode: False
@@ -1025,7 +1035,7 @@ switch:
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
-        code: '001010011001111101011011'
+        code: '00101001100111110101xxxx'
         protocol: 1
   - platform: template
     name: RC Switch Type A

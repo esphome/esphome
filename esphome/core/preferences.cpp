@@ -1,11 +1,16 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 
 #ifdef ARDUINO_ARCH_ESP8266
 extern "C" {
 #include "spi_flash.h"
 }
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+#include "nvs.h"
+#include "nvs_flash.h"
 #endif
 
 namespace esphome {
@@ -165,7 +170,7 @@ ESPPreferences::ESPPreferences()
     // which will be reset each time OTA occurs
     : current_offset_(0) {}
 
-void ESPPreferences::begin(const std::string &name) {
+void ESPPreferences::begin() {
   this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];
   ESP_LOGVV(TAG, "Loading preferences from flash...");
   disable_interrupts();
@@ -219,32 +224,64 @@ bool ESPPreferences::is_prevent_write() { return this->prevent_write_; }
 
 #ifdef ARDUINO_ARCH_ESP32
 bool ESPPreferenceObject::save_internal_() {
+  if (global_preferences.nvs_handle_ == 0)
+    return false;
+
   char key[32];
   sprintf(key, "%u", this->offset_);
   uint32_t len = (this->length_words_ + 1) * 4;
-  size_t ret = global_preferences.preferences_.putBytes(key, this->data_, len);
-  if (ret != len) {
-    ESP_LOGV(TAG, "putBytes failed!");
+  esp_err_t err = nvs_set_blob(global_preferences.nvs_handle_, key, this->data_, len);
+  if (err) {
+    ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
+    return false;
+  }
+  err = nvs_commit(global_preferences.nvs_handle_);
+  if (err) {
+    ESP_LOGV(TAG, "nvs_commit('%s', len=%u) failed: %s", key, len, esp_err_to_name(err));
     return false;
   }
   return true;
 }
 bool ESPPreferenceObject::load_internal_() {
+  if (global_preferences.nvs_handle_ == 0)
+    return false;
+
   char key[32];
   sprintf(key, "%u", this->offset_);
   uint32_t len = (this->length_words_ + 1) * 4;
-  size_t ret = global_preferences.preferences_.getBytes(key, this->data_, len);
-  if (ret != len) {
-    ESP_LOGV(TAG, "getBytes failed!");
+
+  uint32_t actual_len;
+  esp_err_t err = nvs_get_blob(global_preferences.nvs_handle_, key, nullptr, &actual_len);
+  if (err) {
+    ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", key, esp_err_to_name(err));
+    return false;
+  }
+  if (actual_len != len) {
+    ESP_LOGVV(TAG, "NVS length does not match. Assuming key changed (%u!=%u)", actual_len, len);
+    return false;
+  }
+  err = nvs_get_blob(global_preferences.nvs_handle_, key, this->data_, &len);
+  if (err) {
+    ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", key, esp_err_to_name(err));
     return false;
   }
   return true;
 }
 ESPPreferences::ESPPreferences() : current_offset_(0) {}
-void ESPPreferences::begin(const std::string &name) {
-  const std::string key = truncate_string(name, 15);
-  ESP_LOGV(TAG, "Opening preferences with key '%s'", key.c_str());
-  this->preferences_.begin(key.c_str());
+void ESPPreferences::begin() {
+  auto ns = truncate_string(App.get_name(), 15);
+  esp_err_t err = nvs_open(ns.c_str(), NVS_READWRITE, &this->nvs_handle_);
+  if (err) {
+    ESP_LOGW(TAG, "nvs_open failed: %s - erasing NVS...", esp_err_to_name(err));
+    nvs_flash_deinit();
+    nvs_flash_erase();
+    nvs_flash_init();
+
+    err = nvs_open(ns.c_str(), NVS_READWRITE, &this->nvs_handle_);
+    if (err) {
+      this->nvs_handle_ = 0;
+    }
+  }
 }
 
 ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {

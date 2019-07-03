@@ -32,17 +32,25 @@ class Scheduler {
     uint32_t last_execution;
     std::function<void()> f;
     bool remove;
+    uint8_t last_execution_major;
 
     static bool cmp(SchedulerItem *a, SchedulerItem *b);
   };
 
+  uint32_t millis_();
   void cleanup_();
   void pop_raw_();
   void push_(SchedulerItem *item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
+  bool empty_() {
+    this->cleanup_();
+    return this->items_.empty();
+  }
 
   std::vector<SchedulerItem *> items_;
   std::vector<SchedulerItem *> to_add_;
+  uint32_t last_millis_{0};
+  uint8_t millis_major_{0};
 };
 
 }  // namespace esphome
