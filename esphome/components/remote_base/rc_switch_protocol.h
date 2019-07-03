@@ -10,7 +10,7 @@ class RCSwitchBase {
  public:
   RCSwitchBase() = default;
   RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low, uint32_t one_high,
-               uint32_t one_low, bool inverted, uint32_t skip_pulses);
+               uint32_t one_low, bool inverted, uint32_t skip_pulses = 0);
 
   void one(RemoteTransmitData *dst) const;
 
