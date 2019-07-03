@@ -120,7 +120,8 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_AP): WIFI_NETWORK_AP,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
     cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
+    cv.SplitDefault(CONF_POWER_SAVE_MODE, esp8266='none', esp32='light'):
+        cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
