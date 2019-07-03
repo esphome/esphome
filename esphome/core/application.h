@@ -119,8 +119,12 @@ class Application {
   void safe_reboot();
 
   void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_)
+    for (auto *comp : this->components_) {
       comp->on_safe_shutdown();
+    }
+    for (auto *comp : this->components_) {
+      comp->on_shutdown();
+    }
   }
 
   uint32_t get_app_state() const { return this->app_state_; }
