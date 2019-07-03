@@ -102,12 +102,8 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
-  float get_priority() const {
-    return priority_;
-  }
-  void set_priority(float priority) {
-    priority_ = priority;
-  }
+  float get_priority() const { return priority_; }
+  void set_priority(float priority) { priority_ = priority; }
 
  protected:
   bool matches_{false};
@@ -209,8 +205,8 @@ class WiFiComponent : public Component {
         return;
       }
     this->sta_priorities_.push_back(WiFiSTAPriority{
-      .bssid = bssid,
-      .priority = priority,
+        .bssid = bssid,
+        .priority = priority,
     });
   }
 
