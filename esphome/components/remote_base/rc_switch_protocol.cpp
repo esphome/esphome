@@ -112,7 +112,7 @@ bool RCSwitchBase::expect_sync(RemoteReceiveData &src) const {
 bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *out_nbits) const {
   // ignore if sync doesn't exist
   this->expect_sync(src);
-  
+
   *out_data = 0;
   for (*out_nbits = 0; *out_nbits < 64; *out_nbits += 1) {
     if (this->expect_zero(src)) {
