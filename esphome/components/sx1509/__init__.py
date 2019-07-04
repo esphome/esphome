@@ -4,13 +4,6 @@ from esphome import pins
 from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
-CONF_ON_TIME = 'on_time'
-CONF_OFF_TIME = 'off_time'
-CONF_RISE_TIME = 'rise_time'
-CONF_FALL_TIME = 'fall_time'
-CONF_ON_INTENSITY = 'on_intensity'
-CONF_OFF_INTENSITY = 'off_intensity'
-
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
@@ -19,8 +12,7 @@ SX1509GPIOMode = sx1509_ns.enum('SX1509GPIOMode')
 SX1509_GPIO_MODES = {
     'INPUT': SX1509GPIOMode.SX1509_INPUT,
     'INPUT_PULLUP': SX1509GPIOMode.SX1509_INPUT_PULLUP,
-    'OUTPUT': SX1509GPIOMode.SX1509_OUTPUT,
-    'BLINK_OUTPUT': SX1509GPIOMode.SX1509_BLINK_OUTPUT
+    'OUTPUT': SX1509GPIOMode.SX1509_OUTPUT
 }
 
 SX1509Component = sx1509_ns.class_('SX1509Component', cg.Component, i2c.I2CDevice)
@@ -44,13 +36,7 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
-    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-    cv.Optional(CONF_ON_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_OFF_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_RISE_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_FALL_TIME, default='0ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_ON_INTENSITY, default=255): cv.int_range(min=0, max=255),
-    cv.Optional(CONF_OFF_INTENSITY, default=0): cv.int_range(min=0, max=255), })
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean, })
 SX1509_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
@@ -63,11 +49,5 @@ SX1509_INPUT_PIN_SCHEMA = cv.Schema({
                                    (SX1509_OUTPUT_PIN_SCHEMA, SX1509_INPUT_PIN_SCHEMA))
 def sx1509_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_SX1509])
-    if config[CONF_MODE] == 'BLINK_OUTPUT':
-        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE],
-                                config[CONF_INVERTED], config[CONF_ON_TIME], config[CONF_OFF_TIME],
-                                config[CONF_ON_INTENSITY], config[CONF_OFF_INTENSITY],
-                                config[CONF_RISE_TIME], config[CONF_FALL_TIME])
-    else:
-        yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE],
-                                config[CONF_INVERTED])
+    yield SX1509GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE],
+                            config[CONF_INVERTED])

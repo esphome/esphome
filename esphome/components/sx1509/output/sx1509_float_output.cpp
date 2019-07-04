@@ -8,7 +8,6 @@ namespace sx1509 {
 static const char *TAG = "sx1509_float_channel";
 
 void SX1509FloatOutputChannel::write_state(float state) {
-  ESP_LOGD(TAG, "write_state %f", state);
   const uint16_t max_duty = 255;
   const float duty_rounded = roundf(state * max_duty);
   auto duty = static_cast<uint16_t>(duty_rounded);
@@ -17,7 +16,7 @@ void SX1509FloatOutputChannel::write_state(float state) {
 
 void SX1509FloatOutputChannel::setup() {
   ESP_LOGD(TAG, "setup pin %d", this->pin_);
-  this->parent_->pin_mode(this->pin_, ANALOG_OUTPUT);
+  this->parent_->pin_mode(this->pin_, SX1509_ANALOG_OUTPUT);
   this->turn_off();
 }
 
