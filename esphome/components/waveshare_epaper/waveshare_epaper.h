@@ -51,7 +51,7 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
-  uint32_t get_buffer_length_();
+  virtual uint32_t get_buffer_length_();
 
   void start_command_();
   void end_command_();
@@ -190,6 +190,56 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
 
   int get_height_internal() override;
 };
+
+extern const uint8_t COLOR_BLACK;
+extern const uint8_t COLOR_YELLOW;
+extern const uint8_t COLOR_WHITE;
+extern const uint8_t COLOR_RED;
+}  // namespace waveshare_epaper
+}  // namespace esphome
+
+#include "flash_array.h"
+namespace esphome {
+namespace waveshare_epaper{
+namespace detail{
+struct WaveshareEPaper7P5InCProps{
+  constexpr static int static_width_(){  return 640;}
+  constexpr static int static_height_(){ return 384; }
+  constexpr static int static_buffer_length_(){
+    return static_width_() * static_height_() / 4u;
+  }
+};
+}
+class WaveshareEPaper7P5InC :
+  public WaveshareEPaper,
+  public detail::WaveshareEPaper7P5InCProps
+{
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+  void fill(int color) override;
+
+ protected:
+  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  uint32_t get_buffer_length_() override;
+  int get_width_internal() override;
+  int get_height_internal() override;
+
+  BufferedFlashArray<0, static_buffer_length_()> static_buffer_;
+};
+
 
 }  // namespace waveshare_epaper
 }  // namespace esphome

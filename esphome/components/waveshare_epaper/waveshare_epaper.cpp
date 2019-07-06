@@ -70,7 +70,6 @@ void WaveshareEPaper::fill(int color) {
 void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, int color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
-
   const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
@@ -596,6 +595,170 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+const uint8_t COLOR_BLACK{display::COLOR_ON};
+const uint8_t COLOR_YELLOW{(uint8_t)(COLOR_BLACK + 1)};
+const uint8_t COLOR_RED{COLOR_YELLOW};
+const uint8_t COLOR_WHITE{display::COLOR_OFF};
+
+void wavesh_log(const char* format, ...){
+  va_list arg;
+  va_start(arg, format);
+  const static char *TAGG = "wshe" ;
+  char buffer[200];
+  vsnprintf(buffer, 200, format, arg);
+  va_end(arg);
+  ESP_LOGI(TAGG, "%s ", buffer);
+}
+
+
+void WaveshareEPaper7P5InC::initialize() {
+  // COMMAND POWER SETTING
+  ESP_LOGW(TAG, "COMMAND POWER SETTING");
+  this->command(0x01);
+  this->data(0x37);
+  this->data(0x00);
+
+  // COMMAND PANEL SETTING
+  ESP_LOGW(TAG, "COMMAND PANEL SETTING");
+  this->command(0x00);
+  this->data(0xCF);
+  this->data(0x0B);
+
+  // COMMAND BOOSTER SOFT START
+  ESP_LOGW(TAG, "COMMAND BOOSTER SOFT START");
+  this->command(0x06);
+  this->data(0xC7);
+  this->data(0xCC);
+  this->data(0x28);
+
+  // COMMAND POWER ON
+  ESP_LOGW(TAG, "COMMAND POWER ON");
+  this->command(0x04);
+  this->wait_until_idle_();
+  delay(10);
+
+  // COMMAND PLL CONTROL
+  ESP_LOGW(TAG, "COMMAND PLL CONTROL");
+  this->command(0x30);
+  this->data(0x3C);
+
+  // COMMAND TEMPERATURE SENSOR CALIBRATION
+  ESP_LOGW(TAG, "COMMAND TEMPERATURE SENSOR CALIBRATION");
+  this->command(0x41);
+  this->data(0x00);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  ESP_LOGW(TAG, "COMMAND VCOM AND DATA INTERVAL SETTING");
+  this->command(0x50);
+  this->data(0x77);
+
+  // COMMAND TCON SETTING
+  ESP_LOGW(TAG, "COMMAND TCON SETTING");
+  this->command(0x60);
+  this->data(0x22);
+
+  // COMMAND RESOLUTION SETTING
+  ESP_LOGW(TAG, "COMMAND RESOLUTION SETTING");
+  this->command(0x61);
+  this->data(0x02);
+  this->data(0x80);
+  this->data(0x01);
+  this->data(0x80);
+
+  // COMMAND VCM DC SETTING REGISTER
+  ESP_LOGW(TAG, "COMMAND VCM DC SETTING REGISTER");
+  this->command(0x82);
+  this->data(0x1E);
+
+  this->command(0xE5);
+  this->data(0x03);
+}
+void HOT WaveshareEPaper7P5InC::display() {
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+
+  this->start_data_();
+  for (size_t i = 0; i < this->static_buffer_length_(); i++) {
+    uint8_t temp1 = this->static_buffer_[i];
+    for (uint8_t j = 0; j < 4; j++) {
+      uint8_t temp2;
+      if (temp1 & 0x80)
+        temp2 = 0x00;
+      else if (temp1 & 0x40)
+        temp2 = 0x04;
+      else
+        temp2 = 0x03;
+
+      temp2 <<= 4;
+      temp1 <<= 2;
+      j++;
+      if (temp1 & 0x80)
+        temp2 |= 0x00;
+      else if (temp1 & 0x40)
+        temp2 |= 0x04;
+      else
+        temp2 |= 0x03;
+      temp1 <<= 2;
+      this->write_byte(temp2);
+    }
+
+    App.feed_wdt();
+  }
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  ESP_LOGW(TAG, "COMMAND DISPLAY REFRESH");
+  this->command(0x12);
+}
+void WaveshareEPaper7P5InC::fill(int color) {
+  // flip logic
+  const uint8_t fill = (color == COLOR_WHITE) ? 0x00 :
+    ((color == COLOR_YELLOW)?0b10101010: 0b01010101);
+  ESP_LOGD(TAG, "Fill start");
+  for (uint32_t i = 0; i < this->static_buffer_length_(); i++){
+    this->static_buffer_.write(i,fill);
+    App.feed_wdt();
+  }
+  ESP_LOGD(TAG, "Fill end");
+}
+uint32_t WaveshareEPaper7P5InC::get_buffer_length_(){ return 1; }
+int WaveshareEPaper7P5InC::get_width_internal() { return static_width_(); }
+int WaveshareEPaper7P5InC::get_height_internal() { return static_height_(); }
+void WaveshareEPaper7P5InC::draw_absolute_pixel_internal(int x, int y, int color){
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  const uint32_t pos = (x + y * this->get_width_internal()) / 4u;
+  const uint8_t subpos = (x & 0x03) * 2;
+  App.feed_wdt();
+  // flip logic
+  uint8_t point = this->static_buffer_[pos];
+
+  point &= ~(0xC0 >> subpos); // COLOR_WHITE
+  if (color == COLOR_BLACK)
+    point |= 0x80 >> subpos;
+  else if (color == COLOR_YELLOW){
+
+    point |= 0x40 >> subpos;
+  }
+
+  //ESP_LOGW(TAG, "P(%d, %d) p(%u), sp(%u) = %x", x, y, pos, (uint32_t)subpos, (uint32_t)point);
+  this->static_buffer_[pos] = point;
+}
+void WaveshareEPaper7P5InC::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5in_c");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+
+template<unsigned int id, size_t N, size_t buffer_size>
+constexpr
+//typename BufferedFlashArray<id, N, buffer_size>::aligned_type*
+uint8_t* BufferedFlashArray<id, N, buffer_size>::arr;//[N/sizeof(aligned_type)]{0};
 
 }  // namespace waveshare_epaper
 }  // namespace esphome

@@ -14,6 +14,7 @@ WaveshareEPaperTypeA = waveshare_epaper_ns.class_('WaveshareEPaperTypeA', Wavesh
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_('WaveshareEPaper2P7In', WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_('WaveshareEPaper4P2In', WaveshareEPaper)
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_('WaveshareEPaper7P5In', WaveshareEPaper)
+WaveshareEPaper7P5InC = waveshare_epaper_ns.class_('WaveshareEPaper7P5InC', WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeAModel')
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeBModel')
@@ -25,6 +26,7 @@ MODELS = {
     '2.70in': ('b', WaveshareEPaper2P7In),
     '4.20in': ('b', WaveshareEPaper4P2In),
     '7.50in': ('b', WaveshareEPaper7P5In),
+    '7.50in_c': ('b', WaveshareEPaper7P5InC),
 }
 
 
