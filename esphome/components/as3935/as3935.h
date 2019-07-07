@@ -73,20 +73,19 @@ class AS3935Component : public Component, public i2c::I2CDevice {
   void set_thunder_alert_binary_sensor(binary_sensor::BinarySensor *thunder_alert_binary_sensor) {
     thunder_alert_binary_sensor_ = thunder_alert_binary_sensor;
   }
+  void set_indoor(bool indoor);
+  void set_watchdog_threshold(uint8_t sensitivity);
+  void set_noise_level(uint8_t floor);
+  void set_spike_rejection(uint8_t spike_sensitivity);
+  void set_lightning_threshold(uint8_t strikes);
+  void set_mask_disturber(bool enabled);
+  void set_div_ratio(uint8_t div_ratio);
+  void set_cap(uint8_t eight_pico_farad);
 
  protected:
   uint8_t read_interrupt_register_();
-  void set_outdoor_();
-  void set_indoor_();
-  void set_watchdog_threshold_(uint8_t sensitivity);
-  void set_noise_level_(uint8_t floor);
-  void set_spike_rejection_(uint8_t spike_sensitivity);
-  void set_lightning_threshold_(uint8_t strikes);
   void clear_statistics_();
-  void set_mask_disturber_(bool enabled);
-  void set_div_ratio_(uint8_t div_ratio);
   uint8_t get_distance_to_storm_();
-  void set_cap_(uint8_t eight_pico_farad);
   uint32_t get_lightning_energy_();
 
   void write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position);
