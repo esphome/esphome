@@ -51,8 +51,8 @@ const uint8_t COOLIX_TEMP_MAP[COOLIX_TEMP_RANGE] = {
 
 // Constants
 static const uint32_t BIT_MARK_US = 660;
-static const uint32_t HEADER_MARK_US = 560*8;
-static const uint32_t HEADER_SPACE_US = 560*8;
+static const uint32_t HEADER_MARK_US = 560 * 8;
+static const uint32_t HEADER_SPACE_US = 560 * 8;
 static const uint32_t BIT_ONE_SPACE_US = 1500;
 static const uint32_t BIT_ZERO_SPACE_US = 450;
 static const uint32_t FOOTER_MARK_US = BIT_MARK_US;
@@ -146,16 +146,16 @@ void CoolixClimate::transmit_state_() {
     //   Byte. Each byte then being sent normal, then followed inverted.
     for (uint16_t i = 8; i <= COOLIX_BITS; i += 8) {
       // Grab a bytes worth of data.
-      uint8_t _byte = (remote_state >> (COOLIX_BITS - i)) & 0xFF;
+      uint8_t byte = (remote_state >> (COOLIX_BITS - i)) & 0xFF;
       // Normal
       for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
         data->mark(BIT_MARK_US);
-        data->space((_byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+        data->space((byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
       }
       // Inverted
       for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
         data->mark(BIT_MARK_US);
-        data->space(!(_byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
+        data->space(!(byte & mask) ? BIT_ONE_SPACE_US : BIT_ZERO_SPACE_US);
       }
     }
     // Footer
@@ -167,7 +167,6 @@ void CoolixClimate::transmit_state_() {
 }
 
 bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
-  data.reset();
   // Decoded remote state y 3 bytes long code.
   uint32_t remote_state = 0;
   // The protocol sends the data twice, read here
@@ -177,21 +176,21 @@ bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
       return false;
     loop_read = 0;
     for (uint8_t a_byte = 0; a_byte < 3; a_byte++) {
-      uint8_t _byte = 0;
+      uint8_t byte = 0;
       for (int8_t a_bit = 7; a_bit >= 0; a_bit--) {
         if (data.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US))
-          _byte |= 1 << a_bit;
+          byte |= 1 << a_bit;
         else if (!data.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US))
           return false;
       }
       // Need to see this segment inverted
       for (int8_t a_bit = 7; a_bit >= 0; a_bit--) {
-        bool bit = _byte & (1 << a_bit);
+        bool bit = byte & (1 << a_bit);
         if (!data.expect_item(BIT_MARK_US, bit ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
           return false;
       }
       // Receiving MSB first: reorder bytes
-      loop_read |= _byte << ((2 - a_byte) * 8);
+      loop_read |= byte << ((2 - a_byte) * 8);
     }
     // Footer Mark
     if (!data.expect_mark(BIT_MARK_US))
