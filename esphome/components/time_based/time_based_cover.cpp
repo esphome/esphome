@@ -50,6 +50,7 @@ CoverTraits TimeBasedCover::get_traits() {
 }
 void TimeBasedCover::control(const CoverCall &call) {
   if (call.get_stop()) {
+    this->target_position_ = this->position;
     this->start_direction_(COVER_OPERATION_IDLE);
     this->publish_state();
   }
@@ -104,7 +105,12 @@ void TimeBasedCover::start_direction_(CoverOperation dir) {
   this->current_operation = dir;
 
   this->stop_prev_trigger_();
-  trig->trigger();
+  if (dir == COVER_OPERATION_IDLE && this->has_built_in_endstop_
+    &&  (this->target_position_ == 0.0f || this->target_position_ == 1.0f)) {
+    // Don't trigger stop, let the cover stop by itself.
+  } else {
+    trig->trigger();
+  }
   this->prev_command_trigger_ = trig;
 
   const uint32_t now = millis();
