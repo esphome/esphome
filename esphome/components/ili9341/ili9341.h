@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#include "ili9341_defines.h"
+#include "ili9341_init.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -15,14 +17,13 @@ class ili9341 : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
-  void set_busy_pin(GPIOPin *busy) { this->busy_pin_ = busy; }
+  void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
 
   void command(uint8_t value);
   void data(uint8_t value);
-
-  virtual void display() = 0;
+  void send_command(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
+  uint8_t read_command_(uint8_t commandByte, uint8_t index);
   virtual void initialize() = 0;
-  virtual void deep_sleep() = 0;
 
   void update() override;
 
@@ -33,15 +34,13 @@ class ili9341 : public PollingComponent,
     this->initialize();
   }
 
-  void on_safe_shutdown() override;
-
  protected:
   void draw_absolute_pixel_internal(int x, int y, int color) override;
-
-  bool wait_until_idle_();
-
   void setup_pins_();
 
+  void init_lcd_(const uint8_t *init_cmd);
+  void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
+  void invert_display_(bool invert);
   void reset_() {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
@@ -51,6 +50,11 @@ class ili9341 : public PollingComponent,
     }
   }
 
+  int16_t width_{320};   ///< Display width as modified by current rotation
+  int16_t height_{240};  ///< Display height as modified by current rotation
+  int16_t cursor_x_;     ///< x location to start print()ing text
+  int16_t cursor_y_;     ///< y location to start print()ing text
+
   uint32_t get_buffer_length_();
 
   void start_command_();
@@ -59,6 +63,7 @@ class ili9341 : public PollingComponent,
   void end_data_();
 
   GPIOPin *reset_pin_{nullptr};
+  GPIOPin *led_pin_{nullptr};
   GPIOPin *dc_pin_;
   GPIOPin *busy_pin_{nullptr};
 };
@@ -68,26 +73,12 @@ class ili9341_M5Stack : public ili9341 {
   void initialize() override;
 
   void dump_config() override;
-
-  void display() override;
-
-  void deep_sleep() override {
-    // COMMAND DEEP SLEEP MODE
-    this->command(0x10);
-    this->wait_until_idle_();
-  }
-
-  void set_full_update_every(uint32_t full_update_every);
+  void set_rotation_();
 
  protected:
-  void write_lut_(const uint8_t *lut);
-
-  int get_width_internal() override;
-
-  int get_height_internal() override;
-
-  uint32_t full_update_every_{30};
   uint32_t at_update_{0};
+  int get_width_internal() override;
+  int get_height_internal() override;
 };
 
 }  // namespace ili9341

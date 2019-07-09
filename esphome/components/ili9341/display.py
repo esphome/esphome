@@ -3,13 +3,15 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN
+    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN, CONF_ROTATION
 
 DEPENDENCIES = ['spi']
 
+CONF_LED_PIN = 'led_pin'
+
 ili9341_ns = cg.esphome_ns.namespace('ili9341')
 ili9341 = ili9341_ns.class_('ILI9341', cg.PollingComponent, spi.SPIDevice,
-                                             display.DisplayBuffer)
+                            display.DisplayBuffer)
 ILI9341M5Stack = ili9341_ns.class_('ili9341_M5Stack', ili9341)
 
 
@@ -23,10 +25,10 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(ili9341),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
+    cv.Optional(CONF_LED_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
-                       validate_full_update_every_only_type_a,
-                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+    validate_full_update_every_only_type_a,
+    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):
@@ -47,5 +49,6 @@ def to_code(config):
     if CONF_RESET_PIN in config:
         reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
-    if CONF_FULL_UPDATE_EVERY in config:
-        cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
+    if CONF_LED_PIN in config:
+        led_pin = yield cg.gpio_pin_expression(config[CONF_LED_PIN])
+        cg.add(var.set_led_pin(led_pin))
