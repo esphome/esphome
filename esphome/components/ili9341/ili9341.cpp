@@ -73,18 +73,35 @@ uint8_t ili9341::read_command_(uint8_t commandByte, uint8_t index) {
 void ili9341::update() {
   this->do_update_();
   //  this->display();
+  ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
+  this->x_low_ = this->width_;
+  this->y_low_ = this->height_;
+  this->x_high_ = 0;
+  this->y_high_ = 0;
 }
 
 void ili9341::fill(int color) {
-  // flip logic
-  const uint8_t fill = color ? 0x00 : 0xFF;
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
-    this->buffer_[i] = fill;
+  // this->fill_internal_(color);
+}
+
+void ili9341::fill_internal_(int color) {
+  this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
+  this->start_data_();
+  for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
+    this->write_byte(color >> 8);
+    this->write_byte(color);
+  }
+  this->end_data_();
 }
 
 void HOT ili9341::draw_absolute_pixel_internal(int x, int y, int color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
+  // low and high watermark may speed up drawing from buffer
+  this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
+  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
+  this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
+  this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
   set_addr_window_(x, y, 1, 1);
   this->start_data_();
@@ -93,7 +110,8 @@ void HOT ili9341::draw_absolute_pixel_internal(int x, int y, int color) {
   this->end_data_();
 }
 
-//should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color values per bit is huge
+// should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
+// values per bit is huge
 uint32_t ili9341::get_buffer_length_() { return 0; }
 
 void ili9341::start_command_() {
@@ -152,6 +170,7 @@ void ili9341_M5Stack::initialize() {
   this->init_lcd_(initcmd_m5stack);
   this->width_ = ILI9341_TFTWIDTH;
   this->height_ = ILI9341_TFTHEIGHT;
+  this->fill_internal_(BLACK);
 }
 
 void ili9341_M5Stack::dump_config() {

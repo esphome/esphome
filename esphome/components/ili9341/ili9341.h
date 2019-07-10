@@ -16,7 +16,7 @@ enum ILI9341Model {
 class ili9341 : public PollingComponent,
                 public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_2MHZ> {
+                                      spi::DATA_RATE_8MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -47,12 +47,15 @@ class ili9341 : public PollingComponent,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
+  void fill_internal_(int color);
 
   ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation
   int16_t height_{240};  ///< Display height as modified by current rotation
-  int16_t cursor_x_;     ///< x location to start print()ing text
-  int16_t cursor_y_;     ///< y location to start print()ing text
+  uint16_t x_low_{0};
+  uint16_t y_low_{0};
+  uint16_t x_high_{0};
+  uint16_t y_high_{0};
 
   uint32_t get_buffer_length_();
 
