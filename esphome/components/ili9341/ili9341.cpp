@@ -16,8 +16,9 @@ void ili9341::setup_pins_() {
     this->reset_pin_->setup();  // OUTPUT
     this->reset_pin_->digital_write(true);
   }
-  if (this->busy_pin_ != nullptr) {
-    this->busy_pin_->setup();  // INPUT
+  if (this->led_pin_ != nullptr) {
+    this->led_pin_->setup();
+    this->led_pin_->digital_write(true);
   }
   this->spi_setup();
 
@@ -82,7 +83,7 @@ uint8_t ili9341::read_command_(uint8_t commandByte, uint8_t index) {
 void ili9341::update() {
   this->do_update_();
   //  this->display();
-  //ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
+  // ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
@@ -169,14 +170,11 @@ void ili9341::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w, uint16_t h)
 
 void ili9341::invert_display_(bool invert) { this->command(invert ? ILI9341_INVON : ILI9341_INVOFF); }
 
-
 int ili9341::get_width_internal() { return this->width_; }
 int ili9341::get_height_internal() { return this->height_; }
 
 //   M5Stack display
 void ili9341_M5Stack::initialize() {
-  this->led_pin_->pin_mode(OUTPUT);
-  this->led_pin_->digital_write(true);
   this->init_lcd_(initcmd_m5stack);
   this->width_ = 320;
   this->height_ = 240;
@@ -185,8 +183,6 @@ void ili9341_M5Stack::initialize() {
 
 //   24_TFT display
 void ili9341_24_TFT::initialize() {
-  this->led_pin_->pin_mode(OUTPUT);
-  this->led_pin_->digital_write(true);
   this->init_lcd_(initcmd_tft);
   this->width_ = 240;
   this->height_ = 320;
