@@ -73,7 +73,7 @@ uint8_t ili9341::read_command_(uint8_t commandByte, uint8_t index) {
 void ili9341::update() {
   this->do_update_();
   //  this->display();
-  ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
+  //ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
