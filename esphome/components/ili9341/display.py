@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN, CONF_ROTATION
+    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN, \
+    CONF_ROTATION
 
 DEPENDENCIES = ['spi']
 
@@ -13,11 +14,13 @@ ili9341_ns = cg.esphome_ns.namespace('ili9341')
 ili9341 = ili9341_ns.class_('ILI9341', cg.PollingComponent, spi.SPIDevice,
                             display.DisplayBuffer)
 ILI9341M5Stack = ili9341_ns.class_('ili9341_M5Stack', ili9341)
+ILI9341_24_TFT = ili9341_ns.class_('ili9341_24_TFT', ili9341)
 
 ILI9341Model = ili9341_ns.enum('ILI9341Model')
 
 MODELS = {
     'M5STACK': ILI9341Model.M5STACK,
+    'TFT_2.4': ILI9341Model.TFT_24,
 }
 
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
@@ -35,6 +38,8 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
 def to_code(config):
     if config[CONF_MODEL] == 'M5STACK':
         lcd_type = ILI9341M5Stack
+    if config[CONF_MODEL] == 'TFT_2.4':
+        lcd_type = ILI9341_24_TFT
     rhs = lcd_type.new()
     var = cg.Pvariable(config[CONF_ID], rhs, type=lcd_type)
 

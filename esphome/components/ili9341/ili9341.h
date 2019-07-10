@@ -11,6 +11,7 @@ namespace ili9341 {
 
 enum ILI9341Model {
   M5STACK = 0,
+  TFT_24,
 };
 
 class ili9341 : public PollingComponent,
@@ -70,6 +71,8 @@ class ili9341 : public PollingComponent,
   GPIOPin *busy_pin_{nullptr};
 };
 
+//-----------   M5Stack display --------------
+
 class ili9341_M5Stack : public ili9341 {
  public:
   void initialize() override;
@@ -79,9 +82,18 @@ class ili9341_M5Stack : public ili9341 {
   int get_width_internal() override;
   int get_height_internal() override;
 
- protected:
-  uint32_t at_update_{0};
 };
 
+//-----------   ILI9341_24_TFT display --------------
+class ili9341_24_TFT : public ili9341 {
+ public:
+  void initialize() override;
+
+  void dump_config() override;
+  void set_rotation_();
+  int get_width_internal() override;
+  int get_height_internal() override;
+
+};
 }  // namespace ili9341
 }  // namespace esphome
