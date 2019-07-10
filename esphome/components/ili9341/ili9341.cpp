@@ -31,6 +31,15 @@ void ili9341::command(uint8_t value) {
   this->end_command_();
 }
 
+void ili9341::reset_() {
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(200);
+    this->reset_pin_->digital_write(true);
+    delay(200);
+  }
+}
+
 void ili9341::data(uint8_t value) {
   this->start_data_();
   this->write_byte(value);
@@ -63,7 +72,7 @@ uint8_t ili9341::read_command_(uint8_t commandByte, uint8_t index) {
 
 void ili9341::update() {
   this->do_update_();
-//  this->display();
+  //  this->display();
 }
 
 void ili9341::fill(int color) {

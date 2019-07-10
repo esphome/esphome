@@ -9,6 +9,10 @@
 namespace esphome {
 namespace ili9341 {
 
+enum ILI9341Model {
+  M5STACK = 0,
+};
+
 class ili9341 : public PollingComponent,
                 public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
@@ -18,6 +22,7 @@ class ili9341 : public PollingComponent,
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
+  void set_model(ILI9341Model model) { this->model_ = model; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -41,15 +46,9 @@ class ili9341 : public PollingComponent,
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
-  void reset_() {
-    if (this->reset_pin_ != nullptr) {
-      this->reset_pin_->digital_write(false);
-      delay(200);
-      this->reset_pin_->digital_write(true);
-      delay(200);
-    }
-  }
+  void reset_();
 
+  ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation
   int16_t height_{240};  ///< Display height as modified by current rotation
   int16_t cursor_x_;     ///< x location to start print()ing text
@@ -74,11 +73,11 @@ class ili9341_M5Stack : public ili9341 {
 
   void dump_config() override;
   void set_rotation_();
+  int get_width_internal() override;
+  int get_height_internal() override;
 
  protected:
   uint32_t at_update_{0};
-  int get_width_internal() override;
-  int get_height_internal() override;
 };
 
 }  // namespace ili9341
