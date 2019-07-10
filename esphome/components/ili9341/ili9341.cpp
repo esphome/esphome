@@ -24,6 +24,15 @@ void ili9341::setup_pins_() {
   this->reset_();
 }
 
+void ili9341::dump_config() {
+  LOG_DISPLAY("", "ili9341", this);
+  ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->width_, this->height_, this->rotation_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 float ili9341::get_setup_priority() const { return setup_priority::PROCESSOR; }
 void ili9341::command(uint8_t value) {
   this->start_command_();
@@ -160,10 +169,11 @@ void ili9341::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w, uint16_t h)
 
 void ili9341::invert_display_(bool invert) { this->command(invert ? ILI9341_INVON : ILI9341_INVOFF); }
 
-// ========================================================
-//                          M5Stack display
-// ========================================================
 
+int ili9341::get_width_internal() { return this->width_; }
+int ili9341::get_height_internal() { return this->height_; }
+
+//   M5Stack display
 void ili9341_M5Stack::initialize() {
   this->led_pin_->pin_mode(OUTPUT);
   this->led_pin_->digital_write(true);
@@ -173,22 +183,7 @@ void ili9341_M5Stack::initialize() {
   this->fill_internal_(BLACK);
 }
 
-void ili9341_M5Stack::dump_config() {
-  LOG_DISPLAY("", "ili9341_M5Stack", this);
-  ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->width_, this->height_, this->rotation_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_UPDATE_INTERVAL(this);
-}
-
-int ili9341_M5Stack::get_width_internal() { return this->width_; }
-int ili9341_M5Stack::get_height_internal() { return this->height_; }
-
-// ========================================================
-//                          ili9341_24_TFT display
-// ========================================================
-
+//   24_TFT display
 void ili9341_24_TFT::initialize() {
   this->led_pin_->pin_mode(OUTPUT);
   this->led_pin_->digital_write(true);
@@ -197,18 +192,6 @@ void ili9341_24_TFT::initialize() {
   this->height_ = 320;
   this->fill_internal_(BLACK);
 }
-
-void ili9341_24_TFT::dump_config() {
-  LOG_DISPLAY("", "ili9341_24_TFT", this);
-  ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->width_, this->height_, this->rotation_);
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_UPDATE_INTERVAL(this);
-}
-
-int ili9341_24_TFT::get_width_internal() { return this->width_; }
-int ili9341_24_TFT::get_height_internal() { return this->height_; }
 
 }  // namespace ili9341
 }  // namespace esphome

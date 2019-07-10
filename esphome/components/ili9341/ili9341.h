@@ -35,6 +35,7 @@ class ili9341 : public PollingComponent,
 
   void fill(int color) override;
 
+  void dump_config() override;
   void setup() override {
     this->setup_pins_();
     this->initialize();
@@ -59,6 +60,8 @@ class ili9341 : public PollingComponent,
   uint16_t y_high_{0};
 
   uint32_t get_buffer_length_();
+  int get_width_internal() override;
+  int get_height_internal() override;
 
   void start_command_();
   void end_command_();
@@ -72,28 +75,15 @@ class ili9341 : public PollingComponent,
 };
 
 //-----------   M5Stack display --------------
-
 class ili9341_M5Stack : public ili9341 {
  public:
   void initialize() override;
-
-  void dump_config() override;
-  void set_rotation_();
-  int get_width_internal() override;
-  int get_height_internal() override;
-
 };
 
 //-----------   ILI9341_24_TFT display --------------
 class ili9341_24_TFT : public ili9341 {
  public:
   void initialize() override;
-
-  void dump_config() override;
-  void set_rotation_();
-  int get_width_internal() override;
-  int get_height_internal() override;
-
 };
 }  // namespace ili9341
 }  // namespace esphome
