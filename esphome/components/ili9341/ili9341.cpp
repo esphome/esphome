@@ -93,7 +93,8 @@ void HOT ili9341::draw_absolute_pixel_internal(int x, int y, int color) {
   this->end_data_();
 }
 
-uint32_t ili9341::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
+//should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color values per bit is huge
+uint32_t ili9341::get_buffer_length_() { return 0; }
 
 void ili9341::start_command_() {
   this->dc_pin_->digital_write(false);
