@@ -77,7 +77,7 @@ void MCP23008::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
 
   if (reg_addr == MCP23008_OLAT) {
     this->olat_ = reg_value;
-  } 
+  }
 }
 
 MCP23008GPIOPin::MCP23008GPIOPin(MCP23008 *parent, uint8_t pin, uint8_t mode, bool inverted)
