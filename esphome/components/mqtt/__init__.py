@@ -121,7 +121,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_SSL_FINGERPRINTS): cv.All(cv.only_on_esp8266,
                                                cv.ensure_list(validate_fingerprint)),
     cv.Optional(CONF_KEEPALIVE, default='15s'): cv.positive_time_period_seconds,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(MQTTMessageTrigger),
         cv.Required(CONF_TOPIC): cv.subscribe_topic,

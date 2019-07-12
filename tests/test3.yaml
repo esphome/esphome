@@ -133,6 +133,14 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+      - calibrate_polynomial:
+          degree: 3
+          datapoints:
+            - 0 -> 0
+            - 100 -> 200
+            - 400 -> 500
+            - -50 -> -1000
+            - -100 -> -10000
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
