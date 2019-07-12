@@ -53,7 +53,7 @@ void RCSwitchBase::sync(RemoteTransmitData *dst) const {
     dst->mark(this->sync_low_);
   }
 }
-void RCSwitchBase::transmit(RemoteTransmitData *dst, uint32_t code, uint8_t len) const {
+void RCSwitchBase::transmit(RemoteTransmitData *dst, uint64_t code, uint8_t len) const {
   dst->set_carrier_frequency(0);
   for (int16_t i = len - 1; i >= 0; i--) {
     if (code & (1 << i))
@@ -109,7 +109,7 @@ bool RCSwitchBase::expect_sync(RemoteReceiveData &src) const {
   src.advance(2);
   return true;
 }
-bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *out_nbits) const {
+bool RCSwitchBase::decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *out_nbits) const {
   // ignore if sync doesn't exist
   this->expect_sync(src);
 
@@ -128,7 +128,7 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *o
   return true;
 }
 
-void RCSwitchBase::simple_code_to_tristate(uint16_t code, uint8_t nbits, uint32_t *out_code) {
+void RCSwitchBase::simple_code_to_tristate(uint16_t code, uint8_t nbits, uint64_t *out_code) {
   *out_code = 0;
   for (int8_t i = nbits - 1; i >= 0; i--) {
     *out_code <<= 2;
@@ -138,7 +138,7 @@ void RCSwitchBase::simple_code_to_tristate(uint16_t code, uint8_t nbits, uint32_
       *out_code |= 0b00;
   }
 }
-void RCSwitchBase::type_a_code(uint8_t switch_group, uint8_t switch_device, bool state, uint32_t *out_code,
+void RCSwitchBase::type_a_code(uint8_t switch_group, uint8_t switch_device, bool state, uint64_t *out_code,
                                uint8_t *out_nbits) {
   uint16_t code = 0;
   code |= (switch_group & 0b0001) ? 0 : 0b1000;
@@ -155,7 +155,7 @@ void RCSwitchBase::type_a_code(uint8_t switch_group, uint8_t switch_device, bool
   simple_code_to_tristate(code, 10, out_code);
   *out_nbits = 20;
 }
-void RCSwitchBase::type_b_code(uint8_t address_code, uint8_t channel_code, bool state, uint32_t *out_code,
+void RCSwitchBase::type_b_code(uint8_t address_code, uint8_t channel_code, bool state, uint64_t *out_code,
                                uint8_t *out_nbits) {
   uint16_t code = 0;
   code |= (address_code == 1) ? 0 : 0b1000;
@@ -173,7 +173,7 @@ void RCSwitchBase::type_b_code(uint8_t address_code, uint8_t channel_code, bool 
   simple_code_to_tristate(code, 12, out_code);
   *out_nbits = 24;
 }
-void RCSwitchBase::type_c_code(uint8_t family, uint8_t group, uint8_t device, bool state, uint32_t *out_code,
+void RCSwitchBase::type_c_code(uint8_t family, uint8_t group, uint8_t device, bool state, uint64_t *out_code,
                                uint8_t *out_nbits) {
   uint16_t code = 0;
   code |= (family & 0b0001) ? 0b1000 : 0;
@@ -191,7 +191,7 @@ void RCSwitchBase::type_c_code(uint8_t family, uint8_t group, uint8_t device, bo
   simple_code_to_tristate(code, 12, out_code);
   *out_nbits = 24;
 }
-void RCSwitchBase::type_d_code(uint8_t group, uint8_t device, bool state, uint32_t *out_code, uint8_t *out_nbits) {
+void RCSwitchBase::type_d_code(uint8_t group, uint8_t device, bool state, uint64_t *out_code, uint8_t *out_nbits) {
   *out_code = 0;
   *out_code |= (group == 0) ? 0b11000000 : 0b01000000;
   *out_code |= (group == 1) ? 0b00110000 : 0b00010000;
@@ -208,8 +208,8 @@ void RCSwitchBase::type_d_code(uint8_t group, uint8_t device, bool state, uint32
   *out_nbits = 24;
 }
 
-uint32_t decode_binary_string(const std::string &data) {
-  uint32_t ret = 0;
+uint64_t decode_binary_string(const std::string &data) {
+  uint64_t ret = 0;
   for (char c : data) {
     ret <<= 1UL;
     ret |= (c != '0');
@@ -217,8 +217,8 @@ uint32_t decode_binary_string(const std::string &data) {
   return ret;
 }
 
-uint32_t decode_binary_string_mask(const std::string &data) {
-  uint32_t ret = 0;
+uint64_t decode_binary_string_mask(const std::string &data) {
+  uint64_t ret = 0;
   for (char c : data) {
     ret <<= 1UL;
     ret |= (c != 'x');
@@ -227,7 +227,7 @@ uint32_t decode_binary_string_mask(const std::string &data) {
 }
 
 bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
-  uint32_t decoded_code;
+  uint64_t decoded_code;
   uint8_t decoded_nbits;
   if (!this->protocol_.decode(src, &decoded_code, &decoded_nbits))
     return false;
@@ -237,7 +237,7 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
   for (uint8_t i = 1; i <= 8; i++) {
     src.reset();
-    uint32_t out_data;
+    uint64_t out_data;
     uint8_t out_nbits;
     RCSwitchBase *protocol = &rc_switch_protocols[i];
     if (protocol->decode(src, &out_data, &out_nbits) && out_nbits >= 3) {
