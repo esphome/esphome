@@ -13,8 +13,8 @@ class I2CAS3935Component : public as3935_base::AS3935Component, public i2c::I2CD
  public:
 
  protected:
-  void write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) override;
-  uint8_t read_register_(uint8_t reg) override;
+  void write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) override;
+  uint8_t read_register(uint8_t reg) override;
 };
 
 }  // namespace as3935_i2c

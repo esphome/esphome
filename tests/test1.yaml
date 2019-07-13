@@ -171,6 +171,10 @@ ads1115:
 dallas:
   pin: GPIO23
 
+as3935_spi:
+  cs_pin: D8
+  pin: D1
+
 sensor:
   - platform: adc
     pin: A0
@@ -572,6 +576,11 @@ sensor:
     pin: 
       number: GPIO04
       mode: INPUT
+  - platform: as3935_base
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 esp32_touch:
   setup_mode: False
@@ -706,6 +715,8 @@ binary_sensor:
              3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
              1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
              1712, -2262, 1714, -2267, 1709]
+  - platform: as3935_base
+    name: "Storm Alert"
 
 pca9685:
   frequency: 500

@@ -19,8 +19,8 @@ void SPIAS3935Component::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
-void SPIAS3935Component::write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
-  uint8_t write_reg = this->read_register_(reg);
+void SPIAS3935Component::write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_pos) {
+  uint8_t write_reg = this->read_register(reg);
 
   write_reg &= (~mask);
   write_reg |= (bits << start_pos);
@@ -31,7 +31,7 @@ void SPIAS3935Component::write_register_(uint8_t reg, uint8_t mask, uint8_t bits
   this->disable();
 }
 
-uint8_t SPIAS3935Component::read_register_(uint8_t reg) {
+uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   uint8_t value = 0;
   this->enable();
   this->write_byte(reg |= SPI_READ_M);
