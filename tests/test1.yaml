@@ -172,8 +172,8 @@ dallas:
   pin: GPIO23
 
 as3935_spi:
-  cs_pin: D8
-  pin: D1
+  cs_pin: GPIO12
+  pin: GPIO13
 
 sensor:
   - platform: adc

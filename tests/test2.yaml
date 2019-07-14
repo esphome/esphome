@@ -51,7 +51,7 @@ deep_sleep:
   sleep_duration: 50s
 
 as3935_i2c:
-  pin: D1
+  pin: GPIO12
 
 
 sensor:
