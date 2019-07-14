@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ID, CONF_PIN, CONF_INDOOR, CONF_WATCHDOG_THRESHOLD, \
+from esphome.const import CONF_PIN, CONF_INDOOR, CONF_WATCHDOG_THRESHOLD, \
     CONF_NOISE_LEVEL, CONF_SPIKE_REJECTION, CONF_LIGHTNING_THRESHOLD, \
     CONF_MASK_DISTURBER, CONF_DIV_RATIO, CONF_CAP
 from esphome.core import coroutine
@@ -29,6 +29,7 @@ AS3935_SCHEMA = cv.Schema({
     cv.Optional(CONF_CAP): cv.int_range(min=0, max=15),
 })
 
+
 @coroutine
 def setup_as3935(var, config):
     yield cg.register_component(var, config)
@@ -43,7 +44,7 @@ def setup_as3935(var, config):
         cg.add(var.set_noise_level(config[CONF_NOISE_LEVEL]))
     if CONF_SPIKE_REJECTION in config:
         cg.add(var.set_spike_rejection(config[CONF_SPIKE_REJECTION]))
-    if CONF_LIGHTNING_THRESHOLD in config:    
+    if CONF_LIGHTNING_THRESHOLD in config:
         cg.add(var.set_lightning_threshold(config[CONF_LIGHTNING_THRESHOLD]))
     if CONF_MASK_DISTURBER in config:
         cg.add(var.set_mask_disturber(config[CONF_MASK_DISTURBER]))

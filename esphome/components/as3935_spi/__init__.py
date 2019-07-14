@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import as3935_base, spi
-from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.const import CONF_ID
 
 AUTO_LOAD = ['as3935_base']
 DEPENDENCIES = ['spi']

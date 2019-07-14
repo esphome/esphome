@@ -9,9 +9,7 @@
 namespace esphome {
 namespace as3935_spi {
 
-enum AS3935RegisterMasks {
-  SPI_READ_M = 0x40
-};
+enum AS3935RegisterMasks { SPI_READ_M = 0x40 };
 
 class SPIAS3935Component : public as3935_base::AS3935Component,
                            public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,

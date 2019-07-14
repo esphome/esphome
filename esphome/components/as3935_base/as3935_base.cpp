@@ -50,7 +50,7 @@ void AS3935Component::loop() {
 
 void AS3935Component::set_indoor(bool indoor) {
   ESP_LOGI(TAG, "Setting indoor to %d", indoor);
-  if(indoor)
+  if (indoor)
     this->write_register(AFE_GAIN, GAIN_MASK, INDOOR, 1);
   else
     this->write_register(AFE_GAIN, GAIN_MASK, OUTDOOR, 1);
@@ -77,7 +77,11 @@ void AS3935Component::set_noise_level(uint8_t floor) {
 
   this->write_register(THRESHOLD, NOISE_FLOOR_MASK, floor, 4);
 }
-
+// REG0x02, bits [3:0], manufacturer default: 0010 (2).
+// This setting, like the watchdog threshold, can help determine between false
+// events and actual lightning. The shape of the spike is analyzed during the
+// chip's signal validation routine. Increasing this value increases robustness
+// at the cost of sensitivity to distant events.
 void AS3935Component::set_spike_rejection(uint8_t spike_sensitivity) {
   ESP_LOGI(TAG, "Setting spike rejection to %d", spike_sensitivity);
   if ((spike_sensitivity < 1) || (spike_sensitivity > 11))
@@ -138,7 +142,6 @@ void AS3935Component::set_cap(uint8_t eight_pico_farad) {
   this->write_register(FREQ_DISP_IRQ, CAP_MASK, eight_pico_farad, 0);
 }
 
-
 // REG0x03, bits [3:0], manufacturer default: 0.
 // When there is an event that exceeds the watchdog threshold, the register is written
 // with the type of event. This consists of two messages: INT_D (disturber detected) and
@@ -192,7 +195,7 @@ uint32_t AS3935Component::get_lightning_energy_() {
   return pure_light;
 }
 
-uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask){
+uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   uint8_t value = this->read_register(reg);
 
   value &= (~mask);
