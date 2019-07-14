@@ -1,6 +1,7 @@
+#include "tx20.h"
+#include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
-<<<<<<< HEAD
-=======
 namespace esphome {
 namespace tx20 {
 
@@ -192,4 +193,3 @@ void ICACHE_RAM_ATTR Tx20ComponentStore::reset() {
 
 }  // namespace tx20
 }  // namespace esphome
->>>>>>> fixing lint errors
