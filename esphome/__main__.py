@@ -474,7 +474,9 @@ def parse_args(argv):
                                       help="Create a simple web server for a dashboard.")
     dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
                            type=int, default=6052)
-    dashboard.add_argument("--password", help="The optional password to require for all requests.",
+    dashboard.add_argument("--username", help="The optional username to require for authentication.",
+                           type=str, default='')
+    dashboard.add_argument("--password", help="The optional password to require for authentication.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')

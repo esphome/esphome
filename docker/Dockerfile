@@ -4,6 +4,9 @@ FROM ${BUILD_FROM}
 COPY . .
 RUN pip2 install --no-cache-dir -e .
 
+ENV USERNAME="admin"
+ENV PASSWORD=""
+
 WORKDIR /config
 ENTRYPOINT ["esphome"]
 CMD ["/config", "dashboard"]
