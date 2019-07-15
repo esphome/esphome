@@ -641,6 +641,13 @@ class LoginHandler(BaseHandler):
             self.post_native_login()
 
 
+class LogoutHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        self.clear_cookie("authenticated")
+        self.redirect('./login')
+
+
 _STATIC_FILE_HASHES = {}
 
 
@@ -691,6 +698,7 @@ def make_app(debug=False):
     app = tornado.web.Application([
         (rel + "", MainRequestHandler),
         (rel + "login", LoginHandler),
+        (rel + "logout", LogoutHandler),
         (rel + "logs", EsphomeLogsHandler),
         (rel + "upload", EsphomeUploadHandler),
         (rel + "compile", EsphomeCompileHandler),
