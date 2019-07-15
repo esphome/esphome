@@ -39,11 +39,6 @@ from typing import Optional  # noqa
 
 from esphome.zeroconf import DashboardStatus, Zeroconf
 
-if IS_PY2:
-    import sys
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -624,8 +619,8 @@ class LoginHandler(BaseHandler):
         self.render_login_page(error="Invalid username or password")
 
     def post_native_login(self):
-        username = str(self.get_argument("username", ''))
-        password = str(self.get_argument("password", ''))
+        username = str(self.get_argument("username", '').encode('utf-8'))
+        password = str(self.get_argument("password", '').encode('utf-8'))
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
             self.redirect("/")
