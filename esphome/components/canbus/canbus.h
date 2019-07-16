@@ -7,18 +7,16 @@
 namespace esphome {
 namespace canbus {
 
-
 class CanbusSensor {
-public:
+ public:
   void set_can_id(int can_id) { this->can_id_ = can_id; }
 
  private:
   int can_id_{0};
 };
 
-class CanbusBinarySensor : public CanbusSensor , public binary_sensor::BinarySensor {
+class CanbusBinarySensor : public CanbusSensor, public binary_sensor::BinarySensor {
   friend class Canbus;
- 
 };
 
 class Canbus : public Component {
@@ -27,6 +25,10 @@ class Canbus : public Component {
   Canbus(const std::string &name){};
   virtual void send(int can_id, uint8_t *data);
   void register_can_device(CanbusSensor *component){};
+  void set_can_id(int can_id) { this->can_id_ = can_id; }
+
+ protected:
+  int can_id_{0};
 };
 }  // namespace canbus
 }  // namespace esphome

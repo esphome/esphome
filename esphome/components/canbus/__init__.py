@@ -2,7 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import coroutine_with_priority
+from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.const import CONF_ID
 
 IS_PLATFORM_COMPONENT = True
 
@@ -25,6 +26,22 @@ CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=999),
     cv.Required(CONF_CAN_DATA): cv.All(),
 })
+
+@coroutine
+def setup_canbus_core_(var, config):
+    yield cg.register_component(var, config)
+    if CONF_CANBUS_ID in config:
+        cg.add(var.set_canbus_id(config[CONF_CANBUS_ID]))
+    if CONF_CAN_ID in config:
+        cg.add(var.set_can_id([config[CONF_CAN_ID]]))
+    if CONF_CAN_DATA in config:
+        cg.add(var.set_can_data([config[CONF_CAN_DATA]]))
+
+@coroutine
+def register_canbus(var, config):
+    if not CORE.has_id(config[CONF_ID]):
+        var = cg.Pvariable(config[CONF_ID], var)
+    yield setup_canbus_core_(var, config)
 
 @automation.register_action('canbus.send', SendAction, CANBUS_ACTION_SCHEMA)
 def canbus_send_to_code(config, action_id, template_arg, args):
