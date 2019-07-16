@@ -2,9 +2,10 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID
-from . import canbus_ns, CanbusComponent, CONF_CANBUS_ID
+from . import canbus_ns, CanbusComponent, CONF_CANBUS_ID, CONF_CAN_ID
 
-CONF_CAN_ID = 'can_id'
+print("canbus.binary_sensor.py")
+DEPENDENCIES = ['canbus']
 
 CanbusBinarySensor = canbus_ns.class_('CanbusBinarySensor', binary_sensor.BinarySensor)
 
@@ -18,7 +19,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield binary_sensor.register_binary_sensor(var, config)
+
     hub = yield cg.get_variable(config[CONF_CANBUS_ID])
     cg.add(var.set_can_id(config[CONF_CAN_ID]))
-
     cg.add(hub.register_can_device(var))
