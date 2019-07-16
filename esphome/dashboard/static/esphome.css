@@ -246,7 +246,3 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   padding: 10px 15px;
   margin-top: 15px;
 }
-
-.dropdown-content {
-  text-transform: uppercase;
-}
