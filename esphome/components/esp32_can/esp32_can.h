@@ -6,11 +6,14 @@
 
 namespace esphome {
 namespace esp32_can {
+
 class ESP32Can : public canbus::Canbus {
  public:
-  ESP32Can() {};
+  ESP32Can(){};
   ESP32Can(const std::string &name){};
-  void send(int can_id, uint8_t *data){};
+
+ protected:
+  bool send_internal_(int can_id, uint8_t *data);
 };
 }  // namespace esp32_can
 }  // namespace esphome

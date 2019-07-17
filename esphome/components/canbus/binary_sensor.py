@@ -12,7 +12,7 @@ CanbusBinarySensor = canbus_ns.class_('CanbusBinarySensor', binary_sensor.Binary
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(CanbusBinarySensor),
     cv.GenerateID(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
-    cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=255)
+    cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=255)
 })
 
 

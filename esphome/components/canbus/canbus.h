@@ -23,12 +23,18 @@ class Canbus : public Component {
  public:
   Canbus(){};
   Canbus(const std::string &name){};
-  virtual void send(int can_id, uint8_t *data);
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  void loop() override;
+
+  void send(int can_id, uint8_t *data);
   void register_can_device(CanbusSensor *component){};
-  void set_can_id(int can_id) { this->can_id_ = can_id; }
+  void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
 
  protected:
-  int can_id_{0};
+  int sender_id_{0};
+  virtual bool send_internal_(int can_id, uint8_t *data);
 };
 }  // namespace canbus
 }  // namespace esphome

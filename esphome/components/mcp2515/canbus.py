@@ -10,12 +10,11 @@ AUTO_LOAD = ['canbus']
 DEPENDENCIES = ['spi']
 
 mcp2515_ns = cg.esphome_ns.namespace('mcp2515')
-mcp2515 = mcp2515_ns.class_('MCP2515', canbus.CanbusComponent, spi.SPIDevice)
+mcp2515 = mcp2515_ns.class_('MCP2515', CanbusComponent, spi.SPIDevice)
 
 CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(mcp2515),
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_CAN_ID): cv.int_range(min=0, max=999),
 }).extend(spi.SPI_DEVICE_SCHEMA)
 
 
