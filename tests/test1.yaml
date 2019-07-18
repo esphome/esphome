@@ -395,6 +395,23 @@ sensor:
     heading:
       name: "HMC5883L Heading"
     range: 130uT
+    sampling: 8
+    data_rate: '75'
+    measurement_mode: 'pos_bias'
+    update_interval: 15s
+  - platform: qmc5883l
+    address: 0x69
+    field_strength_x:
+      name: "QMC5883L Field Strength X"
+    field_strength_y:
+      name: "QMC5883L Field Strength Y"
+    field_strength_z:
+      name: "QMC5883L Field Strength Z"
+    heading:
+      name: "QMC5883L Heading"
+    data_rate: 100
+    range: 800uT
+    oversampling: 256
     update_interval: 15s
   - platform: hx711
     name: "HX711 Value"
