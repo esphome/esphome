@@ -38,12 +38,9 @@ void HMC5883LComponent::setup() {
   }
 
   uint8_t config_a = 0;
-  // 0b0xx00000 << 5 Sample Averaging - 0b00=1 sample, 0b11=8 samples
-  config_a |= 0b01100000;
-  // 0b000xxx00 << 2 Data Output Rate - 0b100=15Hz
-  config_a |= 0b00010000;
-  // 0b000000xx << 0 Measurement Mode - 0b00=high impedance on load
-  config_a |= 0b00000000;
+  config_a |= this->sampling_ << 5;
+  config_a |= this->datarate_ << 2;
+  config_a |= this->measurement_mode_ << 0;
   if (!this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -61,7 +58,6 @@ void HMC5883LComponent::setup() {
   uint8_t mode = 0;
   // Continuous Measurement Mode
   mode |= 0b00;
-
   if (!this->write_byte(HMC5883L_REGISTER_MODE, mode)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -70,6 +66,8 @@ void HMC5883LComponent::setup() {
 }
 void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
+  ESP_LOGCONFIG(TAG, "  sampling=%u datarate=%u measurement_mode=%u range=%u", this->sampling_, this->datarate_,
+                this->measurement_mode_, this->range_);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, "Communication with HMC5883L failed!");
