@@ -2,7 +2,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import (CONF_ADDRESS, CONF_ID, CONF_SAMPLING, CONF_DATA_RATE, CONF_MEASUREMENT_MODE,
+from esphome.const import (CONF_ADDRESS, CONF_ID, CONF_OVERSAMPLING, CONF_DATA_RATE, CONF_MEASUREMENT_MODE,
                            CONF_RANGE, ICON_MAGNET, UNIT_MICROTESLA, UNIT_DEGREES, ICON_SCREEN_ROTATION)
 
 DEPENDENCIES = ['i2c']
@@ -16,12 +16,12 @@ CONF_HEADING = 'heading'
 
 HMC5883LComponent = hmc5883l_ns.class_('HMC5883LComponent', cg.PollingComponent, i2c.I2CDevice)
 
-HMC5883LSampling = hmc5883l_ns.enum('HMC5883LSampling')
-HMC5883LSamplings = {
-    1: HMC5883LSampling.HMC5883L_SAMPLING_1,
-    2: HMC5883LSampling.HMC5883L_SAMPLING_2,
-    4: HMC5883LSampling.HMC5883L_SAMPLING_4,
-    8: HMC5883LSampling.HMC5883L_SAMPLING_8,
+HMC5883LOversampling = hmc5883l_ns.enum('HMC5883LOversampling')
+HMC5883LOversamplings = {
+    1: HMC5883LOversampling.HMC5883L_OVERSAMPLING_1,
+    2: HMC5883LOversampling.HMC5883L_OVERSAMPLING_2,
+    4: HMC5883LOversampling.HMC5883L_OVERSAMPLING_4,
+    8: HMC5883LOversampling.HMC5883L_OVERSAMPLING_8,
 }
 
 HMC5883LDatarate = hmc5883l_ns.enum('HMC5883LDatarate')
@@ -71,7 +71,7 @@ heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
-    cv.Optional(CONF_SAMPLING, default='1'): validate_enum(HMC5883LSamplings),
+    cv.Optional(CONF_OVERSAMPLING, default='1x'): validate_enum(HMC5883LOversamplings, unit="x"),
     cv.Optional(CONF_DATA_RATE, default='15Hz'): validate_enum(
         HMC5883LDatarates, unit="Hz", int=False),
     cv.Optional(CONF_MEASUREMENT_MODE, default='normal'): validate_enum(
@@ -89,7 +89,7 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_sampling(config[CONF_SAMPLING]))
+    cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_datarate(config[CONF_DATA_RATE]))
     cg.add(var.set_measurement_mode(config[CONF_MEASUREMENT_MODE]))
     cg.add(var.set_range(config[CONF_RANGE]))

@@ -7,11 +7,11 @@
 namespace esphome {
 namespace hmc5883l {
 
-enum HMC5883LSampling {
-  HMC5883L_SAMPLING_1 = 0b000,
-  HMC5883L_SAMPLING_2 = 0b001,
-  HMC5883L_SAMPLING_4 = 0b010,
-  HMC5883L_SAMPLING_8 = 0b011,
+enum HMC5883LOversampling {
+  HMC5883L_OVERSAMPLING_1 = 0b000,
+  HMC5883L_OVERSAMPLING_2 = 0b001,
+  HMC5883L_OVERSAMPLING_4 = 0b010,
+  HMC5883L_OVERSAMPLING_8 = 0b011,
 };
 
 enum HMC5883LDatarate {
@@ -48,7 +48,7 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   void update() override;
 
-  void set_sampling(HMC5883LSampling sampling) { sampling_ = sampling; }
+  void set_oversampling(HMC5883LOversampling oversampling) { oversampling_ = oversampling; }
   void set_datarate(HMC5883LDatarate datarate) { datarate_ = datarate; }
   void set_measurement_mode(HMC5883LMeasurementMode measurement_mode) { measurement_mode_ = measurement_mode; }
   void set_range(HMC5883LRange range) { range_ = range; }
@@ -58,7 +58,7 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
   void set_heading_sensor(sensor::Sensor *heading_sensor) { heading_sensor_ = heading_sensor; }
 
  protected:
-  HMC5883LSampling sampling_{HMC5883L_SAMPLING_1};
+  HMC5883LOversampling oversampling_{HMC5883L_OVERSAMPLING_1};
   HMC5883LDatarate datarate_{HMC5883L_DATARATE_15_0_HZ};
   HMC5883LMeasurementMode measurement_mode_{HMC5883L_MEASUREMENT_MODE_NORMAL};
   HMC5883LRange range_{HMC5883L_RANGE_130_UT};
