@@ -1,6 +1,5 @@
 #include "dfplayer.h"
 #include "esphome/core/log.h"
-#include <string.h>
 
 namespace esphome {
 namespace dfplayer {
