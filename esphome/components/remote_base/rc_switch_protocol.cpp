@@ -234,9 +234,9 @@ bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
-  static uint32_t last_received_data = 0;
-  static uint8_t last_received_nbits;
-  static uint32_t last_millis = 0;
+  static uint32_t LAST_RECEIVED_DATA = 0;
+  static uint8_t LAST_RECEIVED_NBITS;
+  static uint32_t LAST_MILLIS = 0;
   for (uint8_t i = 1; i <= 7; i++) {
     src.reset();
     uint32_t out_data;
@@ -249,15 +249,15 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
 
       buffer[out_nbits] = '\0';
       uint32_t m = millis();
-      uint32_t delta_time = m - last_millis;
-      if (delta_time < 1000 && last_received_data == out_data && last_received_nbits == out_nbits) {
+      uint32_t delta_time = m - LAST_MILLIS;
+      if (delta_time < 1000 && LAST_RECEIVED_DATA == out_data && LAST_RECEIVED_NBITS == out_nbits) {
         ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s' Repeat: %dms", i, buffer, delta_time);
       } else {
         ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
       }
-      last_received_data = out_data;
-      last_received_nbits = out_nbits;
-      last_millis = m;
+      LAST_RECEIVED_DATA = out_data;
+      LAST_RECEIVED_NBITS = out_nbits;
+      LAST_MILLIS = m;
 
       // only send first decoded protocol
       return true;
