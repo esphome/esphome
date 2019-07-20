@@ -79,11 +79,11 @@ def dfplayer_previous_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.play', PlayFileAction, cv.Schema({
+@automation.register_action('dfplayer.play', PlayFileAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(DFPlayer),
     cv.Required(CONF_FILE): cv.templatable(cv.int_),
     cv.Optional(CONF_LOOP): cv.templatable(cv.boolean),
-}))
+}, key=CONF_FILE))
 def dfplayer_play_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
@@ -115,10 +115,10 @@ def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.set_volume', SetVolumeAction, cv.Schema({
+@automation.register_action('dfplayer.set_volume', SetVolumeAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(DFPlayer),
     cv.Required(CONF_VOLUME): cv.templatable(cv.int_),
-}))
+}, key=CONF_VOLUME))
 def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
@@ -127,10 +127,10 @@ def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.set_eq', SetEqAction, cv.Schema({
+@automation.register_action('dfplayer.set_eq', SetEqAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(DFPlayer),
     cv.Required(CONF_EQ_PRESET): cv.templatable(cv.enum(EQ_PRESET, upper=True)),
-}))
+}, key=CONF_EQ_PRESET))
 def dfplayer_set_eq_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
@@ -184,10 +184,10 @@ def dfplayer_stop_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.random', RandomAction, cv.Schema({
+@automation.register_action('dfplayer.random', RandomAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(DFPlayer),
     cv.Required(CONF_FOLDER): cv.templatable(cv.int_),
-}))
+}, key=CONF_FOLDER))
 def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
