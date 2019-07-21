@@ -24,7 +24,7 @@ enum SX1509GPIOMode : uint8_t {
   SX1509_OUTPUT = OUTPUT,                // 0x01
 };
 
-static const uint8_t reg_i_on_[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
+static const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
                                       REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
                                       REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
 
@@ -45,7 +45,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
 
   bool digital_read(uint8_t pin);
   uint16_t read_key_data();
-  void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(reg_i_on_[pin], i_on); };
+  void set_pin_value(uint8_t pin, uint8_t i_on) { this->write_byte(REG_I_ON[pin], i_on); };
   void pin_mode(uint8_t pin, uint8_t mode);
   void digital_write(uint8_t pin, bool bit_value);
   u_long get_clock() { return this->clk_x_; };
@@ -54,7 +54,7 @@ class SX1509Component : public Component, public i2c::I2CDevice {
     this->cols_ = cols;
     this->has_keypad_ = true;
   };
-  void set_timers(uint16_t sleep_time, uint8_t scan_time, uint8_t debounce_time) {
+  void set_timers(uint16_t sleep_time = 128, uint8_t scan_time = 1, uint8_t debounce_time = 1) {
     this->sleep_time_ = sleep_time;
     this->scan_time_ = scan_time;
     this->debounce_time_ = debounce_time;
@@ -71,11 +71,11 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint16_t input_mask_{0x00};
   uint16_t port_mask_{0x00};
   bool has_keypad_ = false;
-  uint8_t rows_ = {};
-  uint8_t cols_ = {};
-  uint16_t sleep_time_ = {};
-  uint8_t scan_time_ = {};
-  uint8_t debounce_time_ = {};
+  uint8_t rows_ = {0};
+  uint8_t cols_ = {0};
+  uint16_t sleep_time_ = {128};
+  uint8_t scan_time_ = {1};
+  uint8_t debounce_time_ = {1};
   std::vector<SX1509Processor *> keypad_binary_sensors_{};
 
   void setup_keypad_();

@@ -26,8 +26,8 @@ SX1509GPIOPin = sx1509_ns.class_('SX1509GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SX1509Component),
-    cv.Required(CONF_KEY_ROWS): cv.int_range(min=0, max=7),
-    cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_KEY_ROWS): cv.int_range(min=1, max=8),
+    cv.Optional(CONF_KEY_COLUMNS): cv.int_range(min=1, max=8),
     cv.Optional(CONF_SLEEP_TIME): cv.int_range(min=128, max=8192),
     cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
     cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
@@ -38,9 +38,13 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
-    cg.add(var.set_rows_cols(config[CONF_KEY_ROWS], config[CONF_KEY_COLUMNS]))
-    cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME],
-                          config[CONF_DEBOUNCE_TIME]))
+    if CONF_KEY_ROWS in config and CONF_KEY_COLUMNS in config:
+        cg.add(var.set_rows_cols(config[CONF_KEY_ROWS], config[CONF_KEY_COLUMNS]))
+        if CONF_SLEEP_TIME in config and CONF_SCAN_TIME in config and CONF_DEBOUNCE_TIME in config:
+            cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME],
+                                  config[CONF_DEBOUNCE_TIME]))
+        else:
+            print cv.Invalid(u"You should use {}, {}, {} in combination.".format(CONF_SLEEP_TIME, CONF_SCAN_TIME, CONF_DEBOUNCE_TIME))
 
 
 CONF_SX1509 = 'sx1509'
