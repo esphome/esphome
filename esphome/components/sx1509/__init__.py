@@ -44,7 +44,8 @@ def to_code(config):
             cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME],
                                   config[CONF_DEBOUNCE_TIME]))
         else:
-            print cv.Invalid(u"You should use {}, {}, {} in combination.".format(CONF_SLEEP_TIME, CONF_SCAN_TIME, CONF_DEBOUNCE_TIME))
+            print cv.Invalid(u"You should use {}, {}, {} in combination."
+                             .format(CONF_SLEEP_TIME, CONF_SCAN_TIME, CONF_DEBOUNCE_TIME))
 
 
 CONF_SX1509 = 'sx1509'
