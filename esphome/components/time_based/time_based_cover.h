@@ -42,7 +42,7 @@ class TimeBasedCover : public cover::Cover, public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
-  bool has_built_in_endstop_{0};
+  bool has_built_in_endstop_{false};
 };
 
 }  // namespace time_based
