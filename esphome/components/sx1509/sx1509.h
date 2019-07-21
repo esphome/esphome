@@ -25,8 +25,8 @@ enum SX1509GPIOMode : uint8_t {
 };
 
 static const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
-                                      REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
-                                      REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
+                                     REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
+                                     REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
 
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
