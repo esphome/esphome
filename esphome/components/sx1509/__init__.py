@@ -4,6 +4,12 @@ from esphome import pins
 from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
+CONF_KEY_ROWS = 'key_rows'
+CONF_KEY_COLUMNS = 'key_columns'
+CONF_SLEEP_TIME = 'sleep_time'
+CONF_SCAN_TIME = 'scan_time'
+CONF_DEBOUNCE_TIME = 'debounce_time'
+
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
 
@@ -20,6 +26,11 @@ SX1509GPIOPin = sx1509_ns.class_('SX1509GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SX1509Component),
+    cv.Required(CONF_KEY_ROWS): cv.int_range(min=0, max=7),
+    cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_SLEEP_TIME): cv.int_range(min=128, max=8192),
+    cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
+    cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x3E))
 
 
@@ -27,6 +38,9 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
+    cg.add(var.set_rows_cols(config[CONF_KEY_ROWS], config[CONF_KEY_COLUMNS]))
+    cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME],
+                          config[CONF_DEBOUNCE_TIME]))
 
 
 CONF_SX1509 = 'sx1509'
