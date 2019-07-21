@@ -6,7 +6,13 @@ namespace canbus {
 
 static const char *TAG = "canbus";
 
-void Canbus::setup() { ESP_LOGCONFIG(TAG, "Setting up Canbus..."); }
+void Canbus::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Canbus...");
+  if (!this->setup_internal_()) {
+    ESP_LOGE(TAG, "Canbus setup error!");
+    this->mark_failed();
+  }
+}
 
 void Canbus::dump_config() { ESP_LOGCONFIG(TAG, "Canbus: sender_id=%d", this->sender_id_); }
 
@@ -16,7 +22,7 @@ void Canbus::send(int can_id, uint8_t *data) {
 };
 
 void Canbus::loop() {
-    //check harware inputbuffer and process to esphome outputs
+  // check harware inputbuffer and process to esphome outputs
 }
 
 }  // namespace canbus

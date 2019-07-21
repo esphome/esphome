@@ -1,9 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
 from esphome.components import spi, canbus
-from esphome.const import CONF_CS_PIN, CONF_ID
-from esphome.components.canbus import CanbusComponent, CONF_CAN_ID
+from esphome.const import CONF_ID
+from esphome.components.canbus import CanbusComponent
 
 print("mcp2515.canbus.py")
 AUTO_LOAD = ['canbus']
@@ -14,7 +13,6 @@ mcp2515 = mcp2515_ns.class_('MCP2515', CanbusComponent, spi.SPIDevice)
 
 CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(mcp2515),
-    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
 }).extend(spi.SPI_DEVICE_SCHEMA)
 
 
