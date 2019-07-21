@@ -96,7 +96,8 @@ bool UARTComponent::check_read_timeout_(size_t len) {
 int UARTComponent::available() { return this->hw_serial_->available(); }
 void UARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
-  this->hw_serial_->flush();
+  while (this->available() > 0)
+    this->read();
 }
 #endif  // ESP32
 
@@ -228,11 +229,8 @@ int UARTComponent::available() {
 }
 void UARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
-  if (this->hw_serial_ != nullptr) {
-    this->hw_serial_->flush();
-  } else {
-    this->sw_serial_->flush();
-  }
+  while (this->available() > 0)
+    this->read();
 }
 
 void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate) {
