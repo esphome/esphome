@@ -400,7 +400,7 @@ sensor:
     measurement_mode: 'pos_bias'
     update_interval: 15s
   - platform: qmc5883l
-    address: 0x69
+    address: 0x0D
     field_strength_x:
       name: "QMC5883L Field Strength X"
     field_strength_y:
