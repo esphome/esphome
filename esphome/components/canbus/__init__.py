@@ -26,7 +26,7 @@ SendAction = canbus_ns.class_('SendAction', automation.Action)
 CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
     cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=4096),
-    cv.Required(CONF_CAN_DATA): cv.All(),
+    #cv.Required(CONF_CAN_DATA): cv.All(),
 })
 
 
@@ -51,7 +51,11 @@ def register_canbus(var, config):
 @automation.register_action('canbus.send', SendAction, CANBUS_ACTION_SCHEMA)
 def canbus_send_to_code(config, action_id, template_arg, args):
     canbus = yield cg.get_variable(config[CONF_CANBUS_ID])
-    # paren = yield cg.get_variable(config[CONF_ID])
+    print "--------------"
+    for arg in config:
+        print arg
+    print "--------------"
+    #component = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, canbus, config[CONF_CAN_ID])
 
 
