@@ -54,9 +54,7 @@ class QMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
     COMMUNICATION_FAILED,
     ID_REGISTERS,
   } error_code_;
-
- private:
-  bool read_byte_16(uint8_t a_register, uint16_t *data);
+  bool read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion = 0));
 };
 
 }  // namespace qmc5883l

@@ -130,8 +130,8 @@ void QMC5883LComponent::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-bool QMC5883LComponent::read_byte_16(uint8_t a_register, uint16_t *data) {
-  bool success = this->parent_->read_byte_16(this->address_, a_register, data);
+bool QMC5883LComponent::read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion) {
+  bool success = QMC5883LComponent::I2CDevice::read_byte_16(a_register, data, conversion);
   *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte oder, LSB first;
   return success;
 }
