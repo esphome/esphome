@@ -4,6 +4,7 @@ from esphome import pins
 from esphome.components import i2c
 from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
 
+CONF_KEYPAD = 'keypad'
 CONF_KEY_ROWS = 'key_rows'
 CONF_KEY_COLUMNS = 'key_columns'
 CONF_SLEEP_TIME = 'sleep_time'
@@ -24,13 +25,18 @@ SX1509_GPIO_MODES = {
 SX1509Component = sx1509_ns.class_('SX1509Component', cg.Component, i2c.I2CDevice)
 SX1509GPIOPin = sx1509_ns.class_('SX1509GPIOPin', cg.GPIOPin)
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(SX1509Component),
-    cv.Optional(CONF_KEY_ROWS): cv.int_range(min=1, max=8),
-    cv.Optional(CONF_KEY_COLUMNS): cv.int_range(min=1, max=8),
+KEYPAD_SCHEMA = cv.Schema({
+    cv.Required(CONF_KEY_ROWS): cv.int_range(min=1, max=8),
+    cv.Required(CONF_KEY_COLUMNS): cv.int_range(min=1, max=8),
     cv.Optional(CONF_SLEEP_TIME): cv.int_range(min=128, max=8192),
     cv.Optional(CONF_SCAN_TIME): cv.int_range(min=1, max=128),
     cv.Optional(CONF_DEBOUNCE_TIME): cv.int_range(min=1, max=64),
+})
+
+CONFIG_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.declare_id(SX1509Component),
+    cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
+
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x3E))
 
 
@@ -38,11 +44,13 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
-    if CONF_KEY_ROWS in config and CONF_KEY_COLUMNS in config:
-        cg.add(var.set_rows_cols(config[CONF_KEY_ROWS], config[CONF_KEY_COLUMNS]))
-        if CONF_SLEEP_TIME in config and CONF_SCAN_TIME in config and CONF_DEBOUNCE_TIME in config:
-            cg.add(var.set_timers(config[CONF_SLEEP_TIME], config[CONF_SCAN_TIME],
-                                  config[CONF_DEBOUNCE_TIME]))
+    if CONF_KEYPAD in config:
+        keypad = config[CONF_KEYPAD]
+        cg.add(var.set_rows_cols(keypad[CONF_KEY_ROWS], keypad[CONF_KEY_COLUMNS]))
+        if CONF_SLEEP_TIME in keypad and CONF_SCAN_TIME in keypad and CONF_DEBOUNCE_TIME in keypad:
+            cg.add(var.set_sleep_time(keypad[CONF_SLEEP_TIME]))
+            cg.add(var.set_scan_time(keypad[CONF_SCAN_TIME]))
+            cg.add(var.set_debounce_time(keypad[CONF_DEBOUNCE_TIME]))
 
 
 CONF_SX1509 = 'sx1509'
