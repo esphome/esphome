@@ -251,7 +251,7 @@ bool RCSwitchDumper::dump(RemoteReceiveData src) {
       uint32_t m = millis();
       uint32_t delta_time = m - LAST_MILLIS;
       if (delta_time < 1000 && LAST_RECEIVED_DATA == out_data && LAST_RECEIVED_NBITS == out_nbits) {
-        ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s' Repeat: %dms", i, buffer, delta_time);
+        ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s' Repeat: %ums", i, buffer, delta_time);
       } else {
         ESP_LOGD(TAG, "Received RCSwitch Raw: protocol=%u data='%s'", i, buffer);
       }
