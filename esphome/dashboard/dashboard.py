@@ -533,12 +533,9 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        try:
-            # pylint: disable=no-value-for-parameter
-            with open(settings.rel_path(configuration), 'r') as f:
-                content = f.read()
-        except IOError:
-            content = ''
+        # pylint: disable=no-value-for-parameter
+        with open(settings.rel_path(configuration), 'r') as f:
+            content = f.read()
         self.write(content)
 
     @authenticated
