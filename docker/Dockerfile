@@ -4,7 +4,7 @@ FROM ${BUILD_FROM}
 COPY . .
 RUN pip2 install --no-cache-dir -e .
 
-ENV USERNAME="admin"
+ENV USERNAME=""
 ENV PASSWORD=""
 
 WORKDIR /config
