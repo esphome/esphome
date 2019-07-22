@@ -530,12 +530,12 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        try:
+        filename = settings.rel_path(configuration)
+        content = ''
+        if os.path.isfile(filename):
             # pylint: disable=no-value-for-parameter
-            with open(settings.rel_path(configuration), 'r') as f:
+            with open(filename, 'r') as f:
                 content = f.read()
-        except IOError:
-            content = ''
         self.write(content)
 
     @authenticated
