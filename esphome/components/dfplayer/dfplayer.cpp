@@ -72,10 +72,25 @@ void DFPlayer::loop() {
 
         switch (cmd) {
           case 0x3A:
-            ESP_LOGI(TAG, "TF Card loaded");
+            if (argument == 1) {
+              ESP_LOGI(TAG, "USB loaded");
+            } else if (argument == 2)
+              ESP_LOGI(TAG, "TF Card loaded");
             break;
           case 0x3B:
-            ESP_LOGI(TAG, "TF Card unloaded");
+            if (argument == 1) {
+              ESP_LOGI(TAG, "USB unloaded");
+            } else if (argument == 2)
+              ESP_LOGI(TAG, "TF Card unloaded");
+            break;
+          case 0x3F:
+            if (argument == 1) {
+              ESP_LOGI(TAG, "USB available");
+            } else if (argument == 2) {
+              ESP_LOGI(TAG, "TF Card available");
+            } else if (argument == 3) {
+              ESP_LOGI(TAG, "USB, TF Card available");
+            }
             break;
           case 0x41:
             ESP_LOGV(TAG, "Ack ok");
@@ -83,9 +98,6 @@ void DFPlayer::loop() {
             this->is_playing_ &= !this->ack_reset_is_playing_;
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
-            break;
-          case 0x3F:
-            ESP_LOGW(TAG, "TF Card found %d", argument);
             break;
           case 0x3D: // Playback finished
             this->is_playing_ = false;

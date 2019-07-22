@@ -4,7 +4,7 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-#define DFPLAYER_READ_BUFFER_LENGTH 25  // two messages + some extra
+const size_t DFPLAYER_READ_BUFFER_LENGTH = 25;  // two messages + some extra
 
 namespace esphome {
 namespace dfplayer {
@@ -18,9 +18,13 @@ enum EqPreset {
   BASS = 5,
 };
 
+enum Device {
+  USB = 1,
+  TF_CARD = 2,
+};
+
 class DFPlayer : public uart::UARTDevice, public Component {
  public:
-  void setup() {};
   void loop() override;
 
   void next() { this->send_cmd_(0x01); }
@@ -34,8 +38,9 @@ class DFPlayer : public uart::UARTDevice, public Component {
   void play_folder_loop(uint16_t folder) { this->send_cmd_(0x17, folder); }
   void volume_up() { this->send_cmd_(0x04); }
   void volume_down() { this->send_cmd_(0x05); }
+  void set_device(Device device) { this->send_cmd_(0x09, device); }
   void set_volume(uint8_t volume) { this->send_cmd_(0x06, volume); }
-  void set_eq(EqPreset value) { this->send_cmd_(0x07, value); }
+  void set_eq(EqPreset preset) { this->send_cmd_(0x07, preset); }
   void sleep() { this->send_cmd_(0x0A); }
   void reset() { this->send_cmd_(0x0C); }
   void start() { this->send_cmd_(0x0D); }
@@ -107,6 +112,15 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
     } else {
       this->parent_->play_folder(folder, file);
     }
+  }
+};
+
+template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Parented<DFPlayer> {
+ public:
+  TEMPLATABLE_VALUE(Device, device)
+  void play(Ts... x) override {
+    auto device = this->device_.value(x...);
+    this->parent_->set_device(device);
   }
 };
 

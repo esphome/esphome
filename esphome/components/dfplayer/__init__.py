@@ -17,6 +17,7 @@ CONF_FOLDER = 'folder'
 CONF_FILE = 'file'
 CONF_LOOP = 'loop'
 CONF_VOLUME = 'volume'
+CONF_DEVICE = 'device'
 CONF_EQ_PRESET = 'eq_preset'
 CONF_ON_FINISHED_PLAYBACK = 'on_finished_playback'
 
@@ -28,6 +29,11 @@ EQ_PRESET = {
     'JAZZ': EqPreset.JAZZ,
     'CLASSIC': EqPreset.CLASSIC,
     'BASS': EqPreset.BASS,
+}
+Device = dfplayer_ns.enum("Device")
+DEVICE = {
+    'USB' : Device.USB,
+    'TF_CARD' : Device.TF_CARD,
 }
 
 NextAction = dfplayer_ns.class_('NextAction', automation.Action)
@@ -42,6 +48,7 @@ StartAction = dfplayer_ns.class_('StartAction', automation.Action)
 PauseAction = dfplayer_ns.class_('PauseAction', automation.Action)
 StopAction = dfplayer_ns.class_('StopAction', automation.Action)
 RandomAction = dfplayer_ns.class_('RandomAction', automation.Action)
+SetDeviceAction = dfplayer_ns.class_('SetDeviceAction', automation.Action)
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(DFPlayer),
@@ -70,7 +77,7 @@ def dfplayer_next_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.previous', PreviousAction, cv.Schema({
+@automation.register_action('dfplayer.play_previous', PreviousAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
 }))
 def dfplayer_previous_to_code(config, action_id, template_arg, args):
@@ -112,6 +119,18 @@ def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
     if CONF_LOOP in config:
         template_ = yield cg.templatable(config[CONF_LOOP], args, float)
         cg.add(var.set_loop(template_))
+    yield var
+
+
+@automation.register_action('dfplayer.set_device', SetDeviceAction, cv.maybe_simple_value({
+    cv.GenerateID(): cv.use_id(DFPlayer),
+    cv.Required(CONF_DEVICE): cv.templatable(cv.int_),
+}, key=CONF_DEVICE))
+def dfplayer_set_device_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
+    template_ = yield cg.templatable(config[CONF_DEVICE], args, Device)
+    cg.add(var.set_device(template_))
     yield var
 
 
