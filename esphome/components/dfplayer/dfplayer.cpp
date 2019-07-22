@@ -78,7 +78,7 @@ void DFPlayer::loop() {
             ESP_LOGI(TAG, "TF Card unloaded");
             break;
           case 0x41:
-            ESP_LOGD(TAG, "Ack ok");
+            ESP_LOGV(TAG, "Ack ok");
             this->is_playing_ |= this->ack_set_is_playing_;
             this->is_playing_ &= !this->ack_reset_is_playing_;
             this->ack_set_is_playing_ = false;
