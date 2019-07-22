@@ -61,7 +61,7 @@ def to_code(config):
         yield automation.build_automation(trigger, [], conf)
 
 
-@automation.register_action('dfplayer.next', NextAction, cv.Schema({
+@automation.register_action('dfplayer.play_next', NextAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
 }))
 def dfplayer_next_to_code(config, action_id, template_arg, args):
