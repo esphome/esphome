@@ -84,7 +84,7 @@ protected:
   void set_debounce_config_(uint8_t config_value);
   void set_debounce_time_(uint8_t time);
   void set_debounce_pin_(uint8_t pin);
-  void set_debounce_enable_(uint8_t pin); // Legacy, use debouncePin
+  void set_debounce_enable_(uint8_t pin);
   void set_debounce_keypad_(uint8_t time, uint8_t num_rows, uint8_t num_cols);
   void setup_led_driver_(uint8_t pin);
   void clock_(uint8_t osc_source = 2, uint8_t osc_pin_function = 1,
