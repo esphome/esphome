@@ -32,8 +32,8 @@ EQ_PRESET = {
 }
 Device = dfplayer_ns.enum("Device")
 DEVICE = {
-    'USB' : Device.USB,
-    'TF_CARD' : Device.TF_CARD,
+    'USB': Device.USB,
+    'TF_CARD': Device.TF_CARD,
 }
 
 NextAction = dfplayer_ns.class_('NextAction', automation.Action)
