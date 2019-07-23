@@ -2,9 +2,9 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace switch_ {
+namespace canbus {
 
-static const char *TAG = "switch.automation";
+static const char *TAG = "canbus.automation";
 
 }  // namespace switch_
 }  // namespace esphome

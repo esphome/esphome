@@ -1,8 +1,13 @@
+import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.automation import LambdaAction
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, EsphomeError, Lambda, coroutine, coroutine_with_priority
+from esphome.components import sensor
+from esphome.py_compat import text_type
 from esphome.const import CONF_ID
 
 IS_PLATFORM_COMPONENT = True
@@ -11,6 +16,8 @@ CONF_CANBUS_ID = 'canbus_id'
 CONF_CAN_ID = 'can_id'
 CONF_CAN_DATA = 'can_data'
 CONF_SENDER_ID = 'sender_id'
+
+CONF_CANBUS_SEND_ACTION = 'canbus.send'
 
 canbus_ns = cg.esphome_ns.namespace('canbus')
 CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
@@ -26,7 +33,7 @@ SendAction = canbus_ns.class_('SendAction', automation.Action)
 CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
     cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=4096),
-    #cv.Required(CONF_CAN_DATA): cv.All(),
+    cv.Required(CONF_CAN_DATA): cv.templatable(cv.int_),
 })
 
 
@@ -48,15 +55,14 @@ def register_canbus(var, config):
     yield setup_canbus_core_(var, config)
 
 
-@automation.register_action('canbus.send', SendAction, CANBUS_ACTION_SCHEMA)
-def canbus_send_to_code(config, action_id, template_arg, args):
+@automation.register_action(CONF_CANBUS_SEND_ACTION, SendAction, CANBUS_ACTION_SCHEMA)
+def canbus_action_to_code(config, action_id, template_arg, args):
     canbus = yield cg.get_variable(config[CONF_CANBUS_ID])
-    print "--------------"
-    for arg in config:
-        print arg
-    print "--------------"
-    #component = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, canbus, config[CONF_CAN_ID])
+    #args_ = yield cg.get_variable(config[CONF_CAN_DATA])
+    templ = yield cg.templatable(config[CONF_CAN_DATA], args, cg.float_)
+    send_id_ = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
+    var = yield cg.new_Pvariable(action_id, template_arg,  canbus, send_id_)
+    cg.add(var.set_data(templ))
 
 
 @coroutine_with_priority(100.0)

@@ -9,27 +9,21 @@ namespace canbus {
 
 template<typename... Ts> class SendAction : public Action<Ts...> {
  public:
-  explicit SendAction(Canbus *a_canbus, int can_id) : canbus_(a_canbus), can_id_(can_id) { }
+  explicit SendAction(Canbus *parent, int can_id) : parent_(parent), can_id_(can_id) {}
+
+  TEMPLATABLE_VALUE(float, data)
 
   void play(Ts... x) override { 
-    uint8_t data[8]={0};
-    data[1] = 10;
-    this->canbus_->send(this->can_id_,data); }
-
+    auto call = this->parent_->make_call(this->can_id_);
+    //unsigned uint const * p = reinterpret_cast<unsigned char const *>(&f);
+    call.set_data(this->data_.optional_value(x...));
+//    call.perform(this->parent_, this->can_id_);
+  }
  protected:
-  Canbus *canbus_;
+  Canbus *parent_;
   int can_id_;
 };
 
-template<typename... Ts> class SendStateAction : public Action<Ts...> {
- public:
-  SendStateAction(Canbus *a_canbus) : canbus_(a_canbus) {}
-  TEMPLATABLE_VALUE(bool, state)
-  void play(Ts... x) override { this->canbus_->send_state(this->state_.value(x...)); }
-
- protected:
-  Canbus *canbus_;
-};
 
 }  // namespace canbus
 }  // namespace esphome

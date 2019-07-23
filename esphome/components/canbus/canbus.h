@@ -2,24 +2,30 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/optional.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace canbus {
 
-class CanbusSensor {
- public:
-  void set_can_id(int can_id) { this->can_id_ = can_id; }
+class Canbus;
 
- private:
-  int can_id_{0};
-};
-
-class CanbusBinarySensor : public CanbusSensor, public binary_sensor::BinarySensor {
-  friend class Canbus;
+class CanCall {
+  public:
+    explicit CanCall(Canbus *parent, int can_id) : parent_(parent), can_id_(can_id) {}
+    CanCall &set_data(optional<float> data);
+    CanCall &set_data(float data);
+    void perform();
+  protected:
+    Canbus *parent_;
+    int can_id_;
+    optional<float> float_data_;
+    optional<bool> bool_data_;
+    optional<long> long_data;
 };
 
 class Canbus : public Component {
+  friend CanCall;
  public:
   /* special address description flags for the CAN_ID */
   static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
@@ -79,8 +85,9 @@ class Canbus : public Component {
   void loop() override;
 
   void send(int can_id, uint8_t *data);
-  void register_can_device(CanbusSensor *component){};
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
+
+  CanCall make_call(int can_id){ return CanCall(this, can_id); }
 
  protected:
   int sender_id_{0};
@@ -88,5 +95,7 @@ class Canbus : public Component {
   virtual bool setup_internal_();
   virtual ERROR set_bitrate_(const CAN_SPEED canSpeed);
 };
+
+
 }  // namespace canbus
 }  // namespace esphome
