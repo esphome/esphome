@@ -45,6 +45,9 @@ logger:
   level: DEBUG
 
 web_server:
+  auth:
+    username: admin
+    password: admin
 
 deep_sleep:
   run_duration: 20s
