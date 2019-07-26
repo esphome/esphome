@@ -42,8 +42,14 @@ void STS3XComponent::dump_config() {
 }
 float STS3XComponent::get_setup_priority() const { return setup_priority::DATA; }
 void STS3XComponent::update() {
-  if (!this->write_command_(STS3X_COMMAND_POLLING_H))
+  if (this->status_has_warning()){
+    ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
+    this->write_command_(STS3X_COMMAND_SOFT_RESET);
+  }
+  if (!this->write_command_(STS3X_COMMAND_POLLING_H)){
+    this->status_set_warning();
     return;
+  }
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[1];
