@@ -510,6 +510,8 @@ sensor:
   - platform: shtcx
     temperature:
       name: "Living Room Temperature 10"
+    humidity:
+      name: "Living Room Humidity 10"
     address: 0x70
     update_interval: 15s
   - platform: template
