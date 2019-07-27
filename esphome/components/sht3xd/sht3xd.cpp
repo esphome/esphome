@@ -43,11 +43,11 @@ void SHT3XDComponent::dump_config() {
 }
 float SHT3XDComponent::get_setup_priority() const { return setup_priority::DATA; }
 void SHT3XDComponent::update() {
-  if (this->status_has_warning()){
+  if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command_(SHT3XD_COMMAND_SOFT_RESET);
   }
-  if (!this->write_command_(SHT3XD_COMMAND_POLLING_H)){
+  if (!this->write_command_(SHT3XD_COMMAND_POLLING_H)) {
     this->status_set_warning();
     return;
   }
