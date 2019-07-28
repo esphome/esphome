@@ -318,7 +318,7 @@ bool APIConnection::send_light_info(light::LightState *light) {
     msg.max_mireds = traits.get_max_mireds();
   }
   if (light->supports_effects()) {
-    msg.effects.push_back("None");
+    msg.effects.emplace_back("None");
     for (auto *effect : light->get_effects())
       msg.effects.push_back(effect->get_name());
   }
