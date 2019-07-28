@@ -7,7 +7,8 @@ DEPENDENCIES = ['i2c']
 
 sts3x_ns = cg.esphome_ns.namespace('sts3x')
 
-STS3XComponent = sts3x_ns.class_('STS3XComponent', sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
+STS3XComponent = sts3x_ns.class_('STS3XComponent', sensor.Sensor,
+                                 cg.PollingComponent, i2c.I2CDevice)
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
     cv.GenerateID(): cv.declare_id(STS3XComponent),
