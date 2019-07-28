@@ -105,7 +105,7 @@ def dfplayer_play_to_code(config, action_id, template_arg, args):
 @automation.register_action('dfplayer.play_folder', PlayFolderAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
     cv.Required(CONF_FOLDER): cv.templatable(cv.int_),
-    cv.Required(CONF_FILE): cv.templatable(cv.int_),
+    cv.Optional(CONF_FILE): cv.templatable(cv.int_),
     cv.Optional(CONF_LOOP): cv.templatable(cv.boolean),
 }))
 def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
@@ -124,7 +124,7 @@ def dfplayer_play_folder_to_code(config, action_id, template_arg, args):
 
 @automation.register_action('dfplayer.set_device', SetDeviceAction, cv.maybe_simple_value({
     cv.GenerateID(): cv.use_id(DFPlayer),
-    cv.Required(CONF_DEVICE): cv.templatable(cv.int_),
+    cv.Required(CONF_DEVICE): cv.enum(DEVICE, upper=True),
 }, key=CONF_DEVICE))
 def dfplayer_set_device_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
@@ -203,15 +203,12 @@ def dfplayer_stop_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('dfplayer.random', RandomAction, cv.maybe_simple_value({
+@automation.register_action('dfplayer.random', RandomAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
-    cv.Required(CONF_FOLDER): cv.templatable(cv.int_),
-}, key=CONF_FOLDER))
+}))
 def dfplayer_random_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
-    template_ = yield cg.templatable(config[CONF_FOLDER], args, float)
-    cg.add(var.set_folder(template_))
     yield var
 
 

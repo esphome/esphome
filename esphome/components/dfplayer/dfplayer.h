@@ -49,7 +49,7 @@ class DFPlayer : public uart::UARTDevice, public Component {
     this->send_cmd_(0x0E);
   }
   void stop() { this->send_cmd_(0x16); }
-  void random(uint16_t folder) { this->send_cmd_(0x18, folder); }
+  void random() { this->send_cmd_(0x18); }
 
   bool is_playing() { return is_playing_; }
 
@@ -104,7 +104,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(boolean, loop)
   void play(Ts... x) override {
-    auto folder = this->file_.value(x...);
+    auto folder = this->folder_.value(x...);
     auto file = this->file_.value(x...);
     auto loop = this->loop_.value(x...);
     if (loop) {
@@ -147,15 +147,7 @@ DFPLAYER_SIMPLE_ACTION(ResetAction, reset)
 DFPLAYER_SIMPLE_ACTION(StartAction, start)
 DFPLAYER_SIMPLE_ACTION(PauseAction, pause)
 DFPLAYER_SIMPLE_ACTION(StopAction, stop)
-
-template<typename... Ts> class RandomAction : public Action<Ts...>, public Parented<DFPlayer> {
- public:
-  TEMPLATABLE_VALUE(uint16_t, folder)
-  void play(Ts... x) override {
-    auto folder = this->folder_.value(x...);
-    this->parent_->random(folder);
-  }
-};
+DFPLAYER_SIMPLE_ACTION(RandomAction, random)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:
