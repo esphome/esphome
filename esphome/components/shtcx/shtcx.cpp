@@ -147,7 +147,7 @@ void SHTCXComponent::soft_reset() {
   delayMicroseconds(200);
 }
 void SHTCXComponent::sleep() {
-  if (!this->write_command_(SHTCX_COMMAND_SLEEP)) {
+  this->write_command_(SHTCX_COMMAND_SLEEP)
     return;
   }
 }
