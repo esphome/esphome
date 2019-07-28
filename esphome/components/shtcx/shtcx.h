@@ -7,7 +7,7 @@
 namespace esphome {
 namespace shtcx {
 
-enum SHTCXType { SHTCX_TYPE_SHTC1 = 0, SHTCX_TYPE_SHTC3 };
+enum SHTCXType { SHTCX_TYPE_SHTC3 = 0, SHTCX_TYPE_SHTC1, SHTCX_TYPE_UNKNOWN };
 
 /// This class implements support for the SHT3x-DIS family of temperature+humidity i2c sensors.
 class SHTCXComponent : public PollingComponent, public i2c::I2CDevice {

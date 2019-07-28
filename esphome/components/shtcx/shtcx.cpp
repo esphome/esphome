@@ -12,9 +12,16 @@ static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
 static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
 static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
+inline const char* ToString(SHTCXType type) {
+    switch (type) {
+        case SHTCX_TYPE_SHTC3:  return "SHTC3";
+        case SHTCX_TYPE_SHTC1:  return "SHTC1";
+        default:  return "[Unknown model]";
+    }
+}
+
 void SHTCXComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SHTCx...");
-  this->wake_up();
   this->soft_reset();
 
   if (!this->write_command_(SHTCX_COMMAND_READ_ID_REGISTER)) {
@@ -29,18 +36,21 @@ void SHTCXComponent::setup() {
     this->mark_failed();
     return;
   }
+
   if (((device_id_register[0] << 2) & 0x1C) == 0x1C) {
     if ((device_id_register[0] & 0x847) == 0x847) {
       this->type_ = SHTCX_TYPE_SHTC3;
-      ESP_LOGCONFIG(TAG, "  Device identified: SHTC3");
     } else {
       this->type_ = SHTCX_TYPE_SHTC1;
-      ESP_LOGCONFIG(TAG, "  Device identified: SHTC1");
     }
+  } else {
+    this->type_ = SHTCX_TYPE_UNKNOWN;
   }
+  ESP_LOGCONFIG(TAG, "  Device identified: %s", ToString(this->type_));
 }
 void SHTCXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHTCx:");
+  ESP_LOGCONFIG(TAG, "  Model: %s", ToString(this->type_));
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with SHTCx failed!");
@@ -147,9 +157,7 @@ void SHTCXComponent::soft_reset() {
   delayMicroseconds(200);
 }
 void SHTCXComponent::sleep() {
-  if (!this->write_command_(SHTCX_COMMAND_SLEEP)) {
-    return;
-  }
+  this->write_command_(SHTCX_COMMAND_SLEEP);
 }
 
 void SHTCXComponent::wake_up() {
