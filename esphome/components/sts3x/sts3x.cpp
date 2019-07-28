@@ -38,7 +38,7 @@ void STS3XComponent::dump_config() {
   }
   LOG_UPDATE_INTERVAL(this);
 
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "STS3x", this);
 }
 float STS3XComponent::get_setup_priority() const { return setup_priority::DATA; }
 void STS3XComponent::update() {
@@ -59,10 +59,8 @@ void STS3XComponent::update() {
     }
 
     float temperature = 175.0f * float(raw_data[0]) / 65535.0f - 45.0f;
-
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
-    if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
+    this->publish_state(temperature);
     this->status_clear_warning();
   });
 }
