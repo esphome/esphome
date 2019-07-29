@@ -96,6 +96,29 @@ class Canbus : public Component {
   virtual ERROR set_bitrate_(const CAN_SPEED canSpeed);
 };
 
+class MQTTMessageTrigger : public Trigger<std::string>, public Component {
+ public:
+  explicit MQTTMessageTrigger(const std::string &topic);
+
+  void set_qos(uint8_t qos);
+  void set_payload(const std::string &payload);
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override;
+
+ protected:
+  std::string topic_;
+  uint8_t qos_{0};
+  optional<std::string> payload_;
+};
+
+class MQTTJsonMessageTrigger : public Trigger<const JsonObject &> {
+ public:
+  explicit MQTTJsonMessageTrigger(const std::string &topic, uint8_t qos) {
+    global_mqtt_client->subscribe_json(
+        topic, [this](const std::string &topic, JsonObject &root) { this->trigger(root); }, qos);
+  }
+};
 
 }  // namespace canbus
 }  // namespace esphome

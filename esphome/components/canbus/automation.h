@@ -9,7 +9,8 @@ namespace canbus {
 
 template<typename... Ts> class SendAction : public Action<Ts...> {
  public:
-  explicit SendAction(Canbus *parent, int can_id) : parent_(parent), can_id_(can_id) {}
+  explicit SendAction(Canbus *parent) : parent_(parent){}
+  void set_can_id(int can_id) {this->can_id_ = can_id;}
 
   TEMPLATABLE_VALUE(float, data)
 
