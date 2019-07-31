@@ -8,6 +8,8 @@ static const char *TAG = "mhz19";
 static const uint8_t MHZ19_REQUEST_LENGTH = 8;
 static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t MHZ19_COMMAND_ABC_ENABLE[] = {0xff, 0x01, 0x79, 0xA0, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t MHZ19_COMMAND_ABC_DISABLE[] = {0xff, 0x01, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -15,6 +17,16 @@ uint8_t mhz19_checksum(const uint8_t *command) {
     sum += command[i];
   }
   return 0xFF - sum + 0x01;
+}
+
+void MHZ19Component::setup() {
+  if (this->abc_logic_ == MHZ19_ABC_ENABLED) {
+    ESP_LOGV(TAG, "Enabling ABC on boot");
+    this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, nullptr);
+  } else if (this->abc_logic_ == MHZ19_ABC_DISABLED) {
+    ESP_LOGV(TAG, "Disabling ABC on boot");
+    this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
+  }
 }
 
 void MHZ19Component::update() {
