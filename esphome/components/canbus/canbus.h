@@ -8,24 +8,19 @@
 namespace esphome {
 namespace canbus {
 
-class Canbus;
+/* CAN payload length and DLC definitions according to ISO 11898-1 */
+static const uint8_t CAN_MAX_DLC = 8;
+static const uint8_t CAN_MAX_DLEN = 8;
 
-class CanCall {
-  public:
-    explicit CanCall(Canbus *parent, int can_id) : parent_(parent), can_id_(can_id) {}
-    CanCall &set_data(optional<float> data);
-    CanCall &set_data(float data);
-    void perform();
-  protected:
-    Canbus *parent_;
-    int can_id_;
-    optional<float> float_data_;
-    optional<bool> bool_data_;
-    optional<long> long_data;
+struct can_frame {
+  uint32_t can_id; /* 32 bit CAN_ID + EFF/RTR/ERR flags */
+  uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
+  uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
 };
 
+class Canbus;
+
 class Canbus : public Component {
-  friend CanCall;
  public:
   /* special address description flags for the CAN_ID */
   static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
@@ -36,6 +31,7 @@ class Canbus : public Component {
   static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
   static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
   static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
+
   /*
    * Controller Area Network Identifier structure
    *
@@ -44,13 +40,8 @@ class Canbus : public Component {
    * bit 30   : remote transmission request flag (1 = rtr frame)
    * bit 31   : frame format flag (0 = standard 11 bit, 1 = extended 29 bit)
    */
-  typedef uint32_t canid_t;
 
-  /* CAN payload length and DLC definitions according to ISO 11898-1 */
-  static const uint8_t CAN_MAX_DLC = 8;
-  static const uint8_t CAN_MAX_DLEN = 8;
-
-  enum CAN_SPEED {
+  enum CANSPEED : uint8_t {
     CAN_5KBPS,
     CAN_10KBPS,
     CAN_20KBPS,
@@ -84,32 +75,30 @@ class Canbus : public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send(int can_id, uint8_t *data);
+  void send_data(uint32_t can_id, const std::vector<uint8_t> data);
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
-
-  CanCall make_call(int can_id){ return CanCall(this, can_id); }
+  void set_bitrate(uint8_t bit_rate) { this->bit_rate_ = bit_rate; }
 
  protected:
-  int sender_id_{0};
-  virtual bool send_internal_(int can_id, uint8_t *data);
+  uint32_t sender_id_{0};
+  uint8_t bit_rate_{CAN_125KBPS};
+
+  void dump_frame_(const struct can_frame *data_frame);
   virtual bool setup_internal_();
-  virtual ERROR set_bitrate_(const CAN_SPEED canSpeed);
+  virtual ERROR send_message_(const struct can_frame *frame);
 };
 
 class CanbusTrigger : public Trigger<int>, public Component {
  public:
-  explicit CanbusTrigger(const int &can_id);
+  explicit CanbusTrigger(const uint32_t &can_id);
 
-  void set_payload(const std::string &payload);
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
 
  protected:
-  std::string can_id_;
-  optional<std::string> payload_;
+  uint32_t can_id_;
 };
-
 
 }  // namespace canbus
 }  // namespace esphome

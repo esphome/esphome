@@ -16,8 +16,10 @@ CONF_ON_RECEIVE = 'on_receive'
 CONF_CANBUS_ID = 'canbus_id'
 CONF_CAN_ID = 'can_id'
 CONF_SENDER_ID = 'sender_id'
+CONF_BIT_RATE = 'bit_rate'
 
 CONF_CANBUS_SEND_ACTION = 'canbus.send'
+
 
 def validate_raw_data(value):
     if isinstance(value, text_type):
@@ -34,10 +36,31 @@ CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
 CanbusTrigger = canbus_ns.class_('CanbusTrigger',
                                  automation.Trigger.template(cg.std_string),
                                  cg.Component)
+CanSpeed = canbus_ns.enum('CanSpeed')
+
+CAN_SPEEDS = {
+    '5KBPS': CanSpeed.CAN_5KBPS,
+    '10KBPS': CanSpeed.CAN_10KBPS,
+    '20KBPS': CanSpeed.CAN_20KBPS,
+    '31K25BPS': CanSpeed.CAN_31K25BPS,
+    '33KBPS': CanSpeed.CAN_33KBPS,
+    '40KBPS': CanSpeed.CAN_40KBPS,
+    '50KBPS': CanSpeed.CAN_50KBPS,
+    '80KBPS': CanSpeed.CAN_80KBPS,
+    '83K3BPS': CanSpeed.CAN_83K3BPS,
+    '95KBPS': CanSpeed.CAN_95KBPS,
+    '100KBPS': CanSpeed.CAN_100KBPS,
+    '125KBPS': CanSpeed.CAN_125KBPS,
+    '200KBPS': CanSpeed.CAN_200KBPS,
+    '250KBPS': CanSpeed.CAN_250KBPS,
+    '500KBPS': CanSpeed.CAN_500KBPS,
+    '1000KBPS': CanSpeed.CAN_1000KBPS,
+}
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CanbusComponent),
     cv.Required(CONF_SENDER_ID): cv.int_range(min=0, max=255),
+    cv.Optional(CONF_BIT_RATE, default='125KBPS'): cv.enum(CAN_SPEEDS, upper=True),
     cv.Optional(CONF_ON_RECEIVE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
         cv.GenerateID(CONF_CAN_ID): cv.int_range(min=1, max=4096),
@@ -52,6 +75,7 @@ CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=4096),
     cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
 })
+
 
 @coroutine
 def setup_canbus_core_(var, config):
@@ -88,7 +112,6 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_data_static(data))
     yield var
-
 
 
 @coroutine_with_priority(100.0)

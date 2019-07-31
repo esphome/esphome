@@ -6,32 +6,12 @@ namespace mcp2515 {
 
 static const char *TAG = "mcp2515";
 
-const struct MCP2515::TXBn_REGS MCP2515::TXB[MCP2515::N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
+const struct MCP2515::TXBn_REGS MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
                                                                       {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
                                                                       {MCP_TXB2CTRL, MCP_TXB2SIDH, MCP_TXB2DATA}};
 
 const struct MCP2515::RXBn_REGS MCP2515::RXB[N_RXBUFFERS] = {{MCP_RXB0CTRL, MCP_RXB0SIDH, MCP_RXB0DATA, CANINTF_RX0IF},
                                                              {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
-
-bool MCP2515::send_internal_(int can_id, uint8_t *data) {
-  struct can_frame canMsg1;
-  canMsg1.can_id = can_id;
-  canMsg1.can_dlc = CAN_MAX_DLEN;
-  canMsg1.data[0] = 0x8E;
-  canMsg1.data[1] = 0x87;
-  canMsg1.data[2] = 0x32;
-  canMsg1.data[3] = 0xFA;
-  canMsg1.data[4] = 0x26;
-  canMsg1.data[5] = 0x8E;
-  canMsg1.data[6] = 0xBE;
-  canMsg1.data[7] = 0x86;
-  if (this->send_message_(&canMsg1) == ERROR_FAILTX) {
-    ESP_LOGE(TAG, "transmit error %d", can_id);
-    return false;
-  }
-
-  return true;
-};
 
 bool MCP2515::setup_internal_() {
   ESP_LOGD(TAG, "setup_internal_()");
@@ -39,20 +19,21 @@ bool MCP2515::setup_internal_() {
 
   if (this->reset_() == ERROR_FAIL)
     return false;
-  this->set_bitrate_(CAN_125KBPS);
+  this->set_bitrate_(this->bit_rate_);
   this->set_normal_mode_();
-ESP_LOGD(TAG, "setup done send test message");
-  struct can_frame canMsg1;
-  canMsg1.can_dlc = 8;
-  canMsg1.data[0] = 0x8E;
-  canMsg1.data[1] = 0x87;
-  canMsg1.data[2] = 0x32;
-  canMsg1.data[3] = 0xFA;
-  canMsg1.data[4] = 0x26;
-  canMsg1.data[5] = 0x8E;
-  canMsg1.data[6] = 0xBE;
-  canMsg1.data[7] = 0x86;
-  this->send_message_(&canMsg1);
+  ESP_LOGD(TAG, "setup done send test message");
+  struct canbus::can_frame can_message;
+  can_message.can_id = this->sender_id_;
+  can_message.can_dlc = 8;
+  can_message.data[0] = 0x00;
+  can_message.data[1] = 0x01;
+  can_message.data[2] = 0x02;
+  can_message.data[3] = 0x03;
+  can_message.data[4] = 0x04;
+  can_message.data[5] = 0x05;
+  can_message.data[6] = 0x06;
+  can_message.data[7] = 0x07;
+  this->send_message_(&can_message);
   return true;
 }
 
@@ -292,7 +273,7 @@ MCP2515::ERROR MCP2515::set_filter_(const RXF num, const bool ext, const uint32_
   return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::send_message_(const TXBn txbn, const struct can_frame *frame) {
+MCP2515::ERROR MCP2515::send_message_(const TXBn txbn, const struct canbus::can_frame *frame) {
   const struct TXBn_REGS *txbuf = &TXB[txbn];
 
   uint8_t data[13];
@@ -309,19 +290,19 @@ MCP2515::ERROR MCP2515::send_message_(const TXBn txbn, const struct can_frame *f
   return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::send_message_(const struct can_frame *frame) {
-  ESP_LOGD(TAG, "send_message_: frame.id = %d", frame->can_id);
-  if (frame->can_dlc > CAN_MAX_DLEN) {
+MCP2515::ERROR MCP2515::send_message_(const struct canbus::can_frame *frame) {
+  //ESP_LOGD(TAG, "send_message_: frame.id = %d", frame->can_id);
+  if (frame->can_dlc > canbus::CAN_MAX_DLEN) {
     return ERROR_FAILTX;
   }
-  ESP_LOGD(TAG, "send_message_: size = %d is OK", frame->can_dlc);
+  //ESP_LOGD(TAG, "send_message_: size = %d is OK", frame->can_dlc);
   TXBn txBuffers[N_TXBUFFERS] = {TXB0, TXB1, TXB2};
 
   for (int i = 0; i < N_TXBUFFERS; i++) {
     const struct TXBn_REGS *txbuf = &TXB[txBuffers[i]];
     uint8_t ctrlval = read_register_(txbuf->CTRL);
     if ((ctrlval & TXB_TXREQ) == 0) {
-      ESP_LOGD(TAG, "send buffer: %d,  ctrl_val = %d", i, ctrlval);
+     // ESP_LOGD(TAG, "send buffer: %d,  ctrl_val = %d", i, ctrlval);
       return send_message_(txBuffers[i], frame);
     }
   }
@@ -329,7 +310,7 @@ MCP2515::ERROR MCP2515::send_message_(const struct can_frame *frame) {
   return ERROR_FAILTX;
 }
 
-MCP2515::ERROR MCP2515::read_message_(const RXBn rxbn, struct can_frame *frame) {
+MCP2515::ERROR MCP2515::read_message_(const RXBn rxbn, struct canbus::can_frame *frame) {
   const struct RXBn_REGS *rxb = &RXB[rxbn];
 
   uint8_t tbufdata[5];
@@ -346,7 +327,7 @@ MCP2515::ERROR MCP2515::read_message_(const RXBn rxbn, struct can_frame *frame) 
   }
 
   uint8_t dlc = (tbufdata[MCP_DLC] & DLC_MASK);
-  if (dlc > CAN_MAX_DLEN) {
+  if (dlc > canbus::CAN_MAX_DLEN) {
     return ERROR_FAIL;
   }
 
@@ -365,7 +346,7 @@ MCP2515::ERROR MCP2515::read_message_(const RXBn rxbn, struct can_frame *frame) 
   return ERROR_OK;
 }
 
-MCP2515::ERROR MCP2515::read_message_(struct can_frame *frame) {
+MCP2515::ERROR MCP2515::read_message_(struct canbus::can_frame *frame) {
   ERROR rc;
   uint8_t stat = get_status_();
 
@@ -434,9 +415,9 @@ void MCP2515::clearERRIF() {
   modify_register_(MCP_CANINTF, CANINTF_ERRIF, 0);
 }
 
-MCP2515::ERROR MCP2515::set_bitrate_(const CAN_SPEED canSpeed) { return set_bitrate_(canSpeed, MCP_16MHZ); }
+MCP2515::ERROR MCP2515::set_bitrate_(uint8_t can_speed) { return this->set_bitrate_(can_speed, MCP_16MHZ); }
 
-MCP2515::ERROR MCP2515::set_bitrate_(const CAN_SPEED canSpeed, CAN_CLOCK canClock) {
+MCP2515::ERROR MCP2515::set_bitrate_(uint8_t can_speed, CAN_CLOCK can_clock) {
   ERROR error = set_config_mode_();
   if (error != ERROR_OK) {
     return error;
@@ -444,9 +425,9 @@ MCP2515::ERROR MCP2515::set_bitrate_(const CAN_SPEED canSpeed, CAN_CLOCK canCloc
 
   uint8_t set, cfg1, cfg2, cfg3;
   set = 1;
-  switch (canClock) {
+  switch (can_clock) {
     case (MCP_8MHZ):
-      switch (canSpeed) {
+      switch (can_speed) {
         case (CAN_5KBPS):  //   5KBPS
           cfg1 = MCP_8MHz_5kBPS_CFG1;
           cfg2 = MCP_8MHz_5kBPS_CFG2;
@@ -524,7 +505,7 @@ MCP2515::ERROR MCP2515::set_bitrate_(const CAN_SPEED canSpeed, CAN_CLOCK canCloc
       break;
 
     case (MCP_16MHZ):
-      switch (canSpeed) {
+      switch (can_speed) {
         case (CAN_5KBPS):  //   5Kbps
           cfg1 = MCP_16MHz_5kBPS_CFG1;
           cfg2 = MCP_16MHz_5kBPS_CFG2;
@@ -601,7 +582,7 @@ MCP2515::ERROR MCP2515::set_bitrate_(const CAN_SPEED canSpeed, CAN_CLOCK canCloc
       break;
 
     case (MCP_20MHZ):
-      switch (canSpeed) {
+      switch (can_speed) {
         case (CAN_33KBPS):  //  33.333Kbps
           cfg1 = MCP_20MHz_33k3BPS_CFG1;
           cfg2 = MCP_20MHz_33k3BPS_CFG2;
