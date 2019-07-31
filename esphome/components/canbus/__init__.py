@@ -8,18 +8,26 @@ from esphome.automation import maybe_simple_id
 from esphome.core import CORE, EsphomeError, Lambda, coroutine, coroutine_with_priority
 from esphome.components import sensor
 from esphome.py_compat import text_type, binary_type, char_to_byte
-from esphome.const import CONF_ID, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
-MULTI_CONF = True
 
 CONF_ON_RECEIVE = 'on_receive'
 CONF_CANBUS_ID = 'canbus_id'
 CONF_CAN_ID = 'can_id'
-CONF_CAN_DATA = 'can_data'
 CONF_SENDER_ID = 'sender_id'
 
 CONF_CANBUS_SEND_ACTION = 'canbus.send'
+
+def validate_raw_data(value):
+    if isinstance(value, text_type):
+        return value.encode('utf-8')
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return cv.Schema([cv.hex_uint8_t])(value)
+    raise cv.Invalid("data must either be a string wrapped in quotes or a list of bytes")
+
 
 canbus_ns = cg.esphome_ns.namespace('canbus')
 CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
@@ -42,7 +50,7 @@ CanbusSendAction = canbus_ns.class_('CanbusSendAction', automation.Action)
 CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
     cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=4096),
-    cv.Required(CONF_CAN_DATA): cv.templatable(cv.int_),
+    cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
 })
 
 @coroutine
@@ -52,8 +60,8 @@ def setup_canbus_core_(var, config):
         cg.add(var.set_canbus_id(config[CONF_CANBUS_ID]))
     if CONF_SENDER_ID in config:
         cg.add(var.set_sender_id([config[CONF_SENDER_ID]]))
-    if CONF_CAN_DATA in config:
-        cg.add(var.set_can_data([config[CONF_CAN_DATA]]))
+    if CONF_DATA in config:
+        cg.add(var.set_can_data([config[CONF_DATA]]))
 
 
 @coroutine
@@ -70,7 +78,7 @@ def canbus_action_to_code(config, action_id, template_arg, args):
 
     can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
     cg.add(var.set_can_id(can_id))
-    data = config[CONF_CAN_DATA]
+    data = config[CONF_DATA]
     if isinstance(data, binary_type):
         data = [char_to_byte(x) for x in data]
 
