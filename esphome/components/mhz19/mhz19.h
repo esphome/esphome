@@ -30,7 +30,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
 
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
-  MHZ19ABCLogic abc_logic_{MHZ19_ABC_NONE}
+  MHZ19ABCLogic abc_logic_{MHZ19_ABC_NONE};
 };
 
 }  // namespace mhz19
