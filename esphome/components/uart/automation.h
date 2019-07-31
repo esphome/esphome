@@ -19,10 +19,10 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
 
   void play(Ts... x) override {
     if (this->static_) {
-      this->parent_->write_array(this->data_static_);
+      this->parent_->send_data(this->data_static_);
     } else {
       auto val = this->data_func_(x...);
-      this->parent_->write_array(val);
+      this->parent_->send_data(val);
     }
   }
 

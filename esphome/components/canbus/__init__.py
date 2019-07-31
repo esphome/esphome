@@ -7,10 +7,11 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.core import CORE, EsphomeError, Lambda, coroutine, coroutine_with_priority
 from esphome.components import sensor
-from esphome.py_compat import text_type
+from esphome.py_compat import text_type, binary_type, char_to_byte
 from esphome.const import CONF_ID, CONF_TRIGGER_ID
 
 IS_PLATFORM_COMPONENT = True
+MULTI_CONF = True
 
 CONF_ON_RECEIVE = 'on_receive'
 CONF_CANBUS_ID = 'canbus_id'
@@ -36,7 +37,7 @@ CONFIG_SCHEMA = cv.Schema({
 }).extend(cv.COMPONENT_SCHEMA)
 
 # Actions
-SendAction = canbus_ns.class_('SendAction', automation.Action)
+CanbusSendAction = canbus_ns.class_('CanbusSendAction', automation.Action)
 
 CANBUS_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
@@ -62,15 +63,24 @@ def register_canbus(var, config):
     yield setup_canbus_core_(var, config)
 
 
-@automation.register_action(CONF_CANBUS_SEND_ACTION, SendAction, CANBUS_ACTION_SCHEMA)
+@automation.register_action(CONF_CANBUS_SEND_ACTION, CanbusSendAction, CANBUS_ACTION_SCHEMA)
 def canbus_action_to_code(config, action_id, template_arg, args):
-    canbus = yield cg.get_variable(config[CONF_CANBUS_ID])
-    var = yield cg.new_Pvariable(action_id, template_arg,  canbus)
-    lambda_ = yield cg.process_lambda(config[CONF_CAN_DATA], args, return_type=cg.float_)
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_CANBUS_ID])
+
     can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
     cg.add(var.set_can_id(can_id))
-    cg.add(var.set_data(lambda_))
+    data = config[CONF_CAN_DATA]
+    if isinstance(data, binary_type):
+        data = [char_to_byte(x) for x in data]
+
+    if cg.is_template(data):
+        templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(templ))
+    else:
+        cg.add(var.set_data_static(data))
     yield var
+
 
 
 @coroutine_with_priority(100.0)
