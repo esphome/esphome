@@ -31,29 +31,7 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
     ESP_LOGD(TAG, "data[%d] = %02x", i, can_message.data[i]);
   }
 
-  // can_message.can_id = this->sender_id_;
-  // can_message.can_dlc = 8;
-  // can_message.data[0] = 0x00;
-  // can_message.data[1] = 0x01;
-  // can_message.data[2] = 0x02;
-  // can_message.data[3] = 0x03;
-  // can_message.data[4] = 0x04;
-  // can_message.data[5] = 0x05;
-  // can_message.data[6] = 0x06;
-  // can_message.data[7] = 0x07;
-  //this->dump_frame_(&can_message);
-
   this->send_message_(&can_message);
-}
-
-void Canbus::dump_frame_(const struct can_frame *data_frame) {
-  //ESP_LOGD(TAG, "dump_frame");
-  //ESP_LOGD(TAG, "canid %d", frame.can_id);
-  //ESP_LOGD(TAG, "can_id %02x", data_frame->can_id);
-  // for (int i = 0; i < 8; i++) {
-  //   data_frame->data[i];
-  // }
-  return;
 }
 
 void Canbus::loop() {

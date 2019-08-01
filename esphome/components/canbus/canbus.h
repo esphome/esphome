@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/optional.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
 namespace canbus {
@@ -17,31 +16,7 @@ struct can_frame {
   uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
   uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
 };
-
-class Canbus;
-
-class Canbus : public Component {
- public:
-  /* special address description flags for the CAN_ID */
-  static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
-  static const uint32_t CAN_RTR_FLAG = 0x40000000UL; /* remote transmission request */
-  static const uint32_t CAN_ERR_FLAG = 0x20000000UL; /* error message frame */
-
-  /* valid bits in CAN ID for frame formats */
-  static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
-  static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
-  static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
-
-  /*
-   * Controller Area Network Identifier structure
-   *
-   * bit 0-28 : CAN identifier (11/29 bit)
-   * bit 29   : error message frame flag (0 = data frame, 1 = error message)
-   * bit 30   : remote transmission request flag (1 = rtr frame)
-   * bit 31   : frame format flag (0 = standard 11 bit, 1 = extended 29 bit)
-   */
-
-  enum CANSPEED : uint8_t {
+  enum CAN_SPEED : uint8_t {
     CAN_5KBPS,
     CAN_10KBPS,
     CAN_20KBPS,
@@ -59,6 +34,7 @@ class Canbus : public Component {
     CAN_500KBPS,
     CAN_1000KBPS
   };
+
   enum ERROR : uint8_t {
     ERROR_OK = 0,
     ERROR_FAIL = 1,
@@ -67,6 +43,18 @@ class Canbus : public Component {
     ERROR_FAILTX = 4,
     ERROR_NOMSG = 5
   };
+  /* special address description flags for the CAN_ID */
+  static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
+  static const uint32_t CAN_RTR_FLAG = 0x40000000UL; /* remote transmission request */
+  static const uint32_t CAN_ERR_FLAG = 0x20000000UL; /* error message frame */
+
+  /* valid bits in CAN ID for frame formats */
+  static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
+  static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
+  static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */  
+
+class Canbus : public Component {
+ public:
 
   Canbus(){};
   Canbus(const std::string &name){};
@@ -77,20 +65,19 @@ class Canbus : public Component {
 
   void send_data(uint32_t can_id, const std::vector<uint8_t> data);
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
-  void set_bitrate(uint8_t bit_rate) { this->bit_rate_ = bit_rate; }
+  void set_bitrate(CAN_SPEED bit_rate) { this->bit_rate_ = bit_rate; }
 
  protected:
   uint32_t sender_id_{0};
-  uint8_t bit_rate_{CAN_125KBPS};
+  CAN_SPEED bit_rate_{CAN_125KBPS};
 
-  void dump_frame_(const struct can_frame *data_frame);
   virtual bool setup_internal_();
   virtual ERROR send_message_(const struct can_frame *frame);
 };
 
-class CanbusTrigger : public Trigger<int>, public Component {
+class CanbusTrigger : public Trigger<std::uint32_t>, public Component {
  public:
-  explicit CanbusTrigger(const uint32_t &can_id);
+  explicit CanbusTrigger(const std::uint32_t &can_id);
 
   void setup() override;
   void dump_config() override;
