@@ -21,8 +21,6 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
 
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
-  TEMPLATABLE_VALUE(float, data)
-
   void play(Ts... x) override {
     if (this->static_) {
       this->parent_->send_data(this->can_id_, this->data_static_);
@@ -33,9 +31,7 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
   }
 
  protected:
-  Canbus *parent_;
   uint32_t can_id_;
-
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
