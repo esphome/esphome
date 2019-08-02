@@ -57,7 +57,8 @@ class MCP2515 : public canbus::Canbus,
                                       spi::DATA_RATE_8MHZ> {
  public:
   MCP2515(){};
-
+  void set_mcp_clock(CAN_CLOCK clock) { this->mcp_clock_ = clock; };
+  void set_mcp_mode(const CANCTRL_REQOP_MODE mode) { this->mcp_mode_ = mode; }
   static const struct TXBn_REGS {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -72,6 +73,8 @@ class MCP2515 : public canbus::Canbus,
   } RXB[N_RXBUFFERS];
 
  protected:
+  CAN_CLOCK mcp_clock_{MCP_8MHZ};
+  CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal_() override;
   canbus::ERROR set_mode_(const CANCTRL_REQOP_MODE mode);
 
@@ -83,11 +86,6 @@ class MCP2515 : public canbus::Canbus,
 
   void prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id);
   canbus::ERROR reset_(void);
-  canbus::ERROR set_config_mode_();
-  canbus::ERROR set_listen_only_();
-  canbus::ERROR set_sleep_mode_();
-  canbus::ERROR set_loop_back_mode_();
-  canbus::ERROR set_normal_mode_();
   canbus::ERROR set_clk_out_(const CAN_CLKOUT divisor);
   canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed);
   canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed, const CAN_CLOCK can_clock);
