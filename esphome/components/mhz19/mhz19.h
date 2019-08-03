@@ -26,6 +26,7 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *co2_sensor_{nullptr};
   bool model_b_;
   bool abc_enabled_;
+  bool setup_done;
 };
 
 }  // namespace mhz19

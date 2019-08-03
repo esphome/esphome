@@ -16,7 +16,6 @@ class ESP8266SoftwareSerial {
   uint8_t peek_byte();
 
   void flush();
-  void drain();
 
   void write_byte(uint8_t data);
 
@@ -63,8 +62,6 @@ class UARTComponent : public Component, public Stream {
   int available() override;
 
   void flush() override;
-
-  void drain();
 
   float get_setup_priority() const override { return setup_priority::BUS; }
 

@@ -18,50 +18,39 @@ uint8_t mhz19_checksum(const uint8_t *command) {
   return 0xFF - sum + 0x01;
 }
 
-static char hex_buf[MHZ19_PDU_LENGTH * 3 + 1];
-const char *dump_data_buf(const uint8_t *data) {
-  memset(hex_buf, '\0', sizeof(hex_buf));
-  for (int i = 0; i < MHZ19_PDU_LENGTH; i++) {
-    sprintf(hex_buf, "%s%0x%s", hex_buf, data[i], i == MHZ19_PDU_LENGTH - 1 ? "" : " ");
-  }
-  return hex_buf;
-}
-
-static bool setup_done;
-
 void MHZ19Component::setup() {
-  uint8_t response[MHZ19_PDU_LENGTH];
-  while (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
-    delay(500);
-  }
-
-  /* MH-Z19B(s == 0) and MH-Z19(s != 0) */
-  uint8_t s = response[5];
-  if (response[5] == 0 && this->model_b_ == false) {
-    ESP_LOGD(TAG, "MH-Z19B detected");
-    this->model_b_ = true;
-  }
-
-  if (this->model_b_) {
     /*
-     * MH-Z19B allows to enable/disable 'automatic baseline calibration' (datasheet MH-Z19B v1.2),
-     * disable it to prevent sensor baseline drift in not well ventilated areas
-     */
+    By default sensor enables abc, only detect sensor version if we explicitly disabled abc
+    */
     if (this->abc_enabled_ == false) {
-      ESP_LOGI(TAG, "Disabling ABC on boot");
-      /* per spec response isn't expected but sensor replies anyway.
-       * Read reply out and discard it so it won't get in the way of following commands */
-      this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, response);
-    } else {
-      ESP_LOGI(TAG, "Enabling ABC on boot");
-      this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, response);
+      uint8_t response[MHZ19_PDU_LENGTH];
+      uint32_t start = millis();
+      while (!this->mhz19_write_command_(MHZ19_COMMAND_GET_PPM, response)) {
+        if (millis() - start > 500) {
+          /* MH-Z19B(s == 0) and MH-Z19(s != 0) */
+          uint8_t s = response[5];
+          if (response[5] == 0 && this->model_b_ == false) {
+            ESP_LOGD(TAG, "MH-Z19B detected");
+            this->model_b_ = true;
+          }
+        }
+        yield();
+      }
+      /*
+      Issue MHZ19_COMMAND_ABC_DISABLE only if we successfully detected model b
+      */
+      if (this->model_b_) {
+        /* per spec response isn't expected but sensor replies anyway.
+      * Read reply out and discard it so it won't get in the way of following commands */
+        this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, response);
+      } else {
+        this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, response);
+      }
     }
-  }
-  setup_done = true;
 }
 
 void MHZ19Component::update() {
-  if (!setup_done) {
+  if (!this->setup_done) {
     return;
   }
 
@@ -73,7 +62,7 @@ void MHZ19Component::update() {
   }
 
   if (response[0] != 0xFF || response[1] != 0x86) {
-    ESP_LOGW(TAG, "Invalid response from MHZ19! [%s]", dump_data_buf(response));
+    ESP_LOGW(TAG, "Invalid response from MHZ19!");
     this->status_set_warning();
     return;
   }
@@ -81,7 +70,7 @@ void MHZ19Component::update() {
   /* Sensor reports U(15000) during boot, ingnore reported CO2 until it boots */
   uint16_t u = (response[6] << 8) + response[7];
   if (u == 15000) {
-    ESP_LOGD(TAG, "Sensor is booting");
+    ESP_LOGD(TAG, "Sensor is booting, measurements will be available in a while");
     return;
   }
 
@@ -100,9 +89,8 @@ void MHZ19Component::update() {
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
   bool ret;
   int rx_error = 0;
-
+  uint32_t start = millis();
   do {
-    ESP_LOGD(TAG, "cmd [%s]", dump_data_buf(command));
     this->write_array(command, MHZ19_PDU_LENGTH);
     this->flush();
 
@@ -111,18 +99,10 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
 
     memset(response, 0, MHZ19_PDU_LENGTH);
     ret = this->read_array(response, MHZ19_PDU_LENGTH);
-    ESP_LOGD(TAG, "resp [%s]", dump_data_buf(response));
 
     uint8_t checksum = mhz19_checksum(response);
     if (checksum != response[8]) {
-      ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X [%s]",
-               response[8], checksum, dump_data_buf(response));
-
-      /*
-       * UART0 in NodeMCU v2, sometimes on boot has junk in RX buffer,
-       * check for it and drain all of it before sending commands to sensor
-       */
-      this->drain();
+      ESP_LOGW(TAG, "MHZ19 Checksum doesn't match: 0x%02X!=0x%02X", response[8], checksum);
       ret = false;
       if (++rx_error > 2) {
           this->status_set_warning();
@@ -133,6 +113,7 @@ bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *respo
     } else {
       rx_error = 0;
     }
+    yield();
   } while (rx_error);
 
   return ret;
