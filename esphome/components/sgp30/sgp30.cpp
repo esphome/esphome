@@ -106,13 +106,13 @@ void SGP30Component::read_iaq_baseline(){
       uint8_t eco2baseline = (raw_data[0]);
       uint8_t tvocbaseline = (raw_data[1]);
 
-      ESP_LOGI(TAG, "Current eCO2 & TVOC baseline: 0x%04X", \
+      ESP_LOGI(TAG, "Current eCO2 & TVOC baseline: 0x%04X",
       uint16_t((eco2baseline << 8) | (tvocbaseline & 0xFF)));
       this->status_clear_warning();
     });
   } else {
     if (!isnan(id(uptime_sensor_).state))
-        ESP_LOGD(TAG, "Baseline reading not available for: %.0fs", \
+        ESP_LOGD(TAG, "Baseline reading not available for: %.0fs",
         (this->required_warm_up_time - id(uptime_sensor_).state));
   }
 }
@@ -197,7 +197,7 @@ void SGP30Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, \
+    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, 
     ((this->baseline_ != 0x0000) ? " (enabled)":" (disabled)"));
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time);
   }

@@ -16,7 +16,7 @@ CONF_UPTIME = 'uptime'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SGP30Component),
-    cv.Required(CONF_ECO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, \
+    cv.Required(CONF_ECO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
                                                  ICON_PERIODIC_TABLE_CO2, 0),
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
     cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
