@@ -111,7 +111,8 @@ void SGP30Component::read_iaq_baseline(){
     });
   } else {
     if (!isnan(id(uptime_sensor_).state))
-        ESP_LOGD(TAG, "Baseline reading not available for: %.0fs", (this->required_warm_up_time - id(uptime_sensor_).state));
+        ESP_LOGD(TAG, "Baseline reading not available for: %.0fs", \
+        (this->required_warm_up_time - id(uptime_sensor_).state));
   }
 }
 
@@ -195,7 +196,8 @@ void SGP30Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, ((this->baseline_ != 0x0000) ? " (enabled)":" (disabled)"));
+    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, \
+    ((this->baseline_ != 0x0000) ? " (enabled)":" (disabled)"));
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time);
   }
   LOG_UPDATE_INTERVAL(this);
