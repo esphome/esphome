@@ -106,7 +106,8 @@ void SGP30Component::read_iaq_baseline(){
       uint8_t eco2baseline = (raw_data[0]);
       uint8_t tvocbaseline = (raw_data[1]);
 
-      ESP_LOGI(TAG, "Current eCO2 & TVOC baseline: 0x%04X", uint16_t((eco2baseline << 8) | (tvocbaseline & 0xFF)));
+      ESP_LOGI(TAG, "Current eCO2 & TVOC baseline: 0x%04X", \
+      uint16_t((eco2baseline << 8) | (tvocbaseline & 0xFF)));
       this->status_clear_warning();
     });
   } else {
