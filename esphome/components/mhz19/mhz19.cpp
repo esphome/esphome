@@ -10,6 +10,8 @@ static const uint8_t MHZ19_RESPONSE_LENGTH = 9;
 static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t MHZ19_COMMAND_ABC_ENABLE[] = {0xff, 0x01, 0x79, 0xA0, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t MHZ19_COMMAND_ABC_DISABLE[] = {0xff, 0x01, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t MHZ19_COMMAND_CALIBRATE_ZERO[] = {0xff, 0x01, 0x87, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t MHZ19_COMMAND_CALIBRATE_SPAN[] = {0xff, 0x01, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -20,12 +22,10 @@ uint8_t mhz19_checksum(const uint8_t *command) {
 }
 
 void MHZ19Component::setup() {
-  if (this->abc_logic_ == MHZ19_ABC_ENABLED) {
-    ESP_LOGV(TAG, "Enabling ABC on boot");
-    this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, nullptr);
-  } else if (this->abc_logic_ == MHZ19_ABC_DISABLED) {
-    ESP_LOGV(TAG, "Disabling ABC on boot");
-    this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
+  if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
+    this->abc_enable();
+  } else if (this->abc_boot_logic_ == MHZ19_ABC_DISABLED) {
+    this->abc_disable();
   }
 }
 
@@ -62,6 +62,26 @@ void MHZ19Component::update() {
     this->temperature_sensor_->publish_state(temp);
 }
 
+void MHZ19Component::calibrate_zero() {
+  ESP_LOGI(TAG, "MHZ19 Calibrating zero point");
+  this->mhz19_write_command_(MHZ19_COMMAND_CALIBRATE_ZERO, nullptr);
+}
+
+void MHZ19Component::calibrate_span() {
+  ESP_LOGI(TAG, "MHZ19 Calibrating span point");
+  this->mhz19_write_command_(MHZ19_COMMAND_CALIBRATE_SPAN, nullptr);
+}
+
+void MHZ19Component::abc_enable() {
+  ESP_LOGI(TAG, "MHZ19 Enabling ABC");
+  this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, nullptr);
+}
+
+void MHZ19Component::abc_disable() {
+  ESP_LOGI(TAG, "MHZ19 Disabling ABC");
+  this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
+}
+
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
   this->flush();
   this->write_array(command, MHZ19_REQUEST_LENGTH);
@@ -79,6 +99,12 @@ void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+
+  if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
+    ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
+  } else if (this->abc_boot_logic_ == MHZ19_ABC_DISABLED) {
+    ESP_LOGCONFIG(TAG, "  Automatic baseline calibration disabled on boot");
+  }
 }
 
 }  // namespace mhz19

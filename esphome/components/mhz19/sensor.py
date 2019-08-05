@@ -1,5 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
+from esphome.automation import maybe_simple_id
 from esphome.components import sensor, uart
 from esphome.const import CONF_CO2, CONF_ID, CONF_TEMPERATURE, ICON_PERIODIC_TABLE_CO2, \
     UNIT_PARTS_PER_MILLION, UNIT_CELSIUS, ICON_THERMOMETER
@@ -10,6 +12,10 @@ CONF_AUTOMATIC_BASELINE_CALIBRATION = 'automatic_baseline_calibration'
 
 mhz19_ns = cg.esphome_ns.namespace('mhz19')
 MHZ19Component = mhz19_ns.class_('MHZ19Component', cg.PollingComponent, uart.UARTDevice)
+MHZ19CalibrateZeroAction = mhz19_ns.class_('MHZ19CalibrateZeroAction', automation.Action)
+MHZ19CalibrateSpanAction = mhz19_ns.class_('MHZ19CalibrateSpanAction', automation.Action)
+MHZ19ABCEnableAction = mhz19_ns.class_('MHZ19ABCEnableAction', automation.Action)
+MHZ19ABCDisableAction = mhz19_ns.class_('MHZ19ABCDisableAction', automation.Action)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(MHZ19Component),
@@ -34,3 +40,17 @@ def to_code(config):
 
     if CONF_AUTOMATIC_BASELINE_CALIBRATION in config:
         cg.add(var.set_abc_enabled(config[CONF_AUTOMATIC_BASELINE_CALIBRATION]))
+
+
+CALIBRATION_ACTION_SCHEMA = maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(MHZ19Component),
+})
+
+
+@automation.register_action('mhz19.calibrate_zero', MHZ19CalibrateZeroAction, CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.calibrate_span', MHZ19CalibrateSpanAction, CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.abc_enable', MHZ19ABCEnableAction, CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.abc_disable', MHZ19ABCDisableAction, CALIBRATION_ACTION_SCHEMA)
+def mhz19_calibration_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
