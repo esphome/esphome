@@ -13,7 +13,6 @@ CONF_AUTOMATIC_BASELINE_CALIBRATION = 'automatic_baseline_calibration'
 mhz19_ns = cg.esphome_ns.namespace('mhz19')
 MHZ19Component = mhz19_ns.class_('MHZ19Component', cg.PollingComponent, uart.UARTDevice)
 MHZ19CalibrateZeroAction = mhz19_ns.class_('MHZ19CalibrateZeroAction', automation.Action)
-MHZ19CalibrateSpanAction = mhz19_ns.class_('MHZ19CalibrateSpanAction', automation.Action)
 MHZ19ABCEnableAction = mhz19_ns.class_('MHZ19ABCEnableAction', automation.Action)
 MHZ19ABCDisableAction = mhz19_ns.class_('MHZ19ABCDisableAction', automation.Action)
 
@@ -48,7 +47,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id({
 
 
 @automation.register_action('mhz19.calibrate_zero', MHZ19CalibrateZeroAction, CALIBRATION_ACTION_SCHEMA)
-@automation.register_action('mhz19.calibrate_span', MHZ19CalibrateSpanAction, CALIBRATION_ACTION_SCHEMA)
 @automation.register_action('mhz19.abc_enable', MHZ19ABCEnableAction, CALIBRATION_ACTION_SCHEMA)
 @automation.register_action('mhz19.abc_disable', MHZ19ABCDisableAction, CALIBRATION_ACTION_SCHEMA)
 def mhz19_calibration_to_code(config, action_id, template_arg, args):

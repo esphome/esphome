@@ -23,7 +23,6 @@ class MHZ19Component : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
   void calibrate_zero();
-  void calibrate_span();
   void abc_enable();
   void abc_disable();
 
@@ -43,15 +42,6 @@ template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...> {
  public:
   MHZ19CalibrateZeroAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
   void play(Ts... x) override { this->mhz19_->calibrate_zero(); }
-
- protected:
-  MHZ19Component *mhz19_;
-};
-
-template<typename... Ts> class MHZ19CalibrateSpanAction : public Action<Ts...> {
- public:
-  MHZ19CalibrateSpanAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
-  void play(Ts... x) override { this->mhz19_->calibrate_span(); }
 
  protected:
   MHZ19Component *mhz19_;

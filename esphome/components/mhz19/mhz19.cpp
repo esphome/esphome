@@ -11,7 +11,6 @@ static const uint8_t MHZ19_COMMAND_GET_PPM[] = {0xFF, 0x01, 0x86, 0x00, 0x00, 0x
 static const uint8_t MHZ19_COMMAND_ABC_ENABLE[] = {0xff, 0x01, 0x79, 0xA0, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t MHZ19_COMMAND_ABC_DISABLE[] = {0xff, 0x01, 0x79, 0x00, 0x00, 0x00, 0x00, 0x00};
 static const uint8_t MHZ19_COMMAND_CALIBRATE_ZERO[] = {0xff, 0x01, 0x87, 0x00, 0x00, 0x00, 0x00, 0x00};
-static const uint8_t MHZ19_COMMAND_CALIBRATE_SPAN[] = {0xff, 0x01, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00};
 
 uint8_t mhz19_checksum(const uint8_t *command) {
   uint8_t sum = 0;
@@ -65,11 +64,6 @@ void MHZ19Component::update() {
 void MHZ19Component::calibrate_zero() {
   ESP_LOGI(TAG, "MHZ19 Calibrating zero point");
   this->mhz19_write_command_(MHZ19_COMMAND_CALIBRATE_ZERO, nullptr);
-}
-
-void MHZ19Component::calibrate_span() {
-  ESP_LOGI(TAG, "MHZ19 Calibrating span point");
-  this->mhz19_write_command_(MHZ19_COMMAND_CALIBRATE_SPAN, nullptr);
 }
 
 void MHZ19Component::abc_enable() {
