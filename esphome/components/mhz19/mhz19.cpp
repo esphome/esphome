@@ -62,17 +62,17 @@ void MHZ19Component::update() {
 }
 
 void MHZ19Component::calibrate_zero() {
-  ESP_LOGI(TAG, "MHZ19 Calibrating zero point");
+  ESP_LOGD(TAG, "MHZ19 Calibrating zero point");
   this->mhz19_write_command_(MHZ19_COMMAND_CALIBRATE_ZERO, nullptr);
 }
 
 void MHZ19Component::abc_enable() {
-  ESP_LOGI(TAG, "MHZ19 Enabling ABC");
+  ESP_LOGD(TAG, "MHZ19 Enabling automatic baseline calibration");
   this->mhz19_write_command_(MHZ19_COMMAND_ABC_ENABLE, nullptr);
 }
 
 void MHZ19Component::abc_disable() {
-  ESP_LOGI(TAG, "MHZ19 Disabling ABC");
+  ESP_LOGD(TAG, "MHZ19 Disabling automatic baseline calibration");
   this->mhz19_write_command_(MHZ19_COMMAND_ABC_DISABLE, nullptr);
 }
 
