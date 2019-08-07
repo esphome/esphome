@@ -20,11 +20,11 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
   struct can_frame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
-  ESP_LOGD(TAG, "size=%d", size);
+  ESP_LOGD(TAG, "canid=%d size=%d", can_id, size);
   if (size > CAN_MAX_DLC)
     size = CAN_MAX_DLC;
   can_message.can_dlc = size;
-  can_message.can_id = this->sender_id_;
+  can_message.can_id = can_id;
 
   for (int i = 0; i < size; i++) {
     can_message.data[i] = data[i];
@@ -34,17 +34,22 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
   this->send_message_(&can_message);
 }
 
+void Canbus::add_trigger(CanbusTrigger *trigger) {
+  ESP_LOGD(TAG, "add trigger for canid:%d", trigger->can_id_);
+  this->triggers_.push_back(trigger);
+};
+
 void Canbus::loop() {
   struct can_frame can_message;
-  //readmessage
-  if( this->read_message_(&can_message) == canbus::ERROR_OK ) {
-    ESP_LOGD(TAG,"received can message can_id=%04x  length=%d",can_message.can_id, can_message.can_dlc);
-    //show data received 
-    for(int i = 0; i< can_message.can_dlc;i++)
-      ESP_LOGD(TAG,"data[%d]=%02x",i, can_message.data[i]);
-    //fire all triggers
-    for(auto trigger: this->triggers_){
-      if(trigger->can_id_ == can_message.can_id) {
+  // readmessage
+  if (this->read_message_(&can_message) == canbus::ERROR_OK) {
+    ESP_LOGD(TAG, "received can message can_id=%d  length=%d", can_message.can_id, can_message.can_dlc);
+    // show data received
+    for (int i = 0; i < can_message.can_dlc; i++)
+      ESP_LOGD(TAG, "data[%d]=%02x", i, can_message.data[i]);
+    // fire all triggers
+    for (auto trigger : this->triggers_) {
+      if (trigger->can_id_ == can_message.can_id) {
         trigger->trigger();
       }
     }

@@ -68,7 +68,7 @@ class Canbus : public Component {
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
   void set_bitrate(CAN_SPEED bit_rate) { this->bit_rate_ = bit_rate; }
 
-  void add_trigger(CanbusTrigger *trigger) {this->triggers_.push_back(trigger);};
+  void add_trigger(CanbusTrigger *trigger);
 
  protected:
   std::vector<CanbusTrigger *> triggers_{};
