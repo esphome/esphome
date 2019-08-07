@@ -449,6 +449,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
