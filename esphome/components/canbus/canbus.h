@@ -74,17 +74,5 @@ class Canbus : public Component {
   virtual ERROR send_message_(const struct can_frame *frame);
 };
 
-class CanbusTrigger : public Trigger<std::uint32_t>, public Component {
- public:
-  explicit CanbusTrigger(const std::uint32_t &can_id);
-
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override;
-
- protected:
-  uint32_t can_id_;
-};
-
 }  // namespace canbus
 }  // namespace esphome

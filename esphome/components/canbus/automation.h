@@ -1,16 +1,18 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/canbus/canbus.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace canbus {
 
-template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
- public:
-  void set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
+template <typename... Ts>
+class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
+public:
+  void
+  set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
     this->data_func_ = func;
     this->static_ = false;
   }
@@ -30,12 +32,24 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
     }
   }
 
- protected:
+protected:
   uint32_t can_id_;
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
 };
 
-}  // namespace canbus
-}  // namespace esphome
+class CanbusTrigger : public Trigger<std::uint32_t>, public Component {
+public:
+  explicit CanbusTrigger(const std::uint32_t &can_id);
+
+  void setup() override;
+  void dump_config() override;
+  float get_setup_priority() const override;
+
+protected:
+  uint32_t can_id_;
+};
+
+} // namespace canbus
+} // namespace esphome
