@@ -54,6 +54,12 @@ void MHZ19Component::update() {
   const int temp = int(response[4]) - 40;
   const uint8_t status = response[5];
 
+  if (status <= 1) {
+    ESP_LOGW(TAG, "MHZ19 now warming up... Status=0x%02X", status);
+    this->status_set_warning();
+    return;
+  }
+
   ESP_LOGD(TAG, "MHZ19 Received CO₂=%uppm Temperature=%d°C Status=0x%02X", ppm, temp, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
