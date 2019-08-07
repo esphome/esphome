@@ -46,9 +46,12 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id({
 })
 
 
-@automation.register_action('mhz19.calibrate_zero', MHZ19CalibrateZeroAction, CALIBRATION_ACTION_SCHEMA)
-@automation.register_action('mhz19.abc_enable', MHZ19ABCEnableAction, CALIBRATION_ACTION_SCHEMA)
-@automation.register_action('mhz19.abc_disable', MHZ19ABCDisableAction, CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.calibrate_zero', MHZ19CalibrateZeroAction,
+                            CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.abc_enable', MHZ19ABCEnableAction,
+                            CALIBRATION_ACTION_SCHEMA)
+@automation.register_action('mhz19.abc_disable', MHZ19ABCDisableAction,
+                            CALIBRATION_ACTION_SCHEMA)
 def mhz19_calibration_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
