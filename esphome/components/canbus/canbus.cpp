@@ -36,10 +36,17 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
 
 void Canbus::loop() {
   struct can_frame can_message;
-  this->read_message_(&can_message);
-  for(auto trigger: this->triggers_){
-    if(trigger->can_id_ == can_message.can_id) {
-       trigger->trigger();
+  //readmessage
+  if( this->read_message_(&can_message) == canbus::ERROR_OK ) {
+    ESP_LOGD(TAG,"received can message can_id=%04x  length=%d",can_message.can_id, can_message.can_dlc);
+    //show data received 
+    for(int i = 0; i< can_message.can_dlc;i++)
+      ESP_LOGD(TAG,"data[%d]=%02x",i, can_message.data[i]);
+    //fire all triggers
+    for(auto trigger: this->triggers_){
+      if(trigger->can_id_ == can_message.can_id) {
+        trigger->trigger();
+      }
     }
   }
 }
