@@ -35,7 +35,13 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
 }
 
 void Canbus::loop() {
-  // check harware inputbuffer and process to esphome outputs
+  struct can_frame can_message;
+  this->read_message_(&can_message);
+  for(auto trigger: this->triggers_){
+    if(trigger->can_id_ == can_message.can_id) {
+       trigger->trigger();
+    }
+  }
 }
 
 }  // namespace canbus

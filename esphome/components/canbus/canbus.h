@@ -7,6 +7,8 @@
 namespace esphome {
 namespace canbus {
 
+class CanbusTrigger;
+
 /* CAN payload length and DLC definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DLC = 8;
 static const uint8_t CAN_MAX_DLEN = 8;
@@ -66,12 +68,60 @@ class Canbus : public Component {
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
   void set_bitrate(CAN_SPEED bit_rate) { this->bit_rate_ = bit_rate; }
 
+  void add_trigger(CanbusTrigger *trigger) {this->triggers_.push_back(trigger);};
+
  protected:
+  std::vector<CanbusTrigger *> triggers_{};
   uint32_t sender_id_{0};
   CAN_SPEED bit_rate_{CAN_125KBPS};
 
   virtual bool setup_internal_();
   virtual ERROR send_message_(const struct can_frame *frame);
+  virtual ERROR read_message_(struct can_frame *frame);
+};
+
+template <typename... Ts>
+class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
+public:
+  void
+  set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
+    this->data_func_ = func;
+    this->static_ = false;
+  }
+  void set_data_static(const std::vector<uint8_t> &data) {
+    this->data_static_ = data;
+    this->static_ = true;
+  }
+
+  void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
+
+  void play(Ts... x) override {
+    if (this->static_) {
+      this->parent_->send_data(this->can_id_, this->data_static_);
+    } else {
+      auto val = this->data_func_(x...);
+      this->parent_->send_data(this->can_id_, val);
+    }
+  }
+
+protected:
+  uint32_t can_id_;
+  bool static_{false};
+  std::function<std::vector<uint8_t>(Ts...)> data_func_{};
+  std::vector<uint8_t> data_static_{};
+};
+
+class CanbusTrigger : public Trigger<> , public Component {
+  friend class Canbus;
+public:
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id):parent_(parent), can_id_(can_id){};
+  void setup() override {
+    this->parent_->add_trigger(this);
+  }
+
+protected:
+  Canbus *parent_;
+  uint32_t can_id_;
 };
 
 }  // namespace canbus

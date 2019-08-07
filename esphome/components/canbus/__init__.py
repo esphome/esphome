@@ -32,9 +32,8 @@ def validate_raw_data(value):
 
 canbus_ns = cg.esphome_ns.namespace('canbus')
 CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
-CanbusTrigger = canbus_ns.class_('CanbusTrigger',
-                                 automation.Trigger.template(cg.std_string),
-                                 cg.Component)
+CanbusTrigger = canbus_ns.class_('CanbusTrigger', automation.Trigger.template(),
+                                     cg.Component)
 CanSpeed = canbus_ns.enum('CAN_SPEED')
 
 CAN_SPEEDS = {
@@ -60,10 +59,10 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CanbusComponent),
     cv.Required(CONF_SENDER_ID): cv.int_range(min=0, max=255),
     cv.Optional(CONF_BIT_RATE, default='125KBPS'): cv.enum(CAN_SPEEDS, upper=True),
-    # cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
-    #     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
-    #     cv.GenerateID(CONF_CAN_ID): cv.int_range(min=1, max=4096),
-    # }),
+    cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
+        cv.GenerateID(CONF_CAN_ID): cv.int_range(min=1, max=4096),
+    }),
 }).extend(cv.COMPONENT_SCHEMA)
 
 # Actions
@@ -86,10 +85,11 @@ def setup_canbus_core_(var, config):
     if CONF_BIT_RATE in config:
         bitrate = CAN_SPEEDS[config[CONF_BIT_RATE]]
         cg.add(var.set_bitrate(bitrate))
-    # for conf in config.get(CONF_ON_MESSAGE, []):
-    #     trig = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf[CONF_CAN_ID])
-    #     yield cg.register_component(trig, conf)
-    #     yield automation.build_automation(trig, [(cg.uint32, 'x')], conf)
+    for conf in config.get(CONF_ON_MESSAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, conf[CONF_CAN_ID])
+        yield cg.register_component(trigger, conf)
+        yield automation.build_automation(trigger, [], conf)
+
 
 @coroutine
 def register_canbus(var, config):
