@@ -8,7 +8,7 @@ from esphome.automation import maybe_simple_id
 from esphome.core import CORE, EsphomeError, Lambda, coroutine, coroutine_with_priority
 from esphome.components import sensor
 from esphome.py_compat import text_type, binary_type, char_to_byte
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA, CONF_ON_MESSAGE
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
 
@@ -16,6 +16,7 @@ CONF_CANBUS_ID = 'canbus_id'
 CONF_CAN_ID = 'can_id'
 CONF_SENDER_ID = 'sender_id'
 CONF_BIT_RATE = 'bit_rate'
+CONF_ON_FRAME = 'on_frame'
 
 CONF_CANBUS_SEND_ACTION = 'canbus.send'
 
@@ -59,7 +60,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CanbusComponent),
     cv.Required(CONF_SENDER_ID): cv.int_range(min=0, max=255),
     cv.Optional(CONF_BIT_RATE, default='125KBPS'): cv.enum(CAN_SPEEDS, upper=True),
-    cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
+    cv.Optional(CONF_ON_FRAME): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(CanbusTrigger),
         cv.GenerateID(CONF_CAN_ID): cv.int_range(min=1, max=4096),
     }),
@@ -85,7 +86,7 @@ def setup_canbus_core_(var, config):
     if CONF_BIT_RATE in config:
         bitrate = CAN_SPEEDS[config[CONF_BIT_RATE]]
         cg.add(var.set_bitrate(bitrate))
-    for conf in config.get(CONF_ON_MESSAGE, []):
+    for conf in config.get(CONF_ON_FRAME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, conf[CONF_CAN_ID])
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [(cg.std_vector.template(cg.uint8), 'x')], conf)
