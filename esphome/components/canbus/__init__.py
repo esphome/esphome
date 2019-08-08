@@ -32,8 +32,8 @@ def validate_raw_data(value):
 
 canbus_ns = cg.esphome_ns.namespace('canbus')
 CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
-CanbusTrigger = canbus_ns.class_('CanbusTrigger', automation.Trigger.template(),
-                                     cg.Component)
+CanbusTrigger = canbus_ns.class_('CanbusTrigger', automation.Trigger.template(cg.std_vector.template(cg.uint8)),
+                                 cg.Component)
 CanSpeed = canbus_ns.enum('CAN_SPEED')
 
 CAN_SPEEDS = {
@@ -88,7 +88,7 @@ def setup_canbus_core_(var, config):
     for conf in config.get(CONF_ON_MESSAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, conf[CONF_CAN_ID])
         yield cg.register_component(trigger, conf)
-        yield automation.build_automation(trigger, [], conf)
+        yield automation.build_automation(trigger, [(cg.std_vector.template(cg.uint8), 'x')], conf)
 
 
 @coroutine

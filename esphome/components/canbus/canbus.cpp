@@ -50,7 +50,8 @@ void Canbus::loop() {
     // fire all triggers
     for (auto trigger : this->triggers_) {
       if (trigger->can_id_ == can_message.can_id) {
-        trigger->trigger();
+        std::vector<uint8_t> data(&can_message.data[0], &can_message.data[can_message.can_dlc - 1]);
+        trigger->trigger(data);
       }
     }
   }

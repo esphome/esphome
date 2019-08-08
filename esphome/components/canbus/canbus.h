@@ -111,7 +111,7 @@ protected:
   std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger<> , public Component {
+class CanbusTrigger : public Trigger< std::vector<uint8_t> > , public Component {
   friend class Canbus;
 public:
   explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id):parent_(parent), can_id_(can_id){};
