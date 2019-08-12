@@ -239,7 +239,6 @@ def to_code(config):
 
     # Libraries
     if CORE.is_esp32:
-        cg.add_library('Preferences', None)
         cg.add_library('ESPmDNS', None)
     elif CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)

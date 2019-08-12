@@ -122,6 +122,7 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
       range.set_blue(this->blue_.value(x...));
     if (this->white_.has_value())
       range.set_white(this->white_.value(x...));
+    out->schedule_show();
   }
 
  protected:

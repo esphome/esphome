@@ -40,7 +40,7 @@ class Application {
   void pre_setup(const std::string &name, const char *compilation_time) {
     this->name_ = name;
     this->compilation_time_ = compilation_time;
-    global_preferences.begin(this->name_);
+    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -119,8 +119,12 @@ class Application {
   void safe_reboot();
 
   void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_)
+    for (auto *comp : this->components_) {
       comp->on_safe_shutdown();
+    }
+    for (auto *comp : this->components_) {
+      comp->on_shutdown();
+    }
   }
 
   uint32_t get_app_state() const { return this->app_state_; }

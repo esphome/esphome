@@ -250,7 +250,7 @@ def lg_dumper(var, config):
 def lg_action(var, config, args):
     template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
-    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint8)
+    template_ = yield cg.templatable(config[CONF_NBITS], args, cg.uint8)
     cg.add(var.set_nbits(template_))
 
 

@@ -5,10 +5,6 @@ install: script/setup
 cache:
   directories:
     - "~/.platformio"
-    - "$TRAVIS_BUILD_DIR/.piolibdeps"
-    - "$TRAVIS_BUILD_DIR/tests/build/test1/.piolibdeps"
-    - "$TRAVIS_BUILD_DIR/tests/build/test2/.piolibdeps"
-    - "$TRAVIS_BUILD_DIR/tests/build/test3/.piolibdeps"
 
 matrix:
   fast_finish: true
