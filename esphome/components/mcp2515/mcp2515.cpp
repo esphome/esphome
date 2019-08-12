@@ -6,12 +6,14 @@ namespace mcp2515 {
 
 static const char *TAG = "mcp2515";
 
-const struct MCP2515::TXBn_REGS MCP2515::TXB[N_TXBUFFERS] = {{MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
-                                                             {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
-                                                             {MCP_TXB2CTRL, MCP_TXB2SIDH, MCP_TXB2DATA}};
+const struct MCP2515::TXBn_REGS MCP2515::TXB[N_TXBUFFERS] = {
+    {MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
+    {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
+    {MCP_TXB2CTRL, MCP_TXB2SIDH, MCP_TXB2DATA}};
 
-const struct MCP2515::RXBn_REGS MCP2515::RXB[N_RXBUFFERS] = {{MCP_RXB0CTRL, MCP_RXB0SIDH, MCP_RXB0DATA, CANINTF_RX0IF},
-                                                             {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
+const struct MCP2515::RXBn_REGS MCP2515::RXB[N_RXBUFFERS] = {
+    {MCP_RXB0CTRL, MCP_RXB0SIDH, MCP_RXB0DATA, CANINTF_RX0IF},
+    {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
 
 bool MCP2515::setup_internal_() {
   ESP_LOGD(TAG, "setup_internal_()");
@@ -44,9 +46,11 @@ canbus::ERROR MCP2515::reset_(void) {
   set_register_(MCP_RXB0CTRL, 0);
   set_register_(MCP_RXB1CTRL, 0);
 
-  set_register_(MCP_CANINTE, CANINTF_RX0IF | CANINTF_RX1IF | CANINTF_ERRIF | CANINTF_MERRF);
+  set_register_(MCP_CANINTE,
+                CANINTF_RX0IF | CANINTF_RX1IF | CANINTF_ERRIF | CANINTF_MERRF);
 
-  modify_register_(MCP_RXB0CTRL, RXBnCTRL_RXM_MASK | RXB0CTRL_BUKT, RXBnCTRL_RXM_STDEXT | RXB0CTRL_BUKT);
+  modify_register_(MCP_RXB0CTRL, RXBnCTRL_RXM_MASK | RXB0CTRL_BUKT,
+                   RXBnCTRL_RXM_STDEXT | RXB0CTRL_BUKT);
   modify_register_(MCP_RXB1CTRL, RXBnCTRL_RXM_MASK, RXBnCTRL_RXM_STDEXT);
 
   // clear filters and masks
@@ -79,7 +83,8 @@ uint8_t MCP2515::read_register_(const REGISTER reg) {
   return ret;
 }
 
-void MCP2515::read_registers_(const REGISTER reg, uint8_t values[], const uint8_t n) {
+void MCP2515::read_registers_(const REGISTER reg, uint8_t values[],
+                              const uint8_t n) {
   this->enable();
   this->transfer_byte(INSTRUCTION_READ);
   this->transfer_byte(reg);
@@ -99,7 +104,8 @@ void MCP2515::set_register_(const REGISTER reg, const uint8_t value) {
   this->disable();
 }
 
-void MCP2515::set_registers_(const REGISTER reg, uint8_t values[], const uint8_t n) {
+void MCP2515::set_registers_(const REGISTER reg, uint8_t values[],
+                             const uint8_t n) {
   this->enable();
   this->transfer_byte(INSTRUCTION_WRITE);
   this->transfer_byte(reg);
@@ -110,7 +116,8 @@ void MCP2515::set_registers_(const REGISTER reg, uint8_t values[], const uint8_t
   this->disable();
 }
 
-void MCP2515::modify_register_(const REGISTER reg, const uint8_t mask, const uint8_t data) {
+void MCP2515::modify_register_(const REGISTER reg, const uint8_t mask,
+                               const uint8_t data) {
   this->enable();
   this->transfer_byte(INSTRUCTION_BITMOD);
   this->transfer_byte(reg);
@@ -187,7 +194,8 @@ void MCP2515::prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id) {
   }
 }
 
-canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext, const uint32_t ulData) {
+canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext,
+                                        const uint32_t ulData) {
   canbus::ERROR res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
@@ -198,14 +206,14 @@ canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext, const u
 
   REGISTER reg;
   switch (mask) {
-    case MASK0:
-      reg = MCP_RXM0SIDH;
-      break;
-    case MASK1:
-      reg = MCP_RXM1SIDH;
-      break;
-    default:
-      return canbus::ERROR_FAIL;
+  case MASK0:
+    reg = MCP_RXM0SIDH;
+    break;
+  case MASK1:
+    reg = MCP_RXM1SIDH;
+    break;
+  default:
+    return canbus::ERROR_FAIL;
   }
 
   set_registers_(reg, tbufdata, 4);
@@ -213,7 +221,8 @@ canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext, const u
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext, const uint32_t ulData) {
+canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext,
+                                   const uint32_t ulData) {
   canbus::ERROR res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
@@ -222,26 +231,26 @@ canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext, const uint32_t
   REGISTER reg;
 
   switch (num) {
-    case RXF0:
-      reg = MCP_RXF0SIDH;
-      break;
-    case RXF1:
-      reg = MCP_RXF1SIDH;
-      break;
-    case RXF2:
-      reg = MCP_RXF2SIDH;
-      break;
-    case RXF3:
-      reg = MCP_RXF3SIDH;
-      break;
-    case RXF4:
-      reg = MCP_RXF4SIDH;
-      break;
-    case RXF5:
-      reg = MCP_RXF5SIDH;
-      break;
-    default:
-      return canbus::ERROR_FAIL;
+  case RXF0:
+    reg = MCP_RXF0SIDH;
+    break;
+  case RXF1:
+    reg = MCP_RXF1SIDH;
+    break;
+  case RXF2:
+    reg = MCP_RXF2SIDH;
+    break;
+  case RXF3:
+    reg = MCP_RXF3SIDH;
+    break;
+  case RXF4:
+    reg = MCP_RXF4SIDH;
+    break;
+  case RXF5:
+    reg = MCP_RXF5SIDH;
+    break;
+  default:
+    return canbus::ERROR_FAIL;
   }
 
   uint8_t tbufdata[4];
@@ -251,14 +260,16 @@ canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext, const uint32_t
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::send_message_(const TXBn txbn, const struct canbus::can_frame *frame) {
+canbus::ERROR MCP2515::send_message_(const TXBn txbn,
+                                     const struct canbus::can_frame *frame) {
   const struct TXBn_REGS *txbuf = &TXB[txbn];
 
   uint8_t data[13];
 
   bool ext = (frame->can_id & canbus::CAN_EFF_FLAG);
   bool rtr = (frame->can_id & canbus::CAN_RTR_FLAG);
-  uint32_t id = (frame->can_id & (ext ? canbus::CAN_EFF_MASK : canbus::CAN_SFF_MASK));
+  uint32_t id =
+      (frame->can_id & (ext ? canbus::CAN_EFF_MASK : canbus::CAN_SFF_MASK));
   prepare_id_(data, ext, id);
   data[MCP_DLC] = rtr ? (frame->can_dlc | RTR_MASK) : frame->can_dlc;
   memcpy(&data[MCP_DATA], frame->data, frame->can_dlc);
@@ -288,7 +299,8 @@ canbus::ERROR MCP2515::send_message_(const struct canbus::can_frame *frame) {
   return canbus::ERROR_FAILTX;
 }
 
-canbus::ERROR MCP2515::read_message_(const RXBn rxbn, struct canbus::can_frame *frame) {
+canbus::ERROR MCP2515::read_message_(const RXBn rxbn,
+                                     struct canbus::can_frame *frame) {
   const struct RXBn_REGS *rxb = &RXB[rxbn];
 
   uint8_t tbufdata[5];
@@ -360,7 +372,9 @@ bool MCP2515::check_error_(void) {
 
 uint8_t MCP2515::get_error_flags_(void) { return read_register_(MCP_EFLG); }
 
-void MCP2515::clearRXnOVRFlags(void) { modify_register_(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0); }
+void MCP2515::clearRXnOVRFlags(void) {
+  modify_register_(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
+}
 
 uint8_t MCP2515::getInterrupts(void) { return read_register_(MCP_CANINTF); }
 
@@ -369,7 +383,8 @@ void MCP2515::clearInterrupts(void) { set_register_(MCP_CANINTF, 0); }
 uint8_t MCP2515::getInterruptMask(void) { return read_register_(MCP_CANINTE); }
 
 void MCP2515::clearTXInterrupts(void) {
-  modify_register_(MCP_CANINTF, (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF), 0);
+  modify_register_(MCP_CANINTF, (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF),
+                   0);
 }
 
 void MCP2515::clearRXnOVR(void) {
@@ -393,9 +408,12 @@ void MCP2515::clearERRIF() {
   modify_register_(MCP_CANINTF, CANINTF_ERRIF, 0);
 }
 
-canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed) { return this->set_bitrate_(can_speed, MCP_16MHZ); }
+canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed) {
+  return this->set_bitrate_(can_speed, MCP_16MHZ);
+}
 
-canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed, CAN_CLOCK can_clock) {
+canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed,
+                                    CAN_CLOCK can_clock) {
   canbus::ERROR error = set_mode_(CANCTRL_REQOP_CONFIG);
   if (error != canbus::ERROR_OK) {
     return error;
@@ -404,227 +422,227 @@ canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed, CAN_CLOCK can_c
   uint8_t set, cfg1, cfg2, cfg3;
   set = 1;
   switch (can_clock) {
-    case (MCP_8MHZ):
-      switch (can_speed) {
-        case (canbus::CAN_5KBPS):  //   5KBPS
-          cfg1 = MCP_8MHz_5kBPS_CFG1;
-          cfg2 = MCP_8MHz_5kBPS_CFG2;
-          cfg3 = MCP_8MHz_5kBPS_CFG3;
-          break;
-        case (canbus::CAN_10KBPS):  //  10KBPS
-          cfg1 = MCP_8MHz_10kBPS_CFG1;
-          cfg2 = MCP_8MHz_10kBPS_CFG2;
-          cfg3 = MCP_8MHz_10kBPS_CFG3;
-          break;
-        case (canbus::CAN_20KBPS):  //  20KBPS
-          cfg1 = MCP_8MHz_20kBPS_CFG1;
-          cfg2 = MCP_8MHz_20kBPS_CFG2;
-          cfg3 = MCP_8MHz_20kBPS_CFG3;
-          break;
-        case (canbus::CAN_31K25BPS):  //  31.25KBPS
-          cfg1 = MCP_8MHz_31k25BPS_CFG1;
-          cfg2 = MCP_8MHz_31k25BPS_CFG2;
-          cfg3 = MCP_8MHz_31k25BPS_CFG3;
-          break;
-        case (canbus::CAN_33KBPS):  //  33.333KBPS
-          cfg1 = MCP_8MHz_33k3BPS_CFG1;
-          cfg2 = MCP_8MHz_33k3BPS_CFG2;
-          cfg3 = MCP_8MHz_33k3BPS_CFG3;
-          break;
-        case (canbus::CAN_40KBPS):  //  40Kbps
-          cfg1 = MCP_8MHz_40kBPS_CFG1;
-          cfg2 = MCP_8MHz_40kBPS_CFG2;
-          cfg3 = MCP_8MHz_40kBPS_CFG3;
-          break;
-        case (canbus::CAN_50KBPS):  //  50Kbps
-          cfg1 = MCP_8MHz_50kBPS_CFG1;
-          cfg2 = MCP_8MHz_50kBPS_CFG2;
-          cfg3 = MCP_8MHz_50kBPS_CFG3;
-          break;
-        case (canbus::CAN_80KBPS):  //  80Kbps
-          cfg1 = MCP_8MHz_80kBPS_CFG1;
-          cfg2 = MCP_8MHz_80kBPS_CFG2;
-          cfg3 = MCP_8MHz_80kBPS_CFG3;
-          break;
-        case (canbus::CAN_100KBPS):  // 100Kbps
-          cfg1 = MCP_8MHz_100kBPS_CFG1;
-          cfg2 = MCP_8MHz_100kBPS_CFG2;
-          cfg3 = MCP_8MHz_100kBPS_CFG3;
-          break;
-        case (canbus::CAN_125KBPS):  // 125Kbps
-          cfg1 = MCP_8MHz_125kBPS_CFG1;
-          cfg2 = MCP_8MHz_125kBPS_CFG2;
-          cfg3 = MCP_8MHz_125kBPS_CFG3;
-          break;
-        case (canbus::CAN_200KBPS):  // 200Kbps
-          cfg1 = MCP_8MHz_200kBPS_CFG1;
-          cfg2 = MCP_8MHz_200kBPS_CFG2;
-          cfg3 = MCP_8MHz_200kBPS_CFG3;
-          break;
-        case (canbus::CAN_250KBPS):  // 250Kbps
-          cfg1 = MCP_8MHz_250kBPS_CFG1;
-          cfg2 = MCP_8MHz_250kBPS_CFG2;
-          cfg3 = MCP_8MHz_250kBPS_CFG3;
-          break;
-        case (canbus::CAN_500KBPS):  // 500Kbps
-          cfg1 = MCP_8MHz_500kBPS_CFG1;
-          cfg2 = MCP_8MHz_500kBPS_CFG2;
-          cfg3 = MCP_8MHz_500kBPS_CFG3;
-          break;
-        case (canbus::CAN_1000KBPS):  //   1Mbps
-          cfg1 = MCP_8MHz_1000kBPS_CFG1;
-          cfg2 = MCP_8MHz_1000kBPS_CFG2;
-          cfg3 = MCP_8MHz_1000kBPS_CFG3;
-          break;
-        default:
-          set = 0;
-          break;
-      }
+  case (MCP_8MHZ):
+    switch (can_speed) {
+    case (canbus::CAN_5KBPS): //   5KBPS
+      cfg1 = MCP_8MHz_5kBPS_CFG1;
+      cfg2 = MCP_8MHz_5kBPS_CFG2;
+      cfg3 = MCP_8MHz_5kBPS_CFG3;
       break;
-
-    case (MCP_16MHZ):
-      switch (can_speed) {
-        case (canbus::CAN_5KBPS):  //   5Kbps
-          cfg1 = MCP_16MHz_5kBPS_CFG1;
-          cfg2 = MCP_16MHz_5kBPS_CFG2;
-          cfg3 = MCP_16MHz_5kBPS_CFG3;
-          break;
-        case (canbus::CAN_10KBPS):  //  10Kbps
-          cfg1 = MCP_16MHz_10kBPS_CFG1;
-          cfg2 = MCP_16MHz_10kBPS_CFG2;
-          cfg3 = MCP_16MHz_10kBPS_CFG3;
-          break;
-        case (canbus::CAN_20KBPS):  //  20Kbps
-          cfg1 = MCP_16MHz_20kBPS_CFG1;
-          cfg2 = MCP_16MHz_20kBPS_CFG2;
-          cfg3 = MCP_16MHz_20kBPS_CFG3;
-          break;
-        case (canbus::CAN_33KBPS):  //  33.333Kbps
-          cfg1 = MCP_16MHz_33k3BPS_CFG1;
-          cfg2 = MCP_16MHz_33k3BPS_CFG2;
-          cfg3 = MCP_16MHz_33k3BPS_CFG3;
-          break;
-        case (canbus::CAN_40KBPS):  //  40Kbps
-          cfg1 = MCP_16MHz_40kBPS_CFG1;
-          cfg2 = MCP_16MHz_40kBPS_CFG2;
-          cfg3 = MCP_16MHz_40kBPS_CFG3;
-          break;
-        case (canbus::CAN_50KBPS):  //  50Kbps
-          cfg2 = MCP_16MHz_50kBPS_CFG2;
-          cfg3 = MCP_16MHz_50kBPS_CFG3;
-          break;
-        case (canbus::CAN_80KBPS):  //  80Kbps
-          cfg1 = MCP_16MHz_80kBPS_CFG1;
-          cfg2 = MCP_16MHz_80kBPS_CFG2;
-          cfg3 = MCP_16MHz_80kBPS_CFG3;
-          break;
-        case (canbus::CAN_83K3BPS):  //  83.333Kbps
-          cfg1 = MCP_16MHz_83k3BPS_CFG1;
-          cfg2 = MCP_16MHz_83k3BPS_CFG2;
-          cfg3 = MCP_16MHz_83k3BPS_CFG3;
-          break;
-        case (canbus::CAN_100KBPS):  // 100Kbps
-          cfg1 = MCP_16MHz_100kBPS_CFG1;
-          cfg2 = MCP_16MHz_100kBPS_CFG2;
-          cfg3 = MCP_16MHz_100kBPS_CFG3;
-          break;
-        case (canbus::CAN_125KBPS):  // 125Kbps
-          cfg1 = MCP_16MHz_125kBPS_CFG1;
-          cfg2 = MCP_16MHz_125kBPS_CFG2;
-          cfg3 = MCP_16MHz_125kBPS_CFG3;
-          break;
-        case (canbus::CAN_200KBPS):  // 200Kbps
-          cfg1 = MCP_16MHz_200kBPS_CFG1;
-          cfg2 = MCP_16MHz_200kBPS_CFG2;
-          cfg3 = MCP_16MHz_200kBPS_CFG3;
-          break;
-        case (canbus::CAN_250KBPS):  // 250Kbps
-          cfg1 = MCP_16MHz_250kBPS_CFG1;
-          cfg2 = MCP_16MHz_250kBPS_CFG2;
-          cfg3 = MCP_16MHz_250kBPS_CFG3;
-          break;
-        case (canbus::CAN_500KBPS):  // 500Kbps
-          cfg1 = MCP_16MHz_500kBPS_CFG1;
-          cfg2 = MCP_16MHz_500kBPS_CFG2;
-          cfg3 = MCP_16MHz_500kBPS_CFG3;
-          break;
-        case (canbus::CAN_1000KBPS):  //   1Mbps
-          cfg1 = MCP_16MHz_1000kBPS_CFG1;
-          cfg2 = MCP_16MHz_1000kBPS_CFG2;
-          cfg3 = MCP_16MHz_1000kBPS_CFG3;
-          break;
-        default:
-          set = 0;
-          break;
-      }
+    case (canbus::CAN_10KBPS): //  10KBPS
+      cfg1 = MCP_8MHz_10kBPS_CFG1;
+      cfg2 = MCP_8MHz_10kBPS_CFG2;
+      cfg3 = MCP_8MHz_10kBPS_CFG3;
       break;
-
-    case (MCP_20MHZ):
-      switch (can_speed) {
-        case (canbus::CAN_33KBPS):  //  33.333Kbps
-          cfg1 = MCP_20MHz_33k3BPS_CFG1;
-          cfg2 = MCP_20MHz_33k3BPS_CFG2;
-          cfg3 = MCP_20MHz_33k3BPS_CFG3;
-          break;
-        case (canbus::CAN_40KBPS):  //  40Kbps
-          cfg1 = MCP_20MHz_40kBPS_CFG1;
-          cfg2 = MCP_20MHz_40kBPS_CFG2;
-          cfg3 = MCP_20MHz_40kBPS_CFG3;
-          break;
-        case (canbus::CAN_50KBPS):  //  50Kbps
-          cfg1 = MCP_20MHz_50kBPS_CFG1;
-          cfg2 = MCP_20MHz_50kBPS_CFG2;
-          cfg3 = MCP_20MHz_50kBPS_CFG3;
-          break;
-        case (canbus::CAN_80KBPS):  //  80Kbps
-          cfg1 = MCP_20MHz_80kBPS_CFG1;
-          cfg2 = MCP_20MHz_80kBPS_CFG2;
-          cfg3 = MCP_20MHz_80kBPS_CFG3;
-          break;
-        case (canbus::CAN_83K3BPS):  //  83.333Kbps
-          cfg1 = MCP_20MHz_83k3BPS_CFG1;
-          cfg2 = MCP_20MHz_83k3BPS_CFG2;
-          cfg3 = MCP_20MHz_83k3BPS_CFG3;
-          break;
-        case (canbus::CAN_100KBPS):  // 100Kbps
-          cfg1 = MCP_20MHz_100kBPS_CFG1;
-          cfg2 = MCP_20MHz_100kBPS_CFG2;
-          cfg3 = MCP_20MHz_100kBPS_CFG3;
-          break;
-        case (canbus::CAN_125KBPS):  // 125Kbps
-          cfg1 = MCP_20MHz_125kBPS_CFG1;
-          cfg2 = MCP_20MHz_125kBPS_CFG2;
-          cfg3 = MCP_20MHz_125kBPS_CFG3;
-          break;
-        case (canbus::CAN_200KBPS):  // 200Kbps
-          cfg1 = MCP_20MHz_200kBPS_CFG1;
-          cfg2 = MCP_20MHz_200kBPS_CFG2;
-          cfg3 = MCP_20MHz_200kBPS_CFG3;
-          break;
-        case (canbus::CAN_250KBPS):  // 250Kbps
-          cfg1 = MCP_20MHz_250kBPS_CFG1;
-          cfg2 = MCP_20MHz_250kBPS_CFG2;
-          cfg3 = MCP_20MHz_250kBPS_CFG3;
-          break;
-        case (canbus::CAN_500KBPS):  // 500Kbps
-          cfg1 = MCP_20MHz_500kBPS_CFG1;
-          cfg2 = MCP_20MHz_500kBPS_CFG2;
-          cfg3 = MCP_20MHz_500kBPS_CFG3;
-          break;
-        case (canbus::CAN_1000KBPS):  //   1Mbps
-          cfg1 = MCP_20MHz_1000kBPS_CFG1;
-          cfg2 = MCP_20MHz_1000kBPS_CFG2;
-          cfg3 = MCP_20MHz_1000kBPS_CFG3;
-          break;
-        default:
-          set = 0;
-          break;
-      }
+    case (canbus::CAN_20KBPS): //  20KBPS
+      cfg1 = MCP_8MHz_20kBPS_CFG1;
+      cfg2 = MCP_8MHz_20kBPS_CFG2;
+      cfg3 = MCP_8MHz_20kBPS_CFG3;
       break;
-
+    case (canbus::CAN_31K25BPS): //  31.25KBPS
+      cfg1 = MCP_8MHz_31k25BPS_CFG1;
+      cfg2 = MCP_8MHz_31k25BPS_CFG2;
+      cfg3 = MCP_8MHz_31k25BPS_CFG3;
+      break;
+    case (canbus::CAN_33KBPS): //  33.333KBPS
+      cfg1 = MCP_8MHz_33k3BPS_CFG1;
+      cfg2 = MCP_8MHz_33k3BPS_CFG2;
+      cfg3 = MCP_8MHz_33k3BPS_CFG3;
+      break;
+    case (canbus::CAN_40KBPS): //  40Kbps
+      cfg1 = MCP_8MHz_40kBPS_CFG1;
+      cfg2 = MCP_8MHz_40kBPS_CFG2;
+      cfg3 = MCP_8MHz_40kBPS_CFG3;
+      break;
+    case (canbus::CAN_50KBPS): //  50Kbps
+      cfg1 = MCP_8MHz_50kBPS_CFG1;
+      cfg2 = MCP_8MHz_50kBPS_CFG2;
+      cfg3 = MCP_8MHz_50kBPS_CFG3;
+      break;
+    case (canbus::CAN_80KBPS): //  80Kbps
+      cfg1 = MCP_8MHz_80kBPS_CFG1;
+      cfg2 = MCP_8MHz_80kBPS_CFG2;
+      cfg3 = MCP_8MHz_80kBPS_CFG3;
+      break;
+    case (canbus::CAN_100KBPS): // 100Kbps
+      cfg1 = MCP_8MHz_100kBPS_CFG1;
+      cfg2 = MCP_8MHz_100kBPS_CFG2;
+      cfg3 = MCP_8MHz_100kBPS_CFG3;
+      break;
+    case (canbus::CAN_125KBPS): // 125Kbps
+      cfg1 = MCP_8MHz_125kBPS_CFG1;
+      cfg2 = MCP_8MHz_125kBPS_CFG2;
+      cfg3 = MCP_8MHz_125kBPS_CFG3;
+      break;
+    case (canbus::CAN_200KBPS): // 200Kbps
+      cfg1 = MCP_8MHz_200kBPS_CFG1;
+      cfg2 = MCP_8MHz_200kBPS_CFG2;
+      cfg3 = MCP_8MHz_200kBPS_CFG3;
+      break;
+    case (canbus::CAN_250KBPS): // 250Kbps
+      cfg1 = MCP_8MHz_250kBPS_CFG1;
+      cfg2 = MCP_8MHz_250kBPS_CFG2;
+      cfg3 = MCP_8MHz_250kBPS_CFG3;
+      break;
+    case (canbus::CAN_500KBPS): // 500Kbps
+      cfg1 = MCP_8MHz_500kBPS_CFG1;
+      cfg2 = MCP_8MHz_500kBPS_CFG2;
+      cfg3 = MCP_8MHz_500kBPS_CFG3;
+      break;
+    case (canbus::CAN_1000KBPS): //   1Mbps
+      cfg1 = MCP_8MHz_1000kBPS_CFG1;
+      cfg2 = MCP_8MHz_1000kBPS_CFG2;
+      cfg3 = MCP_8MHz_1000kBPS_CFG3;
+      break;
     default:
       set = 0;
       break;
+    }
+    break;
+
+  case (MCP_16MHZ):
+    switch (can_speed) {
+    case (canbus::CAN_5KBPS): //   5Kbps
+      cfg1 = MCP_16MHz_5kBPS_CFG1;
+      cfg2 = MCP_16MHz_5kBPS_CFG2;
+      cfg3 = MCP_16MHz_5kBPS_CFG3;
+      break;
+    case (canbus::CAN_10KBPS): //  10Kbps
+      cfg1 = MCP_16MHz_10kBPS_CFG1;
+      cfg2 = MCP_16MHz_10kBPS_CFG2;
+      cfg3 = MCP_16MHz_10kBPS_CFG3;
+      break;
+    case (canbus::CAN_20KBPS): //  20Kbps
+      cfg1 = MCP_16MHz_20kBPS_CFG1;
+      cfg2 = MCP_16MHz_20kBPS_CFG2;
+      cfg3 = MCP_16MHz_20kBPS_CFG3;
+      break;
+    case (canbus::CAN_33KBPS): //  33.333Kbps
+      cfg1 = MCP_16MHz_33k3BPS_CFG1;
+      cfg2 = MCP_16MHz_33k3BPS_CFG2;
+      cfg3 = MCP_16MHz_33k3BPS_CFG3;
+      break;
+    case (canbus::CAN_40KBPS): //  40Kbps
+      cfg1 = MCP_16MHz_40kBPS_CFG1;
+      cfg2 = MCP_16MHz_40kBPS_CFG2;
+      cfg3 = MCP_16MHz_40kBPS_CFG3;
+      break;
+    case (canbus::CAN_50KBPS): //  50Kbps
+      cfg2 = MCP_16MHz_50kBPS_CFG2;
+      cfg3 = MCP_16MHz_50kBPS_CFG3;
+      break;
+    case (canbus::CAN_80KBPS): //  80Kbps
+      cfg1 = MCP_16MHz_80kBPS_CFG1;
+      cfg2 = MCP_16MHz_80kBPS_CFG2;
+      cfg3 = MCP_16MHz_80kBPS_CFG3;
+      break;
+    case (canbus::CAN_83K3BPS): //  83.333Kbps
+      cfg1 = MCP_16MHz_83k3BPS_CFG1;
+      cfg2 = MCP_16MHz_83k3BPS_CFG2;
+      cfg3 = MCP_16MHz_83k3BPS_CFG3;
+      break;
+    case (canbus::CAN_100KBPS): // 100Kbps
+      cfg1 = MCP_16MHz_100kBPS_CFG1;
+      cfg2 = MCP_16MHz_100kBPS_CFG2;
+      cfg3 = MCP_16MHz_100kBPS_CFG3;
+      break;
+    case (canbus::CAN_125KBPS): // 125Kbps
+      cfg1 = MCP_16MHz_125kBPS_CFG1;
+      cfg2 = MCP_16MHz_125kBPS_CFG2;
+      cfg3 = MCP_16MHz_125kBPS_CFG3;
+      break;
+    case (canbus::CAN_200KBPS): // 200Kbps
+      cfg1 = MCP_16MHz_200kBPS_CFG1;
+      cfg2 = MCP_16MHz_200kBPS_CFG2;
+      cfg3 = MCP_16MHz_200kBPS_CFG3;
+      break;
+    case (canbus::CAN_250KBPS): // 250Kbps
+      cfg1 = MCP_16MHz_250kBPS_CFG1;
+      cfg2 = MCP_16MHz_250kBPS_CFG2;
+      cfg3 = MCP_16MHz_250kBPS_CFG3;
+      break;
+    case (canbus::CAN_500KBPS): // 500Kbps
+      cfg1 = MCP_16MHz_500kBPS_CFG1;
+      cfg2 = MCP_16MHz_500kBPS_CFG2;
+      cfg3 = MCP_16MHz_500kBPS_CFG3;
+      break;
+    case (canbus::CAN_1000KBPS): //   1Mbps
+      cfg1 = MCP_16MHz_1000kBPS_CFG1;
+      cfg2 = MCP_16MHz_1000kBPS_CFG2;
+      cfg3 = MCP_16MHz_1000kBPS_CFG3;
+      break;
+    default:
+      set = 0;
+      break;
+    }
+    break;
+
+  case (MCP_20MHZ):
+    switch (can_speed) {
+    case (canbus::CAN_33KBPS): //  33.333Kbps
+      cfg1 = MCP_20MHz_33k3BPS_CFG1;
+      cfg2 = MCP_20MHz_33k3BPS_CFG2;
+      cfg3 = MCP_20MHz_33k3BPS_CFG3;
+      break;
+    case (canbus::CAN_40KBPS): //  40Kbps
+      cfg1 = MCP_20MHz_40kBPS_CFG1;
+      cfg2 = MCP_20MHz_40kBPS_CFG2;
+      cfg3 = MCP_20MHz_40kBPS_CFG3;
+      break;
+    case (canbus::CAN_50KBPS): //  50Kbps
+      cfg1 = MCP_20MHz_50kBPS_CFG1;
+      cfg2 = MCP_20MHz_50kBPS_CFG2;
+      cfg3 = MCP_20MHz_50kBPS_CFG3;
+      break;
+    case (canbus::CAN_80KBPS): //  80Kbps
+      cfg1 = MCP_20MHz_80kBPS_CFG1;
+      cfg2 = MCP_20MHz_80kBPS_CFG2;
+      cfg3 = MCP_20MHz_80kBPS_CFG3;
+      break;
+    case (canbus::CAN_83K3BPS): //  83.333Kbps
+      cfg1 = MCP_20MHz_83k3BPS_CFG1;
+      cfg2 = MCP_20MHz_83k3BPS_CFG2;
+      cfg3 = MCP_20MHz_83k3BPS_CFG3;
+      break;
+    case (canbus::CAN_100KBPS): // 100Kbps
+      cfg1 = MCP_20MHz_100kBPS_CFG1;
+      cfg2 = MCP_20MHz_100kBPS_CFG2;
+      cfg3 = MCP_20MHz_100kBPS_CFG3;
+      break;
+    case (canbus::CAN_125KBPS): // 125Kbps
+      cfg1 = MCP_20MHz_125kBPS_CFG1;
+      cfg2 = MCP_20MHz_125kBPS_CFG2;
+      cfg3 = MCP_20MHz_125kBPS_CFG3;
+      break;
+    case (canbus::CAN_200KBPS): // 200Kbps
+      cfg1 = MCP_20MHz_200kBPS_CFG1;
+      cfg2 = MCP_20MHz_200kBPS_CFG2;
+      cfg3 = MCP_20MHz_200kBPS_CFG3;
+      break;
+    case (canbus::CAN_250KBPS): // 250Kbps
+      cfg1 = MCP_20MHz_250kBPS_CFG1;
+      cfg2 = MCP_20MHz_250kBPS_CFG2;
+      cfg3 = MCP_20MHz_250kBPS_CFG3;
+      break;
+    case (canbus::CAN_500KBPS): // 500Kbps
+      cfg1 = MCP_20MHz_500kBPS_CFG1;
+      cfg2 = MCP_20MHz_500kBPS_CFG2;
+      cfg3 = MCP_20MHz_500kBPS_CFG3;
+      break;
+    case (canbus::CAN_1000KBPS): //   1Mbps
+      cfg1 = MCP_20MHz_1000kBPS_CFG1;
+      cfg2 = MCP_20MHz_1000kBPS_CFG2;
+      cfg3 = MCP_20MHz_1000kBPS_CFG3;
+      break;
+    default:
+      set = 0;
+      break;
+    }
+    break;
+
+  default:
+    set = 0;
+    break;
   }
 
   if (set) {
@@ -636,5 +654,5 @@ canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed, CAN_CLOCK can_c
     return canbus::ERROR_FAIL;
   }
 }
-}  // namespace mcp2515
-}  // namespace esphome
+} // namespace mcp2515
+} // namespace esphome

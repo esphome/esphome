@@ -313,5 +313,5 @@ static const uint8_t MCP_20MHz_33k3BPS_CFG1 = 0x0B;
 static const uint8_t MCP_20MHz_33k3BPS_CFG2 = 0xFF;
 static const uint8_t MCP_20MHz_33k3BPS_CFG3 = 0x87;
 
-}  // namespace mcp2515
-}  // namespace esphome
+} // namespace mcp2515
+} // namespace esphome

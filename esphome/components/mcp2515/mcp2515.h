@@ -7,7 +7,7 @@
 
 namespace esphome {
 namespace mcp2515 {
-static const uint32_t SPI_CLOCK = 10000000;  // 10MHz
+static const uint32_t SPI_CLOCK = 10000000; // 10MHz
 
 static const int N_TXBUFFERS = 3;
 static const int N_RXBUFFERS = 2;
@@ -50,12 +50,14 @@ enum /*class*/ EFLG : uint8_t {
 enum /*class*/ STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
 
 static const uint8_t STAT_RXIF_MASK = STAT_RX0IF | STAT_RX1IF;
-static const uint8_t EFLG_ERRORMASK = EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
+static const uint8_t EFLG_ERRORMASK =
+    EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
 
-class MCP2515 : public canbus::Canbus,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_8MHZ> {
- public:
+class MCP2515
+    : public canbus::Canbus,
+      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                            spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
+public:
   MCP2515(){};
   void set_mcp_clock(CAN_CLOCK clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CANCTRL_REQOP_MODE mode) { this->mcp_mode_ = mode; }
@@ -72,7 +74,7 @@ class MCP2515 : public canbus::Canbus,
     CANINTF CANINTF_RXnIF;
   } RXB[N_RXBUFFERS];
 
- protected:
+protected:
   CAN_CLOCK mcp_clock_{MCP_8MHZ};
   CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal_() override;
@@ -82,16 +84,21 @@ class MCP2515 : public canbus::Canbus,
   void read_registers_(const REGISTER reg, uint8_t values[], const uint8_t n);
   void set_register_(const REGISTER reg, const uint8_t value);
   void set_registers_(const REGISTER reg, uint8_t values[], const uint8_t n);
-  void modify_register_(const REGISTER reg, const uint8_t mask, const uint8_t data);
+  void modify_register_(const REGISTER reg, const uint8_t mask,
+                        const uint8_t data);
 
   void prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id);
   canbus::ERROR reset_(void);
   canbus::ERROR set_clk_out_(const CAN_CLKOUT divisor);
   canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed);
-  canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed, const CAN_CLOCK can_clock);
-  canbus::ERROR set_filter_mask_(const MASK num, const bool ext, const uint32_t ulData);
-  canbus::ERROR set_filter_(const RXF num, const bool ext, const uint32_t ulData);
-  canbus::ERROR send_message_(const TXBn txbn, const struct canbus::can_frame *frame);
+  canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed,
+                             const CAN_CLOCK can_clock);
+  canbus::ERROR set_filter_mask_(const MASK num, const bool ext,
+                                 const uint32_t ulData);
+  canbus::ERROR set_filter_(const RXF num, const bool ext,
+                            const uint32_t ulData);
+  canbus::ERROR send_message_(const TXBn txbn,
+                              const struct canbus::can_frame *frame);
   canbus::ERROR send_message_(const struct canbus::can_frame *frame);
   canbus::ERROR read_message_(const RXBn rxbn, struct canbus::can_frame *frame);
   canbus::ERROR read_message_(struct canbus::can_frame *frame);
@@ -108,5 +115,5 @@ class MCP2515 : public canbus::Canbus,
   void clearMERR();
   void clearERRIF();
 };
-}  // namespace mcp2515
-}  // namespace esphome
+} // namespace mcp2515
+} // namespace esphome

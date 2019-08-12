@@ -1,23 +1,21 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
 namespace esphome {
 namespace canbus {
 
-class CanbusTrigger;
-
-/* CAN payload length and DLC definitions according to ISO 11898-1 */
-static const uint8_t CAN_MAX_DLC = 8;
-static const uint8_t CAN_MAX_DLEN = 8;
-
-struct can_frame {
-  uint32_t can_id; /* 32 bit CAN_ID + EFF/RTR/ERR flags */
-  uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
-  uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
+enum ERROR : uint8_t {
+  ERROR_OK = 0,
+  ERROR_FAIL = 1,
+  ERROR_ALLTXBUSY = 2,
+  ERROR_FAILINIT = 3,
+  ERROR_FAILTX = 4,
+  ERROR_NOMSG = 5
 };
+
 enum CAN_SPEED : uint8_t {
   CAN_5KBPS,
   CAN_10KBPS,
@@ -37,26 +35,35 @@ enum CAN_SPEED : uint8_t {
   CAN_1000KBPS
 };
 
-enum ERROR : uint8_t {
-  ERROR_OK = 0,
-  ERROR_FAIL = 1,
-  ERROR_ALLTXBUSY = 2,
-  ERROR_FAILINIT = 3,
-  ERROR_FAILTX = 4,
-  ERROR_NOMSG = 5
-};
 /* special address description flags for the CAN_ID */
-static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
-static const uint32_t CAN_RTR_FLAG = 0x40000000UL; /* remote transmission request */
+static const uint32_t CAN_EFF_FLAG =
+    0x80000000UL; /* EFF/SFF is set in the MSB */
+static const uint32_t CAN_RTR_FLAG =
+    0x40000000UL; /* remote transmission request */
 static const uint32_t CAN_ERR_FLAG = 0x20000000UL; /* error message frame */
 
 /* valid bits in CAN ID for frame formats */
-static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
-static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
-static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
+static const uint32_t CAN_SFF_MASK =
+    0x000007FFUL; /* standard frame format (SFF) */
+static const uint32_t CAN_EFF_MASK =
+    0x1FFFFFFFUL; /* extended frame format (EFF) */
+static const uint32_t CAN_ERR_MASK =
+    0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
+
+class CanbusTrigger;
+
+/* CAN payload length and DLC definitions according to ISO 11898-1 */
+static const uint8_t CAN_MAX_DLC = 8;
+static const uint8_t CAN_MAX_DLEN = 8;
+
+struct can_frame {
+  uint32_t can_id; /* 32 bit CAN_ID + EFF/RTR/ERR flags */
+  uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
+  uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
+};
 
 class Canbus : public Component {
- public:
+public:
   Canbus(){};
   Canbus(const std::string &name){};
   void setup() override;
@@ -70,7 +77,7 @@ class Canbus : public Component {
 
   void add_trigger(CanbusTrigger *trigger);
 
- protected:
+protected:
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t sender_id_{0};
   CAN_SPEED bit_rate_{CAN_125KBPS};
@@ -111,18 +118,18 @@ protected:
   std::vector<uint8_t> data_static_{};
 };
 
-class CanbusTrigger : public Trigger< std::vector<uint8_t> > , public Component {
+class CanbusTrigger : public Trigger<std::vector<uint8_t>>, public Component {
   friend class Canbus;
+
 public:
-  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id):parent_(parent), can_id_(can_id){};
-  void setup() override {
-    this->parent_->add_trigger(this);
-  }
+  explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id)
+      : parent_(parent), can_id_(can_id){};
+  void setup() override { this->parent_->add_trigger(this); }
 
 protected:
   Canbus *parent_;
   uint32_t can_id_;
 };
 
-}  // namespace canbus
-}  // namespace esphome
+} // namespace canbus
+} // namespace esphome
