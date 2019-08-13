@@ -97,7 +97,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  if (!device.get_service_data_uuid()->contains(0x95, 0xFE) and !device.get_service_data_uuid()->contains(0x1D, 0x18) and !device.get_service_data_uuid()->contains(0x1B, 0x18))) {
+  if (!device.get_service_data_uuid()->contains(0x95, 0xFE) && !device.get_service_data_uuid()->contains(0x1D, 0x18) && !device.get_service_data_uuid()->contains(0x1B, 0x18))) {
     // ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
     return {};
   }
