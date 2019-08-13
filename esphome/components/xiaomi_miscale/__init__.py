@@ -1,1 +1,1 @@
-     // this file can't be submited as and empty one.
+     // this file can't be submited as an empty one.
