@@ -41,6 +41,10 @@ matrix:
       before_script:
         - pio init --ide atom
         - pio platform update
+        - ls .piolibdeps
+        - ls .piolibdeps/NeoPixelBus_ID547
+        - ls .piolibdeps/NeoPixelBus_ID547/src
+        - ls .piolibdeps/NeoPixelBus_ID547/src/internal
         - if ! patch -R -p0 -s -f --dry-run < script/.neopixelbus.patch; then patch -p0 < script/.neopixelbus.patch; fi
         - clang-tidy-7 -version
         - clang-format-7 -version
