@@ -1,5 +1,5 @@
---- .piolibdeps/NeoPixelBus_ID547/src/internal/NeoEsp8266DmaMethod.h	2019-06-25 11:14:33.000000000 +0200
-+++ .piolibdeps/NeoPixelBus_ID547/src/internal/NeoEsp8266DmaMethod.h.2	2019-06-25 11:14:40.000000000 +0200
+--- .pio/libdeps/livingroom8266/NeoPixelBus_ID547/src/internal/NeoEsp8266DmaMethod.h	2019-06-25 11:14:33.000000000 +0200
++++ .pio/libdeps/livingroom8266/NeoPixelBus_ID547/src/internal/NeoEsp8266DmaMethod.h.2	2019-06-25 11:14:40.000000000 +0200
 @@ -195,7 +195,12 @@
              _i2sBufDesc[indexDesc].sub_sof = 0;
              _i2sBufDesc[indexDesc].datalen = blockSize;
