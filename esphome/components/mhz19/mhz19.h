@@ -8,11 +8,7 @@
 namespace esphome {
 namespace mhz19 {
 
-enum MHZ19ABCLogic {
-  MHZ19_ABC_NONE = 0,
-  MHZ19_ABC_ENABLED,
-  MHZ19_ABC_DISABLED
-};
+enum MHZ19ABCLogic { MHZ19_ABC_NONE = 0, MHZ19_ABC_ENABLED, MHZ19_ABC_DISABLED };
 
 class MHZ19Component : public PollingComponent, public uart::UARTDevice {
  public:
