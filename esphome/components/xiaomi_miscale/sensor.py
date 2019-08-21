@@ -9,14 +9,6 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
-UNIT_KILOGRAMS = 'kg'
-CONF_WEIGHT = 'weight'
-ICON_SCALE = 'mdi:scale'
-
-UNIT_OHM = u'Ω'
-CONF_IMPEDANCE = 'impedance'
-ICON_IMPEDANCE = 'mdi:omega'
-
 xiaomi_miscale_ns = cg.esphome_ns.namespace('xiaomi_miscale')
 XiaomiMiscale = xiaomi_miscale_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
