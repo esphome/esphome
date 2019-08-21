@@ -27,6 +27,8 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
       this->weight_->publish_state(*res->weight);
     if (res->battery_level.has_value() && this->battery_level_ != nullptr)
       this->battery_level_->publish_state(*res->battery_level);
+    if (res->impedance.has_value() && this->impedance_ != nullptr)
+      this->impedance_->publish_state(*res->impedance);
     return true;
   }
 
@@ -34,11 +36,13 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_weight(sensor::Sensor *weight) { weight_ = weight; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
+  void set_impedance(sensor::Sensor *impedance) { impedance_ = impedance; }
 
  protected:
   uint64_t address_;
   sensor::Sensor *weight_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
+  sensor::Sensor *impedance_{nullptr};
 };
 
 }  // namespace xiaomi_miscale
