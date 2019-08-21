@@ -17,6 +17,7 @@ struct XiaomiParseResult {
   optional<float> illuminance;
   optional<float> moisture;
   optional<float> weight;
+  optional<float> impedance;
 };
 
 bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result);
