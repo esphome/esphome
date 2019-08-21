@@ -171,9 +171,7 @@ def format_ini(data):
 
 
 def gather_lib_deps():
-    lib_deps_l = [x.as_lib_dep for x in CORE.libraries]
-    lib_deps_l.sort()
-    return lib_deps_l
+    return [x.as_lib_dep for x in CORE.libraries]
 
 
 def gather_build_flags():

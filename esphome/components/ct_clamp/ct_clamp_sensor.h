@@ -10,10 +10,14 @@ namespace ct_clamp {
 
 class CTClampSensor : public sensor::Sensor, public PollingComponent {
  public:
+  void setup() override;
   void update() override;
   void loop() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::DATA; }
+  float get_setup_priority() const override {
+    // After the base sensor has been initialized
+    return setup_priority::DATA - 1.0f;
+  }
 
   void set_sample_duration(uint32_t sample_duration) { sample_duration_ = sample_duration; }
   void set_source(voltage_sampler::VoltageSampler *source) { source_ = source; }
@@ -40,6 +44,8 @@ class CTClampSensor : public sensor::Sensor, public PollingComponent {
   float sample_sum_ = 0.0f;
   uint32_t num_samples_ = 0;
   bool is_sampling_ = false;
+  /// Calibrate offset value once at boot
+  bool is_calibrating_offset_ = false;
 };
 
 }  // namespace ct_clamp

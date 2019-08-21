@@ -11,7 +11,7 @@ static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
                                 std::function<void()> &&func) {
-  const uint32_t now = millis();
+  const uint32_t now = this->millis_();
 
   if (!name.empty())
     this->cancel_timeout(component, name);
@@ -27,6 +27,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   item->type = SchedulerItem::TIMEOUT;
   item->timeout = timeout;
   item->last_execution = now;
+  item->last_execution_major = this->millis_major_;
   item->f = std::move(func);
   item->remove = false;
   this->push_(item);
@@ -36,7 +37,7 @@ bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
                                  std::function<void()> &&func) {
-  const uint32_t now = millis();
+  const uint32_t now = this->millis_();
 
   if (!name.empty())
     this->cancel_interval(component, name);
@@ -57,6 +58,9 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   item->type = SchedulerItem::INTERVAL;
   item->interval = interval;
   item->last_execution = now - offset;
+  item->last_execution_major = this->millis_major_;
+  if (item->last_execution > now)
+    item->last_execution_major--;
   item->f = std::move(func);
   item->remove = false;
   this->push_(item);
@@ -65,29 +69,46 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
-  if (this->items_.empty())
+  if (this->empty_())
     return {};
   auto *item = this->items_[0];
-  const uint32_t now = millis();
+  const uint32_t now = this->millis_();
   uint32_t next_time = item->last_execution + item->interval;
   if (next_time < now)
     return 0;
   return next_time - now;
 }
 void ICACHE_RAM_ATTR HOT Scheduler::call() {
-  const uint32_t now = millis();
+  const uint32_t now = this->millis_();
   this->process_to_add();
 
-  while (true) {
-    this->cleanup_();
-    if (this->items_.empty())
-      // No more item left, done!
-      break;
+  // Uncomment for debugging the scheduler:
 
+  // if (random_uint32() % 400 == 0) {
+  //  std::vector<SchedulerItem *> old_items = this->items_;
+  //  ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
+  //  while (!this->empty_()) {
+  //    auto *item = this->items_[0];
+  //    const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
+  //    ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u",
+  //             type, item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
+  //             item->last_execution + item->interval);
+  //    this->pop_raw_();
+  //  }
+  //  ESP_LOGVV(TAG, "\n");
+  //  this->items_ = old_items;
+  //}
+
+  while (!this->empty_()) {
     // Don't copy-by value yet
     auto *item = this->items_[0];
     if ((now - item->last_execution) < item->interval)
       // Not reached timeout yet, done for this call
+      break;
+    uint8_t major = item->last_execution_major;
+    if (item->last_execution + item->interval < item->last_execution)
+      major++;
+    if (major != this->millis_major_)
       break;
 
     // Don't run on failed components
@@ -120,8 +141,11 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
 
     if (item->type == SchedulerItem::INTERVAL) {
       if (item->interval != 0) {
+        const uint32_t before = item->last_execution;
         const uint32_t amount = (now - item->last_execution) / item->interval;
         item->last_execution += amount * item->interval;
+        if (item->last_execution < before)
+          item->last_execution_major++;
       }
       this->push_(item);
     } else {
@@ -173,16 +197,33 @@ bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, 
 
   return ret;
 }
+uint32_t Scheduler::millis_() {
+  const uint32_t now = millis();
+  if (now < this->last_millis_) {
+    ESP_LOGD(TAG, "Incrementing scheduler major");
+    this->millis_major_++;
+  }
+  return now;
+}
 
 bool HOT Scheduler::SchedulerItem::cmp(Scheduler::SchedulerItem *a, Scheduler::SchedulerItem *b) {
   // min-heap
+  // return true if *a* will happen after *b*
   uint32_t a_next_exec = a->last_execution + a->timeout;
-  bool a_overflow = a_next_exec < a->last_execution;
-  uint32_t b_next_exec = b->last_execution + b->timeout;
-  bool b_overflow = b_next_exec < b->last_execution;
-  if (a_overflow == b_overflow)
-    return a_next_exec > b_next_exec;
+  uint8_t a_next_exec_major = a->last_execution_major;
+  if (a_next_exec < a->last_execution)
+    a_next_exec_major++;
 
-  return a_overflow;
+  uint32_t b_next_exec = b->last_execution + b->timeout;
+  uint8_t b_next_exec_major = b->last_execution_major;
+  if (b_next_exec < b->last_execution)
+    b_next_exec_major++;
+
+  if (a_next_exec_major != b_next_exec_major) {
+    return a_next_exec_major > b_next_exec_major;
+  }
+
+  return a_next_exec > b_next_exec;
 }
+
 }  // namespace esphome

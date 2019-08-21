@@ -2,6 +2,7 @@ import bisect
 import datetime
 import logging
 import math
+import string
 
 import pytz
 import tzlocal
@@ -52,8 +53,18 @@ def _tz_dst_str(dt):
                                  _tz_timedelta(td))
 
 
-def _non_dst_tz(tz, dt):
+def _safe_tzname(tz, dt):
     tzname = tz.tzname(dt)
+    # pytz does not always return valid tznames
+    # For example: 'Europe/Saratov' returns '+04'
+    # Work around it by using a generic name for the timezone
+    if not all(c in string.ascii_letters for c in tzname):
+        return 'TZ'
+    return tzname
+
+
+def _non_dst_tz(tz, dt):
+    tzname = _safe_tzname(tz, dt)
     utcoffset = tz.utcoffset(dt)
     _LOGGER.info("Detected timezone '%s' with UTC offset %s",
                  tzname, _tz_timedelta(utcoffset))

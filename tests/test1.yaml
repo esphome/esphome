@@ -564,6 +564,23 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+  - platform: tx20
+    wind_speed:
+      name: "Windspeed"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
+    pin: 
+      number: GPIO04
+      mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
 
 
 esp32_touch:
@@ -893,6 +910,11 @@ light:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
+    - addressable_lambda:
+          name: "Test For Custom Lambda Effect"
+          lambda: |-
+            it[0] = current_color;
+                
     - automation:
         name: Custom Effect
         sequence:
@@ -1013,7 +1035,7 @@ switch:
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
-        code: '001010011001111101011011'
+        code: '00101001100111110101xxxx'
         protocol: 1
   - platform: template
     name: RC Switch Type A

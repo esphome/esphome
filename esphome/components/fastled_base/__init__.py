@@ -34,5 +34,6 @@ def new_fastled_light(config):
         cg.add(var.set_max_refresh_rate(config[CONF_MAX_REFRESH_RATE]))
 
     yield light.register_light(var, config)
-    cg.add_library('FastLED', '3.2.0')
+    # https://github.com/FastLED/FastLED/blob/master/library.json
+    cg.add_library('FastLED', '3.2.9')
     yield var

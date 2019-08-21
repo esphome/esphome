@@ -101,6 +101,14 @@ ESP8266_METHODS = {
 ESP32_METHODS = {
     'ESP32_I2S_0': 'NeoEsp32I2s0{}Method',
     'ESP32_I2S_1': 'NeoEsp32I2s1{}Method',
+    'ESP32_RMT_0': 'NeoEsp32Rmt0{}Method',
+    'ESP32_RMT_1': 'NeoEsp32Rmt1{}Method',
+    'ESP32_RMT_2': 'NeoEsp32Rmt2{}Method',
+    'ESP32_RMT_3': 'NeoEsp32Rmt3{}Method',
+    'ESP32_RMT_4': 'NeoEsp32Rmt4{}Method',
+    'ESP32_RMT_5': 'NeoEsp32Rmt5{}Method',
+    'ESP32_RMT_6': 'NeoEsp32Rmt6{}Method',
+    'ESP32_RMT_7': 'NeoEsp32Rmt7{}Method',
     'BIT_BANG': 'NeoEsp32BitBang{}Method',
 }
 
@@ -160,4 +168,5 @@ def to_code(config):
 
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
-    cg.add_library('NeoPixelBus', '2.4.1')
+    # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
+    cg.add_library('NeoPixelBus', '2.5.0')
