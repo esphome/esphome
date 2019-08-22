@@ -1,17 +1,22 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
-    UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID, \
-    CONF_MOISTURE, CONF_ILLUMINANCE, ICON_BRIGHTNESS_5, UNIT_LUX, CONF_CONDUCTIVITY, \
-    UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, CONF_WEIGHT, UNIT_KILOGRAMS, ICON_SCALE, \
+from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, \
+    UNIT_PERCENT, ICON_BATTERY, CONF_ID, \
+    CONF_WEIGHT, UNIT_KILOGRAMS, ICON_SCALE, \
     UNIT_OHM, CONF_IMPEDANCE, ICON_IMPEDANCE
+
+# from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
+#     UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID, \
+#     CONF_MOISTURE, CONF_ILLUMINANCE, ICON_BRIGHTNESS_5, UNIT_LUX, CONF_CONDUCTIVITY, \
+#     UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, CONF_WEIGHT, UNIT_KILOGRAMS, ICON_SCALE, \
+#     UNIT_OHM, CONF_IMPEDANCE, ICON_IMPEDANCE
 
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_miscale_ns = cg.esphome_ns.namespace('xiaomi_miscale')
-XiaomiMiscale = xiaomi_miscale_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPBTDeviceListener, \
+XiaomiMiscale = xiaomi_miscale_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPBTDeviceListener, 
                                          cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
