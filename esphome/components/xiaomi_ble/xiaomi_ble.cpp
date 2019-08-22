@@ -9,7 +9,7 @@ namespace xiaomi_ble {
 static const char *TAG = "xiaomi_ble";
 
 bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result) {
-switch (data_type) {
+  switch (data_type) {
     case 0x0D: {  // temperature+humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
       if (data_length != 4)
         return false;
