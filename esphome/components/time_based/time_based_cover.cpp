@@ -87,7 +87,7 @@ bool TimeBasedCover::is_at_target_() const {
   }
 }
 void TimeBasedCover::start_direction_(CoverOperation dir) {
-  if (dir == this->current_operation)
+  if (dir == this->current_operation && dir != COVER_OPERATION_IDLE)
     return;
 
   this->recompute_position_();
