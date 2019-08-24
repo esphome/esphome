@@ -62,6 +62,12 @@ void TimeBasedCover::control(const CoverCall &call) {
     auto pos = *call.get_position();
     if (pos == this->position) {
       // already at target
+      // for covers with built in end stop, we should send the command again
+      if (this->has_built_in_endstop_ && (pos == 0.0f || pos == 1.0f)) {
+        auto op = pos == 0.0f ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+        this->target_position_ = pos;
+        this->start_direction_(op);
+      }
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
       this->target_position_ = pos;
