@@ -55,6 +55,7 @@ validate_filters = cv.validate_registry('filter', FILTER_REGISTRY)
 def invert_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id)
 
+
 @FILTER_REGISTRY.register('delayed_on_off', DelayedOnOffFilter,
                           cv.positive_time_period_milliseconds)
 def delayed_on_off_filter_to_code(config, filter_id):
