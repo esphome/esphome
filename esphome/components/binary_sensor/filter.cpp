@@ -33,6 +33,7 @@ optional<bool> DelayedOnOffFilter::new_value(bool value, bool is_initial) {
   }
   return {};
 }
+
 float DelayedOnOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 DelayedOnFilter::DelayedOnFilter(uint32_t delay) : delay_(delay) {}
@@ -45,6 +46,7 @@ optional<bool> DelayedOnFilter::new_value(bool value, bool is_initial) {
     return false;
   }
 }
+
 float DelayedOnFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 DelayedOffFilter::DelayedOffFilter(uint32_t delay) : delay_(delay) {}
@@ -57,6 +59,7 @@ optional<bool> DelayedOffFilter::new_value(bool value, bool is_initial) {
     return true;
   }
 }
+
 float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 optional<bool> InvertFilter::new_value(bool value, bool is_initial) { return !value; }
