@@ -28,7 +28,6 @@ REQUIRES = [
     'paho-mqtt>=1.4,<2',
     'colorlog>=4.0.2',
     'tornado>=5.1.1,<6',
-    'typing>=3.6.6;python_version<"3.5"',
     'protobuf>=3.7,<3.8',
     'tzlocal>=1.5.1',
     'pytz>=2019.1',
@@ -41,8 +40,8 @@ REQUIRES = [
 # This means they have to be in your $PATH.
 if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
     REQUIRES.extend([
-        'platformio>=3.6.5',
-        'esptool>=2.6,<3',
+        'platformio>=4.0.0',
+        'esptool>=2.7,<3',
     ])
 
 CLASSIFIERS = [
@@ -69,7 +68,7 @@ setup(
     zip_safe=False,
     platforms='any',
     test_suite='tests',
-    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4.0',
+    python_requires='>=3.5,<4.0',
     install_requires=REQUIRES,
     keywords=['home', 'automation'],
     entry_points={

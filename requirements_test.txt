@@ -9,11 +9,10 @@ tzlocal>=1.5.1
 pytz>=2019.1
 pyserial>=3.4,<4
 ifaddr>=0.1.6,<1
-platformio>=3.6.7 ; python_version<"3"
+platformio>=4.0.0
 https://github.com/platformio/platformio-core/archive/develop.zip ; python_version>"3"
-esptool>=2.6,<3
-pylint==1.9.4 ; python_version<"3"
-pylint==2.3.0 ; python_version>"3"
+esptool>=2.7,<3
+pylint==2.3.0
 flake8==3.6.0
 pillow
 pexpect
