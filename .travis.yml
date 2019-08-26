@@ -1,6 +1,6 @@
 sudo: false
 language: python
-python: '2.7'
+python: '3.5'
 install: script/setup
 cache:
   directories:
@@ -9,8 +9,14 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - python: "2.7"
-      env: TARGET=Lint2.7
+    - python: "3.7"
+      env: TARGET=Lint3.7
+      script:
+        - script/ci-custom.py
+        - flake8 esphome
+        - pylint esphome
+    - python: "3.6"
+      env: TARGET=Lint3.6
       script:
         - script/ci-custom.py
         - flake8 esphome
@@ -21,8 +27,8 @@ matrix:
         - script/ci-custom.py
         - flake8 esphome
         - pylint esphome
-    - python: "2.7"
-      env: TARGET=Test2.7
+    - python: "3.5"
+      env: TARGET=Test3.5
       script:
         - esphome tests/test1.yaml compile
         - esphome tests/test2.yaml compile
