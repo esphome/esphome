@@ -7,6 +7,10 @@
 #include "esphome/components/power_supply/power_supply.h"
 #endif
 
+#ifdef USE_PM
+#include "esphome/components/pm/pm.h"
+#endif
+
 namespace esphome {
 namespace output {
 
@@ -44,6 +48,9 @@ class BinaryOutput {
 #ifdef USE_POWER_SUPPLY
     this->power_.request();
 #endif
+#ifdef USE_PM
+    this->pm_ = pm::global_pm->get_lock();
+#endif
     this->write_state(!this->inverted_);
   }
 
@@ -51,6 +58,9 @@ class BinaryOutput {
   virtual void turn_off() {
 #ifdef USE_POWER_SUPPLY
     this->power_.unrequest();
+#endif
+#ifdef USE_PM
+    this->pm_.reset();
 #endif
     this->write_state(this->inverted_);
   }
@@ -66,6 +76,9 @@ class BinaryOutput {
   bool inverted_{false};
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_{};
+#endif
+#ifdef USE_PM
+  std::unique_ptr<pm::PMLock> pm_;
 #endif
 };
 

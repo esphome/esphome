@@ -15,6 +15,10 @@
 #include <cerrno>
 #include <cstdio>
 
+#ifdef USE_PM
+#include "esphome/components/pm/pm.h"
+#endif
+
 namespace esphome {
 namespace ota {
 
@@ -143,6 +147,9 @@ void OTAComponent::handle_() {
     ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", errno);
     return;
   }
+#ifdef USE_PM
+  pm::global_pm->disable();
+#endif
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();
@@ -367,6 +374,9 @@ error:
   this->status_momentary_error("onerror", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
+#endif
+#ifdef USE_PM
+  pm::global_pm->setup();
 #endif
 }
 
