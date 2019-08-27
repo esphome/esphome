@@ -7,8 +7,6 @@
 namespace esphome {
 namespace wifi_info {
 
-static const char TAG[] = "wifi_info.text_sensor";
-
 class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
  public:
   void loop() override {
