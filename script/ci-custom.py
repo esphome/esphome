@@ -34,7 +34,7 @@ files.sort()
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
               '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
 cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
-ignore_types = ('.ico',)
+ignore_types = ('.ico', '.eot', '.ttf', '.woff', '.woff2')
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
