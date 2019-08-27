@@ -130,6 +130,7 @@ def wrap_to_code(name, comp):
             conf_str = yaml_util.dump(conf)
             if IS_PY2:
                 conf_str = conf_str.decode('utf-8')
+            conf_str = conf_str.replace('//', '')
             cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
 
