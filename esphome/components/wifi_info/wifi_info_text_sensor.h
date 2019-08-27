@@ -18,7 +18,6 @@ class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
       this->publish_state(ip.toString().c_str());
     }
   }
-  void dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo IPAddress Text Sensor", this); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   std::string unique_id() override { return get_mac_address() + "-wifiinfo-ip"; }
 
@@ -35,7 +34,6 @@ class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
       this->publish_state(this->last_ssid_);
     }
   }
-  void dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo SSDID Text Sensor", this); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   std::string unique_id() override { return get_mac_address() + "-wifiinfo-ssid"; }
 
@@ -54,7 +52,6 @@ class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
       this->publish_state(buf);
     }
   }
-  void dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo BSSID Text Sensor", this); }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   std::string unique_id() override { return get_mac_address() + "-wifiinfo-bssid"; }
 
