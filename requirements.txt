@@ -3,6 +3,7 @@ PyYAML>=5.1,<6
 paho-mqtt>=1.4,<2
 colorlog>=4.0.2
 tornado>=5.1.1,<6
+typing>=3.6.6 ; python_version<"3.5"
 protobuf>=3.7,<3.8
 tzlocal>=1.5.1
 pytz>=2019.1
