@@ -24,7 +24,7 @@ def get_serial_ports():
     # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
     from serial.tools.list_ports import comports
     result = []
-    for port, desc, info in comports():
+    for port, desc, info in comports(include_links=True):
         if not port:
             continue
         if "VID:PID" in info:
