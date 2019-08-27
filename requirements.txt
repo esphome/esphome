@@ -9,5 +9,4 @@ pytz>=2019.1
 pyserial>=3.4,<4
 ifaddr>=0.1.6,<1
 platformio>=4.0.0
-https://github.com/platformio/platformio-core/archive/develop.zip ; python_version>"3"
 esptool>=2.7,<3
