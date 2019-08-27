@@ -20,10 +20,6 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
-  } else if (this->tx_pin_.value_or(10) == 10 && this->rx_pin_.value_or(9) == 9) {
-    this->hw_serial_ = &Serial1;
-  } else if (this->tx_pin_.value_or(17) == 17 && this->rx_pin_.value_or(16) == 16) {
-    this->hw_serial_ = &Serial2;
   } else {
     this->hw_serial_ = new HardwareSerial(next_uart_num++);
   }
