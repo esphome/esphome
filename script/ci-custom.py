@@ -232,7 +232,7 @@ def add_errors(fname, errs):
 for fname in files:
     _, ext = os.path.splitext(fname)
     run_checks(LINT_FILE_CHECKS, fname, fname)
-    if ext in ('.ico',):
+    if ext in ignore_types:
         continue
     try:
         with codecs.open(fname, 'r', encoding='utf-8') as f_handle:
