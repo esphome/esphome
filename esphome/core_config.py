@@ -8,7 +8,7 @@ from esphome import automation, pins
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
     CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
+    CONF_NAME, CONF_DESCRIPTION, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
@@ -113,6 +113,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_DESCRIPTION): cv.string,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
     cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
@@ -144,6 +145,7 @@ CONFIG_SCHEMA = cv.Schema({
 PRELOAD_CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): validate_platform,
+    cv.Optional(CONF_DESCRIPTION): cv.string
 }, extra=cv.ALLOW_EXTRA)
 
 PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
@@ -164,6 +166,7 @@ def preload_core_config(config):
     with cv.prepend_path(core_key):
         out = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
     CORE.name = out[CONF_NAME]
+    CORE.description = out.get(CONF_DESCRIPTION)
     CORE.esp_platform = out[CONF_PLATFORM]
     with cv.prepend_path(core_key):
         out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])

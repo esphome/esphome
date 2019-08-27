@@ -78,6 +78,11 @@
               {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
+            {% if entry.description %}
+              <div class="card-description">
+                {{ escape(entry.description) }}
+              </div>
+            {% end %}
             <p>
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
@@ -206,6 +211,10 @@
             <div class="input-field col s12">
               <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true" data-rule-lowercase="true" required>
               <label for="node_name">Name of node</label>
+            </div>
+            <div class="input-field col s12">
+              <input id="node_description" class="validate" type="text" name="description">
+              <label for="node_description">Description</label>
             </div>
           </div>
           <div class="step-actions">

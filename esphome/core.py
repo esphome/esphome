@@ -470,6 +470,8 @@ class EsphomeCore(object):
         self.ace = False
         # The name of the node
         self.name = None  # type: str
+        # The description of the node
+        self.description = None  # type: str
         # The relative path to the configuration YAML
         self.config_path = None  # type: str
         # The relative path to where all build files are stored
@@ -511,6 +513,7 @@ class EsphomeCore(object):
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.description = None
         self.config_path = None
         self.build_path = None
         self.esp_platform = None

@@ -246,3 +246,10 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   padding: 10px 15px;
   margin-top: 15px;
 }
+
+.card-description {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #444;
+  font-style: italic;
+}

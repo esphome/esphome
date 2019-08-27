@@ -47,6 +47,7 @@ OTA_BIG = r"""       ____ _______
 
 BASE_CONFIG = u"""esphome:
   name: {name}
+  description: "{description}"
   platform: {platform}
   board: {board}
 
@@ -94,6 +95,7 @@ def wizard_file(**kwargs):
 
 def wizard_write(path, **kwargs):
     name = kwargs['name']
+    description = kwargs['description']
     board = kwargs['board']
 
     kwargs['ssid'] = sanitize_double_quotes(kwargs['ssid'])
@@ -106,7 +108,7 @@ def wizard_write(path, **kwargs):
 
     with codecs.open(path, 'w', 'utf-8') as f_handle:
         f_handle.write(wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
+    storage = StorageJSON.from_wizard(name, name + '.local', platform, board, description)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
