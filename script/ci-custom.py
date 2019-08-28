@@ -32,9 +32,10 @@ files = list(filter(os.path.exists, files))
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
-              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
+              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg',
+              '.eot', '.ttf', '.woff', '.woff2')
 cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
-ignore_types = ('.ico',)
+ignore_types = ('.ico', '.eot', '.ttf', '.woff', '.woff2')
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -231,7 +232,7 @@ def add_errors(fname, errs):
 for fname in files:
     _, ext = os.path.splitext(fname)
     run_checks(LINT_FILE_CHECKS, fname, fname)
-    if ext in ('.ico',):
+    if ext in ignore_types:
         continue
     try:
         with codecs.open(fname, 'r', encoding='utf-8') as f_handle:

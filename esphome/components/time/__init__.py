@@ -115,8 +115,9 @@ def convert_tz(pytz_obj):
                                 _tz_dst_str(dst_begins_local), _tz_dst_str(dst_ends_local))
     _LOGGER.info("Detected timezone '%s' with UTC offset %s and daylight savings time from "
                  "%s to %s",
-                 tzname_off, _tz_timedelta(utcoffset_off), dst_begins_local.strftime("%x %X"),
-                 dst_ends_local.strftime("%x %X"))
+                 tzname_off, _tz_timedelta(utcoffset_off),
+                 dst_begins_local.strftime("%d %B %X"),
+                 dst_ends_local.strftime("%d %B %X"))
     return tzbase + tzext
 
 
