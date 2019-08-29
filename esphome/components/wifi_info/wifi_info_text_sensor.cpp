@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace wifi_info_text_sensor {
+namespace wifi_info {
 
 static const char *TAG = "wifi_info";
 
@@ -10,5 +10,5 @@ void IPAddressWiFiInfo::dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo I
 void SSIDWiFiInfo::dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo SSID", this); }
 void BSSIDWiFiInfo::dump_config() override { LOG_TEXT_SENSOR("", "WifiInfo BSSID", this); }
 
-}  // namespace wifi_info_text_sensor
+}  // namespace wifi_info
 }  // namespace esphome
