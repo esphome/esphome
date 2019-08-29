@@ -27,14 +27,7 @@ class GPS : public Component, public uart::UARTDevice {
     this->listeners_.push_back(listener);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
-  void loop() override {
-    while (this->available() && !this->has_time_) {
-      if (this->tiny_gps_.encode(this->read())) {
-        for (auto *listener : this->listeners_)
-          listener->on_update(this->tiny_gps_);
-      }
-    }
-  }
+  void loop() override;
   TinyGPSPlus &get_tiny_gps() { return this->tiny_gps_; }
 
  protected:
