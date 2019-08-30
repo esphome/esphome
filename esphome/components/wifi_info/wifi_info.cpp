@@ -1,4 +1,4 @@
-#include "wifi_info_text_sensor.h"
+#include "wifi_info.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
