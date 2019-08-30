@@ -34,7 +34,7 @@ class DFPlayer : public uart::UARTDevice, public Component {
     this->send_cmd_(0x03, file);
   }
   void play_file_loop(uint16_t file) { this->send_cmd_(0x08, file); }
-  void play_folder(uint16_t folder, uint16_t track);
+  void play_folder(uint16_t folder, uint16_t file);
   void play_folder_loop(uint16_t folder) { this->send_cmd_(0x17, folder); }
   void volume_up() { this->send_cmd_(0x04); }
   void volume_down() { this->send_cmd_(0x05); }
@@ -74,11 +74,11 @@ class DFPlayer : public uart::UARTDevice, public Component {
   CallbackManager<void()> on_finished_playback_callback_;
 };
 
-#define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) template<typename... Ts> \
-class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
- public: \
-  void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
-};
+#define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
+  template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
+   public: \
+    void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
+  };
 
 DFPLAYER_SIMPLE_ACTION(NextAction, next)
 DFPLAYER_SIMPLE_ACTION(PreviousAction, previous)
@@ -151,16 +151,13 @@ DFPLAYER_SIMPLE_ACTION(RandomAction, random)
 
 template<typename... Ts> class DFPlayerIsPlayingCondition : public Condition<Ts...>, public Parented<DFPlayer> {
  public:
-  bool check(Ts... x) override {
-    return this->parent_->is_playing();
-  }
+  bool check(Ts... x) override { return this->parent_->is_playing(); }
 };
 
 class DFPlayerFinishedPlaybackTrigger : public Trigger<> {
  public:
   explicit DFPlayerFinishedPlaybackTrigger(DFPlayer *parent) {
-    parent->add_on_finished_playback_callback(
-        [this]() { this->trigger(); });
+    parent->add_on_finished_playback_callback([this]() { this->trigger(); });
   }
 };
 

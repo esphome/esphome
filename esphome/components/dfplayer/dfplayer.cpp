@@ -8,22 +8,22 @@ static const char* TAG = "dfplayer";
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
   if (folder < 100 && file < 256) {
-    this->send_cmd_(0x0F, (uint8_t)folder, (uint8_t)file);
+    this->send_cmd_(0x0F, (uint8_t) folder, (uint8_t) file);
   } else if (folder <= 10 && file <= 1000) {
-    this->send_cmd_(0x14, (((uint16_t)folder) << 12) | file);
+    this->send_cmd_(0x14, (((uint16_t) folder) << 12) | file);
   } else {
     ESP_LOGE(TAG, "Cannot play folder %d file %d.", folder, file);
   }
 }
 
 void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
-  uint8_t buffer[10] { 0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t)(argument >> 8), (uint8_t)argument, 0x00, 0x00, 0xef };
+  uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t)(argument >> 8), (uint8_t)argument, 0x00, 0x00, 0xef};
   uint16_t checksum = 0;
   for (uint8_t i = 1; i < 7; i++)
     checksum += buffer[i];
   checksum = -checksum;
   buffer[7] = checksum >> 8;
-  buffer[8] = (uint8_t)checksum;
+  buffer[8] = (uint8_t) checksum;
 
   this->sent_cmd_ = cmd;
 
@@ -41,24 +41,25 @@ void DFPlayer::loop() {
       this->read_pos_ = 0;
 
     switch (this->read_pos_) {
-      case 0: // Start mark
-        if (byte != 0x7E) continue;
+      case 0:  // Start mark
+        if (byte != 0x7E)
+          continue;
         break;
-      case 1: // Version
+      case 1:  // Version
         if (byte != 0xFF) {
           ESP_LOGW(TAG, "Expected Version 0xFF, got %#02x", byte);
           this->read_pos_ = 0;
           continue;
         }
         break;
-      case 2: // Buffer length
+      case 2:  // Buffer length
         if (byte != 0x06) {
           ESP_LOGW(TAG, "Expected Buffer length 0x06, got %#02x", byte);
           this->read_pos_ = 0;
           continue;
         }
         break;
-      case 9: // End byte
+      case 9:  // End byte
         if (byte != 0xEF) {
           ESP_LOGW(TAG, "Expected end byte 0xEF, got %#02x", byte);
           this->read_pos_ = 0;
@@ -99,7 +100,7 @@ void DFPlayer::loop() {
             this->ack_set_is_playing_ = false;
             this->ack_reset_is_playing_ = false;
             break;
-          case 0x3D: // Playback finished
+          case 0x3D:  // Playback finished
             this->is_playing_ = false;
             this->on_finished_playback_callback_.call();
             break;
