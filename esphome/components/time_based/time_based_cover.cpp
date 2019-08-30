@@ -31,7 +31,8 @@ void TimeBasedCover::loop() {
   this->recompute_position_();
 
   if (this->is_at_target_()) {
-    if (this->has_built_in_endstop_ && (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+    if (this->has_built_in_endstop_ &&
+        (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
       // Don't trigger stop, let the cover stop by itself.
       this->current_operation = COVER_OPERATION_IDLE;
     } else {
