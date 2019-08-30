@@ -144,8 +144,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 PRELOAD_CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
-    cv.Required(CONF_PLATFORM): validate_platform,
-    cv.Optional(CONF_DESCRIPTION): cv.string
+    cv.Required(CONF_PLATFORM): validate_platform
 }, extra=cv.ALLOW_EXTRA)
 
 PRELOAD_CONFIG_SCHEMA2 = PRELOAD_CONFIG_SCHEMA.extend({
@@ -166,7 +165,6 @@ def preload_core_config(config):
     with cv.prepend_path(core_key):
         out = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
     CORE.name = out[CONF_NAME]
-    CORE.description = out.get(CONF_DESCRIPTION)
     CORE.esp_platform = out[CONF_PLATFORM]
     with cv.prepend_path(core_key):
         out2 = PRELOAD_CONFIG_SCHEMA2(config[CONF_ESPHOME])

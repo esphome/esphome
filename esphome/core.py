@@ -10,8 +10,8 @@ import re
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List  # noqa
 
-from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    SOURCE_FILE_EXTENSIONS
+from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
+    CONF_DESCRIPTION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
@@ -470,8 +470,6 @@ class EsphomeCore(object):
         self.ace = False
         # The name of the node
         self.name = None  # type: str
-        # The description of the node
-        self.description = None  # type: str
         # The relative path to the configuration YAML
         self.config_path = None  # type: str
         # The relative path to where all build files are stored
@@ -513,7 +511,6 @@ class EsphomeCore(object):
     def reset(self):
         self.dashboard = False
         self.name = None
-        self.description = None
         self.config_path = None
         self.build_path = None
         self.esp_platform = None
@@ -539,6 +536,13 @@ class EsphomeCore(object):
 
         if 'ethernet' in self.config:
             return self.config['ethernet'][CONF_USE_ADDRESS]
+
+        return None
+
+    @property
+    def description(self):  # type: () -> str
+        if CONF_DESCRIPTION in self.config[CONF_ESPHOME]:
+            return self.config[CONF_ESPHOME][CONF_DESCRIPTION]
 
         return None
 
