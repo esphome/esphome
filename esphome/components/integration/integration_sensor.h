@@ -54,7 +54,9 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   void publish_and_save_(float result) {
     this->result_ = result;
     this->publish_state(result);
-    this->rtc_.save(&result);
+    if (this->restore_) {
+      this->rtc_.save(&result);
+    }
   }
   std::string unit_of_measurement() override;
   std::string icon() override { return this->sensor_->get_icon(); }
