@@ -20,7 +20,6 @@ static const uint16_t SCD30_CMD_TEMPERATURE_OFFSET = 0x5403;
 static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
-
 void SCD30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
@@ -47,7 +46,6 @@ void SCD30Component::setup() {
     this->mark_failed();
     return;
   }
-
 }
 
 void SCD30Component::dump_config() {
