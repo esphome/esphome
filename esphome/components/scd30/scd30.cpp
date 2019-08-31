@@ -11,7 +11,7 @@ static const uint16_t SCD30_CMD_START_CONTINUOUS_MEASUREMENTS = 0x0010;
 static const uint16_t SCD30_CMD_GET_DATA_READY_STATUS = 0x0202;
 static const uint16_t SCD30_CMD_READ_MEASUREMENT = 0x0300;
 
-///Commands for future use
+/// Commands for future use
 static const uint16_t SCD30_CMD_STOP_MEASUREMENTS = 0x0104;
 static const uint16_t SCD30_CMD_MEASUREMENT_INTERVAL = 0x4600;
 static const uint16_t SCD30_CMD_AUTOMATIC_SELF_CALIBRATION = 0x5306;
@@ -21,10 +21,10 @@ static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
 
-void scd30Component::setup() {
+void Scd30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
-  ///Firmware version identification
+  /// Firmware version identification
   if (!this->write_command_(SCD30_CMD_GET_FIRMWARE_VERSION)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -38,9 +38,9 @@ void scd30Component::setup() {
     return;
   }
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
-          uint16_t(raw_firmware_version[0] & 0xFF));
+           uint16_t(raw_firmware_version[0] & 0xFF));
 
-   ///Sensor initialization
+   /// Sensor initialization
   if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS)) {
     ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
@@ -50,7 +50,7 @@ void scd30Component::setup() {
 
 }
 
-void scd30Component::dump_config() {
+void Scd30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "scd30:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -75,7 +75,7 @@ void scd30Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-void scd30Component::update() {
+void Scd30Component::update() {
   /// Check if measurement is ready before reading the value
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -95,47 +95,47 @@ void scd30Component::update() {
     }
 
     this->set_timeout(50, [this]() {
-        uint16_t raw_data[6];
-        if (!this->read_data_(raw_data, 6)) {
-          this->status_set_warning();
-          return;
-        }
-        unsigned int tempCO2U32, tempTempU32, tempHumU32;
-        tempCO2U32 = (unsigned int) (
-                (((unsigned int) raw_data[0]) << 16) | ((unsigned int) raw_data[1])
-                );
-        float co2 = *(float *) &tempCO2U32;
+      uint16_t raw_data[6];
+      if (!this->read_data_(raw_data, 6)) {
+        this->status_set_warning();
+        return;
+      }
+      unsigned int temp_c_o2_u32, temp_temp_u32, temp_hum_u32;
+      temp_c_o2_u32 = (unsigned int) (
+              (((unsigned int) raw_data[0]) << 16) | ((unsigned int) raw_data[1])
+              );
+      float co2 = *(float *) &temp_c_o2_u32;
 
-        tempTempU32 = (unsigned int) (
-                (((unsigned int) raw_data[2]) << 16) | ((unsigned int) raw_data[3])
-                );
-        float temperature = *(float *) &tempTempU32;
+      temp_temp_u32 = (unsigned int) (
+              (((unsigned int) raw_data[2]) << 16) | ((unsigned int) raw_data[3])
+              );
+      float temperature = *(float *) &temp_temp_u32;
 
-        tempHumU32 = (unsigned int) (
-                (((unsigned int) raw_data[4]) << 16) | ((unsigned int) raw_data[5])
-                );
-        float humidity = *(float *) &tempHumU32;
+      temp_hum_u32 = (unsigned int) (
+              (((unsigned int) raw_data[4]) << 16) | ((unsigned int) raw_data[5])
+              );
+      float humidity = *(float *) &temp_hum_u32;
 
-        ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%",
-                co2, temperature, humidity);
-        if (this->co2_sensor_ != nullptr)
-          this->co2_sensor_->publish_state(co2);
-        if (this->temperature_sensor_ != nullptr)
-          this->temperature_sensor_->publish_state(temperature);
-        if (this->humidity_sensor_ != nullptr)
-          this->humidity_sensor_->publish_state(humidity);
-
-        this->status_clear_warning();
+      ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%",
+              co2, temperature, humidity);
+      if (this->co2_sensor_ != nullptr)
+        this->co2_sensor_->publish_state(co2);
+      if (this->temperature_sensor_ != nullptr)
+        this->temperature_sensor_->publish_state(temperature);
+      if (this->humidity_sensor_ != nullptr)
+        this->humidity_sensor_->publish_state(humidity);
+      
+      this->status_clear_warning();
     });
   }
 }
 
-bool scd30Component::write_command_(uint16_t command) {
+bool Scd30Component::write_command_(uint16_t command) {
   // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
   return this->write_byte(command >> 8, command & 0xFF);
 }
 
-uint8_t scd30Component::sht_crc(uint8_t data1, uint8_t data2) {
+uint8_t Scd30Component::sht_crc_(uint8_t data1, uint8_t data2) {
   uint8_t bit;
   uint8_t crc = 0xFF;
 
@@ -158,7 +158,7 @@ uint8_t scd30Component::sht_crc(uint8_t data1, uint8_t data2) {
   return crc;
 }
 
-bool scd30Component::read_data_(uint16_t *data, uint8_t len) {
+bool Scd30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   auto *buf = new uint8_t[num_bytes];
 
