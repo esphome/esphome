@@ -40,7 +40,7 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-   /// Sensor initialization
+  /// Sensor initialization
   if (!this->write_command_(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS)) {
     ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
@@ -101,23 +101,16 @@ void SCD30Component::update() {
         return;
       }
       unsigned int temp_c_o2_u32, temp_temp_u32, temp_hum_u32;
-      temp_c_o2_u32 = (unsigned int) (
-              (((unsigned int) raw_data[0]) << 16) | ((unsigned int) raw_data[1])
-              );
+      temp_c_o2_u32 = (unsigned int) ((((unsigned int) raw_data[0]) << 16) | ((unsigned int) raw_data[1]));
       float co2 = *(float *) &temp_c_o2_u32;
 
-      temp_temp_u32 = (unsigned int) (
-              (((unsigned int) raw_data[2]) << 16) | ((unsigned int) raw_data[3])
-              );
+      temp_temp_u32 = (unsigned int) ((((unsigned int) raw_data[2]) << 16) | ((unsigned int) raw_data[3]));
       float temperature = *(float *) &temp_temp_u32;
 
-      temp_hum_u32 = (unsigned int) (
-              (((unsigned int) raw_data[4]) << 16) | ((unsigned int) raw_data[5])
-              );
+      temp_hum_u32 = (unsigned int) ((((unsigned int) raw_data[4]) << 16) | ((unsigned int) raw_data[5]));
       float humidity = *(float *) &temp_hum_u32;
 
-      ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%",
-              co2, temperature, humidity);
+      ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2, temperature, humidity);
       if (this->co2_sensor_ != nullptr)
         this->co2_sensor_->publish_state(co2);
       if (this->temperature_sensor_ != nullptr)
