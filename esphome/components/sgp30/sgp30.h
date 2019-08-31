@@ -1,8 +1,9 @@
- #pragma once
+#pragma once
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+#include <cmath>
 
 namespace esphome {
 namespace sgp30 {
@@ -25,14 +26,14 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool write_command_(uint16_t command);
   bool read_data_(uint16_t *data, uint8_t len);
-  void send_env_data();
-  void read_iaq_baseline();
-  bool isSensorBaselineReliable();
-  void write_iaq_baseline(uint16_t baseline);
-  uint8_t sht_crc(uint8_t data1, uint8_t data2);
+  void send_env_data_();
+  void read_iaq_baseline_();
+  bool is_sensor_baseline_reliable_();
+  void write_iaq_baseline_(uint16_t baseline);
+  uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   uint64_t serial_number_;
   uint16_t featureset_;
-  long required_warm_up_time;
+  long required_warm_up_time_;
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
