@@ -118,6 +118,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
 
   bool is_mijia = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_miflora = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
+  bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
   bool is_miscale;
   bool is_mibfs;
   if (device.get_service_data_uuid()->contains(0x1D, 0x18))
@@ -125,7 +126,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   if (device.get_service_data_uuid()->contains(0x1B, 0x18))
       is_mibfs = true;
   
-  if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs) {
+  if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
@@ -157,6 +158,15 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   }
  
+  XiaomiParseResult result;
+  result.type = XiaomiParseResult::TYPE_MIFLORA;
+  if (is_mijia) {
+    result.type = XiaomiParseResult::TYPE_MIJIA;
+  } else if (is_lywsd02) {
+    result.type = XiaomiParseResult::TYPE_LYWSD02;
+  }
+  bool success = parse_xiaomi_data_byte(raw_type, data, data_length, result);  
+  
   if (!success)
     return {};
   return result;
@@ -167,9 +177,15 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if (!res.has_value())
     return false;
 
-  const char *name = res->type == XiaomiParseResult::TYPE_MIFLORA ?
-        "Mi Flora" : (res->type == XiaomiParseResult::TYPE_MIJIA ? "Mi Jia": "Mi Scale");
-
+  const char *name = "Mi Flora";
+  if (res->type == XiaomiParseResult::TYPE_MIJIA) {
+    name = "Mi Jia";
+  } else if (res->type == XiaomiParseResult::TYPE_LYWSD02) {
+    name = "LYWSD02";
+  } else if (res->type == XiaomiParseResult::TYPE_MISCALE) {
+    name = "Mi Scale";
+  }
+  
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
 
   if (res->temperature.has_value()) {
