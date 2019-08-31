@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
 from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, \
     UNIT_PERCENT, ICON_BATTERY, CONF_ID, \
-    CONF_WEIGHT, UNIT_KILOGRAMS, ICON_SCALE, \
-    UNIT_OHM, CONF_IMPEDANCE, ICON_IMPEDANCE
+    CONF_WEIGHT, UNIT_KILOGRAM, ICON_SCALE, \
+    UNIT_OHM, CONF_IMPEDANCE, ICON_OMEGA
 
 
 DEPENDENCIES = ['esp32_ble_tracker']
