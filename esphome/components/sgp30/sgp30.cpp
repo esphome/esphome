@@ -84,7 +84,7 @@ void SGP30Component::setup() {
 
 bool SGP30Component::is_sensor_baseline_reliable_() {
   if (this->uptime_sensor_ != nullptr) {
-    return ((id(uptime_sensor_).state) >= this->required_warm_up_time_);
+    return (this->uptime_sensor_.state >= this->required_warm_up_time_);
   }
   return false;
 }
@@ -117,7 +117,6 @@ void SGP30Component::read_iaq_baseline_(){
 }
 
 void SGP30Component::send_env_data_() {
-  bool compensation_possible = true;
   if (this->humidity_sensor_ == nullptr && this->temperature_sensor_ == nullptr)
       return;
   float humidity = NAN;
@@ -125,7 +124,7 @@ void SGP30Component::send_env_data_() {
     humidity = this->humidity_sensor_->state;
   if (isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
     ESP_LOGW(TAG, "Compensation not possible yet: bad humidity data.");
-    compensation_possible = false;
+    return;
   } else {
     ESP_LOGD(TAG, "External compensation data received: Humidity %0.2f%%", humidity);
   }
@@ -134,29 +133,27 @@ void SGP30Component::send_env_data_() {
     temperature = float(this->temperature_sensor_->state);
   }
   if (isnan(temperature) || temperature < -40.0f || temperature > 85.0f) {
-    compensation_possible = false;
     ESP_LOGW(TAG, "Compensation not possible yet: bad temperature value data.");
+    return;
   } else {
     ESP_LOGD(TAG, "External compensation data received: Temperature %0.2f°C", temperature);
   }
 
-  if (compensation_possible) {
-    float absolute_humidity =
-        216.7f * (((humidity / 100) * 6.112f * std::exp((17.62f * temperature) / (243.12f + temperature))) /
-                  (273.15f + temperature));
-    uint8_t humidity_full = uint8_t(std::floor(absolute_humidity));
-    uint8_t humidity_dec = uint8_t(std::floor((absolute_humidity - std::floor(absolute_humidity)) * 256));
-    ESP_LOGD(TAG, "Calculated Absolute humidity: %0.3f g/m³ (0x%04X)", absolute_humidity,
-             uint16_t(uint16_t(humidity_full) << 8 | uint16_t(humidity_dec)));
-    uint8_t crc = sht_crc_(humidity_full, humidity_dec);
-    uint8_t data[4];
-    data[0] = SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF;
-    data[1] = humidity_full;
-    data[2] = humidity_dec;
-    data[3] = crc;
-    if (!this->write_bytes(SGP30_CMD_SET_ABSOLUTE_HUMIDITY >>8, data, 4)) {
-      ESP_LOGE(TAG, "Error sending compensation data.");
-    }
+  float absolute_humidity =
+      216.7f * (((humidity / 100) * 6.112f * std::exp((17.62f * temperature) / (243.12f + temperature))) /
+                (273.15f + temperature));
+  uint8_t humidity_full = uint8_t(std::floor(absolute_humidity));
+  uint8_t humidity_dec = uint8_t(std::floor((absolute_humidity - std::floor(absolute_humidity)) * 256));
+  ESP_LOGD(TAG, "Calculated Absolute humidity: %0.3f g/m³ (0x%04X)", absolute_humidity,
+           uint16_t(uint16_t(humidity_full) << 8 | uint16_t(humidity_dec)));
+  uint8_t crc = sht_crc_(humidity_full, humidity_dec);
+  uint8_t data[4];
+  data[0] = SGP30_CMD_SET_ABSOLUTE_HUMIDITY & 0xFF;
+  data[1] = humidity_full;
+  data[2] = humidity_dec;
+  data[3] = crc;
+  if (!this->write_bytes(SGP30_CMD_SET_ABSOLUTE_HUMIDITY >>8, data, 4)) {
+    ESP_LOGE(TAG, "Error sending compensation data.");
   }
 }
 
