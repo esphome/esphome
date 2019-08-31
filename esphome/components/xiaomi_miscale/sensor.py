@@ -17,8 +17,8 @@ XiaomiMiscale = xiaomi_miscale_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPB
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiMiscale),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
-    cv.Optional(CONF_WEIGHT): sensor.sensor_schema(UNIT_KILOGRAMS, ICON_SCALE, 1),
-    cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(UNIT_OHM, ICON_IMPEDANCE, 1),
+    cv.Optional(CONF_WEIGHT): sensor.sensor_schema(UNIT_KILOGRAM, ICON_SCALE, 1),
+    cv.Optional(CONF_IMPEDANCE): sensor.sensor_schema(UNIT_OHM, ICON_OMEGA, 1),
     cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(UNIT_PERCENT, ICON_BATTERY, 0),
 }).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
