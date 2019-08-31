@@ -12,12 +12,15 @@ static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
 static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
 static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
-inline const char* ToString(SHTCXType type) {
-    switch (type) {
-        case SHTCX_TYPE_SHTC3:  return "SHTC3";
-        case SHTCX_TYPE_SHTC1:  return "SHTC1";
-        default:  return "[Unknown model]";
-    }
+inline const char* to_string(SHTCXType type) {
+  switch (type) {
+    case SHTCX_TYPE_SHTC3:
+      return "SHTC3";
+    case SHTCX_TYPE_SHTC1:
+      return "SHTC1";
+    default:
+      return "[Unknown model]";
+  }
 }
 
 void SHTCXComponent::setup() {
@@ -46,11 +49,11 @@ void SHTCXComponent::setup() {
   } else {
     this->type_ = SHTCX_TYPE_UNKNOWN;
   }
-  ESP_LOGCONFIG(TAG, "  Device identified: %s", ToString(this->type_));
+  ESP_LOGCONFIG(TAG, "  Device identified: %s", to_string(this->type_));
 }
 void SHTCXComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SHTCx:");
-  ESP_LOGCONFIG(TAG, "  Model: %s", ToString(this->type_));
+  ESP_LOGCONFIG(TAG, "  Model: %s", to_string(this->type_));
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with SHTCx failed!");
@@ -64,7 +67,7 @@ float SHTCXComponent::get_setup_priority() const { return setup_priority::DATA; 
 void SHTCXComponent::update() {
   if (this->status_has_warning()) {
     ESP_LOGW(TAG, "Retrying to reconnect the sensor.");
-    this->write_command_(SHTCX_COMMAND_SOFT_RESET);
+    this->soft_reset();
   }
   if (this->type_ != SHTCX_TYPE_SHTC1) {
     this->wake_up();
@@ -149,25 +152,15 @@ bool SHTCXComponent::read_data_(uint16_t *data, uint8_t len) {
 }
 
 void SHTCXComponent::soft_reset() {
-  if (!this->write_command_(SHTCX_COMMAND_SOFT_RESET)) {
-    ESP_LOGE(TAG, "Error sending SHTCX_COMMAND_SOFT_RESET");
-    this->mark_failed();
-    return;
-  }
+  this->write_command_(SHTCX_COMMAND_SOFT_RESET);
   delayMicroseconds(200);
 }
-void SHTCXComponent::sleep() {
-  this->write_command_(SHTCX_COMMAND_SLEEP);
-}
+void SHTCXComponent::sleep() { this->write_command_(SHTCX_COMMAND_SLEEP); }
 
 void SHTCXComponent::wake_up() {
-  if (!this->write_command_(SHTCX_COMMAND_WAKEUP)) {
-    return;
-  }
+  this->write_command_(SHTCX_COMMAND_WAKEUP);
   delayMicroseconds(200);
 }
-
-
 
 }  // namespace shtcx
 }  // namespace esphome
