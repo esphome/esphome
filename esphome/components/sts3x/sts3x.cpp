@@ -8,11 +8,13 @@ static const char *TAG = "sts3x";
 
 static const uint16_t STS3X_COMMAND_READ_SERIAL_NUMBER = 0x3780;
 static const uint16_t STS3X_COMMAND_READ_STATUS = 0xF32D;
+static const uint16_t STS3X_COMMAND_SOFT_RESET = 0x30A2;
+static const uint16_t STS3X_COMMAND_POLLING_H = 0x2400;
+
+/// Commands for future use
 static const uint16_t STS3X_COMMAND_CLEAR_STATUS = 0x3041;
 static const uint16_t STS3X_COMMAND_HEATER_ENABLE = 0x306D;
 static const uint16_t STS3X_COMMAND_HEATER_DISABLE = 0x3066;
-static const uint16_t STS3X_COMMAND_SOFT_RESET = 0x30A2;
-static const uint16_t STS3X_COMMAND_POLLING_H = 0x2400;
 static const uint16_t STS3X_COMMAND_FETCH_DATA = 0xE000;
 
 void STS3XComponent::setup() {
