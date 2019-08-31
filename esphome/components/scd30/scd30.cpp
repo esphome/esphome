@@ -99,14 +99,14 @@ void SCD30Component::update() {
         return;
       }
       unsigned int temp_c_o2_u32, temp_temp_u32, temp_hum_u32;
-      temp_c_o2_u32 = (unsigned int) ((((unsigned int) raw_data[0]) << 16) | ((unsigned int) raw_data[1]));
-      float co2 = *(float *) &temp_c_o2_u32;
+      temp_c_o2_u32 = (((uint32_t(raw_data[0])) << 16) | (uint32_t(raw_data[1])));
+      float co2 = *reinterpret_cast<float *>(&temp_c_o2_u32);
 
-      temp_temp_u32 = (unsigned int) ((((unsigned int) raw_data[2]) << 16) | ((unsigned int) raw_data[3]));
-      float temperature = *(float *) &temp_temp_u32;
+      temp_temp_u32 = (((uint32_t(raw_data[2])) << 16) | (uint32_t(raw_data[3])));
+      float temperature = *reinterpret_cast<float *>(&temp_temp_u32);
 
-      temp_hum_u32 = (unsigned int) ((((unsigned int) raw_data[4]) << 16) | ((unsigned int) raw_data[5]));
-      float humidity = *(float *) &temp_hum_u32;
+      temp_hum_u32 = (((uint32_t(raw_data[4])) << 16) | (uint32_t(raw_data[5])));
+      float humidity = *reinterpret_cast<float *>(&temp_hum_u32);
 
       ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2, temperature, humidity);
       if (this->co2_sensor_ != nullptr)
