@@ -21,7 +21,7 @@ static const uint16_t SCD30_CMD_ALTITUDE_COMPENSATION = 0x5102;
 static const uint16_t SCD30_CMD_SOFT_RESET = 0xD304;
 
 
-void Scd30Component::setup() {
+void SCD30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up scd30...");
 
   /// Firmware version identification
@@ -50,7 +50,7 @@ void Scd30Component::setup() {
 
 }
 
-void Scd30Component::dump_config() {
+void SCD30Component::dump_config() {
   ESP_LOGCONFIG(TAG, "scd30:");
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -75,7 +75,7 @@ void Scd30Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
 }
 
-void Scd30Component::update() {
+void SCD30Component::update() {
   /// Check if measurement is ready before reading the value
   if (!this->write_command_(SCD30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -124,18 +124,18 @@ void Scd30Component::update() {
         this->temperature_sensor_->publish_state(temperature);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(humidity);
-      
+
       this->status_clear_warning();
     });
   }
 }
 
-bool Scd30Component::write_command_(uint16_t command) {
+bool SCD30Component::write_command_(uint16_t command) {
   // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
   return this->write_byte(command >> 8, command & 0xFF);
 }
 
-uint8_t Scd30Component::sht_crc_(uint8_t data1, uint8_t data2) {
+uint8_t SCD30Component::sht_crc_(uint8_t data1, uint8_t data2) {
   uint8_t bit;
   uint8_t crc = 0xFF;
 
@@ -158,7 +158,7 @@ uint8_t Scd30Component::sht_crc_(uint8_t data1, uint8_t data2) {
   return crc;
 }
 
-bool Scd30Component::read_data_(uint16_t *data, uint8_t len) {
+bool SCD30Component::read_data_(uint16_t *data, uint8_t len) {
   const uint8_t num_bytes = len * 3;
   auto *buf = new uint8_t[num_bytes];
 
@@ -169,7 +169,7 @@ bool Scd30Component::read_data_(uint16_t *data, uint8_t len) {
 
   for (uint8_t i = 0; i < len; i++) {
     const uint8_t j = 3 * i;
-    uint8_t crc = sht_crc(buf[j], buf[j + 1]);
+    uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
     if (crc != buf[j + 2]) {
       ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
       delete[](buf);

@@ -8,7 +8,7 @@ namespace esphome {
 namespace scd30 {
 
 /// This class implements support for the Sensirion scd30 i2c GAS (VOC and CO2eq) sensors.
-class Scd30Component : public PollingComponent, public i2c::I2CDevice {
+class SCD30Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }

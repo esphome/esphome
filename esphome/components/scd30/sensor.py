@@ -8,12 +8,12 @@ from esphome.const import CONF_ID, UNIT_PARTS_PER_MILLION, \
 DEPENDENCIES = ['i2c']
 
 scd30_ns = cg.esphome_ns.namespace('scd30')
-scd30Component = scd30_ns.class_('scd30Component', cg.PollingComponent, i2c.I2CDevice)
+SCD30Component = scd30_ns.class_('SCD30Component', cg.PollingComponent, i2c.I2CDevice)
 
 CONF_CO2 = 'co2'
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(scd30Component),
+    cv.GenerateID(): cv.declare_id(SCD30Component),
     cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
                                                 ICON_PERIODIC_TABLE_CO2, 0),
     cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
