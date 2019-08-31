@@ -75,6 +75,7 @@ venv.bak/
 
 .pioenvs
 .piolibdeps
+.pio
 .vscode
 CMakeListsPrivate.txt
 CMakeLists.txt

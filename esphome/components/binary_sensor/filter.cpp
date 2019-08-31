@@ -23,6 +23,19 @@ void Filter::input(bool value, bool is_initial) {
     this->output(*b, is_initial);
   }
 }
+
+DelayedOnOffFilter::DelayedOnOffFilter(uint32_t delay) : delay_(delay) {}
+optional<bool> DelayedOnOffFilter::new_value(bool value, bool is_initial) {
+  if (value) {
+    this->set_timeout("ON_OFF", this->delay_, [this, is_initial]() { this->output(true, is_initial); });
+  } else {
+    this->set_timeout("ON_OFF", this->delay_, [this, is_initial]() { this->output(false, is_initial); });
+  }
+  return {};
+}
+
+float DelayedOnOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 DelayedOnFilter::DelayedOnFilter(uint32_t delay) : delay_(delay) {}
 optional<bool> DelayedOnFilter::new_value(bool value, bool is_initial) {
   if (value) {
@@ -46,6 +59,7 @@ optional<bool> DelayedOffFilter::new_value(bool value, bool is_initial) {
     return true;
   }
 }
+
 float DelayedOffFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 optional<bool> InvertFilter::new_value(bool value, bool is_initial) { return !value; }

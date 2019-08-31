@@ -127,6 +127,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
       is_mibfs = true;
   
   if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
+
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
@@ -165,6 +166,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   } else if (is_lywsd02) {
     result.type = XiaomiParseResult::TYPE_LYWSD02;
   }
+
   bool success = parse_xiaomi_data_byte(raw_type, data, data_length, result);  
   
   if (!success)
@@ -185,7 +187,7 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   } else if (res->type == XiaomiParseResult::TYPE_MISCALE) {
     name = "Mi Scale";
   }
-  
+
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
 
   if (res->temperature.has_value()) {
