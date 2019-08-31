@@ -16,7 +16,6 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   void set_baseline(uint16_t baseline) { baseline_ = baseline; }
   void set_humidity_sensor(sensor::Sensor *humidity) { humidity_sensor_ = humidity; }
   void set_temperature_sensor(sensor::Sensor *temperature) { temperature_sensor_ = temperature; }
-  void set_uptime_sensor(sensor::Sensor *uptime) { uptime_sensor_ = uptime; }
 
   void setup() override;
   void update() override;
@@ -49,7 +48,6 @@ class SGP30Component : public PollingComponent, public i2c::I2CDevice {
   /// Input sensor for humidity and temperature compensation.
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
-  sensor::Sensor *uptime_sensor_{nullptr};
 };
 
 }  // namespace sgp30

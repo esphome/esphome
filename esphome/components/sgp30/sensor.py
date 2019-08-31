@@ -13,6 +13,9 @@ CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
 CONF_UPTIME = 'uptime'
+CONF_COMPENSATION = 'compensation'
+CONF_COMPENSATION_HUMIDITY = 'humidity_source'
+CONF_COMPENSATION_TEMPERATURE = 'temperature_source'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SGP30Component),
@@ -20,8 +23,10 @@ CONFIG_SCHEMA = cv.Schema({
                                                  ICON_PERIODIC_TABLE_CO2, 0),
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
     cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
-    cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
-    cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
+    cv.Optional(CONF_COMPENSATION): cv.Schema({
+        cv.Optional(CONF_COMPENSATION_HUMIDITY): cv.use_id(sensor.Sensor),
+        cv.Optional(CONF_COMPENSATION_TEMPERATURE): cv.use_id(sensor.Sensor)
+    }),
     cv.Optional(CONF_UPTIME): cv.use_id(sensor.Sensor),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x58))
 
@@ -42,14 +47,9 @@ def to_code(config):
     if CONF_BASELINE in config:
         cg.add(var.set_baseline(config[CONF_BASELINE]))
 
-    if CONF_HUMIDITY in config:
-        sens = yield cg.get_variable(config[CONF_HUMIDITY])
+    if CONF_COMPENSATION in config:
+        compensation_config = config[CONF_COMPENSATION]
+        sens = yield cg.get_variable(compensation_config[CONF_COMPENSATION_HUMIDITY])
         cg.add(var.set_humidity_sensor(sens))
-
-    if CONF_TEMPERATURE in config:
-        sens = yield cg.get_variable(config[CONF_TEMPERATURE])
+        sens = yield cg.get_variable(compensation_config[CONF_COMPENSATION_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
-
-    if CONF_UPTIME in config:
-        sens = yield cg.get_variable(config[CONF_UPTIME])
-        cg.add(var.set_uptime_sensor(sens))

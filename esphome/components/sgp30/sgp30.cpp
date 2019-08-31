@@ -83,8 +83,11 @@ void SGP30Component::setup() {
 }
 
 bool SGP30Component::is_sensor_baseline_reliable_() {
-  if (this->uptime_sensor_ != nullptr) {
-    return (this->uptime_sensor_.state >= this->required_warm_up_time_);
+  if ((this->required_warm_up_time_ == 0) || (std::floor(millis() / 1000) >= this->required_warm_up_time_)) {
+    /// requirement for warm up is removed once the millis uptime surpasses the required warm_up_time
+    /// this avoids the repetitive warm up when the millis uptime is rolled over every ~40 days
+    this->required_warm_up_time_ == 0;
+    return true;
   }
   return false;
 }
@@ -110,9 +113,8 @@ void SGP30Component::read_iaq_baseline_(){
       this->status_clear_warning();
     });
   } else {
-    if (!isnan(id(uptime_sensor_).state))
-      ESP_LOGD(TAG, "Baseline reading not available for: %.0fs",
-               (this->required_warm_up_time_ - id(uptime_sensor_).state));
+    ESP_LOGD(TAG, "Baseline reading not available for: %.0fs",
+             (this->required_warm_up_time_ - std::floor(millis() / 1000)));
   }
 }
 
@@ -201,6 +203,14 @@ void SGP30Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2", this->eco2_sensor_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
+  if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr){
+    ESP_LOGCONFIG(TAG, "  Compensation:");
+    LOG_SENSOR("    ", "Temperature Source:", this->temperature_sensor_);
+    LOG_SENSOR("    ", "Humidity Source:", this->humidity_sensor_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Compensation: No source configured");
+  }
+
 }
 
 void SGP30Component::update() {
@@ -226,9 +236,7 @@ void SGP30Component::update() {
       this->tvoc_sensor_->publish_state(tvoc);
     this->status_clear_warning();
     this->send_env_data_();
-    if (this->uptime_sensor_ != nullptr) {
-      this->read_iaq_baseline_();
-    }
+    this->read_iaq_baseline_();
   });
 }
 
