@@ -65,19 +65,19 @@ public:
     this->keypad_binary_sensors_.push_back(binary_sensor);
   };
 
-protected:
-  u_long clk_x_ = {2000000};
+ protected:
+  u_long clk_x_ = 2000000;
   uint8_t frequency_ = 0;
-  uint16_t ddr_mask_{0x00};
-  uint16_t input_mask_{0x00};
-  uint16_t port_mask_{0x00};
+  uint16_t ddr_mask_ = 0x00;
+  uint16_t input_mask_ = 0x00;
+  uint16_t port_mask_ = 0x00;
   bool has_keypad_ = false;
-  uint8_t rows_ = {0};
-  uint8_t cols_ = {0};
-  uint16_t sleep_time_ = {128};
-  uint8_t scan_time_ = {1};
-  uint8_t debounce_time_ = {1};
-  std::vector<SX1509Processor *> keypad_binary_sensors_{};
+  uint8_t rows_ = 0;
+  uint8_t cols_ = 0;
+  uint16_t sleep_time_ = 128;
+  uint8_t scan_time_ = 1;
+  uint8_t debounce_time_ = 1;
+  std::vector<SX1509Processor *> keypad_binary_sensors_;
 
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
