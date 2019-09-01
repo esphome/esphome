@@ -90,7 +90,6 @@ void SX1509Component::digital_write(uint8_t pin, bool bit_value) {
 }
 
 void SX1509Component::pin_mode(uint8_t pin, uint8_t mode) {
-  uint8_t mode_bit;
   this->read_byte_16(REG_DIR_B, &this->ddr_mask_);
   if ((mode == SX1509_OUTPUT) || (mode == SX1509_ANALOG_OUTPUT))
     this->ddr_mask_ &= ~(1 << pin);
@@ -160,7 +159,6 @@ void SX1509Component::clock_(byte osc_source, byte osc_pin_function, byte osc_fr
 }
 
 void SX1509Component::setup_keypad_() {
-  uint16_t temp_word;
   uint8_t temp_byte;
 
   // setup row/col pins for INPUT OUTPUT
