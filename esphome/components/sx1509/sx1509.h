@@ -9,12 +9,12 @@ namespace esphome {
 namespace sx1509 {
 
 // These are used for clock config:
-static const uint8_t INTERNAL_CLOCK_2MHZ = 2;
-static const uint8_t EXTERNAL_CLOCK = 1;
-static const uint8_t SOFTWARE_RESET = 0;
-static const uint8_t HARDWARE_RESET = 1;
+const uint8_t INTERNAL_CLOCK_2MHZ = 2;
+const uint8_t EXTERNAL_CLOCK = 1;
+const uint8_t SOFTWARE_RESET = 0;
+const uint8_t HARDWARE_RESET = 1;
 
-static const uint8_t ANALOG_OUTPUT = 0x03; // To set a pin mode for PWM output
+const uint8_t ANALOG_OUTPUT = 0x03;  // To set a pin mode for PWM output
 
 // PinModes for SX1509 pins
 enum SX1509GPIOMode : uint8_t {
@@ -24,10 +24,9 @@ enum SX1509GPIOMode : uint8_t {
   SX1509_OUTPUT = OUTPUT,               // 0x01
 };
 
-static const uint8_t REG_I_ON[16] = {
-    REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
-    REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
-    REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
+const uint8_t REG_I_ON[16] = {REG_I_ON_0,  REG_I_ON_1,  REG_I_ON_2,  REG_I_ON_3, REG_I_ON_4,  REG_I_ON_5,
+                              REG_I_ON_6,  REG_I_ON_7,  REG_I_ON_8,  REG_I_ON_9, REG_I_ON_10, REG_I_ON_11,
+                              REG_I_ON_12, REG_I_ON_13, REG_I_ON_14, REG_I_ON_15};
 
 // for all components that implement the process(uint16_t data )
 class SX1509Processor {
