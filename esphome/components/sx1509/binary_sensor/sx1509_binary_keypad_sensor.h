@@ -14,5 +14,6 @@ class SX1509BinarySensor : public sx1509::SX1509Processor, public binary_sensor:
  protected:
   uint16_t key_{0};
 };
+
 }  // namespace sx1509
 }  // namespace esphome
