@@ -36,7 +36,6 @@ KEYPAD_SCHEMA = cv.Schema({
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SX1509Component),
     cv.Optional(CONF_KEYPAD): cv.Schema(KEYPAD_SCHEMA),
-
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x3E))
 
 
@@ -60,7 +59,8 @@ SX1509_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(SX1509_GPIO_MODES, upper=True),
-    cv.Optional(CONF_INVERTED, default=False): cv.boolean, })
+    cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+})
 SX1509_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SX1509): cv.use_id(SX1509Component),
     cv.Required(CONF_NUMBER): cv.int_,
