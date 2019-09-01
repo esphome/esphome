@@ -35,6 +35,7 @@ void SX1509Component::dump_config() {
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up SX1509 failed!");
   }
+  LOG_I2C_DEVICE(this);
 }
 
 void SX1509Component::loop() {
