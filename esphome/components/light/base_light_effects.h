@@ -102,6 +102,7 @@ class StrobeLightEffect : public LightEffect {
     if (!color.is_on()) {
       // Don't turn the light off, otherwise the light effect will be stopped
       call.set_brightness_if_supported(0.0f);
+      call.set_white_if_supported(0.0f);
       call.set_state(true);
     }
     call.set_publish(false);
