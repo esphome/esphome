@@ -11,7 +11,7 @@ import re
 from typing import Any, Dict, List  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
-    CONF_DESCRIPTION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
+    CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
@@ -540,9 +540,9 @@ class EsphomeCore(object):
         return None
 
     @property
-    def description(self):  # type: () -> str
-        if CONF_DESCRIPTION in self.config[CONF_ESPHOME]:
-            return self.config[CONF_ESPHOME][CONF_DESCRIPTION]
+    def comment(self):  # type: () -> str
+        if CONF_COMMENT in self.config[CONF_ESPHOME]:
+            return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
 

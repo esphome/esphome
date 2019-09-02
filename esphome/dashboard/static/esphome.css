@@ -247,7 +247,7 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   margin-top: 15px;
 }
 
-.card-description {
+.card-comment {
   margin-bottom: 8px;
   font-size: 14px;
   color: #444;

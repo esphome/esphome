@@ -78,9 +78,9 @@
               {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
-            {% if entry.description %}
-              <div class="card-description">
-                {{ escape(entry.description) }}
+            {% if entry.comment %}
+              <div class="card-comment">
+                {{ escape(entry.comment) }}
               </div>
             {% end %}
             <p>
@@ -211,10 +211,6 @@
             <div class="input-field col s12">
               <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true" data-rule-lowercase="true" required>
               <label for="node_name">Name of node</label>
-            </div>
-            <div class="input-field col s12">
-              <input id="node_description" class="validate" type="text" name="description">
-              <label for="node_description">Description (optional)</label>
             </div>
           </div>
           <div class="step-actions">
