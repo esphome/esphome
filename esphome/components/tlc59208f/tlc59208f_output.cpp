@@ -64,10 +64,10 @@ const uint8_t TLC59208F_REG_SUBADR3 = 0x10;  // default: 0x98 (8-bit addr)
 const uint8_t TLC59208F_REG_ALLCALLADR = 0x11;  // default: 0xd0 (8-bit addr)
 
 // --- Output modes ---
-#define LDRx_OFF 0x00
-#define LDRx_ON 0x01
-#define LDRx_PWM 0x02
-#define LDRx_GRPPWM 0x03
+static const uint8_t LDR_OFF = 0x00;
+static const uint8_t LDR_ON = 0x01;
+static const uint8_t LDR_PWM = 0x02;
+static const uint8_t LDR_GRPPWM = 0x03;
 
 void TLC59208FOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up TLC59208FOutputComponent...");
@@ -96,12 +96,12 @@ void TLC59208FOutput::setup() {
   }
   // Set all 3 outputs to be individually controlled
   // TODO: think of a way to support group dimming
-  if (!this->write_byte(TLC59208F_REG_LEDOUT0, (LDRx_PWM << 6) | (LDRx_PWM << 4) | (LDRx_PWM << 2) | (LDRx_PWM << 0))) {
+  if (!this->write_byte(TLC59208F_REG_LEDOUT0, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
     ESP_LOGE(TAG, "LEDOUT0 failed");
     this->mark_failed();
     return;
   }
-  if (!this->write_byte(TLC59208F_REG_LEDOUT1, (LDRx_PWM << 6) | (LDRx_PWM << 4) | (LDRx_PWM << 2) | (LDRx_PWM << 0))) {
+  if (!this->write_byte(TLC59208F_REG_LEDOUT1, (LDR_PWM << 6) | (LDR_PWM << 4) | (LDR_PWM << 2) | (LDR_PWM << 0))) {
     ESP_LOGE(TAG, "LEDOUT1 failed");
     this->mark_failed();
     return;
