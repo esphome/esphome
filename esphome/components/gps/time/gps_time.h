@@ -18,20 +18,7 @@ class GPSTime : public time::RealTimeClock, public GPSListener {
   }
 
  protected:
-  void from_tiny_gps_(TinyGPSPlus &tiny_gps) {
-    if (!tiny_gps.time.isValid() || !tiny_gps.date.isValid())
-      return;
-    time::ESPTime val{};
-    val.year = tiny_gps.date.year();
-    val.month = tiny_gps.date.month();
-    val.day_of_month = tiny_gps.date.day();
-    val.hour = tiny_gps.time.hour();
-    val.minute = tiny_gps.time.minute();
-    val.second = tiny_gps.time.second();
-    val.recalc_timestamp_utc(false);
-    this->synchronize_epoch_(val.timestamp);
-    this->has_time_ = true;
-  }
+  void from_tiny_gps_(TinyGPSPlus &tiny_gps);
   bool has_time_{false};
 };
 

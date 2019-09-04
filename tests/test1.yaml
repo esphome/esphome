@@ -191,6 +191,10 @@ sensor:
         - 100.0 -> 102.5
       - filter_out: 42.0
       - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -449,6 +453,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
@@ -505,6 +510,14 @@ sensor:
   - platform: sts3x
     name: "Living Room Temperature 9"
     address: 0x4A
+  - platform: scd30
+    co2:
+      name: "Living Room CO2 9"
+    temperature:
+      name: "Living Room Temperature 9"
+    humidity:
+      name: "Living Room Humidity 9"
+    address: 0x61
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
