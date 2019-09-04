@@ -74,10 +74,8 @@ void TLC59208FOutput::setup() {
 
   ESP_LOGV(TAG, "  Resetting all devices on the bus...");
 
-  // This is tricky, because reset has to be sent to a special address
-  Wire.beginTransmission(TLC59208F_SWRST_ADDR >> 1);
-  Wire.write(TLC59208F_SWRST_SEQ, 2);
-  if (Wire.endTransmission() != 0) {
+  // Reset all devices on the bus
+  if (!this->parent_->write_byte(TLC59208F_SWRST_ADDR >> 1, TLC59208F_SWRST_SEQ[0], TLC59208F_SWRST_SEQ[1])) {
     ESP_LOGE(TAG, "RESET failed");
     this->mark_failed();
     return;
