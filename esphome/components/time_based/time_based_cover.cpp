@@ -30,13 +30,19 @@ void TimeBasedCover::loop() {
   // Recompute position every loop cycle
   this->recompute_position_();
 
-  if (this->current_operation != COVER_OPERATION_IDLE && this->is_at_target_()) {
-    this->start_direction_(COVER_OPERATION_IDLE);
+  if (this->is_at_target_()) {
+    if (this->has_built_in_endstop_ &&
+        (this->target_position_ == COVER_OPEN || this->target_position_ == COVER_CLOSED)) {
+      // Don't trigger stop, let the cover stop by itself.
+      this->current_operation = COVER_OPERATION_IDLE;
+    } else {
+      this->start_direction_(COVER_OPERATION_IDLE);
+    }
     this->publish_state();
   }
 
   // Send current position every second
-  if (this->current_operation != COVER_OPERATION_IDLE && now - this->last_publish_time_ > 1000) {
+  if (now - this->last_publish_time_ > 1000) {
     this->publish_state(false);
     this->last_publish_time_ = now;
   }
@@ -57,6 +63,12 @@ void TimeBasedCover::control(const CoverCall &call) {
     auto pos = *call.get_position();
     if (pos == this->position) {
       // already at target
+      // for covers with built in end stop, we should send the command again
+      if (this->has_built_in_endstop_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
+        auto op = pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+        this->target_position_ = pos;
+        this->start_direction_(op);
+      }
     } else {
       auto op = pos < this->position ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
       this->target_position_ = pos;
@@ -82,7 +94,7 @@ bool TimeBasedCover::is_at_target_() const {
   }
 }
 void TimeBasedCover::start_direction_(CoverOperation dir) {
-  if (dir == this->current_operation)
+  if (dir == this->current_operation && dir != COVER_OPERATION_IDLE)
     return;
 
   this->recompute_position_();

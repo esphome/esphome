@@ -83,8 +83,9 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
 
   bool is_mijia = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_miflora = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
+  bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
 
-  if (!is_mijia && !is_miflora) {
+  if (!is_mijia && !is_miflora && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
@@ -101,7 +102,12 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
   XiaomiParseResult result;
-  result.type = is_miflora ? XiaomiParseResult::TYPE_MIFLORA : XiaomiParseResult::TYPE_MIJIA;
+  result.type = XiaomiParseResult::TYPE_MIFLORA;
+  if (is_mijia) {
+    result.type = XiaomiParseResult::TYPE_MIJIA;
+  } else if (is_lywsd02) {
+    result.type = XiaomiParseResult::TYPE_LYWSD02;
+  }
   bool success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   if (!success)
     return {};
@@ -113,7 +119,12 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if (!res.has_value())
     return false;
 
-  const char *name = res->type == XiaomiParseResult::TYPE_MIFLORA ? "Mi Flora" : "Mi Jia";
+  const char *name = "Mi Flora";
+  if (res->type == XiaomiParseResult::TYPE_MIJIA) {
+    name = "Mi Jia";
+  } else if (res->type == XiaomiParseResult::TYPE_LYWSD02) {
+    name = "LYWSD02";
+  }
 
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
 
