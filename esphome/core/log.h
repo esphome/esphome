@@ -20,9 +20,10 @@ namespace esphome {
 #define ESPHOME_LOG_LEVEL_ERROR 1
 #define ESPHOME_LOG_LEVEL_WARN 2
 #define ESPHOME_LOG_LEVEL_INFO 3
-#define ESPHOME_LOG_LEVEL_DEBUG 4
-#define ESPHOME_LOG_LEVEL_VERBOSE 5
-#define ESPHOME_LOG_LEVEL_VERY_VERBOSE 6
+#define ESPHOME_LOG_LEVEL_CONFIG 4
+#define ESPHOME_LOG_LEVEL_DEBUG 5
+#define ESPHOME_LOG_LEVEL_VERBOSE 6
+#define ESPHOME_LOG_LEVEL_VERY_VERBOSE 7
 
 #ifndef ESPHOME_LOG_LEVEL
 #define ESPHOME_LOG_LEVEL ESPHOME_LOG_LEVEL_DEBUG
@@ -43,38 +44,28 @@ namespace esphome {
 
 #define ESPHOME_LOG_COLOR(COLOR) "\033[0;" COLOR "m"
 #define ESPHOME_LOG_BOLD(COLOR) "\033[1;" COLOR "m"
-
-#define ESPHOME_LOG_COLOR_E ESPHOME_LOG_BOLD(ESPHOME_LOG_COLOR_RED)
-#define ESPHOME_LOG_COLOR_W ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_YELLOW)
-#define ESPHOME_LOG_COLOR_I ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GREEN)
-#define ESPHOME_LOG_COLOR_C ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_MAGENTA)
-#define ESPHOME_LOG_COLOR_D ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_CYAN)
-#define ESPHOME_LOG_COLOR_V ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_GRAY)
-#define ESPHOME_LOG_COLOR_VV ESPHOME_LOG_COLOR(ESPHOME_LOG_COLOR_WHITE)
 #define ESPHOME_LOG_RESET_COLOR "\033[0m"
 
-int esp_log_printf_(int level, const char *tag, const char *format, ...)  // NOLINT
-    __attribute__((format(printf, 3, 4)));
+void esp_log_printf_(int level, const char *tag, int line, const char *format, ...)  // NOLINT
+    __attribute__((format(printf, 4, 5)));
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-int esp_log_printf_(int level, const char *tag, const __FlashStringHelper *format, ...);
+void esp_log_printf_(int level, const char *tag, int line, const __FlashStringHelper *format, ...);
 #endif
-int esp_log_vprintf_(int level, const char *tag, const char *format, va_list args);  // NOLINT
+void esp_log_vprintf_(int level, const char *tag, int line, const char *format, va_list args);  // NOLINT
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-int esp_log_vprintf_(int level, const char *tag, const __FlashStringHelper *format, va_list args);
+void esp_log_vprintf_(int level, const char *tag, int line, const __FlashStringHelper *format, va_list args);
 #endif
 int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
-#define ESPHOME_LOG_FORMAT(tag, letter, format) \
-  F(ESPHOME_LOG_COLOR_##letter "[" #letter "][%s:%03u]: " format ESPHOME_LOG_RESET_COLOR), tag, __LINE__
+#define ESPHOME_LOG_FORMAT(format) F(format)
 #else
-#define ESPHOME_LOG_FORMAT(tag, letter, format) \
-  ESPHOME_LOG_COLOR_##letter "[" #letter "][%s:%03u]: " format ESPHOME_LOG_RESET_COLOR, tag, __LINE__
+#define ESPHOME_LOG_FORMAT(format) format
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERY_VERBOSE
 #define esph_log_vv(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, ESPHOME_LOG_FORMAT(tag, VV, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_VERY_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERY_VERBOSE
 #else
@@ -83,7 +74,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
 #define esph_log_v(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, ESPHOME_LOG_FORMAT(tag, V, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_VERBOSE, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_VERBOSE
 #else
@@ -92,22 +83,20 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG
 #define esph_log_d(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, ESPHOME_LOG_FORMAT(tag, D, format), ##__VA_ARGS__)
-
+  esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 #define esph_log_config(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_DEBUG, tag, ESPHOME_LOG_FORMAT(tag, C, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_CONFIG, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_DEBUG
 #define ESPHOME_LOG_HAS_CONFIG
 #else
 #define esph_log_d(tag, format, ...)
-
 #define esph_log_config(tag, format, ...)
 #endif
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_INFO
 #define esph_log_i(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, ESPHOME_LOG_FORMAT(tag, I, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_INFO, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_INFO
 #else
@@ -116,7 +105,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_WARN
 #define esph_log_w(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, ESPHOME_LOG_FORMAT(tag, W, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_WARN, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_WARN
 #else
@@ -125,7 +114,7 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 
 #if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_ERROR
 #define esph_log_e(tag, format, ...) \
-  esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, ESPHOME_LOG_FORMAT(tag, E, format), ##__VA_ARGS__)
+  esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, ESPHOME_LOG_FORMAT(format), ##__VA_ARGS__)
 
 #define ESPHOME_LOG_HAS_ERROR
 #else

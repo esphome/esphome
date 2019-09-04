@@ -190,6 +190,10 @@ sensor:
         - 100.0 -> 102.5
       - filter_out: 42.0
       - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -243,6 +247,35 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: atm90e32
+    cs_pin: 5
+    phase_a:
+      voltage:
+        name: "EMON Line Voltage A"
+      current:
+        name: "EMON CT1 Current"
+      power:
+        name: "EMON Active Power CT1"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_b:
+      current:
+        name: "EMON CT2 Current"
+      power:
+        name: "EMON Active Power CT2"
+      gain_voltage: 47660
+      gain_ct: 12577
+    phase_c:
+      current:
+        name: "EMON CT3 Current"
+      power:
+        name: "EMON Active Power CT3"
+      gain_voltage: 47660
+      gain_ct: 12577
+    frequency:
+      name: "EMON Line Frequency"
+    line_frequency: 50Hz
+    gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
     internal: true
@@ -419,6 +452,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
@@ -471,6 +505,15 @@ sensor:
     humidity:
       name: "Living Room Humidity 8"
     address: 0x44
+    update_interval: 15s
+  - platform: scd30
+    co2:
+      name: "Living Room CO2 9"
+    temperature:
+      name: "Living Room Temperature 9"
+    humidity:
+      name: "Living Room Humidity 9"
+    address: 0x61
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -534,6 +577,23 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+  - platform: tx20
+    wind_speed:
+      name: "Windspeed"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
+    pin: 
+      number: GPIO04
+      mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
 
 
 esp32_touch:
@@ -617,6 +677,7 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
+    id: btn_left
   - platform: nextion
     page_id: 0
     component_id: 2
@@ -862,6 +923,11 @@ light:
         name: Flicker Effect With Custom Values
         update_interval: 16ms
         intensity: 5%
+    - addressable_lambda:
+          name: "Test For Custom Lambda Effect"
+          lambda: |-
+            it[0] = current_color;
+                
     - automation:
         name: Custom Effect
         sequence:
@@ -982,7 +1048,7 @@ switch:
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
-        code: '001010011001111101011011'
+        code: '00101001100111110101xxxx'
         protocol: 1
   - platform: template
     name: RC Switch Type A
@@ -1124,6 +1190,16 @@ interval:
         if (true) return id(page1); else return id(page2);
     -  display.page.show_next: display1
     -  display.page.show_previous: display1
+  - interval: 2s
+    then:
+      - lambda: |-
+            static uint16_t btn_left_state = id(btn_left)->get_value();
+
+            ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
+            
+            btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
+
+            id(btn_left)->set_threshold(btn_left_state * 0.9);
 
 display:
 - platform: lcd_gpio

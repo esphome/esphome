@@ -113,7 +113,7 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *o
   this->expect_sync(src);
 
   *out_data = 0;
-  for (*out_nbits = 1; *out_nbits < 32; *out_nbits += 1) {
+  for (*out_nbits = 0; *out_nbits < 32; *out_nbits += 1) {
     if (this->expect_zero(src)) {
       *out_data <<= 1;
       *out_data |= 0;
@@ -121,7 +121,6 @@ bool RCSwitchBase::decode(RemoteReceiveData &src, uint32_t *out_data, uint8_t *o
       *out_data <<= 1;
       *out_data |= 1;
     } else {
-      *out_nbits -= 1;
       return *out_nbits >= 8;
     }
   }
@@ -217,13 +216,22 @@ uint32_t decode_binary_string(const std::string &data) {
   return ret;
 }
 
+uint32_t decode_binary_string_mask(const std::string &data) {
+  uint32_t ret = 0;
+  for (char c : data) {
+    ret <<= 1UL;
+    ret |= (c != 'x');
+  }
+  return ret;
+}
+
 bool RCSwitchRawReceiver::matches(RemoteReceiveData src) {
   uint32_t decoded_code;
   uint8_t decoded_nbits;
   if (!this->protocol_.decode(src, &decoded_code, &decoded_nbits))
     return false;
 
-  return decoded_nbits == this->nbits_ && decoded_code == this->code_;
+  return decoded_nbits == this->nbits_ && (decoded_code & this->mask_) == (this->code_ & this->mask_);
 }
 bool RCSwitchDumper::dump(RemoteReceiveData src) {
   for (uint8_t i = 1; i <= 7; i++) {

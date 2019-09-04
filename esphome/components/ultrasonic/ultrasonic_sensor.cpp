@@ -26,7 +26,6 @@ void UltrasonicSensorComponent::update() {
     this->publish_state(NAN);
   } else {
     float result = UltrasonicSensorComponent::us_to_m(time);
-    this->publish_state(result);
     ESP_LOGD(TAG, "'%s' - Got distance: %.2f m", this->name_.c_str(), result);
     this->publish_state(result);
   }

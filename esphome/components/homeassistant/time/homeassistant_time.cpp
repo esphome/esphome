@@ -22,19 +22,5 @@ void HomeassistantTime::setup() {
 
 HomeassistantTime *global_homeassistant_time = nullptr;
 
-bool GetTimeResponse::decode_32bit(uint32_t field_id, uint32_t value) {
-  switch (field_id) {
-    case 1:
-      // fixed32 epoch_seconds = 1;
-      if (global_homeassistant_time != nullptr) {
-        global_homeassistant_time->set_epoch_time(value);
-      }
-      return true;
-    default:
-      return false;
-  }
-}
-api::APIMessageType GetTimeResponse::message_type() const { return api::APIMessageType::GET_TIME_RESPONSE; }
-
 }  // namespace homeassistant
 }  // namespace esphome

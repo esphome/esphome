@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
-#include "apps/sntp/sntp.h"
+#include "lwip/apps/sntp.h"
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include "sntp.h"
