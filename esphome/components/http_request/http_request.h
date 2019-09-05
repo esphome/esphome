@@ -5,7 +5,6 @@
 #include "esphome/core/automation.h"
 
 #ifdef ARDUINO_ARCH_ESP32
-// TODO: Check ESP32
 #include <HTTPClient.h>
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
@@ -30,6 +29,7 @@ class HttpRequestComponent : public Component {
     memcpy(fp, fingerprint.data(), 20);
     this->fingerprint_ = fp;
   }
+  void set_ssl_certificate(const char *ca_certificate) { this->ca_certificate_ = ca_certificate; }
   void add_header(const char *name, const char *value) {
     Header header;
     header.name = name;
@@ -46,6 +46,7 @@ class HttpRequestComponent : public Component {
   const char *uri_;
   const char *method_;
   const uint8_t *fingerprint_{nullptr};
+  const char *ca_certificate_{nullptr};
   const char *useragent_{nullptr};
   uint16_t timeout_{5000};
   std::string payload_;

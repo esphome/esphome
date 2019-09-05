@@ -14,6 +14,7 @@ MULTI_CONF = True
 CONF_URI = 'uri'
 CONF_METHOD = 'method'
 CONF_SSL_FINGERPRINT = 'ssl_fingerprint'
+CONF_SSL_CERTIFICATE = 'ssl_certificate'
 CONF_HEADERS = 'headers'
 CONF_USERAGENT = 'useragent'
 CONF_PAYLOAD = 'payload'
@@ -31,7 +32,8 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HttpRequestComponent),
     cv.Required(CONF_URI): cv.string,
     cv.Optional(CONF_METHOD, default='GET'): cv.one_of('GET', 'POST', upper=True),
-    cv.Optional(CONF_SSL_FINGERPRINT): ssl_fingerprint,
+    cv.Optional(CONF_SSL_FINGERPRINT): cv.All(cv.only_on_esp8266, ssl_fingerprint),
+    cv.Optional(CONF_SSL_CERTIFICATE): cv.All(cv.only_on_esp32, cv.string),
     cv.Optional(CONF_HEADERS, default={}): cv.All(cv.Schema({cv.string: cv.string})),
     cv.Optional(CONF_USERAGENT): cv.string,
     cv.Optional(CONF_TIMEOUT, default='5s'): cv.positive_time_period_milliseconds,
@@ -48,6 +50,9 @@ def to_code(config):
     if CONF_SSL_FINGERPRINT in config:
         arr = [cg.RawExpression("0x{}".format(config[CONF_SSL_FINGERPRINT][i:i + 2])) for i in range(0, 59, 3)]
         cg.add(var.set_ssl_fingerprint(arr))
+
+    if CONF_SSL_CERTIFICATE in config:
+        cg.add(var.set_ssl_certificate(config[CONF_SSL_CERTIFICATE]))
 
     for header in config[CONF_HEADERS]:
         cg.add(var.add_header(header, config[CONF_HEADERS][header]))
