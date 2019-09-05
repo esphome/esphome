@@ -3,6 +3,7 @@
 #include <list>
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 // TODO: Check
@@ -57,11 +58,18 @@ class HttpRequestComponent : public Component {
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
-  // TODO:
-  TEMPLATABLE_VALUE(String, url)
-  TEMPLATABLE_VALUE(const char *, method)
+  TEMPLATABLE_VALUE(std::string, payload)
 
   void play(Ts... x) override {
+    // TODO: payload нужно передавать по значению иначе всё ломается
+    const char *payload = this->payload_.value(x...).c_str();
+    ESP_LOGW("DEBUG", "%s", payload);
+    this->parent_->set_payload(payload);
+
+//    if (this->oscillating_.has_value()) {
+//      call.set_oscillating(this->oscillating_.value(x...));
+//    }
+
     this->parent_->send();
   }
 

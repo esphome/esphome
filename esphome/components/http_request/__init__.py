@@ -63,7 +63,12 @@ def to_code(config):
 
 @automation.register_action('http_request.send', HttpRequestSendAction, automation.maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(HttpRequestComponent),
+    cv.Optional(CONF_PAYLOAD): cv.templatable(cv.string),
 }))
 def http_request_send_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_PAYLOAD in config:
+        template_ = yield cg.templatable(config[CONF_PAYLOAD], args, cg.std_string)
+        cg.add(var.set_payload(template_))
+    yield var
