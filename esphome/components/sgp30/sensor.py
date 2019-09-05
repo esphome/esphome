@@ -24,10 +24,9 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
     cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
     cv.Optional(CONF_COMPENSATION): cv.Schema({
-        cv.Optional(CONF_COMPENSATION_HUMIDITY): cv.use_id(sensor.Sensor),
-        cv.Optional(CONF_COMPENSATION_TEMPERATURE): cv.use_id(sensor.Sensor)
+        cv.Required(CONF_COMPENSATION_HUMIDITY): cv.use_id(sensor.Sensor),
+        cv.Required(CONF_COMPENSATION_TEMPERATURE): cv.use_id(sensor.Sensor)
     }),
-    cv.Optional(CONF_UPTIME): cv.use_id(sensor.Sensor),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x58))
 
 
