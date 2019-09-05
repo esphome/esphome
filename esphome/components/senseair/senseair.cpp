@@ -6,8 +6,8 @@ namespace senseair {
 
 static const char *TAG = "senseair";
 static const uint8_t SENSEAIR_REQUEST_LENGTH = 8;
-static const uint8_t SENSEAIR_RESPONSE_LENGTH = 7;
-static const uint8_t SENSEAIR_COMMAND_GET_PPM[] = {0xFE, 0x04, 0x00, 0x03, 0x00, 0x01, 0xD5, 0xC5};
+static const uint8_t SENSEAIR_RESPONSE_LENGTH = 13;
+static const uint8_t SENSEAIR_COMMAND_GET_PPM[] = {0xFE, 0x04, 0x00, 0x00, 0x00, 0x04, 0xE5, 0xC6};
 
 void SenseAirComponent::update() {
   uint8_t response[SENSEAIR_RESPONSE_LENGTH];
@@ -23,17 +23,20 @@ void SenseAirComponent::update() {
     return;
   }
 
-  uint16_t checksum = this->senseair_checksum_(response, 5);
-  if (((response[6] << 8) | response[5]) != checksum) {
-    ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", response[6], checksum);
+  uint16_t calc_checksum = this->senseair_checksum_(response, 11);
+  uint16_t resp_checksum = (uint16_t(response[12]) << 8) | response[11];
+  if (resp_checksum != calc_checksum) {
+    ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", resp_checksum, calc_checksum);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  const uint16_t ppm = (uint16_t(response[3]) << 8) | response[4];
+  const uint8_t length = response[2];
+  const uint16_t status = (uint16_t(response[3]) << 8) | response[4];
+  const uint16_t ppm = (uint16_t(response[length + 1]) << 8) | response[length + 2];
 
-  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm", ppm);
+  ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
 }
