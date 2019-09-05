@@ -16,6 +16,7 @@ class SenseAirComponent : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
+  uint16_t senseair_checksum_(uint8_t *ptr, uint8_t length);
   bool senseair_write_command_(const uint8_t *command, uint8_t *response);
 
   sensor::Sensor *co2_sensor_{nullptr};
