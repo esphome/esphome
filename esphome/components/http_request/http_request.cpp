@@ -44,7 +44,7 @@ void HttpRequestComponent::send() {
     this->client_.addHeader(header.name, header.value, false, true);
   }
 
-  int httpCode = this->client_.sendRequest(this->method_, this->payload_);
+  int httpCode = this->client_.sendRequest(this->method_, this->payload_.c_str());
   this->client_.end();
 
   if (httpCode < 0) {
