@@ -28,15 +28,14 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool beginStatus;
   #ifdef ARDUINO_ARCH_ESP32
-  if (this->ca_certificate_ != nullptr)
-    beginStatus = this->client_.begin(this->uri_, this->ca_certificate_);
+  beginStatus = this->client_.begin(this->uri_);
   #endif
   #ifdef ARDUINO_ARCH_ESP8266
   if (this->fingerprint_ != nullptr)
     beginStatus = this->client_.begin(this->uri_, this->fingerprint_);
-  #endif
   else
     beginStatus = this->client_.begin(this->uri_);
+  #endif
 
   if (!beginStatus) {
     this->client_.end();
