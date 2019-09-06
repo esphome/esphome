@@ -1,8 +1,14 @@
 import re
+import sys
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TIMEOUT
+
+if sys.version_info >= (3,):
+    import urllib.parse as urlparse
+else:
+    import urlparse
 
 DEPENDENCIES = ['network']
 
@@ -21,15 +27,35 @@ CONF_PAYLOAD = 'payload'
 
 def ssl_fingerprint(value):
     value = cv.string(value)
+
     if re.match(r'^([0-9a-f]{2}[: ]){19}[0-9a-f]{2}$', value, re.IGNORECASE) is None:
         raise cv.Invalid("SSL Fingerprint must consist of 20 colon or whitespace "
                          "separated hexadecimal parts from 00 to FF")
     return value
 
 
+def url(value):
+    value = cv.string(value)
+    try:
+        parsed = list(urlparse.urlparse(value))
+    except Exception:
+        raise cv.Invalid("Invalid URL")
+
+    if not parsed[0] or not parsed[1]:
+        raise cv.Invalid("URL must have a URL scheme and host")
+
+    if parsed[0] not in ['http', 'https']:
+        raise cv.Invalid("Scheme must be http or https")
+
+    if not parsed[2]:
+        parsed[2] = '/'
+
+    return urlparse.urlunparse(parsed)
+
+
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HttpRequestComponent),
-    cv.Required(CONF_URI): cv.string,
+    cv.Required(CONF_URI): url,
     cv.Optional(CONF_METHOD, default='GET'): cv.one_of('GET', 'POST', upper=True),
     cv.Optional(CONF_SSL_FINGERPRINT): cv.All(cv.only_on_esp8266, ssl_fingerprint),
     cv.Optional(CONF_HEADERS, default={}): cv.All(cv.Schema({cv.string: cv.string})),
