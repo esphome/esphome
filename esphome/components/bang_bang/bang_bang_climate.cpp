@@ -49,31 +49,31 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
-    // in non-auto mode
-    this->switch_to_mode_(this->mode);
-    return;
-  }
-
-  // auto mode, compute target mode
   if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
     // if any control values are nan, go to OFF (idle) mode
     this->switch_to_mode_(climate::CLIMATE_MODE_OFF);
     return;
   }
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
+    // mode is set to off, go to (or stay in) OFF (idle) mode
+    this->switch_to_mode_(climate::CLIMATE_MODE_OFF);
+    return;
+  }
+  const bool heating_allowed = (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_HEAT);
+  const bool cooling_allowed = (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_COOL);
   const bool too_cold = this->current_temperature < this->target_temperature_low;
   const bool too_hot = this->current_temperature > this->target_temperature_high;
 
   climate::ClimateMode target_mode;
   if (too_cold) {
     // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
+    if (this->supports_heat_ && heating_allowed)
       target_mode = climate::CLIMATE_MODE_HEAT;
     else
       target_mode = climate::CLIMATE_MODE_OFF;
   } else if (too_hot) {
     // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
+    if (this->supports_cool_ && cooling_allowed)
       target_mode = climate::CLIMATE_MODE_COOL;
     else
       target_mode = climate::CLIMATE_MODE_OFF;
@@ -84,17 +84,13 @@ void BangBangClimate::compute_state_() {
       target_mode = climate::CLIMATE_MODE_OFF;
     } else {
       // else use current mode and don't change (hysteresis)
-      target_mode = this->internal_mode_;
+      target_mode = this->action;
     }
   }
 
   this->switch_to_mode_(target_mode);
 }
 void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
-  if (mode == this->internal_mode_)
-    // already in target mode
-    return;
-
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop();
     this->prev_trigger_ = nullptr;
@@ -116,7 +112,7 @@ void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
   if (trig != nullptr) {
     // trig should never be null, but still check so that we don't crash
     trig->trigger();
-    this->internal_mode_ = mode;
+    this->action = mode;
     this->prev_trigger_ = trig;
     this->publish_state();
   }

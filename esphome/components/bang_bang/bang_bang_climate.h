@@ -74,11 +74,6 @@ class BangBangClimate : public climate::Climate, public Component {
    * This is so that the previous trigger can be stopped before enabling a new one.
    */
   Trigger<> *prev_trigger_{nullptr};
-  /** The climate mode that is currently active - for a `.mode = AUTO` this will
-   * contain the actual mode the device
-   *
-   */
-  climate::ClimateMode internal_mode_{climate::CLIMATE_MODE_OFF};
 
   BangBangClimateTargetTempConfig normal_config_{};
   bool supports_away_{false};

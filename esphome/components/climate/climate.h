@@ -121,6 +121,8 @@ class Climate : public Nameable {
 
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
+  /// The active state of the climate device.
+  ClimateMode action{CLIMATE_MODE_OFF};
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
 

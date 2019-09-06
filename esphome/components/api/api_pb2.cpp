@@ -2555,6 +2555,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
   buffer.encode_bool(7, this->away);
+  buffer.encode_enum<EnumClimateMode>(8, this->action);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2590,6 +2591,10 @@ void ClimateStateResponse::dump_to(std::string &out) const {
 
   out.append("  away: ");
   out.append(YESNO(this->away));
+  out.append("\n");
+
+  out.append("  action: ");
+  out.append(proto_enum_to_string<EnumClimateMode>(this->action));
   out.append("\n");
   out.append("}");
 }

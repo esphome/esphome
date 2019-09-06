@@ -655,6 +655,7 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature_low{0.0f};   // NOLINT
   float target_temperature_high{0.0f};  // NOLINT
   bool away{false};                     // NOLINT
+  EnumClimateMode action{};             // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

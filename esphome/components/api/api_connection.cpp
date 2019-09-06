@@ -442,6 +442,7 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   ClimateStateResponse resp{};
   resp.key = climate->get_object_id_hash();
   resp.mode = static_cast<EnumClimateMode>(climate->mode);
+  resp.action = static_cast<EnumClimateMode>(climate->action);
   if (traits.get_supports_current_temperature())
     resp.current_temperature = climate->current_temperature;
   if (traits.get_supports_two_point_target_temperature()) {

@@ -675,6 +675,7 @@ message ClimateStateResponse {
   float target_temperature_low = 5;
   float target_temperature_high = 6;
   bool away = 7;
+  ClimateMode action = 8;
 }
 message ClimateCommandRequest {
   option (id) = 48;
