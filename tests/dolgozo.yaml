@@ -1,0 +1,47 @@
+substitutions:
+  devicename: dolgozo
+  human_name: Dolgozó
+  IP_end: "10"
+  gateway: 192.168.0.1
+  logger_level: VERY_VERBOSE
+  api_password: ***
+  ota_password: ***
+  
+##**********************************
+
+esphome:
+  name: $devicename
+  platform: ESP32
+  board: lolin_d32_pro
+
+wifi:
+  ssid: ***
+  password: ***
+  fast_connect: on
+  manual_ip:
+    static_ip: 192.168.0.$IP_end
+    gateway: $gateway
+    subnet: 255.255.255.0  
+
+# Enable logging
+logger:
+  level: $logger_level
+
+ota:
+  password: $ota_password
+
+i2c:
+  id: bus_a
+  sda: 25
+  scl: 17
+  scan: True
+  frequency: 50kHz
+
+sensor:
+  - platform: hdc1080
+    i2c_id: bus_a
+    temperature:
+      name: "Living Room Temperature"
+    humidity:
+      name: "Living Room Pressure"
+    update_interval: 60s  

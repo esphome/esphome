@@ -1,0 +1,2 @@
+Error and test explained here:
+https://github.com/esphome/issues/issues/637
