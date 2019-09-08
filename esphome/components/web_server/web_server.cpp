@@ -7,7 +7,10 @@
 #include "StreamString.h"
 
 #include <cstdlib>
-#include <esphome/components/logger/logger.h>
+
+#ifdef USE_LOGGER
+  #include <esphome/components/logger/logger.h>
+#endif
 
 namespace esphome {
 namespace web_server {
