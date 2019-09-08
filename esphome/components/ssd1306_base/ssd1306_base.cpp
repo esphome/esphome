@@ -79,8 +79,8 @@ void SSD1306::setup() {
     case SH1106_MODEL_128_64:
     case SSD1306_MODEL_64_48:
     case SH1106_MODEL_64_48:
-        this->command(int(255 * (this->brightness_)));
-        break;
+      this->command(int(255 * (this->brightness_)));
+      break;
     case SSD1306_MODEL_96_16:
     case SH1106_MODEL_96_16:
       if (this->external_vcc_)
