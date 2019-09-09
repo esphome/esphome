@@ -15,7 +15,7 @@ const uint8_t MITSUBISHI_HEAT = 0x08;
 const uint8_t MITSUBISHI_FAN_AUTO = 0x00;
 
 // Temperature
-const uint8_t MITSUBISHI_TEMP_MIN = 17;  // Celsius
+const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
 // Pulse parameters in usec
@@ -60,25 +60,26 @@ void MitsubishiClimate::setup() {
     // initialize target temperature to some value so that it's not NAN
     this->target_temperature = roundf(this->current_temperature);
   }
+  if (isnan(this->target_temperature))
+    this->target_temperature = 24;
+  ESP_LOGV(TAG, "Setup Mode: %d Target temperature: %.1f", this->mode, this->target_temperature);
 }
 
 void MitsubishiClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
-
+  if (call.get_target_temperature().has_value()) {
+    auto temp = *call.get_target_temperature();
+    if (!isnan(temp))
+      this->target_temperature = temp;
+  }
   this->transmit_state_();
   this->publish_state();
 }
 
 void MitsubishiClimate::transmit_state_() {
-  uint32_t remote_state = { 
-    0x23, 0xCB, 0x26, 0x01,
-    0x00, 0x20, 0x48, 0x00, 
-    0x00, MITSUBISHI_FAN_AUTO, 0x61, 0x00, 
-    0x00, 0x00, 0x10, 0x40,
-    0x00, 0x00 };
+  uint32_t remote_state[18] = {0x23, 0xCB, 0x26, 0x01, 0x00, 0x20, 0x48, 0x00, 0x30,
+                               0x58, 0x61, 0x00, 0x00, 0x00, 0x10, 0x40, 0x00, 0x00};
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
@@ -95,44 +96,41 @@ void MitsubishiClimate::transmit_state_() {
       remote_state[5] = MITSUBISHI_OFF;
       break;
   }
-  if (this->mode != climate::CLIMATE_MODE_OFF) {
-    auto temp = (uint8_t) roundf(clamp(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX));
-    remote_state &= ~MITSUBISHI_TEMP_MASK;  // Clear the old temp.
-    remote_state |= (MITSUBISHI_TEMP_MAP[temp - MITSUBISHI_TEMP_MIN] << 4);
-  }
 
-  ESP_LOGV(TAG, "Sending mitsubishi code: %u", remote_state);
+  remote_state[7] =
+      (uint8_t) roundf(clamp(this->target_temperature, MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) - MITSUBISHI_TEMP_MIN);
+
+  ESP_LOGV(TAG, "Sending Mitsubishi target temp: %.1f state: %02X mode: %02X temp: %02X", this->target_temperature,
+           remote_state[5], remote_state[6], remote_state[7]);
+
+  // Checksum
+  for (int i = 0; i < 17; i++) {
+    remote_state[17] += remote_state[i];
+  }
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
-  uint16_t repeat = 1;
-  for (uint16_t r = 0; r <= repeat; r++) {
+  // repeat twice
+  for (uint16_t r = 0; r < 2; r++) {
     // Header
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    //   Break data into byte segments, starting at the Most Significant
-    //   Byte. Each byte then being sent normal, then followed inverted.
-    for (uint16_t i = 8; i <= MITSUBISHI_BITS; i += 8) {
-      // Grab a bytes worth of data.
-      uint8_t segment = (remote_state >> (MITSUBISHI_BITS - i)) & 0xFF;
-      // Normal
-      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
+    for (uint8_t i : remote_state)
+      for (uint8_t j = 0; j < 8; j++) {
         data->mark(MITSUBISHI_BIT_MARK);
-        data->space((segment & mask) ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
+        bool bit = i & (1 << j);
+        data->space(bit ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
       }
-      // Inverted
-      for (uint64_t mask = 1ULL << 7; mask; mask >>= 1) {
-        data->mark(MITSUBISHI_BIT_MARK);
-        data->space(!(segment & mask) ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
-      }
-    }
     // Footer
-    data->mark(MITSUBISHI_BIT_MARK);
-    data->space(MITSUBISHI_MIN_GAP);  // Pause before repeating
+    if (r == 0) {
+      data->mark(MITSUBISHI_BIT_MARK);
+      data->space(MITSUBISHI_MIN_GAP);  // Pause before repeating
+    }
   }
+  data->mark(MITSUBISHI_BIT_MARK);
 
   transmit.perform();
 }
