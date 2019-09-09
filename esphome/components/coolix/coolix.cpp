@@ -90,10 +90,13 @@ void CoolixClimate::setup() {
     restore->apply(this);
   } else {
     // restore from defaults
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_OFF;
     // initialize target temperature to some value so that it's not NAN
-    this->target_temperature = roundf(this->current_temperature);
+    this->target_temperature = (uint8_t) roundf(clamp(this->current_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
   }
+  // never send nan as temperature. HA will disable the user to change the temperature.
+  if (isnan(this->target_temperature))
+    this->target_temperature = 24;
 }
 
 void CoolixClimate::control(const climate::ClimateCall &call) {
