@@ -12,7 +12,7 @@ namespace climate {
     Just implement transmit_state_ on a derived class.
 
 */
-class ClimateIR : public climate::Climate, public Component {
+class ClimateIR : public climate::Climate, public Component, public remote_base::RemoteReceiverListener {
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f) {
     this->minimum_temperature_ = minimum_temperature;
@@ -37,7 +37,7 @@ class ClimateIR : public climate::Climate, public Component {
   climate::ClimateTraits traits() override;
 
   /// Transmit via IR the state of this climate controller.
-  virtual void transmit_state_() = 0;
+  virtual void transmit_state_() {}
 
   bool supports_cool_{true};
   bool supports_heat_{true};
