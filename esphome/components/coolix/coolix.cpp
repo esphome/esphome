@@ -27,8 +27,6 @@ const uint32_t COOLIX_FAN_MED = 0x5000;
 const uint32_t COOLIX_FAN_MAX = 0x3000;
 
 // Temperature
-const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
-const uint8_t COOLIX_TEMP_MAX = 30;  // Celsius
 const uint8_t COOLIX_TEMP_RANGE = COOLIX_TEMP_MAX - COOLIX_TEMP_MIN + 1;
 const uint8_t COOLIX_FAN_TEMP_CODE = 0b1110;  // Part of Fan Mode.
 const uint32_t COOLIX_TEMP_MASK = 0b11110000;
