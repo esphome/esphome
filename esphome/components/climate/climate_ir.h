@@ -9,8 +9,12 @@ namespace esphome {
 namespace climate {
 
 /* A base for climate which works by sending (and receiving) IR codes
-    Just implement transmit_state_ on a derived class.
 
+    To send IR codes implement
+      void ClimateIR::transmit_state_()
+
+    Likewise to decode a IR into the AC state, implement
+      bool RemoteReceiverListener::on_receive(remote_base::RemoteReceiveData data) and return true
 */
 class ClimateIR : public climate::Climate, public Component, public remote_base::RemoteReceiverListener {
  public:
