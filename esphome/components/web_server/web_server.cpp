@@ -9,7 +9,7 @@
 #include <cstdlib>
 
 #ifdef USE_LOGGER
-  #include <esphome/components/logger/logger.h>
+#include <esphome/components/logger/logger.h>
 #endif
 
 namespace esphome {
