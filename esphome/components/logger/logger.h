@@ -125,6 +125,7 @@ class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
       }
     });
   }
+
  protected:
   int level_;
 };
