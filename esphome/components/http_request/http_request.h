@@ -36,6 +36,7 @@ class HttpRequestComponent : public Component {
     this->headers_.push_back(header);
   }
   void send();
+
  protected:
   struct Header {
     const char *name;
