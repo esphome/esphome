@@ -17,7 +17,7 @@ void HttpRequestComponent::dump_config() {
   if (this->useragent_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
   }
-  if (this->headers_.size() > 0) {
+  if (!this->headers_.empty()) {
     ESP_LOGCONFIG(TAG, "  Headers:");
     for (const auto &header : this->headers_) {
       ESP_LOGCONFIG(TAG, "    %s: %s", header.name, header.value);
@@ -26,18 +26,18 @@ void HttpRequestComponent::dump_config() {
 }
 
 void HttpRequestComponent::send() {
-  bool beginStatus;
+  bool begin_status;
   #ifdef ARDUINO_ARCH_ESP32
-  beginStatus = this->client_.begin(this->uri_);
+  begin_status = this->client_.begin(this->uri_);
   #endif
   #ifdef ARDUINO_ARCH_ESP8266
   if (this->fingerprint_ != nullptr)
-    beginStatus = this->client_.begin(this->uri_, this->fingerprint_);
+    begin_status = this->client_.begin(this->uri_, this->fingerprint_);
   else
-    beginStatus = this->client_.begin(this->uri_);
+    begin_status = this->client_.begin(this->uri_);
   #endif
 
-  if (!beginStatus) {
+  if (!begin_status) {
     this->client_.end();
     this->status_set_warning();
     ESP_LOGW(TAG, "HTTP Request failed at the begin phase. Please check the configuration");
@@ -52,23 +52,23 @@ void HttpRequestComponent::send() {
     this->client_.addHeader(header.name, header.value, false, true);
   }
 
-  int httpCode = this->client_.sendRequest(this->method_, this->payload_.c_str());
+  int http_code = this->client_.sendRequest(this->method_, this->payload_.c_str());
   this->client_.end();
 
-  if (httpCode < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Error: %s", this->uri_, HTTPClient::errorToString(httpCode).c_str());
+  if (http_code < 0) {
+    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Error: %s", this->uri_, HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
     return;
   }
 
-  if (httpCode < 200 || httpCode >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Code: %d", this->uri_, httpCode);
+  if (http_code < 200 || http_code >= 300) {
+    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Code: %d", this->uri_, http_code);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URI: %s; Code: %d", this->uri_, httpCode);
+  ESP_LOGD(TAG, "HTTP Request completed; URI: %s; Code: %d", this->uri_, http_code);
 }
 
 }  // namespace http_request

@@ -1,11 +1,11 @@
 import re
-import sys
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TIMEOUT
+from esphome.py_compat import IS_PY3
 
-if sys.version_info >= (3,):
+if IS_PY3:
     import urllib.parse as urlparse
 else:
     import urlparse
@@ -72,7 +72,8 @@ def to_code(config):
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
     if CONF_SSL_FINGERPRINT in config:
-        arr = [cg.RawExpression("0x{}".format(config[CONF_SSL_FINGERPRINT][i:i + 2])) for i in range(0, 59, 3)]
+        arr = [cg.RawExpression("0x{}".format(
+            config[CONF_SSL_FINGERPRINT][i:i + 2])) for i in range(0, 59, 3)]
         cg.add(var.set_ssl_fingerprint(arr))
 
     for header in config[CONF_HEADERS]:

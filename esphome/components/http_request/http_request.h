@@ -17,7 +17,7 @@ namespace http_request {
 class HttpRequestComponent : public Component {
  public:
   void dump_config() override;
-  float get_setup_priority() const { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   void set_uri(const char *uri) { this->uri_ = uri; }
   void set_method(const char *method) { this->method_ = method; }
@@ -25,9 +25,9 @@ class HttpRequestComponent : public Component {
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_payload(std::string payload) { this->payload_ = payload; }
   void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) {
-    static uint8_t fp[20];
-    memcpy(fp, fingerprint.data(), 20);
-    this->fingerprint_ = fp;
+    static uint8_t fingerprint_[20];
+    memcpy(fingerprint_, fingerprint.data(), 20);
+    this->fingerprint_ = fingerprint_;
   }
   void add_header(const char *name, const char *value) {
     Header header;
