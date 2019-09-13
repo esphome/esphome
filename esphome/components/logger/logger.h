@@ -122,11 +122,7 @@ class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
     parent->add_on_log_callback(
         [this](int level, const char *tag, const char *message) {
           if (level <= this->level_) {
-            char *t_tag = strdup(tag);
-            char *t_message = strdup(message);
-            this->trigger(level, t_tag, t_message);
-            free(t_tag);
-            free(t_message);
+            this->trigger(level, strdup(tag), strdup(message));
           }
         });
   }
