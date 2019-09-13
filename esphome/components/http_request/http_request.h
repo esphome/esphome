@@ -25,9 +25,9 @@ class HttpRequestComponent : public Component {
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_payload(std::string payload) { this->payload_ = payload; }
   void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) {
-    static uint8_t fingerprint_[20];
-    memcpy(fingerprint_, fingerprint.data(), 20);
-    this->fingerprint_ = fingerprint_;
+    static uint8_t FP[20];
+    memcpy(FP, fingerprint.data(), 20);
+    this->fingerprint_ = FP;
   }
   void add_header(const char *name, const char *value) {
     Header header;

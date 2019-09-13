@@ -6,8 +6,10 @@ from esphome.const import CONF_ID, CONF_TIMEOUT
 from esphome.py_compat import IS_PY3
 
 if IS_PY3:
+    # pylint: disable=no-name-in-module,import-error
     import urllib.parse as urlparse
 else:
+    # pylint: disable=import-error
     import urlparse
 
 DEPENDENCIES = ['network']
