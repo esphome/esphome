@@ -119,12 +119,11 @@ class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
  public:
   explicit LoggerMessageTrigger(Logger *parent, int level) {
     this->level_ = level;
-    parent->add_on_log_callback(
-        [this](int level, const char *tag, const char *message) {
-          if (level <= this->level_) {
-            this->trigger(level, strdup(tag), strdup(message));
-          }
-        });
+    parent->add_on_log_callback([this](int level, const char *tag, const char *message) {
+      if (level <= this->level_) {
+        this->trigger(level, strdup(tag), strdup(message));
+      }
+    });
   }
  protected:
   int level_;
