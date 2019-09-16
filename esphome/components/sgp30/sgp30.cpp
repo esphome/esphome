@@ -86,13 +86,13 @@ bool SGP30Component::is_sensor_baseline_reliable_() {
   if ((this->required_warm_up_time_ == 0) || (std::floor(millis() / 1000) >= this->required_warm_up_time_)) {
     /// requirement for warm up is removed once the millis uptime surpasses the required warm_up_time
     /// this avoids the repetitive warm up when the millis uptime is rolled over every ~40 days
-    this->required_warm_up_time_ == 0;
+    this->required_warm_up_time_ = 0;
     return true;
   }
   return false;
 }
 
-void SGP30Component::read_iaq_baseline_(){
+void SGP30Component::read_iaq_baseline_() {
   if (this->is_sensor_baseline_reliable_()) {
     if (!this->write_command_(SGP30_CMD_GET_IAQ_BASELINE)) {
       ESP_LOGD(TAG, "Error getting baseline");
@@ -154,7 +154,7 @@ void SGP30Component::send_env_data_() {
   data[1] = humidity_full;
   data[2] = humidity_dec;
   data[3] = crc;
-  if (!this->write_bytes(SGP30_CMD_SET_ABSOLUTE_HUMIDITY >>8, data, 4)) {
+  if (!this->write_bytes(SGP30_CMD_SET_ABSOLUTE_HUMIDITY >> 8, data, 4)) {
     ESP_LOGE(TAG, "Error sending compensation data.");
   }
 }
@@ -197,13 +197,13 @@ void SGP30Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
     ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, 
-                  ((this->baseline_ != 0x0000) ? " (enabled)":" (disabled)"));
+                  ((this->baseline_ != 0x0000) ? " (enabled)" : " (disabled)"));
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "eCO2", this->eco2_sensor_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
-  if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr){
+  if (this->humidity_sensor_ != nullptr && this->temperature_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Compensation:");
     LOG_SENSOR("    ", "Temperature Source:", this->temperature_sensor_);
     LOG_SENSOR("    ", "Humidity Source:", this->humidity_sensor_);
