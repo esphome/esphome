@@ -19,7 +19,6 @@ class STS3XComponent : public sensor::Sensor, public PollingComponent, public i2
  protected:
   bool write_command_(uint16_t command);
   bool read_data_(uint16_t *data, uint8_t len);
-
 };
 
 }  // namespace sts3x
