@@ -210,7 +210,6 @@ void SGP30Component::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Compensation: No source configured");
   }
-
 }
 
 void SGP30Component::update() {
