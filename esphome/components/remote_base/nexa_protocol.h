@@ -16,6 +16,11 @@ struct NexaData {
 
 class NexaProtocol : public RemoteProtocol<NexaData> {
  public:
+
+  void one(RemoteTransmitData *dst) const;
+  void zero(RemoteTransmitData *dst) const;
+  void sync(RemoteTransmitData *dst) const;
+
   void encode(RemoteTransmitData *dst, const NexaData &data) override;
   optional<NexaData> decode(RemoteReceiveData src) override;
   void dump(const NexaData &data) override;
