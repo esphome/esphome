@@ -14,6 +14,7 @@ class STS3XComponent : public sensor::Sensor, public PollingComponent, public i2
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
+
  protected:
   bool write_command_(uint16_t command);
   bool read_data_(uint16_t *data, uint8_t len);
