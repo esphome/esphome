@@ -120,7 +120,7 @@ void SGP30Component::read_iaq_baseline_() {
 
 void SGP30Component::send_env_data_() {
   if (this->humidity_sensor_ == nullptr && this->temperature_sensor_ == nullptr)
-      return;
+    return;
   float humidity = NAN;
   if (this->humidity_sensor_ != nullptr)
     humidity = this->humidity_sensor_->state;
@@ -196,7 +196,7 @@ void SGP30Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_, 
+    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_,
                   ((this->baseline_ != 0x0000) ? " (enabled)" : " (disabled)"));
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
   }
