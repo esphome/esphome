@@ -678,3 +678,43 @@ def panasonic_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = yield cg.templatable(config[CONF_COMMAND], args, cg.uint32)
     cg.add(var.set_command(template_))
+
+
+# Nexa
+NexaData, NexaBinarySensor, NexaTrigger, NexaAction, NexaDumper = declare_protocol('Nexa')
+NEXA_SCHEMA = cv.Schema({
+    cv.Required(CONF_DEVICE): cv.hex_uint32_t,
+    cv.Required(CONF_GROUP): cv.hex_uint8_t,
+    cv.Required(CONF_STATE): cv.hex_uint8_t,
+    cv.Required(CONF_CHANNEL): cv.hex_uint8_t
+})
+
+
+@register_binary_sensor('nexa', NexaBinarySensor, NEXA_SCHEMA)
+def nexa_binary_sensor(var, config):
+    cg.add(var.set_data(cg.StructInitializer(
+        NexaData,
+        ('device', config[CONF_DEVICE]),
+        ('group', config[CONF_GROUP]),
+        ('state', config[CONF_STATE]),
+        ('channel', config[CONF_CHANNEL]),
+    )))
+
+
+@register_trigger('nexa', NexaTrigger, NexaData)
+def nexa_trigger(var, config):
+    pass
+
+
+@register_dumper('nexa', NexaDumper)
+def nexa_dumper(var, config):
+    pass
+
+
+@register_action('nexa', NexaAction, NEXA_SCHEMA)
+def nexa_action(var, config, args):
+    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint32))))
+    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint8))))
+    cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, cg.uint8))))
+    cg.add(var.set_channel((yield cg.templatable(config[CONF_CHANNEL], args, cg.uint8))))
+    
