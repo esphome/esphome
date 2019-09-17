@@ -59,32 +59,32 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       result.moisture = data[0];
       return true;
     }
-    case 0x16: { // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
+    case 0x16: {  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
       if (result.type == XiaomiParseResult::TYPE_MISCALE) {
-          switch (data_length) {
-            case 10: {
-              const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
-              if (data[0] == 0x22 || data[0] == 0xa2)
-                result.weight = weight * 0.01f / 2.0f;
-              else if (data[0] == 0x12 || data[0] == 0xb2)
-                result.weight = weight * 0.01f * 0.6;
-              else if (data[0] == 0x03 || data[0] == 0xb3)
-                result.weight = weight * 0.01f * 0.453592;
-              else
-                return false;
+        switch (data_length) {
+          case 10: {
+            const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
+            if (data[0] == 0x22 || data[0] == 0xa2)
+              result.weight = weight * 0.01f / 2.0f;
+            else if (data[0] == 0x12 || data[0] == 0xb2)
+              result.weight = weight * 0.01f * 0.6;
+            else if (data[0] == 0x03 || data[0] == 0xb3)
+              result.weight = weight * 0.01f * 0.453592;
+            else
+              return false;
 
-              return true;
-            }
-            case 13: {
-              const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
-              const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
-              result.impedance = impedance;
-              if (data[0] == 0x02)
-                result.weight = weight * 0.01f / 2.0f;
-              else if (data[0] == 0x03)
-                result.weight = weight * 0.01f * 0.453592;
-              else
-                return false;
+            return true;
+          }
+          case 13: {
+            const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
+            const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
+            result.impedance = impedance;
+            if (data[0] == 0x02)
+              result.weight = weight * 0.01f / 2.0f;
+            else if (data[0] == 0x03)
+              result.weight = weight * 0.01f * 0.453592;
+            else
+              return false;
 
               return true;
             }
@@ -101,8 +101,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  if (!device.get_service_data_uuid()->contains(0x95, 0xFE) &&
-       !device.get_service_data_uuid()->contains(0x1D, 0x18) &&
+  if (!device.get_service_data_uuid()->contains(0x95, 0xFE) && !device.get_service_data_uuid()->contains(0x1D, 0x18) &&
        !device.get_service_data_uuid()->contains(0x1B, 0x18)) {
     // ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
     return {};
@@ -121,9 +120,9 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   bool is_miscale;
   bool is_mibfs;
   if (device.get_service_data_uuid()->contains(0x1D, 0x18))
-      is_miscale = true;
+    is_miscale = true;
   if (device.get_service_data_uuid()->contains(0x1B, 0x18))
-      is_mibfs = true;
+    is_mibfs = true;
   
   if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
@@ -154,7 +153,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   } else {
     const uint8_t *data = &raw[0];
     const uint8_t data_length = device.get_service_data().size();
-    const uint8_t raw_type = 0x16; // sdid = 22
+    const uint8_t raw_type = 0x16;  // sdid = 22
 
     result.type = XiaomiParseResult::TYPE_MISCALE;
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
@@ -205,7 +204,7 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if (res->impedance.has_value()) {
     ESP_LOGD(TAG, "  Impedance: %.0f", *res->impedance);
   }
- 
+
   return true;
 }
 
