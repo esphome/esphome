@@ -90,7 +90,6 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
             }
           }
       }
-
     }
     default:
       return false;
@@ -127,14 +126,13 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
       is_mibfs = true;
   
   if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
-
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
-
+  bool success;
   XiaomiParseResult result;
 
-  if (is_mijia || is_miflora) {
+  if (is_mijia || is_miflora || is_lywsd02) {
     uint8_t raw_offset = is_mijia ? 11 : 12;
 
     const uint8_t raw_type = raw[raw_offset];
@@ -143,10 +141,15 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     const uint8_t expected_length = data_length + raw_offset + 3;
     const uint8_t actual_length = device.get_service_data().size();
     if (expected_length != actual_length) {
-      // ESP_LOGV(TAG, "Xiaomi %s data length mismatch (%u != %d)", raw_type, expected_length, actual_length);
+	      // ESP_LOGV(TAG, "Xiaomi %d data length mismatch (%u != %d)", raw_type, expected_length, actual_length);
       return {};
     }
-    result.type = is_miflora ? XiaomiParseResult::TYPE_MIFLORA : XiaomiParseResult::TYPE_MIJIA;
+    result.type = XiaomiParseResult::TYPE_MIFLORA;
+		if (is_mijia) {
+		  result.type = XiaomiParseResult::TYPE_MIJIA;
+		} else if (is_lywsd02) {
+		  result.type = XiaomiParseResult::TYPE_LYWSD02;
+		}
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   } else {
     const uint8_t *data = &raw[0];
@@ -156,16 +159,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     result.type = XiaomiParseResult::TYPE_MISCALE;
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   }
- 
-    result.type = XiaomiParseResult::TYPE_MIFLORA;
-  if (is_mijia) {
-    result.type = XiaomiParseResult::TYPE_MIJIA;
-  } else if (is_lywsd02) {
-    result.type = XiaomiParseResult::TYPE_LYWSD02;
-  }
 
-  bool success = parse_xiaomi_data_byte(raw_type, data, data_length, result);  
-  
   if (!success)
     return {};
   return result;
