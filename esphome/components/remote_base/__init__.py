@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
+    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_LEVEL
 from esphome.core import coroutine
 from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
@@ -686,7 +686,8 @@ NEXA_SCHEMA = cv.Schema({
     cv.Required(CONF_DEVICE): cv.hex_uint32_t,
     cv.Required(CONF_GROUP): cv.hex_uint8_t,
     cv.Required(CONF_STATE): cv.hex_uint8_t,
-    cv.Required(CONF_CHANNEL): cv.hex_uint8_t
+    cv.Required(CONF_CHANNEL): cv.hex_uint8_t,
+    cv.Required(CONF_LEVEL): cv.hex_uint8_t
 })
 
 
@@ -698,6 +699,7 @@ def nexa_binary_sensor(var, config):
         ('group', config[CONF_GROUP]),
         ('state', config[CONF_STATE]),
         ('channel', config[CONF_CHANNEL]),
+        ('level', config[CONF_LEVEL]),
     )))
 
 
@@ -717,4 +719,5 @@ def nexa_action(var, config, args):
     cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint8))))
     cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, cg.uint8))))
     cg.add(var.set_channel((yield cg.templatable(config[CONF_CHANNEL], args, cg.uint8))))
+    cg.add(var.set_level((yield cg.templatable(config[CONF_LEVEL], args, cg.uint8))))
     

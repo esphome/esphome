@@ -10,6 +10,7 @@ struct NexaData {
   uint8_t group;
   uint8_t state;
   uint8_t channel;
+  uint8_t level;
   bool operator==(const NexaData &rhs) const { 
     return device == rhs.device && group == rhs.group && state == rhs.state && channel == rhs.channel; }
 };
@@ -34,12 +35,14 @@ template<typename... Ts> class NexaAction : public RemoteTransmitterActionBase<T
   TEMPLATABLE_VALUE(uint8_t, group)
   TEMPLATABLE_VALUE(uint8_t, state)
   TEMPLATABLE_VALUE(uint8_t, channel)
+  TEMPLATABLE_VALUE(uint8_t, level)
   void encode(RemoteTransmitData *dst, Ts... x) override {
     NexaData data{};
     data.device = this->device_.value(x...);
     data.group = this->group_.value(x...);
     data.state = this->state_.value(x...);
     data.channel = this->channel_.value(x...);
+    data.level = this->level_.value(x...);
     NexaProtocol().encode(dst, data);
   }
 };
