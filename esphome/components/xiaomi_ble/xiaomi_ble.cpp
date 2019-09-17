@@ -86,9 +86,9 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
             else
               return false;
 
-              return true;
-            }
+            return true;
           }
+        }
       }
     }
     default:
@@ -102,7 +102,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   }
 
   if (!device.get_service_data_uuid()->contains(0x95, 0xFE) && !device.get_service_data_uuid()->contains(0x1D, 0x18) &&
-       !device.get_service_data_uuid()->contains(0x1B, 0x18)) {
+      !device.get_service_data_uuid()->contains(0x1B, 0x18)) {
     // ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
     return {};
   }
@@ -123,7 +123,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     is_miscale = true;
   if (device.get_service_data_uuid()->contains(0x1B, 0x18))
     is_mibfs = true;
-  
+
   if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
