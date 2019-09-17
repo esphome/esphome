@@ -141,7 +141,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     const uint8_t expected_length = data_length + raw_offset + 3;
     const uint8_t actual_length = device.get_service_data().size();
     if (expected_length != actual_length) {
-	      // ESP_LOGV(TAG, "Xiaomi %d data length mismatch (%u != %d)", raw_type, expected_length, actual_length);
+      // ESP_LOGV(TAG, "Xiaomi %d data length mismatch (%u != %d)", raw_type, expected_length, actual_length);
       return {};
     }
     result.type = XiaomiParseResult::TYPE_MIFLORA;
