@@ -146,9 +146,9 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     }
     result.type = XiaomiParseResult::TYPE_MIFLORA;
 		if (is_mijia) {
-		  result.type = XiaomiParseResult::TYPE_MIJIA;
+      result.type = XiaomiParseResult::TYPE_MIJIA;
 		} else if (is_lywsd02) {
-		  result.type = XiaomiParseResult::TYPE_LYWSD02;
+      result.type = XiaomiParseResult::TYPE_LYWSD02;
 		}
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   } else {
