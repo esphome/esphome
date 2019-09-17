@@ -132,7 +132,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  bool success;
+  # bool success;
   
   XiaomiParseResult result;
 
