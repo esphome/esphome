@@ -25,6 +25,18 @@ class Filter {
   Deduplicator<bool> dedup_;
 };
 
+class DelayedOnOffFilter : public Filter, public Component {
+ public:
+  explicit DelayedOnOffFilter(uint32_t delay);
+
+  optional<bool> new_value(bool value, bool is_initial) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t delay_;
+};
+
 class DelayedOnFilter : public Filter, public Component {
  public:
   explicit DelayedOnFilter(uint32_t delay);

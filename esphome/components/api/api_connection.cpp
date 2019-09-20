@@ -189,7 +189,7 @@ bool APIConnection::send_cover_state(cover::Cover *cover) {
   resp.position = cover->position;
   if (traits.get_supports_tilt())
     resp.tilt = cover->tilt;
-  resp.current_operation = static_cast<CoverOperation>(cover->current_operation);
+  resp.current_operation = static_cast<EnumCoverOperation>(cover->current_operation);
   return this->send_cover_state_response(resp);
 }
 bool APIConnection::send_cover_info(cover::Cover *cover) {
@@ -246,7 +246,7 @@ bool APIConnection::send_fan_state(fan::FanState *fan) {
   if (traits.supports_oscillation())
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed())
-    resp.speed = static_cast<FanSpeed>(fan->speed);
+    resp.speed = static_cast<EnumFanSpeed>(fan->speed);
   return this->send_fan_state_response(resp);
 }
 bool APIConnection::send_fan_info(fan::FanState *fan) {
@@ -441,7 +441,7 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   auto traits = climate->get_traits();
   ClimateStateResponse resp{};
   resp.key = climate->get_object_id_hash();
-  resp.mode = static_cast<ClimateMode>(climate->mode);
+  resp.mode = static_cast<EnumClimateMode>(climate->mode);
   if (traits.get_supports_current_temperature())
     resp.current_temperature = climate->current_temperature;
   if (traits.get_supports_two_point_target_temperature()) {
@@ -466,7 +466,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
                     climate::CLIMATE_MODE_HEAT}) {
     if (traits.supports_mode(mode))
-      msg.supported_modes.push_back(static_cast<ClimateMode>(mode));
+      msg.supported_modes.push_back(static_cast<EnumClimateMode>(mode));
   }
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
