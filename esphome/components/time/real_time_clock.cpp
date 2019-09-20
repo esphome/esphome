@@ -84,12 +84,12 @@ template<typename T> bool increment_time_value(T &current, uint16_t begin, uint1
 
 static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
 
-static bool days_in_month(uint8_t month, uint16_t year) {
+static uint8_t days_in_month(uint8_t month, uint16_t year) {
   static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  uint8_t days_in_month = DAYS_IN_MONTH[month];
+  uint8_t days = DAYS_IN_MONTH[month];
   if (month == 2 && is_leap_year(year))
-    days_in_month = 29;
-  return days_in_month;
+    return 29;
+  return days;
 }
 
 void ESPTime::increment_second() {
@@ -127,13 +127,13 @@ void ESPTime::recalc_timestamp_utc(bool use_day_of_year) {
     return;
   }
 
-  for (uint16_t i = 1970; i < this->year; i++)
+  for (int i = 1970; i < this->year; i++)
     res += is_leap_year(i) ? 366 : 365;
 
   if (use_day_of_year) {
     res += this->day_of_year - 1;
   } else {
-    for (uint8_t i = 1; i < this->month; ++i)
+    for (int i = 1; i < this->month; i++)
       res += days_in_month(i, this->year);
 
     res += this->day_of_month - 1;

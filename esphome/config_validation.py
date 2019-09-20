@@ -61,7 +61,7 @@ RESERVED_IDS = [
     'App', 'pinMode', 'delay', 'delayMicroseconds', 'digitalRead', 'digitalWrite', 'INPUT',
     'OUTPUT',
     'uint8_t', 'uint16_t', 'uint32_t', 'uint64_t', 'int8_t', 'int16_t', 'int32_t', 'int64_t',
-    'close', 'pause', 'sleep', 'open',
+    'close', 'pause', 'sleep', 'open', 'setup', 'loop',
 ]
 
 
@@ -1190,6 +1190,8 @@ def validate_registry_entry(name, registry):
             value[key] = {}
 
         registry_entry = registry[key]
+
+        value = value.copy()
 
         with prepend_path([key]):
             value[key] = registry_entry.schema(value[key])

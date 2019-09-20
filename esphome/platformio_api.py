@@ -7,10 +7,14 @@ import re
 import subprocess
 
 from esphome.core import CORE
-from esphome.py_compat import IS_PY2
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def is_platformio4():
+    from platformio import VERSION
+    return VERSION[0] >= 4
 
 
 def patch_structhash():
@@ -18,15 +22,17 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    # pylint: disable=no-member,no-name-in-module
+    # pylint: disable=no-member,no-name-in-module,import-error
     from platformio.commands import run
     from platformio import util
-    from platformio.util import get_project_dir
-    from os.path import join, isdir, getmtime, isfile
+    if is_platformio4():
+        from platformio.project.helpers import get_project_dir
+    else:
+        from platformio.util import get_project_dir
+    from os.path import join, isdir, getmtime
     from os import makedirs
 
-    def patched_clean_build_dir(build_dir):
-        structhash_file = join(build_dir, "structure.hash")
+    def patched_clean_build_dir(build_dir, *args):
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
@@ -36,27 +42,11 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-        proj_hash = run.calculate_project_hash()
-
-        # check project structure
-        if isdir(build_dir) and isfile(structhash_file):
-            with open(structhash_file) as f:
-                if f.read() == proj_hash:
-                    return
-
-        with open(structhash_file, "w") as f:
-            f.write(proj_hash)
-
     # pylint: disable=protected-access
-    orig = run._clean_build_dir
-
-    def patched_safe(*args, **kwargs):
-        try:
-            return patched_clean_build_dir(*args, **kwargs)
-        except Exception:  # pylint: disable=broad-except
-            return orig(*args, **kwargs)
-
-    run._clean_build_dir = patched_safe
+    if is_platformio4():
+        run.helpers.clean_build_dir = patched_clean_build_dir
+    else:
+        run._clean_build_dir = patched_clean_build_dir
 
 
 def run_platformio_cli(*args, **kwargs):
@@ -65,18 +55,13 @@ def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
 
-    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
-        import platformio.__main__
-        try:
-            if IS_PY2:
-                patch_structhash()
-        except Exception:  # pylint: disable=broad-except
-            # Ignore when patch fails
-            pass
-        return run_external_command(platformio.__main__.main,
-                                    *cmd, **kwargs)
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is not None:
+        return run_external_process(*cmd, **kwargs)
 
-    return run_external_process(*cmd, **kwargs)
+    import platformio.__main__
+    patch_structhash()
+    return run_external_command(platformio.__main__.main,
+                                *cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):

@@ -191,6 +191,10 @@ sensor:
         - 100.0 -> 102.5
       - filter_out: 42.0
       - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -449,6 +453,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
@@ -501,6 +506,15 @@ sensor:
     humidity:
       name: "Living Room Humidity 8"
     address: 0x44
+    update_interval: 15s
+  - platform: scd30
+    co2:
+      name: "Living Room CO2 9"
+    temperature:
+      name: "Living Room Temperature 9"
+    humidity:
+      name: "Living Room Humidity 9"
+    address: 0x61
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -564,6 +578,23 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
+  - platform: tx20
+    wind_speed:
+      name: "Windspeed"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
+    pin: 
+      number: GPIO04
+      mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
 
 
 esp32_touch:
@@ -1018,7 +1049,7 @@ switch:
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
-        code: '001010011001111101011011'
+        code: '00101001100111110101xxxx'
         protocol: 1
   - platform: template
     name: RC Switch Type A

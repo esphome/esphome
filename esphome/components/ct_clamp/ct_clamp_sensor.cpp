@@ -8,6 +8,18 @@ namespace ct_clamp {
 
 static const char *TAG = "ct_clamp";
 
+void CTClampSensor::setup() {
+  this->is_calibrating_offset_ = true;
+  this->high_freq_.start();
+  this->set_timeout("calibrate_offset", this->sample_duration_, [this]() {
+    this->high_freq_.stop();
+    this->is_calibrating_offset_ = false;
+    if (this->num_samples_ != 0) {
+      this->offset_ = this->sample_sum_ / this->num_samples_;
+    }
+  });
+}
+
 void CTClampSensor::dump_config() {
   LOG_SENSOR("", "CT Clamp Sensor", this);
   ESP_LOGCONFIG(TAG, "  Sample Duration: %.2fs", this->sample_duration_ / 1e3f);
@@ -15,6 +27,9 @@ void CTClampSensor::dump_config() {
 }
 
 void CTClampSensor::update() {
+  if (this->is_calibrating_offset_)
+    return;
+
   // Update only starts the sampling phase, in loop() the actual sampling is happening.
 
   // Request a high loop() execution interval during sampling phase.
@@ -44,11 +59,17 @@ void CTClampSensor::update() {
 }
 
 void CTClampSensor::loop() {
-  if (!this->is_sampling_)
+  if (!this->is_sampling_ || !this->is_calibrating_offset_)
     return;
 
   // Perform a single sample
   float value = this->source_->sample();
+
+  if (this->is_calibrating_offset_) {
+    this->sample_sum_ += value;
+    this->num_samples_++;
+    return;
+  }
 
   // Adjust DC offset via low pass filter (exponential moving average)
   const float alpha = 0.001f;

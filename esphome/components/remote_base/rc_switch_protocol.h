@@ -55,6 +55,8 @@ extern RCSwitchBase rc_switch_protocols[8];
 
 uint32_t decode_binary_string(const std::string &data);
 
+uint32_t decode_binary_string_mask(const std::string &data);
+
 template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
@@ -167,6 +169,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
   void set_code(uint32_t code) { this->code_ = code; }
   void set_code(const std::string &code) {
     this->code_ = decode_binary_string(code);
+    this->mask_ = decode_binary_string_mask(code);
     this->nbits_ = code.size();
   }
   void set_nbits(uint8_t nbits) { this->nbits_ = nbits; }
@@ -192,6 +195,7 @@ class RCSwitchRawReceiver : public RemoteReceiverBinarySensorBase {
 
   RCSwitchBase protocol_;
   uint32_t code_;
+  uint32_t mask_{0xFFFFFFFF};
   uint8_t nbits_;
 };
 

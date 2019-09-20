@@ -132,10 +132,14 @@ void DallasComponent::update() {
       enable_interrupts();
 
       if (!res) {
+        ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
+        sensor->publish_state(NAN);
         this->status_set_warning();
         return;
       }
       if (!sensor->check_scratch_pad()) {
+        ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", sensor->get_name().c_str());
+        sensor->publish_state(NAN);
         this->status_set_warning();
         return;
       }
@@ -244,11 +248,7 @@ bool DallasTemperatureSensor::check_scratch_pad() {
             this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
             crc8(this->scratch_pad_, 8));
 #endif
-  if (crc8(this->scratch_pad_, 8) != this->scratch_pad_[8]) {
-    ESP_LOGE(TAG, "Reading scratchpad from Dallas Sensor failed");
-    return false;
-  }
-  return true;
+  return crc8(this->scratch_pad_, 8) == this->scratch_pad_[8];
 }
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
