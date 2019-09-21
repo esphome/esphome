@@ -113,9 +113,9 @@ void MAX31865Sensor::read_data_() {
   this->read_array(data, 2);
   this->disable();
 
-  uint16_t val = *((*uint16_t)data) >> 1;
+  uint16_t val = (data[1] | (data[0] << 8)) >> 1;
 
-  ESP_LOGD(TAG, "'%s': Read ADC of 0x%02X", this->name_.c_str(), val);
+  ESP_LOGD(TAG, "'%s': Read ADC of 0x%04X", this->name_.c_str(), val);
 
   if((data[1] & MAX31865_RTD_L_FLT) == MAX31865_RTD_L_FLT) {
     this->enable();
