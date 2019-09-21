@@ -2,11 +2,9 @@ import re
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import LambdaAction
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.core import CORE, EsphomeError, Lambda, coroutine, coroutine_with_priority
-from esphome.components import sensor
+from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.py_compat import text_type, binary_type, char_to_byte
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 

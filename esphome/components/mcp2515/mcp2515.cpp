@@ -6,12 +6,12 @@ namespace mcp2515 {
 
 static const char *TAG = "mcp2515";
 
-const struct MCP2515::TXBn_REGS MCP2515::TXB[N_TXBUFFERS] = {
+const struct MCP2515::TxBnRegs MCP2515::TXB[N_TXBUFFERS] = {
     {MCP_TXB0CTRL, MCP_TXB0SIDH, MCP_TXB0DATA},
     {MCP_TXB1CTRL, MCP_TXB1SIDH, MCP_TXB1DATA},
     {MCP_TXB2CTRL, MCP_TXB2SIDH, MCP_TXB2DATA}};
 
-const struct MCP2515::RXBn_REGS MCP2515::RXB[N_RXBUFFERS] = {
+const struct MCP2515::RxBnRegs MCP2515::RXB[N_RXBUFFERS] = {
     {MCP_RXB0CTRL, MCP_RXB0SIDH, MCP_RXB0DATA, CANINTF_RX0IF},
     {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
 
@@ -27,7 +27,7 @@ bool MCP2515::setup_internal_() {
   return true;
 }
 
-canbus::ERROR MCP2515::reset_(void) {
+canbus::Error MCP2515::reset_(void) {
   this->enable();
   this->transfer_byte(INSTRUCTION_RESET);
   this->disable();
@@ -52,23 +52,6 @@ canbus::ERROR MCP2515::reset_(void) {
   modify_register_(MCP_RXB0CTRL, RXBnCTRL_RXM_MASK | RXB0CTRL_BUKT,
                    RXBnCTRL_RXM_STDEXT | RXB0CTRL_BUKT);
   modify_register_(MCP_RXB1CTRL, RXBnCTRL_RXM_MASK, RXBnCTRL_RXM_STDEXT);
-
-  // clear filters and masks
-  /*RXF filters[] = {RXF0, RXF1, RXF2, RXF3, RXF4, RXF5};
-  for (int i=0; i<6; i++) {
-      canbus::ERROR result = set_filter_(filters[i], true, 0);
-      if (result != canbus::ERROR_OK) {
-          return result;
-      }
-  }
-
-  MASK masks[] = {MASK0, MASK1};
-  for (int i=0; i<2; i++) {
-      canbus::ERROR result = set_filter_mask_(masks[i], true, 0);
-      if (result != canbus::ERROR_OK) {
-          return result;
-      }
-  }*/
 
   return canbus::ERROR_OK;
 }
@@ -135,7 +118,7 @@ uint8_t MCP2515::get_status_(void) {
   return i;
 }
 
-canbus::ERROR MCP2515::set_mode_(const CANCTRL_REQOP_MODE mode) {
+canbus::Error MCP2515::set_mode_(const CANCTRL_REQOP_MODE mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
   unsigned long endTime = millis() + 10;
@@ -151,8 +134,8 @@ canbus::ERROR MCP2515::set_mode_(const CANCTRL_REQOP_MODE mode) {
   return modeMatch ? canbus::ERROR_OK : canbus::ERROR_FAIL;
 }
 
-canbus::ERROR MCP2515::set_clk_out_(const CAN_CLKOUT divisor) {
-  canbus::ERROR res;
+canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
+  canbus::Error res;
   uint8_t cfg3;
 
   if (divisor == CLKOUT_DISABLE) {
@@ -194,15 +177,15 @@ void MCP2515::prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id) {
   }
 }
 
-canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext,
-                                        const uint32_t ulData) {
-  canbus::ERROR res = set_mode_(CANCTRL_REQOP_CONFIG);
+canbus::Error MCP2515::set_filter_mask_(const MASK mask, const bool ext,
+                                        const uint32_t ul_data) {
+  canbus::Error res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
   }
 
   uint8_t tbufdata[4];
-  prepare_id_(tbufdata, ext, ulData);
+  prepare_id_(tbufdata, ext, ul_data);
 
   REGISTER reg;
   switch (mask) {
@@ -221,9 +204,9 @@ canbus::ERROR MCP2515::set_filter_mask_(const MASK mask, const bool ext,
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext,
-                                   const uint32_t ulData) {
-  canbus::ERROR res = set_mode_(CANCTRL_REQOP_CONFIG);
+canbus::Error MCP2515::set_filter_(const RXF num, const bool ext,
+                                   const uint32_t ul_data) {
+  canbus::Error res = set_mode_(CANCTRL_REQOP_CONFIG);
   if (res != canbus::ERROR_OK) {
     return res;
   }
@@ -254,15 +237,15 @@ canbus::ERROR MCP2515::set_filter_(const RXF num, const bool ext,
   }
 
   uint8_t tbufdata[4];
-  prepare_id_(tbufdata, ext, ulData);
+  prepare_id_(tbufdata, ext, ul_data);
   set_registers_(reg, tbufdata, 4);
 
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::send_message_(const TXBn txbn,
-                                     const struct canbus::can_frame *frame) {
-  const struct TXBn_REGS *txbuf = &TXB[txbn];
+canbus::Error MCP2515::send_message_(const TXBn txbn,
+                                     const struct canbus::CanFrame *frame) {
+  const struct TxBnRegs *txbuf = &TXB[txbn];
 
   uint8_t data[13];
 
@@ -279,7 +262,7 @@ canbus::ERROR MCP2515::send_message_(const TXBn txbn,
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::send_message_(const struct canbus::can_frame *frame) {
+canbus::Error MCP2515::send_message_(const struct canbus::CanFrame *frame) {
   // ESP_LOGD(TAG, "send_message_: frame.id = %d", frame->can_id);
   if (frame->can_dlc > canbus::CAN_MAX_DLEN) {
     return canbus::ERROR_FAILTX;
@@ -288,7 +271,7 @@ canbus::ERROR MCP2515::send_message_(const struct canbus::can_frame *frame) {
   TXBn txBuffers[N_TXBUFFERS] = {TXB0, TXB1, TXB2};
 
   for (int i = 0; i < N_TXBUFFERS; i++) {
-    const struct TXBn_REGS *txbuf = &TXB[txBuffers[i]];
+    const struct TxBnRegs *txbuf = &TXB[txBuffers[i]];
     uint8_t ctrlval = read_register_(txbuf->CTRL);
     if ((ctrlval & TXB_TXREQ) == 0) {
       // ESP_LOGD(TAG, "send buffer: %d,  ctrl_val = %d", i, ctrlval);
@@ -299,9 +282,9 @@ canbus::ERROR MCP2515::send_message_(const struct canbus::can_frame *frame) {
   return canbus::ERROR_FAILTX;
 }
 
-canbus::ERROR MCP2515::read_message_(const RXBn rxbn,
-                                     struct canbus::can_frame *frame) {
-  const struct RXBn_REGS *rxb = &RXB[rxbn];
+canbus::Error MCP2515::read_message_(const RXBn rxbn,
+                                     struct canbus::CanFrame *frame) {
+  const struct RxBnRegs *rxb = &RXB[rxbn];
 
   uint8_t tbufdata[5];
 
@@ -336,8 +319,8 @@ canbus::ERROR MCP2515::read_message_(const RXBn rxbn,
   return canbus::ERROR_OK;
 }
 
-canbus::ERROR MCP2515::read_message_(struct canbus::can_frame *frame) {
-  canbus::ERROR rc;
+canbus::Error MCP2515::read_message_(struct canbus::CanFrame *frame) {
+  canbus::Error rc;
   uint8_t stat = get_status_();
 
   if (stat & STAT_RX0IF) {
@@ -408,13 +391,13 @@ void MCP2515::clearERRIF() {
   modify_register_(MCP_CANINTF, CANINTF_ERRIF, 0);
 }
 
-canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed) {
+canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed) {
   return this->set_bitrate_(can_speed, MCP_16MHZ);
 }
 
-canbus::ERROR MCP2515::set_bitrate_(canbus::CAN_SPEED can_speed,
-                                    CAN_CLOCK can_clock) {
-  canbus::ERROR error = set_mode_(CANCTRL_REQOP_CONFIG);
+canbus::Error MCP2515::set_bitrate_(canbus::CanSpeed can_speed,
+                                    CanClock can_clock) {
+  canbus::Error error = set_mode_(CANCTRL_REQOP_CONFIG);
   if (error != canbus::ERROR_OK) {
     return error;
   }

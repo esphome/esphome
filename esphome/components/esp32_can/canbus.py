@@ -3,9 +3,8 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import canbus
 from esphome.const import CONF_ID
-from esphome.components.canbus import CanbusComponent, CONF_CAN_ID
+from esphome.components.canbus import CanbusComponent
 
-print("esp32_can.canbus.py")
 CONF_RX_PIN = 'rx_pin'
 CONF_TX_PIN = 'tx_pin'
 

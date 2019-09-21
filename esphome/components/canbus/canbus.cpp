@@ -19,7 +19,7 @@ void Canbus::dump_config() {
 }
 
 void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
-  struct can_frame can_message;
+  struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
   ESP_LOGD(TAG, "canid=%d size=%d", can_id, size);
@@ -42,7 +42,7 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 };
 
 void Canbus::loop() {
-  struct can_frame can_message;
+  struct CanFrame can_message;
   // readmessage
   if (this->read_message_(&can_message) == canbus::ERROR_OK) {
     ESP_LOGD(TAG, "received can message can_id=%d  length=%d",

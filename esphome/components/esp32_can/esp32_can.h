@@ -11,9 +11,10 @@ class ESP32Can : public canbus::Canbus {
   ESP32Can(){};
 
  protected:
-  bool send_internal_(int can_id, uint8_t *data) override;
-  bool setup_internal_() override;
-  ERROR set_bitrate_(const CAN_SPEED canSpeed) override;
+  bool send_internal_(int can_id, uint8_t *data);
+  bool setup_internal_();
+  canbus::Error set_bitrate_(const canbus::CanSpeed can_speed);
 };
+
 }  // namespace esp32_can
 }  // namespace esphome

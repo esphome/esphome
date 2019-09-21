@@ -10,7 +10,7 @@ bool ESP32Can::send_internal_(int can_id, uint8_t *data) { return true; };
 
 bool ESP32Can::setup_internal_ () { return true; };
 
-ESP32Can::ERROR ESP32Can::set_bitrate_(const CAN_SPEED canSpeed) { return ERROR_OK; };
+canbus::Error ESP32Can::set_bitrate_(const canbus::CanSpeed canSpeed) { return canbus::ERROR_OK; };
 
 }  // namespace esp32_can
 }  // namespace esphome

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace canbus {
 
-enum ERROR : uint8_t {
+enum Error : uint8_t {
   ERROR_OK = 0,
   ERROR_FAIL = 1,
   ERROR_ALLTXBUSY = 2,
@@ -16,7 +16,7 @@ enum ERROR : uint8_t {
   ERROR_NOMSG = 5
 };
 
-enum CAN_SPEED : uint8_t {
+enum CanSpeed : uint8_t {
   CAN_5KBPS,
   CAN_10KBPS,
   CAN_20KBPS,
@@ -56,7 +56,7 @@ class CanbusTrigger;
 static const uint8_t CAN_MAX_DLC = 8;
 static const uint8_t CAN_MAX_DLEN = 8;
 
-struct can_frame {
+struct CanFrame {
   uint32_t can_id; /* 32 bit CAN_ID + EFF/RTR/ERR flags */
   uint8_t can_dlc; /* frame payload length in byte (0 .. CAN_MAX_DLEN) */
   uint8_t data[CAN_MAX_DLEN] __attribute__((aligned(8)));
@@ -73,18 +73,18 @@ public:
 
   void send_data(uint32_t can_id, const std::vector<uint8_t> data);
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
-  void set_bitrate(CAN_SPEED bit_rate) { this->bit_rate_ = bit_rate; }
+  void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 
   void add_trigger(CanbusTrigger *trigger);
 
 protected:
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t sender_id_{0};
-  CAN_SPEED bit_rate_{CAN_125KBPS};
+  CanSpeed bit_rate_{CAN_125KBPS};
 
   virtual bool setup_internal_();
-  virtual ERROR send_message_(const struct can_frame *frame);
-  virtual ERROR read_message_(struct can_frame *frame);
+  virtual Error send_message_(const struct CanFrame *frame);
+  virtual Error read_message_(struct CanFrame *frame);
 };
 
 template <typename... Ts>

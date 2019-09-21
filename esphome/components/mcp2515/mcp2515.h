@@ -11,13 +11,13 @@ static const uint32_t SPI_CLOCK = 10000000; // 10MHz
 
 static const int N_TXBUFFERS = 3;
 static const int N_RXBUFFERS = 2;
-enum CAN_CLOCK { MCP_20MHZ, MCP_16MHZ, MCP_8MHZ };
+enum CanClock { MCP_20MHZ, MCP_16MHZ, MCP_8MHZ };
 enum MASK { MASK0, MASK1 };
 enum RXF { RXF0 = 0, RXF1 = 1, RXF2 = 2, RXF3 = 3, RXF4 = 4, RXF5 = 5 };
 enum RXBn { RXB0 = 0, RXB1 = 1 };
 enum TXBn { TXB0 = 0, TXB1 = 1, TXB2 = 2 };
 
-enum CAN_CLKOUT {
+enum CanClkOut {
   CLKOUT_DISABLE = -1,
   CLKOUT_DIV1 = 0x0,
   CLKOUT_DIV2 = 0x1,
@@ -59,15 +59,15 @@ class MCP2515
                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
 public:
   MCP2515(){};
-  void set_mcp_clock(CAN_CLOCK clock) { this->mcp_clock_ = clock; };
+  void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
   void set_mcp_mode(const CANCTRL_REQOP_MODE mode) { this->mcp_mode_ = mode; }
-  static const struct TXBn_REGS {
+  static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
     REGISTER DATA;
   } TXB[N_TXBUFFERS];
 
-  static const struct RXBn_REGS {
+  static const struct RxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
     REGISTER DATA;
@@ -75,10 +75,10 @@ public:
   } RXB[N_RXBUFFERS];
 
 protected:
-  CAN_CLOCK mcp_clock_{MCP_8MHZ};
+  CanClock mcp_clock_{MCP_8MHZ};
   CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal_() override;
-  canbus::ERROR set_mode_(const CANCTRL_REQOP_MODE mode);
+  canbus::Error set_mode_(const CANCTRL_REQOP_MODE mode);
 
   uint8_t read_register_(const REGISTER reg);
   void read_registers_(const REGISTER reg, uint8_t values[], const uint8_t n);
@@ -88,30 +88,30 @@ protected:
                         const uint8_t data);
 
   void prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id);
-  canbus::ERROR reset_(void);
-  canbus::ERROR set_clk_out_(const CAN_CLKOUT divisor);
-  canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed);
-  canbus::ERROR set_bitrate_(canbus::CAN_SPEED can_speed,
-                             const CAN_CLOCK can_clock);
-  canbus::ERROR set_filter_mask_(const MASK num, const bool ext,
-                                 const uint32_t ulData);
-  canbus::ERROR set_filter_(const RXF num, const bool ext,
-                            const uint32_t ulData);
-  canbus::ERROR send_message_(const TXBn txbn,
-                              const struct canbus::can_frame *frame);
-  canbus::ERROR send_message_(const struct canbus::can_frame *frame);
-  canbus::ERROR read_message_(const RXBn rxbn, struct canbus::can_frame *frame);
-  canbus::ERROR read_message_(struct canbus::can_frame *frame);
-  bool check_receive_(void);
-  bool check_error_(void);
-  uint8_t get_error_flags_(void);
-  void clearRXnOVRFlags(void);
-  uint8_t getInterrupts(void);
-  uint8_t getInterruptMask(void);
-  void clearInterrupts(void);
-  void clearTXInterrupts(void);
-  uint8_t get_status_(void);
-  void clearRXnOVR(void);
+  canbus::Error reset_();
+  canbus::Error set_clk_out_(const CanClkOut divisor);
+  canbus::Error set_bitrate_(canbus::CanSpeed can_speed);
+  canbus::Error set_bitrate_(canbus::CanSpeed can_speed,
+                             const CanClock can_clock);
+  canbus::Error set_filter_mask_(const MASK num, const bool ext,
+                                 const uint32_t ul_data);
+  canbus::Error set_filter_(const RXF num, const bool ext,
+                            const uint32_t ul_data);
+  canbus::Error send_message_(const TXBn txbn,
+                              const struct canbus::CanFrame *frame);
+  canbus::Error send_message_(const struct canbus::CanFrame *frame); 
+  canbus::Error read_message_(const RXBn rxbn, struct canbus::CanFrame *frame);
+  canbus::Error read_message_(struct canbus::CanFrame *frame);
+  bool check_receive_();
+  bool check_error_();
+  uint8_t get_error_flags_();
+  void clearRXnOVRFlags();
+  uint8_t getInterrupts();
+  uint8_t getInterruptMask();
+  void clearInterrupts();
+  void clearTXInterrupts();
+  uint8_t get_status_();
+  void clearRXnOVR();
   void clearMERR();
   void clearERRIF();
 };
