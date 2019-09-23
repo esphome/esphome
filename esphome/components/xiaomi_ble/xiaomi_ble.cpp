@@ -84,7 +84,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   bool is_mijia = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_miflora = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
-  bool is_cleargrass = (raw[1] & 0x20) == 0x20 && raw[2] == 0x47 && raw[3] == 0x03;
+  bool is_cleargrass = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
 
   if (!is_mijia && !is_miflora && !is_lywsd02 && !is_cleargrass) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
