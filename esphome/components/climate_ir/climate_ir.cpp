@@ -49,7 +49,7 @@ void ClimateIR::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
 
-  this->transmit_state_();
+  this->transmit_state();
   this->publish_state();
 }
 

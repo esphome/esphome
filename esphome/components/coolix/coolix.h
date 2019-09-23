@@ -15,7 +15,7 @@ class CoolixClimate : public climate::ClimateIR {
 
  protected:
   /// Transmit via IR the state of this climate controller.
-  void transmit_state_() override;
+  void transmit_state() override;
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
 };

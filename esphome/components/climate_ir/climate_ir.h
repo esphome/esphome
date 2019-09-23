@@ -41,7 +41,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   climate::ClimateTraits traits() override;
 
   /// Transmit via IR the state of this climate controller.
-  virtual void transmit_state_() {}
+  virtual void transmit_state() {}
 
   bool supports_cool_{true};
   bool supports_heat_{true};

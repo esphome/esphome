@@ -58,7 +58,7 @@ static const uint32_t FOOTER_SPACE_US = HEADER_SPACE_US;
 
 const uint16_t COOLIX_BITS = 24;
 
-void CoolixClimate::transmit_state_() {
+void CoolixClimate::transmit_state() {
   uint32_t remote_state;
 
   switch (this->mode) {
