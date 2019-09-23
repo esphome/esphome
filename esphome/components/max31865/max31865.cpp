@@ -34,7 +34,7 @@ namespace max31865 {
 
 static const char *TAG = "max31865";
 
-float  MAX31865Sensor::temperature(unsigned short adc, float rtd_nominal, float ref_resistor) {
+float MAX31865Sensor::temperature(unsigned short adc, float rtd_nominal, float ref_resistor) {
   // https://github.com/adafruit/Adafruit_MAX31865/blob/master/Adafruit_MAX31865.cpp
   // http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
 
@@ -54,7 +54,7 @@ float  MAX31865Sensor::temperature(unsigned short adc, float rtd_nominal, float 
   temp = z2 + (z3 * r_t);
   temp = (std::sqrt(temp) + z1) / z4;
 
-  if (temp >= 0) 
+  if (temp >= 0)
     return temp;
 
   // ugh.
