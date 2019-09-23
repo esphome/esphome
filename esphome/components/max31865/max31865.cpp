@@ -55,7 +55,7 @@ float  MAX31865Sensor::temperature(unsigned short adc, float rtd_nominal, float 
   temp = (std::sqrt(temp) + z1) / z4;
 
   if (temp >= 0) 
-	return temp;
+    return temp;
 
   // ugh.
   r_t /= rtd_nominal;
