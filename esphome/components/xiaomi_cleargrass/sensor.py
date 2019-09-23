@@ -8,8 +8,8 @@ DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_cleargrass_ns = cg.esphome_ns.namespace('xiaomi_cleargrass')
-XiaomiCleargrass = xiaomi_cleargrass_ns.class_('XiaomiCleargrass', 
-    esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
+XiaomiCleargrass = xiaomi_cleargrass_ns.class_(
+    'XiaomiCleargrass', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiCleargrass),
