@@ -1,6 +1,6 @@
 #pragma once
 
-#include "esphome/components/climate/climate_ir.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
 namespace coolix {
