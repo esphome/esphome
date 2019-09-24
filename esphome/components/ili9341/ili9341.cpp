@@ -83,16 +83,62 @@ uint8_t ili9341::read_command_(uint8_t commandByte, uint8_t index) {
 
 void ili9341::update() {
   this->do_update_();
-  //  this->display();
-  // ESP_LOGD(TAG, "xlow: %d, ylow: %d, xhigh: %d, Yhigh: %d", x_low_, y_low_, x_high_, y_high_);
+  this->display();
+}
+
+void ili9341::display () {
+  //we will only update the changed window to the display
+  int w = this->x_high_ - this->x_low_;
+  int h = this->y_high_ - this->y_low_;
+
+  set_addr_window_(this->x_low_,this->y_low_,w, h);
+  this->start_data_();
+  uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
+  for (uint16_t row = 0; row < h; row++) {
+    for(uint16_t col = 0; col < w; col++) {
+      uint32_t pos = start_pos + (row * width_) + col;
+
+      uint16_t color = convert_to_16bit_color_(buffer_[pos]);
+      this->write_byte(color >> 8);
+      this->write_byte(color);  
+    }
+  }
+  this->end_data_();
+
+  //invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
 }
 
+uint16_t ili9341::convert_to_16bit_color_ (uint8_t color_8bit) {
+    int r = color_8bit >> 5;
+    int g = (color_8bit >> 2 )& 0x07;
+    int b = color_8bit & 0x03;
+    uint16_t color = (r * 0x04) << 11;
+    color |= (g * 0x09) << 5;
+    color |= (b * 0x0A);
+    
+    return color;
+}
+
+uint8_t ili9341::convert_to_8bit_color (uint16_t color_16bit) {
+  //convert 16bit color to 8 bit buffer
+  uint8_t r = color_16bit >> 11;
+  uint8_t g = (color_16bit >> 5 ) &  0x3F;
+  uint8_t b = color_16bit & 0x1F;
+
+  return((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
+}
+
+/**
+ * do nothing.
+ * we need this function het to override the default behaviour.
+ * Otherwise the buffer is cleared at every update
+ * */
 void ili9341::fill(int color) {
-  // this->fill_internal_(color);
+  //do nothing.
 }
 
 void ili9341::fill_internal_(int color) {
@@ -101,6 +147,7 @@ void ili9341::fill_internal_(int color) {
   for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
     this->write_byte(color >> 8);
     this->write_byte(color);
+    buffer_[i] = 0;
   }
   this->end_data_();
 }
@@ -108,22 +155,20 @@ void ili9341::fill_internal_(int color) {
 void HOT ili9341::draw_absolute_pixel_internal(int x, int y, int color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
+
   // low and high watermark may speed up drawing from buffer
   this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
-  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
+  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;  
   this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
-  set_addr_window_(x, y, 1, 1);
-  this->start_data_();
-  this->write_byte(color >> 8);
-  this->write_byte(color);
-  this->end_data_();
+  uint32_t pos = (y*width_) + x;
+  buffer_[pos] = convert_to_8bit_color(color);
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
 // values per bit is huge
-uint32_t ili9341::get_buffer_length_() { return 1; }
+uint32_t ili9341::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
 
 void ili9341::start_command_() {
   this->dc_pin_->digital_write(false);
