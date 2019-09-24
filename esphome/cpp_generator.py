@@ -250,7 +250,7 @@ class FloatLiteral(Literal):
     def __str__(self):
         if math.isnan(self.float_):
             return u"NAN"
-        return u"{:f}f".format(self.float_)
+        return u"{}f".format(self.float_)
 
 
 # pylint: disable=bad-continuation

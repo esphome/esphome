@@ -61,7 +61,9 @@ void IntegrationSensor::process_sensor_value_(float value) {
       area = dt * new_value;
       break;
   }
-  this->publish_and_save_(this->last_value_ + area);
+  this->last_value_ = new_value;
+  this->last_update_ = now;
+  this->publish_and_save_(this->result_ + area);
 }
 
 }  // namespace integration

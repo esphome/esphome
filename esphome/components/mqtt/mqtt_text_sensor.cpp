@@ -15,9 +15,6 @@ void MQTTTextSensor::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig 
   if (!this->sensor_->get_icon().empty())
     root["icon"] = this->sensor_->get_icon();
 
-  if (!this->sensor_->unique_id().empty())
-    root["unique_id"] = this->sensor_->unique_id();
-
   config.command_topic = false;
 }
 void MQTTTextSensor::setup() {
@@ -40,6 +37,7 @@ bool MQTTTextSensor::send_initial_state() {
 bool MQTTTextSensor::is_internal() { return this->sensor_->is_internal(); }
 std::string MQTTTextSensor::component_type() const { return "sensor"; }
 std::string MQTTTextSensor::friendly_name() const { return this->sensor_->get_name(); }
+std::string MQTTTextSensor::unique_id() { return this->sensor_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome
