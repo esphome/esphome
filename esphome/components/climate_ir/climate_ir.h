@@ -21,7 +21,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f) {
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
-    this->temperature_step_ = temperature_step_;
+    this->temperature_step_ = temperature_step;
   }
 
   void setup() override;
