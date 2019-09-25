@@ -74,7 +74,7 @@ def to_code(config):
     if CORE.is_esp32:
         cg.add_library('AsyncTCP', '1.0.3')
     elif CORE.is_esp8266:
-        cg.add_library('ESPAsyncTCP', '1.2.0')
+        cg.add_library('ESPAsyncTCP', '1.2.1')
 
 
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
