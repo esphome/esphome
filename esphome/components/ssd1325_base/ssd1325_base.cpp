@@ -34,7 +34,7 @@ void SSD1325::setup() {
   this->command(0x65);
   this->command(0x76);
   this->command(SSD1325_SETCONTRAST); /* set contrast current */
-  this->command(0x3E);  // max!
+  this->command(0x7F);  // max!
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
