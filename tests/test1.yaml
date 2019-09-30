@@ -804,7 +804,7 @@ output:
   - platform: gpio
     id: id23
     pin:
-      mcp23008: mcp23008_but
+      mcp23008: mcp23008_hub
       number: 0
       mode: OUTPUT
       inverted: False
