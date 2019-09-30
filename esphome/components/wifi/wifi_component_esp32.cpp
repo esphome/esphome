@@ -53,8 +53,12 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   return ret;
 }
-bool WiFiComponent::wifi_disable_auto_connect_() {
+bool WiFiComponent::wifi_sta_pre_setup_() {
+  if (!this->wifi_mode_(true, {}))
+    return false;
+
   WiFi.setAutoReconnect(false);
+  delay(10);
   return true;
 }
 bool WiFiComponent::wifi_apply_power_save_() {
@@ -359,7 +363,7 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     }
     case SYSTEM_EVENT_AP_PROBEREQRECVED: {
       auto it = info.ap_probereqrecved;
-      ESP_LOGV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
+      ESP_LOGVV(TAG, "Event: AP receive Probe Request MAC=%s RSSI=%d", format_mac_addr(it.mac).c_str(), it.rssi);
       break;
     }
     default:
@@ -382,10 +386,12 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
     this->wifi_scan_done_callback_();
   }
 }
-void WiFiComponent::wifi_register_callbacks_() {
+void WiFiComponent::wifi_pre_setup_() {
   auto f = std::bind(&WiFiComponent::wifi_event_callback_, this, std::placeholders::_1, std::placeholders::_2);
   WiFi.onEvent(f);
   WiFi.persistent(false);
+  // Make sure WiFi is in clean state before anything starts
+  this->wifi_mode_(false, false);
 }
 wl_status_t WiFiComponent::wifi_sta_status_() { return WiFi.status(); }
 bool WiFiComponent::wifi_scan_start_() {
@@ -517,11 +523,12 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-IPAddress WiFiComponent::wifi_soft_ap_ip_() {
+IPAddress WiFiComponent::wifi_soft_ap_ip() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
   return IPAddress(ip.ip.addr);
 }
+bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
 }  // namespace wifi
 }  // namespace esphome

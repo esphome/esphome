@@ -24,13 +24,13 @@ class ESP8266SoftwareSerial {
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
-  inline void wait_(uint32_t *wait, const uint32_t &start);
-  inline bool read_bit_(uint32_t *wait, const uint32_t &start);
-  inline void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+  void wait_(uint32_t *wait, const uint32_t &start);
+  bool read_bit_(uint32_t *wait, const uint32_t &start);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_{64};
+  size_t rx_buffer_size_{512};
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
   ISRInternalGPIOPin *tx_pin_{nullptr};

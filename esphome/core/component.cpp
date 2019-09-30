@@ -58,23 +58,35 @@ bool Component::cancel_timeout(const std::string &name) {  // NOLINT
   return App.scheduler.cancel_timeout(this, name);
 }
 
-void Component::call_loop() {
-  this->loop_internal_();
-  this->loop();
-}
+void Component::call_loop() { this->loop(); }
 
-void Component::call_setup() {
-  this->setup_internal_();
-  this->setup();
-}
+void Component::call_setup() { this->setup(); }
 uint32_t Component::get_component_state() const { return this->component_state_; }
-void Component::loop_internal_() {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= COMPONENT_STATE_LOOP;
-}
-void Component::setup_internal_() {
-  this->component_state_ &= ~COMPONENT_STATE_MASK;
-  this->component_state_ |= COMPONENT_STATE_SETUP;
+void Component::call() {
+  uint32_t state = this->component_state_ & COMPONENT_STATE_MASK;
+  switch (state) {
+    case COMPONENT_STATE_CONSTRUCTION:
+      // State Construction: Call setup and set state to setup
+      this->component_state_ &= ~COMPONENT_STATE_MASK;
+      this->component_state_ |= COMPONENT_STATE_SETUP;
+      this->call_setup();
+      break;
+    case COMPONENT_STATE_SETUP:
+      // State setup: Call first loop and set state to loop
+      this->component_state_ &= ~COMPONENT_STATE_MASK;
+      this->component_state_ |= COMPONENT_STATE_LOOP;
+      this->call_loop();
+      break;
+    case COMPONENT_STATE_LOOP:
+      // State loop: Call loop
+      this->call_loop();
+      break;
+    case COMPONENT_STATE_FAILED:
+      // State failed: Do nothing
+      break;
+    default:
+      break;
+  }
 }
 void Component::mark_failed() {
   ESP_LOGE(TAG, "Component was marked as failed.");
@@ -130,9 +142,6 @@ void Component::set_setup_priority(float priority) { this->setup_priority_overri
 PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
 
 void PollingComponent::call_setup() {
-  // Call component internal setup.
-  this->setup_internal_();
-
   // Let the polling component subclass setup their HW.
   this->setup();
 

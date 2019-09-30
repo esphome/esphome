@@ -56,6 +56,8 @@ void DHT::update() {
       str = " and consider manually specifying the DHT model using the model option";
     }
     ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
+    this->temperature_sensor_->publish_state(NAN);
+    this->humidity_sensor_->publish_state(NAN);
     this->status_set_warning();
   }
 }
@@ -153,13 +155,15 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
 
   if (checksum_a != data[4] && checksum_b != data[4]) {
     if (report_errors) {
-      ESP_LOGE(TAG, "Checksum invalid: %u!=%u", checksum_a, data[4]);
+      ESP_LOGW(TAG, "Checksum invalid: %u!=%u", checksum_a, data[4]);
     }
     return false;
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
     *humidity = data[0];
+    if (*humidity > 100)
+      *humidity = NAN;
     *temperature = data[2];
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
@@ -170,18 +174,20 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
 
     if (raw_temperature == 1 && raw_humidity == 10) {
       if (report_errors) {
-        ESP_LOGE(TAG, "Invalid temperature+humidity! Sensor reported 1°C and 1%% Hum");
+        ESP_LOGW(TAG, "Invalid temperature+humidity! Sensor reported 1°C and 1%% Hum");
       }
       return false;
     }
 
     *humidity = raw_humidity * 0.1f;
+    if (*humidity > 100)
+      *humidity = NAN;
     *temperature = int16_t(raw_temperature) * 0.1f;
   }
 
   if (*temperature == 0.0f && (*humidity == 1.0f || *humidity == 2.0f)) {
     if (report_errors) {
-      ESP_LOGE(TAG, "DHT reports invalid data. Is the update interval too high or the sensor damaged?");
+      ESP_LOGW(TAG, "DHT reports invalid data. Is the update interval too high or the sensor damaged?");
     }
     return false;
   }

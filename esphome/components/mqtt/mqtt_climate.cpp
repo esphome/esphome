@@ -141,7 +141,21 @@ std::string MQTTClimateComponent::friendly_name() const { return this->device_->
 bool MQTTClimateComponent::publish_state_() {
   auto traits = this->device_->get_traits();
   // mode
-  const char *mode_s = climate_mode_to_string(this->device_->mode);
+  const char *mode_s = "";
+  switch (this->device_->mode) {
+    case CLIMATE_MODE_OFF:
+      mode_s = "off";
+      break;
+    case CLIMATE_MODE_AUTO:
+      mode_s = "auto";
+      break;
+    case CLIMATE_MODE_COOL:
+      mode_s = "cool";
+      break;
+    case CLIMATE_MODE_HEAT:
+      mode_s = "heat";
+      break;
+  }
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;

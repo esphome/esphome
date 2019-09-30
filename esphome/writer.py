@@ -171,9 +171,7 @@ def format_ini(data):
 
 
 def gather_lib_deps():
-    lib_deps_l = [x.as_lib_dep for x in CORE.libraries]
-    lib_deps_l.sort()
-    return lib_deps_l
+    return [x.as_lib_dep for x in CORE.libraries]
 
 
 def gather_build_flags():
@@ -315,7 +313,7 @@ def copy_src_tree():
             continue
         # Transform path to target path name
         target = os.path.relpath(path, CORE.relative_src_path()).replace(os.path.sep, '/')
-        if target == DEFINES_H_TARGET:
+        if target in (DEFINES_H_TARGET, VERSION_H_TARGET):
             # Ignore defines.h, will be dealt with later
             continue
         if target not in source_files_copy:
@@ -341,7 +339,7 @@ def copy_src_tree():
     write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
                           CORE.relative_src_path('esphome.h'))
     write_file_if_changed(VERSION_H_FORMAT.format(__version__),
-                          CORE.relative_src_path('esphome' 'core', 'version.h'))
+                          CORE.relative_src_path('esphome', 'core', 'version.h'))
 
 
 def generate_defines_h():

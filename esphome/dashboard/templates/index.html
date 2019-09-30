@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>ESPHome Dashboard</title>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="{{ get_static_file_url('fonts/material-icons.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('materialize-stepper.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('esphome.css') }}">
@@ -82,7 +82,7 @@
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
                 <span class="status-indicator-text"></span></span>.
-              Full path: <code class="inlinecode">{{ escape(entry.full_path) }}</code>
+              Full path: <code class="inlinecode">{{ escape(entry.path) }}</code>
             </p>
             {% if entry.update_available %}
               <p class="update-available" data-node="{{ entry.filename }}">

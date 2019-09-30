@@ -2,6 +2,7 @@ import bisect
 import datetime
 import logging
 import math
+import string
 
 import pytz
 import tzlocal
@@ -52,6 +53,25 @@ def _tz_dst_str(dt):
                                  _tz_timedelta(td))
 
 
+def _safe_tzname(tz, dt):
+    tzname = tz.tzname(dt)
+    # pytz does not always return valid tznames
+    # For example: 'Europe/Saratov' returns '+04'
+    # Work around it by using a generic name for the timezone
+    if not all(c in string.ascii_letters for c in tzname):
+        return 'TZ'
+    return tzname
+
+
+def _non_dst_tz(tz, dt):
+    tzname = _safe_tzname(tz, dt)
+    utcoffset = tz.utcoffset(dt)
+    _LOGGER.info("Detected timezone '%s' with UTC offset %s",
+                 tzname, _tz_timedelta(utcoffset))
+    tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
+    return tzbase
+
+
 def convert_tz(pytz_obj):
     tz = pytz_obj
 
@@ -59,30 +79,28 @@ def convert_tz(pytz_obj):
     first_january = datetime.datetime(year=now.year, month=1, day=1)
 
     if not isinstance(tz, pytz.tzinfo.DstTzInfo):
-        tzname = tz.tzname(first_january)
-        utcoffset = tz.utcoffset(first_january)
-        _LOGGER.info("Detected timezone '%s' with UTC offset %s",
-                     tzname, _tz_timedelta(utcoffset))
-        tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
-        return tzbase
+        return _non_dst_tz(tz, first_january)
 
     # pylint: disable=protected-access
     transition_times = tz._utc_transition_times
     transition_info = tz._transition_info
     idx = max(0, bisect.bisect_right(transition_times, now))
     if idx >= len(transition_times):
-        tzname = tz.tzname(now)
-        utcoffset = tz.utcoffset(now)
-        _LOGGER.info("Detected timezone '%s' with UTC offset %s",
-                     tzname, _tz_timedelta(utcoffset))
-        tzbase = '{}{}'.format(tzname, _tz_timedelta(-1 * utcoffset))
-        return tzbase
+        return _non_dst_tz(tz, now)
 
     idx1, idx2 = idx, idx + 1
     dstoffset1 = transition_info[idx1][1]
     if dstoffset1 == datetime.timedelta(seconds=0):
         # Normalize to 1 being DST on
         idx1, idx2 = idx + 1, idx + 2
+
+    if idx2 >= len(transition_times):
+        return _non_dst_tz(tz, now)
+
+    if transition_times[idx2].year > now.year + 1:
+        # Next transition is scheduled after this year
+        # Probably a scheduler timezone change.
+        return _non_dst_tz(tz, now)
 
     utcoffset_on, _, tzname_on = transition_info[idx1]
     utcoffset_off, _, tzname_off = transition_info[idx2]
@@ -97,8 +115,9 @@ def convert_tz(pytz_obj):
                                 _tz_dst_str(dst_begins_local), _tz_dst_str(dst_ends_local))
     _LOGGER.info("Detected timezone '%s' with UTC offset %s and daylight savings time from "
                  "%s to %s",
-                 tzname_off, _tz_timedelta(utcoffset_off), dst_begins_local.strftime("%x %X"),
-                 dst_ends_local.strftime("%x %X"))
+                 tzname_off, _tz_timedelta(utcoffset_off),
+                 dst_begins_local.strftime("%d %B %X"),
+                 dst_ends_local.strftime("%d %B %X"))
     return tzbase + tzext
 
 

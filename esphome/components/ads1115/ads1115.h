@@ -37,13 +37,16 @@ class ADS1115Component : public Component, public i2c::I2CDevice {
   void setup() override;
   void dump_config() override;
   /// HARDWARE_LATE setup priority
-  float get_setup_priority() const override;
+  float get_setup_priority() const override { return setup_priority::DATA; }
+  void set_continuous_mode(bool continuous_mode) { continuous_mode_ = continuous_mode; }
 
   /// Helper method to request a measurement from a sensor.
   float request_measurement(ADS1115Sensor *sensor);
 
  protected:
   std::vector<ADS1115Sensor *> sensors_;
+  uint16_t prev_config_{0};
+  bool continuous_mode_;
 };
 
 /// Internal holder class that is in instance of Sensor so that the hub can create individual sensors.
@@ -51,12 +54,12 @@ class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public vol
  public:
   ADS1115Sensor(ADS1115Component *parent) : parent_(parent) {}
   void update() override;
-  void set_multiplexer(ADS1115Multiplexer multiplexer);
-  void set_gain(ADS1115Gain gain);
+  void set_multiplexer(ADS1115Multiplexer multiplexer) { multiplexer_ = multiplexer; }
+  void set_gain(ADS1115Gain gain) { gain_ = gain; }
 
   float sample() override;
-  uint8_t get_multiplexer() const;
-  uint8_t get_gain() const;
+  uint8_t get_multiplexer() const { return multiplexer_; }
+  uint8_t get_gain() const { return gain_; }
 
  protected:
   ADS1115Component *parent_;

@@ -22,3 +22,4 @@
 #endif
 #define USE_TIME
 #define USE_DEEP_SLEEP
+#define USE_CAPTIVE_PORTAL

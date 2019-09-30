@@ -11,7 +11,7 @@ from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
-    CONF_PASSWORD, CONF_PORT
+    CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
 from esphome.py_compat import IS_PY2, safe_input
@@ -24,7 +24,7 @@ def get_serial_ports():
     # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
     from serial.tools.list_ports import comports
     result = []
-    for port, desc, info in comports():
+    for port, desc, info in comports(include_links=True):
         if not port:
             continue
         if "VID:PID" in info:
@@ -35,7 +35,9 @@ def get_serial_ports():
 
 def choose_prompt(options):
     if not options:
-        raise ValueError
+        raise EsphomeError("Found no valid options for upload/logging, please make sure relevant "
+                           "sections (ota, mqtt, ...) are in your configuration and/or the device "
+                           "is plugged in.")
 
     if len(options) == 1:
         return options[0][1]
@@ -130,6 +132,7 @@ def wrap_to_code(name, comp):
             conf_str = yaml_util.dump(conf)
             if IS_PY2:
                 conf_str = conf_str.decode('utf-8')
+            conf_str = conf_str.replace('//', '')
             cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
 
@@ -163,6 +166,7 @@ def compile_program(args, config):
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200)),
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
@@ -249,7 +253,7 @@ def setup_log(debug=False, quiet=False):
 def command_wizard(args):
     from esphome import wizard
 
-    return wizard.wizard(args.configuration)
+    return wizard.wizard(args.configuration[0])
 
 
 def command_config(args, config):
@@ -263,7 +267,7 @@ def command_config(args, config):
 def command_vscode(args):
     from esphome import vscode
 
-    CORE.config_path = args.configuration
+    CORE.config_path = args.configuration[0]
     vscode.read_config(args)
 
 
@@ -353,7 +357,7 @@ def command_update_all(args):
     import click
 
     success = {}
-    files = list_yaml_files(args.configuration)
+    files = list_yaml_files(args.configuration[0])
     twidth = 60
 
     def print_bar(middle_text):
@@ -366,7 +370,7 @@ def command_update_all(args):
         print("Updating {}".format(color('cyan', f)))
         print('-' * twidth)
         print()
-        rc = run_external_process('esphome', f, 'run', '--no-logs')
+        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs')
         if rc == 0:
             print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
             success[f] = True
@@ -416,7 +420,7 @@ def parse_args(argv):
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
-    parser.add_argument('configuration', help='Your YAML configuration file.', nargs='?')
+    parser.add_argument('configuration', help='Your YAML configuration file.', nargs='*')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
     subparsers.required = True
@@ -496,7 +500,7 @@ def run_esphome(argv):
     CORE.dashboard = args.dashboard
 
     setup_log(args.verbose, args.quiet)
-    if args.command != 'version' and args.configuration is None:
+    if args.command != 'version' and not args.configuration:
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
@@ -507,21 +511,28 @@ def run_esphome(argv):
             _LOGGER.error(e)
             return 1
 
-    CORE.config_path = args.configuration
+    for conf_path in args.configuration:
+        CORE.config_path = conf_path
+        CORE.dashboard = args.dashboard
 
-    config = read_config(args.verbose)
-    if config is None:
-        return 1
-    CORE.config = config
+        config = read_config(args.verbose)
+        if config is None:
+            return 1
+        CORE.config = config
 
-    if args.command in POST_CONFIG_ACTIONS:
+        if args.command not in POST_CONFIG_ACTIONS:
+            safe_print(u"Unknown command {}".format(args.command))
+
         try:
-            return POST_CONFIG_ACTIONS[args.command](args, config)
+            rc = POST_CONFIG_ACTIONS[args.command](args, config)
         except EsphomeError as e:
             _LOGGER.error(e)
             return 1
-    safe_print(u"Unknown command {}".format(args.command))
-    return 1
+        if rc != 0:
+            return rc
+
+        CORE.reset()
+    return 0
 
 
 def main():

@@ -61,7 +61,7 @@ PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
     '1.0.2': 'espressif32@1.8.0',
-    'RECOMMENDED': 'espressif32@1.8.0',
+    'RECOMMENDED': 'espressif32@1.6.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
@@ -239,7 +239,6 @@ def to_code(config):
 
     # Libraries
     if CORE.is_esp32:
-        cg.add_library('Preferences', None)
         cg.add_library('ESPmDNS', None)
     elif CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)

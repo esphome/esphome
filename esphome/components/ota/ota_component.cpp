@@ -182,11 +182,11 @@ void OTAComponent::handle_() {
       error_code = OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
       goto error;
     }
-    if (ss.indexOf("new Flash config wrong") != -1) {
+    if (ss.indexOf("new Flash config wrong") != -1 || ss.indexOf("new Flash config wsong") != -1) {
       error_code = OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Flash config wrong real") != -1) {
+    if (ss.indexOf("Flash config wrong real") != -1 || ss.indexOf("Flash config wsong real") != -1) {
       error_code = OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
       goto error;
     }
@@ -358,7 +358,7 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
   this->safe_mode_start_time_ = millis();
   this->safe_mode_enable_time_ = enable_time;
   this->safe_mode_num_attempts_ = num_attempts;
-  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL);
+  this->rtc_ = global_preferences.make_preference<uint32_t>(233825507UL, false);
   this->safe_mode_rtc_value_ = this->read_rtc_();
 
   ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
@@ -369,19 +369,18 @@ void OTAComponent::start_safe_mode(uint8_t num_attempts, uint32_t enable_time) {
     ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
 
     this->status_set_error();
-    network_setup();
-    this->call_setup();
+    this->set_timeout(enable_time, []() {
+      ESP_LOGE(TAG, "No OTA attempt made, restarting.");
+      App.reboot();
+    });
+
+    App.setup();
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");
-    uint32_t begin = millis();
-    while ((millis() - begin) < enable_time) {
-      this->call_loop();
-      network_tick();
-      App.feed_wdt();
-      yield();
+
+    while (true) {
+      App.loop();
     }
-    ESP_LOGE(TAG, "No OTA attempt made, restarting.");
-    App.reboot();
   } else {
     // increment counter
     this->write_rtc_(this->safe_mode_rtc_value_ + 1);

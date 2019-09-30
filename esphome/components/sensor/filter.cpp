@@ -39,6 +39,44 @@ uint32_t Filter::calculate_remaining_interval(uint32_t input) {
   }
 }
 
+// MedianFilter
+MedianFilter::MedianFilter(size_t window_size, size_t send_every, size_t send_first_at)
+    : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size) {}
+void MedianFilter::set_send_every(size_t send_every) { this->send_every_ = send_every; }
+void MedianFilter::set_window_size(size_t window_size) { this->window_size_ = window_size; }
+optional<float> MedianFilter::new_value(float value) {
+  if (!isnan(value)) {
+    while (this->queue_.size() >= this->window_size_) {
+      this->queue_.pop_front();
+    }
+    this->queue_.push_back(value);
+    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f)", this, value);
+  }
+
+  if (++this->send_at_ >= this->send_every_) {
+    this->send_at_ = 0;
+
+    float median = 0.0f;
+    if (!this->queue_.empty()) {
+      std::deque<float> median_queue = this->queue_;
+      sort(median_queue.begin(), median_queue.end());
+
+      size_t queue_size = median_queue.size();
+      if (queue_size % 2) {
+        median = median_queue[queue_size / 2];
+      } else {
+        median = (median_queue[queue_size / 2] + median_queue[(queue_size / 2) - 1]) / 2.0f;
+      }
+    }
+
+    ESP_LOGVV(TAG, "MedianFilter(%p)::new_value(%f) SENDING", this, median);
+    return median;
+  }
+  return {};
+}
+
+uint32_t MedianFilter::expected_interval(uint32_t input) { return input * this->send_every_; }
+
 // SlidingWindowMovingAverageFilter
 SlidingWindowMovingAverageFilter::SlidingWindowMovingAverageFilter(size_t window_size, size_t send_every,
                                                                    size_t send_first_at)
@@ -227,6 +265,16 @@ float HeartbeatFilter::get_setup_priority() const { return setup_priority::HARDW
 
 optional<float> CalibrateLinearFilter::new_value(float value) { return value * this->slope_ + this->bias_; }
 CalibrateLinearFilter::CalibrateLinearFilter(float slope, float bias) : slope_(slope), bias_(bias) {}
+
+optional<float> CalibratePolynomialFilter::new_value(float value) {
+  float res = 0.0f;
+  float x = 1.0f;
+  for (float coefficient : this->coefficients_) {
+    res += x * coefficient;
+    x *= value;
+  }
+  return res;
+}
 
 }  // namespace sensor
 }  // namespace esphome
