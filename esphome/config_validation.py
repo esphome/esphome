@@ -43,7 +43,7 @@ ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
 
-ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
+ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_-'
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
