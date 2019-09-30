@@ -1334,7 +1334,7 @@ mcp23017:
   - id: 'mcp23017_hub'
 
 mcp23008:
-  - id: ''mcp23008_hub'
+  - id: 'mcp23008_hub'
     address: 0x22
 
 stepper:
