@@ -16,6 +16,7 @@
 #define MAX31865_CFG_WIRE (0x10)  // Wires (0 - 2 or 4 Wire / 1 - 3 Wire)
 #define MAX31865_CFG_MODE (0x40)  // 1 - Auto conversion
 #define MAX31865_CFG_BIAS (0x80)  // 1 - Vbias Enabled
+#define MAX31865_CFG_WIRE_EVEN(x) x?0:MAX31865_CFG_WIRE
 
 #define MAX31865_RTD_L_FLT (0x01)  // Indicates Fault
 
@@ -81,7 +82,7 @@ void MAX31865Sensor::write_config_() {
   this->enable();
   delay(1);
   this->write_byte(MAX31865_CFG | MAX31865_WRITE);
-  this->write_byte(MAX31865_CFG_FLTC | MAX31865_CFG_WIRE | MAX31865_CFG_MODE |
+  this->write_byte(MAX31865_CFG_FLTC | MAX31865_CFG_WIRE_EVEN(this->even_pins_) | MAX31865_CFG_MODE |
                    MAX31865_CFG_BIAS);  // TODO: Allow user to specify configuration
   this->disable();
 }

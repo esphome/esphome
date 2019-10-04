@@ -15,7 +15,8 @@ class MAX31865Sensor : public sensor::Sensor,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-
+  void set_pin_count(bool even = false) { this->even_pins_ = even; }
+  
   void update() override;
 
   float temperature(unsigned short adc, float rtd_nominal, float ref_resistor);
@@ -23,6 +24,7 @@ class MAX31865Sensor : public sensor::Sensor,
  protected:
   void read_data_();
   void write_config_();
+  bool even_pins_;
 };
 
 }  // namespace max31865
