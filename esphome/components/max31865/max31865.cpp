@@ -16,7 +16,7 @@
 #define MAX31865_CFG_WIRE (0x10)  // Wires (0 - 2 or 4 Wire / 1 - 3 Wire)
 #define MAX31865_CFG_MODE (0x40)  // 1 - Auto conversion
 #define MAX31865_CFG_BIAS (0x80)  // 1 - Vbias Enabled
-#define MAX31865_CFG_WIRE_EVEN(x) x?0:MAX31865_CFG_WIRE
+#define MAX31865_CFG_WIRE_EVEN(x) x ? 0 : MAX31865_CFG_WIRE
 
 #define MAX31865_RTD_L_FLT (0x01)  // Indicates Fault
 
