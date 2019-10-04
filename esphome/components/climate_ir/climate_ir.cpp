@@ -12,11 +12,44 @@ climate::ClimateTraits ClimateIR::traits() {
   traits.set_supports_auto_mode(true);
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_heat_mode(this->supports_heat_);
+  traits.set_supports_dry_mode(this->supports_dry_);
+  traits.set_supports_fan_only_mode(this->supports_fan_only_);
   traits.set_supports_two_point_target_temperature(false);
   traits.set_supports_away(false);
   traits.set_visual_min_temperature(this->minimum_temperature_);
   traits.set_visual_max_temperature(this->maximum_temperature_);
   traits.set_visual_temperature_step(this->temperature_step_);
+  for (auto fan_mode : this->fan_modes_) {
+    switch (fan_mode) {
+      case climate::CLIMATE_FAN_AUTO:
+        traits.set_supports_fan_mode_auto(true);
+        break;
+      case climate::CLIMATE_FAN_DIFFUSE:
+        traits.set_supports_fan_mode_diffuse(true);
+        break;
+      case climate::CLIMATE_FAN_FOCUS:
+        traits.set_supports_fan_mode_focus(true);
+        break;
+      case climate::CLIMATE_FAN_HIGH:
+        traits.set_supports_fan_mode_high(true);
+        break;
+      case climate::CLIMATE_FAN_LOW:
+        traits.set_supports_fan_mode_low(true);
+        break;
+      case climate::CLIMATE_FAN_MEDIUM:
+        traits.set_supports_fan_mode_medium(true);
+        break;
+      case climate::CLIMATE_FAN_MIDDLE:
+        traits.set_supports_fan_mode_middle(true);
+        break;
+      case climate::CLIMATE_FAN_OFF:
+        traits.set_supports_fan_mode_off(true);
+        break;
+      case climate::CLIMATE_FAN_ON:
+        traits.set_supports_fan_mode_on(true);
+        break;
+    }
+  }
   return traits;
 }
 
@@ -40,6 +73,7 @@ void ClimateIR::setup() {
     // initialize target temperature to some value so that it's not NAN
     this->target_temperature =
         roundf(clamp(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
+    this->fan_mode = climate::CLIMATE_FAN_AUTO;
   }
   // Never send nan to HA
   if (isnan(this->target_temperature))
@@ -51,7 +85,9 @@ void ClimateIR::control(const climate::ClimateCall &call) {
     this->mode = *call.get_mode();
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
-
+  if (call.get_fan_mode().has_value()) {
+    this->fan_mode = *call.get_fan_mode();
+  }
   this->transmit_state();
   this->publish_state();
 }

@@ -458,6 +458,8 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   }
   if (traits.get_supports_away())
     resp.away = climate->away;
+  if (traits.get_supports_fan_modes())
+    resp.fan = static_cast<enums::ClimateFanMode>(climate->fan_mode);
   return this->send_climate_state_response(resp);
 }
 bool APIConnection::send_climate_info(climate::Climate *climate) {
@@ -470,7 +472,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
   for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
-                    climate::CLIMATE_MODE_HEAT}) {
+                    climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY}) {
     if (traits.supports_mode(mode))
       msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
   }
@@ -479,6 +481,12 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.visual_temperature_step = traits.get_visual_temperature_step();
   msg.supports_away = traits.get_supports_away();
   msg.supports_action = traits.get_supports_action();
+  for (auto fan_mode : {climate::CLIMATE_FAN_ON, climate::CLIMATE_FAN_OFF, climate::CLIMATE_FAN_AUTO,
+                        climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                        climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_DIFFUSE}) {
+    if (traits.supports_fan_mode(fan_mode))
+      msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
+  }
   return this->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {
@@ -497,6 +505,8 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_high(msg.target_temperature_high);
   if (msg.has_away)
     call.set_away(msg.away);
+  if (msg.has_fan)
+    call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan));
   call.perform();
 }
 #endif

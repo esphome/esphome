@@ -13,6 +13,10 @@ const char *climate_mode_to_string(ClimateMode mode) {
       return "COOL";
     case CLIMATE_MODE_HEAT:
       return "HEAT";
+    case CLIMATE_MODE_FAN_ONLY:
+      return "FAN_ONLY";
+    case CLIMATE_MODE_DRY:
+      return "DRY";
     default:
       return "UNKNOWN";
   }

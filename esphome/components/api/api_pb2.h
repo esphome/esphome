@@ -1,3 +1,5 @@
+// This file was automatically generated with a tool.
+// See scripts/api_protobuf/api_protobuf.py
 #pragma once
 
 #include "proto.h"
@@ -50,6 +52,19 @@ enum ClimateMode : uint32_t {
   CLIMATE_MODE_AUTO = 1,
   CLIMATE_MODE_COOL = 2,
   CLIMATE_MODE_HEAT = 3,
+  CLIMATE_MODE_FAN_ONLY = 4,
+  CLIMATE_MODE_DRY = 5,
+};
+enum ClimateFanMode : uint32_t {
+  CLIMATE_FAN_ON = 0,
+  CLIMATE_FAN_OFF = 1,
+  CLIMATE_FAN_AUTO = 2,
+  CLIMATE_FAN_LOW = 3,
+  CLIMATE_FAN_MEDIUM = 4,
+  CLIMATE_FAN_HIGH = 5,
+  CLIMATE_FAN_MIDDLE = 6,
+  CLIMATE_FAN_FOCUS = 7,
+  CLIMATE_FAN_DIFFUSE = 8,
 };
 enum ClimateAction : uint32_t {
   CLIMATE_ACTION_OFF = 0,
@@ -643,18 +658,19 @@ class CameraImageRequest : public ProtoMessage {
 };
 class ListEntitiesClimateResponse : public ProtoMessage {
  public:
-  std::string object_id{};                            // NOLINT
-  uint32_t key{0};                                    // NOLINT
-  std::string name{};                                 // NOLINT
-  std::string unique_id{};                            // NOLINT
-  bool supports_current_temperature{false};           // NOLINT
-  bool supports_two_point_target_temperature{false};  // NOLINT
-  std::vector<enums::ClimateMode> supported_modes{};  // NOLINT
-  float visual_min_temperature{0.0f};                 // NOLINT
-  float visual_max_temperature{0.0f};                 // NOLINT
-  float visual_temperature_step{0.0f};                // NOLINT
-  bool supports_away{false};                          // NOLINT
-  bool supports_action{false};                        // NOLINT
+  std::string object_id{};                                   // NOLINT
+  uint32_t key{0};                                           // NOLINT
+  std::string name{};                                        // NOLINT
+  std::string unique_id{};                                   // NOLINT
+  bool supports_current_temperature{false};                  // NOLINT
+  bool supports_two_point_target_temperature{false};         // NOLINT
+  std::vector<enums::ClimateMode> supported_modes{};         // NOLINT
+  float visual_min_temperature{0.0f};                        // NOLINT
+  float visual_max_temperature{0.0f};                        // NOLINT
+  float visual_temperature_step{0.0f};                       // NOLINT
+  bool supports_away{false};                                 // NOLINT
+  bool supports_action{false};                               // NOLINT
+  std::vector<enums::ClimateFanMode> supported_fan_modes{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -673,6 +689,7 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature_high{0.0f};  // NOLINT
   bool away{false};                     // NOLINT
   enums::ClimateAction action{};        // NOLINT
+  enums::ClimateFanMode fan{};          // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -693,6 +710,8 @@ class ClimateCommandRequest : public ProtoMessage {
   float target_temperature_high{0.0f};      // NOLINT
   bool has_away{false};                     // NOLINT
   bool away{false};                         // NOLINT
+  bool has_fan{false};                      // NOLINT
+  enums::ClimateFanMode fan{};              // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

@@ -13,6 +13,10 @@ void ClimateCall::perform() {
     const char *mode_s = climate_mode_to_string(*this->mode_);
     ESP_LOGD(TAG, "  Mode: %s", mode_s);
   }
+  if (this->fan_mode_.has_value()) {
+    const char *fan_mode_s = climate_fan_mode_to_string(*this->fan_mode_);
+    ESP_LOGD(TAG, "  Fan: %s", fan_mode_s);
+  }
   if (this->target_temperature_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature: %.2f", *this->target_temperature_);
   }
@@ -34,6 +38,13 @@ void ClimateCall::validate_() {
     if (!traits.supports_mode(mode)) {
       ESP_LOGW(TAG, "  Mode %s is not supported by this device!", climate_mode_to_string(mode));
       this->mode_.reset();
+    }
+  }
+  if (this->fan_mode_.has_value()) {
+    auto fan_mode = *this->fan_mode_;
+    if (!traits.supports_fan_mode(fan_mode)) {
+      ESP_LOGW(TAG, "  Fan Mode %s is not supported by this device!", climate_fan_mode_to_string(fan_mode));
+      this->fan_mode_.reset();
     }
   }
   if (this->target_temperature_.has_value()) {
@@ -91,11 +102,44 @@ ClimateCall &ClimateCall::set_mode(const std::string &mode) {
     this->set_mode(CLIMATE_MODE_COOL);
   } else if (str_equals_case_insensitive(mode, "HEAT")) {
     this->set_mode(CLIMATE_MODE_HEAT);
+  } else if (str_equals_case_insensitive(mode, "FAN_ONLY")) {
+    this->set_mode(CLIMATE_MODE_FAN_ONLY);
+  } else if (str_equals_case_insensitive(mode, "DRY")) {
+    this->set_mode(CLIMATE_MODE_DRY);
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized mode %s", this->parent_->get_name().c_str(), mode.c_str());
   }
   return *this;
 }
+ClimateCall &ClimateCall::set_fan_mode(ClimateFanMode fan_mode) {
+  this->fan_mode_ = fan_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
+  if (str_equals_case_insensitive(fan_mode, "ON")) {
+    this->set_fan_mode(CLIMATE_FAN_ON);
+  } else if (str_equals_case_insensitive(fan_mode, "OFF")) {
+    this->set_fan_mode(CLIMATE_FAN_OFF);
+  } else if (str_equals_case_insensitive(fan_mode, "AUTO")) {
+    this->set_fan_mode(CLIMATE_FAN_AUTO);
+  } else if (str_equals_case_insensitive(fan_mode, "LOW")) {
+    this->set_fan_mode(CLIMATE_FAN_LOW);
+  } else if (str_equals_case_insensitive(fan_mode, "MEDIUM")) {
+    this->set_fan_mode(CLIMATE_FAN_MEDIUM);
+  } else if (str_equals_case_insensitive(fan_mode, "HIGH")) {
+    this->set_fan_mode(CLIMATE_FAN_HIGH);
+  } else if (str_equals_case_insensitive(fan_mode, "MIDDLE")) {
+    this->set_fan_mode(CLIMATE_FAN_MIDDLE);
+  } else if (str_equals_case_insensitive(fan_mode, "FOCUS")) {
+    this->set_fan_mode(CLIMATE_FAN_FOCUS);
+  } else if (str_equals_case_insensitive(fan_mode, "DIFFUSE")) {
+    this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized fan mode %s", this->parent_->get_name().c_str(), fan_mode.c_str());
+  }
+  return *this;
+}
+
 ClimateCall &ClimateCall::set_target_temperature(float target_temperature) {
   this->target_temperature_ = target_temperature;
   return *this;
@@ -113,6 +157,7 @@ const optional<float> &ClimateCall::get_target_temperature() const { return this
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<bool> &ClimateCall::get_away() const { return this->away_; }
+const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
   this->away_ = away;
   return *this;
@@ -135,6 +180,10 @@ ClimateCall &ClimateCall::set_target_temperature(optional<float> target_temperat
 }
 ClimateCall &ClimateCall::set_mode(optional<ClimateMode> mode) {
   this->mode_ = mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_fan_mode(optional<ClimateFanMode> fan_mode) {
+  this->fan_mode_ = fan_mode;
   return *this;
 }
 
@@ -165,6 +214,9 @@ void Climate::save_state_() {
   if (traits.get_supports_away()) {
     state.away = this->away;
   }
+  if (traits.get_supports_fan_modes()) {
+    state.fan_mode = this->fan_mode;
+  }
 
   this->rtc_.save(&state);
 }
@@ -175,6 +227,9 @@ void Climate::publish_state() {
   ESP_LOGD(TAG, "  Mode: %s", climate_mode_to_string(this->mode));
   if (traits.get_supports_action()) {
     ESP_LOGD(TAG, "  Action: %s", climate_action_to_string(this->action));
+  }
+  if (traits.get_supports_fan_modes()) {
+    ESP_LOGD(TAG, "  Fan Mode: %s", climate_fan_mode_to_string(this->fan_mode));
   }
   if (traits.get_supports_current_temperature()) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
@@ -236,6 +291,9 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_away()) {
     call.set_away(this->away);
   }
+  if (traits.get_supports_fan_modes()) {
+    call.set_fan_mode(this->fan_mode);
+  }
   return call;
 }
 void ClimateDeviceRestoreState::apply(Climate *climate) {
@@ -249,6 +307,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_away()) {
     climate->away = this->away;
+  }
+  if (traits.get_supports_fan_modes()) {
+    climate->fan_mode = this->fan_mode;
   }
   climate->publish_state();
 }

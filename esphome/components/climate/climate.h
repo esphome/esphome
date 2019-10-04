@@ -4,6 +4,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "climate_mode.h"
+#include "climate_fan_mode.h"
 #include "climate_traits.h"
 
 namespace esphome {
@@ -64,6 +65,12 @@ class ClimateCall {
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
   ClimateCall &set_away(bool away);
   ClimateCall &set_away(optional<bool> away);
+  /// Set the fan mode of the climate device.
+  ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
+  /// Set the fan mode of the climate device.
+  ClimateCall &set_fan_mode(optional<ClimateFanMode> fan_mode);
+  /// Set the fan mode of the climate device based on a string.
+  ClimateCall &set_fan_mode(const std::string &fan_mode);
 
   void perform();
 
@@ -72,6 +79,7 @@ class ClimateCall {
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<bool> &get_away() const;
+  const optional<ClimateFanMode> &get_fan_mode() const;
 
  protected:
   void validate_();
@@ -82,12 +90,14 @@ class ClimateCall {
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<bool> away_;
+  optional<ClimateFanMode> fan_mode_;
 };
 
 /// Struct used to save the state of the climate device in restore memory.
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
+  ClimateFanMode fan_mode;
   union {
     float target_temperature;
     struct {
@@ -148,6 +158,9 @@ class Climate : public Nameable {
    * one for normal mode and one for away mode.
    */
   bool away{false};
+
+  /// The active fan mode of the climate device.
+  ClimateFanMode fan_mode;
 
   /** Add a callback for the climate device state, each time the state of the climate device is updated
    * (using publish_state), this callback will be called.
