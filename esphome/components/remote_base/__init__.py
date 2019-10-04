@@ -640,7 +640,7 @@ def samsung_dumper(var, config):
 
 @register_action('samsung', SamsungAction, SAMSUNG_SCHEMA)
 def samsung_action(var, config, args):
-    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
 
 
