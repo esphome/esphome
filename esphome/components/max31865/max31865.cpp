@@ -106,6 +106,9 @@ void MAX31865Sensor::dump_config() {
   LOG_SENSOR("", "MAX31865", this);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  even count of wires: %s", this->even_pins_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  sensor nominal resistance: %.1f", this->r_nominal_);
+  ESP_LOGCONFIG(TAG, "  reference restistance %.1f", this->r_ref_);
 }
 
 float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; }
@@ -155,13 +158,7 @@ void MAX31865Sensor::read_data_() {
     return;
   }
 
-// TODO: Support parameterization
-// The value of the Rref resistor. Use 430.0 for PT100 and 4300.0 for PT1000
-#define RREF 4300.0
-// The 'nominal' 0-degrees-C resistance of the sensor 100.0 for PT100, 1000.0 for PT1000
-#define RNOMINAL 1000.0
-
-  float temperature = this->temperature(val, RNOMINAL, RREF);
+  float temperature = this->temperature(val, this->r_nominal_, this->r_ref_);
   ESP_LOGD(TAG, "'%s': Got temperature=%.1f°C", this->name_.c_str(), temperature);
   this->publish_state(temperature);
   this->status_clear_warning();
