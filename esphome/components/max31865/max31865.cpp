@@ -17,6 +17,7 @@
 #define MAX31865_CFG_MODE (0x40)  // 1 - Auto conversion
 #define MAX31865_CFG_BIAS (0x80)  // 1 - Vbias Enabled
 #define MAX31865_CFG_WIRE_EVEN(x) x ? 0 : MAX31865_CFG_WIRE
+#define MAX31865_CFG_FILTER_50HZ(x) x ? 0 : MAX31865_CFG_6050
 
 #define MAX31865_RTD_L_FLT (0x01)  // Indicates Fault
 
@@ -83,7 +84,7 @@ void MAX31865Sensor::write_config_() {
   delay(1);
   this->write_byte(MAX31865_CFG | MAX31865_WRITE);
   this->write_byte(MAX31865_CFG_FLTC | MAX31865_CFG_WIRE_EVEN(this->even_pins_) | MAX31865_CFG_MODE |
-                   MAX31865_CFG_BIAS);  // TODO: Allow user to specify configuration
+                   MAX31865_CFG_FILTER_50HZ(this->filter_50hz_) | MAX31865_CFG_BIAS);
   this->disable();
 }
 
