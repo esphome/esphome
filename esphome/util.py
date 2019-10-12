@@ -82,7 +82,6 @@ def safe_print(message=""):
 def shlex_quote(s):
     if not s:
         return u"''"
-    return str(s)
     if re.search(r'[^\w@%+=:,./-]', s) is None:
         return s
 
