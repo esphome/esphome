@@ -56,7 +56,6 @@ void PCF8574Component::pin_mode(uint8_t pin, uint8_t mode) {
       break;
   }
 
-  this->write_gpio_();
 }
 bool PCF8574Component::read_gpio_() {
   if (this->is_failed())
