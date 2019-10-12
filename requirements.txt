@@ -1,4 +1,4 @@
-voluptuous>=0.11.5,<0.12
+voluptuous==0.11.5
 PyYAML>=5.1,<6
 paho-mqtt>=1.4,<2
 colorlog>=4.0.2
