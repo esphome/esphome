@@ -23,26 +23,27 @@ void AS3935Component::dump_config() {
 float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS3935Component::loop() {
-  if (this->store_.interrupt) {
-    uint8_t int_value = this->read_interrupt_register_();
-    if (int_value == NOISE_INT) {
-      ESP_LOGI(TAG, "Noise was detected - try increasing the value!");
-    } else if (int_value == DISTURBER_INT) {
-      ESP_LOGI(TAG, "Disturber was detected - try increasing the value!");
-    } else if (int_value == LIGHTNING_INT) {
-      ESP_LOGI(TAG, "Lightning has been detected!");
-      if (this->thunder_alert_binary_sensor_ != nullptr)
-        this->thunder_alert_binary_sensor_->publish_state(true);
-      uint8_t distance = this->get_distance_to_storm_();
-      if (this->distance_sensor_ != nullptr)
-        this->distance_sensor_->publish_state(distance);
-      uint32_t energy = this->get_lightning_energy_();
-      if (this->energy_sensor_ != nullptr)
-        this->energy_sensor_->publish_state(energy);
-    }
-    this->thunder_alert_binary_sensor_->publish_state(false);
-    this->store_.interrupt = false;
+  if (!this->store_.interrupt)
+    return;
+
+  uint8_t int_value = this->read_interrupt_register_();
+  if (int_value == NOISE_INT) {
+    ESP_LOGI(TAG, "Noise was detected - try increasing the noise level value!");
+  } else if (int_value == DISTURBER_INT) {
+    ESP_LOGI(TAG, "Disturber was detected - try increasing the spike rejection value!");
+  } else if (int_value == LIGHTNING_INT) {
+    ESP_LOGI(TAG, "Lightning has been detected!");
+    if (this->thunder_alert_binary_sensor_ != nullptr)
+      this->thunder_alert_binary_sensor_->publish_state(true);
+    uint8_t distance = this->get_distance_to_storm_();
+    if (this->distance_sensor_ != nullptr)
+      this->distance_sensor_->publish_state(distance);
+    uint32_t energy = this->get_lightning_energy_();
+    if (this->energy_sensor_ != nullptr)
+      this->energy_sensor_->publish_state(energy);
   }
+  this->thunder_alert_binary_sensor_->publish_state(false);
+  this->store_.interrupt = false;
 }
 
 void AS3935Component::set_indoor(bool indoor) {
