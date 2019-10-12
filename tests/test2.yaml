@@ -50,6 +50,10 @@ deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
 
+as3935_i2c:
+  pin: GPIO12
+
+
 sensor:
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
@@ -125,6 +129,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: as3935_base
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 time:
 - platform: homeassistant
@@ -163,6 +172,8 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
+  - platform: as3935_base
+    name: "Storm Alert"
 
 remote_receiver:
   pin: GPIO32
