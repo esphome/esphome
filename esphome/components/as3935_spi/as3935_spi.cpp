@@ -41,7 +41,7 @@ uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   this->cs_->digital_write(true);
   this->cs_->digital_write(false);
   this->disable();
-  ESP_LOGD(TAG, "read_register_: %d", value);
+  ESP_LOGV(TAG, "read_register_: %d", value);
   return value;
 }
 

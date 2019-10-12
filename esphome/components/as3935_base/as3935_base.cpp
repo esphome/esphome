@@ -10,12 +10,9 @@ void AS3935Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS3935...");
 
   this->pin_->setup();
-  ESP_LOGI(TAG, "SETUP 1");
   this->store_.pin = this->pin_->to_isr();
-  ESP_LOGI(TAG, "SETUP 2");
   LOG_PIN("  Interrupt Pin: ", this->pin_);
   this->pin_->attach_interrupt(AS3935ComponentStore::gpio_intr, &this->store_, RISING);
-  ESP_LOGI(TAG, "SETUP 3");
 }
 
 void AS3935Component::dump_config() {
@@ -49,7 +46,7 @@ void AS3935Component::loop() {
 }
 
 void AS3935Component::set_indoor(bool indoor) {
-  ESP_LOGI(TAG, "Setting indoor to %d", indoor);
+  ESP_LOGD(TAG, "Setting indoor to %d", indoor);
   if (indoor)
     this->write_register(AFE_GAIN, GAIN_MASK, INDOOR, 1);
   else
@@ -59,7 +56,7 @@ void AS3935Component::set_indoor(bool indoor) {
 // This setting determines the threshold for events that trigger the
 // IRQ Pin.
 void AS3935Component::set_watchdog_threshold(uint8_t sensitivity) {
-  ESP_LOGI(TAG, "Setting watchdog sensitivity to %d", sensitivity);
+  ESP_LOGD(TAG, "Setting watchdog sensitivity to %d", sensitivity);
   if ((sensitivity < 1) || (sensitivity > 10))  // 10 is the max sensitivity setting
     return;
   this->write_register(THRESHOLD, THRESH_MASK, sensitivity, 0);
@@ -71,7 +68,7 @@ void AS3935Component::set_watchdog_threshold(uint8_t sensitivity) {
 // broadcasting that it can not operate properly due to noise (INT_NH).
 // Check datasheet for specific noise level tolerances when setting this register.
 void AS3935Component::set_noise_level(uint8_t floor) {
-  ESP_LOGI(TAG, "Setting noise level to %d", floor);
+  ESP_LOGD(TAG, "Setting noise level to %d", floor);
   if ((floor < 1) || (floor > 7))
     return;
 
@@ -83,7 +80,7 @@ void AS3935Component::set_noise_level(uint8_t floor) {
 // chip's signal validation routine. Increasing this value increases robustness
 // at the cost of sensitivity to distant events.
 void AS3935Component::set_spike_rejection(uint8_t spike_sensitivity) {
-  ESP_LOGI(TAG, "Setting spike rejection to %d", spike_sensitivity);
+  ESP_LOGD(TAG, "Setting spike rejection to %d", spike_sensitivity);
   if ((spike_sensitivity < 1) || (spike_sensitivity > 11))
     return;
 
@@ -94,7 +91,7 @@ void AS3935Component::set_spike_rejection(uint8_t spike_sensitivity) {
 // window of time before the number of detected lightning events is reset.
 // The number of lightning strikes can be set to 1,5,9, or 16.
 void AS3935Component::set_lightning_threshold(uint8_t strikes) {
-  ESP_LOGI(TAG, "Setting lightning threshold to %d", strikes);
+  ESP_LOGD(TAG, "Setting lightning threshold to %d", strikes);
   if (strikes == 1)
     this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 0, 4);  // Demonstrative
   if (strikes == 5)
@@ -104,10 +101,10 @@ void AS3935Component::set_lightning_threshold(uint8_t strikes) {
   if (strikes == 16)
     this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 3, 4);
 }
-// REG0x03, bit [5], manufacturere default: 0.
+// REG0x03, bit [5], manufacturer default: 0.
 // This setting will return whether or not disturbers trigger the IRQ Pin.
 void AS3935Component::set_mask_disturber(bool enabled) {
-  ESP_LOGI(TAG, "Setting mask disturber to %d", enabled);
+  ESP_LOGD(TAG, "Setting mask disturber to %d", enabled);
   if (enabled) {
     this->write_register(INT_MASK_ANT, (1 << 5), 1, 5);
   } else {
@@ -119,7 +116,7 @@ void AS3935Component::set_mask_disturber(bool enabled) {
 // following setting. The accuracy of the antenna must be within 3.5 percent of
 // that value for proper signal validation and distance estimation.
 void AS3935Component::set_div_ratio(uint8_t div_ratio) {
-  ESP_LOGI(TAG, "Setting div ratio to %d", div_ratio);
+  ESP_LOGD(TAG, "Setting div ratio to %d", div_ratio);
   if (div_ratio == 16)
     this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 0, 6);
   else if (div_ratio == 22)
@@ -135,7 +132,7 @@ void AS3935Component::set_div_ratio(uint8_t div_ratio) {
 // of 500kHz to get optimal lightning detection and distance sensing.
 // It's possible to add up to 120pF in steps of 8pF to the antenna.
 void AS3935Component::set_cap(uint8_t eight_pico_farad) {
-  ESP_LOGI(TAG, "Setting tune cap to %d pF", eight_pico_farad * 8);
+  ESP_LOGD(TAG, "Setting tune cap to %d pF", eight_pico_farad * 8);
   if (eight_pico_farad > 15)
     return;
 
@@ -154,7 +151,7 @@ uint8_t AS3935Component::read_interrupt_register_() {
   // A 2ms delay is added to allow for the memory register to be populated
   // after the interrupt pin goes HIGH. See "Interrupt Management" in
   // datasheet.
-  ESP_LOGD(TAG, "Calling read_interrupt_register_");
+  ESP_LOGV(TAG, "Calling read_interrupt_register_");
   delay(2);
   return this->read_register_(INT_MASK_ANT, INT_MASK);
 }
@@ -164,7 +161,7 @@ uint8_t AS3935Component::read_interrupt_register_() {
 // the last 15 minute block.
 void AS3935Component::clear_statistics_() {
   // Write high, then low, then high to clear.
-  ESP_LOGD(TAG, "Calling clear_statistics_");
+  ESP_LOGV(TAG, "Calling clear_statistics_");
   this->write_register(LIGHTNING_REG, (1 << 6), 1, 6);
   this->write_register(LIGHTNING_REG, (1 << 6), 0, 6);
   this->write_register(LIGHTNING_REG, (1 << 6), 1, 6);
@@ -174,12 +171,12 @@ void AS3935Component::clear_statistics_() {
 // This register holds the distance to the front of the storm and not the
 // distance to a lightning strike.
 uint8_t AS3935Component::get_distance_to_storm_() {
-  ESP_LOGD(TAG, "Calling get_distance_to_storm_");
+  ESP_LOGV(TAG, "Calling get_distance_to_storm_");
   return this->read_register_(DISTANCE, DISTANCE_MASK);
 }
 
 uint32_t AS3935Component::get_lightning_energy_() {
-  ESP_LOGD(TAG, "Calling get_lightning_energy_");
+  ESP_LOGV(TAG, "Calling get_lightning_energy_");
   uint32_t pure_light = 0;  // Variable for lightning energy which is just a pure number.
   uint32_t temp = 0;
   // Temp variable for lightning energy.
