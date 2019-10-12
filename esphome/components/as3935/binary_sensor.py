@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from . import AS3935, CONF_AS3935_ID
 
-DEPENDENCIES = ['as3935_base']
+DEPENDENCIES = ['as3935']
 
 CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(CONF_AS3935_ID): cv.use_id(AS3935),

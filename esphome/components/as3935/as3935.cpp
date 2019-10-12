@@ -1,10 +1,10 @@
-#include "as3935_base.h"
+#include "as3935.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace as3935_base {
+namespace as3935 {
 
-static const char *TAG = "as3935_base";
+static const char *TAG = "as3935";
 
 void AS3935Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS3935...");
@@ -13,6 +13,16 @@ void AS3935Component::setup() {
   this->store_.pin = this->pin_->to_isr();
   LOG_PIN("  Interrupt Pin: ", this->pin_);
   this->pin_->attach_interrupt(AS3935ComponentStore::gpio_intr, &this->store_, RISING);
+
+  // Write properties to sensor
+  this->write_indoor(this->indoor_);
+  this->write_noise_level(this->noise_level_);
+  this->write_watchdog_threshold(this->watchdog_threshold_);
+  this->write_spike_rejection(this->spike_rejection_);
+  this->write_lightning_threshold(this->lightning_threshold_);
+  this->write_mask_disturber(this->mask_disturber_);
+  this->write_div_ratio(this->div_ratio_);
+  this->write_capacitance(this->capacitance_);
 }
 
 void AS3935Component::dump_config() {
@@ -46,8 +56,8 @@ void AS3935Component::loop() {
   this->store_.interrupt = false;
 }
 
-void AS3935Component::set_indoor(bool indoor) {
-  ESP_LOGD(TAG, "Setting indoor to %d", indoor);
+void AS3935Component::write_indoor(bool indoor) {
+  ESP_LOGV(TAG, "Setting indoor to %d", indoor);
   if (indoor)
     this->write_register(AFE_GAIN, GAIN_MASK, INDOOR, 1);
   else
@@ -56,11 +66,11 @@ void AS3935Component::set_indoor(bool indoor) {
 // REG0x01, bits[3:0], manufacturer default: 0010 (2).
 // This setting determines the threshold for events that trigger the
 // IRQ Pin.
-void AS3935Component::set_watchdog_threshold(uint8_t sensitivity) {
-  ESP_LOGD(TAG, "Setting watchdog sensitivity to %d", sensitivity);
-  if ((sensitivity < 1) || (sensitivity > 10))  // 10 is the max sensitivity setting
+void AS3935Component::write_watchdog_threshold(uint8_t watchdog_threshold) {
+  ESP_LOGV(TAG, "Setting watchdog sensitivity to %d", watchdog_threshold);
+  if ((watchdog_threshold < 1) || (watchdog_threshold > 10))  // 10 is the max sensitivity setting
     return;
-  this->write_register(THRESHOLD, THRESH_MASK, sensitivity, 0);
+  this->write_register(THRESHOLD, THRESH_MASK, watchdog_threshold, 0);
 }
 
 // REG0x01, bits [6:4], manufacturer default: 010 (2).
@@ -68,44 +78,52 @@ void AS3935Component::set_watchdog_threshold(uint8_t sensitivity) {
 // level is exceeded the chip will issue an interrupt to the IRQ pin,
 // broadcasting that it can not operate properly due to noise (INT_NH).
 // Check datasheet for specific noise level tolerances when setting this register.
-void AS3935Component::set_noise_level(uint8_t floor) {
-  ESP_LOGD(TAG, "Setting noise level to %d", floor);
-  if ((floor < 1) || (floor > 7))
+void AS3935Component::write_noise_level(uint8_t noise_level) {
+  ESP_LOGV(TAG, "Setting noise level to %d", noise_level);
+  if ((noise_level < 1) || (noise_level > 7))
     return;
 
-  this->write_register(THRESHOLD, NOISE_FLOOR_MASK, floor, 4);
+  this->write_register(THRESHOLD, NOISE_FLOOR_MASK, noise_level, 4);
 }
 // REG0x02, bits [3:0], manufacturer default: 0010 (2).
 // This setting, like the watchdog threshold, can help determine between false
 // events and actual lightning. The shape of the spike is analyzed during the
 // chip's signal validation routine. Increasing this value increases robustness
 // at the cost of sensitivity to distant events.
-void AS3935Component::set_spike_rejection(uint8_t spike_sensitivity) {
-  ESP_LOGD(TAG, "Setting spike rejection to %d", spike_sensitivity);
-  if ((spike_sensitivity < 1) || (spike_sensitivity > 11))
+void AS3935Component::write_spike_rejection(uint8_t spike_rejection) {
+  ESP_LOGV(TAG, "Setting spike rejection to %d", spike_rejection);
+  if ((spike_rejection < 1) || (spike_rejection > 11))
     return;
 
-  this->write_register(LIGHTNING_REG, SPIKE_MASK, spike_sensitivity, 0);
+  this->write_register(LIGHTNING_REG, SPIKE_MASK, spike_rejection, 0);
 }
 // REG0x02, bits [5:4], manufacturer default: 0 (single lightning strike).
 // The number of lightning events before IRQ is set high. 15 minutes is The
 // window of time before the number of detected lightning events is reset.
 // The number of lightning strikes can be set to 1,5,9, or 16.
-void AS3935Component::set_lightning_threshold(uint8_t strikes) {
-  ESP_LOGD(TAG, "Setting lightning threshold to %d", strikes);
-  if (strikes == 1)
-    this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 0, 4);  // Demonstrative
-  if (strikes == 5)
-    this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 1, 4);
-  if (strikes == 9)
-    this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 1, 5);
-  if (strikes == 16)
-    this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 3, 4);
+void AS3935Component::write_lightning_threshold(uint8_t lightning_threshold) {
+  ESP_LOGV(TAG, "Setting lightning threshold to %d", lightning_threshold);
+  switch (lightning_threshold) {
+    case 1:
+      this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 0, 4);  // Demonstrative
+      break;
+    case 5:
+      this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 1, 4);
+      break;
+    case 9:
+      this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 1, 5);
+      break;
+    case 16:
+      this->write_register(LIGHTNING_REG, ((1 << 5) | (1 << 4)), 3, 4);
+      break;
+    default:
+      return;
+  }
 }
 // REG0x03, bit [5], manufacturer default: 0.
 // This setting will return whether or not disturbers trigger the IRQ Pin.
-void AS3935Component::set_mask_disturber(bool enabled) {
-  ESP_LOGD(TAG, "Setting mask disturber to %d", enabled);
+void AS3935Component::write_mask_disturber(bool enabled) {
+  ESP_LOGV(TAG, "Setting mask disturber to %d", enabled);
   if (enabled) {
     this->write_register(INT_MASK_ANT, (1 << 5), 1, 5);
   } else {
@@ -116,28 +134,33 @@ void AS3935Component::set_mask_disturber(bool enabled) {
 // The antenna is designed to resonate at 500kHz and so can be tuned with the
 // following setting. The accuracy of the antenna must be within 3.5 percent of
 // that value for proper signal validation and distance estimation.
-void AS3935Component::set_div_ratio(uint8_t div_ratio) {
-  ESP_LOGD(TAG, "Setting div ratio to %d", div_ratio);
-  if (div_ratio == 16)
-    this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 0, 6);
-  else if (div_ratio == 22)
-    this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 1, 6);
-  else if (div_ratio == 64)
-    this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 1, 7);
-  else if (div_ratio == 128)
-    this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 3, 6);
+void AS3935Component::write_div_ratio(uint8_t div_ratio) {
+  ESP_LOGV(TAG, "Setting div ratio to %d", div_ratio);
+  switch (div_ratio) {
+    case 16:
+      this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 0, 6);
+      break;
+    case 22:
+      this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 1, 6);
+      break;
+    case 64:
+      this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 1, 7);
+      break;
+    case 128:
+      this->write_register(INT_MASK_ANT, ((1 << 7) | (1 << 6)), 3, 6);
+      break;
+    default:
+      return;
+  }
 }
 // REG0x08, bits [3:0], manufacturer default: 0.
 // This setting will add capacitance to the series RLC antenna on the product
 // to help tune its resonance. The datasheet specifies being within 3.5 percent
 // of 500kHz to get optimal lightning detection and distance sensing.
 // It's possible to add up to 120pF in steps of 8pF to the antenna.
-void AS3935Component::set_cap(uint8_t eight_pico_farad) {
-  ESP_LOGD(TAG, "Setting tune cap to %d pF", eight_pico_farad * 8);
-  if (eight_pico_farad > 15)
-    return;
-
-  this->write_register(FREQ_DISP_IRQ, CAP_MASK, eight_pico_farad, 0);
+void AS3935Component::write_capacitance(uint8_t capacitance) {
+  ESP_LOGV(TAG, "Setting tune cap to %d pF", capacitance * 8);
+  this->write_register(FREQ_DISP_IRQ, CAP_MASK, capacitance, 0);
 }
 
 // REG0x03, bits [3:0], manufacturer default: 0.
@@ -195,12 +218,11 @@ uint32_t AS3935Component::get_lightning_energy_() {
 
 uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   uint8_t value = this->read_register(reg);
-
   value &= (~mask);
   return value;
 }
 
 void ICACHE_RAM_ATTR AS3935ComponentStore::gpio_intr(AS3935ComponentStore *arg) { arg->interrupt = true; }
 
-}  // namespace as3935_base
+}  // namespace as3935
 }  // namespace esphome

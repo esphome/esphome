@@ -129,7 +129,7 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
-  - platform: as3935_base
+  - platform: as3935
     lightning_energy:
       name: "Lightning Energy"
     distance:
@@ -172,7 +172,7 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
-  - platform: as3935_base
+  - platform: as3935
     name: "Storm Alert"
 
 remote_receiver:

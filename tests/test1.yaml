@@ -599,7 +599,7 @@ sensor:
       name: "ZyAura Temperature"
     humidity:
       name: "ZyAura Humidity"
-  - platform: as3935_base
+  - platform: as3935
     lightning_energy:
       name: "Lightning Energy"
     distance:
@@ -738,7 +738,7 @@ binary_sensor:
              3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
              1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
              1712, -2262, 1714, -2267, 1709]
-  - platform: as3935_base
+  - platform: as3935
     name: "Storm Alert"
 
 pca9685:
