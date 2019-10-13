@@ -18,8 +18,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"): cv.string,
     cv.Optional(CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"): cv.string,
     cv.Optional(CONF_AUTH): cv.Schema({
-        cv.Required(CONF_USERNAME): cv.string,
-        cv.Required(CONF_PASSWORD): cv.string,
+        cv.Required(CONF_USERNAME): cv.string_strict,
+        cv.Required(CONF_PASSWORD): cv.string_strict,
     }),
 
     cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(web_server_base.WebServerBase),
