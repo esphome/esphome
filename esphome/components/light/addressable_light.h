@@ -477,12 +477,58 @@ class AddressableLight : public LightOutput, public Component {
       return;
 
     // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-    ESPColor color = ESPColor(uint8_t(roundf(val.get_red() * 255.0f)), uint8_t(roundf(val.get_green() * 255.0f)),
-                              uint8_t(roundf(val.get_blue() * 255.0f)),
-                              // white is not affected by brightness; so manually scale by state
-                              uint8_t(roundf(val.get_white() * val.get_state() * 255.0f)));
 
-    this->all() = color;
+    if (state->transformer_ == nullptr || !state->transformer_->is_transition()) {
+      // no transformer active or non-transition one
+      this->last_transition_progress_ = 0.0f;
+      this->accumulated_alpha_ = 0.0f;
+
+      uint8_t r = static_cast<uint8_t>(roundf(val.get_red() * 255.0f));
+      uint8_t g = static_cast<uint8_t>(roundf(val.get_green() * 255.0f));
+      uint8_t b = static_cast<uint8_t>(roundf(val.get_blue() * 255.0f));
+      uint8_t w = static_cast<uint8_t>(roundf(val.get_white() * val.get_state() * 255.0f));
+      this->all() = ESPColor(r, g, b, w);
+    } else {
+      // transition transformer active, activate specialized transition for addressable effects
+      // instead of using a unified transition for all LEDs, we use the current state each LED as the
+      // start. Warning: ugly
+
+      // We can't use a direct lerp smoothing here though - that would require creating a copy of the original
+      // state of each LED at the start of the transition
+      // Instead, we "fake" the look of the LERP by using an exponential average over time and using
+      // dynamically-calculated alpha values to match the look of the
+
+      float new_progress = state->transformer_->get_progress();
+      float prev_smoothed = LightTransitionTransformer::smoothed_progress(last_transition_progress_);
+      float new_smoothed = LightTransitionTransformer::smoothed_progress(new_progress);
+
+      auto end_values = state->transformer_->get_end_values();
+      uint8_t end_r = static_cast<uint8_t>(roundf(end_values.get_red() * 255.0f));
+      uint8_t end_g = static_cast<uint8_t>(roundf(end_values.get_green() * 255.0f));
+      uint8_t end_b = static_cast<uint8_t>(roundf(end_values.get_blue() * 255.0f));
+      uint8_t end_w = static_cast<uint8_t>(roundf(end_values.get_white() * end_values.get_state() * 255.0f));
+      ESPColor target_color(end_r, end_g, end_b, end_w);
+
+      float alpha = (new_smoothed - prev_smoothed) / (1.0f - new_smoothed);
+
+      // We need to use a low-resolution alpha here which makes the transition set in only after ~half of the length
+      // We solve this by accumulating the fractional part of the alpha over time.
+      float alpha255 = alpha * 255.0f;
+      this->accumulated_alpha_ += (alpha255 - floorf(alpha255));
+      float alpha_add = floorf(this->accumulated_alpha_);
+      this->accumulated_alpha_ -= alpha_add;
+      alpha255 += alpha_add;
+      alpha255 = clamp(alpha255, 0.0f, 1.0f);
+
+      uint8_t alpha8 = static_cast<uint8_t>(alpha255);
+      if (alpha8 != 0) {
+        uint8_t inv_alpha8 = 255 - alpha8;
+        for (auto led : *this) {
+          led = target_color * alpha8 + led.get() * inv_alpha8;
+        }
+      }
+    }
+
     this->schedule_show();
   }
   void set_correction(float red, float green, float blue, float white = 1.0f) {
@@ -524,6 +570,8 @@ class AddressableLight : public LightOutput, public Component {
   power_supply::PowerSupplyRequester power_;
 #endif
   LightState *state_parent_{nullptr};
+  float last_transition_progress_{0.0f};
+  float accumulated_alpha_{0.0f};
 };
 
 }  // namespace light
