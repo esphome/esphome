@@ -94,7 +94,6 @@ float SDS011Component::get_setup_priority() const { return setup_priority::DATA;
 void SDS011Component::set_rx_mode_only(bool rx_mode_only) { this->rx_mode_only_ = rx_mode_only; }
 
 void SDS011Component::sds011_write_command_(const uint8_t *command_data) {
-  this->flush();
   this->write_byte(SDS011_MSG_HEAD);
   this->write_byte(SDS011_COMMAND_ID_REQUEST);
   this->write_array(command_data, SDS011_DATA_REQUEST_LENGTH);
