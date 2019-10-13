@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>ESPHome Dashboard</title>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link rel="stylesheet" href="{{ get_static_file_url('fonts/material-icons.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('materialize-stepper.min.css') }}">
   <link rel="stylesheet" href="{{ get_static_file_url('esphome.css') }}">
@@ -38,8 +38,9 @@
   </div>
 
   <ul id="dropdown-nav-actions" class="select-action dropdown-content card-dropdown-action">
-    <li><a id="update-all-button" data-node="{{ escape(config_dir) }}">Update All</a></li>
     <li><a id="logout-button" href="{{ relative_url }}logout">Logout</a></li>
+    <li><a id="update-all-button" data-node="{{ escape(config_dir) }}">Update All</a></li>
+    <li><a id="secrets-button" class="action-edit" data-node="secrets.yaml">Secrets Editor</a></li>
   </ul>
 </nav>
 

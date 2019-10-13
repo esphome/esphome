@@ -47,6 +47,7 @@ i.very-large {
 }
 
 .log {
+  height: 100%;
   max-height: calc(100% - 56px);
   background-color: #1c1c1c;
   margin-top: 0;

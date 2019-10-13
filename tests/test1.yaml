@@ -171,6 +171,10 @@ ads1115:
 dallas:
   pin: GPIO23
 
+as3935_spi:
+  cs_pin: GPIO12
+  pin: GPIO13
+
 sensor:
   - platform: adc
     pin: A0
@@ -191,6 +195,10 @@ sensor:
         - 100.0 -> 102.5
       - filter_out: 42.0
       - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -449,6 +457,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
@@ -501,6 +510,15 @@ sensor:
     humidity:
       name: "Living Room Humidity 8"
     address: 0x44
+    update_interval: 15s
+  - platform: scd30
+    co2:
+      name: "Living Room CO2 9"
+    temperature:
+      name: "Living Room Temperature 9"
+    humidity:
+      name: "Living Room Humidity 9"
+    address: 0x61
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -581,7 +599,11 @@ sensor:
       name: "ZyAura Temperature"
     humidity:
       name: "ZyAura Humidity"
-
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 esp32_touch:
   setup_mode: False
@@ -716,6 +738,8 @@ binary_sensor:
              3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
              1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
              1712, -2262, 1714, -2267, 1709]
+  - platform: as3935
+    name: "Storm Alert"
 
 pca9685:
   frequency: 500

@@ -29,11 +29,10 @@ def patch_structhash():
         from platformio.project.helpers import get_project_dir
     else:
         from platformio.util import get_project_dir
-    from os.path import join, isdir, getmtime, isfile
+    from os.path import join, isdir, getmtime
     from os import makedirs
 
-    def patched_clean_build_dir(build_dir):
-        structhash_file = join(build_dir, "structure.hash")
+    def patched_clean_build_dir(build_dir, *args):
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
@@ -42,21 +41,6 @@ def patch_structhash():
 
         if not isdir(build_dir):
             makedirs(build_dir)
-
-        if is_platformio4():
-            from platformio.project import helpers
-            proj_hash = helpers.calculate_project_hash()
-        else:
-            proj_hash = run.calculate_project_hash()
-
-        # check project structure
-        if isdir(build_dir) and isfile(structhash_file):
-            with open(structhash_file) as f:
-                if f.read() == proj_hash:
-                    return
-
-        with open(structhash_file, "w") as f:
-            f.write(proj_hash)
 
     # pylint: disable=protected-access
     if is_platformio4():
