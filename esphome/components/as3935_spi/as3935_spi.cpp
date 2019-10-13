@@ -11,7 +11,6 @@ void SPIAS3935Component::setup() {
   this->spi_setup();
   ESP_LOGI(TAG, "SPI setup finished!");
   AS3935Component::setup();
-  
 }
 
 void SPIAS3935Component::dump_config() {
@@ -37,7 +36,7 @@ uint8_t SPIAS3935Component::read_register(uint8_t reg) {
   this->write_byte(reg |= SPI_READ_M);
   value = this->read_byte();
   // According to datsheet, the chip select must be written HIGH, LOW, HIGH
-  // to correctly end the READ command. 
+  // to correctly end the READ command.
   this->cs_->digital_write(true);
   this->cs_->digital_write(false);
   this->disable();
