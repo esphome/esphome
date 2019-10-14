@@ -9,7 +9,7 @@ namespace esphome {
 namespace xiaomi_ble {
 
 struct XiaomiParseResult {
-  enum { TYPE_MIJIA, TYPE_MIFLORA, TYPE_LYWSD02 } type;
+  enum { TYPE_MIJIA, TYPE_MIFLORA, TYPE_LYWSD02, TYPE_CLEARGRASS } type;
   optional<float> temperature;
   optional<float> humidity;
   optional<float> battery_level;
