@@ -32,7 +32,7 @@ files = list(filter(os.path.exists, files))
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
-              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
+              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg', '.json')
 cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
 ignore_types = ('.ico',)
 
