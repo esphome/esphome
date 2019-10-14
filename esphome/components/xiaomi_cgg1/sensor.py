@@ -9,7 +9,7 @@ AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_cgg1_ns = cg.esphome_ns.namespace('xiaomi_cgg1')
 XiaomiCGG1 = xiaomi_cgg1_ns.class_('XiaomiCGG1', esp32_ble_tracker.ESPBTDeviceListener,
-                                     cg.Component)
+                                   cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiCGG1),
