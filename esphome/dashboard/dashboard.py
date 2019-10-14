@@ -402,6 +402,12 @@ class DashboardEntry(object):
         return self.storage.name
 
     @property
+    def comment(self):
+        if self.storage is None:
+            return None
+        return self.storage.comment
+
+    @property
     def esp_platform(self):
         if self.storage is None:
             return None

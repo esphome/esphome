@@ -79,6 +79,11 @@
               {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
+            {% if entry.comment %}
+              <div class="card-comment">
+                {{ escape(entry.comment) }}
+              </div>
+            {% end %}
             <p>
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
