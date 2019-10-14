@@ -9,12 +9,12 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
-xiaomi_miflora_ns = cg.esphome_ns.namespace('xiaomi_miflora')
-XiaomiMiflora = xiaomi_miflora_ns.class_('XiaomiMiflora', esp32_ble_tracker.ESPBTDeviceListener,
+xiaomi_hhccjcy01_ns = cg.esphome_ns.namespace('xiaomi_hhccjcy01')
+XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_('XiaomiHHCCJCY01', esp32_ble_tracker.ESPBTDeviceListener,
                                          cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(XiaomiMiflora),
+    cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_MOISTURE): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),

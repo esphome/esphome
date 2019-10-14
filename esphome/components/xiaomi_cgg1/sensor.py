@@ -7,12 +7,12 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_HUMIDITY, CONF_MAC_ADDRESS, C
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
-xiaomi_mijia_ns = cg.esphome_ns.namespace('xiaomi_mijia')
-XiaomiMijia = xiaomi_mijia_ns.class_('XiaomiMijia', esp32_ble_tracker.ESPBTDeviceListener,
-                                     cg.Component)
+xiaomi_cgg1_ns = cg.esphome_ns.namespace('xiaomi_cgg1')
+XiaomiCGG1 = xiaomi_cgg1_ns.class_(
+    'XiaomiCGG1', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(XiaomiMijia),
+    cv.GenerateID(): cv.declare_id(XiaomiCGG1),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),

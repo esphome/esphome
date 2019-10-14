@@ -8,9 +8,9 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_miflora {
+namespace xiaomi_lywsdcgq {
 
-class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiLYWSDCGQ : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 
@@ -24,12 +24,8 @@ class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceLis
 
     if (res->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*res->temperature);
-    if (res->moisture.has_value() && this->moisture_ != nullptr)
-      this->moisture_->publish_state(*res->moisture);
-    if (res->conductivity.has_value() && this->conductivity_ != nullptr)
-      this->conductivity_->publish_state(*res->conductivity);
-    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
-      this->illuminance_->publish_state(*res->illuminance);
+    if (res->humidity.has_value() && this->humidity_ != nullptr)
+      this->humidity_->publish_state(*res->humidity);
     if (res->battery_level.has_value() && this->battery_level_ != nullptr)
       this->battery_level_->publish_state(*res->battery_level);
     return true;
@@ -38,21 +34,17 @@ class XiaomiMiflora : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_moisture(sensor::Sensor *moisture) { moisture_ = moisture; }
-  void set_conductivity(sensor::Sensor *conductivity) { conductivity_ = conductivity; }
-  void set_illuminance(sensor::Sensor *illuminance) { illuminance_ = illuminance; }
+  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
  protected:
   uint64_t address_;
   sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *moisture_{nullptr};
-  sensor::Sensor *conductivity_{nullptr};
-  sensor::Sensor *illuminance_{nullptr};
+  sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_miflora
+}  // namespace xiaomi_lywsdcgq
 }  // namespace esphome
 
 #endif
