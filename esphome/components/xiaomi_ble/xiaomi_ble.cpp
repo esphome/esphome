@@ -91,7 +91,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  uint8_t raw_offset = is_mijia || is_cgg1 ? 11 : 12;
+  uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
   const uint8_t raw_type = raw[raw_offset];
   const uint8_t data_length = raw[raw_offset + 2];
