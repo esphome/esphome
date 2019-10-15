@@ -171,6 +171,10 @@ ads1115:
 dallas:
   pin: GPIO23
 
+as3935_spi:
+  cs_pin: GPIO12
+  pin: GPIO13
+
 sensor:
   - platform: adc
     pin: A0
@@ -191,6 +195,10 @@ sensor:
         - 100.0 -> 102.5
       - filter_out: 42.0
       - filter_out: nan
+      - median:
+          window_size: 5
+          send_every: 5
+          send_first_at: 3
       - sliding_window_moving_average:
           window_size: 15
           send_every: 15
@@ -449,6 +457,7 @@ sensor:
     temperature:
       name: "MH-Z19 Temperature"
     update_interval: 15s
+    automatic_baseline_calibration: false
   - platform: mpu6050
     address: 0x68
     accel_x:
@@ -501,6 +510,15 @@ sensor:
     humidity:
       name: "Living Room Humidity 8"
     address: 0x44
+    update_interval: 15s
+  - platform: scd30
+    co2:
+      name: "Living Room CO2 9"
+    temperature:
+      name: "Living Room Temperature 9"
+    humidity:
+      name: "Living Room Humidity 9"
+    address: 0x61
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -564,7 +582,28 @@ sensor:
       name: CCS811 TVOC
     update_interval: 30s
     baseline: 0x4242
-
+  - platform: tx20
+    wind_speed:
+      name: "Windspeed"
+    wind_direction_degrees:
+      name: "Winddirection Degrees"
+    pin: 
+      number: GPIO04
+      mode: INPUT
+  - platform: zyaura
+    clock_pin: GPIO5
+    data_pin: GPIO4
+    co2:
+      name: "ZyAura CO2"
+    temperature:
+      name: "ZyAura Temperature"
+    humidity:
+      name: "ZyAura Humidity"
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 esp32_touch:
   setup_mode: False
@@ -699,10 +738,20 @@ binary_sensor:
              3700, -2263, 1712, -4254, 1711, -4249, 1715, -2266, 1710, -2267,
              1709, -2265, 3704, -4250, 1712, -4254, 3700, -2260, 1714, -2265,
              1712, -2262, 1714, -2267, 1709]
+  - platform: as3935
+    name: "Storm Alert"
 
 pca9685:
   frequency: 500
   address: 0x0
+
+tlc59208f:
+  - address: 0x20
+    id: tlc59208f_1
+  - address: 0x22
+    id: tlc59208f_2
+  - address: 0x24
+    id: tlc59208f_3
 
 my9231:
   data_pin: GPIO12
@@ -748,6 +797,42 @@ output:
   - platform: pca9685
     id: pca_7
     channel: 7
+  - platform: tlc59208f
+    id: tlc_0
+    channel: 0
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_1
+    channel: 1
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_2
+    channel: 2
+    tlc59208f_id: 'tlc59208f_1'
+  - platform: tlc59208f
+    id: tlc_3
+    channel: 0
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_4
+    channel: 1
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_5
+    channel: 2
+    tlc59208f_id: 'tlc59208f_2'
+  - platform: tlc59208f
+    id: tlc_6
+    channel: 0
+    tlc59208f_id: 'tlc59208f_3'
+  - platform: tlc59208f
+    id: tlc_7
+    channel: 1
+    tlc59208f_id: 'tlc59208f_3'
+  - platform: tlc59208f
+    id: tlc_8
+    channel: 2
+    tlc59208f_id: 'tlc59208f_3'
   - platform: gpio
     id: id2
     pin:
@@ -1018,7 +1103,7 @@ switch:
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
-        code: '001010011001111101011011'
+        code: '00101001100111110101xxxx'
         protocol: 1
   - platform: template
     name: RC Switch Type A

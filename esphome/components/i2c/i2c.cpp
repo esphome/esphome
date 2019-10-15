@@ -32,7 +32,7 @@ void I2CComponent::dump_config() {
   if (this->scan_) {
     ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
     uint8_t found = 0;
-    for (uint8_t address = 8; address < 120; address++) {
+    for (uint8_t address = 1; address < 120; address++) {
       this->wire_->beginTransmission(address);
       uint8_t error = this->wire_->endTransmission();
 

@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION, CONF_UPDATE_INTERVAL
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION
 from esphome.core import coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -33,7 +33,6 @@ def validate_rotation(value):
 
 
 BASIC_DISPLAY_SCHEMA = cv.Schema({
-    cv.Optional(CONF_UPDATE_INTERVAL): cv.update_interval,
     cv.Optional(CONF_LAMBDA): cv.lambda_,
 })
 
@@ -48,8 +47,6 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend({
 
 @coroutine
 def setup_display_core_(var, config):
-    if CONF_UPDATE_INTERVAL in config:
-        cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
     if CONF_PAGES in config:

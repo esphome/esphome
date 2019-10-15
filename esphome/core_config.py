@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
-    CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
+    CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
@@ -113,6 +113,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_COMMENT): cv.string,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
     cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
@@ -239,7 +240,6 @@ def to_code(config):
 
     # Libraries
     if CORE.is_esp32:
-        cg.add_library('Preferences', None)
         cg.add_library('ESPmDNS', None)
     elif CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)
