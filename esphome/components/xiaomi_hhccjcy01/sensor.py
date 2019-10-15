@@ -10,8 +10,8 @@ DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_hhccjcy01_ns = cg.esphome_ns.namespace('xiaomi_hhccjcy01')
-XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_('XiaomiHHCCJCY01', esp32_ble_tracker.ESPBTDeviceListener,
-                                         cg.Component)
+XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_('XiaomiHHCCJCY01',
+                                             esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
