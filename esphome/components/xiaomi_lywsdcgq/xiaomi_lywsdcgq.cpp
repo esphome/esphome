@@ -4,7 +4,7 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_mijia {
+namespace xiaomi_lywsdcgq {
 
 static const char *TAG = "xiaomi_lywsdcgq";
 
