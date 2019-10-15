@@ -84,9 +84,9 @@ sensor:
   - platform: xiaomi_lywsd02
     mac_address: 3F:5B:7D:82:58:4E
     temperature:
-      name: "Xiaomi lywsd02 Temperature"
+      name: "Xiaomi LYWSD02 Temperature"
     humidity:
-      name: "Xiaomi lywsd02 Humidity"    
+      name: "Xiaomi LYWSD02 Humidity"    
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
