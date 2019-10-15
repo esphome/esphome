@@ -86,9 +86,7 @@ sensor:
     temperature:
       name: "Xiaomi lywsd02 Temperature"
     humidity:
-      name: "Xiaomi lywsd02 Humidity"
-    battery_level:
-      name: "Xiaomi lywsd02 Battery Level"
+      name: "Xiaomi lywsd02 Humidity"    
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
