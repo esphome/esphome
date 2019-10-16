@@ -60,7 +60,6 @@ void QMC5883LComponent::setup() {
 }
 void QMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "QMC5883L:");
-  ESP_LOGCONFIG(TAG, "   datarate=%u range=%u oversampling=%u", this->datarate_, this->range_, this->oversampling_);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, "Communication with QMC5883L failed!");
