@@ -66,7 +66,6 @@ void HMC5883LComponent::setup() {
 }
 void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
-  ESP_LOGCONFIG(TAG, "  oversampling=%u datarate=%u range=%u", this->oversampling_, this->datarate_, this->range_);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, "Communication with HMC5883L failed!");

@@ -203,33 +203,6 @@ sensor:
         value: 15.0
       - binary_sensor: bin3
         value: 100.0
-  
-  - platform: hmc5883l
-    address: 0x68
-    field_strength_x:
-      name: "HMC5883L Field Strength X"
-    field_strength_y:
-      name: "HMC5883L Field Strength Y"
-    field_strength_z:
-      name: "HMC5883L Field Strength Z"
-    heading:
-      name: "HMC5883L Heading"
-    range: 130uT
-    oversampling: 8x
-    update_interval: 15s
-  - platform: qmc5883l
-    address: 0x0D
-    field_strength_x:
-      name: "QMC5883L Field Strength X"
-    field_strength_y:
-      name: "QMC5883L Field Strength Y"
-    field_strength_z:
-      name: "QMC5883L Field Strength Z"
-    heading:
-      name: "QMC5883L Heading"
-    range: 800uT
-    oversampling: 256x
-    update_interval: 15s
 
 time:
 - platform: homeassistant
