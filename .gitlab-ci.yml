@@ -107,10 +107,6 @@ lint-tidy:
   <<: *lint
   script:
     - pio init --ide atom
-    - |
-      if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
-        patch -p0 < script/.neopixelbus.patch
-      fi
     - script/clang-tidy --all-headers --fix
     - script/ci-suggest-changes
 
