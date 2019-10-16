@@ -135,6 +135,9 @@ bool I2CComponent::read_bytes(uint8_t address, uint8_t a_register, uint8_t *data
     delay(conversion);
   return this->raw_receive(address, data, len);
 }
+bool I2CComponent::read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len) {
+  return this->raw_receive(address, data, len);
+}
 bool I2CComponent::read_bytes_16(uint8_t address, uint8_t a_register, uint16_t *data, uint8_t len,
                                  uint32_t conversion) {
   if (!this->write_bytes(address, a_register, nullptr, 0))
@@ -153,6 +156,11 @@ bool I2CComponent::read_byte_16(uint8_t address, uint8_t a_register, uint16_t *d
 bool I2CComponent::write_bytes(uint8_t address, uint8_t a_register, const uint8_t *data, uint8_t len) {
   this->raw_begin_transmission(address);
   this->raw_write(address, &a_register, 1);
+  this->raw_write(address, data, len);
+  return this->raw_end_transmission(address);
+}
+bool I2CComponent::write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len) {
+  this->raw_begin_transmission(address);
   this->raw_write(address, data, len);
   return this->raw_end_transmission(address);
 }
