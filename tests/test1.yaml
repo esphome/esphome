@@ -396,8 +396,6 @@ sensor:
       name: "HMC5883L Heading"
     range: 130uT
     oversampling: 8x
-    data_rate: '75Hz'
-    measurement_mode: 'pos_bias'
     update_interval: 15s
   - platform: qmc5883l
     address: 0x0D
@@ -409,7 +407,6 @@ sensor:
       name: "QMC5883L Field Strength Z"
     heading:
       name: "QMC5883L Heading"
-    data_rate: 100Hz
     range: 800uT
     oversampling: 256x
     update_interval: 15s

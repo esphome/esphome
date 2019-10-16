@@ -83,6 +83,7 @@ def auto_data_rate(config):
     for datarate in sorted(HMC5883LDatarates.keys()):
         if float(datarate) >= interval_hz:
             return HMC5883LDatarates[datarate]
+    return HMC5883LDatarates[75]
 
 
 def to_code(config):
