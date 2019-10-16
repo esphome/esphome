@@ -19,7 +19,7 @@ void HDC1080Component::setup() {
       0b00000000   // reserved
   };
 
-  if (this->write_bytes(HDC1080_CMD_CONFIGURATION, data, 2)) {
+  if (!this->write_bytes(HDC1080_CMD_CONFIGURATION, data, 2)) {
     this->mark_failed();
     return;
   }

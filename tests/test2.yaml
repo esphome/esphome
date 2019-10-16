@@ -45,10 +45,17 @@ logger:
   level: DEBUG
 
 web_server:
+  auth:
+    username: admin
+    password: admin
 
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
+
+as3935_i2c:
+  pin: GPIO12
+
 
 sensor:
   - platform: ble_rssi
@@ -151,6 +158,11 @@ sensor:
     range: 800uT
     oversampling: 256x
     update_interval: 15s
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 time:
 - platform: homeassistant
@@ -189,6 +201,8 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
+  - platform: as3935
+    name: "Storm Alert"
 
 remote_receiver:
   pin: GPIO32

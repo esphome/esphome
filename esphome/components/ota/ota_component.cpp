@@ -182,11 +182,11 @@ void OTAComponent::handle_() {
       error_code = OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
       goto error;
     }
-    if (ss.indexOf("new Flash config wrong") != -1) {
+    if (ss.indexOf("new Flash config wrong") != -1 || ss.indexOf("new Flash config wsong") != -1) {
       error_code = OTA_RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG;
       goto error;
     }
-    if (ss.indexOf("Flash config wrong real") != -1) {
+    if (ss.indexOf("Flash config wrong real") != -1 || ss.indexOf("Flash config wsong real") != -1) {
       error_code = OTA_RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG;
       goto error;
     }

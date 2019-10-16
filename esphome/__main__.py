@@ -24,7 +24,7 @@ def get_serial_ports():
     # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
     from serial.tools.list_ports import comports
     result = []
-    for port, desc, info in comports():
+    for port, desc, info in comports(include_links=True):
         if not port:
             continue
         if "VID:PID" in info:
@@ -35,7 +35,9 @@ def get_serial_ports():
 
 def choose_prompt(options):
     if not options:
-        raise ValueError
+        raise EsphomeError("Found no valid options for upload/logging, please make sure relevant "
+                           "sections (ota, mqtt, ...) are in your configuration and/or the device "
+                           "is plugged in.")
 
     if len(options) == 1:
         return options[0][1]
@@ -130,6 +132,7 @@ def wrap_to_code(name, comp):
             conf_str = yaml_util.dump(conf)
             if IS_PY2:
                 conf_str = conf_str.decode('utf-8')
+            conf_str = conf_str.replace('//', '')
             cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
 
@@ -474,7 +477,11 @@ def parse_args(argv):
                                       help="Create a simple web server for a dashboard.")
     dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
                            type=int, default=6052)
-    dashboard.add_argument("--password", help="The optional password to require for all requests.",
+    dashboard.add_argument("--username", help="The optional username to require "
+                                              "for authentication.",
+                           type=str, default='')
+    dashboard.add_argument("--password", help="The optional password to require "
+                                              "for authentication.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
