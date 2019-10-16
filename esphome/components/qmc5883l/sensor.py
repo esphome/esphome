@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(QMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
     cv.Optional(CONF_RANGE, default=u'200µT'): validate_enum(QMC5883L_RANGES, units=["uT", u"µT"]),
-    cv.Optional(CONF_OVERSAMPLING, default=512): validate_enum(QMC5883LOversamplings),
+    cv.Optional(CONF_OVERSAMPLING, default="512x"): validate_enum(QMC5883LOversamplings, units="x"),
     cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
