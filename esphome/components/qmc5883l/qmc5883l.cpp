@@ -22,19 +22,6 @@ static const uint8_t QMC5883L_REGISTER_PERIOD = 0x0B;
 
 void QMC5883LComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up QMC5883L...");
-  uint8_t id;
-  if (!this->read_byte(QMC5883L_REGISTER_PERIOD, &id)) {
-    this->error_code_ = COMMUNICATION_FAILED;
-    this->mark_failed();
-    return;
-  }
-
-  // if (id != 0x01) {
-  //   this->error_code_ = ID_REGISTERS;
-  //   this->mark_failed();
-  //   return;
-  // }
-
   // Soft Reset
   if (!this->write_byte(QMC5883L_REGISTER_CONTROL_2, 1 << 7)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -77,8 +64,6 @@ void QMC5883LComponent::dump_config() {
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, "Communication with QMC5883L failed!");
-  } else if (this->error_code_ == ID_REGISTERS) {
-    ESP_LOGE(TAG, "The ID registers don't match - Is this really an QMC5883L?");
   }
   LOG_UPDATE_INTERVAL(this);
 
@@ -130,8 +115,8 @@ void QMC5883LComponent::update() {
     this->heading_sensor_->publish_state(heading);
 }
 
-bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data, uint32_t conversion) {
-  bool success = QMC5883LComponent::I2CDevice::read_byte_16(a_register, data, conversion);
+bool QMC5883LComponent::read_byte_16_(uint8_t a_register, uint16_t *data) {
+  bool success = this->read_byte_16(a_register, data);
   *data = (*data & 0x00FF) << 8 | (*data & 0xFF00) >> 8;  // Flip Byte oder, LSB first;
   return success;
 }

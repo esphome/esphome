@@ -24,12 +24,6 @@ enum HMC5883LDatarate {
   HMC5883L_DATARATE_75_0_HZ = 0b110,
 };
 
-enum HMC5883LMeasurementMode {
-  HMC5883L_MEASUREMENT_MODE_NORMAL = 0b00,
-  HMC5883L_MEASUREMENT_MODE_POS_BIAS = 0b01,
-  HMC5883L_MEASUREMENT_MODE_NEG_BIAS = 0b10,
-};
-
 enum HMC5883LRange {
   HMC5883L_RANGE_88_UT = 0b000,
   HMC5883L_RANGE_130_UT = 0b001,
@@ -50,7 +44,6 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
 
   void set_oversampling(HMC5883LOversampling oversampling) { oversampling_ = oversampling; }
   void set_datarate(HMC5883LDatarate datarate) { datarate_ = datarate; }
-  void set_measurement_mode(HMC5883LMeasurementMode measurement_mode) { measurement_mode_ = measurement_mode; }
   void set_range(HMC5883LRange range) { range_ = range; }
   void set_x_sensor(sensor::Sensor *x_sensor) { x_sensor_ = x_sensor; }
   void set_y_sensor(sensor::Sensor *y_sensor) { y_sensor_ = y_sensor; }
@@ -60,7 +53,6 @@ class HMC5883LComponent : public PollingComponent, public i2c::I2CDevice {
  protected:
   HMC5883LOversampling oversampling_{HMC5883L_OVERSAMPLING_1};
   HMC5883LDatarate datarate_{HMC5883L_DATARATE_15_0_HZ};
-  HMC5883LMeasurementMode measurement_mode_{HMC5883L_MEASUREMENT_MODE_NORMAL};
   HMC5883LRange range_{HMC5883L_RANGE_130_UT};
   sensor::Sensor *x_sensor_;
   sensor::Sensor *y_sensor_;

@@ -40,7 +40,7 @@ void HMC5883LComponent::setup() {
   uint8_t config_a = 0;
   config_a |= this->oversampling_ << 5;
   config_a |= this->datarate_ << 2;
-  config_a |= this->measurement_mode_ << 0;
+  config_a |= 0b0 << 0;  // Normal Mode
   if (!this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -66,8 +66,7 @@ void HMC5883LComponent::setup() {
 }
 void HMC5883LComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HMC5883L:");
-  ESP_LOGCONFIG(TAG, "  oversampling=%u datarate=%u measurement_mode=%u range=%u", this->oversampling_, this->datarate_,
-                this->measurement_mode_, this->range_);
+  ESP_LOGCONFIG(TAG, "  oversampling=%u datarate=%u range=%u", this->oversampling_, this->datarate_, this->range_);
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
     ESP_LOGE(TAG, "Communication with HMC5883L failed!");
