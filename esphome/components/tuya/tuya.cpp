@@ -45,11 +45,11 @@ void Tuya::dump_config() {
     ESP_LOGCONFIG(TAG, "  GPIO MCU configuration not supported!");
   for (auto &info : this->datapoints_) {
     if (info.type == TuyaDatapointType::BOOLEAN)
-      ESP_LOGCONFIG(TAG, "  %d: switch (value: %s)", info.id, ONOFF(info.value_bool));
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: switch (value: %s)", info.id, ONOFF(info.value_bool));
     else if (info.type == TuyaDatapointType::INTEGER)
-      ESP_LOGCONFIG(TAG, "  %d: int value (value: %d)", info.id, info.value_int);
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: int value (value: %d)", info.id, info.value_int);
     else
-      ESP_LOGCONFIG(TAG, "  %d: unknown", info.id);
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
 }
 
