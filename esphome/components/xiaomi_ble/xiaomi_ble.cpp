@@ -121,8 +121,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   bool is_miscale = device.get_service_data_uuid()->contains(0x1D, 0x18);
   bool is_mibfs = device.get_service_data_uuid()->contains(0x1B, 0x18);
 
-  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 &&
-      !is_miscale && !is_mibfs && !is_lywsd02) {
+  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 && !is_miscale && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
