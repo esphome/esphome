@@ -35,9 +35,7 @@ void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
 }
 
-float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) {
-  return 80e6f / float(1 << bit_depth);
-}
+float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
 float ledc_min_frequency_for_bit_depth(uint8_t bit_depth) {
   const float max_div_num = ((1 << 20) - 1) / 256.0f;
   return 80e6f / (max_div_num * float(1 << bit_depth));
