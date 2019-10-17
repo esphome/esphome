@@ -43,7 +43,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void compute_state_();
 
   /// Switch the climate device to the given climate mode.
-  void switch_to_mode_(climate::ClimateMode mode);
+  void switch_to_action_(climate::ClimateAction action);
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
