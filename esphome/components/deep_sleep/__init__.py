@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
 
@@ -85,7 +84,7 @@ def to_code(config):
     cg.add_define('USE_DEEP_SLEEP')
 
 
-DEEP_SLEEP_ACTION_SCHEMA = maybe_simple_id({
+DEEP_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
 })
 

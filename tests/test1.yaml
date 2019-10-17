@@ -73,10 +73,10 @@ mqtt:
             ESP_LOGD("main", "Got message %s", x.c_str());
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.prevent: deep_sleep_1
+      - deep_sleep.prevent
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.enter: deep_sleep_1
+      - deep_sleep.enter:
   on_json_message:
     topic: the/topic
     then:
@@ -163,7 +163,6 @@ deep_sleep:
   sleep_duration: 50s
   wakeup_pin: GPIO39
   wakeup_pin_mode: INVERT_WAKEUP
-  id: deep_sleep_1
 
 ads1115:
   address: 0x48
