@@ -491,6 +491,7 @@ sensor:
     update_interval: 15s
   - platform: rotary_encoder
     name: "Rotary Encoder"
+    id: rotary_encoder1
     pin_a: GPIO23
     pin_b: GPIO24
     pin_reset: GPIO25
@@ -501,6 +502,13 @@ sensor:
     resolution: 4
     min_value: -10
     max_value: 30
+    on_value:
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: 10
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: !lambda 'return -1;'
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
