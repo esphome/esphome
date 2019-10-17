@@ -208,19 +208,7 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
 }
 
 std::string hexencode(const std::string &raw_data) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < raw_data.size(); i++) {
-    if (i + 1 != raw_data.size()) {
-      sprintf(buf, "0x%02X.", static_cast<uint8_t>(raw_data[i]));
-    } else {
-      sprintf(buf, "0x%02X ", static_cast<uint8_t>(raw_data[i]));
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%zu)", raw_data.size());
-  res += buf;
-  return res;
+  return hexencode(reinterpret_cast<const uint8_t *>(raw_data.c_str()), raw_data.size());
 }
 
 ESPBTUUID::ESPBTUUID() : uuid_() {}
