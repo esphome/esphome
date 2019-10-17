@@ -40,7 +40,7 @@ void HMC5883LComponent::setup() {
   uint8_t config_a = 0;
   config_a |= this->oversampling_ << 5;
   config_a |= this->datarate_ << 2;
-  config_a |= 0b0 << 0;  // Normal Mode
+  config_a |= 0b0 << 0;  // Measurement Mode: Normal(high impedance on load)
   if (!this->write_byte(HMC5883L_REGISTER_CONFIG_A, config_a)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
