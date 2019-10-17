@@ -784,7 +784,6 @@ output:
     pin: 19
     id: gpio_19
     frequency: 1500Hz
-    bit_depth: 8
     channel: 14
     max_power: 0.5
   - platform: pca9685
