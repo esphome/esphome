@@ -71,7 +71,7 @@ def validate_local_no_higher_than_global(value):
 
 Logger = logger_ns.class_('Logger', cg.Component)
 LoggerMessageTrigger = logger_ns.class_('LoggerMessageTrigger',
-                                        automation.Trigger.template(int, cg.const_char_ptr,
+                                        automation.Trigger.template(cg.int_, cg.const_char_ptr,
                                                                     cg.const_char_ptr))
 
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = 'esp8266_store_log_strings_in_flash'
@@ -146,7 +146,7 @@ def to_code(config):
     for conf in config.get(CONF_ON_MESSAGE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], log,
                                    LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL]))
-        yield automation.build_automation(trigger, [(int, 'level'),
+        yield automation.build_automation(trigger, [(cg.int_, 'level'),
                                                     (cg.const_char_ptr, 'tag'),
                                                     (cg.const_char_ptr, 'message')], conf)
 
