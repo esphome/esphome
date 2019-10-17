@@ -1,5 +1,3 @@
-import math
-
 from esphome import pins, automation
 from esphome.components import output
 import esphome.config_validation as cv

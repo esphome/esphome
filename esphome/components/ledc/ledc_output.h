@@ -27,7 +27,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   /// Override FloatOutput's write_state.
-  void write_state(float adjusted_value) override;
+  void write_state(float state) override;
 
  protected:
   GPIOPin *pin_;
