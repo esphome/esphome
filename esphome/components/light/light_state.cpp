@@ -24,9 +24,12 @@ void LightState::start_flash_(const LightColorValues &target, uint32_t length) {
 
 LightState::LightState(const std::string &name, LightOutput *output) : Nameable(name), output_(output) {}
 
-void LightState::set_immediately_(const LightColorValues &target) {
+void LightState::set_immediately_(const LightColorValues &target, bool set_remote_values) {
   this->transformer_ = nullptr;
-  this->current_values = this->remote_values = target;
+  this->current_values = target;
+  if (set_remote_values) {
+    this->remote_values = target;
+  }
   this->next_write_ = true;
 }
 
@@ -327,10 +330,10 @@ void LightCall::perform() {
 
     // Also set light color values when starting an effect
     // For example to turn off the light
-    this->parent_->set_immediately_(v);
+    this->parent_->set_immediately_(v, true);
   } else {
     // INSTANT CHANGE
-    this->parent_->set_immediately_(v);
+    this->parent_->set_immediately_(v, this->publish_);
   }
 
   if (this->publish_) {
