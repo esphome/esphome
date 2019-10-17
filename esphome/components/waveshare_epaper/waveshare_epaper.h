@@ -67,6 +67,7 @@ enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_1_54_IN = 0,
   WAVESHARE_EPAPER_2_13_IN,
   WAVESHARE_EPAPER_2_9_IN,
+  TTGO_EPAPER_2_13_IN,
 };
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
@@ -88,7 +89,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-  void write_lut_(const uint8_t *lut);
+  void write_lut_(const uint8_t *lut, uint8_t size);
 
   int get_width_internal() override;
 
