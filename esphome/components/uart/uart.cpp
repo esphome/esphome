@@ -316,7 +316,9 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
     return 0;
   return this->rx_buffer_[this->rx_out_pos_];
 }
-void ESP8266SoftwareSerial::flush() { this->rx_in_pos_ = this->rx_out_pos_ = 0; }
+void ESP8266SoftwareSerial::flush() {
+  // Flush is a NO-OP with software serial, all bytes are written immediately.
+}
 int ESP8266SoftwareSerial::available() {
   int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
   if (avail < 0)
