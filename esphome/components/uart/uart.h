@@ -61,6 +61,7 @@ class UARTComponent : public Component, public Stream {
 
   int available() override;
 
+  /// Block until all bytes have been written to the UART bus.
   void flush() override;
 
   float get_setup_priority() const override { return setup_priority::BUS; }
