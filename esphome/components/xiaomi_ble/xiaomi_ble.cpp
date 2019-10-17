@@ -128,7 +128,7 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   } else if (res->type == XiaomiParseResult::TYPE_LYWSD02) {
     name = "LYWSD02";
   } else if (res->type == XiaomiParseResult::TYPE_CGG1) {
-    name = "Cleargrass";
+    name = "CGG1";
   }
 
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
