@@ -324,7 +324,7 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     for (auto var : it) {
       const uint8_t flicker = fast_random_8() % intensity;
       // scale down by random factor
-      var *= 255 - flicker;
+      var = var.get() * (255 - flicker);
 
       // slowly fade back to "real" value
       var = (var.get() * inv_intensity) + (current_color * intensity);
