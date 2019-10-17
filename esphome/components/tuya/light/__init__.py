@@ -9,10 +9,10 @@ DEPENDENCIES = ['tuya']
 CONF_DIMMER_DATAPOINT = "dimmer_datapoint"
 CONF_SWITCH_DATAPOINT = "switch_datapoint"
 
-TUYALIGHT = tuya_ns.class_('TuyaLight', light.LightOutput, cg.Component)
+TuyaLight = tuya_ns.class_('TuyaLight', light.LightOutput, cg.Component)
 
 CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
-    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TUYALIGHT),
+    cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaLight),
     cv.GenerateID(CONF_TUYA_ID): cv.use_id(TUYA),
     cv.Required(CONF_DIMMER_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
@@ -27,9 +27,9 @@ def to_code(config):
     yield light.register_light(var, config)
 
     if CONF_DIMMER_DATAPOINT in config:
-        cg.add(var.set_dimmer(config[CONF_DIMMER_DATAPOINT]))
+        cg.add(var.set_dimmer_id(config[CONF_DIMMER_DATAPOINT]))
     if CONF_SWITCH_DATAPOINT in config:
-        cg.add(var.set_switch(config[CONF_SWITCH_DATAPOINT]))
+        cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_MIN_VALUE in config:
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:

@@ -6,11 +6,11 @@ from esphome.const import CONF_ID
 DEPENDENCIES = ['uart']
 
 tuya_ns = cg.esphome_ns.namespace('tuya')
-TUYA = tuya_ns.class_('Tuya', cg.Component, uart.UARTDevice)
+Tuya = tuya_ns.class_('Tuya', cg.Component, uart.UARTDevice)
 
 CONF_TUYA_ID = 'tuya_id'
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(TUYA),
+    cv.GenerateID(): cv.declare_id(Tuya),
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 
