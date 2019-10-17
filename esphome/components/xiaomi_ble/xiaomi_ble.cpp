@@ -114,25 +114,23 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  bool is_mijia = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
-  bool is_miflora = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
+  bool is_lywsdcgq = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
+  bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
-  bool is_miscale;
-  bool is_mibfs;
-  if (device.get_service_data_uuid()->contains(0x1D, 0x18))
-    is_miscale = true;
-  if (device.get_service_data_uuid()->contains(0x1B, 0x18))
-    is_mibfs = true;
+  bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
+  bool is_miscale = device.get_service_data_uuid()->contains(0x1D, 0x18);
+  bool is_mibfs = device.get_service_data_uuid()->contains(0x1B, 0x18);
 
-  if (!is_mijia && !is_miflora && !is_miscale && !is_mibfs && !is_lywsd02) {
+  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 &&
+      !is_miscale && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
   bool success;
   XiaomiParseResult result;
 
-  if (is_mijia || is_miflora || is_lywsd02) {
-    uint8_t raw_offset = is_mijia ? 11 : 12;
+  if (is_mijia || is_miflora || is_lywsd02 || is_cgg1) {
+    uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
     const uint8_t raw_type = raw[raw_offset];
     const uint8_t data_length = raw[raw_offset + 2];
@@ -140,23 +138,25 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     const uint8_t expected_length = data_length + raw_offset + 3;
     const uint8_t actual_length = device.get_service_data().size();
     if (expected_length != actual_length) {
-      // ESP_LOGV(TAG, "Xiaomi %d data length mismatch (%u != %d)", raw_type, expected_length, actual_length);
+      // ESP_LOGV(TAG, "Xiaomi %s data length mismatch (%u != %d)", type, expected_length, actual_length);
       return {};
     }
-    result.type = XiaomiParseResult::TYPE_MIFLORA;
-    if (is_mijia) {
-      result.type = XiaomiParseResult::TYPE_MIJIA;
+    XiaomiParseResult result;
+    result.type = XiaomiParseResult::TYPE_HHCCJCY01;
+    if (is_lywsdcgq) {
+      result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
     } else if (is_lywsd02) {
       result.type = XiaomiParseResult::TYPE_LYWSD02;
+    } else if (is_cgg1) {
+      result.type = XiaomiParseResult::TYPE_CGG1;
     }
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   } else {
-    const uint8_t *data = &raw[0];
     const uint8_t data_length = device.get_service_data().size();
-    const uint8_t raw_type = 0x16;  // sdid = 22
+    const uint8_t raw_type = 0x16;
 
     result.type = XiaomiParseResult::TYPE_MISCALE;
-    success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
+    success = parse_xiaomi_data_byte(raw_type, raw, data_length, result);
   }
 
   if (!success)
@@ -169,11 +169,13 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if (!res.has_value())
     return false;
 
-  const char *name = "Mi Flora";
-  if (res->type == XiaomiParseResult::TYPE_MIJIA) {
-    name = "Mi Jia";
+  const char *name = "HHCCJCY01";
+  if (res->type == XiaomiParseResult::TYPE_LYWSDCGQ) {
+    name = "LYWSDCGQ";
   } else if (res->type == XiaomiParseResult::TYPE_LYWSD02) {
     name = "LYWSD02";
+  } else if (res->type == XiaomiParseResult::TYPE_CGG1) {
+    name = "CGG1";
   } else if (res->type == XiaomiParseResult::TYPE_MISCALE) {
     name = "Mi Scale";
   }

@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
@@ -43,6 +44,12 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
    */
   void set_resolution(RotaryEncoderResolution mode);
 
+  /// Manually set the value of the counter.
+  void set_value(int value) {
+    this->store_.counter = value;
+    this->loop();
+  }
+
   void set_reset_pin(GPIOPin *pin_i) { this->pin_i_ = pin_i; }
   void set_min_value(int32_t min_value);
   void set_max_value(int32_t max_value);
@@ -61,6 +68,16 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
   GPIOPin *pin_i_{nullptr};  /// Index pin, if this is not nullptr, the counter will reset to 0 once this pin is HIGH.
 
   RotaryEncoderSensorStore store_{};
+};
+
+template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...> {
+ public:
+  RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
+  TEMPLATABLE_VALUE(int, value)
+  void play(Ts... x) override { this->encoder_->set_value(this->value_.value(x...)); }
+
+ protected:
+  RotaryEncoderSensor *encoder_;
 };
 
 }  // namespace rotary_encoder
