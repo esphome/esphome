@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/esphal.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
 #ifdef ARDUINO_ARCH_ESP32
