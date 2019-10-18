@@ -38,8 +38,9 @@
   </div>
 
   <ul id="dropdown-nav-actions" class="select-action dropdown-content card-dropdown-action">
-    <li><a id="update-all-button" class="modal-close waves-effect waves-green btn-flat"
-           data-node="{{ escape(config_dir) }}">Update All</a></li>
+    <li><a id="logout-button" href="{{ relative_url }}logout">Logout</a></li>
+    <li><a id="update-all-button" data-node="{{ escape(config_dir) }}">Update All</a></li>
+    <li><a id="secrets-button" class="action-edit" data-node="secrets.yaml">Secrets Editor</a></li>
   </ul>
 </nav>
 
@@ -78,6 +79,11 @@
               {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
+            {% if entry.comment %}
+              <div class="card-comment">
+                {{ escape(entry.comment) }}
+              </div>
+            {% end %}
             <p>
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>

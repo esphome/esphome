@@ -574,6 +574,7 @@ const editModalElem = document.getElementById("modal-editor");
 const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
 let activeEditorConfig = null;
+let activeEditorSecrets = false;
 let aceWs = null;
 let aceValidationScheduled = false;
 let aceValidationRunning = false;
@@ -685,7 +686,7 @@ editor.commands.addCommand({
 });
 
 editor.session.on('change', debounce(() => {
-  aceValidationScheduled = true;
+  aceValidationScheduled = !activeEditorSecrets;
 }, 250));
 
 setInterval(() => {
@@ -708,9 +709,13 @@ editorUploadButton.addEventListener('click', saveEditor);
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
+    activeEditorSecrets = activeEditorConfig === 'secrets.yaml';
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
     editorUploadButton.setAttribute('data-node', activeEditorConfig);
+    if (activeEditorSecrets) {
+      editorUploadButton.classList.add('disabled');
+    }
     filenameField.innerHTML = activeEditorConfig;
 
     editor.setValue("Loading configuration yaml...");
