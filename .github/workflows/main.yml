@@ -6,11 +6,17 @@ jobs:
   overview:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
       - name: Set up Python 3
         uses: actions/setup-python@v1
         with:
           python-version: '3.5'
+      - name: Install clang dependencies
+        run: |
+          sudo apt install clang-format-7 clang-tidy-7
+          clang-tidy-7 -version
+          clang-format-7 -version
+          clang-apply-replacements-7 -version
+      - uses: actions/checkout@v1
       - name: Setup environment
         run: |
           script/setup
@@ -24,11 +30,11 @@ jobs:
   python-lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
       - name: Set up Python 3.5
         uses: actions/setup-python@v1
         with:
           python-version: '3.5'
+      - uses: actions/checkout@v1
       - name: Setup environment
         run: script/setup
       - name: Run custom linter
@@ -38,28 +44,50 @@ jobs:
       - name: Lint with pylint
         run: pylint esphome
 
-  cpp-lint:
+  cpp-format:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
       - name: Set up Python 3.5
         uses: actions/setup-python@v1
         with:
           python-version: '3.5'
+      - uses: actions/checkout@v1
+      - name: Setup environment
+        run: |
+          script/setup
+          pio init --ide atom
+      - name: Install clang-format
+        run: |
+          sudo apt install clang-format-7
+          clang-format-7 -version
+      - name: Run clang-format
+        run: |
+          script/clang-format -i
+          script/ci-suggest-changes
+
+  cpp-lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        split-at: [0, 1, 2, 3]
+    steps:
+      - name: Set up Python 3.5
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.5'
+      - uses: actions/checkout@v1
       - name: Setup environment
         run: |
           script/setup
           pio init --ide atom
       - name: Install clang dependencies
         run: |
-          sudo apt install clang-format-7 clang-tidy-7
+          sudo apt install clang-tidy-7
           clang-tidy-7 -version
-          clang-format-7 -version
           clang-apply-replacements-7 -version
       - name: Run clang checks
         run: |
-          script/clang-tidy --all-headers --fix
-          script/clang-format -i
+          script/clang-tidy --all-headers --fix --split-num 4 --split-at ${{ matrix.split-at }}
           script/ci-suggest-changes
 
   test:
@@ -70,11 +98,11 @@ jobs:
         testfile: [tests/test1.yaml, tests/test2.yaml, tests/test3.yaml]
 
     steps:
-      - uses: actions/checkout@v1
       - name: Set up Python
         uses: actions/setup-python@v1
         with:
           python-version: ${{ matrix.python-version }}
+      - uses: actions/checkout@v1
       - name: Setup environment
         run: script/setup
       - name: Run test

@@ -122,8 +122,8 @@ def main():
         print('Ctrl-C detected, goodbye.')
         os.kill(0, 9)
 
-    sys.exit(return_code)
+    return return_code
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
