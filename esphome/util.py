@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from esphome import const
-from esphome.py_compat import IS_PY2
+from esphome.py_compat import IS_PY2, IS_PY3
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -127,7 +127,7 @@ def run_external_command(func, *cmd, **kwargs):
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
-        cap_stdout = sys.stdout = io.BytesIO()
+        cap_stdout = sys.stdout = io.StringIO()
 
     try:
         sys.argv = list(cmd)
