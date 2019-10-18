@@ -31,7 +31,7 @@ def validate_rx_pin(value):
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(UARTComponent),
-    cv.Required(CONF_BAUD_RATE): cv.int_range(min=1, max=115200),
+    cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
     cv.Optional(CONF_TX_PIN): pins.output_pin,
     cv.Optional(CONF_RX_PIN): validate_rx_pin,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))

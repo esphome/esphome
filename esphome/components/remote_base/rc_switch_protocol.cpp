@@ -141,19 +141,13 @@ void RCSwitchBase::simple_code_to_tristate(uint16_t code, uint8_t nbits, uint64_
 void RCSwitchBase::type_a_code(uint8_t switch_group, uint8_t switch_device, bool state, uint64_t *out_code,
                                uint8_t *out_nbits) {
   uint16_t code = 0;
-  code |= (switch_group & 0b0001) ? 0 : 0b1000;
-  code |= (switch_group & 0b0010) ? 0 : 0b0100;
-  code |= (switch_group & 0b0100) ? 0 : 0b0010;
-  code |= (switch_group & 0b1000) ? 0 : 0b0001;
-  code <<= 4;
-  code |= (switch_device & 0b0001) ? 0 : 0b1000;
-  code |= (switch_device & 0b0010) ? 0 : 0b0100;
-  code |= (switch_device & 0b0100) ? 0 : 0b0010;
-  code |= (switch_device & 0b1000) ? 0 : 0b0001;
+  code = switch_group ^ 0b11111;
+  code <<= 5;
+  code |= switch_device ^ 0b11111;
   code <<= 2;
   code |= state ? 0b01 : 0b10;
-  simple_code_to_tristate(code, 10, out_code);
-  *out_nbits = 20;
+  simple_code_to_tristate(code, 12, out_code);
+  *out_nbits = 24;
 }
 void RCSwitchBase::type_b_code(uint8_t address_code, uint8_t channel_code, bool state, uint64_t *out_code,
                                uint8_t *out_nbits) {

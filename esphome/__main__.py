@@ -166,7 +166,7 @@ def compile_program(args, config):
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
-           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200)),
+           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)),
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
@@ -477,7 +477,11 @@ def parse_args(argv):
                                       help="Create a simple web server for a dashboard.")
     dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
                            type=int, default=6052)
-    dashboard.add_argument("--password", help="The optional password to require for all requests.",
+    dashboard.add_argument("--username", help="The optional username to require "
+                                              "for authentication.",
+                           type=str, default='')
+    dashboard.add_argument("--password", help="The optional password to require "
+                                              "for authentication.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')

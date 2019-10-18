@@ -119,6 +119,9 @@ void WebServer::setup() {
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
+  if (this->using_auth()) {
+    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
+  }
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
@@ -490,6 +493,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
+    return request->requestAuthentication();
+  }
+
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;

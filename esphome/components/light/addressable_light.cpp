@@ -113,7 +113,7 @@ void ESPRangeView::fade_to_white(uint8_t amnt) {
 }
 void ESPRangeView::fade_to_black(uint8_t amnt) {
   for (auto c : *this)
-    c.fade_to_white(amnt);
+    c.fade_to_black(amnt);
 }
 void ESPRangeView::lighten(uint8_t delta) {
   for (auto c : *this)

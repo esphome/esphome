@@ -31,19 +31,23 @@
       <form action="./login" method="post">
         <div class="card-content">
           <span class="card-title">Enter credentials</span>
-          <p>
-            Please login using your Home Assistant credentials.
-          </p>
+          {% if hassio %}
+            <p>
+              Please login using your Home Assistant credentials.
+            </p>
+          {% end %}
           {% if error is not None %}
             <p class="error">
               {{ escape(error) }}
             </p>
           {% end %}
           <div class="row">
-            <div class="input-field col s12">
-              <label for="username">Username</label>
-              <input type="text" class="validate" name="username" id="username" />
-            </div>
+            {% if has_username or hassio %}
+              <div class="input-field col s12">
+                <label for="username">Username</label>
+                <input type="text" class="validate" name="username" id="username" />
+              </div>
+            {% end %}
             <div class="input-field col s12">
               <label for="password">Password</label>
               <input type="password" class="validate" name="password" id="password" />
