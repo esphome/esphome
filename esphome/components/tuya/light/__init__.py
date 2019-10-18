@@ -2,7 +2,7 @@ from esphome.components import light
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_OUTPUT_ID, CONF_MIN_VALUE, CONF_MAX_VALUE
-from .. import tuya_ns, CONF_TUYA_ID, TUYA
+from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
 
@@ -13,7 +13,7 @@ TuyaLight = tuya_ns.class_('TuyaLight', light.LightOutput, cg.Component)
 
 CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(TuyaLight),
-    cv.GenerateID(CONF_TUYA_ID): cv.use_id(TUYA),
+    cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
     cv.Required(CONF_DIMMER_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_MIN_VALUE): cv.int_,
