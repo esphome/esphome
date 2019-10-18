@@ -712,10 +712,10 @@ binary_sensor:
           id: garage_door
           state: OFF
       - output.ledc.set_frequency:
-          id: gpio_17
+          id: gpio_19
           frequency: 500.0Hz
       - output.ledc.set_frequency:
-          id: gpio_17
+          id: gpio_19
           frequency: !lambda 'return 500.0;'
   - platform: pn532
     uid: 74-10-37-94
