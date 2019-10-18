@@ -1,0 +1,81 @@
+name: Main Workflow
+
+on: [push]
+
+jobs:
+  overview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python 3
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.5'
+      - name: Setup environment
+        run: |
+          script/setup
+          pio init --ide atom
+      - name: Run a quick lint over all changed files
+        run: |
+          script/setup
+          pio init --ide atom
+          script/quicklint
+
+  python-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python 3.5
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.5'
+      - name: Setup environment
+        run: script/setup
+      - name: Run custom linter
+        run: script/ci-custom.py
+      - name: Lint with flake8
+        run: flake8 esphome
+      - name: Lint with pylint
+        run: pylint esphome
+
+  cpp-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python 3.5
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.5'
+      - name: Setup environment
+        run: |
+          script/setup
+          pio init --ide atom
+      - name: Install clang dependencies
+        run: |
+          sudo apt install clang-format-7 clang-tidy-7
+          clang-tidy-7 -version
+          clang-format-7 -version
+          clang-apply-replacements-7 -version
+      - name: Run clang checks
+        run: |
+          script/clang-tidy --all-headers --fix
+          script/clang-format -i
+          script/ci-suggest-changes
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [2.7, 3.5]
+        testfile: [tests/test1.yaml, tests/test2.yaml, tests/test3.yaml]
+
+    steps:
+      - uses: actions/checkout@v1
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Setup environment
+        run: script/setup
+      - name: Run test
+        run: esphome ${{ matrix.testfile }} compile
