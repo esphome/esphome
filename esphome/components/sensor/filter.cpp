@@ -166,7 +166,11 @@ optional<float> FilterOutValueFilter::new_value(float value) {
     else
       return value;
   } else {
-    if (value == this->value_to_filter_out_)
+    int8_t accuracy = this->parent_->get_accuracy_decimals();
+    float accuracy_mult = pow10f(accuracy);
+    float rounded_filter_out = roundf(accuracy_mult * this->value_to_filter_out_);
+    float rounded_value = roundf(accuracy_mult * value);
+    if (rounded_filter_out == rounded_value)
       return {};
     else
       return value;
