@@ -463,7 +463,7 @@ LightColorValues LightCall::validate_() {
     this->transition_length_.reset();
   }
 
-  if (!this->has_transition_() && !this->has_flash_() && !this->has_effect_() && supports_transition) {
+  if (!this->has_transition_() && !this->has_flash_() && (!this->has_effect_() || *this->effect_ == 0) && supports_transition) {
     // nothing specified and light supports transitions, set default transition length
     this->transition_length_ = this->parent_->default_transition_length_;
   }
