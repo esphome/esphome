@@ -73,10 +73,10 @@ mqtt:
             ESP_LOGD("main", "Got message %s", x.c_str());
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.prevent: deep_sleep_1
+      - deep_sleep.prevent
     - topic: livingroom/ota_mode
       then:
-      - deep_sleep.enter: deep_sleep_1
+      - deep_sleep.enter:
   on_json_message:
     topic: the/topic
     then:
@@ -163,7 +163,6 @@ deep_sleep:
   sleep_duration: 50s
   wakeup_pin: GPIO39
   wakeup_pin_mode: INVERT_WAKEUP
-  id: deep_sleep_1
 
 ads1115:
   address: 0x48
@@ -491,6 +490,7 @@ sensor:
     update_interval: 15s
   - platform: rotary_encoder
     name: "Rotary Encoder"
+    id: rotary_encoder1
     pin_a: GPIO23
     pin_b: GPIO24
     pin_reset: GPIO25
@@ -501,9 +501,20 @@ sensor:
     resolution: 4
     min_value: -10
     max_value: 30
+    on_value:
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: 10
+      - sensor.rotary_encoder.set_value:
+          id: rotary_encoder1
+          value: !lambda 'return -1;'
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
+  - platform: senseair
+    co2:
+      name: "SenseAir CO2 Value"
+    update_interval: 15s
   - platform: sht3xd
     temperature:
       name: "Living Room Temperature 8"
@@ -711,6 +722,12 @@ binary_sensor:
       - binary_sensor.template.publish:
           id: garage_door
           state: OFF
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: 500.0Hz
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: !lambda 'return 500.0;'
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -725,12 +742,20 @@ binary_sensor:
       mode: INPUT
       inverted: True
   - platform: gpio
-    name: "MCP binary sensor"
+    name: "MCP21 binary sensor"
     pin:
       mcp23017: mcp23017_hub
       number: 1
       mode: INPUT
       inverted: True
+  - platform: gpio
+    name: "MCP22 binary sensor"
+    pin:
+      mcp23008: mcp23008_hub
+      number: 7
+      mode: INPUT_PULLUP
+      inverted: False
+
   - platform: remote_receiver
     name: "Raw Remote Receiver Test"
     raw:
@@ -770,7 +795,6 @@ output:
     pin: 19
     id: gpio_19
     frequency: 1500Hz
-    bit_depth: 8
     channel: 14
     max_power: 0.5
   - platform: pca9685
@@ -844,6 +868,13 @@ output:
     id: id22
     pin:
       mcp23017: mcp23017_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: id23
+    pin:
+      mcp23008: mcp23008_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1283,10 +1314,11 @@ display:
     it.set_component_value("gauge", 50);
     it.set_component_text("textview", "Hello World!");
 - platform: ssd1306_i2c
-  model: "SSD1306 128x64"
+  model: "SSD1306_128X64"
   reset_pin: GPIO23
   address: 0x3C
   id: display1
+  brightness: 60%
   pages:
     - id: page1
       lambda: |-
@@ -1371,6 +1403,10 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+
+mcp23008:
+  - id: 'mcp23008_hub'
+    address: 0x22
 
 stepper:
 - platform: a4988
