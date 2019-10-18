@@ -2,6 +2,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/application.h"
 #include "esphome/core/version.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -38,8 +39,23 @@ bool network_is_connected() {
   return false;
 }
 
+#ifdef ARDUINO_ARCH_ESP8266
+bool mdns_setup;
+#endif
+
+#ifdef ARDUINO_ARCH_ESP8266
+void network_setup_mdns(IPAddress address, int interface) {
+  // Latest arduino framework breaks mDNS for AP interface
+  // see https://github.com/esp8266/Arduino/issues/6114
+  if (interface == 1)
+    return;
+  MDNS.begin(App.get_name().c_str(), address);
+  mdns_setup = true;
+#endif
+#ifdef ARDUINO_ARCH_ESP32
 void network_setup_mdns() {
   MDNS.begin(App.get_name().c_str());
+#endif
 #ifdef USE_API
   if (api::global_api_server != nullptr) {
     MDNS.addService("esphomelib", "tcp", api::global_api_server->get_port());
@@ -58,7 +74,8 @@ void network_setup_mdns() {
 }
 void network_tick_mdns() {
 #ifdef ARDUINO_ARCH_ESP8266
-  MDNS.update();
+  if (mdns_setup)
+    MDNS.update();
 #endif
 }
 
