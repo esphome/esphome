@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from esphome import const
-from esphome.py_compat import IS_PY2, IS_PY3
+from esphome.py_compat import IS_PY2
 
 _LOGGER = logging.getLogger(__name__)
 

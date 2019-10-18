@@ -7,7 +7,7 @@ import re
 import subprocess
 
 from esphome.core import CORE
-from esphome.py_compat import text_type, decode_text
+from esphome.py_compat import decode_text
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)

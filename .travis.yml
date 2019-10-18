@@ -15,12 +15,6 @@ matrix:
         - script/ci-custom.py
         - flake8 esphome
         - pylint esphome
-    - python: "3.5.3"
-      env: TARGET=Lint3.5
-      script:
-        - script/ci-custom.py
-        - flake8 esphome
-        - pylint esphome
     - python: "3.5"
       env: TARGET=Test3.5
       script:
