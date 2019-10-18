@@ -49,6 +49,10 @@ void WiFiComponent::setup() {
     }
   } else if (this->has_ap()) {
     this->setup_ap_config_();
+#ifdef USE_CAPTIVE_PORTAL
+    if (captive_portal::global_captive_portal != nullptr)
+      captive_portal::global_captive_portal->start();
+#endif
   }
 
   this->wifi_apply_hostname_();
@@ -105,7 +109,8 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        captive_portal::global_captive_portal->start();
+        if (captive_portal::global_captive_portal != nullptr)
+          captive_portal::global_captive_portal->start();
 #endif
       }
     }
