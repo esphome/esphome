@@ -148,7 +148,7 @@ void ICACHE_RAM_ATTR HOT GPIOPin::digital_write(bool value) {
   }
 #endif
 }
-void ISRInternalGPIOPin::digital_write(bool value) {
+void ICACHE_RAM_ATTR HOT ISRInternalGPIOPin::digital_write(bool value) {
 #ifdef ARDUINO_ARCH_ESP8266
   if (this->pin_ != 16) {
     if (value != this->inverted_) {

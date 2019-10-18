@@ -46,10 +46,6 @@ matrix:
             - clang-format-7
       before_script:
         - pio init --ide atom
-        - |
-          if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
-            patch -p0 < script/.neopixelbus.patch
-          fi
         - clang-tidy-7 -version
         - clang-format-7 -version
         - clang-apply-replacements-7 -version

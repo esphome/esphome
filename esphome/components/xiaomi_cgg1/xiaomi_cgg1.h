@@ -8,9 +8,9 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_mijia {
+namespace xiaomi_cgg1 {
 
-class XiaomiMijia : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 
@@ -44,7 +44,7 @@ class XiaomiMijia : public Component, public esp32_ble_tracker::ESPBTDeviceListe
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_mijia
+}  // namespace xiaomi_cgg1
 }  // namespace esphome
 
 #endif

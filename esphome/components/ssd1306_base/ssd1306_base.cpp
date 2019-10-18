@@ -79,10 +79,7 @@ void SSD1306::setup() {
     case SH1106_MODEL_128_64:
     case SSD1306_MODEL_64_48:
     case SH1106_MODEL_64_48:
-      if (this->external_vcc_)
-        this->command(0x9F);
-      else
-        this->command(0xCF);
+      this->command(int(255 * (this->brightness_)));
       break;
     case SSD1306_MODEL_96_16:
     case SH1106_MODEL_96_16:
@@ -100,7 +97,7 @@ void SSD1306::setup() {
     this->command(0xF1);
 
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);
-  this->command(0x40);
+  this->command(0x00);
 
   this->command(SSD1306_COMMAND_DISPLAY_ALL_ON_RESUME);
   this->command(SSD1306_NORMAL_DISPLAY);

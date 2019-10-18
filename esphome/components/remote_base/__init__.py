@@ -420,7 +420,7 @@ def rc5_action(var, config, args):
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
 
 RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
-    cv.int_range(min=1, max=7),
+    cv.int_range(min=1, max=8),
     cv.Schema({
         cv.Required(CONF_PULSE_LENGTH): cv.uint32_t,
         cv.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
@@ -438,8 +438,8 @@ def validate_rc_switch_code(value):
         if c not in ('0', '1'):
             raise cv.Invalid(u"Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
                              u"".format(c))
-    if len(value) > 32:
-        raise cv.Invalid("Maximum length for RCSwitch codes is 32, code '{}' has length {}"
+    if len(value) > 64:
+        raise cv.Invalid("Maximum length for RCSwitch codes is 64, code '{}' has length {}"
                          "".format(value, len(value)))
     if not value:
         raise cv.Invalid("RCSwitch code must not be empty")
@@ -454,8 +454,8 @@ def validate_rc_switch_raw_code(value):
             raise cv.Invalid(
                 "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed"
                 .format(c))
-    if len(value) > 32:
-        raise cv.Invalid("Maximum length for RCSwitch raw codes is 32, code '{}' has length {}"
+    if len(value) > 64:
+        raise cv.Invalid("Maximum length for RCSwitch raw codes is 64, code '{}' has length {}"
                          "".format(value, len(value)))
     if not value:
         raise cv.Invalid("RCSwitch raw code must not be empty")
@@ -640,7 +640,7 @@ def samsung_dumper(var, config):
 
 @register_action('samsung', SamsungAction, SAMSUNG_SCHEMA)
 def samsung_action(var, config, args):
-    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
 
 

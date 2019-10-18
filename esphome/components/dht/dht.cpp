@@ -56,6 +56,8 @@ void DHT::update() {
       str = " and consider manually specifying the DHT model using the model option";
     }
     ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
+    this->temperature_sensor_->publish_state(NAN);
+    this->humidity_sensor_->publish_state(NAN);
     this->status_set_warning();
   }
 }

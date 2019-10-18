@@ -318,11 +318,16 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     const uint8_t inv_intensity = 255 - intensity;
     if (now - this->last_update_ < this->update_interval_)
       return;
+
     this->last_update_ = now;
     fast_random_set_seed(random_uint32());
     for (auto var : it) {
       const uint8_t flicker = fast_random_8() % intensity;
-      var = (var.get() * inv_intensity) + (current_color * flicker);
+      // scale down by random factor
+      var = var.get() * (255 - flicker);
+
+      // slowly fade back to "real" value
+      var = (var.get() * inv_intensity) + (current_color * intensity);
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
