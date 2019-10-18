@@ -1021,8 +1021,24 @@ def dimensions(value):
 
 
 def directory(value):
+    import json
+    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
+
+    if CORE.vscode and (not CORE.ace or
+                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
+        print(json.dumps({
+            'type': 'check_directory_exists',
+            'path': path,
+        }))
+        data = json.loads(safe_input())
+        assert data['type'] == 'directory_exists_response'
+        if data['content']:
+            return value
+        raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
+                    u"".format(path, os.path.abspath(path)))
+
     if not os.path.exists(path):
         raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
                       u"".format(path, os.path.abspath(path)))
@@ -1033,8 +1049,24 @@ def directory(value):
 
 
 def file_(value):
+    import json
+    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
+
+    if CORE.vscode and (not CORE.ace or
+                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
+        print(json.dumps({
+            'type': 'check_file_exists',
+            'path': path,
+        }))
+        data = json.loads(safe_input())
+        assert data['type'] == 'file_exists_response'
+        if data['content']:
+            return value
+        raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
+
     if not os.path.exists(path):
         raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
                       u"".format(path, os.path.abspath(path)))
