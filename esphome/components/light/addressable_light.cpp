@@ -221,7 +221,8 @@ void AddressableLight::write_state(LightState *state) {
     auto end_values = state->transformer_->get_end_values();
     ESPColor target_color = esp_color_from_light_color_values(end_values);
 
-    float alpha = (new_smoothed - prev_smoothed) / (1.0f - new_smoothed);
+    float denom = (1.0f - new_smoothed);
+    float alpha = denom == 0.0f ? 0.0f : (new_smoothed - prev_smoothed) / denom;
 
     // We need to use a low-resolution alpha here which makes the transition set in only after ~half of the length
     // We solve this by accumulating the fractional part of the alpha over time.
