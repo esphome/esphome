@@ -53,42 +53,42 @@ void network_setup_mdns(IPAddress address, int interface) {
   mdns_setup = true;
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-void network_setup_mdns() {
-  MDNS.begin(App.get_name().c_str());
+  void network_setup_mdns() {
+    MDNS.begin(App.get_name().c_str());
 #endif
 #ifdef USE_API
-  if (api::global_api_server != nullptr) {
-    MDNS.addService("esphomelib", "tcp", api::global_api_server->get_port());
-    // DNS-SD (!=mDNS !) requires at least one TXT record for service discovery - let's add version
-    MDNS.addServiceTxt("esphomelib", "tcp", "version", ESPHOME_VERSION);
-    MDNS.addServiceTxt("esphomelib", "tcp", "address", network_get_address().c_str());
-  } else {
+    if (api::global_api_server != nullptr) {
+      MDNS.addService("esphomelib", "tcp", api::global_api_server->get_port());
+      // DNS-SD (!=mDNS !) requires at least one TXT record for service discovery - let's add version
+      MDNS.addServiceTxt("esphomelib", "tcp", "version", ESPHOME_VERSION);
+      MDNS.addServiceTxt("esphomelib", "tcp", "address", network_get_address().c_str());
+    } else {
 #endif
-    // Publish "http" service if not using native API.
-    // This is just to have *some* mDNS service so that .local resolution works
-    MDNS.addService("http", "tcp", 80);
-    MDNS.addServiceTxt("http", "tcp", "version", ESPHOME_VERSION);
+      // Publish "http" service if not using native API.
+      // This is just to have *some* mDNS service so that .local resolution works
+      MDNS.addService("http", "tcp", 80);
+      MDNS.addServiceTxt("http", "tcp", "version", ESPHOME_VERSION);
 #ifdef USE_API
+    }
+#endif
   }
-#endif
-}
-void network_tick_mdns() {
+  void network_tick_mdns() {
 #ifdef ARDUINO_ARCH_ESP8266
-  if (mdns_setup)
-    MDNS.update();
+    if (mdns_setup)
+      MDNS.update();
 #endif
-}
+  }
 
-std::string network_get_address() {
+  std::string network_get_address() {
 #ifdef USE_ETHERNET
-  if (ethernet::global_eth_component != nullptr)
-    return ethernet::global_eth_component->get_use_address();
+    if (ethernet::global_eth_component != nullptr)
+      return ethernet::global_eth_component->get_use_address();
 #endif
 #ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->get_use_address();
+    if (wifi::global_wifi_component != nullptr)
+      return wifi::global_wifi_component->get_use_address();
 #endif
-  return "";
-}
+    return "";
+  }
 
 }  // namespace esphome
