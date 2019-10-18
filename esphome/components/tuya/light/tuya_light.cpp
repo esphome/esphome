@@ -63,7 +63,7 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 
   auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
-  brightness_int = std::min(brightness_int, this->min_value_);
+  brightness_int = std::max(brightness_int, this->min_value_);
 
   if (this->dimmer_id_.has_value()) {
     TuyaDatapoint datapoint{};
@@ -72,7 +72,7 @@ void TuyaLight::write_state(light::LightState *state) {
     datapoint.value_int = brightness_int;
     parent_->set_datapoint_value(datapoint);
   }
-  if (this->switch_id_ == 0) {
+  if (this->switch_id_.has_value()) {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->switch_id_;
     datapoint.type = TuyaDatapointType::BOOLEAN;

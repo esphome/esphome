@@ -93,17 +93,19 @@ bool Tuya::validate_message_() {
   for (uint32_t i = 0; i < 6 + length; i++)
     calc_checksum += data[i];
 
-  if (rx_checksum == calc_checksum) {
-    // valid message
-    const uint8_t *message_data = data + 6;
-    ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s]", command, version,
-             hexencode(message_data, length).c_str());
-    this->handle_command_(command, version, message_data, length);
-
-    // return false to reset to HEADER1
+  if (rx_checksum != calc_checksum) {
+    ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X",
+             rx_checksum, calc_checksum);
     return false;
   }
 
+  // valid message
+  const uint8_t *message_data = data + 6;
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s]", command, version,
+           hexencode(message_data, length).c_str());
+  this->handle_command_(command, version, message_data, length);
+
+  // return false to reset rx buffer
   return false;
 }
 
@@ -195,7 +197,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
       datapoint.value_enum = data[0];
       break;
     case TuyaDatapointType::BITMASK:
-      if (data_len != 4)
+      if (data_len != 2)
         return;
       datapoint.value_bitmask = (uint16_t(data[0]) << 8) | (uint16_t(data[1]) << 0);
       break;
@@ -205,9 +207,20 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   ESP_LOGV(TAG, "Datapoint %u update to %u", datapoint.id, datapoint.value_uint);
 
   // Update internal datapoints
-  for (auto &other : this->datapoints_)
-    if (other.id == datapoint.id)
+  bool found = false;
+  for (auto &other : this->datapoints_) {
+    if (other.id == datapoint.id) {
       other = datapoint;
+      found = true;
+    }
+  }
+  if (!found) {
+    this->datapoints_.push_back(datapoint);
+    // New datapoint found, reprint dump_config after a delay.
+    this->set_timeout("datapoint_dump", 100, [this]{
+      this->dump_config();
+    });
+  }
 
   // Run through listeners
   for (auto &listener : this->listeners_)
