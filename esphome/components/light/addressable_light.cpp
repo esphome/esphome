@@ -243,7 +243,6 @@ void AddressableLight::write_state(LightState *state) {
         led = target_color * alpha8 + led.get() * inv_alpha8;
       }
     }
-
   }
 
   this->schedule_show();
