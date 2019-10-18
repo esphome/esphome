@@ -7,6 +7,7 @@ import re
 import subprocess
 
 from esphome.core import CORE
+from esphome.py_compat import text_type, decode_text
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ def run_upload(config, verbose, port):
 def run_idedata(config):
     args = ['-t', 'idedata']
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    stdout = decode_text(stdout)
     match = re.search(r'{.*}', stdout)
     if match is None:
         return IDEData(None)
