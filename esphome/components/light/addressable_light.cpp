@@ -192,6 +192,9 @@ void AddressableLight::write_state(LightState *state) {
   auto max_brightness = static_cast<uint8_t>(roundf(val.get_brightness() * val.get_state() * 255.0f));
   this->correction_.set_local_brightness(max_brightness);
 
+  this->last_transition_progress_ = 0.0f;
+  this->accumulated_alpha_ = 0.0f;
+
   if (this->is_effect_active())
     return;
 
@@ -199,9 +202,6 @@ void AddressableLight::write_state(LightState *state) {
 
   if (state->transformer_ == nullptr || !state->transformer_->is_transition()) {
     // no transformer active or non-transition one
-    this->last_transition_progress_ = 0.0f;
-    this->accumulated_alpha_ = 0.0f;
-
     this->all() = esp_color_from_light_color_values(val);
   } else {
     // transition transformer active, activate specialized transition for addressable effects
@@ -221,6 +221,13 @@ void AddressableLight::write_state(LightState *state) {
     auto end_values = state->transformer_->get_end_values();
     ESPColor target_color = esp_color_from_light_color_values(end_values);
 
+    // our transition will handle brightness, disable brightness in correction.
+    this->correction_.set_local_brightness(255);
+    uint8_t orig_w = target_color.w;
+    target_color *= static_cast<uint8_t>(roundf(end_values.get_brightness() * end_values.get_state() * 255.0f));
+    // w is not scaled by brightness
+    target_color.w = orig_w;
+
     float denom = (1.0f - new_smoothed);
     float alpha = denom == 0.0f ? 0.0f : (new_smoothed - prev_smoothed) / denom;
 
@@ -235,18 +242,37 @@ void AddressableLight::write_state(LightState *state) {
     this->accumulated_alpha_ -= alpha_add;
 
     alpha255 += alpha_add;
-    alpha255 = clamp(alpha255, 0.0f, 1.0f);
+    alpha255 = clamp(alpha255, 0.0f, 255.0f);
     auto alpha8 = static_cast<uint8_t>(alpha255);
 
     if (alpha8 != 0) {
       uint8_t inv_alpha8 = 255 - alpha8;
-      for (auto led : *this) {
-        led = target_color * alpha8 + led.get() * inv_alpha8;
-      }
+      ESPColor add = target_color * alpha8;
+
+      for (auto led : *this)
+        led = add + led.get() * inv_alpha8;
     }
   }
 
   this->schedule_show();
+}
+
+void ESPColorCorrection::calculate_gamma_table(float gamma) {
+  for (uint16_t i = 0; i < 256; i++) {
+    // corrected = val ^ gamma
+    auto corrected = static_cast<uint8_t>(roundf(255.0f * gamma_correct(i / 255.0f, gamma)));
+    this->gamma_table_[i] = corrected;
+  }
+  if (gamma == 0.0f) {
+    for (uint16_t i = 0; i < 256; i++)
+      this->gamma_reverse_table_[i] = i;
+    return;
+  }
+  for (uint16_t i = 0; i < 256; i++) {
+    // val = corrected ^ (1/gamma)
+    auto uncorrected = static_cast<uint8_t>(roundf(255.0f * powf(i / 255.0f, 1.0f / gamma)));
+    this->gamma_reverse_table_[i] = uncorrected;
+  }
 }
 
 }  // namespace light
