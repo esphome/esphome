@@ -197,7 +197,6 @@ remote_receiver:
   dump: []
 
 esp32_ble_tracker:
-  scan_interval: 300s
 
 #esp32_ble_beacon:
 #  type: iBeacon
