@@ -94,8 +94,7 @@ bool Tuya::validate_message_() {
     calc_checksum += data[i];
 
   if (rx_checksum != calc_checksum) {
-    ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X",
-             rx_checksum, calc_checksum);
+    ESP_LOGW(TAG, "Tuya Received invalid message checksum %02X!=%02X", rx_checksum, calc_checksum);
     return false;
   }
 
@@ -217,9 +216,7 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   if (!found) {
     this->datapoints_.push_back(datapoint);
     // New datapoint found, reprint dump_config after a delay.
-    this->set_timeout("datapoint_dump", 100, [this]{
-      this->dump_config();
-    });
+    this->set_timeout("datapoint_dump", 100, [this] { this->dump_config(); });
   }
 
   // Run through listeners
