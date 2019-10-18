@@ -8,7 +8,7 @@ static const char *TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
-  ESP_LOGCONFIG(TAG, "  URI: %s", this->uri_);
+  ESP_LOGCONFIG(TAG, "  URL: %s", this->url_);
   ESP_LOGCONFIG(TAG, "  Method: %s", this->method_);
   ESP_LOGCONFIG(TAG, "  Timeout: %dms", this->timeout_);
   if (this->fingerprint_ != nullptr) {
@@ -28,13 +28,17 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool begin_status;
 #ifdef ARDUINO_ARCH_ESP32
-  begin_status = this->client_.begin(this->uri_);
+  begin_status = this->client_.begin(this->url_);
 #endif
+#ifdef HTTP_CLIENT_SUPPORT_INSECURE
+  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
+#else
 #ifdef ARDUINO_ARCH_ESP8266
   if (this->fingerprint_ != nullptr)
-    begin_status = this->client_.begin(this->uri_, this->fingerprint_);
+    begin_status = this->client_.begin(this->url_, this->fingerprint_);
   else
-    begin_status = this->client_.begin(this->uri_);
+    begin_status = this->client_.begin(this->url_);
+#endif
 #endif
 
   if (!begin_status) {
@@ -56,19 +60,19 @@ void HttpRequestComponent::send() {
   this->client_.end();
 
   if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Error: %s", this->uri_, HTTPClient::errorToString(http_code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_, HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
     return;
   }
 
   if (http_code < 200 || http_code >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URI: %s; Code: %d", this->uri_, http_code);
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_, http_code);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URI: %s; Code: %d", this->uri_, http_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
 }
 
 }  // namespace http_request

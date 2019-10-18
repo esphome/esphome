@@ -10,6 +10,9 @@
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266HTTPClient.h>
 #endif
+#ifdef HTTP_CLIENT_SUPPORT_INSECURE
+#include <WiFiClientSecure.h>
+#endif
 
 namespace esphome {
 namespace http_request {
@@ -19,7 +22,13 @@ class HttpRequestComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_uri(const char *uri) { this->uri_ = uri; }
+  void set_url(const char *url) {
+    this->url_ = url;
+#ifdef HTTP_CLIENT_SUPPORT_INSECURE
+    this->wifi_client_ = new BearSSL::WiFiClientSecure();
+    this->wifi_client_->setInsecure();
+#endif
+  }
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
@@ -43,13 +52,16 @@ class HttpRequestComponent : public Component {
     const char *value;
   };
   HTTPClient client_{};
-  const char *uri_;
+  const char *url_;
   const char *method_;
   const uint8_t *fingerprint_{nullptr};
   const char *useragent_{nullptr};
   uint16_t timeout_{5000};
   std::string payload_;
   std::list<Header> headers_;
+#ifdef HTTP_CLIENT_SUPPORT_INSECURE
+  BearSSL::WiFiClientSecure *wifi_client_;
+#endif
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {

@@ -2,7 +2,12 @@ import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TIMEOUT
+from esphome.const import (
+    CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_DEV,
+    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
+)
+from esphome.core import CORE
+from esphome.core_config import PLATFORMIO_ESP8266_LUT
 from esphome.py_compat import IS_PY3
 
 if IS_PY3:
@@ -17,7 +22,7 @@ HttpRequestComponent = http_request_ns.class_('HttpRequestComponent', cg.Compone
 HttpRequestSendAction = http_request_ns.class_('HttpRequestSendAction', automation.Action)
 MULTI_CONF = True
 
-CONF_URI = 'uri'
+CONF_URL = 'url'
 CONF_METHOD = 'method'
 CONF_SSL_FINGERPRINT = 'ssl_fingerprint'
 CONF_HEADERS = 'headers'
@@ -25,7 +30,42 @@ CONF_USERAGENT = 'useragent'
 CONF_PAYLOAD = 'payload'
 
 
-def ssl_fingerprint(value):
+def _is_new_framework():
+    if not CORE.is_esp8266:
+        return False
+
+    frameworks = [
+        ARDUINO_VERSION_ESP8266_DEV, ARDUINO_VERSION_ESP8266_2_5_0,
+        ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
+    ]
+    version = 'RECOMMENDED'
+
+    if CONF_ARDUINO_VERSION in CORE.raw_config[CONF_ESPHOME]:
+        version = CORE.raw_config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
+
+    framework = PLATFORMIO_ESP8266_LUT[version]
+    if framework in frameworks:
+        return True
+
+    return False
+
+
+def _is_ssl_no_fingerprint(config):
+    ssl = config[CONF_URL].startswith('https')
+    return ssl and CONF_SSL_FINGERPRINT not in config
+
+
+def _url_fingerprint_validator(config):
+    if not CORE.is_esp8266 or CONF_URL not in config:
+        return config
+
+    if _is_ssl_no_fingerprint(config) and not _is_new_framework():
+        raise cv.Invalid("'ssl_fingerprint' is required for HTTPS urls "
+                         "on arduino framework version below 2.5.0")
+    return config
+
+
+def _ssl_fingerprint(value):
     value = cv.string(value)
 
     if re.match(r'^([0-9a-f]{2}[: ]){19}[0-9a-f]{2}$', value, re.IGNORECASE) is None:
@@ -34,7 +74,7 @@ def ssl_fingerprint(value):
     return value
 
 
-def url(value):
+def _url(value):
     value = cv.string(value)
     try:
         parsed = list(urlparse.urlparse(value))
@@ -55,19 +95,22 @@ def url(value):
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HttpRequestComponent),
-    cv.Required(CONF_URI): url,
+    cv.Required(CONF_URL): _url,
     cv.Optional(CONF_METHOD, default='GET'): cv.one_of('GET', 'POST', upper=True),
-    cv.Optional(CONF_SSL_FINGERPRINT): cv.All(cv.only_on_esp8266, ssl_fingerprint),
+    cv.Optional(CONF_SSL_FINGERPRINT): cv.All(cv.only_on_esp8266, _ssl_fingerprint),
     cv.Optional(CONF_HEADERS, default={}): cv.All(cv.Schema({cv.string: cv.string})),
     cv.Optional(CONF_USERAGENT): cv.string,
     cv.Optional(CONF_TIMEOUT, default='5s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_PAYLOAD): cv.string,
-}).extend(cv.COMPONENT_SCHEMA))
+}).add_extra(_url_fingerprint_validator).extend(cv.COMPONENT_SCHEMA))
 
 
 def to_code(config):
+    if _is_new_framework() and _is_ssl_no_fingerprint(config):
+        cg.add_define('HTTP_CLIENT_SUPPORT_INSECURE')
+
     var = cg.new_Pvariable(config[CONF_ID])
-    cg.add(var.set_uri(config[CONF_URI]))
+    cg.add(var.set_url(config[CONF_URL]))
     cg.add(var.set_method(config[CONF_METHOD]))
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
 
