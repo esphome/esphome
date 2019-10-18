@@ -25,7 +25,7 @@ def validate_scan_parameters(config):
         raise cv.Invalid("Scan window ({}) needs to be smaller than scan interval ({})"
                          "".format(window, interval))
 
-    if interval * 3 > duration:
+    if interval.total_milliseconds * 3 > duration.total_milliseconds:
         raise cv.Invalid("Scan duration needs to be at least three times the scan interval to"
                          "cover all BLE channels.")
 
@@ -54,9 +54,9 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     params = config[CONF_SCAN_PARAMETERS]
-    cg.add(var.set_scan_interval(params[CONF_INTERVAL]))
-    cg.add(var.set_scan_duration(params[CONF_DURATION] / 0.625))
-    cg.add(var.set_scan_window(params[CONF_WINDOW] / 0.625))
+    cg.add(var.set_scan_duration(params[CONF_DURATION]))
+    cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
+    cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
 
 
