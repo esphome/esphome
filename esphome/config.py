@@ -18,7 +18,7 @@ from esphome.components.substitutions import CONF_SUBSTITUTIONS
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type, IS_PY2
+from esphome.py_compat import text_type, IS_PY2, decode_text
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union  # noqa
@@ -393,6 +393,16 @@ def validate_config(config):
             result.add_error(err)
             return result
 
+    if 'esphomeyaml' in config:
+        _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
+                        "Please replace 'esphomeyaml:' in your configuration with 'esphome:'.")
+        config[CONF_ESPHOME] = config.pop('esphomeyaml')
+
+    if CONF_ESPHOME not in config:
+        result.add_str_error("'esphome' section missing from configuration. Please make sure "
+                             "your configuration has an 'esphome:' line in it.", [])
+        return result
+
     # 2. Load partial core config
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
@@ -624,8 +634,13 @@ def _format_vol_invalid(ex, config):
 
 class InvalidYAMLError(EsphomeError):
     def __init__(self, base_exc):
+        try:
+            base = str(base_exc)
+        except UnicodeDecodeError:
+            base = repr(base_exc)
+        base = decode_text(base)
         message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
-                  u"online YAML syntax validator:\n\n{}".format(base_exc)
+                  u"online YAML syntax validator:\n\n{}".format(base)
         super(InvalidYAMLError, self).__init__(message)
         self.base_exc = base_exc
 
@@ -787,15 +802,15 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(verbose):
-    _LOGGER.info("Reading configuration...")
+def read_config():
+    _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
         res = load_config()
     except EsphomeError as err:
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
     if res.errors:
-        if not verbose:
+        if not CORE.verbose:
             res = strip_default_ids(res)
 
         safe_print(color('bold_red', u"Failed config"))

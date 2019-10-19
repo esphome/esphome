@@ -293,7 +293,7 @@ template<typename T, typename D> class RemoteReceiverBinarySensor : public Remot
   bool matches(RemoteReceiveData src) override {
     auto proto = T();
     auto res = proto.decode(src);
-    return res.has_value();
+    return res.has_value() && *res == this->data_;
   }
 
  public:

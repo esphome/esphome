@@ -1,5 +1,6 @@
 esphome:
   name: $devicename
+  comment: $devicecomment
   platform: ESP8266
   board: d1_mini
   build_path: build/test3
@@ -12,6 +13,7 @@ esphome:
 
 substitutions:
   devicename: test3
+  devicecomment: test3 device
 
 api:
   port: 8000
@@ -40,6 +42,24 @@ api:
         - stepper.set_target:
             id: my_stepper2
             target: !lambda 'return int_;'
+    - service: array_types
+      variables:
+        bool_arr: bool[]
+        int_arr: int[]
+        float_arr: float[]
+        string_arr: string[]
+      then:
+        - logger.log:
+            format: 'Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)'
+            args:
+              - YESNO(bool_arr[0])
+              - bool_arr.size()
+              - int_arr[0]
+              - int_arr.size()
+              - float_arr[0]
+              - float_arr.size()
+              - string_arr[0].c_str()
+              - string_arr.size()
 
 wifi:
   ssid: 'MySSID'
@@ -115,6 +135,14 @@ sensor:
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
+      - calibrate_polynomial:
+          degree: 3
+          datapoints:
+            - 0 -> 0
+            - 100 -> 200
+            - 400 -> 500
+            - -50 -> -1000
+            - -100 -> -10000
   - platform: resistance
     sensor: my_sensor
     configuration: DOWNSTREAM
@@ -175,6 +203,17 @@ sensor:
         value: 15.0
       - binary_sensor: bin3
         value: 100.0
+  - platform: ade7953
+    voltage:
+      name: ADE7953 Voltage
+    current_a:
+      name: ADE7953 Current A
+    current_b:
+      name: ADE7953 Current B
+    active_power_a:
+      name: ADE7953 Active Power A
+    active_power_b:
+      name: ADE7953 Active Power B
 
 time:
 - platform: homeassistant
@@ -246,6 +285,11 @@ binary_sensor:
       - id: custom_binary_sensor
         name: Custom Binary Sensor
 
+globals:
+  - id: my_global_string
+    type: std::string
+    initial_value: '""'
+
 remote_receiver:
   pin: GPIO12
   dump: []
@@ -300,12 +344,19 @@ switch:
   - platform: gpio
     id: gpio_switch1
     pin:
-      mcp23017: mcp
+      mcp23017: mcp23017_hub
       number: 0
       mode: OUTPUT
-    interlock: &interlock [gpio_switch1, gpio_switch2]
+    interlock: &interlock [gpio_switch1, gpio_switch2, gpio_switch3]
   - platform: gpio
     id: gpio_switch2
+    pin:
+      mcp23008: mcp23008_hub
+      number: 0
+      mode: OUTPUT
+    interlock: *interlock
+  - platform: gpio
+    id: gpio_switch3
     pin: GPIO1
     interlock: *interlock
   - platform: custom
@@ -416,6 +467,14 @@ cover:
     close_action:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
+  - platform: template
+    name: Template Cover with Tilt
+    tilt_lambda: "return 0.5;"
+    tilt_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return tilt;"
+
 
 output:
   - platform: esp8266_pwm
@@ -440,7 +499,10 @@ output:
       - id: custom_float
 
 mcp23017:
-  id: mcp
+  id: mcp23017_hub
+  
+mcp23008:
+  id: mcp23008_hub
 
 light:
   - platform: neopixelbus
@@ -460,3 +522,13 @@ ttp229_lsf:
 ttp229_bsf:
   sdo_pin: D0
   scl_pin: D1
+
+sim800l:
+  on_sms_received:
+    - lambda: |-
+        std::string str;
+        str = sender;
+        str = message;
+    - sim800l.send_sms:
+        message: 'hello you'
+        recipient: '+1234'

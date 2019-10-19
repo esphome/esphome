@@ -6,6 +6,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -39,7 +40,7 @@ class Application {
   void pre_setup(const std::string &name, const char *compilation_time) {
     this->name_ = name;
     this->compilation_time_ = compilation_time;
-    global_preferences.begin(this->name_);
+    global_preferences.begin();
   }
 
 #ifdef USE_BINARY_SENSOR
@@ -109,8 +110,7 @@ class Application {
    */
   void set_loop_interval(uint32_t loop_interval) { this->loop_interval_ = loop_interval; }
 
-  void dump_config();
-  void schedule_dump_config() { this->dump_config_scheduled_ = true; }
+  void schedule_dump_config() { this->dump_config_at_ = 0; }
 
   void feed_wdt();
 
@@ -119,8 +119,12 @@ class Application {
   void safe_reboot();
 
   void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_)
+    for (auto *comp : this->components_) {
       comp->on_safe_shutdown();
+    }
+    for (auto *comp : this->components_) {
+      comp->on_shutdown();
+    }
   }
 
   uint32_t get_app_state() const { return this->app_state_; }
@@ -198,6 +202,8 @@ class Application {
   }
 #endif
 
+  Scheduler scheduler;
+
  protected:
   friend Component;
 
@@ -234,7 +240,7 @@ class Application {
   std::string compilation_time_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};
-  bool dump_config_scheduled_{false};
+  int dump_config_at_{-1};
   uint32_t app_state_{0};
 };
 

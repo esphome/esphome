@@ -11,7 +11,9 @@ namespace pn532 {
 class PN532BinarySensor;
 class PN532Trigger;
 
-class PN532 : public PollingComponent, public spi::SPIDevice {
+class PN532 : public PollingComponent,
+              public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                    spi::DATA_RATE_1MHZ> {
  public:
   void setup() override;
 
@@ -26,8 +28,6 @@ class PN532 : public PollingComponent, public spi::SPIDevice {
   void register_trigger(PN532Trigger *trig) { this->triggers_.push_back(trig); }
 
  protected:
-  bool is_device_msb_first() override;
-
   /// Write the full command given in data to the PN532
   void pn532_write_command_(const std::vector<uint8_t> &data);
   bool pn532_write_command_check_ack_(const std::vector<uint8_t> &data);

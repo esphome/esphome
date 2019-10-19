@@ -66,12 +66,14 @@ class WiFiAP {
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
   void set_channel(optional<uint8_t> channel);
+  void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
   const std::string &get_password() const;
   const optional<uint8_t> &get_channel() const;
+  float get_priority() const { return priority_; }
   const optional<ManualIP> &get_manual_ip() const;
   bool get_hidden() const;
 
@@ -80,6 +82,7 @@ class WiFiAP {
   optional<bssid_t> bssid_;
   std::string password_;
   optional<uint8_t> channel_;
+  float priority_{0};
   optional<ManualIP> manual_ip_;
   bool hidden_{false};
 };
@@ -99,6 +102,8 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
+  float get_priority() const { return priority_; }
+  void set_priority(float priority) { priority_ = priority; }
 
  protected:
   bool matches_{false};
@@ -108,6 +113,12 @@ class WiFiScanResult {
   int8_t rssi_;
   bool with_auth_;
   bool is_hidden_;
+  float priority_{0.0f};
+};
+
+struct WiFiSTAPriority {
+  bssid_t bssid;
+  float priority;
 };
 
 enum WiFiPowerSaveMode {
@@ -122,6 +133,7 @@ class WiFiComponent : public Component {
   /// Construct a WiFiComponent.
   WiFiComponent();
 
+  void set_sta(const WiFiAP &ap);
   void add_sta(const WiFiAP &ap);
 
   /** Setup an Access Point that should be created if no connection to a station can be made.
@@ -137,14 +149,13 @@ class WiFiComponent : public Component {
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
   void set_fast_connect(bool fast_connect);
+  void set_ap_timeout(uint32_t ap_timeout) { ap_timeout_ = ap_timeout; }
 
   void check_connecting_finished();
 
   void retry_connect();
 
   bool can_proceed() override;
-
-  bool ready_for_ota();
 
   void set_reboot_timeout(uint32_t reboot_timeout);
 
@@ -171,24 +182,54 @@ class WiFiComponent : public Component {
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
 
+  const std::vector<WiFiScanResult> &get_scan_result() const { return scan_result_; }
+
+  IPAddress wifi_soft_ap_ip();
+
+  bool has_sta_priority(const bssid_t &bssid) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid)
+        return true;
+    return false;
+  }
+  float get_sta_priority(const bssid_t bssid) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid)
+        return it.priority;
+    return 0.0f;
+  }
+  void set_sta_priority(const bssid_t bssid, float priority) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid) {
+        it.priority = priority;
+        return;
+      }
+    this->sta_priorities_.push_back(WiFiSTAPriority{
+        .bssid = bssid,
+        .priority = priority,
+    });
+  }
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
   void print_connect_params_();
 
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
-  bool wifi_disable_auto_connect_();
+  bool wifi_sta_pre_setup_();
   bool wifi_apply_power_save_();
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
   IPAddress wifi_sta_ip_();
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(WiFiAP ap);
-  void wifi_register_callbacks_();
+  void wifi_pre_setup_();
   wl_status_t wifi_sta_status_();
   bool wifi_scan_start_();
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
-  IPAddress wifi_soft_ap_ip_();
+  bool wifi_disconnect_();
+
+  bool is_captive_portal_active_();
 
 #ifdef ARDUINO_ARCH_ESP8266
   static void wifi_event_callback(System_Event_t *event);
@@ -203,6 +244,7 @@ class WiFiComponent : public Component {
 
   std::string use_address_;
   std::vector<WiFiAP> sta_;
+  std::vector<WiFiSTAPriority> sta_priorities_;
   WiFiAP selected_ap_;
   bool fast_connect_{false};
 
@@ -211,7 +253,8 @@ class WiFiComponent : public Component {
   uint32_t action_started_;
   uint8_t num_retried_{0};
   uint32_t last_connected_{0};
-  uint32_t reboot_timeout_{300000};
+  uint32_t reboot_timeout_{};
+  uint32_t ap_timeout_{};
   WiFiPowerSaveMode power_save_{WIFI_POWER_SAVE_NONE};
   bool error_from_callback_{false};
   std::vector<WiFiScanResult> scan_result_;

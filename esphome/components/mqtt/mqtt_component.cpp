@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/version.h"
 
 namespace esphome {
 namespace mqtt {
@@ -148,9 +149,6 @@ void MQTTComponent::set_availability(std::string topic, std::string payload_avai
 }
 void MQTTComponent::disable_availability() { this->set_availability("", "", ""); }
 void MQTTComponent::call_setup() {
-  // Call component internal setup.
-  this->setup_internal_();
-
   if (this->is_internal())
     return;
 
@@ -172,8 +170,6 @@ void MQTTComponent::call_setup() {
 }
 
 void MQTTComponent::call_loop() {
-  this->loop_internal_();
-
   if (this->is_internal())
     return;
 

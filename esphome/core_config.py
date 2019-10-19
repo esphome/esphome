@@ -7,10 +7,10 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
-    CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
+    CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    CONF_ESP8266_RESTORE_FROM_FLASH, __version__, ARDUINO_VERSION_ESP8266_2_3_0, \
+    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
     ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -38,21 +38,21 @@ def validate_board(value):
 
     if value not in board_pins:
         raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
-            value, u', '.join(pins.ESP8266_BOARD_PINS.keys())))
+            value, u', '.join(sorted(board_pins.keys()))))
     return value
 
 
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.5.2': 'espressif8266@2.2.0',
+    '2.5.2': 'espressif8266@2.2.3',
     '2.5.1': 'espressif8266@2.1.0',
     '2.5.0': 'espressif8266@2.0.1',
     '2.4.2': 'espressif8266@1.8.0',
     '2.4.1': 'espressif8266@1.7.3',
     '2.4.0': 'espressif8266@1.6.0',
     '2.3.0': 'espressif8266@1.5.0',
-    'RECOMMENDED': 'espressif8266@1.8.0',
+    'RECOMMENDED': 'espressif8266@2.2.3',
     'LATEST': 'espressif8266',
     'DEV': ARDUINO_VERSION_ESP8266_DEV,
 }
@@ -60,8 +60,10 @@ PLATFORMIO_ESP8266_LUT = {
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
-    '1.0.2': 'espressif32@1.8.0',
-    'RECOMMENDED': 'espressif32@1.6.0',
+    '1.0.2': 'espressif32@1.9.0',
+    '1.0.3': 'espressif32@1.10.0',
+    '1.0.4': 'espressif32@1.11.0',
+    'RECOMMENDED': 'espressif32@1.11.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
@@ -113,6 +115,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_COMMENT): cv.string,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
     cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
@@ -201,7 +204,6 @@ def add_includes(includes):
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
-    cg.add_define('ESPHOME_VERSION', __version__)
     cg.add(cg.App.pre_setup(config[CONF_NAME], cg.RawExpression('__DATE__ ", " __TIME__')))
 
     for conf in config.get(CONF_ON_BOOT, []):
@@ -240,7 +242,6 @@ def to_code(config):
 
     # Libraries
     if CORE.is_esp32:
-        cg.add_library('Preferences', None)
         cg.add_library('ESPmDNS', None)
     elif CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)

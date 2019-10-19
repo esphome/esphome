@@ -29,7 +29,7 @@ LOG_LEVEL_TO_ESP_LOG = {
     'VERY_VERBOSE': cg.global_ns.ESP_LOGVV,
 }
 
-LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
+LOG_LEVEL_SEVERITY = ['NONE', 'ERROR', 'WARN', 'INFO', 'CONFIG', 'DEBUG', 'VERBOSE', 'VERY_VERBOSE']
 
 UART_SELECTION_ESP32 = ['UART0', 'UART1', 'UART2']
 
@@ -123,6 +123,8 @@ def to_code(config):
             'TLS_MEM',
             'UPDATER',
             'WIFI',
+            # Spams logs too much:
+            # 'MDNS_RESPONDER',
         }
         for comp in DEBUG_COMPONENTS:
             cg.add_build_flag("-DDEBUG_ESP_{}".format(comp))

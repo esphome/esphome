@@ -5,7 +5,7 @@ from esphome.automation import Condition
 from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
     CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
     CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS
+    CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY
 from esphome.core import CORE, HexInt, coroutine_with_priority
 
 AUTO_LOAD = ['network']
@@ -64,13 +64,15 @@ WIFI_NETWORK_BASE = cv.Schema({
     cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
 })
 
+CONF_AP_TIMEOUT = 'ap_timeout'
 WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend({
-
+    cv.Optional(CONF_AP_TIMEOUT, default='1min'): cv.positive_time_period_milliseconds,
 })
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend({
     cv.Optional(CONF_BSSID): cv.mac_address,
     cv.Optional(CONF_HIDDEN): cv.boolean,
+    cv.Optional(CONF_PRIORITY, default=0.0): cv.float_,
 })
 
 
@@ -118,8 +120,9 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 
     cv.Optional(CONF_AP): WIFI_NETWORK_AP,
     cv.Optional(CONF_DOMAIN, default='.local'): cv.domain_name,
-    cv.Optional(CONF_REBOOT_TIMEOUT, default='5min'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_POWER_SAVE_MODE, default='NONE'): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
+    cv.Optional(CONF_REBOOT_TIMEOUT, default='15min'): cv.positive_time_period_milliseconds,
+    cv.SplitDefault(CONF_POWER_SAVE_MODE, esp8266='none', esp32='light'):
+        cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
 
@@ -160,25 +163,28 @@ def wifi_network(config, static_ip):
         cg.add(ap.set_channel(config[CONF_CHANNEL]))
     if static_ip is not None:
         cg.add(ap.set_manual_ip(manual_ip(static_ip)))
+    if CONF_PRIORITY in config:
+        cg.add(ap.set_priority(config[CONF_PRIORITY]))
 
     return ap
 
 
 @coroutine_with_priority(60.0)
 def to_code(config):
-    rhs = WiFiComponent.new()
-    wifi = cg.Pvariable(config[CONF_ID], rhs)
-    cg.add(wifi.set_use_address(config[CONF_USE_ADDRESS]))
+    var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     for network in config.get(CONF_NETWORKS, []):
-        cg.add(wifi.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
+        cg.add(var.add_sta(wifi_network(network, config.get(CONF_MANUAL_IP))))
 
     if CONF_AP in config:
-        cg.add(wifi.set_ap(wifi_network(config[CONF_AP], config.get(CONF_MANUAL_IP))))
+        conf = config[CONF_AP]
+        cg.add(var.set_ap(wifi_network(conf, config.get(CONF_MANUAL_IP))))
+        cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
-    cg.add(wifi.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
-    cg.add(wifi.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
-    cg.add(wifi.set_fast_connect(config[CONF_FAST_CONNECT]))
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+    cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
+    cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
 
     if CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)
@@ -186,7 +192,7 @@ def to_code(config):
     cg.add_define('USE_WIFI')
 
     # Register at end for OTA safe mode
-    yield cg.register_component(wifi, config)
+    yield cg.register_component(var, config)
 
 
 @automation.register_condition('wifi.connected', WiFiConnectedCondition, cv.Schema({}))

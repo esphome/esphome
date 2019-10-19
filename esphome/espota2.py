@@ -127,7 +127,8 @@ def check_error(data, expect):
                        "correct 'board' option (esp01_1m always works) and then flash over USB.")
     if dat == RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG:
         raise OTAError("Error: ESP does not have the requested flash size (wrong board). Please "
-                       "choose the correct 'board' option (esp01_1m always works) and try again.")
+                       "choose the correct 'board' option (esp01_1m always works) and try "
+                       "uploading again.")
     if dat == RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE:
         raise OTAError("Error: ESP does not have enough space to store OTA file. Please try "
                        "flashing a minimal firmware (remove everything except ota)")
@@ -299,3 +300,4 @@ def run_ota(remote_host, remote_port, password, filename):
         return run_ota_impl_(remote_host, remote_port, password, filename)
     except OTAError as err:
         _LOGGER.error(err)
+        return 1

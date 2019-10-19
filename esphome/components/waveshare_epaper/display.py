@@ -21,10 +21,11 @@ WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeBModel'
 MODELS = {
     '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
     '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
+    '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
     '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     '2.70in': ('b', WaveshareEPaper2P7In),
     '4.20in': ('b', WaveshareEPaper4P2In),
-    '7.50in': ('b', WaveshareEPaperTypeBModel),
+    '7.50in': ('b', WaveshareEPaper7P5In),
 }
 
 

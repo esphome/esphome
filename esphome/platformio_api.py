@@ -7,6 +7,7 @@ import re
 import subprocess
 
 from esphome.core import CORE
+from esphome.py_compat import decode_text
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,17 +18,13 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from platformio.commands import run
-    from platformio import util
-    try:
-        from platformio.util import get_project_dir
-    except ImportError:
-        from platformio.project.helpers import get_project_dir
-    from os.path import join, isdir, getmtime, isfile
+    from platformio.commands.run import helpers, command
+    from os.path import join, isdir, getmtime
     from os import makedirs
 
-    def patched_clean_build_dir(build_dir):
-        structhash_file = join(build_dir, "structure.hash")
+    def patched_clean_build_dir(build_dir, *args):
+        from platformio import util
+        from platformio.project.helpers import get_project_dir
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
@@ -37,27 +34,33 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-        proj_hash = run.calculate_project_hash()
-
-        # check project structure
-        if isdir(build_dir) and isfile(structhash_file):
-            with open(structhash_file) as f:
-                if f.read() == proj_hash:
-                    return
-
-        with open(structhash_file, "w") as f:
-            f.write(proj_hash)
-
     # pylint: disable=protected-access
-    orig = run._clean_build_dir
+    helpers.clean_build_dir = patched_clean_build_dir
+    command.clean_build_dir = patched_clean_build_dir
 
-    def patched_safe(*args, **kwargs):
-        try:
-            return patched_clean_build_dir(*args, **kwargs)
-        except Exception:  # pylint: disable=broad-except
-            return orig(*args, **kwargs)
 
-    run._clean_build_dir = patched_safe
+IGNORE_LIB_WARNINGS = r'(?:' + '|'.join(['Hash', 'Update']) + r')'
+FILTER_PLATFORMIO_LINES = [
+    r'Verbose mode can be enabled via `-v, --verbose` option.*',
+    r'CONFIGURATION: https://docs.platformio.org/.*',
+    r'PLATFORM: .*',
+    r'DEBUG: Current.*',
+    r'PACKAGES: .*',
+    r'LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*',
+    r'LDF Modes: Finder ~ chain, Compatibility ~ soft.*',
+    r'Looking for ' + IGNORE_LIB_WARNINGS + r' library in registry',
+    r"Warning! Library `.*'" + IGNORE_LIB_WARNINGS +
+    r".*` has not been found in PlatformIO Registry.",
+    r"You can ignore this message, if `.*" + IGNORE_LIB_WARNINGS + r".*` is a built-in library.*",
+    r'Scanning dependencies...',
+    r"Found \d+ compatible libraries",
+    r'Memory Usage -> http://bit.ly/pio-memory-usage',
+    r'esptool.py v.*',
+    r"Found: https://platformio.org/lib/show/.*",
+    r"Using cache: .*",
+    r'Installing dependencies',
+    r'.* @ .* is already installed',
+]
 
 
 def run_platformio_cli(*args, **kwargs):
@@ -66,17 +69,16 @@ def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
 
-    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
-        import platformio.__main__
-        try:
-            patch_structhash()
-        except Exception:  # pylint: disable=broad-except
-            # Ignore when patch fails
-            pass
-        return run_external_command(platformio.__main__.main,
-                                    *cmd, **kwargs)
+    if not CORE.verbose:
+        kwargs['filter_lines'] = FILTER_PLATFORMIO_LINES
 
-    return run_external_process(*cmd, **kwargs)
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is not None:
+        return run_external_process(*cmd, **kwargs)
+
+    import platformio.__main__
+    patch_structhash()
+    return run_external_command(platformio.__main__.main,
+                                *cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):
@@ -98,6 +100,7 @@ def run_upload(config, verbose, port):
 def run_idedata(config):
     args = ['-t', 'idedata']
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    stdout = decode_text(stdout)
     match = re.search(r'{.*}', stdout)
     if match is None:
         return IDEData(None)

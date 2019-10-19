@@ -32,7 +32,7 @@ void I2CComponent::dump_config() {
   if (this->scan_) {
     ESP_LOGI(TAG, "Scanning i2c bus for active devices...");
     uint8_t found = 0;
-    for (uint8_t address = 8; address < 120; address++) {
+    for (uint8_t address = 1; address < 120; address++) {
       this->wire_->beginTransmission(address);
       uint8_t error = this->wire_->endTransmission();
 
@@ -50,7 +50,7 @@ void I2CComponent::dump_config() {
     }
   }
 }
-float I2CComponent::get_setup_priority() const { return setup_priority::HARDWARE; }
+float I2CComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void I2CComponent::raw_begin_transmission(uint8_t address) {
   ESP_LOGVV(TAG, "Beginning Transmission to 0x%02X:", address);
@@ -135,6 +135,9 @@ bool I2CComponent::read_bytes(uint8_t address, uint8_t a_register, uint8_t *data
     delay(conversion);
   return this->raw_receive(address, data, len);
 }
+bool I2CComponent::read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len) {
+  return this->raw_receive(address, data, len);
+}
 bool I2CComponent::read_bytes_16(uint8_t address, uint8_t a_register, uint16_t *data, uint8_t len,
                                  uint32_t conversion) {
   if (!this->write_bytes(address, a_register, nullptr, 0))
@@ -153,6 +156,11 @@ bool I2CComponent::read_byte_16(uint8_t address, uint8_t a_register, uint16_t *d
 bool I2CComponent::write_bytes(uint8_t address, uint8_t a_register, const uint8_t *data, uint8_t len) {
   this->raw_begin_transmission(address);
   this->raw_write(address, &a_register, 1);
+  this->raw_write(address, data, len);
+  return this->raw_end_transmission(address);
+}
+bool I2CComponent::write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len) {
+  this->raw_begin_transmission(address);
   this->raw_write(address, data, len);
   return this->raw_end_transmission(address);
 }

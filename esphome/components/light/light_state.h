@@ -277,6 +277,7 @@ class LightState : public Nameable, public Component {
  protected:
   friend LightOutput;
   friend LightCall;
+  friend class AddressableLight;
 
   uint32_t hash_base() override;
 
@@ -291,7 +292,7 @@ class LightState : public Nameable, public Component {
   void start_flash_(const LightColorValues &target, uint32_t length);
 
   /// Internal method to set the color values to target immediately (with no transition).
-  void set_immediately_(const LightColorValues &target);
+  void set_immediately_(const LightColorValues &target, bool set_remote_values);
 
   /// Internal method to start a transformer.
   void set_transformer_(std::unique_ptr<LightTransformer> transformer);
