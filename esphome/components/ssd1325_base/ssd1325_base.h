@@ -34,8 +34,6 @@ class SSD1325 : public PollingComponent, public display::DisplayBuffer {
   virtual void write_display_data() = 0;
   void init_reset_();
 
-  bool is_sh1106_() const;
-
   void draw_absolute_pixel_internal(int x, int y, int color) override;
 
   int get_height_internal() override;
