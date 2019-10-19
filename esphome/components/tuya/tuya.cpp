@@ -242,6 +242,7 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
 
 void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   std::vector<uint8_t> buffer;
+  ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
   buffer.push_back(datapoint.id);
   buffer.push_back(static_cast<uint8_t>(datapoint.type));
 
