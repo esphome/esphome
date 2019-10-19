@@ -59,6 +59,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Found: https://platformio.org/lib/show/.*",
     r"Using cache: .*",
     r'Installing dependencies',
+    r'.* @ .* is already installed',
 ]
 
 
