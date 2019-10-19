@@ -156,6 +156,11 @@ void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time:
     this->print(column, row, buffer);
 }
 void LCDDisplay::strftime(const char *format, time::ESPTime time) { this->strftime(0, 0, format, time); }
+void LCDDisplay::clear(void){
+  // clear display, also sets DDRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_CLEAR_DISPLAY);
+  delay(2);
+}
 #endif
 
 }  // namespace lcd_base
