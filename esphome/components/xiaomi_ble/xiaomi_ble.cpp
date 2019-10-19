@@ -20,10 +20,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return true;
     }
     case 0x0A: {  // battery, 1 byte, 8-bit unsigned integer, 1 %
-      if (data_length != 1)
-        return false;
-      result.battery_level = data[0];
-      return true;
+      return data_length == 1;
     }
     case 0x06: {  // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
       if (data_length != 2)
@@ -54,10 +51,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return true;
     }
     case 0x08: {  // soil moisture, 1 byte, 8-bit unsigned integer, 1 %
-      if (data_length != 1)
-        return false;
-      result.moisture = data[0];
-      return true;
+      return data_length == 1;
     }
     case 0x16: {  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
       if (result.type == XiaomiParseResult::TYPE_XMTZC0XHM) {
@@ -65,7 +59,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
           case 10: {
             const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
             if (data[0] == 0x22 || data[0] == 0xa2)
-              result.weight = weight * 0.01f / 2.0f;
+              result.weight = weight * 0.01f * 0.5f;
             else if (data[0] == 0x12 || data[0] == 0xb2)
               result.weight = weight * 0.01f * 0.6;
             else if (data[0] == 0x03 || data[0] == 0xb3)
@@ -80,7 +74,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
             const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
             result.impedance = impedance;
             if (data[0] == 0x02)
-              result.weight = weight * 0.01f / 2.0f;
+              result.weight = weight * 0.01f * 0.5f;
             else if (data[0] == 0x03)
               result.weight = weight * 0.01f * 0.453592;
             else
@@ -95,6 +89,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return false;
   }
 }
+
 optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!device.get_service_data_uuid().has_value()) {
     // ESP_LOGVV(TAG, "Xiaomi no service data");
@@ -128,13 +123,13 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   bool success;
   XiaomiParseResult result;
 
-  if (is_mijia || is_miflora || is_lywsd02 || is_cgg1) {
+  if (is_xmtzc0xhm || is_mibfs) {
     uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
     const uint8_t raw_type = raw[raw_offset];
     const uint8_t data_length = raw[raw_offset + 2];
     const uint8_t *data = &raw[raw_offset + 3];
-    const uint8_t expected_length = data_length + raw_offset + 3;
+    const uint8_t expected_length = raw_offset + 3 + data_length;
     const uint8_t actual_length = device.get_service_data().size();
     if (expected_length != actual_length) {
       // ESP_LOGV(TAG, "Xiaomi %s data length mismatch (%u != %d)", type, expected_length, actual_length);

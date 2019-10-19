@@ -61,7 +61,7 @@ sensor:
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
-  - platform: xiaomi_hhccjcy01
+  - platform: xiaomi_ble
     mac_address: 94:2B:FF:5C:91:61
     temperature:
       name: "Xiaomi HHCCJCY01 Temperature"
@@ -73,7 +73,7 @@ sensor:
       name: "Xiaomi HHCCJCY01 Soil Conductivity"
     battery_level:
       name: "Xiaomi HHCCJCY01 Battery Level"
-  - platform: xiaomi_lywsdcgq
+  - platform: xiaomi_ble
     mac_address: 7A:80:8E:19:36:BA
     temperature:
       name: "Xiaomi LYWSDCGQ Temperature"
@@ -81,13 +81,13 @@ sensor:
       name: "Xiaomi LYWSDCGQ Humidity"
     battery_level:
       name: "Xiaomi LYWSDCGQ Battery Level"
-  - platform: xiaomi_lywsd02
+  - platform: xiaomi_ble
     mac_address: 3F:5B:7D:82:58:4E
     temperature:
       name: "Xiaomi LYWSD02 Temperature"
     humidity:
       name: "Xiaomi LYWSD02 Humidity"    
-  - platform: xiaomi_cgg1
+  - platform: xiaomi_ble
     mac_address: 7A:80:8E:19:36:BA
     temperature:
       name: "Xiaomi CGG1 Temperature"
