@@ -277,6 +277,7 @@ class LightState : public Nameable, public Component {
  protected:
   friend LightOutput;
   friend LightCall;
+  friend class AddressableLight;
 
   uint32_t hash_base() override;
 

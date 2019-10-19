@@ -722,6 +722,12 @@ binary_sensor:
       - binary_sensor.template.publish:
           id: garage_door
           state: OFF
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: 500.0Hz
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: !lambda 'return 500.0;'
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -789,7 +795,6 @@ output:
     pin: 19
     id: gpio_19
     frequency: 1500Hz
-    bit_depth: 8
     channel: 14
     max_power: 0.5
   - platform: pca9685

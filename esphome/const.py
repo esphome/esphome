@@ -2,7 +2,7 @@
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
-MINOR_VERSION = 14
+MINOR_VERSION = 15
 PATCH_VERSION = '0-dev'
 __short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
 __version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
@@ -15,11 +15,14 @@ ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
 ARDUINO_VERSION_ESP32_1_0_0 = 'espressif32@1.5.0'
 ARDUINO_VERSION_ESP32_1_0_1 = 'espressif32@1.6.0'
+ARDUINO_VERSION_ESP32_1_0_2 = 'espressif32@1.9.0'
+ARDUINO_VERSION_ESP32_1_0_3 = 'espressif32@1.10.0'
+ARDUINO_VERSION_ESP32_1_0_4 = 'espressif32@1.11.0'
 ARDUINO_VERSION_ESP8266_DEV = 'https://github.com/platformio/platform-espressif8266.git#feature' \
                               '/stage'
 ARDUINO_VERSION_ESP8266_2_5_0 = 'espressif8266@2.0.0'
 ARDUINO_VERSION_ESP8266_2_5_1 = 'espressif8266@2.1.0'
-ARDUINO_VERSION_ESP8266_2_5_2 = 'espressif8266@2.2.0'
+ARDUINO_VERSION_ESP8266_2_5_2 = 'espressif8266@2.2.3'
 ARDUINO_VERSION_ESP8266_2_3_0 = 'espressif8266@1.5.0'
 SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
 HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
@@ -362,7 +365,6 @@ CONF_RX_PIN = 'rx_pin'
 CONF_SAFE_MODE = 'safe_mode'
 CONF_SAMSUNG = 'samsung'
 CONF_SCAN = 'scan'
-CONF_SCAN_INTERVAL = 'scan_interval'
 CONF_SCL = 'scl'
 CONF_SCL_PIN = 'scl_pin'
 CONF_SDA = 'sda'
