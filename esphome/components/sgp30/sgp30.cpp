@@ -14,18 +14,18 @@ static const uint16_t SGP30_CMD_SET_ABSOLUTE_HUMIDITY = 0x2061;
 static const uint16_t SGP30_CMD_GET_IAQ_BASELINE = 0x2015;
 static const uint16_t SGP30_CMD_SET_IAQ_BASELINE = 0x201E;
 
-/// Sensor baseline should first be relied on after 1H of operation,
-/// if the sensor starts with a baseline value provided
+// Sensor baseline should first be relied on after 1H of operation,
+// if the sensor starts with a baseline value provided
 const long IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED = 3600;
 
-/// Sensor baseline could first be relied on after 12H of operation,
-/// if the sensor starts without any prior baseline value provided
+// Sensor baseline could first be relied on after 12H of operation,
+// if the sensor starts without any prior baseline value provided
 const long IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE = 43200;
 
 void SGP30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SGP30...");
 
-  /// Serial Number identification
+  // Serial Number identification
   if (!this->write_command_(SGP30_CMD_GET_SERIAL_ID)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -38,10 +38,10 @@ void SGP30Component::setup() {
     return;
   }
   this->serial_number_ = (uint64_t(raw_serial_number[0]) << 24) | (uint64_t(raw_serial_number[1]) << 16) |
-                         (uint64_t(uint32_t(raw_serial_number[2])));
+                         (uint64_t(raw_serial_number[2]));
   ESP_LOGD(TAG, "Serial Number: %llu", this->serial_number_);
 
-  /// Featureset identification for future use
+  // Featureset identification for future use
   if (!this->write_command_(SGP30_CMD_GET_FEATURESET)) {
     this->mark_failed();
     return;
@@ -54,10 +54,10 @@ void SGP30Component::setup() {
   this->featureset_ = raw_featureset[0];
   if (uint16_t(this->featureset_ >> 12) != 0x0) {
     if (uint16_t(this->featureset_ >> 12) == 0x1) {
-      /// ID matching a different sensor: SGPC3
+      // ID matching a different sensor: SGPC3
       this->error_code_ = UNSUPPORTED_ID;
     } else {
-      /// Unknown ID
+      // Unknown ID
       this->error_code_ = INVALID_ID;
     }
     this->mark_failed();
@@ -65,7 +65,7 @@ void SGP30Component::setup() {
   }
   ESP_LOGD(TAG, "Product version: 0x%0X", uint16_t(this->featureset_ & 0x1FF));
 
-  /// Sensor initialization
+  // Sensor initialization
   if (!this->write_command_(SGP30_CMD_IAQ_INIT)) {
     ESP_LOGE(TAG, "Sensor sgp30_iaq_init failed.");
     this->error_code_ = MEASUREMENT_INIT_FAILED;
@@ -73,7 +73,7 @@ void SGP30Component::setup() {
     return;
   }
 
-  /// Sensor baseline reliability timer
+  // Sensor baseline reliability timer
   if (this->baseline_ > 0) {
     this->required_warm_up_time_ = IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED;
     this->write_iaq_baseline_(this->baseline_);
@@ -84,8 +84,8 @@ void SGP30Component::setup() {
 
 bool SGP30Component::is_sensor_baseline_reliable_() {
   if ((this->required_warm_up_time_ == 0) || (std::floor(millis() / 1000) >= this->required_warm_up_time_)) {
-    /// requirement for warm up is removed once the millis uptime surpasses the required warm_up_time
-    /// this avoids the repetitive warm up when the millis uptime is rolled over every ~40 days
+    // requirement for warm up is removed once the millis uptime surpasses the required warm_up_time
+    // this avoids the repetitive warm up when the millis uptime is rolled over every ~40 days
     this->required_warm_up_time_ = 0;
     return true;
   }
