@@ -107,7 +107,10 @@ class ESPBTDeviceListener {
 
 class ESP32BLETracker : public Component {
  public:
-  void set_scan_interval(uint32_t scan_interval);
+  void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
+  void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
+  void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
+  void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
@@ -142,7 +145,10 @@ class ESP32BLETracker : public Component {
   /// A structure holding the ESP BLE scan parameters.
   esp_ble_scan_params_t scan_params_;
   /// The interval in seconds to perform scans.
-  uint32_t scan_interval_{300};
+  uint32_t scan_duration_;
+  uint32_t scan_interval_;
+  uint32_t scan_window_;
+  bool scan_active_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};

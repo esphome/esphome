@@ -173,6 +173,9 @@ void Climate::publish_state() {
   auto traits = this->get_traits();
 
   ESP_LOGD(TAG, "  Mode: %s", climate_mode_to_string(this->mode));
+  if (traits.get_supports_action()) {
+    ESP_LOGD(TAG, "  Action: %s", climate_action_to_string(this->action));
+  }
   if (traits.get_supports_current_temperature()) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
   }

@@ -80,6 +80,7 @@ class Optional(vol.Optional):
     during config validation - specifically *not* in the C++ code or the code generation
     phase.
     """
+
     def __init__(self, key, default=UNDEFINED):
         super(Optional, self).__init__(key, default=default)
 
@@ -91,6 +92,7 @@ class Required(vol.Required):
     All required values should be acceessed with the `config[CONF_<KEY>]` syntax in code
     - *not* the `config.get(CONF_<KEY>)` syntax.
     """
+
     def __init__(self, key):
         super(Required, self).__init__(key)
 
@@ -1021,8 +1023,24 @@ def dimensions(value):
 
 
 def directory(value):
+    import json
+    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
+
+    if CORE.vscode and (not CORE.ace or
+                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
+        print(json.dumps({
+            'type': 'check_directory_exists',
+            'path': path,
+        }))
+        data = json.loads(safe_input())
+        assert data['type'] == 'directory_exists_response'
+        if data['content']:
+            return value
+        raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
+
     if not os.path.exists(path):
         raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
                       u"".format(path, os.path.abspath(path)))
@@ -1033,8 +1051,24 @@ def directory(value):
 
 
 def file_(value):
+    import json
+    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
+
+    if CORE.vscode and (not CORE.ace or
+                        os.path.abspath(path) == os.path.abspath(CORE.config_path)):
+        print(json.dumps({
+            'type': 'check_file_exists',
+            'path': path,
+        }))
+        data = json.loads(safe_input())
+        assert data['type'] == 'file_exists_response'
+        if data['content']:
+            return value
+        raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
+                      u"".format(path, os.path.abspath(path)))
+
     if not os.path.exists(path):
         raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
                       u"".format(path, os.path.abspath(path)))
@@ -1100,12 +1134,14 @@ def typed_schema(schemas, **kwargs):
 
 class GenerateID(Optional):
     """Mark this key as being an auto-generated ID key."""
+
     def __init__(self, key=CONF_ID):
         super(GenerateID, self).__init__(key, default=lambda: None)
 
 
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
+
     def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
         super(SplitDefault, self).__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1127,6 +1163,7 @@ class SplitDefault(Optional):
 
 class OnlyWith(Optional):
     """Set the default value only if the given component is loaded."""
+
     def __init__(self, key, component, default=None):
         super(OnlyWith, self).__init__(key)
         self._component = component

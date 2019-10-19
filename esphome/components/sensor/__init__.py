@@ -200,8 +200,15 @@ def debounce_filter_to_code(config, filter_id):
     yield var
 
 
+def validate_not_all_from_same(config):
+    if all(conf[CONF_FROM] == config[0][CONF_FROM] for conf in config):
+        raise cv.Invalid("The 'from' values of the calibrate_linear filter cannot all point "
+                         "to the same value! Please add more values to the filter.")
+    return config
+
+
 @FILTER_REGISTRY.register('calibrate_linear', CalibrateLinearFilter, cv.All(
-    cv.ensure_list(validate_datapoint), cv.Length(min=2)))
+    cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same))
 def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config]
     y = [conf[CONF_TO] for conf in config]

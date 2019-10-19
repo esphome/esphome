@@ -46,19 +46,22 @@ class DashboardSettings(object):
     def __init__(self):
         self.config_dir = ''
         self.password_digest = ''
+        self.username = ''
         self.using_password = False
         self.on_hassio = False
         self.cookie_secret = None
 
     def parse_args(self, args):
         self.on_hassio = args.hassio
+        password = args.password or os.getenv('PASSWORD', '')
         if not self.on_hassio:
-            self.using_password = bool(args.password)
+            self.username = args.username or os.getenv('USERNAME', '')
+            self.using_password = bool(password)
         if self.using_password:
             if IS_PY2:
-                self.password_digest = hmac.new(args.password).digest()
+                self.password_digest = hmac.new(password).digest()
             else:
-                self.password_digest = hmac.new(args.password.encode()).digest()
+                self.password_digest = hmac.new(password.encode()).digest()
         self.config_dir = args.configuration[0]
 
     @property
@@ -79,7 +82,7 @@ class DashboardSettings(object):
     def using_auth(self):
         return self.using_password or self.using_hassio_auth
 
-    def check_password(self, password):
+    def check_password(self, username, password):
         if not self.using_auth:
             return True
 
@@ -87,7 +90,7 @@ class DashboardSettings(object):
             password = hmac.new(password).digest()
         else:
             password = hmac.new(password.encode()).digest()
-        return hmac.compare_digest(self.password_digest, password)
+        return username == self.username and hmac.compare_digest(self.password_digest, password)
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
@@ -399,6 +402,12 @@ class DashboardEntry(object):
         return self.storage.name
 
     @property
+    def comment(self):
+        if self.storage is None:
+            return None
+        return self.storage.comment
+
+    @property
     def esp_platform(self):
         if self.storage is None:
             return None
@@ -530,9 +539,12 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), 'r') as f:
-            content = f.read()
+        filename = settings.rel_path(configuration)
+        content = ''
+        if os.path.isfile(filename):
+            # pylint: disable=no-value-for-parameter
+            with open(filename, 'r') as f:
+                content = f.read()
         self.write(content)
 
     @authenticated
@@ -582,16 +594,14 @@ PING_REQUEST = threading.Event()
 
 class LoginHandler(BaseHandler):
     def get(self):
-        if settings.using_hassio_auth:
-            self.render_hassio_login()
-            return
-        self.write('<html><body><form action="./login" method="post">'
-                   'Password: <input type="password" name="password">'
-                   '<input type="submit" value="Sign in">'
-                   '</form></body></html>')
+        if is_authenticated(self):
+            self.redirect('/')
+        else:
+            self.render_login_page()
 
-    def render_hassio_login(self, error=None):
-        self.render("templates/login.html", error=error, **template_args())
+    def render_login_page(self, error=None):
+        self.render("templates/login.html", error=error, hassio=settings.using_hassio_auth,
+                    has_username=bool(settings.username), **template_args())
 
     def post_hassio_login(self):
         import requests
@@ -612,20 +622,34 @@ class LoginHandler(BaseHandler):
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
-            self.render_hassio_login(error="Internal server error")
+            self.render_login_page(error="Internal server error")
             return
         self.set_status(401)
-        self.render_hassio_login(error="Invalid username or password")
+        self.render_login_page(error="Invalid username or password")
+
+    def post_native_login(self):
+        username = str(self.get_argument("username", '').encode('utf-8'))
+        password = str(self.get_argument("password", '').encode('utf-8'))
+        if settings.check_password(username, password):
+            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+            self.redirect("/")
+            return
+        error_str = "Invalid username or password" if settings.username else "Invalid password"
+        self.set_status(401)
+        self.render_login_page(error=error_str)
 
     def post(self):
         if settings.using_hassio_auth:
             self.post_hassio_login()
-            return
+        else:
+            self.post_native_login()
 
-        password = str(self.get_argument("password", ''))
-        if settings.check_password(password):
-            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-        self.redirect("/")
+
+class LogoutHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        self.clear_cookie("authenticated")
+        self.redirect('./login')
 
 
 _STATIC_FILE_HASHES = {}
@@ -678,6 +702,7 @@ def make_app(debug=False):
     app = tornado.web.Application([
         (rel + "", MainRequestHandler),
         (rel + "login", LoginHandler),
+        (rel + "logout", LogoutHandler),
         (rel + "logs", EsphomeLogsHandler),
         (rel + "upload", EsphomeUploadHandler),
         (rel + "compile", EsphomeCompileHandler),

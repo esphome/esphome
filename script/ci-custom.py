@@ -126,7 +126,6 @@ def lint_executable_bit(fname):
 
 @lint_content_find_check('\t', exclude=[
     'esphome/dashboard/static/ace.js', 'esphome/dashboard/static/ext-searchbox.js',
-    'script/.neopixelbus.patch',
 ])
 def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
