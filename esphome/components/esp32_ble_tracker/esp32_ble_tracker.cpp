@@ -1,6 +1,7 @@
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -202,20 +203,8 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
   }
 }
 
-std::string hexencode(const std::string &raw_data) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < raw_data.size(); i++) {
-    if (i + 1 != raw_data.size()) {
-      sprintf(buf, "0x%02X.", static_cast<uint8_t>(raw_data[i]));
-    } else {
-      sprintf(buf, "0x%02X ", static_cast<uint8_t>(raw_data[i]));
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%zu)", raw_data.size());
-  res += buf;
-  return res;
+std::string hexencode_string(const std::string &raw_data) {
+  return hexencode(reinterpret_cast<const uint8_t *>(raw_data.c_str()), raw_data.size());
 }
 
 ESPBTUUID::ESPBTUUID() : uuid_() {}
@@ -327,15 +316,15 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   for (auto uuid : this->service_uuids_) {
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
-  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(this->manufacturer_data_).c_str());
-  ESP_LOGVV(TAG, "  Service data: %s", hexencode(this->service_data_).c_str());
+  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode_string(this->manufacturer_data_).c_str());
+  ESP_LOGVV(TAG, "  Service data: %s", hexencode_string(this->service_data_).c_str());
 
   if (this->service_data_uuid_.has_value()) {
     ESP_LOGVV(TAG, "  Service Data UUID: %s", this->service_data_uuid_->to_string().c_str());
   }
 
   ESP_LOGVV(TAG, "Adv data: %s",
-            hexencode(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
+            hexencode_string(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
