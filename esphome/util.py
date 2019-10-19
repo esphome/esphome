@@ -106,7 +106,7 @@ class RedirectText(object):
 
     def _write_color_replace(self, s):
         from esphome.core import CORE
-        
+
         if CORE.dashboard:
             # With the dashboard, we must create a little hack to make color output
             # work. The shell we create in the dashboard is not a tty, so python removes
