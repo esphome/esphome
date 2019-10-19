@@ -14,7 +14,7 @@ struct XiaomiParseResult {
     TYPE_HHCCJCY01,
     TYPE_LYWSD02,
     TYPE_CGG1,
-    TYPE_MISCALE,
+    TYPE_XMTZC0XHM,
   } type;
   optional<float> temperature;
   optional<float> humidity;

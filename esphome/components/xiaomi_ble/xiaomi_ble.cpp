@@ -60,7 +60,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return true;
     }
     case 0x16: {  // weight, 2 bytes, 16-bit  unsigned integer, 1 kg
-      if (result.type == XiaomiParseResult::TYPE_MISCALE) {
+      if (result.type == XiaomiParseResult::TYPE_XMTZC0XHM) {
         switch (data_length) {
           case 10: {
             const uint16_t weight = uint16_t(data[1]) | (uint16_t(data[2]) << 8);
@@ -118,10 +118,10 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
   bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
-  bool is_miscale = device.get_service_data_uuid()->contains(0x1D, 0x18);
+  bool is_xmtzc0xhm = device.get_service_data_uuid()->contains(0x1D, 0x18);
   bool is_mibfs = device.get_service_data_uuid()->contains(0x1B, 0x18);
 
-  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 && !is_miscale && !is_mibfs && !is_lywsd02) {
+  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 && !is_xmtzc0xhm && !is_mibfs && !is_lywsd02) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
@@ -154,7 +154,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     const uint8_t data_length = device.get_service_data().size();
     const uint8_t raw_type = 0x16;
 
-    result.type = XiaomiParseResult::TYPE_MISCALE;
+    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
     success = parse_xiaomi_data_byte(raw_type, raw, data_length, result);
   }
 
@@ -175,8 +175,8 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     name = "LYWSD02";
   } else if (res->type == XiaomiParseResult::TYPE_CGG1) {
     name = "CGG1";
-  } else if (res->type == XiaomiParseResult::TYPE_MISCALE) {
-    name = "Mi Scale";
+  } else if (res->type == XiaomiParseResult::TYPE_XMTZC0XHM) {
+    name = "XMTZC0XHM";
   }
 
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());

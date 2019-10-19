@@ -8,7 +8,7 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_miscale {
+namespace xiaomi_xmtzc0xhm {
 
 class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -44,7 +44,7 @@ class XiaomiMiscale : public Component, public esp32_ble_tracker::ESPBTDeviceLis
   sensor::Sensor *impedance_{nullptr};
 };
 
-}  // namespace xiaomi_miscale
+}  // namespace xiaomi_xmtzc0xhm
 }  // namespace esphome
 
 #endif
