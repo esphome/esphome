@@ -124,6 +124,11 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
   XiaomiParseResult result;
 
   if (is_xmtzc0xhm || is_mibfs) {
+    const uint8_t data_length = device.get_service_data().size();
+    const uint8_t raw_type = 0x16;
+    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
+    success = parse_xiaomi_data_byte(raw_type, raw, data_length, result);
+  } else {
     uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
     const uint8_t raw_type = raw[raw_offset];
@@ -145,12 +150,6 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
       result.type = XiaomiParseResult::TYPE_CGG1;
     }
     success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
-  } else {
-    const uint8_t data_length = device.get_service_data().size();
-    const uint8_t raw_type = 0x16;
-
-    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    success = parse_xiaomi_data_byte(raw_type, raw, data_length, result);
   }
 
   if (!success)
