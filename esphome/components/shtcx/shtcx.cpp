@@ -12,7 +12,7 @@ static const uint16_t SHTCX_COMMAND_READ_ID_REGISTER = 0xEFC8;
 static const uint16_t SHTCX_COMMAND_SOFT_RESET = 0x805D;
 static const uint16_t SHTCX_COMMAND_POLLING_H = 0x7866;
 
-inline const char* to_string(SHTCXType type) {
+inline const char *to_string(SHTCXType type) {
   switch (type) {
     case SHTCX_TYPE_SHTC3:
       return "SHTC3";
