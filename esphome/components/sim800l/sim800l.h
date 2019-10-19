@@ -4,10 +4,10 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-#define SIM800L_READ_BUFFER_LENGTH 255
-
 namespace esphome {
 namespace sim800l {
+
+const uint8_t SIM800L_READ_BUFFER_LENGTH = 255;
 
 enum State {
   STATE_IDLE = 0,
