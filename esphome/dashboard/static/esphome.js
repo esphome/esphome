@@ -585,7 +585,6 @@ const startAceWebsocket = () => {
     if (raw.event === "line") {
       const msg = JSON.parse(raw.data);
       if (msg.type === "result") {
-        console.log(msg);
         const arr = [];
 
         for (const v of msg.validation_errors) {
@@ -754,8 +753,6 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be lowercase.");
-
-
 
 const updateAllModal = new LogModalElem({
   name: 'update-all',
