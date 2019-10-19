@@ -9,29 +9,10 @@ static const char *TAG = "tuya";
 
 void Tuya::setup() {
   this->send_empty_command_(TuyaCommandType::MCU_CONF);
-  this->last_setup_timestamp_ = millis();
-
   this->set_interval("heartbeat", 1000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
 void Tuya::loop() {
-  const uint32_t now = millis();
-  if (this->in_setup_) {
-    if (now - this->last_setup_timestamp_ >= 50) {
-      this->in_setup_ = false;
-      uint8_t c = 0x03;
-      this->send_command_(TuyaCommandType::WIFI_STATE, &c, 1);  // set wifi state LED on
-    } else {
-      // still waiting for messages
-      uint8_t c;
-      while (this->read_byte(&c)) {
-        this->last_setup_timestamp_ = now;
-        this->handle_char_(c);
-      }
-      return;
-    }
-  }
-
   while (this->available()) {
     uint8_t c;
     this->read_byte(&c);
@@ -48,6 +29,10 @@ void Tuya::dump_config() {
       ESP_LOGCONFIG(TAG, "  Datapoint %d: switch (value: %s)", info.id, ONOFF(info.value_bool));
     else if (info.type == TuyaDatapointType::INTEGER)
       ESP_LOGCONFIG(TAG, "  Datapoint %d: int value (value: %d)", info.id, info.value_int);
+    else if (info.type == TuyaDatapointType::ENUM)
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: enum (value: %d)", info.id, info.value_enum);
+    else if (info.type == TuyaDatapointType::BITMASK)
+      ESP_LOGCONFIG(TAG, "  Datapoint %d: bitmask (value: %x)", info.id, info.value_bitmask);
     else
       ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
@@ -116,6 +101,7 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
+  uint8_t c;
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -143,6 +129,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
         gpio_status_ = buffer[0];
         gpio_reset_ = buffer[1];
       }
+      // set wifi state LED to off or on depending on the MCU firmware
+      // but it shouldn't be blinking
+      c = 0x3;
+      this->send_command_(TuyaCommandType::WIFI_STATE, &c, 1);
       this->send_empty_command_(TuyaCommandType::QUERY_STATE);
       break;
     case TuyaCommandType::WIFI_STATE:
@@ -157,7 +147,6 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     case TuyaCommandType::STATE: {
       this->handle_datapoint_(buffer, len);
-
       break;
     }
     case TuyaCommandType::QUERY_STATE:
@@ -174,9 +163,15 @@ void Tuya::handle_datapoint_(const uint8_t *buffer, size_t len) {
   TuyaDatapoint datapoint{};
   datapoint.id = buffer[0];
   datapoint.type = (TuyaDatapointType) buffer[1];
+  datapoint.value_uint = 0;
 
-  const uint8_t *data = buffer + 2;
-  size_t data_len = len - 2;
+  size_t data_size = (buffer[2] << 8) + buffer[3];
+  const uint8_t *data = buffer + 4;
+  size_t data_len = len - 4;
+  if (data_size != data_len) {
+    ESP_LOGW(TAG, "invalid datapoint update");
+    return;
+  }
 
   switch (datapoint.type) {
     case TuyaDatapointType::BOOLEAN:
@@ -243,6 +238,14 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
 void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   std::vector<uint8_t> buffer;
   ESP_LOGV(TAG, "Datapoint %u set to %u", datapoint.id, datapoint.value_uint);
+  for (auto &other : this->datapoints_) {
+    if (other.id == datapoint.id) {
+      if (other.value_uint == datapoint.value_uint) {
+        ESP_LOGV(TAG, "Not sending unchanged value");
+        return;
+      }
+    }
+  }
   buffer.push_back(datapoint.id);
   buffer.push_back(static_cast<uint8_t>(datapoint.type));
 

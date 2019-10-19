@@ -66,9 +66,6 @@ class Tuya : public Component, public uart::UARTDevice {
   int gpio_reset_ = -1;
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
-  bool in_setup_ = true;
-  uint32_t last_setup_timestamp_;
-
   std::vector<uint8_t> rx_message_;
 };
 
