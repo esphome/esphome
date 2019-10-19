@@ -1,7 +1,8 @@
 from esphome.components import light
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_OUTPUT_ID, CONF_MIN_VALUE, CONF_MAX_VALUE
+from esphome.const import CONF_OUTPUT_ID, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_GAMMA_CORRECT, \
+    CONF_DEFAULT_TRANSITION_LENGTH
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
@@ -18,6 +19,11 @@ CONFIG_SCHEMA = light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
     cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_MIN_VALUE): cv.int_,
     cv.Optional(CONF_MAX_VALUE): cv.int_,
+
+    # Change the default gamma_correct and default transition length settings.
+    # The Tuya MCU handles transitions and gamma correction on its own.
+    cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
+    cv.Optional(CONF_DEFAULT_TRANSITION_LENGTH, default='0s'): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
