@@ -24,9 +24,9 @@ class ESP8266SoftwareSerial {
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
-  inline void wait_(uint32_t *wait, const uint32_t &start);
-  inline bool read_bit_(uint32_t *wait, const uint32_t &start);
-  inline void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
+  void wait_(uint32_t *wait, const uint32_t &start);
+  bool read_bit_(uint32_t *wait, const uint32_t &start);
+  void write_bit_(bool bit, uint32_t *wait, const uint32_t &start);
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
@@ -61,6 +61,7 @@ class UARTComponent : public Component, public Stream {
 
   int available() override;
 
+  /// Block until all bytes have been written to the UART bus.
   void flush() override;
 
   float get_setup_priority() const override { return setup_priority::BUS; }

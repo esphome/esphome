@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include "IPAddress.h"
 
 namespace esphome {
 
@@ -10,7 +11,12 @@ bool network_is_connected();
 std::string network_get_address();
 
 /// Manually set up the network stack (outside of the App.setup() loop, for example in OTA safe mode)
+#ifdef ARDUINO_ARCH_ESP8266
+void network_setup_mdns(IPAddress address, int interface);
+#endif
+#ifdef ARDUINO_ARCH_ESP32
 void network_setup_mdns();
+#endif
 void network_tick_mdns();
 
 }  // namespace esphome

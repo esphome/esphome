@@ -5,26 +5,26 @@
 namespace esphome {
 namespace api {
 
-enum LegacyCoverState : uint32_t {
+enum EnumLegacyCoverState : uint32_t {
   LEGACY_COVER_STATE_OPEN = 0,
   LEGACY_COVER_STATE_CLOSED = 1,
 };
-enum CoverOperation : uint32_t {
+enum EnumCoverOperation : uint32_t {
   COVER_OPERATION_IDLE = 0,
   COVER_OPERATION_IS_OPENING = 1,
   COVER_OPERATION_IS_CLOSING = 2,
 };
-enum LegacyCoverCommand : uint32_t {
+enum EnumLegacyCoverCommand : uint32_t {
   LEGACY_COVER_COMMAND_OPEN = 0,
   LEGACY_COVER_COMMAND_CLOSE = 1,
   LEGACY_COVER_COMMAND_STOP = 2,
 };
-enum FanSpeed : uint32_t {
+enum EnumFanSpeed : uint32_t {
   FAN_SPEED_LOW = 0,
   FAN_SPEED_MEDIUM = 1,
   FAN_SPEED_HIGH = 2,
 };
-enum LogLevel : uint32_t {
+enum EnumLogLevel : uint32_t {
   LOG_LEVEL_NONE = 0,
   LOG_LEVEL_ERROR = 1,
   LOG_LEVEL_WARN = 2,
@@ -33,7 +33,7 @@ enum LogLevel : uint32_t {
   LOG_LEVEL_VERBOSE = 5,
   LOG_LEVEL_VERY_VERBOSE = 6,
 };
-enum ServiceArgType : uint32_t {
+enum EnumServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_BOOL = 0,
   SERVICE_ARG_TYPE_INT = 1,
   SERVICE_ARG_TYPE_FLOAT = 2,
@@ -43,11 +43,16 @@ enum ServiceArgType : uint32_t {
   SERVICE_ARG_TYPE_FLOAT_ARRAY = 6,
   SERVICE_ARG_TYPE_STRING_ARRAY = 7,
 };
-enum ClimateMode : uint32_t {
+enum EnumClimateMode : uint32_t {
   CLIMATE_MODE_OFF = 0,
   CLIMATE_MODE_AUTO = 1,
   CLIMATE_MODE_COOL = 2,
   CLIMATE_MODE_HEAT = 3,
+};
+enum EnumClimateAction : uint32_t {
+  CLIMATE_ACTION_OFF = 0,
+  CLIMATE_ACTION_COOLING = 2,
+  CLIMATE_ACTION_HEATING = 3,
 };
 class HelloRequest : public ProtoMessage {
  public:
@@ -207,11 +212,11 @@ class ListEntitiesCoverResponse : public ProtoMessage {
 };
 class CoverStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};                     // NOLINT
-  LegacyCoverState legacy_state{};     // NOLINT
-  float position{0.0f};                // NOLINT
-  float tilt{0.0f};                    // NOLINT
-  CoverOperation current_operation{};  // NOLINT
+  uint32_t key{0};                         // NOLINT
+  EnumLegacyCoverState legacy_state{};     // NOLINT
+  float position{0.0f};                    // NOLINT
+  float tilt{0.0f};                        // NOLINT
+  EnumCoverOperation current_operation{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -221,14 +226,14 @@ class CoverStateResponse : public ProtoMessage {
 };
 class CoverCommandRequest : public ProtoMessage {
  public:
-  uint32_t key{0};                      // NOLINT
-  bool has_legacy_command{false};       // NOLINT
-  LegacyCoverCommand legacy_command{};  // NOLINT
-  bool has_position{false};             // NOLINT
-  float position{0.0f};                 // NOLINT
-  bool has_tilt{false};                 // NOLINT
-  float tilt{0.0f};                     // NOLINT
-  bool stop{false};                     // NOLINT
+  uint32_t key{0};                          // NOLINT
+  bool has_legacy_command{false};           // NOLINT
+  EnumLegacyCoverCommand legacy_command{};  // NOLINT
+  bool has_position{false};                 // NOLINT
+  float position{0.0f};                     // NOLINT
+  bool has_tilt{false};                     // NOLINT
+  float tilt{0.0f};                         // NOLINT
+  bool stop{false};                         // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -257,7 +262,7 @@ class FanStateResponse : public ProtoMessage {
   uint32_t key{0};          // NOLINT
   bool state{false};        // NOLINT
   bool oscillating{false};  // NOLINT
-  FanSpeed speed{};         // NOLINT
+  EnumFanSpeed speed{};     // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -271,7 +276,7 @@ class FanCommandRequest : public ProtoMessage {
   bool has_state{false};        // NOLINT
   bool state{false};            // NOLINT
   bool has_speed{false};        // NOLINT
-  FanSpeed speed{};             // NOLINT
+  EnumFanSpeed speed{};         // NOLINT
   bool has_oscillating{false};  // NOLINT
   bool oscillating{false};      // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
@@ -442,7 +447,7 @@ class TextSensorStateResponse : public ProtoMessage {
 };
 class SubscribeLogsRequest : public ProtoMessage {
  public:
-  LogLevel level{};         // NOLINT
+  EnumLogLevel level{};     // NOLINT
   bool dump_config{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
@@ -452,7 +457,7 @@ class SubscribeLogsRequest : public ProtoMessage {
 };
 class SubscribeLogsResponse : public ProtoMessage {
  public:
-  LogLevel level{};         // NOLINT
+  EnumLogLevel level{};     // NOLINT
   std::string tag{};        // NOLINT
   std::string message{};    // NOLINT
   bool send_failed{false};  // NOLINT
@@ -538,8 +543,8 @@ class GetTimeResponse : public ProtoMessage {
 };
 class ListEntitiesServicesArgument : public ProtoMessage {
  public:
-  std::string name{};     // NOLINT
-  ServiceArgType type{};  // NOLINT
+  std::string name{};         // NOLINT
+  EnumServiceArgType type{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -633,11 +638,12 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::string unique_id{};                            // NOLINT
   bool supports_current_temperature{false};           // NOLINT
   bool supports_two_point_target_temperature{false};  // NOLINT
-  std::vector<ClimateMode> supported_modes{};         // NOLINT
+  std::vector<EnumClimateMode> supported_modes{};     // NOLINT
   float visual_min_temperature{0.0f};                 // NOLINT
   float visual_max_temperature{0.0f};                 // NOLINT
   float visual_temperature_step{0.0f};                // NOLINT
   bool supports_away{false};                          // NOLINT
+  bool supports_action{false};                        // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -649,12 +655,13 @@ class ListEntitiesClimateResponse : public ProtoMessage {
 class ClimateStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};                      // NOLINT
-  ClimateMode mode{};                   // NOLINT
+  EnumClimateMode mode{};               // NOLINT
   float current_temperature{0.0f};      // NOLINT
   float target_temperature{0.0f};       // NOLINT
   float target_temperature_low{0.0f};   // NOLINT
   float target_temperature_high{0.0f};  // NOLINT
   bool away{false};                     // NOLINT
+  EnumClimateAction action{};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -666,7 +673,7 @@ class ClimateCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};                          // NOLINT
   bool has_mode{false};                     // NOLINT
-  ClimateMode mode{};                       // NOLINT
+  EnumClimateMode mode{};                   // NOLINT
   bool has_target_temperature{false};       // NOLINT
   float target_temperature{0.0f};           // NOLINT
   bool has_target_temperature_low{false};   // NOLINT

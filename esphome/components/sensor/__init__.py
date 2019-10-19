@@ -61,6 +61,7 @@ SensorPublishAction = sensor_ns.class_('SensorPublishAction', automation.Action)
 
 # Filters
 Filter = sensor_ns.class_('Filter')
+MedianFilter = sensor_ns.class_('MedianFilter', Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_('SlidingWindowMovingAverageFilter', Filter)
 ExponentialMovingAverageFilter = sensor_ns.class_('ExponentialMovingAverageFilter', Filter)
 LambdaFilter = sensor_ns.class_('LambdaFilter', Filter)
@@ -127,6 +128,19 @@ def filter_out_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id, config)
 
 
+MEDIAN_SCHEMA = cv.All(cv.Schema({
+    cv.Optional(CONF_WINDOW_SIZE, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_EVERY, default=5): cv.positive_not_null_int,
+    cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
+}), validate_send_first_at)
+
+
+@FILTER_REGISTRY.register('median', MedianFilter, MEDIAN_SCHEMA)
+def median_filter_to_code(config, filter_id):
+    yield cg.new_Pvariable(filter_id, config[CONF_WINDOW_SIZE], config[CONF_SEND_EVERY],
+                           config[CONF_SEND_FIRST_AT])
+
+
 SLIDING_AVERAGE_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_WINDOW_SIZE, default=15): cv.positive_not_null_int,
     cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
@@ -186,8 +200,15 @@ def debounce_filter_to_code(config, filter_id):
     yield var
 
 
+def validate_not_all_from_same(config):
+    if all(conf[CONF_FROM] == config[0][CONF_FROM] for conf in config):
+        raise cv.Invalid("The 'from' values of the calibrate_linear filter cannot all point "
+                         "to the same value! Please add more values to the filter.")
+    return config
+
+
 @FILTER_REGISTRY.register('calibrate_linear', CalibrateLinearFilter, cv.All(
-    cv.ensure_list(validate_datapoint), cv.Length(min=2)))
+    cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same))
 def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config]
     y = [conf[CONF_TO] for conf in config]

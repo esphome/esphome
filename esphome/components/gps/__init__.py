@@ -22,4 +22,4 @@ def to_code(config):
     yield uart.register_uart_device(var, config)
 
     # https://platformio.org/lib/show/1655/TinyGPSPlus
-    cg.add_library('TinyGPSPlus', '1.0.2')
+    cg.add_library('1655', '1.0.2')  # TinyGPSPlus, has name conflict
