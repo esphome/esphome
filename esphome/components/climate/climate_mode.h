@@ -17,8 +17,19 @@ enum ClimateMode : uint8_t {
   CLIMATE_MODE_HEAT = 3,
 };
 
+/// Enum for the current action of the climate device. Values match those of ClimateMode.
+enum ClimateAction : uint8_t {
+  /// The climate device is off (inactive or no power)
+  CLIMATE_ACTION_OFF = 0,
+  /// The climate device is actively cooling (usually in cool or auto mode)
+  CLIMATE_ACTION_COOLING = 2,
+  /// The climate device is actively heating (usually in heat or auto mode)
+  CLIMATE_ACTION_HEATING = 3,
+};
+
 /// Convert the given ClimateMode to a human-readable string.
 const char *climate_mode_to_string(ClimateMode mode);
+const char *climate_action_to_string(ClimateAction action);
 
 }  // namespace climate
 }  // namespace esphome
