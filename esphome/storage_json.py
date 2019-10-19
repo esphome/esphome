@@ -13,6 +13,7 @@ from esphome.helpers import mkdir_p
 from esphome.core import CoreType  # noqa
 from typing import Any, Dict, Optional  # noqa
 
+from esphome.py_compat import text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -221,7 +222,7 @@ class EsphomeStorageJSON(object):
     def get_default():  # type: () -> EsphomeStorageJSON
         return EsphomeStorageJSON(
             storage_version=1,
-            cookie_secret=binascii.hexlify(os.urandom(64)),
+            cookie_secret=text_type(binascii.hexlify(os.urandom(64))),
             last_update_check=None,
             remote_version=None,
         )
