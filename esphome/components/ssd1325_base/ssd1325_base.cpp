@@ -7,6 +7,40 @@ namespace ssd1325_base {
 
 static const char *TAG = "ssd1325";
 
+static const uint8_t BLACK = 0;
+static const uint8_t WHITE = 1;
+
+static const uint8_t SSD1325_SETCOLADDR = 0x15;
+static const uint8_t SSD1325_SETROWADDR = 0x75;
+static const uint8_t SSD1325_SETCONTRAST = 0x81;
+static const uint8_t SSD1325_SETCURRENT = 0x84;
+
+static const uint8_t SSD1325_SETREMAP = 0xA0;
+static const uint8_t SSD1325_SETSTARTLINE = 0xA1;
+static const uint8_t SSD1325_SETOFFSET = 0xA2;
+static const uint8_t SSD1325_NORMALDISPLAY = 0xA4;
+static const uint8_t SSD1325_DISPLAYALLON = 0xA5;
+static const uint8_t SSD1325_DISPLAYALLOFF = 0xA6;
+static const uint8_t SSD1325_INVERTDISPLAY = 0xA7;
+static const uint8_t SSD1325_SETMULTIPLEX = 0xA8;
+static const uint8_t SSD1325_MASTERCONFIG = 0xAD;
+static const uint8_t SSD1325_DISPLAYOFF = 0xAE;
+static const uint8_t SSD1325_DISPLAYON = 0xAF;
+
+static const uint8_t SSD1325_SETPRECHARGECOMPENABLE = 0xB0;
+static const uint8_t SSD1325_SETPHASELEN = 0xB1;
+static const uint8_t SSD1325_SETROWPERIOD = 0xB2;
+static const uint8_t SSD1325_SETCLOCK = 0xB3;
+static const uint8_t SSD1325_SETPRECHARGECOMP = 0xB4;
+static const uint8_t SSD1325_SETGRAYTABLE = 0xB8;
+static const uint8_t SSD1325_SETPRECHARGEVOLTAGE = 0xBC;
+static const uint8_t SSD1325_SETVCOMLEVEL = 0xBE;
+static const uint8_t SSD1325_SETVSL = 0xBF;
+
+static const uint8_t SSD1325_GFXACCEL = 0x23;
+static const uint8_t SSD1325_DRAWRECT = 0x24;
+static const uint8_t SSD1325_COPY = 0x25;
+
 void SSD1325::setup() {
   this->init_internal_(this->get_buffer_length_());
 
