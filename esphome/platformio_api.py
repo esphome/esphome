@@ -39,11 +39,37 @@ def patch_structhash():
     command.clean_build_dir = patched_clean_build_dir
 
 
+IGNORE_LIB_WARNINGS = r'(?:' + '|'.join(['Hash', 'Update']) + r')'
+FILTER_PLATFORMIO_LINES = [
+    r'Verbose mode can be enabled via `-v, --verbose` option.*',
+    r'CONFIGURATION: https://docs.platformio.org/.*',
+    r'PLATFORM: .*',
+    r'DEBUG: Current.*',
+    r'PACKAGES: .*',
+    r'LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*',
+    r'LDF Modes: Finder ~ chain, Compatibility ~ soft.*',
+    r'Looking for ' + IGNORE_LIB_WARNINGS + r' library in registry',
+    r"Warning! Library `.*'" + IGNORE_LIB_WARNINGS +
+    r".*` has not been found in PlatformIO Registry.",
+    r"You can ignore this message, if `.*" + IGNORE_LIB_WARNINGS + r".*` is a built-in library.*",
+    r'Scanning dependencies...',
+    r"Found \d+ compatible libraries",
+    r'Memory Usage -> http://bit.ly/pio-memory-usage',
+    r'esptool.py v.*',
+    r"Found: https://platformio.org/lib/show/.*",
+    r"Using cache: .*",
+    r'Installing dependencies',
+]
+
+
 def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
+
+    if not CORE.verbose:
+        kwargs['filter_lines'] = FILTER_PLATFORMIO_LINES
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is not None:
         return run_external_process(*cmd, **kwargs)

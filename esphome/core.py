@@ -507,6 +507,8 @@ class EsphomeCore(object):
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
+        # Whether ESPHome was started in verbose mode
+        self.verbose = False
 
     def reset(self):
         self.dashboard = False
