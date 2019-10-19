@@ -10,6 +10,6 @@ if bashio::config.has_value 'esphome_version'; then
     esphome_version=$(bashio::config 'esphome_version')
     full_url="https://github.com/esphome/esphome/archive/${esphome_version}.zip"
     bashio::log.info "Installing esphome version '${esphome_version}' (${full_url})..."
-    pip2 install -U --no-cache-dir "${full_url}" \
+    pip3 install -U --no-cache-dir "${full_url}" \
       || bashio::exit.nok "Failed installing esphome pinned version."
 fi
