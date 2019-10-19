@@ -522,6 +522,9 @@ sensor:
       name: "Living Room Humidity 8"
     address: 0x44
     update_interval: 15s
+  - platform: sts3x
+    name: "Living Room Temperature 9"
+    address: 0x4A
   - platform: scd30
     co2:
       name: "Living Room CO2 9"
