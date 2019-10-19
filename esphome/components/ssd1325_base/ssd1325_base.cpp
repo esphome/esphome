@@ -44,15 +44,15 @@ static const uint8_t SSD1325_COPY = 0x25;
 void SSD1325::setup() {
   this->init_internal_(this->get_buffer_length_());
 
-  this->command(SSD1325_DISPLAYOFF); /* display off */
-  this->command(SSD1325_SETCLOCK); /* set osc division */
-  this->command(0xF1); /* 145 */
+  this->command(SSD1325_DISPLAYOFF);   /* display off */
+  this->command(SSD1325_SETCLOCK);     /* set osc division */
+  this->command(0xF1);                 /* 145 */
   this->command(SSD1325_SETMULTIPLEX); /* multiplex ratio */
-  this->command(0x3f); /* duty = 1/64 */
-  this->command(SSD1325_SETOFFSET); /* set display offset --- */
-  this->command(0x4C); /* 76 */
+  this->command(0x3f);                 /* duty = 1/64 */
+  this->command(SSD1325_SETOFFSET);    /* set display offset --- */
+  this->command(0x4C);                 /* 76 */
   this->command(SSD1325_SETSTARTLINE); /*set start line */
-  this->command(0x00); /* ------ */
+  this->command(0x00);                 /* ------ */
   this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
   this->command(0x02);
   this->command(SSD1325_SETREMAP); /* set segment remap------ */
@@ -68,7 +68,7 @@ void SSD1325::setup() {
   this->command(0x65);
   this->command(0x76);
   this->command(SSD1325_SETCONTRAST); /* set contrast current */
-  this->command(0x7F);  // max!
+  this->command(0x7F);                // max!
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
@@ -77,20 +77,20 @@ void SSD1325::setup() {
   this->command(0x02);
   this->command(SSD1325_SETPRECHARGECOMPENABLE);
   this->command(0x28);
-  this->command(SSD1325_SETVCOMLEVEL); // Set High Voltage Level of COM Pin
-  this->command(0x1C); //?
-  this->command(SSD1325_SETVSL); // set Low Voltage Level of SEG Pin 
-  this->command(0x0D|0x02);
+  this->command(SSD1325_SETVCOMLEVEL);  // Set High Voltage Level of COM Pin
+  this->command(0x1C);                  //?
+  this->command(SSD1325_SETVSL);        // set Low Voltage Level of SEG Pin
+  this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY); /* set display mode */
-  this->command(SSD1325_DISPLAYON); /* display ON */
+  this->command(SSD1325_DISPLAYON);     /* display ON */
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR); /* set column address */
-  this->command(0x00); /* set column start address */
-  this->command(0x3F); /* set column end address */
+  this->command(0x00);               /* set column start address */
+  this->command(0x3F);               /* set column end address */
   this->command(SSD1325_SETROWADDR); /* set row address */
-  this->command(0x00); /* set row start address */
-  this->command(0x3F); /* set row end address */
+  this->command(0x00);               /* set row start address */
+  this->command(0x3F);               /* set row end address */
 
   this->write_display_data();
 }
