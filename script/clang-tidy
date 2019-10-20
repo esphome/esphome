@@ -54,7 +54,6 @@ def run_tidy(args, tmpdir, queue, lock, failed_files):
             if rc != 0:
                 print()
                 print("\033[0;32m************* File \033[1;32m{}\033[0m".format(path))
-                print(invocation_s)
                 print(output)
                 print()
                 failed_files.append(path)

@@ -50,19 +50,19 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const std::string &name, const std::function<void(AddressableLight &)> &f,
+  AddressableLambdaLightEffect(const std::string &name, const std::function<void(AddressableLight &, ESPColor)> &f,
                                uint32_t update_interval)
       : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
     if (now - this->last_run_ >= this->update_interval_) {
       this->last_run_ = now;
-      this->f_(it);
+      this->f_(it, current_color);
     }
   }
 
  protected:
-  std::function<void(AddressableLight &)> f_;
+  std::function<void(AddressableLight &, ESPColor)> f_;
   uint32_t update_interval_;
   uint32_t last_run_{0};
 };
@@ -143,14 +143,19 @@ class AddressableScanEffect : public AddressableLightEffect {
  public:
   explicit AddressableScanEffect(const std::string &name) : AddressableLightEffect(name) {}
   void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
+  void set_scan_width(uint32_t scan_width) { this->scan_width_ = scan_width; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     it.all() = ESPColor::BLACK;
-    it[this->at_led_] = current_color;
+
+    for (auto i = 0; i < this->scan_width_; i++) {
+      it[this->at_led_ + i] = current_color;
+    }
+
     const uint32_t now = millis();
     if (now - this->last_move_ > this->move_interval_) {
       if (direction_) {
         this->at_led_++;
-        if (this->at_led_ == it.size() - 1)
+        if (this->at_led_ == it.size() - this->scan_width_)
           this->direction_ = false;
       } else {
         this->at_led_--;
@@ -163,6 +168,7 @@ class AddressableScanEffect : public AddressableLightEffect {
 
  protected:
   uint32_t move_interval_{};
+  uint32_t scan_width_{1};
   uint32_t last_move_{0};
   int at_led_{0};
   bool direction_{true};
@@ -312,11 +318,20 @@ class AddressableFlickerEffect : public AddressableLightEffect {
     const uint8_t inv_intensity = 255 - intensity;
     if (now - this->last_update_ < this->update_interval_)
       return;
+
     this->last_update_ = now;
     fast_random_set_seed(random_uint32());
     for (auto var : it) {
       const uint8_t flicker = fast_random_8() % intensity;
+<<<<<<< HEAD
       var = (var.get() * inv_intensity) + (current_color * flicker);
+=======
+      // scale down by random factor
+      var = var.get() * (255 - flicker);
+
+      // slowly fade back to "real" value
+      var = (var.get() * inv_intensity) + (current_color * intensity);
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
     }
   }
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }

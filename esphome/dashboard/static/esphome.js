@@ -333,6 +333,10 @@ class LogModalElem {
     this.activeSocket.close();
   }
 
+  open(event) {
+    this._onPress(event);
+  }
+
   _onPress(event) {
     this.activeConfig = event.target.getAttribute('data-node');
     this._setupModalInstance();
@@ -570,6 +574,7 @@ const editModalElem = document.getElementById("modal-editor");
 const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
 let activeEditorConfig = null;
+let activeEditorSecrets = false;
 let aceWs = null;
 let aceValidationScheduled = false;
 let aceValidationRunning = false;
@@ -681,7 +686,7 @@ editor.commands.addCommand({
 });
 
 editor.session.on('change', debounce(() => {
-  aceValidationScheduled = true;
+  aceValidationScheduled = !activeEditorSecrets;
 }, 250));
 
 setInterval(() => {
@@ -704,14 +709,24 @@ editorUploadButton.addEventListener('click', saveEditor);
 document.querySelectorAll(".action-edit").forEach((btn) => {
   btn.addEventListener('click', (e) => {
     activeEditorConfig = e.target.getAttribute('data-node');
+    activeEditorSecrets = activeEditorConfig === 'secrets.yaml';
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');
     editorUploadButton.setAttribute('data-node', activeEditorConfig);
+<<<<<<< HEAD
+=======
+    if (activeEditorSecrets) {
+      editorUploadButton.classList.add('disabled');
+    }
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
     filenameField.innerHTML = activeEditorConfig;
 
+    editor.setValue("Loading configuration yaml...");
+    editor.setOption('readOnly', true);
     fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
+        editor.setOption('readOnly', false);
     });
 
     modalInstance.open();
@@ -742,3 +757,32 @@ jQuery.validator.addMethod("nospaces", (value, element) => {
 jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be lowercase.");
+
+
+
+const updateAllModal = new LogModalElem({
+  name: 'update-all',
+  onPrepare: (modalElem, config) => {
+    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
+    downloadButton.classList.add('disabled');
+  },
+  onProcessExit: (modalElem, code) => {
+    if (code === 0) {
+      M.toast({html: "Program exited successfully."});
+      downloadButton.classList.remove('disabled');
+    } else {
+      M.toast({html: `Program failed with code ${data.code}`});
+    }
+    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+  },
+  onSocketClose: (modalElem) => {
+    M.toast({html: 'Terminated process.'});
+  },
+  dismissible: false,
+});
+updateAllModal.setup();
+
+const updateAllButton = document.getElementById('update-all-button');
+updateAllButton.addEventListener('click', (e) => {
+  updateAllModal.open(e);
+});

@@ -99,6 +99,7 @@ lint-custom:
     - script/ci-custom.py
 
 lint-python:
+<<<<<<< HEAD
   <<: *lint
   script:
     - script/lint-python
@@ -117,6 +118,22 @@ lint-tidy:
 lint-format:
   <<: *lint
   script:
+=======
+  <<: *lint
+  script:
+    - script/lint-python
+
+lint-tidy:
+  <<: *lint
+  script:
+    - pio init --ide atom
+    - script/clang-tidy --all-headers --fix
+    - script/ci-suggest-changes
+
+lint-format:
+  <<: *lint
+  script:
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
     - script/clang-format -i
     - script/ci-suggest-changes
 

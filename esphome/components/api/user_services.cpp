@@ -4,71 +4,35 @@
 namespace esphome {
 namespace api {
 
-template<> bool ExecuteServiceArgument::get_value<bool>() { return this->value_bool_; }
-template<> int ExecuteServiceArgument::get_value<int>() { return this->value_int_; }
-template<> float ExecuteServiceArgument::get_value<float>() { return this->value_float_; }
-template<> std::string ExecuteServiceArgument::get_value<std::string>() { return this->value_string_; }
-
-APIMessageType ExecuteServiceArgument::message_type() const { return APIMessageType::EXECUTE_SERVICE_REQUEST; }
-bool ExecuteServiceArgument::decode_varint(uint32_t field_id, uint32_t value) {
-  switch (field_id) {
-    case 1:  // bool bool_ = 1;
-      this->value_bool_ = value;
-      return true;
-    case 2:  // int32 int_ = 2;
-      this->value_int_ = value;
-      return true;
-    default:
-      return false;
-  }
+template<> bool get_execute_arg_value<bool>(const ExecuteServiceArgument &arg) { return arg.bool_; }
+template<> int get_execute_arg_value<int>(const ExecuteServiceArgument &arg) {
+  if (arg.legacy_int != 0)
+    return arg.legacy_int;
+  return arg.int_;
 }
-bool ExecuteServiceArgument::decode_32bit(uint32_t field_id, uint32_t value) {
-  switch (field_id) {
-    case 3:  // float float_ = 3;
-      this->value_float_ = as_float(value);
-      return true;
-    default:
-      return false;
-  }
+template<> float get_execute_arg_value<float>(const ExecuteServiceArgument &arg) { return arg.float_; }
+template<> std::string get_execute_arg_value<std::string>(const ExecuteServiceArgument &arg) { return arg.string_; }
+template<> std::vector<bool> get_execute_arg_value<std::vector<bool>>(const ExecuteServiceArgument &arg) {
+  return arg.bool_array;
 }
-bool ExecuteServiceArgument::decode_length_delimited(uint32_t field_id, const uint8_t *value, size_t len) {
-  switch (field_id) {
-    case 4:  // string string_ = 4;
-      this->value_string_ = as_string(value, len);
-      return true;
-    default:
-      return false;
-  }
+template<> std::vector<int> get_execute_arg_value<std::vector<int>>(const ExecuteServiceArgument &arg) {
+  return arg.int_array;
+}
+template<> std::vector<float> get_execute_arg_value<std::vector<float>>(const ExecuteServiceArgument &arg) {
+  return arg.float_array;
+}
+template<> std::vector<std::string> get_execute_arg_value<std::vector<std::string>>(const ExecuteServiceArgument &arg) {
+  return arg.string_array;
 }
 
-bool ExecuteServiceRequest::decode_32bit(uint32_t field_id, uint32_t value) {
-  switch (field_id) {
-    case 1:  // fixed32 key = 1;
-      this->key_ = value;
-      return true;
-    default:
-      return false;
-  }
-}
-bool ExecuteServiceRequest::decode_length_delimited(uint32_t field_id, const uint8_t *value, size_t len) {
-  switch (field_id) {
-    case 2: {  // repeated ExecuteServiceArgument args = 2;
-      ExecuteServiceArgument arg;
-      arg.decode(value, len);
-      this->args_.push_back(arg);
-      return true;
-    }
-    default:
-      return false;
-  }
-}
-APIMessageType ExecuteServiceRequest::message_type() const { return APIMessageType::EXECUTE_SERVICE_REQUEST; }
-const std::vector<ExecuteServiceArgument> &ExecuteServiceRequest::get_args() const { return this->args_; }
-uint32_t ExecuteServiceRequest::get_key() const { return this->key_; }
-
-ServiceTypeArgument::ServiceTypeArgument(const std::string &name, ServiceArgType type) : name_(name), type_(type) {}
-const std::string &ServiceTypeArgument::get_name() const { return this->name_; }
-ServiceArgType ServiceTypeArgument::get_type() const { return this->type_; }
+template<> EnumServiceArgType to_service_arg_type<bool>() { return SERVICE_ARG_TYPE_BOOL; }
+template<> EnumServiceArgType to_service_arg_type<int>() { return SERVICE_ARG_TYPE_INT; }
+template<> EnumServiceArgType to_service_arg_type<float>() { return SERVICE_ARG_TYPE_FLOAT; }
+template<> EnumServiceArgType to_service_arg_type<std::string>() { return SERVICE_ARG_TYPE_STRING; }
+template<> EnumServiceArgType to_service_arg_type<std::vector<bool>>() { return SERVICE_ARG_TYPE_BOOL_ARRAY; }
+template<> EnumServiceArgType to_service_arg_type<std::vector<int>>() { return SERVICE_ARG_TYPE_INT_ARRAY; }
+template<> EnumServiceArgType to_service_arg_type<std::vector<float>>() { return SERVICE_ARG_TYPE_FLOAT_ARRAY; }
+template<> EnumServiceArgType to_service_arg_type<std::vector<std::string>>() { return SERVICE_ARG_TYPE_STRING_ARRAY; }
 
 }  // namespace api
 }  // namespace esphome

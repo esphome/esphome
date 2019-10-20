@@ -1,19 +1,11 @@
-#include <utility>
-
 #include "api_server.h"
-#include "basic_messages.h"
+#include "api_connection.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
 
-#ifdef USE_DEEP_SLEEP
-#include "esphome/components/deep_sleep/deep_sleep_component.h"
-#endif
-#ifdef USE_HOMEASSISTANT_TIME
-#include "esphome/components/homeassistant/time/homeassistant_time.h"
-#endif
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
@@ -210,9 +202,9 @@ void APIServer::set_port(uint16_t port) { this->port_ = port; }
 APIServer *global_api_server = nullptr;
 
 void APIServer::set_password(const std::string &password) { this->password_ = password; }
-void APIServer::send_service_call(ServiceCallResponse &call) {
+void APIServer::send_homeassistant_service_call(const HomeassistantServiceResponse &call) {
   for (auto *client : this->clients_) {
-    client->send_service_call(call);
+    client->send_homeassistant_service_call(call);
   }
 }
 APIServer::APIServer() { global_api_server = this; }
@@ -238,11 +230,12 @@ void APIServer::request_time() {
 bool APIServer::is_connected() const { return !this->clients_.empty(); }
 void APIServer::on_shutdown() {
   for (auto *c : this->clients_) {
-    c->send_disconnect_request();
+    c->send_disconnect_request(DisconnectRequest());
   }
   delay(10);
 }
 
+<<<<<<< HEAD
 // APIConnection
 APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
@@ -1198,5 +1191,7 @@ void APIConnection::on_camera_image_request_(const CameraImageRequest &req) {
 }
 #endif
 
+=======
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
 }  // namespace api
 }  // namespace esphome

@@ -171,9 +171,7 @@ def format_ini(data):
 
 
 def gather_lib_deps():
-    lib_deps_l = [x.as_lib_dep for x in CORE.libraries]
-    lib_deps_l.sort()
-    return lib_deps_l
+    return [x.as_lib_dep for x in CORE.libraries]
 
 
 def gather_build_flags():
@@ -193,7 +191,7 @@ def get_ini_content():
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
         'build_flags': build_flags + ['${common.build_flags}'],
-        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
+        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 460800),
     }
 
     if CORE.is_esp32:

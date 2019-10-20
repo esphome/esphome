@@ -47,6 +47,7 @@ i.very-large {
 }
 
 .log {
+  height: 100%;
   max-height: calc(100% - 56px);
   background-color: #1c1c1c;
   margin-top: 0;
@@ -131,8 +132,12 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
 
 .select-port-container {
   margin-top: 8px;
-  margin-right: 24px;
+  margin-right: 10px;
   width: 350px;
+}
+
+#dropdown-nav-trigger {
+  margin-right: 24px;
 }
 
 .select-port-container .select-dropdown {
@@ -241,4 +246,11 @@ ul.stepper:not(.horizontal) .step.active::before, ul.stepper:not(.horizontal) .s
   color: #fff;
   padding: 10px 15px;
   margin-top: 15px;
+}
+
+.card-comment {
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: #444;
+  font-style: italic;
 }

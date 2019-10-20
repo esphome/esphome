@@ -3,6 +3,7 @@ from __future__ import print_function
 import collections
 import io
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -126,7 +127,7 @@ def run_external_command(func, *cmd, **kwargs):
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
-        cap_stdout = sys.stdout = io.BytesIO()
+        cap_stdout = sys.stdout = io.StringIO()
 
     try:
         sys.argv = list(cmd)
@@ -207,3 +208,16 @@ class OrderedDict(collections.OrderedDict):
                 root[1] = first[0] = link
         else:
             super(OrderedDict, self).move_to_end(key, last=last)  # pylint: disable=no-member
+
+
+def list_yaml_files(folder):
+    files = filter_yaml_files([os.path.join(folder, p) for p in os.listdir(folder)])
+    files.sort()
+    return files
+
+
+def filter_yaml_files(files):
+    files = [f for f in files if os.path.splitext(f)[1] == '.yaml']
+    files = [f for f in files if os.path.basename(f) != 'secrets.yaml']
+    files = [f for f in files if not os.path.basename(f).startswith('.')]
+    return files

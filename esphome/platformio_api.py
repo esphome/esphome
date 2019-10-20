@@ -7,7 +7,11 @@ import re
 import subprocess
 
 from esphome.core import CORE
+<<<<<<< HEAD
 from esphome.py_compat import IS_PY2
+=======
+from esphome.py_compat import decode_text
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -18,6 +22,7 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
+<<<<<<< HEAD
     # pylint: disable=no-member,no-name-in-module
     from platformio.commands import run
     from platformio import util
@@ -27,6 +32,15 @@ def patch_structhash():
 
     def patched_clean_build_dir(build_dir):
         structhash_file = join(build_dir, "structure.hash")
+=======
+    from platformio.commands.run import helpers, command
+    from os.path import join, isdir, getmtime
+    from os import makedirs
+
+    def patched_clean_build_dir(build_dir, *args):
+        from platformio import util
+        from platformio.project.helpers import get_project_dir
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
@@ -36,27 +50,9 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-        proj_hash = run.calculate_project_hash()
-
-        # check project structure
-        if isdir(build_dir) and isfile(structhash_file):
-            with open(structhash_file) as f:
-                if f.read() == proj_hash:
-                    return
-
-        with open(structhash_file, "w") as f:
-            f.write(proj_hash)
-
     # pylint: disable=protected-access
-    orig = run._clean_build_dir
-
-    def patched_safe(*args, **kwargs):
-        try:
-            return patched_clean_build_dir(*args, **kwargs)
-        except Exception:  # pylint: disable=broad-except
-            return orig(*args, **kwargs)
-
-    run._clean_build_dir = patched_safe
+    helpers.clean_build_dir = patched_clean_build_dir
+    command.clean_build_dir = patched_clean_build_dir
 
 
 def run_platformio_cli(*args, **kwargs):
@@ -65,6 +61,7 @@ def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
 
+<<<<<<< HEAD
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
         import platformio.__main__
         try:
@@ -75,8 +72,15 @@ def run_platformio_cli(*args, **kwargs):
             pass
         return run_external_command(platformio.__main__.main,
                                     *cmd, **kwargs)
+=======
+    if os.environ.get('ESPHOME_USE_SUBPROCESS') is not None:
+        return run_external_process(*cmd, **kwargs)
+>>>>>>> fb0f0ee785388bf0d6060556b1c912d9e51eb299
 
-    return run_external_process(*cmd, **kwargs)
+    import platformio.__main__
+    patch_structhash()
+    return run_external_command(platformio.__main__.main,
+                                *cmd, **kwargs)
 
 
 def run_platformio_cli_run(config, verbose, *args, **kwargs):
@@ -98,6 +102,7 @@ def run_upload(config, verbose, port):
 def run_idedata(config):
     args = ['-t', 'idedata']
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
+    stdout = decode_text(stdout)
     match = re.search(r'{.*}', stdout)
     if match is None:
         return IDEData(None)

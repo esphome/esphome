@@ -15,6 +15,7 @@ class HomeassistantBinarySensor : public binary_sensor::BinarySensor, public Com
 
  protected:
   std::string entity_id_;
+  bool initial_{true};
 };
 
 }  // namespace homeassistant
