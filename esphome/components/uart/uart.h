@@ -10,7 +10,7 @@ namespace uart {
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
  public:
-  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate);
+  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits);
 
   uint8_t read_byte();
   uint8_t peek_byte();
@@ -33,6 +33,7 @@ class ESP8266SoftwareSerial {
   size_t rx_buffer_size_{512};
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
+  uint8_t stop_bits_;
   ISRInternalGPIOPin *tx_pin_{nullptr};
   ISRInternalGPIOPin *rx_pin_{nullptr};
 };
@@ -72,9 +73,11 @@ class UARTComponent : public Component, public Stream {
 
   void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
+  void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
 
  protected:
   bool check_read_timeout_(size_t len = 1);
+  friend class UARTDevice;
 
   HardwareSerial *hw_serial_{nullptr};
 #ifdef ARDUINO_ARCH_ESP8266
@@ -83,6 +86,7 @@ class UARTComponent : public Component, public Stream {
   optional<uint8_t> tx_pin_;
   optional<uint8_t> rx_pin_;
   uint32_t baud_rate_;
+  uint8_t stop_bits_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -125,6 +129,9 @@ class UARTDevice : public Stream {
   size_t write(uint8_t data) override { return this->parent_->write(data); }
   int read() override { return this->parent_->read(); }
   int peek() override { return this->parent_->peek(); }
+
+  /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
+  void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1);
 
  protected:
   UARTComponent *parent_{nullptr};
