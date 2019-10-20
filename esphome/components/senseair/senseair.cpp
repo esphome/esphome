@@ -73,6 +73,7 @@ bool SenseAirComponent::senseair_write_command_(const uint8_t *command, uint8_t 
 void SenseAirComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "SenseAir:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
+  this->check_uart_settings(9600);
 }
 
 }  // namespace senseair
