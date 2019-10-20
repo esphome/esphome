@@ -59,7 +59,7 @@ def read_config(args):
         CORE.ace = args.ace
         f = data['file']
         if CORE.ace:
-            CORE.config_path = os.path.join(args.configuration, f)
+            CORE.config_path = os.path.join(args.configuration[0], f)
         else:
             CORE.config_path = data['file']
         vs = VSCodeResult()

@@ -19,15 +19,19 @@ void MQTTBinarySensorComponent::dump_config() {
   LOG_MQTT_COMPONENT(true, false)
 }
 MQTTBinarySensorComponent::MQTTBinarySensorComponent(binary_sensor::BinarySensor *binary_sensor)
-    : MQTTComponent(), binary_sensor_(binary_sensor) {}
+    : MQTTComponent(), binary_sensor_(binary_sensor) {
+  if (this->binary_sensor_->is_status_binary_sensor()) {
+    this->set_custom_state_topic(mqtt::global_mqtt_client->get_availability().topic);
+  }
+}
 std::string MQTTBinarySensorComponent::friendly_name() const { return this->binary_sensor_->get_name(); }
 
 void MQTTBinarySensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryConfig &config) {
   if (!this->binary_sensor_->get_device_class().empty())
     root["device_class"] = this->binary_sensor_->get_device_class();
-  if (this->is_status_)
+  if (this->binary_sensor_->is_status_binary_sensor())
     root["payload_on"] = mqtt::global_mqtt_client->get_availability().payload_available;
-  if (this->is_status_)
+  if (this->binary_sensor_->is_status_binary_sensor())
     root["payload_off"] = mqtt::global_mqtt_client->get_availability().payload_not_available;
   config.command_topic = false;
 }
@@ -40,13 +44,12 @@ bool MQTTBinarySensorComponent::send_initial_state() {
 }
 bool MQTTBinarySensorComponent::is_internal() { return this->binary_sensor_->is_internal(); }
 bool MQTTBinarySensorComponent::publish_state(bool state) {
-  if (this->is_status_)
+  if (this->binary_sensor_->is_status_binary_sensor())
     return true;
 
   const char *state_s = state ? "ON" : "OFF";
   return this->publish(this->get_state_topic_(), state_s);
 }
-void MQTTBinarySensorComponent::set_is_status(bool status) { this->is_status_ = status; }
 
 }  // namespace mqtt
 }  // namespace esphome

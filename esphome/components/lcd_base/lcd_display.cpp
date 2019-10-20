@@ -107,7 +107,7 @@ void LCDDisplay::update() {
   for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
     this->buffer_[i] = ' ';
 
-  this->writer_(*this);
+  this->call_writer();
   this->display();
 }
 void LCDDisplay::command_(uint8_t value) { this->send(value, false); }

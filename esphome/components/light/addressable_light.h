@@ -189,23 +189,7 @@ class ESPColorCorrection {
   ESPColorCorrection() : max_brightness_(255, 255, 255, 255) {}
   void set_max_brightness(const ESPColor &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
-  void calculate_gamma_table(float gamma) {
-    for (uint16_t i = 0; i < 256; i++) {
-      // corrected = val ^ gamma
-      auto corrected = static_cast<uint8_t>(roundf(255.0f * gamma_correct(i / 255.0f, gamma)));
-      this->gamma_table_[i] = corrected;
-    }
-    if (gamma == 0.0f) {
-      for (uint16_t i = 0; i < 256; i++)
-        this->gamma_reverse_table_[i] = i;
-      return;
-    }
-    for (uint16_t i = 0; i < 256; i++) {
-      // val = corrected ^ (1/gamma)
-      auto uncorrected = static_cast<uint8_t>(roundf(255.0f * powf(i / 255.0f, 1.0f / gamma)));
-      this->gamma_reverse_table_[i] = uncorrected;
-    }
-  }
+  void calculate_gamma_table(float gamma);
   inline ESPColor color_correct(ESPColor color) const ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
     return ESPColor(this->color_correct_red(color.red), this->color_correct_green(color.green),
@@ -372,23 +356,10 @@ class AddressableLight;
 
 int32_t interpret_index(int32_t index, int32_t size);
 
+class ESPRangeIterator;
+
 class ESPRangeView : public ESPColorSettable {
  public:
-  class Iterator {
-   public:
-    Iterator(ESPRangeView *range, int32_t i) : range_(range), i_(i) {}
-    Iterator operator++() {
-      this->i_++;
-      return *this;
-    }
-    bool operator!=(const Iterator &other) const { return this->i_ != other.i_; }
-    ESPColorView operator*() const;
-
-   protected:
-    ESPRangeView *range_;
-    int32_t i_;
-  };
-
   ESPRangeView(AddressableLight *parent, int32_t begin, int32_t an_end) : parent_(parent), begin_(begin), end_(an_end) {
     if (this->end_ < this->begin_) {
       this->end_ = this->begin_;
@@ -396,8 +367,8 @@ class ESPRangeView : public ESPColorSettable {
   }
 
   ESPColorView operator[](int32_t index) const;
-  Iterator begin() { return {this, this->begin_}; }
-  Iterator end() { return {this, this->end_}; }
+  ESPRangeIterator begin();
+  ESPRangeIterator end();
 
   void set(const ESPColor &color) override;
   ESPRangeView &operator=(const ESPColor &rhs) {
@@ -412,75 +383,39 @@ class ESPRangeView : public ESPColorSettable {
     this->set_hsv(rhs);
     return *this;
   }
-  ESPRangeView &operator=(const ESPRangeView &rhs) {
-    // If size doesn't match, error (todo warning)
-    if (rhs.size() != this->size())
-      return *this;
-
-    if (this->parent_ != rhs.parent_) {
-      for (int32_t i = 0; i < this->size(); i++)
-        (*this)[i].set(rhs[i].get());
-      return *this;
-    }
-
-    // If both equal, already done
-    if (rhs.begin_ == this->begin_)
-      return *this;
-
-    if (rhs.begin_ < this->begin_) {
-      // Copy into rhs
-      for (int32_t i = 0; i < this->size(); i++)
-        rhs[i].set((*this)[i].get());
-    } else {
-      // Copy into this
-      for (int32_t i = 0; i < this->size(); i++)
-        (*this)[i].set(rhs[i].get());
-    }
-
-    return *this;
-  }
-  void set_red(uint8_t red) override {
-    for (auto c : *this)
-      c.set_red(red);
-  }
-  void set_green(uint8_t green) override {
-    for (auto c : *this)
-      c.set_green(green);
-  }
-  void set_blue(uint8_t blue) override {
-    for (auto c : *this)
-      c.set_blue(blue);
-  }
-  void set_white(uint8_t white) override {
-    for (auto c : *this)
-      c.set_white(white);
-  }
-  void set_effect_data(uint8_t effect_data) override {
-    for (auto c : *this)
-      c.set_effect_data(effect_data);
-  }
-  void fade_to_white(uint8_t amnt) override {
-    for (auto c : *this)
-      c.fade_to_white(amnt);
-  }
-  void fade_to_black(uint8_t amnt) override {
-    for (auto c : *this)
-      c.fade_to_white(amnt);
-  }
-  void lighten(uint8_t delta) override {
-    for (auto c : *this)
-      c.lighten(delta);
-  }
-  void darken(uint8_t delta) override {
-    for (auto c : *this)
-      c.darken(delta);
-  }
+  ESPRangeView &operator=(const ESPRangeView &rhs);
+  void set_red(uint8_t red) override;
+  void set_green(uint8_t green) override;
+  void set_blue(uint8_t blue) override;
+  void set_white(uint8_t white) override;
+  void set_effect_data(uint8_t effect_data) override;
+  void fade_to_white(uint8_t amnt) override;
+  void fade_to_black(uint8_t amnt) override;
+  void lighten(uint8_t delta) override;
+  void darken(uint8_t delta) override;
   int32_t size() const { return this->end_ - this->begin_; }
 
  protected:
+  friend ESPRangeIterator;
+
   AddressableLight *parent_;
   int32_t begin_;
   int32_t end_;
+};
+
+class ESPRangeIterator {
+ public:
+  ESPRangeIterator(const ESPRangeView &range, int32_t i) : range_(range), i_(i) {}
+  ESPRangeIterator operator++() {
+    this->i_++;
+    return *this;
+  }
+  bool operator!=(const ESPRangeIterator &other) const { return this->i_ != other.i_; }
+  ESPColorView operator*() const;
+
+ protected:
+  ESPRangeView range_;
+  int32_t i_;
 };
 
 class AddressableLight : public LightOutput, public Component {
@@ -495,8 +430,8 @@ class AddressableLight : public LightOutput, public Component {
     return ESPRangeView(this, from, to);
   }
   ESPRangeView all() { return ESPRangeView(this, 0, this->size()); }
-  ESPRangeView::Iterator begin() { return this->all().begin(); }
-  ESPRangeView::Iterator end() { return this->all().end(); }
+  ESPRangeIterator begin() { return this->all().begin(); }
+  ESPRangeIterator end() { return this->all().end(); }
   void shift_left(int32_t amnt) {
     if (amnt < 0) {
       this->shift_right(-amnt);
@@ -517,23 +452,7 @@ class AddressableLight : public LightOutput, public Component {
   }
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
-  void write_state(LightState *state) override {
-    auto val = state->current_values;
-    auto max_brightness = static_cast<uint8_t>(roundf(val.get_brightness() * val.get_state() * 255.0f));
-    this->correction_.set_local_brightness(max_brightness);
-
-    if (this->is_effect_active())
-      return;
-
-    // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-    ESPColor color = ESPColor(uint8_t(roundf(val.get_red() * 255.0f)), uint8_t(roundf(val.get_green() * 255.0f)),
-                              uint8_t(roundf(val.get_blue() * 255.0f)),
-                              // white is not affected by brightness; so manually scale by state
-                              uint8_t(roundf(val.get_white() * val.get_state() * 255.0f)));
-
-    this->all() = color;
-    this->schedule_show();
-  }
+  void write_state(LightState *state) override;
   void set_correction(float red, float green, float blue, float white = 1.0f) {
     this->correction_.set_max_brightness(ESPColor(uint8_t(roundf(red * 255.0f)), uint8_t(roundf(green * 255.0f)),
                                                   uint8_t(roundf(blue * 255.0f)), uint8_t(roundf(white * 255.0f))));
@@ -573,6 +492,8 @@ class AddressableLight : public LightOutput, public Component {
   power_supply::PowerSupplyRequester power_;
 #endif
   LightState *state_parent_{nullptr};
+  float last_transition_progress_{0.0f};
+  float accumulated_alpha_{0.0f};
 };
 
 }  // namespace light

@@ -16,7 +16,9 @@ class MAX7219Component;
 
 using max7219_writer_t = std::function<void(MAX7219Component &)>;
 
-class MAX7219Component : public PollingComponent, public spi::SPIDevice {
+class MAX7219Component : public PollingComponent,
+                         public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                               spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
   void set_writer(max7219_writer_t &&writer);
 
@@ -54,7 +56,6 @@ class MAX7219Component : public PollingComponent, public spi::SPIDevice {
  protected:
   void send_byte_(uint8_t a_register, uint8_t data);
   void send_to_all_(uint8_t a_register, uint8_t data);
-  bool is_device_msb_first() override;
 
   uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_{1};

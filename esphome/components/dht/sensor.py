@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_HUMIDITY, CONF_ID, CONF_MODEL, CONF_PIN, CONF_TEMPERATURE, \
-    CONF_UPDATE_INTERVAL, ICON_THERMOMETER, UNIT_CELSIUS, ICON_WATER_PERCENT, UNIT_PERCENT
+    ICON_THERMOMETER, UNIT_CELSIUS, ICON_WATER_PERCENT, UNIT_PERCENT
 from esphome.cpp_helpers import gpio_pin_expression
 
 dht_ns = cg.esphome_ns.namespace('dht')
@@ -24,7 +24,6 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),
     cv.Optional(CONF_MODEL, default='auto detect'): cv.enum(DHT_MODELS, upper=True, space='_'),
-    cv.Optional(CONF_UPDATE_INTERVAL, default='60s'): cv.update_interval,
 }).extend(cv.polling_component_schema('60s'))
 
 

@@ -16,14 +16,16 @@ void HomeassistantBinarySensor::setup() {
         ESP_LOGW(TAG, "Can't convert '%s' to binary state!", state.c_str());
         break;
       case PARSE_ON:
-        ESP_LOGD(TAG, "'%s': Got state ON", this->entity_id_.c_str());
-        this->publish_state(true);
-        break;
       case PARSE_OFF:
-        ESP_LOGD(TAG, "'%s': Got state OFF", this->entity_id_.c_str());
-        this->publish_state(false);
+        bool new_state = val == PARSE_ON;
+        ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
+        if (this->initial_)
+          this->publish_initial_state(new_state);
+        else
+          this->publish_state(new_state);
         break;
     }
+    this->initial_ = false;
   });
 }
 void HomeassistantBinarySensor::dump_config() {

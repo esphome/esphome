@@ -5,6 +5,7 @@ import codecs
 import collections
 import fnmatch
 import os.path
+import re
 import subprocess
 import sys
 
@@ -28,12 +29,14 @@ EXECUTABLE_BIT = {
     s[3].strip(): int(s[0]) for s in lines
 }
 files = [s[3].strip() for s in lines]
+files = list(filter(os.path.exists, files))
 files.sort()
 
-file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico',
-              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg')
+file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
+              '.py', '.html', '.js', '.md', '.sh', '.css', '.proto', '.conf', '.cfg',
+              '.woff', '.woff2', '')
 cpp_include = ('*.h', '*.c', '*.cpp', '*.tcc')
-ignore_types = ('.ico',)
+ignore_types = ('.ico', '.woff', '.woff2', '')
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []
@@ -104,7 +107,7 @@ def lint_ino(fname):
 
 @lint_file_check(exclude=['*{}'.format(f) for f in file_types] + [
     '.clang-*', '.dockerignore', '.editorconfig', '*.gitignore', 'LICENSE', 'pylintrc',
-    'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*'
+    'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*',
 ])
 def lint_ext_check(fname):
     return "This file extension is not a registered file type. If this is an error, please " \
@@ -124,7 +127,6 @@ def lint_executable_bit(fname):
 
 @lint_content_find_check('\t', exclude=[
     'esphome/dashboard/static/ace.js', 'esphome/dashboard/static/ext-searchbox.js',
-    'script/.neopixelbus.patch',
 ])
 def lint_tabs(fname):
     return "File contains tab character. Please convert tabs to spaces."
@@ -135,11 +137,24 @@ def lint_newline(fname):
     return "File contains windows newline. Please set your editor to unix newline mode."
 
 
-@lint_content_check()
+@lint_content_check(exclude=['*.svg'])
 def lint_end_newline(fname, content):
     if content and not content.endswith('\n'):
         return "File does not end with a newline, please add an empty line at the end of the file."
     return None
+
+
+@lint_content_check(include=['*.cpp', '*.h', '*.tcc'],
+                    exclude=['esphome/core/log.h'])
+def lint_no_defines(fname, content):
+    errors = []
+    for match in re.finditer(r'#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)', content, re.MULTILINE):
+        errors.append(
+            "#define macros for integer constants are not allowed, please use "
+            "`static const uint8_t {} = {};` style instead (replace uint8_t with the appropriate "
+            "datatype). See also Google styleguide.".format(match.group(1), match.group(2))
+        )
+    return errors
 
 
 def relative_cpp_search_text(fname, content):
@@ -164,7 +179,8 @@ def relative_py_search_text(fname, content):
     return 'esphome.components.{}'.format(integration)
 
 
-@lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'])
+@lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'],
+                         exclude=['esphome/components/web_server/__init__.py'])
 def lint_relative_py_import(fname):
     return ("Component contains absolute import - Components must always use "
             "relative imports within the integration.\n"
@@ -229,7 +245,7 @@ def add_errors(fname, errs):
 for fname in files:
     _, ext = os.path.splitext(fname)
     run_checks(LINT_FILE_CHECKS, fname, fname)
-    if ext in ('.ico',):
+    if ext in ignore_types:
         continue
     try:
         with codecs.open(fname, 'r', encoding='utf-8') as f_handle:

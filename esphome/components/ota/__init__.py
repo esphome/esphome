@@ -22,6 +22,8 @@ def to_code(config):
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add(var.set_auth_password(config[CONF_PASSWORD]))
 
+    yield cg.register_component(var, config)
+
     if config[CONF_SAFE_MODE]:
         cg.add(var.start_safe_mode())
 
@@ -29,6 +31,3 @@ def to_code(config):
         cg.add_library('Update', None)
     elif CORE.is_esp32:
         cg.add_library('Hash', None)
-
-    # Register at end for safe mode
-    yield cg.register_component(var, config)

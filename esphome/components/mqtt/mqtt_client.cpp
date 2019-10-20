@@ -360,18 +360,19 @@ bool MQTTClientComponent::publish(const std::string &topic, const char *payload,
   }
   bool logging_topic = topic == this->log_message_.topic;
   uint16_t ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
-  yield();
+  delay(0);
   if (ret == 0 && !logging_topic && this->is_connected()) {
-    delay(5);
+    delay(0);
     ret = this->mqtt_client_.publish(topic.c_str(), qos, retain, payload, payload_length);
-    yield();
+    delay(0);
   }
 
   if (!logging_topic) {
     if (ret != 0) {
       ESP_LOGV(TAG, "Publish(topic='%s' payload='%s' retain=%d)", topic.c_str(), payload, retain);
     } else {
-      ESP_LOGW(TAG, "Publish failed for topic='%s' will retry later..", topic.c_str());
+      ESP_LOGV(TAG, "Publish failed for topic='%s' (len=%u). will retry later..", topic.c_str(),
+               payload_length);  // NOLINT
       this->status_momentary_warning("publish", 1000);
     }
   }
