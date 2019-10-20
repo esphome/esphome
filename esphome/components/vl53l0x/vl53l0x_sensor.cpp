@@ -1,6 +1,15 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+/*
+ * Most of the code in this integration is based on the VL53L0x library
+ * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
+ * API from ST.
+ *
+ * For more information about licensing, please view the included LICENSE.txt file
+ * in the vl53l0x integration directory.
+ */
+
 namespace esphome {
 namespace vl53l0x {
 
