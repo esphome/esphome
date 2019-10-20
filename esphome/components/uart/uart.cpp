@@ -106,7 +106,7 @@ void UARTComponent::setup() {
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
-  uint32_t mode = UART_NB_BIT_8 | UART_PARITY_NONE | UART_NB_STOP_BIT_2;
+  uint32_t mode = UART_NB_BIT_8 | UART_PARITY_NONE;
   if (this->stop_bits_ == 1)
     mode |= UART_NB_STOP_BIT_1;
   else
