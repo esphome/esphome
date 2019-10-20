@@ -309,6 +309,13 @@ sensor:
       name: "PZEMAC Frequency"
     power_factor:
       name: "PZEMAC Power Factor"
+  - platform: pzemdc
+    voltage:
+      name: "PZEMDC Voltage"
+    current:
+      name: "PZEMDC Current"
+    power:
+      name: "PZEMDC Power"
 
 time:
 - platform: homeassistant
