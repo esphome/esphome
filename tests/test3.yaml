@@ -291,6 +291,24 @@ sensor:
       name: ADE7953 Active Power A
     active_power_b:
       name: ADE7953 Active Power B
+  - platform: pzem004t
+    voltage:
+      name: "PZEM00T Voltage"
+    current:
+      name: "PZEM004T Current"
+    power:
+      name: "PZEM004T Power"
+  - platform: pzemac
+    voltage:
+      name: "PZEMAC Voltage"
+    current:
+      name: "PZEMAC Current"
+    power:
+      name: "PZEMAC Power"
+    frequency:
+      name: "PZEMAC Frequency"
+    power_factor:
+      name: "PZEMAC Power Factor"
 
 time:
 - platform: homeassistant
