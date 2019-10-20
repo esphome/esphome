@@ -134,6 +134,24 @@ class I2CComponent : public Component {
 extern uint8_t next_i2c_bus_num_;
 #endif
 
+class I2CDevice;
+
+class I2CRegister {
+ public:
+  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
+
+  I2CRegister &operator=(uint8_t value);
+  I2CRegister &operator=(const std::vector<uint8_t> &value);
+  I2CRegister &operator&=(uint8_t value);
+  I2CRegister &operator|=(uint8_t value);
+
+  uint8_t get();
+
+ protected:
+  I2CDevice *parent_;
+  uint8_t register_;
+};
+
 /** All components doing communication on the I2C bus should subclass I2CDevice.
  *
  * This class stores 1. the address of the i2c device and has a helper function to allow
@@ -152,6 +170,8 @@ class I2CDevice {
 
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
+
+  I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
 
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
