@@ -1,0 +1,32 @@
+name: ESP Async TCP CI
+
+on:
+  push:
+    branches:
+    - master
+    - release/*
+  pull_request:
+
+jobs:
+
+  build-arduino:
+    name: Arduino on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build Tests
+      run: bash ./.github/scripts/on-push.sh 0 1
+
+  build-pio:
+    name: PlatformIO on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macOS-latest]
+    steps:
+    - uses: actions/checkout@v1
+    - name: Build Tests
+      run: bash ./.github/scripts/on-push.sh 1 1

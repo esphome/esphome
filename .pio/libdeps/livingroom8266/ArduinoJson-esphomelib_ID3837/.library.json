@@ -1,0 +1,49 @@
+{
+    "name": "ArduinoJson-esphomelib", 
+    "keywords": [
+        "json", 
+        "rest", 
+        "http", 
+        "web"
+    ], 
+    "description": "Fork of the excellent ArduinoJson for easier building in esphomelib", 
+    "homepage": "https://arduinojson.org/", 
+    "repository": {
+        "type": "git", 
+        "url": "https://github.com/OttoWinter/ArduinoJson.git"
+    }, 
+    "version": "5.13.3", 
+    "authors": [
+        {
+            "email": null, 
+            "url": "https://blog.benoitblanchon.fr", 
+            "maintainer": false, 
+            "name": "Benoit Blanchon"
+        }
+    ], 
+    "frameworks": [
+        "arduino"
+    ], 
+    "platforms": [
+        "atmelavr", 
+        "atmelsam", 
+        "espressif32", 
+        "espressif8266", 
+        "intel_arc32", 
+        "microchippic32", 
+        "nordicnrf51", 
+        "nordicnrf52", 
+        "ststm32", 
+        "teensy", 
+        "timsp430"
+    ], 
+    "export": {
+        "exclude": [
+            "fuzzing", 
+            "scripts", 
+            "test", 
+            "third-party"
+        ]
+    }, 
+    "id": 3837
+}

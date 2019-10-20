@@ -1,0 +1,32 @@
+{
+    "license": "LGPL-3.0", 
+    "name": "ESPAsyncTCP-esphome", 
+    "repository": {
+        "url": "https://github.com/OttoWinter/ESPAsyncTCP.git", 
+        "type": "git"
+    }, 
+    "platforms": [
+        "espressif8266"
+    ], 
+    "frameworks": [
+        "arduino"
+    ], 
+    "version": "1.2.2", 
+    "build": {
+        "libCompatMode": 2
+    }, 
+    "authors": [
+        {
+            "url": null, 
+            "maintainer": true, 
+            "email": null, 
+            "name": "Hristo Gochkov"
+        }
+    ], 
+    "keywords": [
+        "async", 
+        "tcp"
+    ], 
+    "id": 6757, 
+    "description": "Asynchronous TCP Library for ESP8266"
+}

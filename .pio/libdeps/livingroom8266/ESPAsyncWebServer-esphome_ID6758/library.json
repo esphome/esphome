@@ -1,0 +1,33 @@
+{
+  "name":"ESPAsyncWebServer-esphome",
+  "description":"Asynchronous HTTP and WebSocket Server Library for ESP8266 and ESP32",
+  "keywords":"http,async,websocket,webserver",
+  "authors":
+  {
+    "name": "Hristo Gochkov",
+    "maintainer": true
+  },
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/OttoWinter/ESPAsyncWebServer.git"
+  },
+  "version": "1.2.3",
+  "license": "LGPL-3.0",
+  "frameworks": "arduino",
+  "platforms": ["espressif8266", "espressif32"],
+  "dependencies": [
+    {
+      "name": "ESPAsyncTCP-esphome",
+      "platforms": "espressif8266"
+    },
+    {
+      "name": "AsyncTCP-esphome",
+      "platforms": "espressif32"
+    },
+    {
+      "name": "Hash",
+      "platforms": "espressif8266"
+    }
+  ]
+}

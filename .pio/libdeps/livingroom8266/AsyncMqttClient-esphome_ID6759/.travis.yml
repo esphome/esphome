@@ -1,0 +1,20 @@
+language: python
+python:
+  - "2.7"
+
+cache:
+  directories:
+    - "~/.platformio"
+
+env:
+  - PLATFORMIO_CI_SRC=examples/FullyFeatured-ESP8266 PLATFORMIO_CI_EXTRA_ARGS="--board=esp01 --board=nodemcuv2"
+  - PLATFORMIO_CI_SRC=examples/FullyFeatured-ESP32 PLATFORMIO_CI_EXTRA_ARGS="--board=lolin32"
+  - CPPLINT=true
+
+install:
+  - pip install -U https://github.com/platformio/platformio-core/archive/develop.zip
+  - pip install -U cpplint
+  - platformio lib -g install file://.
+
+script:
+  - if [[ "$CPPLINT" ]]; then make cpplint; else platformio ci $PLATFORMIO_CI_EXTRA_ARGS; fi

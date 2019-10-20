@@ -1,0 +1,47 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+AsyncMqttClient	KEYWORD1
+AsyncMqttClientDisconnectReason	KEYWORD1
+AsyncMqttClientMessageProperties	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+setKeepAlive	KEYWORD2
+setClientId	KEYWORD2
+setCleanSession	KEYWORD2
+setMaxTopicLength	KEYWORD2
+setCredentials	KEYWORD2
+setWill	KEYWORD2
+setServer	KEYWORD2
+setSecure	KEYWORD2
+addServerFingerprint	KEYWORD2
+
+onConnect	KEYWORD2
+onDisconnect	KEYWORD2
+onSubscribe	KEYWORD2
+onUnsubscribe	KEYWORD2
+onMessage	KEYWORD2
+onPublish	KEYWORD2
+
+connected	KEYWORD2
+connect	KEYWORD2
+disconnect	KEYWORD2
+subscribe	KEYWORD2
+unsubscribe	KEYWORD2
+publish	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+TCP_DISCONNECTED	LITERAL1
+
+MQTT_UNACCEPTABLE_PROTOCOL_VERSION	LITERAL1
+MQTT_IDENTIFIER_REJECTED	LITERAL1
+MQTT_SERVER_UNAVAILABLE	LITERAL1
+MQTT_MALFORMED_CREDENTIALS	LITERAL1
+MQTT_NOT_AUTHORIZED	LITERAL1

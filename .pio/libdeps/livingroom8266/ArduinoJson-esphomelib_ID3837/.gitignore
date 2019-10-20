@@ -1,0 +1,11 @@
+.DS_Store
+/.idea
+/build
+/bin
+/lib
+/sftp-config.json
+.tags
+.tags_sorted_by_file
+/fuzzing/*_fuzzer
+/fuzzing/*_fuzzer.options
+/fuzzing/*_fuzzer_seed_corpus.zip

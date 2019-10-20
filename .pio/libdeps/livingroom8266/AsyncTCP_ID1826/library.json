@@ -1,0 +1,22 @@
+{
+  "name":"AsyncTCP",
+  "description":"Asynchronous TCP Library for ESP32",
+  "keywords":"async,tcp",
+  "authors":
+  {
+    "name": "Hristo Gochkov",
+    "maintainer": true
+  },
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/me-no-dev/AsyncTCP.git"
+  },
+  "version": "1.0.3",
+  "license": "LGPL-3.0",
+  "frameworks": "arduino",
+  "platforms": "espressif32",
+  "build": {
+    "libCompatMode": 2
+  }  
+}
