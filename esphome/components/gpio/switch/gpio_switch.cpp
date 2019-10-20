@@ -87,7 +87,7 @@ void GPIOSwitch::write_state(bool state) {
         this->write_state(state);
       });
     }
-  } else if (this->interlock_wait_time_ != 0){
+  } else if (this->interlock_wait_time_ != 0) {
     // If we are switched off during the interlock wait time, cancel any pending
     // re-activations
     this->cancel_timeout("interlock");
