@@ -25,7 +25,7 @@ void UARTComponent::setup() {
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  SerialConfig config = SERIAL_8N1;
+  uint32_t config = SERIAL_8N1;
   if (this->stop_bits_ == 2)
     config = SERIAL_8N2;
   this->hw_serial_->begin(this->baud_rate_, config, rx, tx);
