@@ -9,7 +9,8 @@ static const char *TAG = "pzem004t";
 void PZEM004T::loop() {
   const uint32_t now = millis();
   if (now - this->last_read_ > 500 && this->available()) {
-    this->flush();
+    while (this->available())
+      this->read();
     this->last_read_ = now;
   }
 

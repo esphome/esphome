@@ -36,6 +36,7 @@ void Tuya::dump_config() {
     else
       ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
+  this->check_uart_settings(9600);
 }
 
 bool Tuya::validate_message_() {
