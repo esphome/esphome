@@ -94,6 +94,7 @@ void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  this->check_uart_settings(9600);
 
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
