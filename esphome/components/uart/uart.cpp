@@ -20,10 +20,6 @@ void UARTComponent::setup() {
   // is 1 we still want to use Serial.
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
-  } else if (this->tx_pin_.value_or(9) == 9 && this->rx_pin_.value_or(10) == 10) {
-    this->hw_serial_ = &Serial1;
-  } else if (this->tx_pin_.value_or(16) == 16 && this->rx_pin_.value_or(17) == 17) {
-    this->hw_serial_ = &Serial2;
   } else {
     this->hw_serial_ = new HardwareSerial(next_uart_num++);
   }
@@ -295,12 +291,12 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   this->write_bit_(true, &wait, start);
   enable_interrupts();
 }
-void ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
+void ICACHE_RAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
   while (ESP.getCycleCount() - start < *wait)
     ;
   *wait += this->bit_time_;
 }
-bool ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
+bool ICACHE_RAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint32_t &start) {
   this->wait_(wait, start);
   return this->rx_pin_->digital_read();
 }
@@ -320,7 +316,9 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
     return 0;
   return this->rx_buffer_[this->rx_out_pos_];
 }
-void ESP8266SoftwareSerial::flush() { this->rx_in_pos_ = this->rx_out_pos_ = 0; }
+void ESP8266SoftwareSerial::flush() {
+  // Flush is a NO-OP with software serial, all bytes are written immediately.
+}
 int ESP8266SoftwareSerial::available() {
   int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
   if (avail < 0)

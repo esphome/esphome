@@ -802,7 +802,7 @@ def strip_default_ids(config):
     return config
 
 
-def read_config(verbose):
+def read_config():
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
         res = load_config()
@@ -810,7 +810,7 @@ def read_config(verbose):
         _LOGGER.error(u"Error while reading config: %s", err)
         return None
     if res.errors:
-        if not verbose:
+        if not CORE.verbose:
             res = strip_default_ids(res)
 
         safe_print(color('bold_red', u"Failed config"))
