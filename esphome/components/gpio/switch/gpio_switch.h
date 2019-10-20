@@ -26,6 +26,7 @@ class GPIOSwitch : public switch_::Switch, public Component {
   void setup() override;
   void dump_config() override;
   void set_interlock(const std::vector<Switch *> &interlock);
+  void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }
 
  protected:
   void write_state(bool state) override;
@@ -33,6 +34,7 @@ class GPIOSwitch : public switch_::Switch, public Component {
   GPIOPin *pin_;
   GPIOSwitchRestoreMode restore_mode_{GPIO_SWITCH_RESTORE_DEFAULT_OFF};
   std::vector<Switch *> interlock_;
+  uint32_t interlock_wait_time_{0};
 };
 
 }  // namespace gpio
