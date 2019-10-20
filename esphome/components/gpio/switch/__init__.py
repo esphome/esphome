@@ -15,12 +15,14 @@ RESTORE_MODES = {
     'ALWAYS_ON': GPIOSwitchRestoreMode.GPIO_SWITCH_ALWAYS_ON,
 }
 
+CONF_INTERLOCK_WAIT_TIME = 'interlock_wait_time'
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(GPIOSwitch),
     cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE_DEFAULT_OFF'):
         cv.enum(RESTORE_MODES, upper=True, space='_'),
     cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
+    cv.Optional(CONF_INTERLOCK_WAIT_TIME, default='0ms'): cv.positive_time_period_milliseconds,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -40,3 +42,4 @@ def to_code(config):
             lock = yield cg.get_variable(it)
             interlock.append(lock)
         cg.add(var.set_interlock(interlock))
+        cg.add(var.set_interlock_wait_time(config[CONF_INTERLOCK_WAIT_TIME]))
