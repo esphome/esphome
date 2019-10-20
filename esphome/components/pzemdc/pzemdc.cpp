@@ -22,10 +22,10 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
   // Id Cc Sz Volt- Curre Power------ Energy----- HiAlm LoAlm Crc--
 
   auto pzem_get_16bit = [&](size_t i) -> uint16_t {
-    return (uint16_t(data[i+0]) << 8) | (uint16_t(data[i+1]) << 0);
+    return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
   };
   auto pzem_get_32bit = [&](size_t i) -> uint32_t {
-    return (uint32_t(pzem_get_16bit(i+2)) << 16) | (uint32_t(pzem_get_16bit(i+0)) << 0);
+    return (uint32_t(pzem_get_16bit(i + 2)) << 16) | (uint32_t(pzem_get_16bit(i + 0)) << 0);
   };
 
   uint16_t raw_voltage = pzem_get_16bit(0);
@@ -37,8 +37,7 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_power = pzem_get_32bit(4);
   float power = raw_power / 10.0f;  // max 429496729.5 W
 
-  ESP_LOGD(TAG, "PZEM DC: V=%.1f V, I=%.3f A, P=%.1f W",
-           voltage, current, power);
+  ESP_LOGD(TAG, "PZEM DC: V=%.1f V, I=%.3f A, P=%.1f W", voltage, current, power);
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
   if (this->current_sensor_ != nullptr)
@@ -47,9 +46,7 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_sensor_->publish_state(power);
 }
 
-void PZEMDC::update() {
-  this->send(PZEM_CMD_READ_IN_REGISTERS, 0, 8);
-}
+void PZEMDC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, 8); }
 
 }  // namespace pzemdc
 }  // namespace esphome

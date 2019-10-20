@@ -21,10 +21,10 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   // Id Cc Sz Volt- Current---- Power------ Energy----- Frequ PFact Alarm Crc--
 
   auto pzem_get_16bit = [&](size_t i) -> uint16_t {
-    return (uint16_t(data[i+0]) << 8) | (uint16_t(data[i+1]) << 0);
+    return (uint16_t(data[i + 0]) << 8) | (uint16_t(data[i + 1]) << 0);
   };
   auto pzem_get_32bit = [&](size_t i) -> uint32_t {
-    return (uint32_t(pzem_get_16bit(i+2)) << 16) | (uint32_t(pzem_get_16bit(i+0)) << 0);
+    return (uint32_t(pzem_get_16bit(i + 2)) << 16) | (uint32_t(pzem_get_16bit(i + 0)) << 0);
   };
 
   uint16_t raw_voltage = pzem_get_16bit(0);
@@ -42,8 +42,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint16_t raw_power_factor = pzem_get_16bit(16);
   float power_factor = raw_power_factor / 100.0f;
 
-  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, F=%.1f Hz, PF=%.2f",
-           voltage, current, active_power, frequency, power_factor);
+  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, F=%.1f Hz, PF=%.2f", voltage, current, active_power, frequency,
+           power_factor);
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
   if (this->current_sensor_ != nullptr)
@@ -56,9 +56,7 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->power_factor_sensor_->publish_state(power_factor);
 }
 
-void PZEMAC::update() {
-  this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT);
-}
+void PZEMAC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, PZEM_REGISTER_COUNT); }
 
 }  // namespace pzemac
 }  // namespace esphome

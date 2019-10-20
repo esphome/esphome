@@ -365,12 +365,12 @@ int UARTComponent::peek() {
 
 void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
   if (this->parent_->baud_rate_ != baud_rate) {
-    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!",
-             baud_rate, this->parent_->baud_rate_);
+    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
+             this->parent_->baud_rate_);
   }
   if (this->parent_->stop_bits_ != stop_bits) {
-    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!",
-             stop_bits, this->parent_->stop_bits_);
+    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
+             this->parent_->stop_bits_);
   }
 }
 

@@ -12,7 +12,7 @@ class Modbus : public uart::UARTDevice, public Component {
  public:
   Modbus() = default;
 
-  void loop();
+  void loop() override;
 
   void dump_config() override;
 
@@ -39,6 +39,7 @@ class ModbusDevice {
   void send(uint8_t function, uint16_t start_address, uint16_t register_count) {
     this->parent_->send(this->address_, function, start_address, register_count);
   }
+
  protected:
   friend Modbus;
 
