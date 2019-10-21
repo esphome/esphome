@@ -1,4 +1,4 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:2.0.0
+ARG BUILD_FROM=esphome/esphome-base-amd64:2.0.1
 FROM ${BUILD_FROM}
 
 COPY . .
