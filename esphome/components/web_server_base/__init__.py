@@ -3,7 +3,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID
 from esphome.core import coroutine_with_priority, CORE
 
-DEPENDENCIES = ['network', 'async_tcp']
+DEPENDENCIES = ['network']
 AUTO_LOAD = ['async_tcp']
 
 web_server_base_ns = cg.esphome_ns.namespace('web_server_base')
