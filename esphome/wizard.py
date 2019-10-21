@@ -228,7 +228,7 @@ def wizard(path):
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
-            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists."))
+            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists.".format(board)))
             safe_print()
             sleep(0.25)
             safe_print()
