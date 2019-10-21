@@ -185,6 +185,7 @@ sensor:
     accuracy_decimals: 5
     expire_after: 120s
     setup_priority: -100
+    force_update: true
     filters:
       - offset: 2.0
       - multiply: 1.2

@@ -406,6 +406,7 @@ message ListEntitiesSensorResponse {
   string icon = 5;
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
+  bool force_update = 8;
 }
 message SensorStateResponse {
   option (id) = 25;

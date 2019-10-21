@@ -364,6 +364,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string icon{};                 // NOLINT
   std::string unit_of_measurement{};  // NOLINT
   int32_t accuracy_decimals{0};       // NOLINT
+  bool force_update{false};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
