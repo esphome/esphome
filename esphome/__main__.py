@@ -509,6 +509,11 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
+    if IS_PY2:
+        _LOGGER.warn("You're using ESPHome with python 2. Support for python 2 is deprecated and "
+                     "will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 or "
+                     "higher.")
+
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
