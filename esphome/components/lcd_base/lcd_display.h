@@ -24,7 +24,7 @@ class LCDDisplay : public PollingComponent {
   void update() override;
   void display();
   //// Clear LCD display
-  void clear(void);
+  void clear();
 
   /// Print the given text at the specified column and row.
   void print(uint8_t column, uint8_t row, const char *str);
