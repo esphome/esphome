@@ -37,7 +37,7 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
-  ESP_LOGD(TAG, "add trigger for canid:%d", trigger->can_id_);
+  ESP_LOGVV(TAG, "add trigger for canid:%d", trigger->can_id_);
   this->triggers_.push_back(trigger);
 };
 
