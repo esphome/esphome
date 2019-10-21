@@ -1359,6 +1359,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->accuracy_decimals = value.as_int32();
       return true;
     }
+    case 8: {
+      this->force_update = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -1407,6 +1411,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon);
   buffer.encode_string(6, this->unit_of_measurement);
   buffer.encode_int32(7, this->accuracy_decimals);
+  buffer.encode_bool(8, this->force_update);
 }
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1439,6 +1444,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("  accuracy_decimals: ");
   sprintf(buffer, "%d", this->accuracy_decimals);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  force_update: ");
+  out.append(YESNO(this->force_update));
   out.append("\n");
   out.append("}");
 }
