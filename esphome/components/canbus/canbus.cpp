@@ -30,7 +30,7 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
 
   for (int i = 0; i < size; i++) {
     can_message.data[i] = data[i];
-    ESP_LOGD(TAG, "data[%d] = %02x", i, can_message.data[i]);
+    ESP_LOGVV(TAG, "data[%d] = %02x", i, can_message.data[i]);
   }
 
   this->send_message_(&can_message);
