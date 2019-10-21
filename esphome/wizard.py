@@ -220,7 +220,7 @@ def wizard(path):
     else:
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
         boards = list(ESP8266_BOARD_PINS.keys())
-    safe_print("Options: {}".format(', '.join(boards)))
+    safe_print("Options: {}".format(', '.join(sorted(boards))))
 
     while True:
         board = safe_input(color("bold_white", "(board): "))
