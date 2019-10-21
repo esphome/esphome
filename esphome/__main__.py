@@ -510,9 +510,9 @@ def run_esphome(argv):
         return 1
 
     if IS_PY2:
-        _LOGGER.warn("You're using ESPHome with python 2. Support for python 2 is deprecated and "
-                     "will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 or "
-                     "higher.")
+        _LOGGER.warning("You're using ESPHome with python 2. Support for python 2 is deprecated "
+                        "and will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 "
+                        "or higher.")
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
