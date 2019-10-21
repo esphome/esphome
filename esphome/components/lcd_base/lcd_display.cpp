@@ -148,7 +148,7 @@ void LCDDisplay::printf(const char *format, ...) {
   if (ret > 0)
     this->print(0, 0, buffer);
 }
-void LCDDisplay::clear(){
+void LCDDisplay::clear() {
   // clear display, also sets DDRAM address to 0 (home)
   this->command_(LCD_DISPLAY_COMMAND_CLEAR_DISPLAY);
   delay(2);
