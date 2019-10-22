@@ -8,8 +8,6 @@ static const char *TAG = "http_request";
 
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
-  ESP_LOGCONFIG(TAG, "  URL: %s", this->url_);
-  ESP_LOGCONFIG(TAG, "  Method: %s", this->method_);
   ESP_LOGCONFIG(TAG, "  Timeout: %ums", this->timeout_);
   if (this->useragent_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
