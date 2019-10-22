@@ -43,7 +43,7 @@ uint16_t crc16(uint8_t *data, uint8_t len) {
 bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
-  uint8_t *raw = &this->rx_buffer_[0];
+  const uint8_t *raw = &this->rx_buffer_[0];
 
   // Byte 0: modbus address (match all)
   if (at == 0)
@@ -69,7 +69,7 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
     return true;
   // Byte 3+len+1: CRC_HI (over all bytes)
   uint16_t computed_crc = crc16(raw, 3 + data_len);
-  uint16_t remote_crc = uint16_t(raw[3 + data_len]) | (uint16_t(raw[3 + data_len]) << 8);
+  uint16_t remote_crc = uint16_t(raw[3 + data_len]) | (uint16_t(raw[3 + data_len + 1]) << 8);
   if (computed_crc != remote_crc) {
     ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
     return false;
