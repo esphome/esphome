@@ -162,10 +162,16 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     conf.sta.channel = *ap.get_channel();
   }
 
-  esp_err_t err = esp_wifi_disconnect();
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
-    return false;
+  wifi_config_t current_conf;
+  esp_err_t err;
+  esp_wifi_get_config(WIFI_IF_STA, &current_conf);
+
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+    err = esp_wifi_disconnect();
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
+      return false;
+    }
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);

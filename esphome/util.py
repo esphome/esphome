@@ -9,7 +9,7 @@ import subprocess
 import sys
 
 from esphome import const
-from esphome.py_compat import IS_PY2
+from esphome.py_compat import IS_PY2, decode_text, text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -88,23 +88,66 @@ def shlex_quote(s):
     return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
 
 
+ANSI_ESCAPE = re.compile(r'\033[@-_][0-?]*[ -/]*[@-~]')
+
+
 class RedirectText(object):
-    def __init__(self, out):
+    def __init__(self, out, filter_lines=None):
         self._out = out
+        if filter_lines is None:
+            self._filter_pattern = None
+        else:
+            pattern = r'|'.join(r'(?:' + pattern + r')' for pattern in filter_lines)
+            self._filter_pattern = re.compile(pattern)
+        self._line_buffer = ''
 
     def __getattr__(self, item):
         return getattr(self._out, item)
 
-    def write(self, s):
+    def _write_color_replace(self, s):
         from esphome.core import CORE
 
         if CORE.dashboard:
-            try:
-                s = s.replace('\033', '\\033')
-            except UnicodeEncodeError:
-                pass
-
+            # With the dashboard, we must create a little hack to make color output
+            # work. The shell we create in the dashboard is not a tty, so python removes
+            # all color codes from the resulting stream. We just convert them to something
+            # we can easily recognize later here.
+            s = s.replace('\033', '\\033')
         self._out.write(s)
+
+    def write(self, s):
+        # s is usually a text_type already (self._out is of type TextIOWrapper)
+        # However, s is sometimes also a bytes object in python3. Let's make sure it's a
+        # text_type
+        # If the conversion fails, we will create an exception, which is okay because we won't
+        # be able to print it anyway.
+        text = decode_text(s)
+        assert isinstance(text, text_type)
+
+        if self._filter_pattern is not None:
+            self._line_buffer += text
+            lines = self._line_buffer.splitlines(True)
+            for line in lines:
+                if '\n' not in line and '\r' not in line:
+                    # Not a complete line, set line buffer
+                    self._line_buffer = line
+                    break
+                self._line_buffer = ''
+
+                line_without_ansi = ANSI_ESCAPE.sub('', line)
+                line_without_end = line_without_ansi.rstrip()
+                if self._filter_pattern.match(line_without_end) is not None:
+                    # Filter pattern matched, ignore the line
+                    continue
+
+                self._write_color_replace(line)
+        else:
+            self._write_color_replace(text)
+
+        # write() returns the number of characters written
+        # Let's print the number of characters of the original string in order to not confuse
+        # any caller.
+        return len(s)
 
     # pylint: disable=no-self-use
     def isatty(self):
@@ -120,14 +163,15 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
 
+    filter_lines = kwargs.get('filter_lines')
     orig_stdout = sys.stdout
-    sys.stdout = RedirectText(sys.stdout)
+    sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
     orig_stderr = sys.stderr
-    sys.stderr = RedirectText(sys.stderr)
+    sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
-        cap_stdout = sys.stdout = io.BytesIO()
+        cap_stdout = sys.stdout = io.StringIO()
 
     try:
         sys.argv = list(cmd)
@@ -155,14 +199,15 @@ def run_external_command(func, *cmd, **kwargs):
 def run_external_process(*cmd, **kwargs):
     full_cmd = u' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info(u"Running:  %s", full_cmd)
+    filter_lines = kwargs.get('filter_lines')
 
     capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
         sub_stdout = io.BytesIO()
     else:
-        sub_stdout = RedirectText(sys.stdout)
+        sub_stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
 
-    sub_stderr = RedirectText(sys.stderr)
+    sub_stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
     try:
         return subprocess.call(cmd,

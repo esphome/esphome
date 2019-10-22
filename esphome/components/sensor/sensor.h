@@ -18,6 +18,9 @@ namespace sensor {
     if (!obj->unique_id().empty()) { \
       ESP_LOGV(TAG, prefix "  Unique ID: '%s'", obj->unique_id().c_str()); \
     } \
+    if (obj->get_force_update()) { \
+      ESP_LOGV(TAG, prefix "  Force Update: YES"); \
+    } \
   }
 
 /** Base-class for all sensors.
@@ -142,6 +145,15 @@ class Sensor : public Nameable {
 
   void internal_send_state_to_frontend(float state);
 
+  bool get_force_update() const { return force_update_; }
+  /** Set this sensor's force_update mode.
+   *
+   * If the sensor is in force_update mode, the frontend is required to save all
+   * state changes to the database when they are published, even if the state is the
+   * same as before.
+   */
+  void set_force_update(bool force_update) { force_update_ = force_update; }
+
  protected:
   /** Override this to set the Home Assistant unit of measurement for this sensor.
    *
@@ -174,6 +186,7 @@ class Sensor : public Nameable {
   optional<int8_t> accuracy_decimals_;
   Filter *filter_list_{nullptr};  ///< Store all active filters.
   bool has_state_{false};
+  bool force_update_{false};
 };
 
 class PollingSensorComponent : public PollingComponent, public Sensor {

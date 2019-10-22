@@ -1,4 +1,4 @@
-FROM esphome/esphome-base-amd64:1.8.3
+FROM esphome/esphome-base-amd64:2.0.1
 
 RUN \
     apt-get update \
@@ -12,7 +12,9 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /requirements_test.txt
-RUN pip2 install --no-cache-dir wheel && pip2 install --no-cache-dir -r /requirements_test.txt
+RUN pip3 install --no-cache-dir wheel && pip3 install --no-cache-dir -r /requirements_test.txt
+
+RUN ln -s /usr/bin/pip3 /usr/bin/pip && ln -f -s /usr/bin/python3 /usr/bin/python
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
