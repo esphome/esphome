@@ -9,8 +9,6 @@
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266HTTPClient.h>
-#endif
-#ifdef HTTP_CLIENT_SUPPORT_INSECURE
 #include <WiFiClientSecure.h>
 #endif
 
@@ -24,20 +22,13 @@ class HttpRequestComponent : public Component {
 
   void set_url(const char *url) {
     this->url_ = url;
-#ifdef HTTP_CLIENT_SUPPORT_INSECURE
     this->wifi_client_ = new BearSSL::WiFiClientSecure();
     this->wifi_client_->setInsecure();
-#endif
   }
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
-  void set_payload(std::string payload) { this->payload_ = payload; }
-  void set_ssl_fingerprint(const std::array<uint8_t, 20> &fingerprint) {
-    static uint8_t FP[20];
-    memcpy(FP, fingerprint.data(), 20);
-    this->fingerprint_ = FP;
-  }
+  void set_body(std::string body) { this->body_ = body; }
   void add_header(const char *name, const char *value) {
     Header header;
     header.name = name;
@@ -54,25 +45,22 @@ class HttpRequestComponent : public Component {
   HTTPClient client_{};
   const char *url_;
   const char *method_;
-  const uint8_t *fingerprint_{nullptr};
   const char *useragent_{nullptr};
   uint16_t timeout_{5000};
-  std::string payload_;
+  std::string body_;
   std::list<Header> headers_;
-#ifdef HTTP_CLIENT_SUPPORT_INSECURE
   BearSSL::WiFiClientSecure *wifi_client_;
-#endif
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, payload)
+  TEMPLATABLE_VALUE(std::string, body)
 
   void play(Ts... x) override {
-    if (this->payload_.has_value()) {
-      auto payload = this->payload_.value(x...);
-      this->parent_->set_payload(payload);
+    if (this->body_.has_value()) {
+      auto body = this->body_.value(x...);
+      this->parent_->set_body(body);
     }
     this->parent_->send();
   }

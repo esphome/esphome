@@ -11,9 +11,6 @@ void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  URL: %s", this->url_);
   ESP_LOGCONFIG(TAG, "  Method: %s", this->method_);
   ESP_LOGCONFIG(TAG, "  Timeout: %dms", this->timeout_);
-  if (this->fingerprint_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  Using SSL Fingerprint");
-  }
   if (this->useragent_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
   }
@@ -30,15 +27,8 @@ void HttpRequestComponent::send() {
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(this->url_);
 #endif
-#ifdef HTTP_CLIENT_SUPPORT_INSECURE
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
-#else
 #ifdef ARDUINO_ARCH_ESP8266
-  if (this->fingerprint_ != nullptr)
-    begin_status = this->client_.begin(this->url_, this->fingerprint_);
-  else
-    begin_status = this->client_.begin(this->url_);
-#endif
+  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
 #endif
 
   if (!begin_status) {
@@ -56,7 +46,7 @@ void HttpRequestComponent::send() {
     this->client_.addHeader(header.name, header.value, false, true);
   }
 
-  int http_code = this->client_.sendRequest(this->method_, this->payload_.c_str());
+  int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
   this->client_.end();
 
   if (http_code < 0) {
