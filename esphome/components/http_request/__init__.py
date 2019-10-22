@@ -70,7 +70,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_USERAGENT): cv.string,
     cv.Optional(CONF_TIMEOUT, default='5s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_BODY): cv.string,
-}).add_extra(validate_framework).extend(cv.COMPONENT_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA), validate_framework)
 
 
 def to_code(config):
