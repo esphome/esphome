@@ -24,7 +24,7 @@ void Modbus::loop() {
   }
 }
 
-uint16_t crc16(uint8_t *data, uint8_t len) {
+uint16_t crc16(const uint8_t *data, uint8_t len) {
   uint16_t crc = 0xFFFF;
   while (len--) {
     crc ^= *data++;
