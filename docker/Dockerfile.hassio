@@ -6,7 +6,7 @@ COPY docker/rootfs/ /
 COPY setup.py setup.cfg MANIFEST.in /opt/esphome/
 COPY esphome /opt/esphome/esphome
 
-RUN pip2 install --no-cache-dir -e /opt/esphome
+RUN pip3 install --no-cache-dir -e /opt/esphome
 
 # Build arguments
 ARG BUILD_VERSION=dev

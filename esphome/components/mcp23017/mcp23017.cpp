@@ -47,7 +47,7 @@ void MCP23017::pin_mode(uint8_t pin, uint8_t mode) {
       break;
   }
 }
-float MCP23017::get_setup_priority() const { return setup_priority::HARDWARE; }
+float MCP23017::get_setup_priority() const { return setup_priority::IO; }
 bool MCP23017::read_reg_(uint8_t reg, uint8_t *value) {
   if (this->is_failed())
     return false;

@@ -38,8 +38,9 @@
   </div>
 
   <ul id="dropdown-nav-actions" class="select-action dropdown-content card-dropdown-action">
-    <li><a id="update-all-button" class="modal-close waves-effect waves-green btn-flat"
-           data-node="{{ escape(config_dir) }}">Update All</a></li>
+    <li><a id="logout-button" href="{{ relative_url }}logout">Logout</a></li>
+    <li><a id="update-all-button" data-node="{{ escape(config_dir) }}">Update All</a></li>
+    <li><a id="secrets-button" class="action-edit" data-node="secrets.yaml">Secrets Editor</a></li>
   </ul>
 </nav>
 
@@ -78,6 +79,11 @@
               {% end %}
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
             </span>
+            {% if entry.comment %}
+              <div class="card-comment">
+                {{ escape(entry.comment) }}
+              </div>
+            {% end %}
             <p>
               <span class="status-indicator unknown" data-node="{{ entry.filename }}">
                 <span class="status-indicator-icon"></span>
@@ -274,52 +280,70 @@
                 </optgroup>
                 <optgroup label="Other ESP32s">
                   <option value="lolin32">Wemos Lolin 32</option>
-                  <option value="esp32dev">Espressif ESP32 Dev Module</option>
                   <option value="m5stack-fire">M5Stack FIRE</option>
                   <option value="wemosbat">Wemos WiFi &amp; Bluetooth Battery</option>
-                  <option value="node32s">Aiyarafun Node32s</option>
-                  <option value="espea32">April Brother ESPea32</option>
-                  <option value="firebeetle32">DFRobot FireBeetle-ESP32</option>
-                  <option value="esp32doit-devkit-v1">Doit ESP32 Devkit v1</option>
-                  <option value="pocket_32">Dongsen Tech Pocket 32</option>
-                  <option value="espectro32">DycodeX ESPectro32</option>
-                  <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
+                  <option value="node32s">Node32s</option>
+
+                  <option value="alksesp32">ALKS ESP32</option>
+                  <option value="bpi-bit">BPI-Bit</option>
+                  <option value="d-duino-32">D-duino-32</option>
+                  <option value="esp32-devkitlipo">OLIMEX ESP32-DevKit-LiPo</option>
+                  <option value="esp32-evb">OLIMEX ESP32-EVB</option>
+                  <option value="esp32-gateway">OLIMEX ESP32-GATEWAY</option>
+                  <option value="esp32-poe-iso">OLIMEX ESP32-PoE-ISO</option>
+                  <option value="esp32-poe">OLIMEX ESP32-PoE</option>
+                  <option value="esp32-pro">OLIMEX ESP32-PRO</option>
                   <option value="esp320">Electronic SweetPeas ESP320</option>
-                  <option value="pico32">Espressif ESP32 Pico Kit</option>
-                  <option value="odroid_esp32">Hardkernel Odroid GO</option>
-                  <option value="heltec_wifi_kit_32">Heltec WIFI Kit 32</option>
-                  <option value="heltec_wifi_lora_32">Heltec WIFI LoRa 32</option>
+                  <option value="esp32cam">AI Thinker ESP32-CAM</option>
+                  <option value="esp32dev">Espressif ESP32 Dev Module</option>
+                  <option value="esp32doit-devkit-v1">DOIT ESP32 DEVKIT V1</option>
+                  <option value="esp32thing">SparkFun ESP32 Thing</option>
+                  <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
+                  <option value="espea32">April Brother ESPea32</option>
+                  <option value="espectro32">ESPectro32</option>
+                  <option value="espino32">ESPino32</option>
+                  <option value="firebeetle32">FireBeetle-ESP32</option>
+                  <option value="fm-devkit">ESP32 FM DevKit</option>
+                  <option value="frogboard">Frog Board ESP32</option>
+                  <option value="heltec_wifi_kit_32">Heltec WiFi Kit 32</option>
+                  <option value="heltec_wifi_lora_32">Heltec WiFi LoRa 32</option>
+                  <option value="heltec_wifi_lora_32_V2">Heltec WiFi LoRa 32 (V2)</option>
+                  <option value="heltec_wireless_stick">Heltec Wireless Stick</option>
                   <option value="hornbill32dev">Hornbill ESP32 Dev</option>
                   <option value="hornbill32minima">Hornbill ESP32 Minima</option>
                   <option value="intorobot">IntoRobot Fig</option>
-                  <option value="mhetesp32devkit">MH-ET Live ESP32 Devkit</option>
-                  <option value="mhetesp32minikit">MH-ET Live ESP32 Minikit</option>
-                  <option value="nano32">MakerAsia Nano32</option>
-                  <option value="microduino-core-esp32">Microduino Core ESP32</option>
-                  <option value="quantum">Noduino Quantum</option>
-                  <option value="esp32-evb">Olimex ESP32-EVB</option>
-                  <option value="esp32-gateway">Olimex ESP32-GATEWAY</option>
-                  <option value="esp32-pro">Olimex ESP32-PRO</option>
-                  <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
-                  <option value="alksesp32">RoboticsBrno ALKS ESP32</option>
-                  <option value="esp32thing">Sparkfun ESP32 Thing</option>
-                  <option value="ttgo-lora32-v1">TTGO LoRa32-OLED v1</option>
-                  <option value="espino32">ThaiEasyElec ESPino32</option>
-                  <option value="widora-air">Widora AIR</option>
-                  <option value="xinabox_cw02">XinaBox CW02</option>
+                  <option value="iotaap_magnolia">IoTaaP Magnolia</option>
                   <option value="iotbusio">oddWires IoT-Bus Io</option>
-                  <option value="iotbusproteus">oddWires Proteus IoT-Bus</option>
-                  <option value="nina_w10">u-blox NINA-W10 series</option>
-                  <option value="bpi-bit">BananaPi-Bit</option>
-                  <option value="d-duino-32">DSTIKE D-duino-32</option>
-                  <option value="fm-devkit">ESP32 FM DevKit</option>
-                  <option value="esp32-poe">OLIMEX ESP32-PoE</option>
-                  <option value="oroca_edubot">OROCA EduBot</option>
+                  <option value="iotbusproteus">oddWires IoT-Bus Proteus</option>
                   <option value="lopy">Pycom LoPy</option>
                   <option value="lopy4">Pycom LoPy4</option>
-                  <option value="wesp32">Silicognition wESP32</option>
+                  <option value="m5stack-grey">M5Stack GREY ESP32</option>
+                  <option value="m5stick-c">M5Stick-C</option>
+                  <option value="magicbit">MagicBit</option>
+                  <option value="mhetesp32devkit">MH ET LIVE ESP32DevKIT</option>
+                  <option value="mhetesp32minikit">MH ET LIVE ESP32MiniKit</option>
+                  <option value="microduino-core-esp32">Microduino Core ESP32</option>
+                  <option value="nano32">MakerAsia Nano32</option>
+                  <option value="nina_w10">u-blox NINA-W10 series</option>
+                  <option value="odroid_esp32">ODROID-GO</option>
+                  <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
+                  <option value="oroca_edubot">OROCA EduBot</option>
+                  <option value="pico32">ESP32 Pico Kit</option>
+                  <option value="pocket_32">Dongsen Tech Pocket 32</option>
+                  <option value="pycom_gpy">Pycom GPy</option>
+                  <option value="quantum">Noduino Quantum</option>
+                  <option value="sparkfun_lora_gateway_1-channel">SparkFun LoRa Gateway 1-Channel</option>
+                  <option value="tinypico">TinyPICO</option>
+                  <option value="ttgo-lora32-v1">TTGO LoRa32-OLED V1</option>
                   <option value="ttgo-t-beam">TTGO T-Beam</option>
+                  <option value="ttgo-t-watch">TTGO T-Watch</option>
+                  <option value="ttgo-t1">TTGO T1</option>
                   <option value="turta_iot_node">Turta IoT Node</option>
+                  <option value="vintlabs-devkit-v1">VintLabs ESP32 Devkit</option>
+                  <option value="wemos_d1_mini32">WeMos D1 MINI ESP32</option>
+                  <option value="wesp32">Silicognition wESP32</option>
+                  <option value="widora-air">Widora AIR</option>
+                  <option value="xinabox_cw02">XinaBox CW02</option>
                 </optgroup>
               </select>
             </div>

@@ -49,6 +49,11 @@ enum EnumClimateMode : uint32_t {
   CLIMATE_MODE_COOL = 2,
   CLIMATE_MODE_HEAT = 3,
 };
+enum EnumClimateAction : uint32_t {
+  CLIMATE_ACTION_OFF = 0,
+  CLIMATE_ACTION_COOLING = 2,
+  CLIMATE_ACTION_HEATING = 3,
+};
 class HelloRequest : public ProtoMessage {
  public:
   std::string client_info{};  // NOLINT
@@ -359,6 +364,7 @@ class ListEntitiesSensorResponse : public ProtoMessage {
   std::string icon{};                 // NOLINT
   std::string unit_of_measurement{};  // NOLINT
   int32_t accuracy_decimals{0};       // NOLINT
+  bool force_update{false};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -638,6 +644,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   float visual_max_temperature{0.0f};                 // NOLINT
   float visual_temperature_step{0.0f};                // NOLINT
   bool supports_away{false};                          // NOLINT
+  bool supports_action{false};                        // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -655,6 +662,7 @@ class ClimateStateResponse : public ProtoMessage {
   float target_temperature_low{0.0f};   // NOLINT
   float target_temperature_high{0.0f};  // NOLINT
   bool away{false};                     // NOLINT
+  EnumClimateAction action{};           // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 

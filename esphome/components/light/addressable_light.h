@@ -189,23 +189,7 @@ class ESPColorCorrection {
   ESPColorCorrection() : max_brightness_(255, 255, 255, 255) {}
   void set_max_brightness(const ESPColor &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
-  void calculate_gamma_table(float gamma) {
-    for (uint16_t i = 0; i < 256; i++) {
-      // corrected = val ^ gamma
-      auto corrected = static_cast<uint8_t>(roundf(255.0f * gamma_correct(i / 255.0f, gamma)));
-      this->gamma_table_[i] = corrected;
-    }
-    if (gamma == 0.0f) {
-      for (uint16_t i = 0; i < 256; i++)
-        this->gamma_reverse_table_[i] = i;
-      return;
-    }
-    for (uint16_t i = 0; i < 256; i++) {
-      // val = corrected ^ (1/gamma)
-      auto uncorrected = static_cast<uint8_t>(roundf(255.0f * powf(i / 255.0f, 1.0f / gamma)));
-      this->gamma_reverse_table_[i] = uncorrected;
-    }
-  }
+  void calculate_gamma_table(float gamma);
   inline ESPColor color_correct(ESPColor color) const ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
     return ESPColor(this->color_correct_red(color.red), this->color_correct_green(color.green),
@@ -468,23 +452,7 @@ class AddressableLight : public LightOutput, public Component {
   }
   bool is_effect_active() const { return this->effect_active_; }
   void set_effect_active(bool effect_active) { this->effect_active_ = effect_active; }
-  void write_state(LightState *state) override {
-    auto val = state->current_values;
-    auto max_brightness = static_cast<uint8_t>(roundf(val.get_brightness() * val.get_state() * 255.0f));
-    this->correction_.set_local_brightness(max_brightness);
-
-    if (this->is_effect_active())
-      return;
-
-    // don't use LightState helper, gamma correction+brightness is handled by ESPColorView
-    ESPColor color = ESPColor(uint8_t(roundf(val.get_red() * 255.0f)), uint8_t(roundf(val.get_green() * 255.0f)),
-                              uint8_t(roundf(val.get_blue() * 255.0f)),
-                              // white is not affected by brightness; so manually scale by state
-                              uint8_t(roundf(val.get_white() * val.get_state() * 255.0f)));
-
-    this->all() = color;
-    this->schedule_show();
-  }
+  void write_state(LightState *state) override;
   void set_correction(float red, float green, float blue, float white = 1.0f) {
     this->correction_.set_max_brightness(ESPColor(uint8_t(roundf(red * 255.0f)), uint8_t(roundf(green * 255.0f)),
                                                   uint8_t(roundf(blue * 255.0f)), uint8_t(roundf(white * 255.0f))));
@@ -524,6 +492,8 @@ class AddressableLight : public LightOutput, public Component {
   power_supply::PowerSupplyRequester power_;
 #endif
   LightState *state_parent_{nullptr};
+  float last_transition_progress_{0.0f};
+  float accumulated_alpha_{0.0f};
 };
 
 }  // namespace light

@@ -220,7 +220,7 @@ def wizard(path):
     else:
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
         boards = list(ESP8266_BOARD_PINS.keys())
-    safe_print("Options: {}".format(', '.join(boards)))
+    safe_print("Options: {}".format(', '.join(sorted(boards))))
 
     while True:
         board = safe_input(color("bold_white", "(board): "))
@@ -228,7 +228,7 @@ def wizard(path):
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
-            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists."))
+            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists.".format(board)))
             safe_print()
             sleep(0.25)
             safe_print()

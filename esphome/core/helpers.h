@@ -156,6 +156,9 @@ enum ParseOnOffState {
 
 ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const char *off = nullptr);
 
+// Encode raw data to a human-readable string (for debugging)
+std::string hexencode(const uint8_t *data, uint32_t len);
+
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT
 template<int N, int... S> struct gens : gens<N - 1, N - 1, S...> {};  // NOLINT

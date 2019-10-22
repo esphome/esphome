@@ -17,7 +17,7 @@ class LightTransformer {
   LightTransformer() = delete;
 
   /// Whether this transformation is finished
-  virtual bool is_finished() { return this->get_progress_() >= 1.0f; }
+  virtual bool is_finished() { return this->get_progress() >= 1.0f; }
 
   /// This will be called to get the current values for output.
   virtual LightColorValues get_values() = 0;
@@ -29,11 +29,11 @@ class LightTransformer {
   virtual LightColorValues get_end_values() { return this->get_target_values_(); }
 
   virtual bool publish_at_end() = 0;
+  virtual bool is_transition() = 0;
+
+  float get_progress() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
 
  protected:
-  /// Get the completion of this transformer, 0 to 1.
-  float get_progress_() { return clamp((millis() - this->start_time_) / float(this->length_), 0.0f, 1.0f); }
-
   const LightColorValues &get_start_values_() const { return this->start_values_; }
 
   const LightColorValues &get_target_values_() const { return this->target_values_; }
@@ -61,12 +61,14 @@ class LightTransitionTransformer : public LightTransformer {
   }
 
   LightColorValues get_values() override {
-    float x = this->get_progress_();
-    float v = x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f);
+    float v = LightTransitionTransformer::smoothed_progress(this->get_progress());
     return LightColorValues::lerp(this->get_start_values_(), this->get_target_values_(), v);
   }
 
   bool publish_at_end() override { return false; }
+  bool is_transition() override { return true; }
+
+  static float smoothed_progress(float x) { return x * x * x * (x * (x * 6.0f - 15.0f) + 10.0f); }
 };
 
 class LightFlashTransformer : public LightTransformer {
@@ -80,6 +82,7 @@ class LightFlashTransformer : public LightTransformer {
   LightColorValues get_end_values() override { return this->get_start_values_(); }
 
   bool publish_at_end() override { return true; }
+  bool is_transition() override { return false; }
 };
 
 }  // namespace light
