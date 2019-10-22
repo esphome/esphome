@@ -81,16 +81,17 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
 
-  bool is_mijia = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
-  bool is_miflora = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
+  bool is_lywsdcgq = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
+  bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
+  bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
 
-  if (!is_mijia && !is_miflora && !is_lywsd02) {
+  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return {};
   }
 
-  uint8_t raw_offset = is_mijia ? 11 : 12;
+  uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
   const uint8_t raw_type = raw[raw_offset];
   const uint8_t data_length = raw[raw_offset + 2];
@@ -102,11 +103,13 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     return {};
   }
   XiaomiParseResult result;
-  result.type = XiaomiParseResult::TYPE_MIFLORA;
-  if (is_mijia) {
-    result.type = XiaomiParseResult::TYPE_MIJIA;
+  result.type = XiaomiParseResult::TYPE_HHCCJCY01;
+  if (is_lywsdcgq) {
+    result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
   } else if (is_lywsd02) {
     result.type = XiaomiParseResult::TYPE_LYWSD02;
+  } else if (is_cgg1) {
+    result.type = XiaomiParseResult::TYPE_CGG1;
   }
   bool success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
   if (!success)
@@ -119,11 +122,13 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if (!res.has_value())
     return false;
 
-  const char *name = "Mi Flora";
-  if (res->type == XiaomiParseResult::TYPE_MIJIA) {
-    name = "Mi Jia";
+  const char *name = "HHCCJCY01";
+  if (res->type == XiaomiParseResult::TYPE_LYWSDCGQ) {
+    name = "LYWSDCGQ";
   } else if (res->type == XiaomiParseResult::TYPE_LYWSD02) {
     name = "LYWSD02";
+  } else if (res->type == XiaomiParseResult::TYPE_CGG1) {
+    name = "CGG1";
   }
 
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());

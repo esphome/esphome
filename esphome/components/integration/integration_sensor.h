@@ -51,10 +51,11 @@ class IntegrationSensor : public sensor::Sensor, public Component {
         return 0.0f;
     }
   }
-  void publish_and_save_(float result) {
+  void publish_and_save_(double result) {
     this->result_ = result;
     this->publish_state(result);
-    this->rtc_.save(&result);
+    float result_f = result;
+    this->rtc_.save(&result_f);
   }
   std::string unit_of_measurement() override;
   std::string icon() override { return this->sensor_->get_icon(); }
@@ -67,7 +68,7 @@ class IntegrationSensor : public sensor::Sensor, public Component {
   ESPPreferenceObject rtc_;
 
   uint32_t last_update_;
-  float result_{0.0f};
+  double result_{0.0f};
   float last_value_{0.0f};
 };
 

@@ -6,10 +6,9 @@ from esphome import automation
 from esphome.components import mqtt
 from esphome.const import CONF_ABOVE, CONF_ACCURACY_DECIMALS, CONF_ALPHA, CONF_BELOW, \
     CONF_EXPIRE_AFTER, CONF_FILTERS, CONF_FROM, CONF_ICON, CONF_ID, CONF_INTERNAL, \
-    CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, \
-    CONF_SEND_EVERY, CONF_SEND_FIRST_AT, CONF_TO, CONF_TRIGGER_ID, \
-    CONF_UNIT_OF_MEASUREMENT, \
-    CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID
+    CONF_ON_RAW_VALUE, CONF_ON_VALUE, CONF_ON_VALUE_RANGE, CONF_SEND_EVERY, CONF_SEND_FIRST_AT, \
+    CONF_TO, CONF_TRIGGER_ID, CONF_UNIT_OF_MEASUREMENT, CONF_WINDOW_SIZE, CONF_NAME, CONF_MQTT_ID, \
+    CONF_FORCE_UPDATE
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
@@ -87,6 +86,7 @@ SENSOR_SCHEMA = cv.MQTT_COMPONENT_SCHEMA.extend({
     cv.Optional(CONF_UNIT_OF_MEASUREMENT): unit_of_measurement,
     cv.Optional(CONF_ICON): icon,
     cv.Optional(CONF_ACCURACY_DECIMALS): accuracy_decimals,
+    cv.Optional(CONF_FORCE_UPDATE, default=False): cv.boolean,
     cv.Optional(CONF_EXPIRE_AFTER): cv.All(cv.requires_component('mqtt'),
                                            cv.Any(None, cv.positive_time_period_milliseconds)),
     cv.Optional(CONF_FILTERS): validate_filters,
@@ -200,8 +200,15 @@ def debounce_filter_to_code(config, filter_id):
     yield var
 
 
+def validate_not_all_from_same(config):
+    if all(conf[CONF_FROM] == config[0][CONF_FROM] for conf in config):
+        raise cv.Invalid("The 'from' values of the calibrate_linear filter cannot all point "
+                         "to the same value! Please add more values to the filter.")
+    return config
+
+
 @FILTER_REGISTRY.register('calibrate_linear', CalibrateLinearFilter, cv.All(
-    cv.ensure_list(validate_datapoint), cv.Length(min=2)))
+    cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same))
 def calibrate_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config]
     y = [conf[CONF_TO] for conf in config]
@@ -251,6 +258,7 @@ def setup_sensor_core_(var, config):
         cg.add(var.set_icon(config[CONF_ICON]))
     if CONF_ACCURACY_DECIMALS in config:
         cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
+    cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
     if CONF_FILTERS in config:
         filters = yield build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))

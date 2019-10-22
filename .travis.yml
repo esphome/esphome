@@ -1,6 +1,6 @@
 sudo: false
 language: python
-python: '2.7'
+python: '3.5'
 install: script/setup
 cache:
   directories:
@@ -9,18 +9,18 @@ cache:
 matrix:
   fast_finish: true
   include:
-    - python: "2.7"
-      env: TARGET=Lint2.7
+    - python: "3.7"
+      env: TARGET=Lint3.7
       script:
         - script/ci-custom.py
         - flake8 esphome
         - pylint esphome
-    - python: "3.5.3"
-      env: TARGET=Lint3.5
+    - python: "3.5"
+      env: TARGET=Test3.5
       script:
-        - script/ci-custom.py
-        - flake8 esphome
-        - pylint esphome
+        - esphome tests/test1.yaml compile
+        - esphome tests/test2.yaml compile
+        - esphome tests/test3.yaml compile
     - python: "2.7"
       env: TARGET=Test2.7
       script:
@@ -40,10 +40,6 @@ matrix:
             - clang-format-7
       before_script:
         - pio init --ide atom
-        - |
-          if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
-            patch -p0 < script/.neopixelbus.patch
-          fi
         - clang-tidy-7 -version
         - clang-format-7 -version
         - clang-apply-replacements-7 -version

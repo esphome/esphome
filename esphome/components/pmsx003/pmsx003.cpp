@@ -169,6 +169,7 @@ void PMSX003Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
   LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
+  this->check_uart_settings(9600);
 }
 
 }  // namespace pmsx003

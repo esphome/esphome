@@ -59,7 +59,7 @@ void CTClampSensor::update() {
 }
 
 void CTClampSensor::loop() {
-  if (!this->is_sampling_ || !this->is_calibrating_offset_)
+  if (!this->is_sampling_ && !this->is_calibrating_offset_)
     return;
 
   // Perform a single sample

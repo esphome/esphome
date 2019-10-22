@@ -42,6 +42,7 @@ class I2CComponent : public Component {
    * @return If the operation was successful.
    */
   bool read_bytes(uint8_t address, uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
+  bool read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len);
 
   /** Read len amount of 16-bit words (MSB first) from a register into data.
    *
@@ -69,6 +70,7 @@ class I2CComponent : public Component {
    * @return If the operation was successful.
    */
   bool write_bytes(uint8_t address, uint8_t a_register, const uint8_t *data, uint8_t len);
+  bool write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len);
 
   /** Write len amount of 16-bit words (MSB first) to the specified register for address.
    *
@@ -132,6 +134,24 @@ class I2CComponent : public Component {
 extern uint8_t next_i2c_bus_num_;
 #endif
 
+class I2CDevice;
+
+class I2CRegister {
+ public:
+  I2CRegister(I2CDevice *parent, uint8_t a_register) : parent_(parent), register_(a_register) {}
+
+  I2CRegister &operator=(uint8_t value);
+  I2CRegister &operator=(const std::vector<uint8_t> &value);
+  I2CRegister &operator&=(uint8_t value);
+  I2CRegister &operator|=(uint8_t value);
+
+  uint8_t get();
+
+ protected:
+  I2CDevice *parent_;
+  uint8_t register_;
+};
+
 /** All components doing communication on the I2C bus should subclass I2CDevice.
  *
  * This class stores 1. the address of the i2c device and has a helper function to allow
@@ -151,7 +171,8 @@ class I2CDevice {
   /// Manually set the parent i2c bus for this device.
   void set_i2c_parent(I2CComponent *parent);
 
- protected:
+  I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+
   /** Read len amount of bytes from a register into data. Optionally with a conversion time after
    * writing the register value to the bus.
    *
@@ -161,11 +182,19 @@ class I2CDevice {
    * @param conversion The time in ms between writing the register value and reading out the value.
    * @return If the operation was successful.
    */
-  bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);  // NOLINT
+  bool read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion = 0);
+  bool read_bytes_raw(uint8_t *data, uint8_t len) { return this->parent_->read_bytes_raw(this->address_, data, len); }
 
-  template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {  // NOLINT
+  template<size_t N> optional<std::array<uint8_t, N>> read_bytes(uint8_t a_register) {
     std::array<uint8_t, N> res;
     if (!this->read_bytes(a_register, res.data(), N)) {
+      return {};
+    }
+    return res;
+  }
+  template<size_t N> optional<std::array<uint8_t, N>> read_bytes_raw() {
+    std::array<uint8_t, N> res;
+    if (!this->read_bytes_raw(res.data(), N)) {
       return {};
     }
     return res;
@@ -179,12 +208,12 @@ class I2CDevice {
    * @param conversion The time in ms between writing the register value and reading out the value.
    * @return If the operation was successful.
    */
-  bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len, uint32_t conversion = 0);  // NOLINT
+  bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len, uint32_t conversion = 0);
 
   /// Read a single byte from a register into the data variable. Return true if successful.
-  bool read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion = 0);  // NOLINT
+  bool read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion = 0);
 
-  optional<uint8_t> read_byte(uint8_t a_register) {  // NOLINT
+  optional<uint8_t> read_byte(uint8_t a_register) {
     uint8_t data;
     if (!this->read_byte(a_register, &data))
       return {};
@@ -192,7 +221,7 @@ class I2CDevice {
   }
 
   /// Read a single 16-bit words (MSB first) from a register into the data variable. Return true if successful.
-  bool read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion = 0);  // NOLINT
+  bool read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion = 0);
 
   /** Write len amount of 8-bit bytes to the specified register.
    *
@@ -201,7 +230,10 @@ class I2CDevice {
    * @param len The amount of bytes to write to the bus.
    * @return If the operation was successful.
    */
-  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len);  // NOLINT
+  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len);
+  bool write_bytes_raw(const uint8_t *data, uint8_t len) {
+    return this->parent_->write_bytes_raw(this->address_, data, len);
+  }
 
   /** Write a vector of data to a register.
    *
@@ -209,12 +241,16 @@ class I2CDevice {
    * @param data The data to write.
    * @return If the operation was successful.
    */
-  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {  // NOLINT
+  bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {
     return this->write_bytes(a_register, data.data(), data.size());
   }
+  bool write_bytes_raw(const std::vector<uint8_t> &data) { return this->write_bytes_raw(data.data(), data.size()); }
 
-  template<size_t N> bool write_bytes(uint8_t a_register, const std::array<uint8_t, N> &data) {  // NOLINT
+  template<size_t N> bool write_bytes(uint8_t a_register, const std::array<uint8_t, N> &data) {
     return this->write_bytes(a_register, data.data(), data.size());
+  }
+  template<size_t N> bool write_bytes_raw(const std::array<uint8_t, N> &data) {
+    return this->write_bytes_raw(data.data(), data.size());
   }
 
   /** Write len amount of 16-bit words (MSB first) to the specified register.
@@ -224,14 +260,15 @@ class I2CDevice {
    * @param len The amount of bytes to write to the bus.
    * @return If the operation was successful.
    */
-  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);  // NOLINT
+  bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
 
   /// Write a single byte of data into the specified register. Return true if successful.
-  bool write_byte(uint8_t a_register, uint8_t data);  // NOLINT
+  bool write_byte(uint8_t a_register, uint8_t data);
 
   /// Write a single 16-bit word of data into the specified register. Return true if successful.
-  bool write_byte_16(uint8_t a_register, uint16_t data);  // NOLINT
+  bool write_byte_16(uint8_t a_register, uint16_t data);
 
+ protected:
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};
 };

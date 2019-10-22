@@ -77,22 +77,24 @@ void MHZ19Component::abc_disable() {
 }
 
 bool MHZ19Component::mhz19_write_command_(const uint8_t *command, uint8_t *response) {
-  this->flush();
+  // Empty RX Buffer
+  while (this->available())
+    this->read();
   this->write_array(command, MHZ19_REQUEST_LENGTH);
   this->write_byte(mhz19_checksum(command));
+  this->flush();
 
   if (response == nullptr)
     return true;
 
-  bool ret = this->read_array(response, MHZ19_RESPONSE_LENGTH);
-  this->flush();
-  return ret;
+  return this->read_array(response, MHZ19_RESPONSE_LENGTH);
 }
 float MHZ19Component::get_setup_priority() const { return setup_priority::DATA; }
 void MHZ19Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MH-Z19:");
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  this->check_uart_settings(9600);
 
   if (this->abc_boot_logic_ == MHZ19_ABC_ENABLED) {
     ESP_LOGCONFIG(TAG, "  Automatic baseline calibration enabled on boot");
