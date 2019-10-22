@@ -355,39 +355,39 @@ bool MCP2515::check_error_(void) {
 
 uint8_t MCP2515::get_error_flags_(void) { return read_register_(MCP_EFLG); }
 
-void MCP2515::clearRXnOVRFlags(void) {
+void MCP2515::clear_rx_n_ovr_flags_(void) {
   modify_register_(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
 }
 
-uint8_t MCP2515::getInterrupts(void) { return read_register_(MCP_CANINTF); }
+uint8_t MCP2515::get_int_(void) { return read_register_(MCP_CANINTF); }
 
-void MCP2515::clearInterrupts(void) { set_register_(MCP_CANINTF, 0); }
+void MCP2515::clear_int_(void) { set_register_(MCP_CANINTF, 0); }
 
-uint8_t MCP2515::getInterruptMask(void) { return read_register_(MCP_CANINTE); }
+uint8_t MCP2515::get_int_mask_(void) { return read_register_(MCP_CANINTE); }
 
-void MCP2515::clearTXInterrupts(void) {
+void MCP2515::clear_tx_int_(void) {
   modify_register_(MCP_CANINTF, (CANINTF_TX0IF | CANINTF_TX1IF | CANINTF_TX2IF),
                    0);
 }
 
-void MCP2515::clearRXnOVR(void) {
+void MCP2515::clear_rx_n_ovr_(void) {
   uint8_t eflg = get_error_flags_();
   if (eflg != 0) {
-    clearRXnOVRFlags();
-    clearInterrupts();
+    clear_rx_n_ovr_flags_();
+    clear_int_();
     // modify_register_(MCP_CANINTF, CANINTF_ERRIF, 0);
   }
 }
 
-void MCP2515::clearMERR() {
+void MCP2515::clear_merr_() {
   // modify_register_(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
-  // clearInterrupts();
+  // clear_int_();
   modify_register_(MCP_CANINTF, CANINTF_MERRF, 0);
 }
 
-void MCP2515::clearERRIF() {
+void MCP2515::clear_errif_() {
   // modify_register_(MCP_EFLG, EFLG_RX0OVR | EFLG_RX1OVR, 0);
-  // clearInterrupts();
+  // clear_int_();
   modify_register_(MCP_CANINTF, CANINTF_ERRIF, 0);
 }
 

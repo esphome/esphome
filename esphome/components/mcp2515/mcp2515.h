@@ -105,14 +105,14 @@ protected:
   bool check_receive_();
   bool check_error_();
   uint8_t get_error_flags_();
-  void clearRXnOVRFlags();
-  uint8_t getInterrupts();
-  uint8_t getInterruptMask();
-  void clearInterrupts();
-  void clearTXInterrupts();
+  void clear_rx_n_ovr_flags_();
+  uint8_t get_int_();
+  uint8_t get_int_mask_();
+  void clear_int_();
+  void clear_tx_int_();
   uint8_t get_status_();
-  void clearRXnOVR();
-  void clearMERR();
+  void clear_rx_n_ovr_();
+  void clear_merr_();
   void clear_errif_();
 };
 } // namespace mcp2515

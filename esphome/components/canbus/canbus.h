@@ -65,7 +65,6 @@ struct CanFrame {
 class Canbus : public Component {
 public:
   Canbus(){};
-  Canbus(const std::string &name){};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }

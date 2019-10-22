@@ -31,7 +31,8 @@ def validate_raw_data(value):
 
 canbus_ns = cg.esphome_ns.namespace('canbus')
 CanbusComponent = canbus_ns.class_('CanbusComponent', cg.Component)
-CanbusTrigger = canbus_ns.class_('CanbusTrigger', automation.Trigger.template(cg.std_vector.template(cg.uint8)),
+CanbusTrigger = canbus_ns.class_('CanbusTrigger',
+                                 automation.Trigger.template(cg.std_vector.template(cg.uint8)),
                                  cg.Component)
 CanSpeed = canbus_ns.enum('CAN_SPEED')
 
@@ -67,7 +68,7 @@ CONFIG_SCHEMA = cv.Schema({
 # Actions
 CanbusSendAction = canbus_ns.class_('CanbusSendAction', automation.Action)
 
-CANBUS_ACTION_SCHEMA = maybe_simple_id({
+CANBUS_ACTION_SCHEMA = cv.Schema({
     cv.Required(CONF_CANBUS_ID): cv.use_id(CanbusComponent),
     cv.Required(CONF_CAN_ID): cv.int_range(min=1, max=4096),
     cv.Required(CONF_DATA): cv.templatable(validate_raw_data),
@@ -77,8 +78,6 @@ CANBUS_ACTION_SCHEMA = maybe_simple_id({
 @coroutine
 def setup_canbus_core_(var, config):
     yield cg.register_component(var, config)
-    if CONF_CANBUS_ID in config:
-    cg.add(var.set_canbus_id(config[CONF_CANBUS_ID]))
     if CONF_SENDER_ID in config:
         cg.add(var.set_sender_id([config[CONF_SENDER_ID]]))
     if CONF_BIT_RATE in config:
@@ -93,7 +92,7 @@ def setup_canbus_core_(var, config):
 @coroutine
 def register_canbus(var, config):
     if not CORE.has_id(config[CONF_ID]):
-        var = cg.Pvariable(config[CONF_ID], var)
+        var = cg.new_Pvariable(config[CONF_ID], var)
     yield setup_canbus_core_(var, config)
 
 
