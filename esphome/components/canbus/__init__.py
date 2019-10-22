@@ -78,7 +78,7 @@ CANBUS_ACTION_SCHEMA = maybe_simple_id({
 def setup_canbus_core_(var, config):
     yield cg.register_component(var, config)
     if CONF_CANBUS_ID in config:
-        cg.add(var.set_canbus_id(config[CONF_CANBUS_ID]))
+    cg.add(var.set_canbus_id(config[CONF_CANBUS_ID]))
     if CONF_SENDER_ID in config:
         cg.add(var.set_sender_id([config[CONF_SENDER_ID]]))
     if CONF_BIT_RATE in config:
