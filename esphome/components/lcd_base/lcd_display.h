@@ -23,8 +23,6 @@ class LCDDisplay : public PollingComponent {
   float get_setup_priority() const override;
   void update() override;
   void display();
-  //// Clear LCD display
-  void clear();
 
   /// Print the given text at the specified column and row.
   void print(uint8_t column, uint8_t row, const char *str);
