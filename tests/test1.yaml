@@ -185,6 +185,7 @@ sensor:
     accuracy_decimals: 5
     expire_after: 120s
     setup_priority: -100
+    force_update: true
     filters:
       - offset: 2.0
       - multiply: 1.2
@@ -522,6 +523,9 @@ sensor:
       name: "Living Room Humidity 8"
     address: 0x44
     update_interval: 15s
+  - platform: sts3x
+    name: "Living Room Temperature 9"
+    address: 0x4A
   - platform: scd30
     co2:
       name: "Living Room CO2 9"
@@ -530,6 +534,22 @@ sensor:
     humidity:
       name: "Living Room Humidity 9"
     address: 0x61
+    update_interval: 15s
+  - platform: sgp30
+    eco2:
+      name: "Workshop eCO2"
+      accuracy_decimals: 1
+    tvoc:
+      name: "Workshop TVOC"
+      accuracy_decimals: 1
+    address: 0x58
+    update_interval: 5s
+  - platform: shtcx
+    temperature:
+      name: "Living Room Temperature 10"
+    humidity:
+      name: "Living Room Humidity 10"
+    address: 0x70
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -722,6 +742,12 @@ binary_sensor:
       - binary_sensor.template.publish:
           id: garage_door
           state: OFF
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: 500.0Hz
+      - output.ledc.set_frequency:
+          id: gpio_19
+          frequency: !lambda 'return 500.0;'
   - platform: pn532
     uid: 74-10-37-94
     name: "PN532 NFC Tag"
@@ -789,7 +815,6 @@ output:
     pin: 19
     id: gpio_19
     frequency: 1500Hz
-    bit_depth: 8
     channel: 14
     max_power: 0.5
   - platform: pca9685
@@ -1323,6 +1348,13 @@ display:
         // Nothing
 - platform: ssd1306_spi
   model: "SSD1306 128x64"
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: ssd1325_spi
+  model: "SSD1325 128x64"
   cs_pin: GPIO23
   dc_pin: GPIO23
   reset_pin: GPIO23

@@ -3,7 +3,8 @@ import esphome.codegen as cg
 from esphome.const import CONF_ID
 from esphome.core import coroutine_with_priority, CORE
 
-DEPENDENCIES = ['network', 'async_tcp']
+DEPENDENCIES = ['network']
+AUTO_LOAD = ['async_tcp']
 
 web_server_base_ns = cg.esphome_ns.namespace('web_server_base')
 WebServerBase = web_server_base_ns.class_('WebServerBase', cg.Component)
@@ -21,5 +22,5 @@ def to_code(config):
 
     if CORE.is_esp32:
         cg.add_library('FS', None)
-    # https://github.com/me-no-dev/ESPAsyncWebServer/blob/master/library.json
-    cg.add_library('ESP Async WebServer', '1.2.2')
+    # https://github.com/OttoWinter/ESPAsyncWebServer/blob/master/library.json
+    cg.add_library('ESPAsyncWebServer-esphome', '1.2.5')

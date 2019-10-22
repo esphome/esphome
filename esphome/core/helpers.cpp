@@ -314,4 +314,20 @@ std::array<uint8_t, 2> decode_uint16(uint16_t value) {
   return {msb, lsb};
 }
 
+std::string hexencode(const uint8_t *data, uint32_t len) {
+  char buf[20];
+  std::string res;
+  for (size_t i = 0; i < len; i++) {
+    if (i + 1 != len) {
+      sprintf(buf, "%02X.", data[i]);
+    } else {
+      sprintf(buf, "%02X ", data[i]);
+    }
+    res += buf;
+  }
+  sprintf(buf, "(%u)", len);
+  res += buf;
+  return res;
+}
+
 }  // namespace esphome

@@ -123,6 +123,8 @@ def to_code(config):
             'TLS_MEM',
             'UPDATER',
             'WIFI',
+            # Spams logs too much:
+            # 'MDNS_RESPONDER',
         }
         for comp in DEBUG_COMPONENTS:
             cg.add_build_flag("-DDEBUG_ESP_{}".format(comp))

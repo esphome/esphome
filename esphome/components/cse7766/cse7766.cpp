@@ -172,6 +172,7 @@ void CSE7766Component::dump_config() {
   LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("  ", "Current", this->current_sensor_);
   LOG_SENSOR("  ", "Power", this->power_sensor_);
+  this->check_uart_settings(4800);
 }
 
 }  // namespace cse7766

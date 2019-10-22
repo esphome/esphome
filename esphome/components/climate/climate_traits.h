@@ -23,6 +23,8 @@ namespace climate {
  *    - heat mode (increases current temperature)
  *  - supports away - away mode means that the climate device supports two different
  *      target temperature settings: one target temp setting for "away" mode and one for non-away mode.
+ *  - supports action - if the climate device supports reporting the active
+ *    current action of the device with the action property.
  *
  * This class also contains static data for the climate device display:
  *  - visual min/max temperature - tells the frontend what range of temperatures the climate device
@@ -41,6 +43,8 @@ class ClimateTraits {
   void set_supports_heat_mode(bool supports_heat_mode);
   void set_supports_away(bool supports_away);
   bool get_supports_away() const;
+  void set_supports_action(bool supports_action);
+  bool get_supports_action() const;
   bool supports_mode(ClimateMode mode) const;
 
   float get_visual_min_temperature() const;
@@ -58,6 +62,7 @@ class ClimateTraits {
   bool supports_cool_mode_{false};
   bool supports_heat_mode_{false};
   bool supports_away_{false};
+  bool supports_action_{false};
 
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};

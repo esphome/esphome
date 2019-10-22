@@ -69,13 +69,29 @@ void GPIOSwitch::dump_config() {
 void GPIOSwitch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
+
+    bool found = false;
     for (auto *lock : this->interlock_) {
       if (lock == this)
         continue;
 
-      if (lock->state)
+      if (lock->state) {
         lock->turn_off();
+        found = true;
+      }
     }
+    if (found && this->interlock_wait_time_ != 0) {
+      this->set_timeout("interlock", this->interlock_wait_time_, [this, state] {
+        // Don't write directly, call the function again
+        // (some other switch may have changed state while we were waiting)
+        this->write_state(state);
+      });
+      return;
+    }
+  } else if (this->interlock_wait_time_ != 0) {
+    // If we are switched off during the interlock wait time, cancel any pending
+    // re-activations
+    this->cancel_timeout("interlock");
   }
 
   this->pin_->digital_write(state);

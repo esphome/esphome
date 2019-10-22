@@ -60,6 +60,83 @@ api:
               - float_arr.size()
               - string_arr[0].c_str()
               - string_arr.size()
+    - service: dfplayer_next
+      then:
+        - dfplayer.play_next:
+    - service: dfplayer_previous
+      then:
+        - dfplayer.play_previous:
+    - service: dfplayer_play
+      variables:
+        file: int
+      then:
+        - dfplayer.play: !lambda 'return file;'
+    - service: dfplayer_play_loop
+      variables:
+        file: int
+        loop_: bool
+      then:
+        - dfplayer.play:
+            file: !lambda 'return file;'
+            loop: !lambda 'return loop_;'
+    - service: dfplayer_play_folder
+      variables:
+        folder: int
+        file: int
+      then:
+        - dfplayer.play_folder:
+            folder: !lambda 'return folder;'
+            file: !lambda 'return file;'
+
+    - service: dfplayer_play_loo_folder
+      variables:
+        folder: int
+      then:
+        - dfplayer.play_folder:
+            folder: !lambda 'return folder;'
+            loop: True
+
+    - service: dfplayer_set_device
+      variables:
+        device: int
+      then:
+        - dfplayer.set_device:
+            device: TF_CARD
+
+    - service: dfplayer_set_volume
+      variables:
+        volume: int
+      then:
+        - dfplayer.set_volume: !lambda 'return volume;'
+    - service: dfplayer_set_eq
+      variables:
+        preset: int
+      then:
+        - dfplayer.set_eq: !lambda 'return static_cast<dfplayer::EqPreset>(preset);'
+
+    - service: dfplayer_sleep
+      then:
+        - dfplayer.sleep
+
+    - service: dfplayer_reset
+      then:
+        - dfplayer.reset
+
+    - service: dfplayer_start
+      then:
+        - dfplayer.start
+
+    - service: dfplayer_pause
+      then:
+        - dfplayer.pause
+
+    - service: dfplayer_stop
+      then:
+        - dfplayer.stop
+
+    - service: dfplayer_random
+      then:
+        - dfplayer.random
 
 wifi:
   ssid: 'MySSID'
@@ -214,6 +291,31 @@ sensor:
       name: ADE7953 Active Power A
     active_power_b:
       name: ADE7953 Active Power B
+  - platform: pzem004t
+    voltage:
+      name: "PZEM00T Voltage"
+    current:
+      name: "PZEM004T Current"
+    power:
+      name: "PZEM004T Power"
+  - platform: pzemac
+    voltage:
+      name: "PZEMAC Voltage"
+    current:
+      name: "PZEMAC Current"
+    power:
+      name: "PZEMAC Power"
+    frequency:
+      name: "PZEMAC Frequency"
+    power_factor:
+      name: "PZEMAC Power Factor"
+  - platform: pzemdc
+    voltage:
+      name: "PZEMDC Voltage"
+    current:
+      name: "PZEMDC Current"
+    power:
+      name: "PZEMDC Power"
 
 time:
 - platform: homeassistant
@@ -306,6 +408,8 @@ text_sensor:
       - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
       - script.execute: my_script
+      - script.wait: my_script
+      - script.stop: my_script
       - homeassistant.service:
           service: notify.html5
           data:
@@ -532,3 +636,13 @@ sim800l:
     - sim800l.send_sms:
         message: 'hello you'
         recipient: '+1234'
+
+dfplayer:
+  on_finished_playback:
+    then:
+      if:
+        condition:
+          not:
+            dfplayer.is_playing
+        then:
+          logger.log: 'Playback finished event'

@@ -1,6 +1,4 @@
-import math
-
-from esphome import pins
+from esphome import pins, automation
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
@@ -15,53 +13,36 @@ def calc_max_frequency(bit_depth):
 
 
 def calc_min_frequency(bit_depth):
-    # LEDC_DIV_NUM_HSTIMER is 15-bit unsigned integer
-    # lower 8 bits represent fractional part
-    max_div_num = ((1 << 16) - 1) / 256.0
+    max_div_num = ((2**20) - 1) / 256.0
     return 80e6 / (max_div_num * (2**bit_depth))
 
 
-def validate_frequency_bit_depth(obj):
-    frequency = obj[CONF_FREQUENCY]
-    if CONF_BIT_DEPTH not in obj:
-        obj = obj.copy()
-        for bit_depth in range(15, 0, -1):
-            if calc_min_frequency(bit_depth) <= frequency <= calc_max_frequency(bit_depth):
-                obj[CONF_BIT_DEPTH] = bit_depth
-                break
-        else:
-            min_freq = min(calc_min_frequency(x) for x in range(1, 16))
-            max_freq = max(calc_max_frequency(x) for x in range(1, 16))
-            if frequency < min_freq:
-                raise cv.Invalid("This frequency setting is not possible, please choose a higher "
-                                 "frequency (at least {}Hz)".format(int(min_freq)))
-            if frequency > max_freq:
-                raise cv.Invalid("This frequency setting is not possible, please choose a lower "
-                                 "frequency (at most {}Hz)".format(int(max_freq)))
-            raise cv.Invalid("Invalid frequency!")
-
-    bit_depth = obj[CONF_BIT_DEPTH]
-    min_freq = calc_min_frequency(bit_depth)
-    max_freq = calc_max_frequency(bit_depth)
-    if frequency > max_freq:
-        raise cv.Invalid('Maximum frequency for bit depth {} is {}Hz. Please decrease the '
-                         'bit_depth.'.format(bit_depth, int(math.floor(max_freq))))
-    if frequency < calc_min_frequency(bit_depth):
-        raise cv.Invalid('Minimum frequency for bit depth {} is {}Hz. Please increase the '
-                         'bit_depth.'.format(bit_depth, int(math.ceil(min_freq))))
-    return obj
+def validate_frequency(value):
+    value = cv.frequency(value)
+    min_freq = calc_min_frequency(20)
+    max_freq = calc_max_frequency(1)
+    if value < min_freq:
+        raise cv.Invalid("This frequency setting is not possible, please choose a higher "
+                         "frequency (at least {}Hz)".format(int(min_freq)))
+    if value > max_freq:
+        raise cv.Invalid("This frequency setting is not possible, please choose a lower "
+                         "frequency (at most {}Hz)".format(int(max_freq)))
+    return value
 
 
 ledc_ns = cg.esphome_ns.namespace('ledc')
 LEDCOutput = ledc_ns.class_('LEDCOutput', output.FloatOutput, cg.Component)
+SetFrequencyAction = ledc_ns.class_('SetFrequencyAction', automation.Action)
 
-CONFIG_SCHEMA = cv.All(output.FLOAT_OUTPUT_SCHEMA.extend({
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(LEDCOutput),
     cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_FREQUENCY, default='1kHz'): cv.frequency,
-    cv.Optional(CONF_BIT_DEPTH): cv.int_range(min=1, max=15),
     cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=15),
-}).extend(cv.COMPONENT_SCHEMA), validate_frequency_bit_depth)
+
+    cv.Optional(CONF_BIT_DEPTH): cv.invalid("The bit_depth option has been removed in v1.14, the "
+                                            "best bit depth is now automatically calculated."),
+}).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
@@ -72,4 +53,15 @@ def to_code(config):
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
-    cg.add(var.set_bit_depth(config[CONF_BIT_DEPTH]))
+
+
+@automation.register_action('output.ledc.set_frequency', SetFrequencyAction, cv.Schema({
+    cv.Required(CONF_ID): cv.use_id(LEDCOutput),
+    cv.Required(CONF_FREQUENCY): cv.templatable(validate_frequency),
+}))
+def ledc_set_frequency_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_FREQUENCY], args, float)
+    cg.add(var.set_frequency(template_))
+    yield var

@@ -208,5 +208,30 @@ void I2CDevice::set_i2c_parent(I2CComponent *parent) { this->parent_ = parent; }
 uint8_t next_i2c_bus_num_ = 0;
 #endif
 
+I2CRegister &I2CRegister::operator=(uint8_t value) {
+  this->parent_->write_byte(this->register_, value);
+  return *this;
+}
+
+I2CRegister &I2CRegister::operator&=(uint8_t value) {
+  this->parent_->write_byte(this->register_, this->get() & value);
+  return *this;
+}
+
+I2CRegister &I2CRegister::operator|=(uint8_t value) {
+  this->parent_->write_byte(this->register_, this->get() | value);
+  return *this;
+}
+
+uint8_t I2CRegister::get() {
+  uint8_t value = 0x00;
+  this->parent_->read_byte(this->register_, &value);
+  return value;
+}
+I2CRegister &I2CRegister::operator=(const std::vector<uint8_t> &value) {
+  this->parent_->write_bytes(this->register_, value);
+  return *this;
+}
+
 }  // namespace i2c
 }  // namespace esphome
