@@ -113,7 +113,7 @@ protected:
   uint8_t get_status_();
   void clearRXnOVR();
   void clearMERR();
-  void clearERRIF();
+  void clear_errif_();
 };
 } // namespace mcp2515
 } // namespace esphome
