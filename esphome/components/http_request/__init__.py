@@ -92,7 +92,7 @@ HTTP_REQUEST_POST_ACTION_SCHEMA = automation.maybe_conf(
     })
 )
 HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend({
-    cv.Required(CONF_METHOD): cv.one_of('GET', 'POST', upper=True),
+    cv.Required(CONF_METHOD): cv.one_of('GET', 'POST', 'PUT', 'DELETE', 'PATCH', upper=True),
     cv.Optional(CONF_BODY): cv.templatable(cv.string),
 })
 
