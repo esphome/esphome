@@ -31,6 +31,10 @@ uint8_t I2CAS3935Component::read_register(uint8_t reg) {
   }
   return value;
 }
+void I2CAS3935Component::dump_config() {
+  AS3935Component::dump_config();
+  LOG_I2C_DEVICE(this);
+}
 
 }  // namespace as3935_i2c
 }  // namespace esphome

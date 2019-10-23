@@ -255,6 +255,10 @@ void Sim800LComponent::send_sms(std::string recipient, std::string message) {
   this->send_pending_ = true;
   this->update();
 }
+void Sim800LComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "SIM800L:");
+  ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
+}
 
 }  // namespace sim800l
 }  // namespace esphome

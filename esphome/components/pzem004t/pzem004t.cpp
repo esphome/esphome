@@ -98,6 +98,12 @@ void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
   this->write_array(data);
   this->read_state_ = state;
 }
+void PZEM004T::dump_config() {
+  ESP_LOGCONFIG(TAG, "PZEM004T:");
+  LOG_SENSOR("", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("", "Current", this->current_sensor_);
+  LOG_SENSOR("", "Power", this->power_sensor_);
+}
 
 }  // namespace pzem004t
 }  // namespace esphome

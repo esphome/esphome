@@ -18,6 +18,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
  public:
   CaptivePortal(web_server_base::WebServerBase *base);
   void setup() override;
+  void dump_config() override;
   void loop() override {
     if (this->dns_server_ != nullptr)
       this->dns_server_->processNextRequest();
