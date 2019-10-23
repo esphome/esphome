@@ -113,10 +113,6 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     if CONF_BODY in config:
         template_ = yield cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
-    if CONF_USERAGENT in config:
-        cg.add(var.set_useragent(config[CONF_USERAGENT]))
-    if CONF_TIMEOUT in config:
-        cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     if CONF_HEADERS in config:
         for header in config[CONF_HEADERS]:
             cg.add(var.add_header(header, config[CONF_HEADERS][header]))
