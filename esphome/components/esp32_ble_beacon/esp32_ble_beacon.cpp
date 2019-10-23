@@ -50,7 +50,7 @@ void ESP32BLEBeacon::ble_core_task(void *params) {
   ble_setup();
 
   while (true) {
-    delay(1000);
+    delay(1000);  // NOLINT
   }
 }
 void ESP32BLEBeacon::ble_setup() {

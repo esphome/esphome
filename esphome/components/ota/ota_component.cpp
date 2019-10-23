@@ -266,7 +266,7 @@ void OTAComponent::handle_() {
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
-  delay(100);
+  delay(100);  // NOLINT
   App.safe_reboot();
 
 error:
