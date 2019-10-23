@@ -49,10 +49,16 @@ void WiFiComponent::setup() {
     }
   } else if (this->has_ap()) {
     this->setup_ap_config_();
+#ifdef USE_CAPTIVE_PORTAL
+    if (captive_portal::global_captive_portal != nullptr)
+      captive_portal::global_captive_portal->start();
+#endif
   }
 
   this->wifi_apply_hostname_();
+#ifdef ARDUINO_ARCH_ESP32
   network_setup_mdns();
+#endif
 }
 
 void WiFiComponent::loop() {
@@ -103,7 +109,8 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        captive_portal::global_captive_portal->start();
+        if (captive_portal::global_captive_portal != nullptr)
+          captive_portal::global_captive_portal->start();
 #endif
       }
     }
@@ -157,6 +164,9 @@ void WiFiComponent::setup_ap_config_() {
 
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", this->wifi_soft_ap_ip().toString().c_str());
+#ifdef ARDUINO_ARCH_ESP8266
+  network_setup_mdns(this->wifi_soft_ap_ip(), 1);
+#endif
 
   if (!this->has_sta()) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
@@ -416,6 +426,9 @@ void WiFiComponent::check_connecting_finished() {
       ESP_LOGD(TAG, "Disabling AP...");
       this->wifi_mode_({}, false);
     }
+#ifdef ARDUINO_ARCH_ESP8266
+    network_setup_mdns(this->wifi_sta_ip_(), 0);
+#endif
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
     return;
@@ -468,7 +481,7 @@ void WiFiComponent::retry_connect() {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
-    delay(100);
+    delay(100);  // NOLINT
     this->num_retried_ = 0;
   } else {
     this->num_retried_++;

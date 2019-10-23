@@ -30,6 +30,7 @@ void ClimateTraits::set_supports_auto_mode(bool supports_auto_mode) { supports_a
 void ClimateTraits::set_supports_cool_mode(bool supports_cool_mode) { supports_cool_mode_ = supports_cool_mode; }
 void ClimateTraits::set_supports_heat_mode(bool supports_heat_mode) { supports_heat_mode_ = supports_heat_mode; }
 void ClimateTraits::set_supports_away(bool supports_away) { supports_away_ = supports_away; }
+void ClimateTraits::set_supports_action(bool supports_action) { supports_action_ = supports_action; }
 float ClimateTraits::get_visual_min_temperature() const { return visual_min_temperature_; }
 void ClimateTraits::set_visual_min_temperature(float visual_min_temperature) {
   visual_min_temperature_ = visual_min_temperature;
@@ -52,6 +53,7 @@ int8_t ClimateTraits::get_temperature_accuracy_decimals() const {
 }
 void ClimateTraits::set_visual_temperature_step(float temperature_step) { visual_temperature_step_ = temperature_step; }
 bool ClimateTraits::get_supports_away() const { return supports_away_; }
+bool ClimateTraits::get_supports_action() const { return supports_action_; }
 
 }  // namespace climate
 }  // namespace esphome

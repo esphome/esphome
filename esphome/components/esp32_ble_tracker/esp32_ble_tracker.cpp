@@ -1,6 +1,7 @@
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -133,7 +134,7 @@ bool ESP32BLETracker::ble_setup() {
   }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
-  delay(200);
+  delay(200);  // NOLINT
 
   return true;
 }
@@ -150,21 +151,16 @@ void ESP32BLETracker::start_scan(bool first) {
       listener->on_scan_end();
   }
   this->already_discovered_.clear();
-  this->scan_params_.scan_type = BLE_SCAN_TYPE_ACTIVE;
+  this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
-  // Values determined empirically, higher scan intervals and lower scan windows make the ESP more stable
-  // Ideally, these values should both be quite low, especially scan window. 0x10/0x10 is the esp-idf
-  // default and works quite well. 0x100/0x50 discovers a few less BLE broadcast packets but is a lot
-  // more stable (order of several hours). The old ESPHome default (1600/1600) was terrible with
-  // crashes every few minutes
-  this->scan_params_.scan_interval = 0x200;
-  this->scan_params_.scan_window = 0x30;
+  this->scan_params_.scan_interval = this->scan_interval_;
+  this->scan_params_.scan_window = this->scan_window_;
 
   esp_ble_gap_set_scan_params(&this->scan_params_);
-  esp_ble_gap_start_scanning(this->scan_interval_);
+  esp_ble_gap_start_scanning(this->scan_duration_);
 
-  this->set_timeout("scan", this->scan_interval_ * 2000, []() {
+  this->set_timeout("scan", this->scan_duration_ * 2000, []() {
     ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
     App.reboot();
   });
@@ -207,20 +203,8 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
   }
 }
 
-std::string hexencode(const std::string &raw_data) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < raw_data.size(); i++) {
-    if (i + 1 != raw_data.size()) {
-      sprintf(buf, "0x%02X.", static_cast<uint8_t>(raw_data[i]));
-    } else {
-      sprintf(buf, "0x%02X ", static_cast<uint8_t>(raw_data[i]));
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%zu)", raw_data.size());
-  res += buf;
-  return res;
+std::string hexencode_string(const std::string &raw_data) {
+  return hexencode(reinterpret_cast<const uint8_t *>(raw_data.c_str()), raw_data.size());
 }
 
 ESPBTUUID::ESPBTUUID() : uuid_() {}
@@ -332,15 +316,15 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   for (auto uuid : this->service_uuids_) {
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
-  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(this->manufacturer_data_).c_str());
-  ESP_LOGVV(TAG, "  Service data: %s", hexencode(this->service_data_).c_str());
+  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode_string(this->manufacturer_data_).c_str());
+  ESP_LOGVV(TAG, "  Service data: %s", hexencode_string(this->service_data_).c_str());
 
   if (this->service_data_uuid_.has_value()) {
     ESP_LOGVV(TAG, "  Service Data UUID: %s", this->service_data_uuid_->to_string().c_str());
   }
 
   ESP_LOGVV(TAG, "Adv data: %s",
-            hexencode(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
+            hexencode_string(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
@@ -454,10 +438,12 @@ const std::string &ESPBTDevice::get_manufacturer_data() const { return this->man
 const std::string &ESPBTDevice::get_service_data() const { return this->service_data_; }
 const optional<ESPBTUUID> &ESPBTDevice::get_service_data_uuid() const { return this->service_data_uuid_; }
 
-void ESP32BLETracker::set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
-  ESP_LOGCONFIG(TAG, "  Scan Interval: %u s", this->scan_interval_);
+  ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
+  ESP_LOGCONFIG(TAG, "  Scan Interval: %u ms", this->scan_interval_);
+  ESP_LOGCONFIG(TAG, "  Scan Window: %u ms", this->scan_window_);
+  ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();

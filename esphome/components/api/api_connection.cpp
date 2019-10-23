@@ -442,6 +442,7 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   ClimateStateResponse resp{};
   resp.key = climate->get_object_id_hash();
   resp.mode = static_cast<EnumClimateMode>(climate->mode);
+  resp.action = static_cast<EnumClimateAction>(climate->action);
   if (traits.get_supports_current_temperature())
     resp.current_temperature = climate->current_temperature;
   if (traits.get_supports_two_point_target_temperature()) {
@@ -472,6 +473,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.visual_max_temperature = traits.get_visual_max_temperature();
   msg.visual_temperature_step = traits.get_visual_temperature_step();
   msg.supports_away = traits.get_supports_away();
+  msg.supports_action = traits.get_supports_action();
   return this->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {

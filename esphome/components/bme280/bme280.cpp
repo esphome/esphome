@@ -178,7 +178,7 @@ void BME280Component::update() {
     return;
   }
 
-  float meas_time = 1;
+  float meas_time = 1.5;
   meas_time += 2.3f * oversampling_to_time(this->temperature_oversampling_);
   meas_time += 2.3f * oversampling_to_time(this->pressure_oversampling_) + 0.575f;
   meas_time += 2.3f * oversampling_to_time(this->humidity_oversampling_) + 0.575f;

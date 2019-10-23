@@ -18,62 +18,15 @@ const uint8_t TCL112_AUTO = 8;
 const uint8_t TCL112_POWER_MASK = 0x04;
 
 const uint8_t TCL112_HALF_DEGREE = 0b00100000;
-const float TCL112_TEMP_MAX = 31.0;
-const float TCL112_TEMP_MIN = 16.0;
 
-const uint16_t TCL112_HEADER_MARK = 3000;
+const uint16_t TCL112_HEADER_MARK = 3100;
 const uint16_t TCL112_HEADER_SPACE = 1650;
 const uint16_t TCL112_BIT_MARK = 500;
-const uint16_t TCL112_ONE_SPACE = 1050;
-const uint16_t TCL112_ZERO_SPACE = 325;
+const uint16_t TCL112_ONE_SPACE = 1100;
+const uint16_t TCL112_ZERO_SPACE = 350;
 const uint32_t TCL112_GAP = TCL112_HEADER_SPACE;
 
-climate::ClimateTraits Tcl112Climate::traits() {
-  auto traits = climate::ClimateTraits();
-  traits.set_supports_current_temperature(this->sensor_ != nullptr);
-  traits.set_supports_auto_mode(true);
-  traits.set_supports_cool_mode(this->supports_cool_);
-  traits.set_supports_heat_mode(this->supports_heat_);
-  traits.set_supports_two_point_target_temperature(false);
-  traits.set_supports_away(false);
-  traits.set_visual_min_temperature(TCL112_TEMP_MIN);
-  traits.set_visual_max_temperature(TCL112_TEMP_MAX);
-  traits.set_visual_temperature_step(.5f);
-  return traits;
-}
-
-void Tcl112Climate::setup() {
-  if (this->sensor_) {
-    this->sensor_->add_on_state_callback([this](float state) {
-      this->current_temperature = state;
-      // current temperature changed, publish state
-      this->publish_state();
-    });
-    this->current_temperature = this->sensor_->state;
-  } else
-    this->current_temperature = NAN;
-  // restore set points
-  auto restore = this->restore_state_();
-  if (restore.has_value()) {
-    restore->apply(this);
-  } else {
-    // restore from defaults
-    this->mode = climate::CLIMATE_MODE_OFF;
-    this->target_temperature = 24;
-  }
-}
-
-void Tcl112Climate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
-    this->mode = *call.get_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
-
-  this->transmit_state_();
-  this->publish_state();
-}
-
-void Tcl112Climate::transmit_state_() {
+void Tcl112Climate::transmit_state() {
   uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
 
   // A known good state. (On, Cool, 24C)
@@ -124,7 +77,10 @@ void Tcl112Climate::transmit_state_() {
   for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
     remote_state[TCL112_STATE_LENGTH - 1] += remote_state[checksum_byte];
 
-  ESP_LOGV(TAG, "Sending tcl code: %u", remote_state[7]);
+  ESP_LOGV(TAG, "Sending: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X", remote_state[0],
+           remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6],
+           remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11], remote_state[12],
+           remote_state[13]);
 
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
@@ -146,6 +102,77 @@ void Tcl112Climate::transmit_state_() {
   data->space(TCL112_GAP);
 
   transmit.perform();
+}
+
+bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
+  // Validate header
+  if (!data.expect_item(TCL112_HEADER_MARK, TCL112_HEADER_SPACE)) {
+    ESP_LOGV(TAG, "Header fail");
+    return false;
+  }
+
+  uint8_t remote_state[TCL112_STATE_LENGTH] = {0};
+  // Read all bytes.
+  for (int i = 0; i < TCL112_STATE_LENGTH; i++) {
+    // Read bit
+    for (int j = 0; j < 8; j++) {
+      if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE))
+        remote_state[i] |= 1 << j;
+      else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
+        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
+        return false;
+      }
+    }
+  }
+  // Validate footer
+  if (!data.expect_mark(TCL112_BIT_MARK)) {
+    ESP_LOGV(TAG, "Footer fail");
+    return false;
+  }
+
+  uint8_t checksum = 0;
+  // Calculate & set the checksum for the current internal state of the remote.
+  // Stored the checksum value in the last byte.
+  for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
+    checksum += remote_state[checksum_byte];
+  if (checksum != remote_state[TCL112_STATE_LENGTH - 1]) {
+    ESP_LOGV(TAG, "Checksum fail");
+    return false;
+  }
+
+  ESP_LOGV(TAG, "Received: %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X %02X %02X   %02X %02X",
+           remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], remote_state[5],
+           remote_state[6], remote_state[7], remote_state[8], remote_state[9], remote_state[10], remote_state[11],
+           remote_state[12], remote_state[13]);
+
+  // two first bytes are constant
+  if (remote_state[0] != 0x23 || remote_state[1] != 0xCB)
+    return false;
+
+  if ((remote_state[5] & TCL112_POWER_MASK) == 0) {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  } else {
+    auto mode = remote_state[6] & 0x0F;
+    switch (mode) {
+      case TCL112_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      case TCL112_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case TCL112_DRY:
+      case TCL112_FAN:
+      case TCL112_AUTO:
+        this->mode = climate::CLIMATE_MODE_AUTO;
+        break;
+    }
+  }
+  auto temp = TCL112_TEMP_MAX - remote_state[7];
+  if (remote_state[12] & TCL112_HALF_DEGREE)
+    temp += .5f;
+  this->target_temperature = temp;
+  this->publish_state();
+  return true;
 }
 
 }  // namespace tcl112

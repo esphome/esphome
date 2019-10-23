@@ -4,10 +4,10 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 
-#define SIM800L_READ_BUFFER_LENGTH 255
-
 namespace esphome {
 namespace sim800l {
+
+const uint8_t SIM800L_READ_BUFFER_LENGTH = 255;
 
 enum State {
   STATE_IDLE = 0,
@@ -37,6 +37,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
   void loop() override;
+  void dump_config() override;
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }

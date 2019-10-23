@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 
 from esphome.components import sensor, binary_sensor
 from esphome.const import CONF_ID, CONF_CHANNELS, CONF_VALUE, CONF_TYPE, UNIT_EMPTY, \
-    ICON_CHECK_CIRCLE_OUTLINE, CONF_BINARY_SENSOR
+    ICON_CHECK_CIRCLE_OUTLINE, CONF_BINARY_SENSOR, CONF_GROUP
 
 DEPENDENCIES = ['binary_sensor']
 
@@ -11,7 +11,6 @@ binary_sensor_map_ns = cg.esphome_ns.namespace('binary_sensor_map')
 BinarySensorMap = binary_sensor_map_ns.class_('BinarySensorMap', cg.Component, sensor.Sensor)
 SensorMapType = binary_sensor_map_ns.enum('SensorMapType')
 
-CONF_GROUP = 'group'
 SENSOR_MAP_TYPES = {
     CONF_GROUP: SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
 }

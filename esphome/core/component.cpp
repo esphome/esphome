@@ -107,7 +107,7 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
   App.scheduler.set_timeout(this, "", timeout, std::move(f));
 }
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", interval, std::move(f));
+  App.scheduler.set_interval(this, "", interval, std::move(f));
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }

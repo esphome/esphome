@@ -160,13 +160,13 @@ def compile_program(args, config):
     from esphome import platformio_api
 
     _LOGGER.info("Compiling app...")
-    return platformio_api.run_compile(config, args.verbose)
+    return platformio_api.run_compile(config, CORE.verbose)
 
 
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
     cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
-           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 115200)),
+           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)),
            '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
@@ -184,7 +184,7 @@ def upload_program(config, args, host):
 
         if CORE.is_esp8266:
             return upload_using_esptool(config, host)
-        return platformio_api.run_upload(config, args.verbose, host)
+        return platformio_api.run_upload(config, CORE.verbose, host)
 
     from esphome import espota2
 
@@ -221,6 +221,7 @@ def clean_mqtt(config, args):
 def setup_log(debug=False, quiet=False):
     if debug:
         log_level = logging.DEBUG
+        CORE.verbose = True
     elif quiet:
         log_level = logging.CRITICAL
     else:
@@ -258,7 +259,7 @@ def command_wizard(args):
 
 def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
-    if not args.verbose:
+    if not CORE.verbose:
         config = strip_default_ids(config)
     safe_print(yaml_util.dump(config))
     return 0
@@ -477,7 +478,11 @@ def parse_args(argv):
                                       help="Create a simple web server for a dashboard.")
     dashboard.add_argument("--port", help="The HTTP port to open connections on. Defaults to 6052.",
                            type=int, default=6052)
-    dashboard.add_argument("--password", help="The optional password to require for all requests.",
+    dashboard.add_argument("--username", help="The optional username to require "
+                                              "for authentication.",
+                           type=str, default='')
+    dashboard.add_argument("--password", help="The optional password to require "
+                                              "for authentication.",
                            type=str, default='')
     dashboard.add_argument("--open-ui", help="Open the dashboard UI in a browser.",
                            action='store_true')
@@ -504,6 +509,11 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
+    if IS_PY2:
+        _LOGGER.warning("You're using ESPHome with python 2. Support for python 2 is deprecated "
+                        "and will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 "
+                        "or higher.")
+
     if args.command in PRE_CONFIG_ACTIONS:
         try:
             return PRE_CONFIG_ACTIONS[args.command](args)
@@ -515,7 +525,7 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config(args.verbose)
+        config = read_config()
         if config is None:
             return 1
         CORE.config = config

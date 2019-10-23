@@ -9,14 +9,17 @@ namespace sensor {
 
 #define LOG_SENSOR(prefix, type, obj) \
   if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type " '%s'", obj->get_name().c_str()); \
-    ESP_LOGCONFIG(TAG, prefix "  Unit of Measurement: '%s'", obj->get_unit_of_measurement().c_str()); \
-    ESP_LOGCONFIG(TAG, prefix "  Accuracy Decimals: %d", obj->get_accuracy_decimals()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, obj->get_unit_of_measurement().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s  Accuracy Decimals: %d", prefix, obj->get_accuracy_decimals()); \
     if (!obj->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Icon: '%s'", obj->get_icon().c_str()); \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, obj->get_icon().c_str()); \
     } \
     if (!obj->unique_id().empty()) { \
-      ESP_LOGV(TAG, prefix "  Unique ID: '%s'", obj->unique_id().c_str()); \
+      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, obj->unique_id().c_str()); \
+    } \
+    if (obj->get_force_update()) { \
+      ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }
 
@@ -142,6 +145,15 @@ class Sensor : public Nameable {
 
   void internal_send_state_to_frontend(float state);
 
+  bool get_force_update() const { return force_update_; }
+  /** Set this sensor's force_update mode.
+   *
+   * If the sensor is in force_update mode, the frontend is required to save all
+   * state changes to the database when they are published, even if the state is the
+   * same as before.
+   */
+  void set_force_update(bool force_update) { force_update_ = force_update; }
+
  protected:
   /** Override this to set the Home Assistant unit of measurement for this sensor.
    *
@@ -174,6 +186,7 @@ class Sensor : public Nameable {
   optional<int8_t> accuracy_decimals_;
   Filter *filter_list_{nullptr};  ///< Store all active filters.
   bool has_state_{false};
+  bool force_update_{false};
 };
 
 class PollingSensorComponent : public PollingComponent, public Sensor {

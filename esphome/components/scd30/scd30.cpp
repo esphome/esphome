@@ -99,22 +99,27 @@ void SCD30Component::update() {
       this->status_set_warning();
       return;
     }
+
+    union uint32_float_t {
+      uint32_t uint32;
+      float value;
+    };
     uint32_t temp_c_o2_u32 = (((uint32_t(raw_data[0])) << 16) | (uint32_t(raw_data[1])));
-    float co2 = *reinterpret_cast<float *>(&temp_c_o2_u32);
+    uint32_float_t co2{.uint32 = temp_c_o2_u32};
 
     uint32_t temp_temp_u32 = (((uint32_t(raw_data[2])) << 16) | (uint32_t(raw_data[3])));
-    float temperature = *reinterpret_cast<float *>(&temp_temp_u32);
+    uint32_float_t temperature{.uint32 = temp_temp_u32};
 
     uint32_t temp_hum_u32 = (((uint32_t(raw_data[4])) << 16) | (uint32_t(raw_data[5])));
-    float humidity = *reinterpret_cast<float *>(&temp_hum_u32);
+    uint32_float_t humidity{.uint32 = temp_hum_u32};
 
-    ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2, temperature, humidity);
+    ESP_LOGD(TAG, "Got CO2=%.2fppm temperature=%.2f°C humidity=%.2f%%", co2.value, temperature.value, humidity.value);
     if (this->co2_sensor_ != nullptr)
-      this->co2_sensor_->publish_state(co2);
+      this->co2_sensor_->publish_state(co2.value);
     if (this->temperature_sensor_ != nullptr)
-      this->temperature_sensor_->publish_state(temperature);
+      this->temperature_sensor_->publish_state(temperature.value);
     if (this->humidity_sensor_ != nullptr)
-      this->humidity_sensor_->publish_state(humidity);
+      this->humidity_sensor_->publish_state(humidity.value);
 
     this->status_clear_warning();
   });

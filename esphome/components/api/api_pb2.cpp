@@ -106,6 +106,18 @@ template<> const char *proto_enum_to_string<EnumClimateMode>(EnumClimateMode val
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<EnumClimateAction>(EnumClimateAction value) {
+  switch (value) {
+    case CLIMATE_ACTION_OFF:
+      return "CLIMATE_ACTION_OFF";
+    case CLIMATE_ACTION_COOLING:
+      return "CLIMATE_ACTION_COOLING";
+    case CLIMATE_ACTION_HEATING:
+      return "CLIMATE_ACTION_HEATING";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -1347,6 +1359,10 @@ bool ListEntitiesSensorResponse::decode_varint(uint32_t field_id, ProtoVarInt va
       this->accuracy_decimals = value.as_int32();
       return true;
     }
+    case 8: {
+      this->force_update = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -1395,6 +1411,7 @@ void ListEntitiesSensorResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(5, this->icon);
   buffer.encode_string(6, this->unit_of_measurement);
   buffer.encode_int32(7, this->accuracy_decimals);
+  buffer.encode_bool(8, this->force_update);
 }
 void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1427,6 +1444,10 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("  accuracy_decimals: ");
   sprintf(buffer, "%d", this->accuracy_decimals);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  force_update: ");
+  out.append(YESNO(this->force_update));
   out.append("\n");
   out.append("}");
 }
@@ -2394,6 +2415,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->supports_away = value.as_bool();
       return true;
     }
+    case 12: {
+      this->supports_action = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -2452,6 +2477,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(9, this->visual_max_temperature);
   buffer.encode_float(10, this->visual_temperature_step);
   buffer.encode_bool(11, this->supports_away);
+  buffer.encode_bool(12, this->supports_action);
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2505,6 +2531,10 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append("  supports_away: ");
   out.append(YESNO(this->supports_away));
   out.append("\n");
+
+  out.append("  supports_action: ");
+  out.append(YESNO(this->supports_action));
+  out.append("\n");
   out.append("}");
 }
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -2515,6 +2545,10 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
     }
     case 7: {
       this->away = value.as_bool();
+      return true;
+    }
+    case 8: {
+      this->action = value.as_enum<EnumClimateAction>();
       return true;
     }
     default:
@@ -2555,6 +2589,7 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
   buffer.encode_bool(7, this->away);
+  buffer.encode_enum<EnumClimateAction>(8, this->action);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2590,6 +2625,10 @@ void ClimateStateResponse::dump_to(std::string &out) const {
 
   out.append("  away: ");
   out.append(YESNO(this->away));
+  out.append("\n");
+
+  out.append("  action: ");
+  out.append(proto_enum_to_string<EnumClimateAction>(this->action));
   out.append("\n");
   out.append("}");
 }
