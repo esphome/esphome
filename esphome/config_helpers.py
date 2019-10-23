@@ -1,10 +1,9 @@
 from __future__ import print_function
 
-import codecs
 import json
 import os
 
-from esphome.core import CORE, EsphomeError
+from esphome.core import CORE
 from esphome.helpers import read_file
 from esphome.py_compat import safe_input
 

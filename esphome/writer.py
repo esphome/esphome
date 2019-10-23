@@ -8,7 +8,7 @@ from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
     HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, file_compare, \
+from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, \
     copy_file_if_changed
 from esphome.storage_json import StorageJSON, storage_path
 
