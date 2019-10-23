@@ -1,12 +1,11 @@
 from __future__ import print_function
 
 import codecs
-import tempfile
 
 import logging
 import os
 
-from esphome.py_compat import char_to_byte, text_type
+from esphome.py_compat import char_to_byte, text_type, IS_PY2, encode_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -172,21 +171,27 @@ def read_file(path):
 
 
 def _write_file(path, text):
+    import tempfile
     directory = os.path.dirname(path)
     mkdir_p(directory)
 
     tmp_path = None
+    data = encode_text(text)
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=directory,
-                                         delete=False) as f_handle:
+        with tempfile.NamedTemporaryFile(mode="w", dir=directory, delete=False) as f_handle:
             tmp_path = f_handle.name
-            f_handle.write(text)
+            f_handle.write(data)
         # Newer tempfile implementations create the file with mode 0o600
         os.chmod(tmp_path, 0o644)
-        # If destination exists, will be overwritten
-        os.replace(tmp_path, path)
+        if IS_PY2:
+            if os.path.exists(path):
+                os.remove(path)
+            os.rename(tmp_path, path)
+        else:
+            # If destination exists, will be overwritten
+            os.replace(tmp_path, path)
     finally:
-        if os.path.exists(tmp_path):
+        if tmp_path is not None and os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
             except OSError as err:
