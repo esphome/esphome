@@ -9,15 +9,7 @@ static const char *TAG = "http_request";
 void HttpRequestComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "HTTP Request:");
   ESP_LOGCONFIG(TAG, "  Timeout: %ums", this->timeout_);
-  if (this->useragent_ != nullptr) {
-    ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
-  }
-  if (!this->headers_.empty()) {
-    ESP_LOGCONFIG(TAG, "  Headers:");
-    for (const auto &header : this->headers_) {
-      ESP_LOGCONFIG(TAG, "    %s: %s", header.name, header.value);
-    }
-  }
+  ESP_LOGCONFIG(TAG, "  User-Agent: %s", this->useragent_);
 }
 
 void HttpRequestComponent::send() {
