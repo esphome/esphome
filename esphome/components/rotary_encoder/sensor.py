@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, UNIT_STEPS, \
-    ICON_ROTATE_RIGHT, CONF_VALUE
+    ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B
 
 rotary_encoder_ns = cg.esphome_ns.namespace('rotary_encoder')
 RotaryEncoderResolution = rotary_encoder_ns.enum('RotaryEncoderResolution')
@@ -13,8 +13,6 @@ RESOLUTIONS = {
     4: RotaryEncoderResolution.ROTARY_ENCODER_4_PULSES_PER_CYCLE,
 }
 
-CONF_PIN_A = 'pin_a'
-CONF_PIN_B = 'pin_b'
 CONF_PIN_RESET = 'pin_reset'
 
 RotaryEncoderSensor = rotary_encoder_ns.class_('RotaryEncoderSensor', sensor.Sensor, cg.Component)

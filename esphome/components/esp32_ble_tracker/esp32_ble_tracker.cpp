@@ -134,7 +134,7 @@ bool ESP32BLETracker::ble_setup() {
   }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
-  delay(200);
+  delay(200);  // NOLINT
 
   return true;
 }
