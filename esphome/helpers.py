@@ -178,7 +178,7 @@ def _write_file(path, text):
     tmp_path = None
     data = encode_text(text)
     try:
-        with tempfile.NamedTemporaryFile(mode="w", dir=directory, delete=False) as f_handle:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=directory, delete=False) as f_handle:
             tmp_path = f_handle.name
             f_handle.write(data)
         # Newer tempfile implementations create the file with mode 0o600
