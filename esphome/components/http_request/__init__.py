@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, \
+from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
     CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_0
 from esphome.core import CORE
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
@@ -19,7 +19,6 @@ HttpRequestComponent = http_request_ns.class_('HttpRequestComponent', cg.Compone
 HttpRequestSendAction = http_request_ns.class_('HttpRequestSendAction', automation.Action)
 
 CONF_URL = 'url'
-CONF_METHOD = 'method'
 CONF_HEADERS = 'headers'
 CONF_USERAGENT = 'useragent'
 CONF_BODY = 'body'
