@@ -8,7 +8,7 @@ from esphome.core import CORE, EsphomeError
 
 
 def read_config_file(path):
-    # type: (strstr) -> unicode
+    # type: (str) -> str
     if CORE.vscode and (not CORE.ace or
                         os.path.abspath(path) == os.path.abspath(CORE.config_path)):
         print(json.dumps({

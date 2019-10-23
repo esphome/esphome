@@ -71,7 +71,7 @@ def recv_decode(sock, amount, decode=True):
     data = sock.recv(amount)
     if not decode:
         return data
-    return [x for x in data]
+    return list(data)
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):

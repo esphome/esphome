@@ -11,7 +11,7 @@ ifaddr==0.1.6
 platformio==4.0.3
 esptool==2.7
 
-pylint==2.3.0
-flake8==3.6.0
+pylint==2.4.3
+flake8==3.7.8
 pillow
 pexpect

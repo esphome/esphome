@@ -77,7 +77,7 @@ def uart_write_to_code(config, action_id, template_arg, args):
     yield cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
     if isinstance(data, bytes):
-        data = [x for x in data]
+        data = list(data)
 
     if cg.is_template(data):
         templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))

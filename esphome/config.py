@@ -207,7 +207,7 @@ class Config(OrderedDict):
         # A list of paths that should be fully outputted
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
-        self.output_paths = []  # type: List[Tuple[ConfigPath, unicode]]
+        self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
 
     def add_error(self, error):
         # type: (vol.Invalid) -> None
@@ -227,15 +227,15 @@ class Config(OrderedDict):
             self.add_error(e)
 
     def add_str_error(self, message, path):
-        # type: (strstr, ConfigPath) -> None
+        # type: (str, ConfigPath) -> None
         self.add_error(vol.Invalid(message, path))
 
     def add_output_path(self, path, domain):
-        # type: (ConfigPath, unicode) -> None
+        # type: (ConfigPath, str) -> None
         self.output_paths.append((path, domain))
 
     def remove_output_path(self, path, domain):
-        # type: (ConfigPath, unicode) -> None
+        # type: (ConfigPath, str) -> None
         self.output_paths.remove((path, domain))
 
     def is_in_error_path(self, path):
@@ -603,7 +603,7 @@ def _get_parent_name(path, config):
 
 
 def _format_vol_invalid(ex, config):
-    # type: (vol.Invalid, Config) -> unicode
+    # type: (vol.Invalid, Config) -> str
     message = ''
 
     paren = _get_parent_name(ex.path[:-1], config)
@@ -684,7 +684,7 @@ def _print_on_next_line(obj):
 
 
 def dump_dict(config, path, at_root=True):
-    # type: (Config, ConfigPath, bool) -> Tuple[unicode, bool]
+    # type: (Config, ConfigPath, bool) -> Tuple[str, bool]
     conf = config.get_nested_item(path)
     ret = ''
     multiline = False

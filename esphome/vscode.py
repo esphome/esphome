@@ -2,13 +2,16 @@ from __future__ import print_function
 
 import json
 import os
+from typing import Optional
 
-from esphome.config import load_config, _format_vol_invalid
-from esphome.core import CORE
+# pylint: disable=unused-import
+from esphome.config import load_config, _format_vol_invalid, Config
+from esphome.core import CORE, DocumentRange
+import esphome.config_validation as cv
 
 
 def _get_invalid_range(res, invalid):
-    # type: (Config, vol.Invalid) -> Optional[DocumentRange]
+    # type: (Config, cv.Invalid) -> Optional[DocumentRange]
     return res.get_deepest_document_range_for_path(invalid.path)
 
 

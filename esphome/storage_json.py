@@ -11,7 +11,7 @@ from esphome.helpers import mkdir_p
 
 # pylint: disable=unused-import, wrong-import-order
 from esphome.core import CoreType  # noqa
-from typing import Any, Dict, Optional  # noqa
+from typing import Any, Optional, List
 
 _LOGGER = logging.getLogger(__name__)
 

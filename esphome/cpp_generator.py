@@ -23,7 +23,7 @@ SafeExpType = Union[Expression, bool, str, str, int, float, TimePeriod,
 
 
 class RawExpression(Expression):
-    def __init__(self, text):  # type: (Union[str, unicode]) -> None
+    def __init__(self, text):  # type: (Union[str, str]) -> None
         super(RawExpression, self).__init__()
         self.text = text
 
@@ -200,7 +200,7 @@ class Literal(Expression):
 
 
 class StringLiteral(Literal):
-    def __init__(self, string):  # type: (Union[str, unicode]) -> None
+    def __init__(self, string):  # type: (Union[str, str]) -> None
         super(StringLiteral, self).__init__()
         self.string = string
 
@@ -209,7 +209,7 @@ class StringLiteral(Literal):
 
 
 class IntLiteral(Literal):
-    def __init__(self, i):  # type: (Union[int, long]) -> None
+    def __init__(self, i):  # type: (Union[int]) -> None
         super(IntLiteral, self).__init__()
         self.i = i
 
@@ -254,7 +254,7 @@ class FloatLiteral(Literal):
 
 # pylint: disable=bad-continuation
 def safe_exp(
-        obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
+        obj  # type: Union[Expression, bool, str, int, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
     """Try to convert obj to an expression by automatically converting native python types to
@@ -328,7 +328,7 @@ class ExpressionStatement(Statement):
 
 
 class LineComment(Statement):
-    def __init__(self, value):  # type: (unicode) -> None
+    def __init__(self, value):  # type: (str) -> None
         super(LineComment, self).__init__()
         self._value = value
 
@@ -611,7 +611,7 @@ class MockObj(Expression):
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 
-    def __str__(self):  # type: () -> unicode
+    def __str__(self):  # type: () -> str
         return str(self.base)
 
     def __repr__(self):
@@ -678,7 +678,7 @@ class MockObjEnum(MockObj):
         kwargs['base'] = base
         MockObj.__init__(self, *args, **kwargs)
 
-    def __str__(self):  # type: () -> unicode
+    def __str__(self):  # type: () -> str
         if self._is_class:
             return super(MockObjEnum, self).__str__()
         return '{}{}{}'.format(self.base, self.op, self._enum)
