@@ -23,6 +23,6 @@ def read_config_file(path):
         with codecs.open(path, encoding='utf-8') as handle:
             return handle.read()
     except IOError as exc:
-        raise EsphomeError(u"Error accessing file {}: {}".format(path, exc))
+        raise EsphomeError("Error accessing file {}: {}".format(path, exc))
     except UnicodeDecodeError as exc:
-        raise EsphomeError(u"Unable to read file {}: {}".format(path, exc))
+        raise EsphomeError("Unable to read file {}: {}".format(path, exc))

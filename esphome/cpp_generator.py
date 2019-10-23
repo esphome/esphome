@@ -43,8 +43,8 @@ class AssignmentExpression(Expression):
 
     def __str__(self):
         if self.type is None:
-            return u"{} = {}".format(self.name, self.rhs)
-        return u"{} {}{} = {}".format(self.type, self.modifier, self.name, self.rhs)
+            return "{} = {}".format(self.name, self.rhs)
+        return "{} {}{} = {}".format(self.type, self.modifier, self.name, self.rhs)
 
 
 class VariableDeclarationExpression(Expression):
@@ -55,7 +55,7 @@ class VariableDeclarationExpression(Expression):
         self.name = name
 
     def __str__(self):
-        return u"{} {}{}".format(self.type, self.modifier, self.name)
+        return "{} {}{}".format(self.type, self.modifier, self.name)
 
 
 class ExpressionList(Expression):
@@ -68,7 +68,7 @@ class ExpressionList(Expression):
         self.args = [safe_exp(arg) for arg in args]
 
     def __str__(self):
-        text = u", ".join(str(x) for x in self.args)
+        text = ", ".join(str(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
     def __iter__(self):
@@ -81,7 +81,7 @@ class TemplateArguments(Expression):
         self.args = ExpressionList(*args)
 
     def __str__(self):
-        return u'<{}>'.format(self.args)
+        return '<{}>'.format(self.args)
 
     def __iter__(self):
         return iter(self.args)
@@ -100,8 +100,8 @@ class CallExpression(Expression):
 
     def __str__(self):
         if self.template_args is not None:
-            return u'{}{}({})'.format(self.base, self.template_args, self.args)
-        return u'{}({})'.format(self.base, self.args)
+            return '{}{}({})'.format(self.base, self.template_args, self.args)
+        return '{}({})'.format(self.base, self.args)
 
 
 class StructInitializer(Expression):
@@ -118,10 +118,10 @@ class StructInitializer(Expression):
             self.args[key] = exp
 
     def __str__(self):
-        cpp = u'{}{{\n'.format(self.base)
+        cpp = '{}{{\n'.format(self.base)
         for key, value in self.args.items():
-            cpp += u'  .{} = {},\n'.format(key, value)
-        cpp += u'}'
+            cpp += '  .{} = {},\n'.format(key, value)
+        cpp += '}'
         return cpp
 
 
@@ -138,14 +138,14 @@ class ArrayInitializer(Expression):
 
     def __str__(self):
         if not self.args:
-            return u'{}'
+            return '{}'
         if self.multiline:
-            cpp = u'{\n'
+            cpp = '{\n'
             for arg in self.args:
-                cpp += u'  {},\n'.format(arg)
-            cpp += u'}'
+                cpp += '  {},\n'.format(arg)
+            cpp += '}'
         else:
-            cpp = u'{' + u', '.join(str(arg) for arg in self.args) + u'}'
+            cpp = '{' + ', '.join(str(arg) for arg in self.args) + '}'
         return cpp
 
 
@@ -156,7 +156,7 @@ class ParameterExpression(Expression):
         self.id = id
 
     def __str__(self):
-        return u"{} {}".format(self.type, self.id)
+        return "{} {}".format(self.type, self.id)
 
 
 class ParameterListExpression(Expression):
@@ -169,7 +169,7 @@ class ParameterListExpression(Expression):
             self.parameters.append(parameter)
 
     def __str__(self):
-        return u", ".join(str(x) for x in self.parameters)
+        return ", ".join(str(x) for x in self.parameters)
 
 
 class LambdaExpression(Expression):
@@ -183,15 +183,15 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
-        cpp = u'[{}]({})'.format(self.capture, self.parameters)
+        cpp = '[{}]({})'.format(self.capture, self.parameters)
         if self.return_type is not None:
-            cpp += u' -> {}'.format(self.return_type)
-        cpp += u' {{\n{}\n}}'.format(self.content)
+            cpp += ' -> {}'.format(self.return_type)
+        cpp += ' {{\n{}\n}}'.format(self.content)
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
-        return u''.join(str(part) for part in self.parts)
+        return ''.join(str(part) for part in self.parts)
 
 
 class Literal(Expression):
@@ -205,7 +205,7 @@ class StringLiteral(Literal):
         self.string = string
 
     def __str__(self):
-        return u'{}'.format(cpp_string_escape(self.string))
+        return '{}'.format(cpp_string_escape(self.string))
 
 
 class IntLiteral(Literal):
@@ -215,11 +215,11 @@ class IntLiteral(Literal):
 
     def __str__(self):
         if self.i > 4294967295:
-            return u'{}ULL'.format(self.i)
+            return '{}ULL'.format(self.i)
         if self.i > 2147483647:
-            return u'{}UL'.format(self.i)
+            return '{}UL'.format(self.i)
         if self.i < -2147483648:
-            return u'{}LL'.format(self.i)
+            return '{}LL'.format(self.i)
         return str(self.i)
 
 
@@ -229,7 +229,7 @@ class BoolLiteral(Literal):
         self.binary = binary
 
     def __str__(self):
-        return u"true" if self.binary else u"false"
+        return "true" if self.binary else "false"
 
 
 class HexIntLiteral(Literal):
@@ -248,8 +248,8 @@ class FloatLiteral(Literal):
 
     def __str__(self):
         if math.isnan(self.float_):
-            return u"NAN"
-        return u"{}f".format(self.float_)
+            return "NAN"
+        return "{}f".format(self.float_)
 
 
 # pylint: disable=bad-continuation
@@ -293,12 +293,12 @@ def safe_exp(
     if obj is float:
         return float_
     if isinstance(obj, ID):
-        raise ValueError(u"Object {} is an ID. Did you forget to register the variable?"
-                         u"".format(obj))
+        raise ValueError("Object {} is an ID. Did you forget to register the variable?"
+                         "".format(obj))
     if inspect.isgenerator(obj):
-        raise ValueError(u"Object {} is a coroutine. Did you forget to await the expression with "
-                         u"'yield'?".format(obj))
-    raise ValueError(u"Object is not an expression", obj)
+        raise ValueError("Object {} is a coroutine. Did you forget to await the expression with "
+                         "'yield'?".format(obj))
+    raise ValueError("Object is not an expression", obj)
 
 
 class Statement(object):
@@ -324,7 +324,7 @@ class ExpressionStatement(Statement):
         self.expression = safe_exp(expression)
 
     def __str__(self):
-        return u"{};".format(self.expression)
+        return "{};".format(self.expression)
 
 
 class LineComment(Statement):
@@ -333,9 +333,9 @@ class LineComment(Statement):
         self._value = value
 
     def __str__(self):
-        parts = self._value.split(u'\n')
-        parts = [u'// {}'.format(x) for x in parts]
-        return u'\n'.join(parts)
+        parts = self._value.split('\n')
+        parts = ['// {}'.format(x) for x in parts]
+        return '\n'.join(parts)
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
@@ -346,12 +346,12 @@ class ProgmemAssignmentExpression(AssignmentExpression):
 
     def __str__(self):
         type_ = self.type
-        return u"static const {} {}[] PROGMEM = {}".format(type_, self.name, self.rhs)
+        return "static const {} {}[] PROGMEM = {}".format(type_, self.name, self.rhs)
 
 
 def progmem_array(id, rhs):
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'.')
+    obj = MockObj(id, '.')
     assignment = ProgmemAssignmentExpression(id.type, id, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id, obj)
@@ -380,7 +380,7 @@ def variable(id,  # type: ID
     """
     assert isinstance(id, ID)
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'.')
+    obj = MockObj(id, '.')
     if type is not None:
         id.type = type
     assignment = AssignmentExpression(id.type, '', id, rhs, obj)
@@ -404,7 +404,7 @@ def Pvariable(id,  # type: ID
     :returns The new variable as a MockObj.
     """
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'->')
+    obj = MockObj(id, '->')
     if type is not None:
         id.type = type
     decl = VariableDeclarationExpression(id.type, '*', id)
@@ -593,19 +593,19 @@ class MockObj(Expression):
 
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
-    def __init__(self, base, op=u'.'):
+    def __init__(self, base, op='.'):
         self.base = base
         self.op = op
         super(MockObj, self).__init__()
 
     def __getattr__(self, attr):  # type: (str) -> MockObj
-        next_op = u'.'
-        if attr.startswith(u'P') and self.op not in ['::', '']:
+        next_op = '.'
+        if attr.startswith('P') and self.op not in ['::', '']:
             attr = attr[1:]
-            next_op = u'->'
-        if attr.startswith(u'_'):
+            next_op = '->'
+        if attr.startswith('_'):
             attr = attr[1:]
-        return MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
+        return MockObj('{}{}{}'.format(self.base, self.op, attr), next_op)
 
     def __call__(self, *args):  # type: (SafeExpType) -> MockObj
         call = CallExpression(self.base, *args)
@@ -615,29 +615,29 @@ class MockObj(Expression):
         return str(self.base)
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(str(self.base))
+        return 'MockObj<{}>'.format(str(self.base))
 
     @property
     def _(self):  # type: () -> MockObj
-        return MockObj(u'{}{}'.format(self.base, self.op))
+        return MockObj('{}{}'.format(self.base, self.op))
 
     @property
     def new(self):  # type: () -> MockObj
-        return MockObj(u'new {}'.format(self.base), u'->')
+        return MockObj('new {}'.format(self.base), '->')
 
     def template(self, *args):  # type: (*SafeExpType) -> MockObj
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
             args = args[0]
-        return MockObj(u'{}{}'.format(self.base, args))
+        return MockObj('{}{}'.format(self.base, args))
 
     def namespace(self, name):  # type: (str) -> MockObj
-        return MockObj(u'{}{}'.format(self._, name), u'::')
+        return MockObj('{}{}'.format(self._, name), '::')
 
     def class_(self, name, *parents):  # type: (str, *MockObjClass) -> MockObjClass
         op = '' if self.op == '' else '::'
-        return MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
+        return MockObjClass('{}{}{}'.format(self.base, op, name), '.', parents=parents)
 
     def struct(self, name):  # type: (str) -> MockObjClass
         return self.class_(name)
@@ -647,24 +647,24 @@ class MockObj(Expression):
 
     def operator(self, name):  # type: (str) -> MockObj
         if name == 'ref':
-            return MockObj(u'{} &'.format(self.base), u'')
+            return MockObj('{} &'.format(self.base), '')
         if name == 'ptr':
-            return MockObj(u'{} *'.format(self.base), u'')
+            return MockObj('{} *'.format(self.base), '')
         if name == "const":
-            return MockObj(u'const {}'.format(self.base), u'')
+            return MockObj('const {}'.format(self.base), '')
         raise NotImplementedError
 
     @property
     def using(self):  # type: () -> MockObj
         assert self.op == '::'
-        return MockObj(u'using namespace {}'.format(self.base))
+        return MockObj('using namespace {}'.format(self.base))
 
     def __getitem__(self, item):  # type: (Union[str, Expression]) -> MockObj
-        next_op = u'.'
-        if isinstance(item, str) and item.startswith(u'P'):
+        next_op = '.'
+        if isinstance(item, str) and item.startswith('P'):
             item = item[1:]
-            next_op = u'->'
-        return MockObj(u'{}[{}]'.format(self.base, item), next_op)
+            next_op = '->'
+        return MockObj('{}[{}]'.format(self.base, item), next_op)
 
 
 class MockObjEnum(MockObj):
@@ -681,10 +681,10 @@ class MockObjEnum(MockObj):
     def __str__(self):  # type: () -> unicode
         if self._is_class:
             return super(MockObjEnum, self).__str__()
-        return u'{}{}{}'.format(self.base, self.op, self._enum)
+        return '{}{}{}'.format(self.base, self.op, self._enum)
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(str(self.base))
+        return 'MockObj<{}>'.format(str(self.base))
 
 
 class MockObjClass(MockObj):
@@ -715,7 +715,7 @@ class MockObjClass(MockObj):
             args = args[0]
         new_parents = self._parents[:]
         new_parents.append(self)
-        return MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
+        return MockObjClass('{}{}'.format(self.base, args), parents=new_parents)
 
     def __repr__(self):
-        return u'MockObjClass<{}, parents={}>'.format(str(self.base), self._parents)
+        return 'MockObjClass<{}, parents={}>'.format(str(self.base), self._parents)

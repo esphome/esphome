@@ -271,13 +271,13 @@ def _lookup_pin(value):
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise cv.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
+    raise cv.Invalid("Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
 
 
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
-        raise cv.Invalid(u"This variable only supports pin numbers, not full pin schemas "
-                         u"(with inverted and mode).")
+        raise cv.Invalid("This variable only supports pin numbers, not full pin schemas "
+                         "(with inverted and mode).")
     if isinstance(value, int):
         return value
     try:
@@ -293,20 +293,20 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32:
         if value < 0 or value > 39:
-            raise cv.Invalid(u"ESP32: Invalid pin number: {}".format(value))
+            raise cv.Invalid("ESP32: Invalid pin number: {}".format(value))
         if 6 <= value <= 11:
-            _LOGGER.warning(u"ESP32: Pin %s (6-11) might already be used by the "
-                            u"flash interface. Be warned.", value)
+            _LOGGER.warning("ESP32: Pin %s (6-11) might already be used by the "
+                            "flash interface. Be warned.", value)
         if value in (20, 24, 28, 29, 30, 31):
-            _LOGGER.warning(u"ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
-                            u"Be warned.", value)
+            _LOGGER.warning("ESP32: Pin %s (20, 24, 28-31) can usually not be used. "
+                            "Be warned.", value)
         return value
     if CORE.is_esp8266:
         if 6 <= value <= 11:
-            _LOGGER.warning(u"ESP8266: Pin %s (6-11) might already be used by the "
-                            u"flash interface. Be warned.", value)
+            _LOGGER.warning("ESP8266: Pin %s (6-11) might already be used by the "
+                            "flash interface. Be warned.", value)
         if value < 0 or value > 17:
-            raise cv.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
+            raise cv.Invalid("ESP8266: Invalid pin number: {}".format(value))
         return value
     raise NotImplementedError
 
@@ -331,8 +331,8 @@ def output_pin(value):
     value = validate_gpio_pin(value)
     if CORE.is_esp32:
         if 34 <= value <= 39:
-            raise cv.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
-                             u"input pin.".format(value))
+            raise cv.Invalid("ESP32: GPIO{} (34-39) can only be used as an "
+                             "input pin.".format(value))
         return value
     if CORE.is_esp8266:
         return value
@@ -344,11 +344,11 @@ def analog_pin(value):
     if CORE.is_esp32:
         if 32 <= value <= 39:  # ADC1
             return value
-        raise cv.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
+        raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
     if CORE.is_esp8266:
         if value == 17:  # A0
             return value
-        raise cv.Invalid(u"ESP8266: Only pin A0 (17) supports ADC.")
+        raise cv.Invalid("ESP8266: Only pin A0 (17) supports ADC.")
     raise NotImplementedError
 
 

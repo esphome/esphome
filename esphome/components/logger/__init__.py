@@ -63,8 +63,8 @@ def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
     for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
-            raise EsphomeError(u"The local log level {} for {} must be less severe than the "
-                               u"global log level {}.".format(level, tag, global_level))
+            raise EsphomeError("The local log level {} for {} must be less severe than the "
+                               "global log level {}.".format(level, tag, global_level))
     return value
 
 
@@ -150,7 +150,7 @@ def maybe_simple_message(schema):
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     # pylint: disable=anomalous-backslash-in-string
-    cfmt = u"""\
+    cfmt = """\
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:                                # first option
@@ -164,8 +164,8 @@ def validate_printf(value):
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
-        raise cv.Invalid(u"Found {} printf-patterns ({}), but {} args were given!"
-                         u"".format(len(matches), u', '.join(matches), len(value[CONF_ARGS])))
+        raise cv.Invalid("Found {} printf-patterns ({}), but {} args were given!"
+                         "".format(len(matches), ', '.join(matches), len(value[CONF_ARGS])))
     return value
 
 

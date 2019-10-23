@@ -22,12 +22,12 @@ content = prot.read_bytes()
 d = descriptor.FileDescriptorSet.FromString(content)
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 def camel_to_snake(name):

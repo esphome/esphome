@@ -35,7 +35,7 @@ class HexInt(base_int):
 class IPAddress(object):
     def __init__(self, *args):
         if len(args) != 4:
-            raise ValueError(u"IPAddress must consist up 4 items")
+            raise ValueError("IPAddress must consist up 4 items")
         self.args = args
 
     def __str__(self):
@@ -45,7 +45,7 @@ class IPAddress(object):
 class MACAddress(object):
     def __init__(self, *parts):
         if len(parts) != 6:
-            raise ValueError(u"MAC Address must consist of 6 items")
+            raise ValueError("MAC Address must consist of 6 items")
         self.parts = parts
 
     def __str__(self):
@@ -256,7 +256,7 @@ class Lambda(object):
         return self.value
 
     def __repr__(self):
-        return u'Lambda<{}>'.format(self.value)
+        return 'Lambda<{}>'.format(self.value)
 
 
 class ID(object):
@@ -285,7 +285,7 @@ class ID(object):
         return self.id
 
     def __repr__(self):
-        return u'ID<{} declaration={}, type={}, manual={}>'.format(
+        return 'ID<{} declaration={}, type={}, manual={}>'.format(
             self.id, self.is_declaration, self.type, self.is_manual)
 
     def __eq__(self, other):
@@ -317,7 +317,7 @@ class DocumentLocation(object):
         )
 
     def __str__(self):
-        return u'{} {}:{}'.format(self.document, self.line, self.column)
+        return '{} {}:{}'.format(self.document, self.line, self.column)
 
 
 class DocumentRange(object):
@@ -334,7 +334,7 @@ class DocumentRange(object):
         )
 
     def __str__(self):
-        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
+        return '[{} - {}]'.format(self.start_mark, self.end_mark)
 
 
 class Define(object):
@@ -345,14 +345,14 @@ class Define(object):
     @property
     def as_build_flag(self):
         if self.value is None:
-            return u'-D{}'.format(self.name)
-        return u'-D{}={}'.format(self.name, self.value)
+            return '-D{}'.format(self.name)
+        return '-D{}={}'.format(self.name, self.value)
 
     @property
     def as_macro(self):
         if self.value is None:
-            return u'#define {}'.format(self.name)
-        return u'#define {} {}'.format(self.name, self.value)
+            return '#define {}'.format(self.name)
+        return '#define {} {}'.format(self.name, self.value)
 
     @property
     def as_tuple(self):
@@ -374,7 +374,7 @@ class Library(object):
     def as_lib_dep(self):
         if self.version is None:
             return self.name
-        return u'{}@{}'.format(self.name, self.version)
+        return '{}@{}'.format(self.name, self.version)
 
     @property
     def as_tuple(self):
@@ -630,15 +630,15 @@ class EsphomeCore(object):
 
         # Print not-awaited coroutines
         for obj in self.active_coroutines.values():
-            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
-            _LOGGER.warning(u"Please file a bug report with your configuration.")
+            _LOGGER.warning("Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
+            _LOGGER.warning("Please file a bug report with your configuration.")
         if self.active_coroutines:
             raise EsphomeError()
         if self.component_ids:
-            comps = u', '.join(u"'{}'".format(x) for x in self.component_ids)
-            _LOGGER.warning(u"Components %s were never registered. Please create a bug report",
+            comps = ', '.join("'{}'".format(x) for x in self.component_ids)
+            _LOGGER.warning("Components %s were never registered. Please create a bug report",
                             comps)
-            _LOGGER.warning(u"with your configuration.")
+            _LOGGER.warning("with your configuration.")
             raise EsphomeError()
         self.active_coroutines.clear()
 
@@ -648,8 +648,8 @@ class EsphomeCore(object):
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError(u"Add '{}' must be expression or statement, not {}"
-                             u"".format(expression, type(expression)))
+            raise ValueError("Add '{}' must be expression or statement, not {}"
+                             "".format(expression, type(expression)))
 
         self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
@@ -661,16 +661,16 @@ class EsphomeCore(object):
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError(u"Add '{}' must be expression or statement, not {}"
-                             u"".format(expression, type(expression)))
+            raise ValueError("Add '{}' must be expression or statement, not {}"
+                             "".format(expression, type(expression)))
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 
     def add_library(self, library):
         if not isinstance(library, Library):
-            raise ValueError(u"Library {} must be instance of Library, not {}"
-                             u"".format(library, type(library)))
+            raise ValueError("Library {} must be instance of Library, not {}"
+                             "".format(library, type(library)))
         _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
             if other.name != library.name:
@@ -685,9 +685,9 @@ class EsphomeCore(object):
             if other.version == library.version:
                 break
 
-            raise ValueError(u"Version pinning failed! Libraries {} and {} "
-                             u"requested with conflicting versions!"
-                             u"".format(library, other))
+            raise ValueError("Version pinning failed! Libraries {} and {} "
+                             "requested with conflicting versions!"
+                             "".format(library, other))
         else:
             self.libraries.append(library)
         return library
@@ -703,8 +703,8 @@ class EsphomeCore(object):
         elif isinstance(define, Define):
             pass
         else:
-            raise ValueError(u"Define {} must be string or Define, not {}"
-                             u"".format(define, type(define)))
+            raise ValueError("Define {} must be string or Define, not {}"
+                             "".format(define, type(define)))
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
@@ -747,7 +747,7 @@ class EsphomeCore(object):
             text = str(statement(exp))
             text = text.rstrip()
             main_code.append(text)
-        return u'\n'.join(main_code) + u'\n\n'
+        return '\n'.join(main_code) + '\n\n'
 
     @property
     def cpp_global_section(self):
@@ -758,7 +758,7 @@ class EsphomeCore(object):
             text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)
-        return u'\n'.join(global_code) + u'\n'
+        return '\n'.join(global_code) + '\n'
 
 
 class AutoLoad(OrderedDict):

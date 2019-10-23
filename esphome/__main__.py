@@ -41,9 +41,9 @@ def choose_prompt(options):
     if len(options) == 1:
         return options[0][1]
 
-    safe_print(u"Found multiple options, please choose one:")
+    safe_print("Found multiple options, please choose one:")
     for i, (desc, _) in enumerate(options):
-        safe_print(u"  [{}] {}".format(i + 1, desc))
+        safe_print("  [{}] {}".format(i + 1, desc))
 
     while True:
         opt = input('(number): ')
@@ -56,20 +56,20 @@ def choose_prompt(options):
                 raise ValueError
             break
         except ValueError:
-            safe_print(color('red', u"Invalid option: '{}'".format(opt)))
+            safe_print(color('red', "Invalid option: '{}'".format(opt)))
     return options[opt - 1][1]
 
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
     for res, desc in get_serial_ports():
-        options.append((u"{} ({})".format(res, desc), res))
+        options.append(("{} ({})".format(res, desc), res))
     if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
-        options.append((u"Over The Air ({})".format(CORE.address), CORE.address))
+        options.append(("Over The Air ({})".format(CORE.address), CORE.address))
         if default == 'OTA':
             return CORE.address
     if show_mqtt and 'mqtt' in CORE.config:
-        options.append((u"MQTT ({})".format(CORE.config['mqtt'][CONF_BROKER]), 'MQTT'))
+        options.append(("MQTT ({})".format(CORE.config['mqtt'][CONF_BROKER]), 'MQTT'))
         if default == 'OTA':
             return 'MQTT'
     if default is not None:
@@ -122,7 +122,7 @@ def wrap_to_code(name, comp):
     @functools.wraps(comp.to_code)
     @coroutine_with_priority(coro.priority)
     def wrapped(conf):
-        cg.add(cg.LineComment(u"{}:".format(name)))
+        cg.add(cg.LineComment("{}:".format(name)))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace('//', '')
@@ -270,12 +270,12 @@ def command_compile(args, config):
     if exit_code != 0:
         return exit_code
     if args.only_generate:
-        _LOGGER.info(u"Successfully generated source code.")
+        _LOGGER.info("Successfully generated source code.")
         return 0
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info(u"Successfully compiled program.")
+    _LOGGER.info("Successfully compiled program.")
     return 0
 
 
@@ -285,7 +285,7 @@ def command_upload(args, config):
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info(u"Successfully uploaded program.")
+    _LOGGER.info("Successfully uploaded program.")
     return 0
 
 
@@ -302,13 +302,13 @@ def command_run(args, config):
     exit_code = compile_program(args, config)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info(u"Successfully compiled program.")
+    _LOGGER.info("Successfully compiled program.")
     port = choose_upload_log_host(default=args.upload_port, check_default=None,
                                   show_ota=True, show_mqtt=False, show_api=True)
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
-    _LOGGER.info(u"Successfully uploaded program.")
+    _LOGGER.info("Successfully uploaded program.")
     if args.no_logs:
         return 0
     port = choose_upload_log_host(default=args.upload_port, check_default=port,
@@ -327,7 +327,7 @@ def command_mqtt_fingerprint(args, config):
 
 
 def command_version(args):
-    safe_print(u"Version: {}".format(const.__version__))
+    safe_print("Version: {}".format(const.__version__))
     return 0
 
 
@@ -524,7 +524,7 @@ def run_esphome(argv):
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:
-            safe_print(u"Unknown command {}".format(args.command))
+            safe_print("Unknown command {}".format(args.command))
 
         try:
             rc = POST_CONFIG_ACTIONS[args.command](args, config)

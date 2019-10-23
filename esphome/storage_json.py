@@ -83,7 +83,7 @@ class StorageJSON(object):
         }
 
     def to_json(self):
-        return json.dumps(self.as_dict(), indent=2) + u'\n'
+        return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):
         mkdir_p(os.path.dirname(path))
@@ -190,7 +190,7 @@ class EsphomeStorageJSON(object):
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
     def to_json(self):  # type: () -> dict
-        return json.dumps(self.as_dict(), indent=2) + u'\n'
+        return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):  # type: (str) -> None
         mkdir_p(os.path.dirname(path))

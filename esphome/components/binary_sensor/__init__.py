@@ -102,10 +102,10 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        raise cv.Invalid(u"First word must either be ON or OFF, not {}".format(parts[0]))
+        raise cv.Invalid("First word must either be ON or OFF, not {}".format(parts[0]))
 
     if parts[1] != 'for':
-        raise cv.Invalid(u"Second word must be 'for', got {}".format(parts[1]))
+        raise cv.Invalid("Second word must be 'for', got {}".format(parts[1]))
 
     if parts[2] == 'at':
         if parts[3] == 'least':
@@ -113,12 +113,12 @@ def parse_multi_click_timing_str(value):
         elif parts[3] == 'most':
             key = CONF_MAX_LENGTH
         else:
-            raise cv.Invalid(u"Third word after at must either be 'least' or 'most', got {}"
-                             u"".format(parts[3]))
+            raise cv.Invalid("Third word after at must either be 'least' or 'most', got {}"
+                             "".format(parts[3]))
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(u"Multi Click Grammar Parsing length failed: {}".format(err))
+            raise cv.Invalid("Multi Click Grammar Parsing length failed: {}".format(err))
         return {
             CONF_STATE: state,
             key: str(length)
@@ -130,12 +130,12 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid("Multi Click Grammar Parsing minimum length failed: {}".format(err))
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid("Multi Click Grammar Parsing minimum length failed: {}".format(err))
 
     return {
         CONF_STATE: state,

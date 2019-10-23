@@ -80,11 +80,11 @@ def safe_print(message=""):
 
 def shlex_quote(s):
     if not s:
-        return u"''"
+        return "''"
     if re.search(r'[^\w@%+=:,./-]', s) is None:
         return s
 
-    return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
+    return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
 ANSI_ESCAPE = re.compile(r'\033[@-_][0-?]*[ -/]*[@-~]')
@@ -158,8 +158,8 @@ def run_external_command(func, *cmd, **kwargs):
 
     orig_argv = sys.argv
     orig_exit = sys.exit  # mock sys.exit
-    full_cmd = u' '.join(shlex_quote(x) for x in cmd)
-    _LOGGER.info(u"Running:  %s", full_cmd)
+    full_cmd = ' '.join(shlex_quote(x) for x in cmd)
+    _LOGGER.info("Running:  %s", full_cmd)
 
     filter_lines = kwargs.get('filter_lines')
     orig_stdout = sys.stdout
@@ -180,8 +180,8 @@ def run_external_command(func, *cmd, **kwargs):
     except SystemExit as err:
         return err.args[0]
     except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.error(u"Running command failed: %s", err)
-        _LOGGER.error(u"Please try running %s locally.", full_cmd)
+        _LOGGER.error("Running command failed: %s", err)
+        _LOGGER.error("Please try running %s locally.", full_cmd)
     finally:
         sys.argv = orig_argv
         sys.exit = orig_exit
@@ -195,8 +195,8 @@ def run_external_command(func, *cmd, **kwargs):
 
 
 def run_external_process(*cmd, **kwargs):
-    full_cmd = u' '.join(shlex_quote(x) for x in cmd)
-    _LOGGER.info(u"Running:  %s", full_cmd)
+    full_cmd = ' '.join(shlex_quote(x) for x in cmd)
+    _LOGGER.info("Running:  %s", full_cmd)
     filter_lines = kwargs.get('filter_lines')
 
     capture_stdout = kwargs.get('capture_stdout', False)
@@ -212,8 +212,8 @@ def run_external_process(*cmd, **kwargs):
                                stdout=sub_stdout,
                                stderr=sub_stderr)
     except Exception as err:  # pylint: disable=broad-except
-        _LOGGER.error(u"Running command failed: %s", err)
-        _LOGGER.error(u"Please try running %s locally.", full_cmd)
+        _LOGGER.error("Running command failed: %s", err)
+        _LOGGER.error("Please try running %s locally.", full_cmd)
     finally:
         if capture_stdout:
             # pylint: disable=lost-exception

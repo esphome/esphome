@@ -15,24 +15,24 @@ def ensure_unique_string(preferred_string, current_strings):
 
     while test_string in current_strings_set:
         tries += 1
-        test_string = u"{}_{}".format(preferred_string, tries)
+        test_string = "{}_{}".format(preferred_string, tries)
 
     return test_string
 
 
-def indent_all_but_first_and_last(text, padding=u'  '):
+def indent_all_but_first_and_last(text, padding='  '):
     lines = text.splitlines(True)
     if len(lines) <= 2:
         return text
-    return lines[0] + u''.join(padding + line for line in lines[1:-1]) + lines[-1]
+    return lines[0] + ''.join(padding + line for line in lines[1:-1]) + lines[-1]
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -172,7 +172,7 @@ def read_file(path):
             return f_handle.read()
     except OSError:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Could not read file at {}".format(path))
+        raise EsphomeError("Could not read file at {}".format(path))
 
 
 def write_file(path, text):
@@ -182,7 +182,7 @@ def write_file(path, text):
             f_handle.write(text)
     except OSError:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Could not write file at {}".format(path))
+        raise EsphomeError("Could not write file at {}".format(path))
 
 
 def write_file_if_changed(text, dst):

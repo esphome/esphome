@@ -29,7 +29,7 @@ def validate_calibration_parameter(value):
     value = cv.string(value)
     parts = value.split('->')
     if len(parts) != 2:
-        raise cv.Invalid(u"Calibration parameter must be of form 3000 -> 23°C")
+        raise cv.Invalid("Calibration parameter must be of form 3000 -> 23°C")
     voltage = cv.resistance(parts[0].strip())
     temperature = cv.temperature(parts[1].strip())
     return validate_calibration_parameter({

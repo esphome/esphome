@@ -42,7 +42,7 @@ ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
 
-ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
+ALLOWED_NAME_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
@@ -114,8 +114,8 @@ def valid_name(value):
     value = string_strict(value)
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
-            raise Invalid(u"'{}' is an invalid character for names. Valid characters are: {}"
-                          u" (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
+            raise Invalid("'{}' is an invalid character for names. Valid characters are: {}"
+                          " (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
     return value
 
 
@@ -175,8 +175,8 @@ def boolean(value):
             return True
         if value in ('false', 'no', 'off', 'disable'):
             return False
-    raise Invalid(u"Expected boolean value, but cannot convert {} to a boolean. "
-                  u"Please use 'true' or 'false'".format(value))
+    raise Invalid("Expected boolean value, but cannot convert {} to a boolean. "
+                  "Please use 'true' or 'false'".format(value))
 
 
 def ensure_list(*validators):
@@ -239,7 +239,7 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
-        raise Invalid(u"Expected integer, but cannot parse {} as an integer".format(value))
+        raise Invalid("Expected integer, but cannot parse {} as an integer".format(value))
 
 
 def int_range(min=None, max=None, min_included=True, max_included=True):
@@ -288,14 +288,14 @@ def validate_id_name(value):
     valid_chars = ascii_letters + digits + '_'
     for char in value:
         if char not in valid_chars:
-            raise Invalid(u"IDs must only consist of upper/lowercase characters, the underscore"
-                          u"character and numbers. The character '{}' cannot be used"
-                          u"".format(char))
+            raise Invalid("IDs must only consist of upper/lowercase characters, the underscore"
+                          "character and numbers. The character '{}' cannot be used"
+                          "".format(char))
     if value in RESERVED_IDS:
-        raise Invalid(u"ID '{}' is reserved internally and cannot be used".format(value))
+        raise Invalid("ID '{}' is reserved internally and cannot be used".format(value))
     if value in CORE.loaded_integrations:
-        raise Invalid(u"ID '{}' conflicts with the name of an esphome integration, please use "
-                      u"another ID name.".format(value))
+        raise Invalid("ID '{}' conflicts with the name of an esphome integration, please use "
+                      "another ID name.".format(value))
     return value
 
 
@@ -355,7 +355,7 @@ def only_on(platforms):
 
     def validator_(obj):
         if CORE.esp_platform not in platforms:
-            raise Invalid(u"This feature is only available on {}".format(platforms))
+            raise Invalid("This feature is only available on {}".format(platforms))
         return obj
 
     return validator_
@@ -480,8 +480,8 @@ def time_period_str_unit(value):
     match = re.match(r"^([-+]?[0-9]*\.?[0-9]*)\s*(\w*)$", value)
 
     if match is None:
-        raise Invalid(u"Expected time period with unit, "
-                      u"got {}".format(value))
+        raise Invalid("Expected time period with unit, "
+                      "got {}".format(value))
     kwarg = unit_to_kwarg[one_of(*unit_to_kwarg)(match.group(2))]
 
     return TimePeriod(**{kwarg: float(match.group(1))})
@@ -572,7 +572,7 @@ def uuid(value):
 
 METRIC_SUFFIXES = {
     'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
-    'c': 1e-2, 'm': 0.001, u'µ': 1e-6, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12, 'f': 1e-15, 'a': 1e-18,
+    'c': 1e-2, 'm': 0.001, 'µ': 1e-6, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12, 'f': 1e-15, 'a': 1e-18,
     '': 1
 }
 
@@ -589,11 +589,11 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         match = pattern.match(string(value))
 
         if match is None:
-            raise Invalid(u"Expected {} with unit, got {}".format(quantity, value))
+            raise Invalid("Expected {} with unit, got {}".format(quantity, value))
 
         mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
-            raise Invalid(u"Invalid {} suffix {}".format(quantity, match.group(2)))
+            raise Invalid("Invalid {} suffix {}".format(quantity, match.group(2)))
 
         multiplier = METRIC_SUFFIXES[match.group(2)]
         return mantissa * multiplier
@@ -601,16 +601,16 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
     return validator
 
 
-frequency = float_with_unit("frequency", u"(Hz|HZ|hz)?")
-resistance = float_with_unit("resistance", u"(Ω|Ω|ohm|Ohm|OHM)?")
-current = float_with_unit("current", u"(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
-voltage = float_with_unit("voltage", u"(v|V|volt|Volts)?")
-distance = float_with_unit("distance", u"(m)")
-framerate = float_with_unit("framerate", u"(FPS|fps|Fps|FpS|Hz)")
-angle = float_with_unit("angle", u"(°|deg)", optional_unit=True)
-_temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
-_temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
-_temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
+frequency = float_with_unit("frequency", "(Hz|HZ|hz)?")
+resistance = float_with_unit("resistance", "(Ω|Ω|ohm|Ohm|OHM)?")
+current = float_with_unit("current", "(a|A|amp|Amp|amps|Amps|ampere|Ampere)?")
+voltage = float_with_unit("voltage", "(v|V|volt|Volts)?")
+distance = float_with_unit("distance", "(m)")
+framerate = float_with_unit("framerate", "(FPS|fps|Fps|FpS|Hz)")
+angle = float_with_unit("angle", "(°|deg)", optional_unit=True)
+_temperature_c = float_with_unit("temperature", "(°C|° C|°|C)?")
+_temperature_k = float_with_unit("temperature", "(° K|° K|K)?")
+_temperature_f = float_with_unit("temperature", "(°F|° F|F)?")
 
 
 def temperature(value):
@@ -653,15 +653,15 @@ def validate_bytes(value):
     match = re.match(r"^([0-9]+)\s*(\w*?)(?:byte|B|b)?s?$", value)
 
     if match is None:
-        raise Invalid(u"Expected number of bytes with unit, got {}".format(value))
+        raise Invalid("Expected number of bytes with unit, got {}".format(value))
 
     mantissa = int(match.group(1))
     if match.group(2) not in METRIC_SUFFIXES:
-        raise Invalid(u"Invalid metric suffix {}".format(match.group(2)))
+        raise Invalid("Invalid metric suffix {}".format(match.group(2)))
     multiplier = METRIC_SUFFIXES[match.group(2)]
     if multiplier < 1:
-        raise Invalid(u"Only suffixes with positive exponents are supported. "
-                      u"Got {}".format(match.group(2)))
+        raise Invalid("Only suffixes with positive exponents are supported. "
+                      "Got {}".format(match.group(2)))
     return int(mantissa * multiplier)
 
 
@@ -787,7 +787,7 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
-        raise Invalid(u"MQTT Quality of Service must be integer, got {}".format(value))
+        raise Invalid("MQTT Quality of Service must be integer, got {}".format(value))
     return one_of(0, 1, 2)(value)
 
 
@@ -897,7 +897,7 @@ def one_of(*values, **kwargs):
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
     """
-    options = u', '.join(u"'{}'".format(x) for x in values)
+    options = ', '.join("'{}'".format(x) for x in values)
     lower = kwargs.pop('lower', False)
     upper = kwargs.pop('upper', False)
     string_ = kwargs.pop('string', False) or lower or upper
@@ -925,9 +925,9 @@ def one_of(*values, **kwargs):
             option = str(value)
             matches = difflib.get_close_matches(option, options_)
             if matches:
-                raise Invalid(u"Unknown value '{}', did you mean {}?"
-                              u"".format(value, u", ".join(u"'{}'".format(x) for x in matches)))
-            raise Invalid(u"Unknown value '{}', valid options are {}.".format(value, options))
+                raise Invalid("Unknown value '{}', did you mean {}?"
+                              "".format(value, ", ".join("'{}'".format(x) for x in matches)))
+            raise Invalid("Unknown value '{}', valid options are {}.".format(value, options))
         return value
 
     return validator
@@ -980,7 +980,7 @@ def returning_lambda(value):
     Additionally, make sure the lambda returns something.
     """
     value = lambda_(value)
-    if u'return' not in value.value:
+    if 'return' not in value.value:
         raise Invalid("Lambda doesn't contain a 'return' statement, but the lambda "
                       "is expected to return a value. \n"
                       "Please make sure the lambda contains at least one "
@@ -991,18 +991,18 @@ def returning_lambda(value):
 def dimensions(value):
     if isinstance(value, list):
         if len(value) != 2:
-            raise Invalid(u"Dimensions must have a length of two, not {}".format(len(value)))
+            raise Invalid("Dimensions must have a length of two, not {}".format(len(value)))
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
-            raise Invalid(u"Width and height dimensions must be integers")
+            raise Invalid("Width and height dimensions must be integers")
         if width <= 0 or height <= 0:
-            raise Invalid(u"Width and height must at least be 1")
+            raise Invalid("Width and height must at least be 1")
         return [width, height]
     value = string(value)
     match = re.match(r"\s*([0-9]+)\s*[xX]\s*([0-9]+)\s*", value)
     if not match:
-        raise Invalid(u"Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed.")
+        raise Invalid("Invalid value '{}' for dimensions. Only WIDTHxHEIGHT is allowed.")
     return dimensions([match.group(1), match.group(2)])
 
 
@@ -1021,15 +1021,15 @@ def directory(value):
         assert data['type'] == 'directory_exists_response'
         if data['content']:
             return value
-        raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Could not find directory '{}'. Please make sure it exists (full path: {})."
+                      "".format(path, os.path.abspath(path)))
 
     if not os.path.exists(path):
-        raise Invalid(u"Could not find directory '{}'. Please make sure it exists (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Could not find directory '{}'. Please make sure it exists (full path: {})."
+                      "".format(path, os.path.abspath(path)))
     if not os.path.isdir(path):
-        raise Invalid(u"Path '{}' is not a directory (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Path '{}' is not a directory (full path: {})."
+                      "".format(path, os.path.abspath(path)))
     return value
 
 
@@ -1048,15 +1048,15 @@ def file_(value):
         assert data['type'] == 'file_exists_response'
         if data['content']:
             return value
-        raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Could not find file '{}'. Please make sure it exists (full path: {})."
+                      "".format(path, os.path.abspath(path)))
 
     if not os.path.exists(path):
-        raise Invalid(u"Could not find file '{}'. Please make sure it exists (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Could not find file '{}'. Please make sure it exists (full path: {})."
+                      "".format(path, os.path.abspath(path)))
     if not os.path.isfile(path):
-        raise Invalid(u"Path '{}' is not a file (full path: {})."
-                      u"".format(path, os.path.abspath(path)))
+        raise Invalid("Path '{}' is not a file (full path: {})."
+                      "".format(path, os.path.abspath(path)))
     return value
 
 
@@ -1192,18 +1192,18 @@ def validate_registry_entry(name, registry):
         if isinstance(value, str):
             value = {value: {}}
         if not isinstance(value, dict):
-            raise Invalid(u"{} must consist of key-value mapping! Got {}"
-                          u"".format(name.title(), value))
+            raise Invalid("{} must consist of key-value mapping! Got {}"
+                          "".format(name.title(), value))
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
-            raise Invalid(u"Key missing from {}! Got {}".format(name, value))
+            raise Invalid("Key missing from {}! Got {}".format(name, value))
         if key not in registry:
-            raise Invalid(u"Unable to find {} with the name '{}'".format(name, key), [key])
+            raise Invalid("Unable to find {} with the name '{}'".format(name, key), [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
-            raise Invalid(u"Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
-                          u"Did you forget to indent the block inside the {0}?"
-                          u"".format(name, key, key2))
+            raise Invalid("Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "
+                          "Did you forget to indent the block inside the {0}?"
+                          "".format(name, key, key2))
 
         if value[key] is None:
             value[key] = {}

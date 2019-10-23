@@ -146,37 +146,37 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
     if '/' in part:
         data = part.split('/')
         if len(data) > 2:
-            raise cv.Invalid(u"Can't have more than two '/' in one time expression, got {}"
+            raise cv.Invalid("Can't have more than two '/' in one time expression, got {}"
                              .format(part))
         offset, repeat = data
         offset_n = 0
         if offset:
             offset_n = _parse_cron_int(offset, special_mapping,
-                                       u"Offset for '/' time expression must be an integer, got {}")
+                                       "Offset for '/' time expression must be an integer, got {}")
 
         try:
             repeat_n = int(repeat)
         except ValueError:
-            raise cv.Invalid(u"Repeat for '/' time expression must be an integer, got {}"
+            raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
         return set(x for x in range(offset_n, max_value + 1, repeat_n))
     if '-' in part:
         data = part.split('-')
         if len(data) > 2:
-            raise cv.Invalid(u"Can't have more than two '-' in range time expression '{}'"
+            raise cv.Invalid("Can't have more than two '-' in range time expression '{}'"
                              .format(part))
         begin, end = data
-        begin_n = _parse_cron_int(begin, special_mapping, u"Number for time range must be integer, "
-                                                          u"got {}")
-        end_n = _parse_cron_int(end, special_mapping, u"Number for time range must be integer, "
-                                                      u"got {}")
+        begin_n = _parse_cron_int(begin, special_mapping, "Number for time range must be integer, "
+                                                          "got {}")
+        end_n = _parse_cron_int(end, special_mapping, "Number for time range must be integer, "
+                                                      "got {}")
         if end_n < begin_n:
             return set(x for x in range(end_n, max_value + 1)) | \
                    set(x for x in range(min_value, begin_n + 1))
         return set(x for x in range(begin_n, end_n + 1))
 
-    return {_parse_cron_int(part, special_mapping, u"Number for time expression must be an "
-                                                   u"integer, got {}")}
+    return {_parse_cron_int(part, special_mapping, "Number for time expression must be an "
+                                                   "integer, got {}")}
 
 
 def cron_expression_validator(name, min_value, max_value, special_mapping=None):

@@ -185,7 +185,7 @@ def iter_components(config):
             yield domain, component, conf
         if component.is_platform_component:
             for p_config in conf:
-                p_name = u"{}.{}".format(domain, p_config[CONF_PLATFORM])
+                p_name = "{}.{}".format(domain, p_config[CONF_PLATFORM])
                 platform = get_platform(domain, p_config[CONF_PLATFORM])
                 yield p_name, platform, p_config
 
@@ -325,8 +325,8 @@ def do_id_pass(result):  # type: (Config) -> None
                 # Look for duplicate definitions
                 match = next((v for v in declare_ids if v[0].id == id.id), None)
                 if match is not None:
-                    opath = u'->'.join(str(v) for v in match[1])
-                    result.add_str_error(u"ID {} redefined! Check {}".format(id.id, opath), path)
+                    opath = '->'.join(str(v) for v in match[1])
+                    result.add_str_error("ID {} redefined! Check {}".format(id.id, opath), path)
                     continue
             declare_ids.append((id, path))
         else:
@@ -425,7 +425,7 @@ def validate_config(config):
     while load_queue:
         domain, conf = load_queue.popleft()
         domain = str(domain)
-        if domain.startswith(u'.'):
+        if domain.startswith('.'):
             # Ignore top-level keys starting with a dot
             continue
         result.add_output_path([domain], domain)
@@ -433,7 +433,7 @@ def validate_config(config):
         component = get_component(domain)
         path = [domain]
         if component is None:
-            result.add_str_error(u"Component not found: {}".format(domain), path)
+            result.add_str_error("Component not found: {}".format(domain), path)
             continue
         CORE.loaded_integrations.add(domain)
 
@@ -461,24 +461,24 @@ def validate_config(config):
         for i, p_config in enumerate(conf):
             path = [domain, i]
             # Construct temporary unknown output path
-            p_domain = u'{}.unknown'.format(domain)
+            p_domain = '{}.unknown'.format(domain)
             result.add_output_path(path, p_domain)
             result[domain][i] = p_config
             if not isinstance(p_config, dict):
-                result.add_str_error(u"Platform schemas must be key-value pairs.", path)
+                result.add_str_error("Platform schemas must be key-value pairs.", path)
                 continue
             p_name = p_config.get('platform')
             if p_name is None:
-                result.add_str_error(u"No platform specified! See 'platform' key.", path)
+                result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
-            p_domain = u'{}.{}'.format(domain, p_name)
+            p_domain = '{}.{}'.format(domain, p_name)
             result.add_output_path(path, p_domain)
             # Try Load platform
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_str_error(u"Platform not found: '{}'".format(p_domain), path)
+                result.add_str_error("Platform not found: '{}'".format(p_domain), path)
                 continue
             CORE.loaded_integrations.add(p_name)
 
@@ -506,8 +506,8 @@ def validate_config(config):
         success = True
         for dependency in comp.dependencies:
             if dependency not in config:
-                result.add_str_error(u"Component {} requires component {}"
-                                     u"".format(domain, dependency), path)
+                result.add_str_error("Component {} requires component {}"
+                                     "".format(domain, dependency), path)
                 success = False
         if not success:
             continue
@@ -515,22 +515,22 @@ def validate_config(config):
         success = True
         for conflict in comp.conflicts_with:
             if conflict in config:
-                result.add_str_error(u"Component {} cannot be used together with component {}"
-                                     u"".format(domain, conflict), path)
+                result.add_str_error("Component {} cannot be used together with component {}"
+                                     "".format(domain, conflict), path)
                 success = False
         if not success:
             continue
 
         if CORE.esp_platform not in comp.esp_platforms:
-            result.add_str_error(u"Component {} doesn't support {}.".format(domain,
-                                                                            CORE.esp_platform),
+            result.add_str_error("Component {} doesn't support {}.".format(domain,
+                                                                           CORE.esp_platform),
                                  path)
             continue
 
         if not comp.is_platform_component and comp.config_schema is None and \
                 not isinstance(conf, core.AutoLoad):
-            result.add_str_error(u"Component {} cannot be loaded via YAML "
-                                 u"(no CONFIG_SCHEMA).".format(domain), path)
+            result.add_str_error("Component {} cannot be loaded via YAML "
+                                 "(no CONFIG_SCHEMA).".format(domain), path)
             continue
 
         if comp.is_multi_conf:
@@ -585,8 +585,8 @@ def humanize_error(config, validation_error):
     if m is not None:
         validation_error = m.group(1)
     validation_error = validation_error.strip()
-    if not validation_error.endswith(u'.'):
-        validation_error += u'.'
+    if not validation_error.endswith('.'):
+        validation_error += '.'
     return validation_error
 
 
@@ -604,21 +604,21 @@ def _get_parent_name(path, config):
 
 def _format_vol_invalid(ex, config):
     # type: (vol.Invalid, Config) -> unicode
-    message = u''
+    message = ''
 
     paren = _get_parent_name(ex.path[:-1], config)
 
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
-            message += u'[{}] is an invalid option for [{}]. Did you mean {}?'.format(
-                ex.path[-1], paren, u', '.join(u'[{}]'.format(x) for x in ex.candidates))
+            message += '[{}] is an invalid option for [{}]. Did you mean {}?'.format(
+                ex.path[-1], paren, ', '.join('[{}]'.format(x) for x in ex.candidates))
         else:
-            message += u'[{}] is an invalid option for [{}]. Please check the indentation.'.format(
+            message += '[{}] is an invalid option for [{}]. Please check the indentation.'.format(
                 ex.path[-1], paren)
-    elif u'extra keys not allowed' in str(ex):
-        message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
-    elif u'required key not provided' in str(ex):
-        message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
+    elif 'extra keys not allowed' in str(ex):
+        message += '[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
+    elif 'required key not provided' in str(ex):
+        message += "'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(config, ex)
 
@@ -631,8 +631,8 @@ class InvalidYAMLError(EsphomeError):
             base = str(base_exc)
         except UnicodeDecodeError:
             base = repr(base_exc)
-        message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
-                  u"online YAML syntax validator:\n\n{}".format(base)
+        message = "Invalid YAML syntax. Please see YAML syntax reference or use an " \
+                  "online YAML syntax validator:\n\n{}".format(base)
         super(InvalidYAMLError, self).__init__(message)
         self.base_exc = base_exc
 
@@ -649,7 +649,7 @@ def _load_config():
     except EsphomeError:
         raise
     except Exception:
-        _LOGGER.error(u"Unexpected exception while reading configuration:")
+        _LOGGER.error("Unexpected exception while reading configuration:")
         raise
 
     return result
@@ -668,7 +668,7 @@ def line_info(obj, highlight=True):
         return None
     if isinstance(obj, ESPHomeDataBase) and obj.esp_range is not None:
         mark = obj.esp_range.start_mark
-        source = u"[source {}:{}]".format(mark.document, mark.line + 1)
+        source = "[source {}:{}]".format(mark.document, mark.line + 1)
         return color('cyan', source)
     return None
 
@@ -686,80 +686,80 @@ def _print_on_next_line(obj):
 def dump_dict(config, path, at_root=True):
     # type: (Config, ConfigPath, bool) -> Tuple[unicode, bool]
     conf = config.get_nested_item(path)
-    ret = u''
+    ret = ''
     multiline = False
 
     if at_root:
         error = config.get_error_for_path(path)
         if error is not None:
-            ret += u'\n' + color('bold_red', _format_vol_invalid(error, config)) + u'\n'
+            ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
 
     if isinstance(conf, (list, tuple)):
         multiline = True
         if not conf:
-            ret += u'[]'
+            ret += '[]'
             multiline = False
 
         for i in range(len(conf)):
             path_ = path + [i]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += u'\n' + color('bold_red', _format_vol_invalid(error, config)) + u'\n'
+                ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
 
-            sep = u'- '
+            sep = '- '
             if config.is_in_error_path(path_):
                 sep = color('red', sep)
             msg, _ = dump_dict(config, path_, at_root=False)
             msg = indent(msg)
             inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
             if inf is not None:
-                msg = inf + u'\n' + msg
+                msg = inf + '\n' + msg
             elif msg:
                 msg = msg[2:]
-            ret += sep + msg + u'\n'
+            ret += sep + msg + '\n'
     elif isinstance(conf, dict):
         multiline = True
         if not conf:
-            ret += u'{}'
+            ret += '{}'
             multiline = False
 
         for k in conf.keys():
             path_ = path + [k]
             error = config.get_error_for_path(path_)
             if error is not None:
-                ret += u'\n' + color('bold_red', _format_vol_invalid(error, config)) + u'\n'
+                ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
 
-            st = u'{}: '.format(k)
+            st = '{}: '.format(k)
             if config.is_in_error_path(path_):
                 st = color('red', st)
             msg, m = dump_dict(config, path_, at_root=False)
 
             inf = line_info(config.get_nested_item(path_), highlight=config.is_in_error_path(path_))
             if m:
-                msg = u'\n' + indent(msg)
+                msg = '\n' + indent(msg)
 
             if inf is not None:
                 if m:
-                    msg = u' ' + inf + msg
+                    msg = ' ' + inf + msg
                 else:
-                    msg = msg + u' ' + inf
-            ret += st + msg + u'\n'
+                    msg = msg + ' ' + inf
+            ret += st + msg + '\n'
     elif isinstance(conf, str):
         if is_secret(conf):
-            conf = u'!secret {}'.format(is_secret(conf))
+            conf = '!secret {}'.format(is_secret(conf))
         if not conf:
-            conf += u"''"
+            conf += "''"
 
         if len(conf) > 80:
-            conf = u'|-\n' + indent(conf)
+            conf = '|-\n' + indent(conf)
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
-            conf = u'!secret {}'.format(is_secret(conf))
+            conf = '!secret {}'.format(is_secret(conf))
 
-        conf = u'!lambda |-\n' + indent(str(conf.value))
+        conf = '!lambda |-\n' + indent(str(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, conf)
@@ -769,7 +769,7 @@ def dump_dict(config, path, at_root=True):
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, str(conf))
-        multiline = u'\n' in ret
+        multiline = '\n' in ret
 
     return ret, multiline
 
@@ -799,20 +799,20 @@ def read_config():
     try:
         res = load_config()
     except EsphomeError as err:
-        _LOGGER.error(u"Error while reading config: %s", err)
+        _LOGGER.error("Error while reading config: %s", err)
         return None
     if res.errors:
         if not CORE.verbose:
             res = strip_default_ids(res)
 
-        safe_print(color('bold_red', u"Failed config"))
+        safe_print(color('bold_red', "Failed config"))
         safe_print('')
         for path, domain in res.output_paths:
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', u'{}:'.format(domain)) + u' ' +
-                       (line_info(res.get_nested_item(path)) or u''))
+            safe_print(color('bold_red', '{}:'.format(domain)) + ' ' +
+                       (line_info(res.get_nested_item(path)) or ''))
             safe_print(indent(dump_dict(res, path)[0]))
         return None
     return OrderedDict(res)

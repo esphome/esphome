@@ -12,11 +12,11 @@ temp_header_file = os.path.join(root_path, '.temp-clang-tidy.cpp')
 
 def shlex_quote(s):
     if not s:
-        return u"''"
+        return "''"
     if re.search(r'[^\w@%+=:,./-]', s) is None:
         return s
 
-    return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
+    return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
 def build_all_include():

@@ -31,7 +31,7 @@ GAIN = {
 
 def validate_gain(value):
     if isinstance(value, float):
-        value = u'{:0.03f}'.format(value)
+        value = '{:0.03f}'.format(value)
     elif not isinstance(value, str):
         raise cv.Invalid('invalid gain "{}"'.format(value))
 

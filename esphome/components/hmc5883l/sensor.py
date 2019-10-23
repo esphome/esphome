@@ -31,7 +31,7 @@ HMC5883L_RANGES = {
 
 def validate_range(value):
     value = cv.string(value)
-    if value.endswith(u'µT') or value.endswith('uT'):
+    if value.endswith('µT') or value.endswith('uT'):
         value = value[:-2]
     return cv.enum(HMC5883L_RANGES, int=True)(value)
 

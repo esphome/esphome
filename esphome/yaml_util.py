@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
 
-SECRET_YAML = u'secrets.yaml'
+SECRET_YAML = 'secrets.yaml'
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
@@ -133,7 +133,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 continue
 
             key_node, value_node = node.value[index]
-            if key_node.tag == u'tag:yaml.org,2002:merge':
+            if key_node.tag == 'tag:yaml.org,2002:merge':
                 del node.value[index]
 
                 if isinstance(value_node, yaml.MappingNode):
@@ -159,8 +159,8 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                         "while constructing a mapping", node.start_mark,
                         "expected a mapping or list of mappings for merging, "
                         "but found {}".format(value_node.id), value_node.start_mark)
-            elif key_node.tag == u'tag:yaml.org,2002:value':
-                key_node.tag = u'tag:yaml.org,2002:str'
+            elif key_node.tag == 'tag:yaml.org,2002:value':
+                key_node.tag = 'tag:yaml.org,2002:str'
                 index += 1
             else:
                 index += 1
@@ -221,11 +221,11 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         args = node.value.split()
         # Check for a default value
         if len(args) > 1:
-            return os.getenv(args[0], u' '.join(args[1:]))
+            return os.getenv(args[0], ' '.join(args[1:]))
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
-            context=u"Environment variable '{}' not defined".format(node.value),
+            context="Environment variable '{}' not defined".format(node.value),
             context_mark=node.start_mark
         )
 
@@ -241,7 +241,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
-                context=u"Secret '{}' not defined".format(node.value),
+                context="Secret '{}' not defined".format(node.value),
                 context_mark=node.start_mark
             )
         val = secrets[node.value]
@@ -291,13 +291,13 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return Lambda(str(node.value))
 
 
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:binary', ESPHomeLoader.construct_yaml_binary)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:omap', ESPHomeLoader.construct_yaml_omap)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:str', ESPHomeLoader.construct_yaml_str)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:seq', ESPHomeLoader.construct_yaml_seq)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:map', ESPHomeLoader.construct_yaml_map)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:binary', ESPHomeLoader.construct_yaml_binary)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:omap', ESPHomeLoader.construct_yaml_omap)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:str', ESPHomeLoader.construct_yaml_str)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:seq', ESPHomeLoader.construct_yaml_seq)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:map', ESPHomeLoader.construct_yaml_map)
 ESPHomeLoader.add_constructor('!env_var', ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor('!secret', ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor('!include', ESPHomeLoader.construct_include)
@@ -336,7 +336,7 @@ def dump(dict_):
 
 def _is_file_valid(name):
     """Decide if a file is valid."""
-    return not name.startswith(u'.')
+    return not name.startswith('.')
 
 
 def _find_files(directory, pattern):
@@ -381,29 +381,29 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag=u'!secret', value=_SECRET_VALUES[str(value)])
+        return self.represent_scalar(tag='!secret', value=_SECRET_VALUES[str(value)])
 
     def represent_stringify(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:str', value=str(value))
+        return self.represent_scalar(tag='tag:yaml.org,2002:str', value=str(value))
 
     # pylint: disable=arguments-differ
     def represent_bool(self, value):
-        return self.represent_scalar(u'tag:yaml.org,2002:bool', u'true' if value else u'false')
+        return self.represent_scalar('tag:yaml.org,2002:bool', 'true' if value else 'false')
 
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:int', value=str(value))
+        return self.represent_scalar(tag='tag:yaml.org,2002:int', value=str(value))
 
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)
         if math.isnan(value):
-            value = u'.nan'
+            value = '.nan'
         elif math.isinf(value):
-            value = u'.inf' if value > 0 else u'-.inf'
+            value = '.inf' if value > 0 else '-.inf'
         else:
             value = str(repr(value)).lower()
             # Note that in some cases `repr(data)` represents a float number
@@ -413,9 +413,9 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             # Unfortunately, this is not a valid float representation according
             # to the definition of the `!!float` tag.  We fix this by adding
             # '.0' before the 'e' symbol.
-            if u'.' not in value and u'e' in value:
-                value = value.replace(u'e', u'.0e', 1)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:float', value=value)
+            if '.' not in value and 'e' in value:
+                value = value.replace('e', '.0e', 1)
+        return self.represent_scalar(tag='tag:yaml.org,2002:float', value=value)
 
     def represent_lambda(self, value):
         if is_secret(value.value):

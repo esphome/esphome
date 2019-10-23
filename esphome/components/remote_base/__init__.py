@@ -435,8 +435,8 @@ def validate_rc_switch_code(value):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1'):
-            raise cv.Invalid(u"Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
-                             u"".format(c))
+            raise cv.Invalid("Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
+                             "".format(c))
     if len(value) > 64:
         raise cv.Invalid("Maximum length for RCSwitch codes is 64, code '{}' has length {}"
                          "".format(value, len(value)))

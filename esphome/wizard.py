@@ -44,7 +44,7 @@ OTA_BIG = r"""       ____ _______
       \____/  |_/_/    \_\\
 """
 
-BASE_CONFIG = u"""esphome:
+BASE_CONFIG = """esphome:
   name: {name}
   platform: {platform}
   board: {board}
@@ -84,9 +84,9 @@ def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u'  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
+        config += '  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
     else:
-        config += u"\nota:\n"
+        config += "\nota:\n"
 
     return config
 
@@ -128,24 +128,24 @@ def safe_print_step(step, big):
 
 def default_input(text, default):
     safe_print()
-    safe_print(u"Press ENTER for default ({})".format(default))
+    safe_print("Press ENTER for default ({})".format(default))
     return input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
 def strip_accents(value):
-    return u''.join(c for c in unicodedata.normalize('NFD', str(value))
-                    if unicodedata.category(c) != 'Mn')
+    return ''.join(c for c in unicodedata.normalize('NFD', str(value))
+                   if unicodedata.category(c) != 'Mn')
 
 
 def wizard(path):
     if not path.endswith('.yaml') and not path.endswith('.yml'):
-        safe_print(u"Please make your configuration file {} have the extension .yaml or .yml"
-                   u"".format(color('cyan', path)))
+        safe_print("Please make your configuration file {} have the extension .yaml or .yml"
+                   "".format(color('cyan', path)))
         return 1
     if os.path.exists(path):
-        safe_print(u"Uh oh, it seems like {} already exists, please delete that file first "
-                   u"or chose another configuration file.".format(color('cyan', path)))
+        safe_print("Uh oh, it seems like {} already exists, please delete that file first "
+                   "or chose another configuration file.".format(color('cyan', path)))
         return 1
     safe_print("Hi there!")
     sleep(1.5)
@@ -171,15 +171,15 @@ def wizard(path):
             name = cv.valid_name(name)
             break
         except vol.Invalid:
-            safe_print(color("red", u"Oh noes, \"{}\" isn't a valid name. Names can only include "
-                                    u"numbers, letters and underscores.".format(name)))
+            safe_print(color("red", "Oh noes, \"{}\" isn't a valid name. Names can only include "
+                                    "numbers, letters and underscores.".format(name)))
             name = strip_accents(name).replace(' ', '_')
-            name = u''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
-            safe_print(u"Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
+            name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
+            safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
             sleep(0.5)
-            name = default_input(u"(name [{}]): ", name)
+            name = default_input("(name [{}]): ", name)
 
-    safe_print(u"Great! Your node is now called \"{}\".".format(color('cyan', name)))
+    safe_print("Great! Your node is now called \"{}\".".format(color('cyan', name)))
     sleep(1)
     safe_print_step(2, ESP_BIG)
     safe_print("Now I'd like to know what microcontroller you're using so that I can compile "
@@ -195,9 +195,9 @@ def wizard(path):
             platform = vol.All(vol.Upper, vol.Any('ESP32', 'ESP8266'))(platform)
             break
         except vol.Invalid:
-            safe_print(u"Unfortunately, I can't find an espressif microcontroller called "
-                       u"\"{}\". Please try again.".format(platform))
-    safe_print(u"Thanks! You've chosen {} as your platform.".format(color('cyan', platform)))
+            safe_print("Unfortunately, I can't find an espressif microcontroller called "
+                       "\"{}\". Please try again.".format(platform))
+    safe_print("Thanks! You've chosen {} as your platform.".format(color('cyan', platform)))
     safe_print()
     sleep(1)
 
@@ -232,7 +232,7 @@ def wizard(path):
             sleep(0.25)
             safe_print()
 
-    safe_print(u"Way to go! You've chosen {} as your board.".format(color('cyan', board)))
+    safe_print("Way to go! You've chosen {} as your board.".format(color('cyan', board)))
     safe_print()
     sleep(1)
 
@@ -242,7 +242,7 @@ def wizard(path):
     safe_print()
     sleep(1)
     safe_print("First, what's the " + color('green', 'SSID') +
-               u" (the name) of the WiFi network {} I should connect to?".format(name))
+               " (the name) of the WiFi network {} I should connect to?".format(name))
     sleep(1.5)
     safe_print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:
@@ -251,13 +251,13 @@ def wizard(path):
             ssid = cv.ssid(ssid)
             break
         except vol.Invalid:
-            safe_print(color('red', u"Unfortunately, \"{}\" doesn't seem to be a valid SSID. "
-                                    u"Please try again.".format(ssid)))
+            safe_print(color('red', "Unfortunately, \"{}\" doesn't seem to be a valid SSID. "
+                                    "Please try again.".format(ssid)))
             safe_print()
             sleep(1)
 
-    safe_print(u"Thank you very much! You've just chosen \"{}\" as your SSID."
-               u"".format(color('cyan', ssid)))
+    safe_print("Thank you very much! You've just chosen \"{}\" as your SSID."
+               "".format(color('cyan', ssid)))
     safe_print()
     sleep(0.75)
 

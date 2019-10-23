@@ -195,7 +195,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             # spawn can only be called once
             return
         command = self.build_command(json_message)
-        _LOGGER.info(u"Running command '%s'", ' '.join(shlex_quote(x) for x in command))
+        _LOGGER.info("Running command '%s'", ' '.join(shlex_quote(x) for x in command))
         self._proc = tornado.process.Subprocess(command,
                                                 stdout=tornado.process.Subprocess.STREAM,
                                                 stderr=subprocess.STDOUT,
@@ -324,8 +324,8 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: u''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
-        destination = settings.rel_path(kwargs['name'] + u'.yaml')
+        kwargs = {k: ''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
+        destination = settings.rel_path(kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('./?begin=True')
 
@@ -651,7 +651,7 @@ def get_static_file_url(name):
         with open(path, 'rb') as f_handle:
             hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
-    return u'./static/{}?hash={}'.format(name, hash_)
+    return './static/{}?hash={}'.format(name, hash_)
 
 
 def make_app(debug=False):

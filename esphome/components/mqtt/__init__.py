@@ -95,7 +95,7 @@ def validate_config(value):
 def validate_fingerprint(value):
     value = cv.string(value)
     if re.match(r'^[0-9a-f]{40}$', value) is None:
-        raise cv.Invalid(u"fingerprint must be valid SHA1 hash")
+        raise cv.Invalid("fingerprint must be valid SHA1 hash")
     return value
 
 

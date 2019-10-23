@@ -431,7 +431,7 @@ def run_logs(config, address):
             return
 
         if err:
-            _LOGGER.warning(u"Disconnected from API: %s", err)
+            _LOGGER.warning("Disconnected from API: %s", err)
 
         while retry_timer:
             retry_timer.pop(0).cancel()
@@ -449,18 +449,18 @@ def run_logs(config, address):
 
         wait_time = int(min(1.5**min(tries, 100), 30))
         if not has_connects:
-            _LOGGER.warning(u"Initial connection failed. The ESP might not be connected "
-                            u"to WiFi yet (%s). Re-Trying in %s seconds",
+            _LOGGER.warning("Initial connection failed. The ESP might not be connected "
+                            "to WiFi yet (%s). Re-Trying in %s seconds",
                             error, wait_time)
         else:
-            _LOGGER.warning(u"Couldn't connect to API (%s). Trying to reconnect in %s seconds",
+            _LOGGER.warning("Couldn't connect to API (%s). Trying to reconnect in %s seconds",
                             error, wait_time)
         timer = threading.Timer(wait_time, functools.partial(try_connect, None, tries + 1))
         timer.start()
         retry_timer.append(timer)
 
     def on_log(msg):
-        time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
+        time_ = datetime.now().time().strftime('[%H:%M:%S]')
         text = msg.message
         if msg.send_failed:
             text = color('white', '(Message skipped because it was too big to fit in '

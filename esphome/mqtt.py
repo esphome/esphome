@@ -45,7 +45,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
             time.sleep(wait_time)
             tries += 1
 
-    client = mqtt.Client(client_id or u'')
+    client = mqtt.Client(client_id or '')
     client.on_connect = on_connect
     client.on_message = on_message
     client.on_disconnect = on_disconnect
@@ -84,16 +84,16 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
         if CONF_LOG_TOPIC in conf:
             topic = config[CONF_MQTT][CONF_LOG_TOPIC][CONF_TOPIC]
         elif CONF_TOPIC_PREFIX in config[CONF_MQTT]:
-            topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + u'/debug'
+            topic = config[CONF_MQTT][CONF_TOPIC_PREFIX] + '/debug'
         else:
-            topic = config[CONF_ESPHOME][CONF_NAME] + u'/debug'
+            topic = config[CONF_ESPHOME][CONF_NAME] + '/debug'
     else:
-        _LOGGER.error(u"MQTT isn't setup, can't start MQTT logs")
+        _LOGGER.error("MQTT isn't setup, can't start MQTT logs")
         return 1
-    _LOGGER.info(u"Starting log output from %s", topic)
+    _LOGGER.info("Starting log output from %s", topic)
 
     def on_message(client, userdata, msg):
-        time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
+        time_ = datetime.now().time().strftime('[%H:%M:%S]')
         message = time_ + msg.payload
         safe_print(message)
 
@@ -102,20 +102,20 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
 def clear_topic(config, topic, username=None, password=None, client_id=None):
     if topic is None:
-        discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, u'homeassistant')
+        discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         name = config[CONF_ESPHOME][CONF_NAME]
-        topic = u'{}/+/{}/#'.format(discovery_prefix, name)
-    _LOGGER.info(u"Clearing messages from '%s'", topic)
-    _LOGGER.info(u"Please close this window when no more messages appear and the "
-                 u"MQTT topic has been cleared of retained messages.")
+        topic = '{}/+/{}/#'.format(discovery_prefix, name)
+    _LOGGER.info("Clearing messages from '%s'", topic)
+    _LOGGER.info("Please close this window when no more messages appear and the "
+                 "MQTT topic has been cleared of retained messages.")
 
     def on_message(client, userdata, msg):
         if not msg.payload or not msg.retain:
             return
         try:
-            print(u"Clearing topic {}".format(msg.topic))
+            print("Clearing topic {}".format(msg.topic))
         except UnicodeDecodeError:
-            print(u"Skipping non-UTF-8 topic (prohibited by MQTT standard)")
+            print("Skipping non-UTF-8 topic (prohibited by MQTT standard)")
             return
         client.publish(msg.topic, None, retain=True)
 
@@ -135,7 +135,7 @@ def get_fingerprint(config):
 
     sha1 = hashlib.sha1(cert_der).hexdigest()
 
-    safe_print(u"SHA1 Fingerprint: " + color('cyan', sha1))
-    safe_print(u"Copy the string above into mqtt.ssl_fingerprints section of {}"
-               u"".format(CORE.config_path))
+    safe_print("SHA1 Fingerprint: " + color('cyan', sha1))
+    safe_print("Copy the string above into mqtt.ssl_fingerprints section of {}"
+               "".format(CORE.config_path))
     return 0
