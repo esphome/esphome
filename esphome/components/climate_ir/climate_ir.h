@@ -25,6 +25,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   }
 
   void setup() override;
+  void dump_config() override;
   void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
     this->transmitter_ = transmitter;
   }

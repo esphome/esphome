@@ -9,6 +9,7 @@ namespace uptime {
 class UptimeSensor : public sensor::Sensor, public PollingComponent {
  public:
   void update() override;
+  void dump_config() override;
 
   float get_setup_priority() const override;
 
