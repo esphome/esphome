@@ -33,7 +33,7 @@ def validate_framework(config):
     if CONF_ARDUINO_VERSION in CORE.raw_config[CONF_ESPHOME]:
         version = CORE.raw_config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
 
-    if version in ['RECOMMENDED', 'LATEST', 'DEV']:
+    if version in ['LATEST', 'DEV']:
         return config
 
     framework = PLATFORMIO_ESP8266_LUT[version] if version in PLATFORMIO_ESP8266_LUT else version
