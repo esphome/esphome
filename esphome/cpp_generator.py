@@ -10,7 +10,6 @@ from esphome.core import (  # noqa
     TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
     EnumValue)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
-from esphome.py_compat import integer_types, string_types, text_type
 from esphome.util import OrderedDict
 
 
@@ -19,7 +18,7 @@ class Expression(object):
         raise NotImplementedError
 
 
-SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod,
+SafeExpType = Union[Expression, bool, str, str, int, float, TimePeriod,
                     Type[bool], Type[int], Type[float], List[Any]]
 
 
@@ -69,7 +68,7 @@ class ExpressionList(Expression):
         self.args = [safe_exp(arg) for arg in args]
 
     def __str__(self):
-        text = u", ".join(text_type(x) for x in self.args)
+        text = u", ".join(str(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
     def __iter__(self):
@@ -170,7 +169,7 @@ class ParameterListExpression(Expression):
             self.parameters.append(parameter)
 
     def __str__(self):
-        return u", ".join(text_type(x) for x in self.parameters)
+        return u", ".join(str(x) for x in self.parameters)
 
 
 class LambdaExpression(Expression):
@@ -192,7 +191,7 @@ class LambdaExpression(Expression):
 
     @property
     def content(self):
-        return u''.join(text_type(part) for part in self.parts)
+        return u''.join(str(part) for part in self.parts)
 
 
 class Literal(Expression):
@@ -221,7 +220,7 @@ class IntLiteral(Literal):
             return u'{}UL'.format(self.i)
         if self.i < -2147483648:
             return u'{}LL'.format(self.i)
-        return text_type(self.i)
+        return str(self.i)
 
 
 class BoolLiteral(Literal):
@@ -269,11 +268,11 @@ def safe_exp(
         return safe_exp(obj.enum_value)
     if isinstance(obj, bool):
         return BoolLiteral(obj)
-    if isinstance(obj, string_types):
+    if isinstance(obj, str):
         return StringLiteral(obj)
     if isinstance(obj, HexInt):
         return HexIntLiteral(obj)
-    if isinstance(obj, integer_types):
+    if isinstance(obj, int):
         return IntLiteral(obj)
     if isinstance(obj, float):
         return FloatLiteral(obj)
@@ -613,10 +612,10 @@ class MockObj(Expression):
         return MockObj(call, self.op)
 
     def __str__(self):  # type: () -> unicode
-        return text_type(self.base)
+        return str(self.base)
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(text_type(self.base))
+        return u'MockObj<{}>'.format(str(self.base))
 
     @property
     def _(self):  # type: () -> MockObj
@@ -685,7 +684,7 @@ class MockObjEnum(MockObj):
         return u'{}{}{}'.format(self.base, self.op, self._enum)
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(text_type(self.base))
+        return u'MockObj<{}>'.format(str(self.base))
 
 
 class MockObjClass(MockObj):
@@ -719,4 +718,4 @@ class MockObjClass(MockObj):
         return MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
 
     def __repr__(self):
-        return u'MockObjClass<{}, parents={}>'.format(text_type(self.base), self._parents)
+        return u'MockObjClass<{}, parents={}>'.format(str(self.base), self._parents)

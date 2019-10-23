@@ -5,18 +5,17 @@ import json
 import os
 
 from esphome.core import CORE, EsphomeError
-from esphome.py_compat import safe_input
 
 
 def read_config_file(path):
-    # type: (basestring) -> unicode
+    # type: (strstr) -> unicode
     if CORE.vscode and (not CORE.ace or
                         os.path.abspath(path) == os.path.abspath(CORE.config_path)):
         print(json.dumps({
             'type': 'read_file',
             'path': path,
         }))
-        data = json.loads(safe_input())
+        data = json.loads(input())
         assert data['type'] == 'file_response'
         return data['content']
 

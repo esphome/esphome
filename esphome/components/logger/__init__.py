@@ -7,7 +7,6 @@ from esphome.automation import LambdaAction
 from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_UART, CONF_ID, \
     CONF_LEVEL, CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.py_compat import text_type
 
 logger_ns = cg.esphome_ns.namespace('logger')
 LOG_LEVELS = {
@@ -182,9 +181,9 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(maybe_simple_message({
 @automation.register_action(CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA)
 def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args_ = [cg.RawExpression(text_type(x)) for x in config[CONF_ARGS]]
+    args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
-    text = text_type(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
+    text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.void)
     yield cg.new_Pvariable(action_id, template_arg, lambda_)

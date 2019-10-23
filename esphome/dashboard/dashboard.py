@@ -29,7 +29,6 @@ import tornado.websocket
 from esphome import const, util
 from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
-from esphome.py_compat import IS_PY2, decode_text
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote
@@ -58,10 +57,7 @@ class DashboardSettings(object):
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            if IS_PY2:
-                self.password_digest = hmac.new(password).digest()
-            else:
-                self.password_digest = hmac.new(password.encode()).digest()
+            self.password_digest = hmac.new(password.encode()).digest()
         self.config_dir = args.configuration[0]
 
     @property
@@ -86,10 +82,7 @@ class DashboardSettings(object):
         if not self.using_auth:
             return True
 
-        if IS_PY2:
-            password = hmac.new(password).digest()
-        else:
-            password = hmac.new(password.encode()).digest()
+        password = hmac.new(password.encode()).digest()
         return username == self.username and hmac.compare_digest(self.password_digest, password)
 
     def rel_path(self, *args):
@@ -101,10 +94,7 @@ class DashboardSettings(object):
 
 settings = DashboardSettings()
 
-if IS_PY2:
-    cookie_authenticated_yes = 'yes'
-else:
-    cookie_authenticated_yes = b'yes'
+cookie_authenticated_yes = b'yes'
 
 
 def template_args():
@@ -228,10 +218,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
     @tornado.gen.coroutine
     def _redirect_stdout(self):
-        if IS_PY2:
-            reg = '[\n\r]'
-        else:
-            reg = b'[\n\r]'
+        reg = b'[\n\r]'
 
         while True:
             try:
@@ -337,7 +324,7 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: u''.join(decode_text(x) for x in v) for k, v in self.request.arguments.items()}
+        kwargs = {k: u''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
         destination = settings.rel_path(kwargs['name'] + u'.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('./?begin=True')

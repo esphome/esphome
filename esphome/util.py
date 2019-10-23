@@ -9,7 +9,6 @@ import subprocess
 import sys
 
 from esphome import const
-from esphome.py_compat import IS_PY2, decode_text, text_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,13 +115,12 @@ class RedirectText(object):
         self._out.write(s)
 
     def write(self, s):
-        # s is usually a text_type already (self._out is of type TextIOWrapper)
+        # s is usually a str already (self._out is of type TextIOWrapper)
         # However, s is sometimes also a bytes object in python3. Let's make sure it's a
-        # text_type
+        # str
         # If the conversion fails, we will create an exception, which is okay because we won't
         # be able to print it anyway.
-        text = decode_text(s)
-        assert isinstance(text, text_type)
+        text = str(s)
 
         if self._filter_pattern is not None:
             self._line_buffer += text
@@ -230,29 +228,6 @@ def is_dev_esphome_version():
 class OrderedDict(collections.OrderedDict):
     def __repr__(self):
         return dict(self).__repr__()
-
-    def move_to_end(self, key, last=True):
-        if IS_PY2:
-            if len(self) == 1:
-                return
-            if last:
-                # When moving to end, just pop and re-add
-                val = self.pop(key)
-                self[key] = val
-            else:
-                # When moving to front, use internals here
-                # https://stackoverflow.com/a/16664932
-                root = self._OrderedDict__root  # pylint: disable=no-member
-                first = root[1]
-                link = self._OrderedDict__map[key]  # pylint: disable=no-member
-                link_prev, link_next, _ = link
-                link_prev[1] = link_next
-                link_next[0] = link_prev
-                link[0] = root
-                link[1] = first
-                root[1] = first[0] = link
-        else:
-            super(OrderedDict, self).move_to_end(key, last=last)  # pylint: disable=no-member
 
 
 def list_yaml_files(folder):

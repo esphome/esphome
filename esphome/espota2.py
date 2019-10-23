@@ -7,7 +7,6 @@ import time
 
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
-from esphome.py_compat import IS_PY2, char_to_byte
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -72,14 +71,12 @@ def recv_decode(sock, amount, decode=True):
     data = sock.recv(amount)
     if not decode:
         return data
-    return [char_to_byte(x) for x in data]
+    return [x for x in data]
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
     if decode:
         data = []
-    elif IS_PY2:
-        data = ''
     else:
         data = b''
 
@@ -145,18 +142,12 @@ def check_error(data, expect):
 
 def send_check(sock, data, msg):
     try:
-        if IS_PY2:
-            if isinstance(data, (list, tuple)):
-                data = ''.join([chr(x) for x in data])
-            elif isinstance(data, int):
-                data = chr(data)
-        else:
-            if isinstance(data, (list, tuple)):
-                data = bytes(data)
-            elif isinstance(data, int):
-                data = bytes([data])
-            elif isinstance(data, str):
-                data = data.encode('utf8')
+        if isinstance(data, (list, tuple)):
+            data = bytes(data)
+        elif isinstance(data, int):
+            data = bytes([data])
+        elif isinstance(data, str):
+            data = data.encode('utf8')
 
         sock.sendall(data)
     except socket.error as err:
@@ -186,9 +177,7 @@ def perform_ota(sock, password, file_handle, filename):
     if auth == RESPONSE_REQUEST_AUTH:
         if not password:
             raise OTAError("ESP requests password, but no password given!")
-        nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False)
-        if not IS_PY2:
-            nonce = nonce.decode()
+        nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False).decode()
         _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
         _LOGGER.debug("Auth: CNonce is %s", cnonce)

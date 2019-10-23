@@ -12,8 +12,6 @@ import time
 
 import ifaddr
 
-from esphome.py_compat import indexbytes, text_type
-
 log = logging.getLogger(__name__)
 
 # Some timing constants
@@ -281,7 +279,7 @@ class DNSIncoming(QuietLogger):
 
     def read_utf(self, offset, length):
         """Reads a UTF-8 string of a given length from the packet"""
-        return text_type(self.data[offset:offset + length], 'utf-8', 'replace')
+        return str(self.data[offset:offset + length], 'utf-8', 'replace')
 
     def read_name(self):
         """Reads a domain name from the packet"""
@@ -291,7 +289,7 @@ class DNSIncoming(QuietLogger):
         first = off
 
         while True:
-            length = indexbytes(self.data, off)
+            length = self.data[off]
             off += 1
             if length == 0:
                 break
@@ -302,7 +300,7 @@ class DNSIncoming(QuietLogger):
             elif t == 0xC0:
                 if next_ < 0:
                     next_ = off + 1
-                off = ((length & 0x3F) << 8) | indexbytes(self.data, off)
+                off = ((length & 0x3F) << 8) | self.data[off]
                 if off >= first:
                     raise IncomingDecodeError(
                         "Bad domain name (circular) at %s" % (off,))

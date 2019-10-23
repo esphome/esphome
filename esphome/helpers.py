@@ -4,8 +4,6 @@ import codecs
 import logging
 import os
 
-from esphome.py_compat import char_to_byte, text_type
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -42,15 +40,15 @@ def cpp_string_escape(string, encoding='utf-8'):
     def _should_escape(byte):  # type: (int) -> bool
         if not 32 <= byte < 127:
             return True
-        if byte in (char_to_byte('\\'), char_to_byte('"')):
+        if byte in (ord('\\'), ord('"')):
             return True
         return False
 
-    if isinstance(string, text_type):
+    if isinstance(string, str):
         string = string.encode(encoding)
     result = ''
     for character in string:
-        character = char_to_byte(character)
+        character = ord(character)
         if _should_escape(character):
             result += '\\%03o' % character
         else:

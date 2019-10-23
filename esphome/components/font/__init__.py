@@ -1,11 +1,12 @@
 # coding=utf-8
+import functools
+
 from esphome import core
 from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphome.core import CORE, HexInt
-from esphome.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']
 MULTI_CONF = True
@@ -35,7 +36,7 @@ def validate_glyphs(value):
             return 1
         raise cv.Invalid(u"Found duplicate glyph {}".format(x))
 
-    sort_by_cmp(value, comparator)
+    value.sort(key=functools.cmp_to_key(comparator))
     return value
 
 

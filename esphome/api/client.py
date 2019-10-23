@@ -14,7 +14,6 @@ import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
 from esphome.helpers import resolve_ip_address, indent, color
-from esphome.py_compat import text_type, IS_PY2, byte_to_bytes, char_to_byte
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,16 +66,16 @@ MESSAGE_TYPE_TO_PROTO = {
 
 def _varuint_to_bytes(value):
     if value <= 0x7F:
-        return byte_to_bytes(value)
+        return bytes([value])
 
     ret = bytes()
     while value:
         temp = value & 0x7F
         value >>= 7
         if value:
-            ret += byte_to_bytes(temp | 0x80)
+            ret += bytes([temp | 0x80])
         else:
-            ret += byte_to_bytes(temp)
+            ret += bytes([temp])
 
     return ret
 
@@ -84,8 +83,7 @@ def _varuint_to_bytes(value):
 def _bytes_to_varuint(value):
     result = 0
     bitpos = 0
-    for c in value:
-        val = char_to_byte(c)
+    for val in value:
         result |= (val & 0x7F) << bitpos
         bitpos += 7
         if (val & 0x80) == 0:
@@ -265,11 +263,8 @@ class APIClient(threading.Thread):
             raise ValueError
 
         encoded = msg.SerializeToString()
-        _LOGGER.debug("Sending %s:\n%s", type(msg), indent(text_type(msg)))
-        if IS_PY2:
-            req = chr(0x00)
-        else:
-            req = bytes([0])
+        _LOGGER.debug("Sending %s:\n%s", type(msg), indent(str(msg)))
+        req = bytes([0])
         req += _varuint_to_bytes(len(encoded))
         req += _varuint_to_bytes(message_type)
         req += encoded
@@ -362,7 +357,7 @@ class APIClient(threading.Thread):
 
     def _recv_varint(self):
         raw = bytes()
-        while not raw or char_to_byte(raw[-1]) & 0x80:
+        while not raw or raw[-1] & 0x80:
             raw += self._recv(1)
         return _bytes_to_varuint(raw)
 
@@ -371,7 +366,7 @@ class APIClient(threading.Thread):
             return
 
         # Preamble
-        if char_to_byte(self._recv(1)[0]) != 0x00:
+        if self._recv(1)[0] != 0x00:
             raise APIConnectionError("Invalid preamble")
 
         length = self._recv_varint()

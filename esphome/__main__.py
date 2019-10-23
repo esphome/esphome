@@ -14,7 +14,6 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
     CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
-from esphome.py_compat import IS_PY2, safe_input
 from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ def choose_prompt(options):
         safe_print(u"  [{}] {}".format(i + 1, desc))
 
     while True:
-        opt = safe_input('(number): ')
+        opt = input('(number): ')
         if opt in options:
             opt = options.index(opt)
             break
@@ -108,11 +107,7 @@ def run_miniterm(config, port):
             except serial.SerialException:
                 _LOGGER.error("Serial port closed!")
                 return
-            if IS_PY2:
-                line = raw.replace('\r', '').replace('\n', '')
-            else:
-                line = raw.replace(b'\r', b'').replace(b'\n', b'').decode('utf8',
-                                                                          'backslashreplace')
+            line = raw.replace(b'\r', b'').replace(b'\n', b'').decode('utf8', 'backslashreplace')
             time = datetime.now().time().strftime('[%H:%M:%S]')
             message = time + line
             safe_print(message)
@@ -130,8 +125,6 @@ def wrap_to_code(name, comp):
         cg.add(cg.LineComment(u"{}:".format(name)))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
-            if IS_PY2:
-                conf_str = conf_str.decode('utf-8')
             conf_str = conf_str.replace('//', '')
             cg.add(cg.LineComment(indent(conf_str)))
         yield coro(conf)
@@ -509,10 +502,10 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
-    if IS_PY2:
-        _LOGGER.warning("You're using ESPHome with python 2. Support for python 2 is deprecated "
-                        "and will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 "
-                        "or higher.")
+    if sys.version_info[0] == 2:
+        _LOGGER.error("You're running ESPHome with python 2. ESPHome is no longer compatible "
+                      "with python 2. Please reinstall ESPHome with python 3.")
+        return 1
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:

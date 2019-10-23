@@ -13,7 +13,6 @@ import yaml.constructor
 from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
-from esphome.py_compat import text_type, IS_PY2
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ class NodeListClass(list):
     pass
 
 
-class NodeStrClass(text_type):
+class NodeStrClass(str):
     pass
 
 
@@ -76,11 +75,6 @@ ESP_TYPES = {
     list: ESPList,
     Lambda: ESPLambda,
 }
-if IS_PY2:
-    class ESPUnicode(unicode, ESPHomeDataBase):
-        pass
-
-    ESP_TYPES[unicode] = ESPUnicode
 
 
 def make_data_base(value):
@@ -251,7 +245,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 context_mark=node.start_mark
             )
         val = secrets[node.value]
-        _SECRET_VALUES[text_type(val)] = node.value
+        _SECRET_VALUES[str(val)] = node.value
         return val
 
     @_add_data_ref
@@ -294,7 +288,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_lambda(self, node):
-        return Lambda(text_type(node.value))
+        return Lambda(str(node.value))
 
 
 ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
@@ -357,7 +351,7 @@ def _find_files(directory, pattern):
 
 def is_secret(value):
     try:
-        return _SECRET_VALUES[text_type(value)]
+        return _SECRET_VALUES[str(value)]
     except (KeyError, ValueError):
         return None
 
@@ -387,12 +381,12 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag=u'!secret', value=_SECRET_VALUES[text_type(value)])
+        return self.represent_scalar(tag=u'!secret', value=_SECRET_VALUES[str(value)])
 
     def represent_stringify(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:str', value=text_type(value))
+        return self.represent_scalar(tag=u'tag:yaml.org,2002:str', value=str(value))
 
     # pylint: disable=arguments-differ
     def represent_bool(self, value):
@@ -401,7 +395,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:int', value=text_type(value))
+        return self.represent_scalar(tag=u'tag:yaml.org,2002:int', value=str(value))
 
     def represent_float(self, value):
         if is_secret(value):
@@ -411,7 +405,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         elif math.isinf(value):
             value = u'.inf' if value > 0 else u'-.inf'
         else:
-            value = text_type(repr(value)).lower()
+            value = str(repr(value)).lower()
             # Note that in some cases `repr(data)` represents a float number
             # without the decimal parts.  For instance:
             #   >>> repr(1e17)
@@ -446,9 +440,6 @@ ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
-if IS_PY2:
-    ESPHomeDumper.add_multi_representer(unicode, ESPHomeDumper.represent_stringify)
-    ESPHomeDumper.add_multi_representer(long, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(IPAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)

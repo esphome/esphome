@@ -13,7 +13,6 @@ from typing import Any, Dict, List  # noqa
 from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
     CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
-from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,10 +22,7 @@ class EsphomeError(Exception):
     """General ESPHome exception occurred."""
 
 
-if IS_PY2:
-    base_int = long
-else:
-    base_int = int
+base_int = int
 
 
 class HexInt(base_int):
@@ -64,7 +60,7 @@ class MACAddress(object):
 
 
 def is_approximately_integer(value):
-    if isinstance(value, integer_types):
+    if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
 
@@ -307,8 +303,8 @@ class ID(object):
 
 class DocumentLocation(object):
     def __init__(self, document, line, column):
-        # type: (basestring, int, int) -> None
-        self.document = document  # type: basestring
+        # type: (strstr, int, int) -> None
+        self.document = document  # type: strstr
         self.line = line  # type: int
         self.column = column  # type: int
 
@@ -702,7 +698,7 @@ class EsphomeCore(object):
         return build_flag
 
     def add_define(self, define):
-        if isinstance(define, string_types):
+        if isinstance(define, str):
             define = Define(define)
         elif isinstance(define, Define):
             pass
@@ -748,7 +744,7 @@ class EsphomeCore(object):
 
         main_code = []
         for exp in self.main_statements:
-            text = text_type(statement(exp))
+            text = str(statement(exp))
             text = text.rstrip()
             main_code.append(text)
         return u'\n'.join(main_code) + u'\n\n'
@@ -759,7 +755,7 @@ class EsphomeCore(object):
 
         global_code = []
         for exp in self.global_statements:
-            text = text_type(statement(exp))
+            text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)
         return u'\n'.join(global_code) + u'\n'

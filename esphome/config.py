@@ -18,7 +18,6 @@ from esphome.components.substitutions import CONF_SUBSTITUTIONS
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type, IS_PY2, decode_text
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union  # noqa
@@ -119,12 +118,6 @@ def _mount_config_dir():
     if not os.path.isdir(custom_path):
         CUSTOM_COMPONENTS_PATH = None
         return
-    init_path = os.path.join(custom_path, '__init__.py')
-    if IS_PY2 and not os.path.isfile(init_path):
-        _LOGGER.warning("Found 'custom_components' folder, but file __init__.py was not found. "
-                        "ESPHome will automatically create it now....")
-        with open(init_path, 'w') as f:
-            f.write('\n')
     if CORE.config_dir not in sys.path:
         sys.path.insert(0, CORE.config_dir)
     CUSTOM_COMPONENTS_PATH = custom_path
@@ -234,7 +227,7 @@ class Config(OrderedDict):
             self.add_error(e)
 
     def add_str_error(self, message, path):
-        # type: (basestring, ConfigPath) -> None
+        # type: (strstr, ConfigPath) -> None
         self.add_error(vol.Invalid(message, path))
 
     def add_output_path(self, path, domain):
@@ -332,7 +325,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 # Look for duplicate definitions
                 match = next((v for v in declare_ids if v[0].id == id.id), None)
                 if match is not None:
-                    opath = u'->'.join(text_type(v) for v in match[1])
+                    opath = u'->'.join(str(v) for v in match[1])
                     result.add_str_error(u"ID {} redefined! Check {}".format(id.id, opath), path)
                     continue
             declare_ids.append((id, path))
@@ -431,7 +424,7 @@ def validate_config(config):
 
     while load_queue:
         domain, conf = load_queue.popleft()
-        domain = text_type(domain)
+        domain = str(domain)
         if domain.startswith(u'.'):
             # Ignore top-level keys starting with a dot
             continue
@@ -587,7 +580,7 @@ def _nested_getitem(data, path):
 
 
 def humanize_error(config, validation_error):
-    validation_error = text_type(validation_error)
+    validation_error = str(validation_error)
     m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
     if m is not None:
         validation_error = m.group(1)
@@ -622,9 +615,9 @@ def _format_vol_invalid(ex, config):
         else:
             message += u'[{}] is an invalid option for [{}]. Please check the indentation.'.format(
                 ex.path[-1], paren)
-    elif u'extra keys not allowed' in text_type(ex):
+    elif u'extra keys not allowed' in str(ex):
         message += u'[{}] is an invalid option for [{}].'.format(ex.path[-1], paren)
-    elif u'required key not provided' in text_type(ex):
+    elif u'required key not provided' in str(ex):
         message += u"'{}' is a required option for [{}].".format(ex.path[-1], paren)
     else:
         message += humanize_error(config, ex)
@@ -638,7 +631,6 @@ class InvalidYAMLError(EsphomeError):
             base = str(base_exc)
         except UnicodeDecodeError:
             base = repr(base_exc)
-        base = decode_text(base)
         message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
                   u"online YAML syntax validator:\n\n{}".format(base)
         super(InvalidYAMLError, self).__init__(message)
@@ -762,12 +754,12 @@ def dump_dict(config, path, at_root=True):
             conf = u'|-\n' + indent(conf)
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
-        ret += color(col, text_type(conf))
+        ret += color(col, str(conf))
     elif isinstance(conf, core.Lambda):
         if is_secret(conf):
             conf = u'!secret {}'.format(is_secret(conf))
 
-        conf = u'!lambda |-\n' + indent(text_type(conf.value))
+        conf = u'!lambda |-\n' + indent(str(conf.value))
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
         ret += color(col, conf)
@@ -776,7 +768,7 @@ def dump_dict(config, path, at_root=True):
     else:
         error = config.get_error_for_path(path)
         col = 'bold_red' if error else 'white'
-        ret += color(col, text_type(conf))
+        ret += color(col, str(conf))
         multiline = u'\n' in ret
 
     return ret, multiline

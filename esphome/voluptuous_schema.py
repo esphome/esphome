@@ -3,8 +3,6 @@ import itertools
 
 import voluptuous as vol
 
-from esphome.py_compat import string_types
-
 
 class ExtraKeysInvalid(vol.Invalid):
     def __init__(self, *arg, **kwargs):
@@ -84,9 +82,9 @@ class _Schema(vol.Schema):
 
         key_names = []
         for skey in schema:
-            if isinstance(skey, string_types):
+            if isinstance(skey, str):
                 key_names.append(skey)
-            elif isinstance(skey, vol.Marker) and isinstance(skey.schema, string_types):
+            elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
                 key_names.append(skey.schema)
 
         def validate_mapping(path, iterable, out):
@@ -156,7 +154,7 @@ class _Schema(vol.Schema):
                     if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
                     elif self.extra != vol.REMOVE_EXTRA:
-                        if isinstance(key, string_types) and key_names:
+                        if isinstance(key, str) and key_names:
                             matches = difflib.get_close_matches(key, key_names)
                             errors.append(ExtraKeysInvalid('extra keys not allowed', key_path,
                                                            candidates=matches))

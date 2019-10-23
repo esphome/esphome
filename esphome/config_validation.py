@@ -20,7 +20,6 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
 from esphome.helpers import list_starts_with
-from esphome.py_compat import integer_types, string_types, text_type, IS_PY2, decode_text
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)
@@ -105,7 +104,7 @@ def check_not_templatable(value):
 def alphanumeric(value):
     if value is None:
         raise Invalid("string value is None")
-    value = text_type(value)
+    value = str(value)
     if not value.isalnum():
         raise Invalid("string value is not alphanumeric")
     return value
@@ -131,10 +130,10 @@ def string(value):
         raise Invalid("string value cannot be dictionary or list.")
     if isinstance(value, bool):
         raise Invalid("Auto-converted this value to boolean, please wrap the value in quotes.")
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value
     if value is not None:
-        return text_type(value)
+        return str(value)
     raise Invalid("string value is None")
 
 
@@ -142,10 +141,8 @@ def string_strict(value):
     """Like string, but only allows strings, and does not automatically convert other types to
     strings."""
     check_not_templatable(value)
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value
-    if isinstance(value, string_types):
-        return text_type(value)
     raise Invalid("Must be string, got {}. did you forget putting quotes "
                   "around the value?".format(type(value)))
 
@@ -172,7 +169,7 @@ def boolean(value):
     check_not_templatable(value)
     if isinstance(value, bool):
         return value
-    if isinstance(value, string_types):
+    if isinstance(value, str):
         value = value.lower()
         if value in ('true', 'yes', 'on', 'enable'):
             return True
@@ -228,7 +225,7 @@ def int_(value):
     Automatically also converts strings to ints.
     """
     check_not_templatable(value)
-    if isinstance(value, integer_types):
+    if isinstance(value, int):
         return value
     if isinstance(value, float):
         if int(value) == value:
@@ -248,9 +245,9 @@ def int_(value):
 def int_range(min=None, max=None, min_included=True, max_included=True):
     """Validate that the config option is an integer in the given range."""
     if min is not None:
-        assert isinstance(min, integer_types)
+        assert isinstance(min, int)
     if max is not None:
-        assert isinstance(max, integer_types)
+        assert isinstance(max, int)
     return All(int_, Range(min=min, max=max, min_included=min_included, max_included=max_included))
 
 
@@ -461,7 +458,7 @@ def time_period_str_unit(value):
     if isinstance(value, int):
         raise Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
                       "'{0}s'?".format(value))
-    if not isinstance(value, string_types):
+    if not isinstance(value, str):
         raise Invalid("Expected string for time period with unit.")
 
     unit_to_kwarg = {
@@ -615,19 +612,6 @@ _temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
 
-if IS_PY2:
-    # Override voluptuous invalid to unicode for py2
-    def _vol_invalid_unicode(self):
-        path = u' @ data[%s]' % u']['.join(map(repr, self.path)) \
-            if self.path else u''
-        # pylint: disable=no-member
-        output = decode_text(self.message)
-        if self.error_type:
-            output += u' for ' + self.error_type
-        return output + path
-
-    Invalid.__unicode__ = _vol_invalid_unicode
-
 
 def temperature(value):
     try:
@@ -727,7 +711,7 @@ def ssid(value):
 def ipv4(value):
     if isinstance(value, list):
         parts = value
-    elif isinstance(value, string_types):
+    elif isinstance(value, str):
         parts = value.split('.')
     elif isinstance(value, IPAddress):
         return value
@@ -836,7 +820,7 @@ def percentage(value):
 
 
 def possibly_negative_percentage(value):
-    has_percent_sign = isinstance(value, string_types) and value.endswith('%')
+    has_percent_sign = isinstance(value, str) and value.endswith('%')
     if has_percent_sign:
         value = float(value[:-1].rstrip()) / 100.0
     if value > 1:
@@ -853,7 +837,7 @@ def possibly_negative_percentage(value):
 
 
 def percentage_int(value):
-    if isinstance(value, string_types) and value.endswith('%'):
+    if isinstance(value, str) and value.endswith('%'):
         value = int(value[:-1].rstrip())
     return value
 
@@ -937,8 +921,8 @@ def one_of(*values, **kwargs):
             value = Upper(value)
         if value not in values:
             import difflib
-            options_ = [text_type(x) for x in values]
-            option = text_type(value)
+            options_ = [str(x) for x in values]
+            option = str(value)
             matches = difflib.get_close_matches(option, options_)
             if matches:
                 raise Invalid(u"Unknown value '{}', did you mean {}?"
@@ -1024,7 +1008,6 @@ def dimensions(value):
 
 def directory(value):
     import json
-    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
 
@@ -1034,7 +1017,7 @@ def directory(value):
             'type': 'check_directory_exists',
             'path': path,
         }))
-        data = json.loads(safe_input())
+        data = json.loads(input())
         assert data['type'] == 'directory_exists_response'
         if data['content']:
             return value
@@ -1052,7 +1035,6 @@ def directory(value):
 
 def file_(value):
     import json
-    from esphome.py_compat import safe_input
     value = string(value)
     path = CORE.relative_config_path(value)
 
@@ -1062,7 +1044,7 @@ def file_(value):
             'type': 'check_file_exists',
             'path': path,
         }))
-        data = json.loads(safe_input())
+        data = json.loads(input())
         assert data['type'] == 'file_exists_response'
         if data['content']:
             return value
@@ -1103,9 +1085,9 @@ def extract_keys(schema):
     assert isinstance(schema, dict)
     keys = []
     for skey in list(schema.keys()):
-        if isinstance(skey, string_types):
+        if isinstance(skey, str):
             keys.append(skey)
-        elif isinstance(skey, vol.Marker) and isinstance(skey.schema, string_types):
+        elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
             keys.append(skey.schema)
         else:
             raise ValueError()
@@ -1207,7 +1189,7 @@ def validate_registry_entry(name, registry):
     ignore_keys = extract_keys(base_schema)
 
     def validator(value):
-        if isinstance(value, string_types):
+        if isinstance(value, str):
             value = {value: {}}
         if not isinstance(value, dict):
             raise Invalid(u"{} must consist of key-value mapping! Got {}"
@@ -1296,7 +1278,7 @@ def polling_component_schema(default_update_interval):
         return COMPONENT_SCHEMA.extend({
             Required(CONF_UPDATE_INTERVAL): default_update_interval,
         })
-    assert isinstance(default_update_interval, string_types)
+    assert isinstance(default_update_interval, str)
     return COMPONENT_SCHEMA.extend({
         Optional(CONF_UPDATE_INTERVAL, default=default_update_interval): update_interval,
     })

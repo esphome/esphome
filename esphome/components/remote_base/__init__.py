@@ -7,7 +7,6 @@ from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, 
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
     CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
 from esphome.core import coroutine
-from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ['binary_sensor']
@@ -141,7 +140,7 @@ DUMPER_REGISTRY = Registry({
 
 
 def validate_dumpers(value):
-    if isinstance(value, string_types) and value.lower() == 'all':
+    if isinstance(value, str) and value.lower() == 'all':
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
     return cv.validate_registry('dumper', DUMPER_REGISTRY)(value)
 
@@ -432,7 +431,7 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, text_type)):
+    if not isinstance(value, (str, str)):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1'):
@@ -447,7 +446,7 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, text_type)):
+    if not isinstance(value, (str, str)):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1', 'x'):

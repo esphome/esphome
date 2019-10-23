@@ -14,7 +14,6 @@ from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
     CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
-from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -133,7 +132,7 @@ def detect_tz():
 
 def _parse_cron_int(value, special_mapping, message):
     special_mapping = special_mapping or {}
-    if isinstance(value, string_types) and value in special_mapping:
+    if isinstance(value, str) and value in special_mapping:
         return special_mapping[value]
     try:
         return int(value)

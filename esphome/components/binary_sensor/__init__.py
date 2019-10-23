@@ -9,7 +9,6 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine, coroutine_with_priority
-from esphome.py_compat import string_types
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -93,7 +92,7 @@ MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
 
 
 def parse_multi_click_timing_str(value):
-    if not isinstance(value, string_types):
+    if not isinstance(value, str):
         return value
 
     parts = value.lower().split(' ')

@@ -3,7 +3,6 @@ import re
 
 import esphome.config_validation as cv
 from esphome import core
-from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +90,7 @@ def _substitute_item(substitutions, item, path):
         for old, new in replace_keys:
             item[new] = item[old]
             del item[old]
-    elif isinstance(item, string_types):
+    elif isinstance(item, str):
         sub = _expand_substitutions(substitutions, item, path)
         if sub != item:
             return sub

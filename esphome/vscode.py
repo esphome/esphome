@@ -5,7 +5,6 @@ import os
 
 from esphome.config import load_config, _format_vol_invalid
 from esphome.core import CORE
-from esphome.py_compat import text_type, safe_input
 
 
 def _get_invalid_range(res, invalid):
@@ -53,7 +52,7 @@ class VSCodeResult(object):
 def read_config(args):
     while True:
         CORE.reset()
-        data = json.loads(safe_input())
+        data = json.loads(input())
         assert data['type'] == 'validate'
         CORE.vscode = True
         CORE.ace = args.ace
@@ -66,7 +65,7 @@ def read_config(args):
         try:
             res = load_config()
         except Exception as err:  # pylint: disable=broad-except
-            vs.add_yaml_error(text_type(err))
+            vs.add_yaml_error(str(err))
         else:
             for err in res.errors:
                 try:
