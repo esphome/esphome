@@ -145,6 +145,14 @@ Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+void BangBangClimate::dump_config() {
+  LOG_CLIMATE("", "Bang Bang Climate", this);
+  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
+  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
+  ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+}
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_temperature_low,
