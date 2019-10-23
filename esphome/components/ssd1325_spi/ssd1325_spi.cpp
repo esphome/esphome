@@ -14,7 +14,7 @@ void SPISSD1325::setup() {
   this->cs_->setup();      // OUTPUT
 
   this->init_reset_();
-  delay(500);
+  delay(500);  // NOLINT
   SSD1325::setup();
 }
 void SPISSD1325::dump_config() {

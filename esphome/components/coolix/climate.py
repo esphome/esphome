@@ -1,17 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate, remote_transmitter, remote_receiver, sensor
-from esphome.const import CONF_ID, CONF_SENSOR
+from esphome.components.remote_base import CONF_TRANSMITTER_ID, CONF_RECEIVER_ID
+from esphome.const import CONF_ID, CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
 
 AUTO_LOAD = ['sensor', 'climate_ir']
 
 coolix_ns = cg.esphome_ns.namespace('coolix')
 CoolixClimate = coolix_ns.class_('CoolixClimate', climate.Climate, cg.Component)
-
-CONF_TRANSMITTER_ID = 'transmitter_id'
-CONF_RECEIVER_ID = 'receiver_id'
-CONF_SUPPORTS_HEAT = 'supports_heat'
-CONF_SUPPORTS_COOL = 'supports_cool'
 
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(CoolixClimate),

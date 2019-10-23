@@ -14,7 +14,7 @@ void ShutdownSwitch::write_state(bool state) {
 
   if (state) {
     ESP_LOGI(TAG, "Shutting down...");
-    delay(100);  // Let MQTT settle a bit
+    delay(100);  // NOLINT
 
     App.run_safe_shutdown_hooks();
 #ifdef ARDUINO_ARCH_ESP8266
