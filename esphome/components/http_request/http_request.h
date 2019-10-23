@@ -3,6 +3,7 @@
 #include <list>
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/components/json/json_util.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 #include <HTTPClient.h>
@@ -68,11 +69,17 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->headers_.push_back(header);
   }
 
+  void set_json(std::function<void(Ts..., JsonObject &)> json) { this->json_ = json; }
+
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
     if (this->body_.has_value()) {
       this->parent_->set_body(this->body_.value(x...));
+    }
+    if (this->json_ != nullptr) {
+      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_, this, x..., std::placeholders::_1);
+      this->parent_->set_body(json::build_json(f));
     }
     if (this->useragent_.has_value()) {
       this->parent_->set_useragent(this->useragent_.value(x...));
@@ -87,8 +94,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   }
 
  protected:
+  void encode_(Ts... x, JsonObject &root) { this->json_(x..., root); }
   HttpRequestComponent *parent_;
   std::list<Header> headers_{};
+  std::function<void(Ts..., JsonObject &)> json_{nullptr};
 };
 
 }  // namespace http_request
