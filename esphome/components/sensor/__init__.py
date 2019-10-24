@@ -259,7 +259,7 @@ def setup_sensor_core_(var, config):
     if CONF_ACCURACY_DECIMALS in config:
         cg.add(var.set_accuracy_decimals(config[CONF_ACCURACY_DECIMALS]))
     cg.add(var.set_force_update(config[CONF_FORCE_UPDATE]))
-    if CONF_FILTERS in config:
+    if config.get(CONF_FILTERS):  # must exist and not be empty
         filters = yield build_filters(config[CONF_FILTERS])
         cg.add(var.set_filters(filters))
 
