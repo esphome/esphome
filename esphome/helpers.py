@@ -234,7 +234,12 @@ def file_compare(path1, path2):
     """Return True if the files path1 and path2 have the same contents."""
     import stat
 
-    stat1, stat2 = os.stat(path1), os.stat(path2)
+    try:
+        stat1, stat2 = os.stat(path1), os.stat(path2)
+    except OSError:
+        # File doesn't exist or another error -> not equal
+        return False
+
     if stat.S_IFMT(stat1.st_mode) != stat.S_IFREG or stat.S_IFMT(stat2.st_mode) != stat.S_IFREG:
         # At least one of them is not a regular file (or does not exist)
         return False
