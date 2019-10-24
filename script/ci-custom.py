@@ -298,6 +298,19 @@ def lint_relative_py_import(fname):
             '  from . import abc_ns\n\n')
 
 
+@lint_content_check(include=['esphome/components/*.h', 'esphome/components/*.cpp',
+                             'esphome/components/*.tcc'])
+def lint_namespace(fname, content):
+    expected_name = re.match(r'^esphome/components/([^/]+)/.*',
+                             fname.replace(os.path.sep, '/')).group(1)
+    search = 'namespace {}'.format(expected_name)
+    if search in content:
+        return None
+    return 'Invalid namespace found in C++ file. All integration C++ files should put all ' \
+           'functions in a separate namespace that matches the integration\'s name. ' \
+           'Please make sure the file contains {}'.format(highlight(search))
+
+
 @lint_content_find_check('"esphome.h"', include=cpp_include, exclude=['tests/custom.h'])
 def lint_esphome_h(fname):
     return ("File contains reference to 'esphome.h' - This file is "
