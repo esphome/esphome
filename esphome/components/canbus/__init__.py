@@ -16,8 +16,6 @@ CONF_SENDER_ID = 'sender_id'
 CONF_BIT_RATE = 'bit_rate'
 CONF_ON_FRAME = 'on_frame'
 
-CONF_CANBUS_SEND_ACTION = 'canbus.send'
-
 
 def validate_raw_data(value):
     if isinstance(value, text_type):
@@ -96,7 +94,7 @@ def register_canbus(var, config):
     yield setup_canbus_core_(var, config)
 
 
-@automation.register_action(CONF_CANBUS_SEND_ACTION, CanbusSendAction, CANBUS_ACTION_SCHEMA)
+@automation.register_action('canbus.send', CanbusSendAction, CANBUS_ACTION_SCHEMA)
 def canbus_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_CANBUS_ID])

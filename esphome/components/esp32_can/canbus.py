@@ -19,6 +19,5 @@ CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend({
 
 
 def to_code(config):
-    rhs = esp32_can.new()
     var = cg.new_Pvariable(config[CONF_ID])
     yield canbus.register_canbus(var, config)
