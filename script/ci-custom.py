@@ -5,7 +5,6 @@ import codecs
 import collections
 import fnmatch
 import os.path
-import re
 import subprocess
 import sys
 import re
@@ -263,6 +262,7 @@ def lint_constants_usage():
         errors.append("Constant {} is defined in {} files. Please move all definitions of the "
                       "constant to const.py (Uses: {})"
                       "".format(highlight(constant), len(uses), ', '.join(uses)))
+    return errors
 
 
 def relative_cpp_search_text(fname, content):
