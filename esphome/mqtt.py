@@ -15,6 +15,7 @@ from esphome.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOME, \
     CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color
+from esphome.py_compat import decode_text
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def initialize(config, subscriptions, on_message, username, password, client_id):
     def on_connect(client, userdata, flags, return_code):
+        _LOGGER.info("Connected to MQTT broker!")
         for topic in subscriptions:
             client.subscribe(topic)
 
@@ -94,7 +96,8 @@ def show_logs(config, topic=None, username=None, password=None, client_id=None):
 
     def on_message(client, userdata, msg):
         time_ = datetime.now().time().strftime(u'[%H:%M:%S]')
-        message = time_ + msg.payload
+        payload = decode_text(msg.payload)
+        message = time_ + payload
         safe_print(message)
 
     return initialize(config, [topic], on_message, username, password, client_id)
