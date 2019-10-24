@@ -6,7 +6,7 @@
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
-namespace climate {
+namespace climate_ir {
 
 /* A base for climate which works by sending (and receiving) IR codes
 
@@ -42,7 +42,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   climate::ClimateTraits traits() override;
 
   /// Transmit via IR the state of this climate controller.
-  virtual void transmit_state() {}
+  virtual void transmit_state() = 0;
 
   bool supports_cool_{true};
   bool supports_heat_{true};
@@ -50,5 +50,6 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};
 };
-}  // namespace climate
+
+}  // namespace climate_ir
 }  // namespace esphome

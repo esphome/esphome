@@ -9,9 +9,9 @@ namespace coolix {
 const uint8_t COOLIX_TEMP_MIN = 17;  // Celsius
 const uint8_t COOLIX_TEMP_MAX = 30;  // Celsius
 
-class CoolixClimate : public climate::ClimateIR {
+class CoolixClimate : public climate_ir::ClimateIR {
  public:
-  CoolixClimate() : climate::ClimateIR(COOLIX_TEMP_MIN, COOLIX_TEMP_MAX) {}
+  CoolixClimate() : climate_ir::ClimateIR(COOLIX_TEMP_MIN, COOLIX_TEMP_MAX) {}
 
  protected:
   /// Transmit via IR the state of this climate controller.
