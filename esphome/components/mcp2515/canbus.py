@@ -4,7 +4,6 @@ from esphome.components import spi, canbus
 from esphome.const import CONF_ID, CONF_MODE
 from esphome.components.canbus import CanbusComponent
 
-AUTO_LOAD = ['canbus']
 DEPENDENCIES = ['spi']
 
 CONF_MCP_CLOCK = 'clock'
