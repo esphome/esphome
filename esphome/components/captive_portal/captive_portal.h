@@ -2,6 +2,7 @@
 
 #include <DNSServer.h>
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 #include "esphome/components/web_server_base/web_server_base.h"
 
