@@ -70,7 +70,7 @@ sensor:
       current:
         name: ${disp_name} CT2 Amps
         id: ct2Amps
-       power:
+      power:
         name: ${disp_name} CT2 Watts
         id: ct2Watts
       react_pow:
