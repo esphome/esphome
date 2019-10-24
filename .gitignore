@@ -114,5 +114,3 @@ config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
-platformio.ini
-6chan_energy_meter.yaml
