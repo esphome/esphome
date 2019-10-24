@@ -25,7 +25,7 @@ enum CanClkOut {
   CLKOUT_DIV8 = 0x3,
 };
 
-enum /*class*/ CANINTF : uint8_t {
+enum CANINTF : uint8_t {
   CANINTF_RX0IF = 0x01,
   CANINTF_RX1IF = 0x02,
   CANINTF_TX0IF = 0x04,
@@ -36,7 +36,7 @@ enum /*class*/ CANINTF : uint8_t {
   CANINTF_MERRF = 0x80
 };
 
-enum /*class*/ EFLG : uint8_t {
+enum EFLG : uint8_t {
   EFLG_RX1OVR = (1 << 7),
   EFLG_RX0OVR = (1 << 6),
   EFLG_TXBO = (1 << 5),
@@ -47,7 +47,7 @@ enum /*class*/ EFLG : uint8_t {
   EFLG_EWARN = (1 << 0)
 };
 
-enum /*class*/ STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
+enum STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
 
 static const uint8_t STAT_RXIF_MASK = STAT_RX0IF | STAT_RX1IF;
 static const uint8_t EFLG_ERRORMASK =
@@ -99,9 +99,9 @@ protected:
                             const uint32_t ul_data);
   canbus::Error send_message_(const TXBn txbn,
                               const struct canbus::CanFrame *frame);
-  canbus::Error send_message_(const struct canbus::CanFrame *frame) override; 
+  canbus::Error send_message_(const struct canbus::CanFrame *frame); 
   canbus::Error read_message_(const RXBn rxbn, struct canbus::CanFrame *frame);
-  canbus::Error read_message_(struct canbus::CanFrame *frame) override;
+  canbus::Error read_message_(struct canbus::CanFrame *frame);
   bool check_receive_();
   bool check_error_();
   uint8_t get_error_flags_();

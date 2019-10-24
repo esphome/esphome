@@ -9,7 +9,7 @@ static const uint8_t CANCTRL_OSM = 0x08;
 static const uint8_t CANCTRL_CLKEN = 0x04;
 static const uint8_t CANCTRL_CLKPRE = 0x03;
 
-enum /*class*/ CANCTRL_REQOP_MODE : uint8_t {
+enum CANCTRL_REQOP_MODE : uint8_t {
   CANCTRL_REQOP_NORMAL = 0x00,
   CANCTRL_REQOP_SLEEP = 0x20,
   CANCTRL_REQOP_LOOPBACK = 0x40,
@@ -18,7 +18,7 @@ enum /*class*/ CANCTRL_REQOP_MODE : uint8_t {
   CANCTRL_REQOP_POWERUP = 0xE0
 };
 
-enum /*class*/ TXBnCTRL : uint8_t {
+enum TXBnCTRL : uint8_t {
   TXB_ABTF = 0x40,
   TXB_MLOA = 0x20,
   TXB_TXERR = 0x10,
@@ -27,7 +27,7 @@ enum /*class*/ TXBnCTRL : uint8_t {
   TXB_TXP = 0x03
 };
 
-enum /*class*/ INSTRUCTION : uint8_t {
+enum INSTRUCTION : uint8_t {
   INSTRUCTION_WRITE = 0x02,
   INSTRUCTION_READ = 0x03,
   INSTRUCTION_BITMOD = 0x05,
@@ -45,7 +45,7 @@ enum /*class*/ INSTRUCTION : uint8_t {
   INSTRUCTION_RESET = 0xC0
 };
 
-enum /*class*/ REGISTER : uint8_t {
+enum REGISTER : uint8_t {
   MCP_RXF0SIDH = 0x00,
   MCP_RXF0SIDL = 0x01,
   MCP_RXF0EID8 = 0x02,
