@@ -35,7 +35,7 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (this->by_address_) {
       if (device.address_uint64() == this->address_) {
-        this->publish_state(device.get_rssi())  ;
+        this->publish_state(device.get_rssi());
         this->found_ = true;
         return true;
       }
@@ -43,34 +43,34 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
       for (auto uuid : device.get_service_uuids()) {
 	switch (this->uuid_.get_uuid().len) {
           case ESP_UUID_LEN_16:
-	    if (uuid.get_uuid().len == ESP_UUID_LEN_16 &&
-		uuid.get_uuid().uuid.uuid16 == this->uuid_.get_uuid().uuid.uuid16) {
+            if (uuid.get_uuid().len == ESP_UUID_LEN_16 &&
+                uuid.get_uuid().uuid.uuid16 == this->uuid_.get_uuid().uuid.uuid16) {
+              this->publish_state(device.get_rssi());
+              this->found_ = true;
+              return true;
+            }
+            break;
+          case ESP_UUID_LEN_32:
+            if (uuid.get_uuid().len == ESP_UUID_LEN_32 &&
+                uuid.get_uuid().uuid.uuid32 == this->uuid_.get_uuid().uuid.uuid32) {
               this->publish_state(device.get_rssi());
               this->found_ = true;
               return true;
             }
 	    break;
-	  case ESP_UUID_LEN_32:
-	    if (uuid.get_uuid().len == ESP_UUID_LEN_32 &&
-		uuid.get_uuid().uuid.uuid32 == this->uuid_.get_uuid().uuid.uuid32) {
+          case ESP_UUID_LEN_128:
+            if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
+              for (int i = 0; i < ESP_UUID_LEN_128; i++) {
+                if (uuid.get_uuid().uuid.uuid128[i] != this->uuid_.get_uuid().uuid.uuid128[i]) {
+                  return false;
+                }
+              }
               this->publish_state(device.get_rssi());
               this->found_ = true;
               return true;
             }
-	    break;
-	  case ESP_UUID_LEN_128:
-	    if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
-	      for (int i = 0; i < ESP_UUID_LEN_128; i++) {
-		  if (uuid.get_uuid().uuid.uuid128[i] != this->uuid_.get_uuid().uuid.uuid128[i]) {
-		  return false;
-		}
-	      }
-              this->publish_state(device.get_rssi());
-              this->found_ = true;
-              return true;
-            }
-	    break;
-	}
+          break;
+        }
       }
     }
     return false;

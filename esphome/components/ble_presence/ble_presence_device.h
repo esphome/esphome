@@ -37,7 +37,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensor,
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
     if (this->by_address_) {
       if (device.address_uint64() == this->address_) {
-        this->publish_state(true)  ;
+        this->publish_state(true);
         this->found_ = true;
         return true;
       }
@@ -63,7 +63,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensor,
           case ESP_UUID_LEN_128:
             if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
               for (int i = 0; i < ESP_UUID_LEN_128; i++) {
-                  if (this->uuid_.get_uuid().uuid.uuid128[i] != uuid.get_uuid().uuid.uuid128[i]) {
+                if (this->uuid_.get_uuid().uuid.uuid128[i] != uuid.get_uuid().uuid.uuid128[i]) {
                   return false;
                 }
               }
