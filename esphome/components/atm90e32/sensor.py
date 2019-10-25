@@ -29,7 +29,7 @@ ATM90E32Component = atm90e32_ns.class_('ATM90E32Component', cg.PollingComponent,
 
 ATM90E32_PHASE_SCHEMA = cv.Schema({
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT-AC, 2),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT_AC, 2),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_POWER, 2),
     cv.Optional(CONF_REACT_POW): sensor.sensor_schema(UNIT_EMPTY, ICON_LIGHTBULB, 2),
     cv.Optional(CONF_PF): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
