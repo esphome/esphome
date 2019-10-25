@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
-    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, CONF_TEMPERATURE \
+    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, CONF_TEMPERATURE, \
     ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
     UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS
 
