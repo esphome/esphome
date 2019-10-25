@@ -62,7 +62,7 @@ void ATM90E32Component::update() {
     this->freq_sensor_->publish_state(this->get_frequency_());
   }
   if (this->chip_temp_sensor_ != nullptr) {
-    this->freq_sensor_->publish_state(this->get_chip_temp_());
+    this->chip_temp_sensor_->publish_state(this->get_chip_temp_());
   }
   this->status_clear_warning();
 }
@@ -122,8 +122,8 @@ void ATM90E32Component::dump_config() {
   LOG_SENSOR("  ", "Power C", this->phase_[2].power_sensor_);
   LOG_SENSOR("  ", "Reactive Power C", this->phase_[2].react_pow_sensor_);
   LOG_SENSOR("  ", "PF C", this->phase_[2].pf_sensor_);
-  LOG_SENSOR("  ", "Frequency", this->freq_sensor_)
-  LOG_SENSOR("  ", "Chip Temp", this->chip_temp_sensor_)
+  LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
+  LOG_SENSOR("  ", "Chip Temp", this->chip_temp_sensor_);
 }
 float ATM90E32Component::get_setup_priority() const { return setup_priority::DATA; }
 
