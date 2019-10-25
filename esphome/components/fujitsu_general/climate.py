@@ -5,11 +5,11 @@ from esphome.const import CONF_ID
 
 AUTO_LOAD = ['climate_ir']
 
-tcl112_ns = cg.esphome_ns.namespace('tcl112')
-Tcl112Climate = tcl112_ns.class_('Tcl112Climate', climate_ir.ClimateIR)
+fujitsu_general_ns = cg.esphome_ns.namespace('fujitsu_general')
+FujitsuGeneralClimate = fujitsu_general_ns.class_('FujitsuGeneralClimate', climate_ir.ClimateIR)
 
-CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(Tcl112Climate),
+CONFIG_SCHEMA = climate_ir.CLIMATE_IR_SCHEMA.extend({
+    cv.GenerateID(): cv.declare_id(FujitsuGeneralClimate),
 })
 
 
