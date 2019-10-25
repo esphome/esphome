@@ -79,7 +79,7 @@ def to_code(config):
 HTTP_REQUEST_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(HttpRequestComponent),
     cv.Required(CONF_URL): cv.templatable(validate_url),
-    cv.Optional(CONF_HEADERS): cv.All(cv.Schema({cv.string: cv.string})),
+    cv.Optional(CONF_HEADERS): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
 })
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL, HTTP_REQUEST_ACTION_SCHEMA.extend({
@@ -119,7 +119,8 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     for key in config.get(CONF_JSON, []):
         template_ = yield cg.templatable(config[CONF_JSON][key], args, cg.std_string)
         cg.add(var.add_json(key, template_))
-    for header in config.get(CONF_HEADERS, []):
-        cg.add(var.add_header(header, config[CONF_HEADERS][header]))
+    for key in config.get(CONF_HEADERS, []):
+        template_ = yield cg.templatable(config[CONF_HEADERS][key], args, cg.const_char_ptr)
+        cg.add(var.add_header(key, template_))
 
     yield var

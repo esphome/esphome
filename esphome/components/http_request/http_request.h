@@ -63,11 +63,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(const char *, useragent)
   TEMPLATABLE_VALUE(uint16_t, timeout)
 
-  void add_header(const char *name, const char *value) {
-    Header header;
-    header.name = name;
-    header.value = value;
-    this->headers_.push_back(header);
+  void add_header(const char *key, TemplatableValue<const char *, Ts...> value) {
+    this->headers_.insert({key, value});
   }
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) {
@@ -91,7 +88,15 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       this->parent_->set_timeout(this->timeout_.value(x...));
     }
     if (!this->headers_.empty()) {
-      this->parent_->set_headers(this->headers_);
+      std::list<Header> headers;
+      for (const auto &item : this->headers_) {
+        auto val = item.second;
+        Header header;
+        header.name = item.first;
+        header.value = val.value(x...);
+        headers.push_back(header);
+      }
+      this->parent_->set_headers(headers);
     }
     this->parent_->send();
   }
@@ -104,7 +109,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     }
   }
   HttpRequestComponent *parent_;
-  std::list<Header> headers_{};
+  std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
 };
 
