@@ -9,9 +9,9 @@ namespace tcl112 {
 const float TCL112_TEMP_MAX = 31.0;
 const float TCL112_TEMP_MIN = 16.0;
 
-class Tcl112Climate : public climate::ClimateIR {
+class Tcl112Climate : public climate_ir::ClimateIR {
  public:
-  Tcl112Climate() : climate::ClimateIR(TCL112_TEMP_MIN, TCL112_TEMP_MAX, .5f) {}
+  Tcl112Climate() : climate_ir::ClimateIR(TCL112_TEMP_MIN, TCL112_TEMP_MAX, .5f) {}
 
  protected:
   /// Transmit via IR the state of this climate controller.
