@@ -14,7 +14,7 @@ PROJECT_URL = 'https://esphome.io/'
 PROJECT_EMAIL = 'contact@esphome.io'
 
 PROJECT_GITHUB_USERNAME = 'CircuitSetup'
-PROJECT_GITHUB_REPOSITORY = 'esphome/tree/test'
+PROJECT_GITHUB_REPOSITORY = 'esphome@test'
 
 PYPI_URL = 'https://pypi.python.org/pypi/{}'.format(PROJECT_PACKAGE_NAME)
 GITHUB_PATH = '{}/{}'.format(PROJECT_GITHUB_USERNAME, PROJECT_GITHUB_REPOSITORY)
