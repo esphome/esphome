@@ -4,7 +4,7 @@ from esphome.components import sensor, spi
 from esphome.const import \
     CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, CONF_TEMPERATURE \
     ICON_FLASH, ICON_POWER, ICON_LIGHTBULB, ICON_CURRENT-AC, ICON_THERMOMETER, 
-	UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS
+    UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS
 
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
@@ -31,8 +31,8 @@ ATM90E32_PHASE_SCHEMA = cv.Schema({
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT-AC, 2),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_POWER, 2),
-	cv.Optional(CONF_REACT_POW): sensor.sensor_schema(UNIT_EMPTY, ICON_LIGHTBULB, 2),
-	cv.Optional(CONF_PF): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
+    cv.Optional(CONF_REACT_POW): sensor.sensor_schema(UNIT_EMPTY, ICON_LIGHTBULB, 2),
+    cv.Optional(CONF_PF): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
     cv.Optional(CONF_GAIN_VOLTAGE, default=41820): cv.uint16_t,
     cv.Optional(CONF_GAIN_CT, default=25498): cv.uint16_t,
 })
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HZ, ICON_FLASH, 1),
-	cv.Optional(CONF_CHIP_TEMP): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
+    cv.Optional(CONF_CHIP_TEMP): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
