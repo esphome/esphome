@@ -221,15 +221,15 @@ float ATM90E32Component::get_reactive_power_c_() {
   return val * 0.00032f;
 }
 float ATM90E32Component::get_pf_a_() {
-  uint16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANA);
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANA);
   return (float) pf / 1000;
 }
 float ATM90E32Component::get_pf_b_() {
-  uint16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANB);
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANB);
   return (float) pf / 1000;
 }
 float ATM90E32Component::get_pf_c_() {
-  uint16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
   return (float) pf / 1000;
 }
 float ATM90E32Component::get_frequency_() {
