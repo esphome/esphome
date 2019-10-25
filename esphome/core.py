@@ -62,6 +62,29 @@ class MACAddress(object):
         num = ''.join('{:02X}'.format(part) for part in self.parts)
         return RawExpression('0x{}ULL'.format(num))
 
+class BTUUID(object):
+    def __init__(self, value, uuid_format):
+        self.value = value.replace('-', '')
+        self.uuid_format = uuid_format
+
+    def __str__(self):
+        return self.value
+
+    def get_uuid_format(self):
+        return self.uuid_format
+
+    @property
+    def as_hex(self):
+        from esphome.cpp_generator import RawExpression
+
+        return RawExpression('0x{}ULL'.format(self.value))
+
+    @property
+    def as_hex_array(self):
+        from esphome.cpp_generator import RawExpression
+
+        return RawExpression('(uint8_t*)(const uint8_t[16]){{{}}}'.format(
+            ','.join(reversed(['0x{}'.format(part) for part in [self.value[i:i+2] for i in range(0, len(self.value), 2)]]))))
 
 def is_approximately_integer(value):
     if isinstance(value, integer_types):

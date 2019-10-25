@@ -573,6 +573,36 @@ def uuid(value):
     return Coerce(uuid_.UUID)(value)
 
 
+bt_uuid16_format = 'XXXX'
+bt_uuid32_format = 'XXXXXXXX'
+bt_uuid128_format = 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX'
+
+
+def bt_uuid(value):
+    original_value = string_strict(value)
+    value = original_value.upper()
+
+    if len(value) == len(bt_uuid16_format):
+        pattern = re.compile("^[A-F|0-9]{4,}$")
+        if not pattern.match(value):
+            raise Invalid(u"Invalid hexadecimal value for 16 bit UUID format: '{}'".format(original_value))
+        return core.BTUUID(value, bt_uuid16_format)
+    elif len(value) == len(bt_uuid32_format):
+        pattern = re.compile("^[A-F|0-9]{8,}$")
+        if not pattern.match(value):
+            raise Invalid(u"Invalid hexadecimal value for 32 bit UUID format: '{}'".format(original_value))
+        return core.BTUUID(value, bt_uuid32_format)
+    elif len(value) == len(bt_uuid128_format):
+        pattern = re.compile("^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$")
+        if not pattern.match(value):
+            raise Invalid(u"Invalid hexadecimal value for 128 UUID format: '{}'".format(original_value))
+        return core.BTUUID(value, bt_uuid128_format)
+    else:
+        raise Invalid(
+            u"Service UUID must conform to any of the 16 bit '{}', 32 bit '{}', or 128 bit '{}' formats".format(
+                bt_uuid16_format, bt_uuid32_format, bt_uuid128_format))
+
+
 METRIC_SUFFIXES = {
     'E': 1e18, 'P': 1e15, 'T': 1e12, 'G': 1e9, 'M': 1e6, 'k': 1e3, 'da': 10, 'd': 1e-1,
     'c': 1e-2, 'm': 0.001, u'µ': 1e-6, 'u': 1e-6, 'n': 1e-9, 'p': 1e-12, 'f': 1e-15, 'a': 1e-18,

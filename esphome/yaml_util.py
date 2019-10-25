@@ -12,7 +12,7 @@ import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
+from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, BTUUID, TimePeriod, DocumentRange
 from esphome.py_compat import text_type, IS_PY2
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -451,6 +451,7 @@ if IS_PY2:
     ESPHomeDumper.add_multi_representer(long, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(IPAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
+ESPHomeDumper.add_multi_representer(BTUUID, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(Lambda, ESPHomeDumper.represent_lambda)
 ESPHomeDumper.add_multi_representer(core.ID, ESPHomeDumper.represent_id)

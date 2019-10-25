@@ -25,6 +25,8 @@ class ESPBTUUID {
 
   bool contains(uint8_t data1, uint8_t data2) const;
 
+  esp_bt_uuid_t get_uuid();
+
   std::string to_string();
 
  protected:
