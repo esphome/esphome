@@ -90,13 +90,13 @@ HTTP_REQUEST_POST_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL, HTTP_REQUEST_ACTION_SCHEMA.extend({
         cv.Optional(CONF_METHOD, default='POST'): cv.one_of('POST', upper=True),
         cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-        cv.Exclusive(CONF_JSON, 'body'): cv.lambda_,
+        cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
     })
 )
 HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend({
     cv.Required(CONF_METHOD): cv.one_of('GET', 'POST', 'PUT', 'DELETE', 'PATCH', upper=True),
     cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-    cv.Exclusive(CONF_JSON, 'body'): cv.lambda_,
+    cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
 })
 
 
@@ -116,10 +116,9 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     if CONF_BODY in config:
         template_ = yield cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
-    if CONF_JSON in config:
-        args_ = args + [(cg.JsonObjectRef, 'root')]
-        lambda_ = yield cg.process_lambda(config[CONF_JSON], args_, return_type=cg.void)
-        cg.add(var.set_json(lambda_))
+    for key in config.get(CONF_JSON, []):
+        template_ = yield cg.templatable(config[CONF_JSON][key], args, cg.std_string)
+        cg.add(var.add_json(key, template_))
     for header in config.get(CONF_HEADERS, []):
         cg.add(var.add_header(header, config[CONF_HEADERS][header]))
 

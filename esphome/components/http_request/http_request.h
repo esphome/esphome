@@ -1,6 +1,7 @@
 #pragma once
 
 #include <list>
+#include <map>
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/json/json_util.h"
@@ -69,7 +70,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->headers_.push_back(header);
   }
 
-  void set_json(std::function<void(Ts..., JsonObject &)> json) { this->json_ = json; }
+  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) {
+    this->json_.insert({key, value});
+  }
 
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
@@ -77,8 +80,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     if (this->body_.has_value()) {
       this->parent_->set_body(this->body_.value(x...));
     }
-    if (this->json_ != nullptr) {
-      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_, this, x..., std::placeholders::_1);
+    if (!this->json_.empty()) {
+      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_, this, x..., std::placeholders::_1);
       this->parent_->set_body(json::build_json(f));
     }
     if (this->useragent_.has_value()) {
@@ -94,10 +97,15 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   }
 
  protected:
-  void encode_(Ts... x, JsonObject &root) { this->json_(x..., root); }
+  void encode_json_(Ts... x, JsonObject &root) {
+    for (const auto &item : this->json_) {
+      auto val = item.second;
+      root[item.first] = val.value(x...);
+    }
+  }
   HttpRequestComponent *parent_;
   std::list<Header> headers_{};
-  std::function<void(Ts..., JsonObject &)> json_{nullptr};
+  std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
 };
 
 }  // namespace http_request
