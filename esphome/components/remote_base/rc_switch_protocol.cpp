@@ -14,7 +14,7 @@ RCSwitchBase rc_switch_protocols[9] = {RCSwitchBase(0, 0, 0, 0, 0, 0, false),
                                        RCSwitchBase(3000, 7000, 500, 1000, 1000, 500, false),
                                        RCSwitchBase(10350, 450, 450, 900, 900, 450, true),
                                        RCSwitchBase(300, 9300, 150, 900, 900, 150, false),
-                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250, false)};
+                                       RCSwitchBase(250, 2500, 250, 1250, 250, 250,  false)};
 
 RCSwitchBase::RCSwitchBase(uint32_t sync_high, uint32_t sync_low, uint32_t zero_high, uint32_t zero_low,
                            uint32_t one_high, uint32_t one_low, bool inverted)
