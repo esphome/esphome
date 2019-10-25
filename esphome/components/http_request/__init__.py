@@ -24,6 +24,7 @@ CONF_HEADERS = 'headers'
 CONF_USERAGENT = 'useragent'
 CONF_BODY = 'body'
 CONF_JSON = 'json'
+CONF_VERIFY_SSL = 'verify_ssl'
 
 
 def validate_framework(config):
@@ -62,6 +63,12 @@ def validate_url(value):
     return urlparse.urlunparse(parsed)
 
 
+def validate_secure_url(config):
+    if config.get(CONF_VERIFY_SSL) and config[CONF_URL].lower().startswith('https:'):
+        raise cv.Invalid('Currently ESPHome doesn\'t support SSL verification. '
+                         'Set \'verify_ssl: false\' to make insecure HTTPS requests.')
+
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(HttpRequestComponent),
     cv.Optional(CONF_USERAGENT, 'ESPHome'): cv.string,
@@ -80,7 +87,8 @@ HTTP_REQUEST_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(HttpRequestComponent),
     cv.Required(CONF_URL): cv.templatable(validate_url),
     cv.Optional(CONF_HEADERS): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
-})
+    cv.Optional(CONF_VERIFY_SSL, default=True): cv.boolean,
+}).add_extra(validate_secure_url)
 HTTP_REQUEST_GET_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL, HTTP_REQUEST_ACTION_SCHEMA.extend({
         cv.Optional(CONF_METHOD, default='GET'): cv.one_of('GET', upper=True),
