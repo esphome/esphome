@@ -58,8 +58,8 @@ class ATM90E32Component : public PollingComponent,
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
-	  sensor::Sensor *react_pow_sensor_{nullptr};
-	  sensor::Sensor *pf_sensor_{nullptr};
+    sensor::Sensor *react_pow_sensor_{nullptr};
+    sensor::Sensor *pf_sensor_{nullptr};
   } phase_[3];
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temp_sensor_{nullptr};
