@@ -63,13 +63,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(const char *, useragent)
   TEMPLATABLE_VALUE(uint16_t, timeout)
 
-  void add_header(const char *key, TemplatableValue<const char *, Ts...> value) {
-    this->headers_.insert({key, value});
-  }
+  void add_header(const char *key, TemplatableValue<const char *, Ts...> value) { this->headers_.insert({key, value}); }
 
-  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) {
-    this->json_.insert({key, value});
-  }
+  void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));

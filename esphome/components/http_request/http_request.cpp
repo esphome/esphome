@@ -18,9 +18,9 @@ void HttpRequestComponent::send() {
   begin_status = this->client_.begin(this->url_);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
-  this->client_.setFollowRedirects(true);
-  this->client_.setRedirectLimit(3);
+  begin_status = this->client_.begin(*this->wifi_client_, this->url_);  // NOLINT
+  this->client_.setFollowRedirects(true);  // NOLINT
+  this->client_.setRedirectLimit(3);  // NOLINT
 #endif
 
   if (!begin_status) {
