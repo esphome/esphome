@@ -41,7 +41,7 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
       }
     } else {
       for (auto uuid : device.get_service_uuids()) {
-	switch (this->uuid_.get_uuid().len) {
+        switch (this->uuid_.get_uuid().len) {
           case ESP_UUID_LEN_16:
             if (uuid.get_uuid().len == ESP_UUID_LEN_16 &&
                 uuid.get_uuid().uuid.uuid16 == this->uuid_.get_uuid().uuid.uuid16) {
@@ -57,7 +57,7 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
               this->found_ = true;
               return true;
             }
-	    break;
+            break;
           case ESP_UUID_LEN_128:
             if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
               for (int i = 0; i < ESP_UUID_LEN_128; i++) {
@@ -69,7 +69,7 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
               this->found_ = true;
               return true;
             }
-          break;
+            break;
         }
       }
     }
