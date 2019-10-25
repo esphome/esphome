@@ -75,8 +75,7 @@ def as_hex_array(value):
     return cg.RawExpression(
         '(uint8_t*)(const uint8_t[16]){{{}}}'.format(
             ','.join(reversed(
-                ['0x{}'.format(part) for part in [value[i:i+2] for i in range(0, len(value), 2)]]
-                )
+                ['0x{}'.format(part) for part in [value[i:i+2] for i in range(0, len(value), 2)]])
                 )
             )
         )
