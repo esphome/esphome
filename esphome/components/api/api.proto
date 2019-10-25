@@ -406,6 +406,7 @@ message ListEntitiesSensorResponse {
   string icon = 5;
   string unit_of_measurement = 6;
   int32 accuracy_decimals = 7;
+  bool force_update = 8;
 }
 message SensorStateResponse {
   option (id) = 25;
@@ -644,6 +645,12 @@ enum ClimateMode {
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
 }
+enum ClimateAction {
+  CLIMATE_ACTION_OFF = 0;
+  // values same as mode for readability
+  CLIMATE_ACTION_COOLING = 2;
+  CLIMATE_ACTION_HEATING = 3;
+}
 message ListEntitiesClimateResponse {
   option (id) = 46;
   option (source) = SOURCE_SERVER;
@@ -661,6 +668,7 @@ message ListEntitiesClimateResponse {
   float visual_max_temperature = 9;
   float visual_temperature_step = 10;
   bool supports_away = 11;
+  bool supports_action = 12;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -675,6 +683,7 @@ message ClimateStateResponse {
   float target_temperature_low = 5;
   float target_temperature_high = 6;
   bool away = 7;
+  ClimateAction action = 8;
 }
 message ClimateCommandRequest {
   option (id) = 48;

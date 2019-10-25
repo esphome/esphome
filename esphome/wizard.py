@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import codecs
 import os
 import random
 import string
@@ -9,7 +8,7 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.helpers import color, get_bool_env
+from esphome.helpers import color, get_bool_env, write_file
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.py_compat import safe_input, text_type
@@ -75,7 +74,11 @@ def sanitize_double_quotes(value):
 
 def wizard_file(**kwargs):
     letters = string.ascii_letters + string.digits
-    kwargs['fallback_name'] = "{} Fallback Hotspot".format(kwargs['name'].replace('_', ' ').title())
+    ap_name_base = kwargs['name'].replace('_', ' ').title()
+    ap_name = "{} Fallback Hotspot".format(ap_name_base)
+    if len(ap_name) > 32:
+        ap_name = ap_name_base
+    kwargs['fallback_name'] = ap_name
     kwargs['fallback_psk'] = ''.join(random.choice(letters) for _ in range(12))
 
     config = BASE_CONFIG.format(**kwargs)
@@ -100,8 +103,7 @@ def wizard_write(path, **kwargs):
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
 
-    with codecs.open(path, 'w', 'utf-8') as f_handle:
-        f_handle.write(wizard_file(**kwargs))
+    write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
@@ -216,7 +218,7 @@ def wizard(path):
     else:
         safe_print("For example \"{}\".".format(color("bold_white", 'nodemcuv2')))
         boards = list(ESP8266_BOARD_PINS.keys())
-    safe_print("Options: {}".format(', '.join(boards)))
+    safe_print("Options: {}".format(', '.join(sorted(boards))))
 
     while True:
         board = safe_input(color("bold_white", "(board): "))
@@ -224,7 +226,7 @@ def wizard(path):
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
-            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists."))
+            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists.".format(board)))
             safe_print()
             sleep(0.25)
             safe_print()

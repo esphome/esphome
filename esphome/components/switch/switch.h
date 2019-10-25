@@ -9,15 +9,15 @@ namespace switch_ {
 
 #define LOG_SWITCH(prefix, type, obj) \
   if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type " '%s'", obj->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
     if (!obj->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Icon: '%s'", obj->get_icon().c_str()); \
+      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, obj->get_icon().c_str()); \
     } \
     if (obj->assumed_state()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Assumed State: YES"); \
+      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
     if (obj->is_inverted()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Inverted: YES"); \
+      ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
     } \
   }
 

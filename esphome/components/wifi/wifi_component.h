@@ -66,12 +66,14 @@ class WiFiAP {
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
   void set_channel(optional<uint8_t> channel);
+  void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
   void set_hidden(bool hidden);
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
   const std::string &get_password() const;
   const optional<uint8_t> &get_channel() const;
+  float get_priority() const { return priority_; }
   const optional<ManualIP> &get_manual_ip() const;
   bool get_hidden() const;
 
@@ -80,6 +82,7 @@ class WiFiAP {
   optional<bssid_t> bssid_;
   std::string password_;
   optional<uint8_t> channel_;
+  float priority_{0};
   optional<ManualIP> manual_ip_;
   bool hidden_{false};
 };
@@ -99,6 +102,8 @@ class WiFiScanResult {
   int8_t get_rssi() const;
   bool get_with_auth() const;
   bool get_is_hidden() const;
+  float get_priority() const { return priority_; }
+  void set_priority(float priority) { priority_ = priority; }
 
  protected:
   bool matches_{false};
@@ -108,6 +113,12 @@ class WiFiScanResult {
   int8_t rssi_;
   bool with_auth_;
   bool is_hidden_;
+  float priority_{0.0f};
+};
+
+struct WiFiSTAPriority {
+  bssid_t bssid;
+  float priority;
 };
 
 enum WiFiPowerSaveMode {
@@ -175,23 +186,48 @@ class WiFiComponent : public Component {
 
   IPAddress wifi_soft_ap_ip();
 
+  bool has_sta_priority(const bssid_t &bssid) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid)
+        return true;
+    return false;
+  }
+  float get_sta_priority(const bssid_t bssid) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid)
+        return it.priority;
+    return 0.0f;
+  }
+  void set_sta_priority(const bssid_t bssid, float priority) {
+    for (auto &it : this->sta_priorities_)
+      if (it.bssid == bssid) {
+        it.priority = priority;
+        return;
+      }
+    this->sta_priorities_.push_back(WiFiSTAPriority{
+        .bssid = bssid,
+        .priority = priority,
+    });
+  }
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
   void print_connect_params_();
 
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
-  bool wifi_disable_auto_connect_();
+  bool wifi_sta_pre_setup_();
   bool wifi_apply_power_save_();
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
   IPAddress wifi_sta_ip_();
   bool wifi_apply_hostname_();
   bool wifi_sta_connect_(WiFiAP ap);
-  void wifi_register_callbacks_();
+  void wifi_pre_setup_();
   wl_status_t wifi_sta_status_();
   bool wifi_scan_start_();
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
+  bool wifi_disconnect_();
 
   bool is_captive_portal_active_();
 
@@ -208,6 +244,7 @@ class WiFiComponent : public Component {
 
   std::string use_address_;
   std::vector<WiFiAP> sta_;
+  std::vector<WiFiSTAPriority> sta_priorities_;
   WiFiAP selected_ap_;
   bool fast_connect_{false};
 

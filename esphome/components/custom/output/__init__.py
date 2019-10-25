@@ -1,13 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_OUTPUTS, CONF_TYPE
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_OUTPUTS, CONF_TYPE, CONF_BINARY
 from .. import custom_ns
 
 CustomBinaryOutputConstructor = custom_ns.class_('CustomBinaryOutputConstructor')
 CustomFloatOutputConstructor = custom_ns.class_('CustomFloatOutputConstructor')
 
-CONF_BINARY = 'binary'
 CONF_FLOAT = 'float'
 
 CONFIG_SCHEMA = cv.typed_schema({

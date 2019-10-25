@@ -9,6 +9,11 @@
 namespace esphome {
 namespace climate {
 
+#define LOG_CLIMATE(prefix, type, obj) \
+  if (obj != nullptr) { \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
+  }
+
 class Climate;
 
 /** This class is used to encode all control actions on a climate device.
@@ -121,6 +126,8 @@ class Climate : public Nameable {
 
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
+  /// The active state of the climate device.
+  ClimateAction action{CLIMATE_ACTION_OFF};
   /// The current temperature of the climate device, as reported from the integration.
   float current_temperature{NAN};
 

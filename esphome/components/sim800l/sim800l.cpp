@@ -67,12 +67,18 @@ void Sim800LComponent::parse_cmd_(std::string message) {
   }
 
   switch (this->state_) {
-    case STATE_INIT:
-      if (message.compare(0, 6, "+CMTI:") == 0) {
-        // While we were waiting for update to check for messages, this notifies a message
-        // is available. Grab it quickly
-        this->state_ = STATE_CHECK_SMS;
-      }
+    case STATE_INIT: {
+      // While we were waiting for update to check for messages, this notifies a message
+      // is available.
+      bool message_available = message.compare(0, 6, "+CMTI:") == 0;
+      if (!message_available)
+        break;
+      // Else fall thru ...
+    }
+    case STATE_CHECK_SMS:
+      send_cmd_("AT+CMGL=\"ALL\"");
+      this->state_ = STATE_PARSE_SMS;
+      this->parse_index_ = 0;
       break;
     case STATE_DISABLE_ECHO:
       send_cmd_("ATE0");
@@ -95,7 +101,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       if (registered) {
         if (!this->registered_)
           ESP_LOGD(TAG, "Registered OK");
-        send_cmd_("AT+CSQ");
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
       } else {
@@ -113,6 +118,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       break;
     }
     case STATE_CSQ:
+      send_cmd_("AT+CSQ");
       this->state_ = STATE_CSQ_RESPONSE;
       break;
     case STATE_CSQ_RESPONSE:
@@ -123,6 +129,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           ESP_LOGD(TAG, "RSSI: %d", this->rssi_);
         }
       }
+      this->expect_ack_ = true;
       this->state_ = STATE_CHECK_SMS;
       break;
     case STATE_PARSE_SMS:
@@ -209,12 +216,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       ESP_LOGD(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
   }
-  if (this->state_ == STATE_CHECK_SMS) {
-    send_cmd_("AT+CMGL=\"ALL\"");
-    this->state_ = STATE_PARSE_SMS;
-    this->parse_index_ = 0;
-    this->expect_ack_ = true;
-  }
 }
 
 void Sim800LComponent::loop() {
@@ -253,6 +254,10 @@ void Sim800LComponent::send_sms(std::string recipient, std::string message) {
   this->outgoing_message_ = message;
   this->send_pending_ = true;
   this->update();
+}
+void Sim800LComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "SIM800L:");
+  ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
 }
 
 }  // namespace sim800l

@@ -31,22 +31,15 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
-
   this->last_connected_ = millis();
-
-  this->wifi_register_callbacks_();
-
-  bool ret = this->wifi_mode_(this->has_sta(), false);
-  if (!ret) {
-    this->mark_failed();
-    return;
-  }
+  this->wifi_pre_setup_();
 
   if (this->has_sta()) {
-    this->wifi_disable_auto_connect_();
-    delay(10);
+    this->wifi_sta_pre_setup_();
 
-    this->wifi_apply_power_save_();
+    if (!this->wifi_apply_power_save_()) {
+      ESP_LOGV(TAG, "Setting Power Save Option failed!");
+    }
 
     if (this->fast_connect_) {
       this->selected_ap_ = this->sta_[0];
@@ -56,10 +49,16 @@ void WiFiComponent::setup() {
     }
   } else if (this->has_ap()) {
     this->setup_ap_config_();
+#ifdef USE_CAPTIVE_PORTAL
+    if (captive_portal::global_captive_portal != nullptr)
+      captive_portal::global_captive_portal->start();
+#endif
   }
 
   this->wifi_apply_hostname_();
+#ifdef ARDUINO_ARCH_ESP32
   network_setup_mdns();
+#endif
 }
 
 void WiFiComponent::loop() {
@@ -110,7 +109,8 @@ void WiFiComponent::loop() {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
-        captive_portal::global_captive_portal->start();
+        if (captive_portal::global_captive_portal != nullptr)
+          captive_portal::global_captive_portal->start();
 #endif
       }
     }
@@ -164,6 +164,9 @@ void WiFiComponent::setup_ap_config_() {
 
   this->ap_setup_ = this->wifi_start_ap_(this->ap_);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", this->wifi_soft_ap_ip().toString().c_str());
+#ifdef ARDUINO_ARCH_ESP8266
+  network_setup_mdns(this->wifi_soft_ap_ip(), 1);
+#endif
 
   if (!this->has_sta()) {
     this->state_ = WIFI_COMPONENT_STATE_AP;
@@ -280,6 +283,9 @@ void WiFiComponent::print_connect_params_() {
   int8_t rssi = WiFi.RSSI();
   print_signal_bars(rssi, signal_bars);
   ESP_LOGCONFIG(TAG, "  Signal strength: %d dB %s", rssi, signal_bars);
+  if (this->selected_ap_.get_bssid().has_value()) {
+    ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
+  }
   ESP_LOGCONFIG(TAG, "  Channel: %d", WiFi.channel());
   ESP_LOGCONFIG(TAG, "  Subnet: %s", WiFi.subnetMask().toString().c_str());
   ESP_LOGCONFIG(TAG, "  Gateway: %s", WiFi.gatewayIP().toString().c_str());
@@ -315,6 +321,10 @@ void WiFiComponent::check_scanning_finished() {
     for (auto &ap : this->sta_) {
       if (res.matches(ap)) {
         res.set_matches(true);
+        if (!this->has_sta_priority(res.get_bssid())) {
+          this->set_sta_priority(res.get_bssid(), ap.get_priority());
+        }
+        res.set_priority(this->get_sta_priority(res.get_bssid()));
         break;
       }
     }
@@ -322,10 +332,17 @@ void WiFiComponent::check_scanning_finished() {
 
   std::stable_sort(this->scan_result_.begin(), this->scan_result_.end(),
                    [](const WiFiScanResult &a, const WiFiScanResult &b) {
+                     // return true if a is better than b
                      if (a.get_matches() && !b.get_matches())
                        return true;
                      if (!a.get_matches() && b.get_matches())
                        return false;
+
+                     if (a.get_matches() && b.get_matches()) {
+                       // if both match, check priority
+                       if (a.get_priority() != b.get_priority())
+                         return a.get_priority() > b.get_priority();
+                     }
 
                      return a.get_rssi() > b.get_rssi();
                    });
@@ -409,6 +426,9 @@ void WiFiComponent::check_connecting_finished() {
       ESP_LOGD(TAG, "Disabling AP...");
       this->wifi_mode_({}, false);
     }
+#ifdef ARDUINO_ARCH_ESP8266
+    network_setup_mdns(this->wifi_sta_ip_(), 0);
+#endif
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTED;
     this->num_retried_ = 0;
     return;
@@ -450,12 +470,18 @@ void WiFiComponent::check_connecting_finished() {
 }
 
 void WiFiComponent::retry_connect() {
+  if (this->selected_ap_.get_bssid()) {
+    auto bssid = *this->selected_ap_.get_bssid();
+    float priority = this->get_sta_priority(bssid);
+    this->set_sta_priority(bssid, priority - 1.0f);
+  }
+
   delay(10);
   if (!this->is_captive_portal_active_() && (this->num_retried_ > 5 || this->error_from_callback_)) {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
-    delay(100);
+    delay(100);  // NOLINT
     this->num_retried_ = 0;
   } else {
     this->num_retried_++;

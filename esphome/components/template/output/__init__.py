@@ -2,13 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_TYPE
+from esphome.const import CONF_ID, CONF_TYPE, CONF_BINARY
 from .. import template_ns
 
 TemplateBinaryOutput = template_ns.class_('TemplateBinaryOutput', output.BinaryOutput)
 TemplateFloatOutput = template_ns.class_('TemplateFloatOutput', output.FloatOutput)
 
-CONF_BINARY = 'binary'
 CONF_FLOAT = 'float'
 CONF_WRITE_ACTION = 'write_action'
 

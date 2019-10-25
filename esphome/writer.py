@@ -8,7 +8,8 @@ from esphome.config import iter_components
 from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
     HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files
+from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, \
+    copy_file_if_changed
 from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
@@ -112,7 +113,7 @@ def migrate_src_version_0_to_1():
                           "auto-generated again.", main_cpp, main_cpp)
         _LOGGER.info("Migration: Added include section to %s", main_cpp)
 
-    write_file_if_changed(content, main_cpp)
+    write_file_if_changed(main_cpp, content)
 
 
 def migrate_src_version(old, new):
@@ -191,7 +192,7 @@ def get_ini_content():
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
         'build_flags': build_flags + ['${common.build_flags}'],
-        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
+        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 460800),
     }
 
     if CORE.is_esp32:
@@ -251,7 +252,7 @@ def write_platformio_ini(content):
         content_format = INI_BASE_FORMAT
     full_file = content_format[0] + INI_AUTO_GENERATE_BEGIN + '\n' + content
     full_file += INI_AUTO_GENERATE_END + content_format[1]
-    write_file_if_changed(full_file, path)
+    write_file_if_changed(path, full_file)
 
 
 def write_platformio_project():
@@ -285,7 +286,6 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    import filecmp
     import shutil
 
     source_files = {}
@@ -321,9 +321,7 @@ def copy_src_tree():
             os.remove(path)
         else:
             src_path = source_files_copy.pop(target)
-            if not filecmp.cmp(path, src_path):
-                # Files are not same, copy
-                shutil.copy(src_path, path)
+            copy_file_if_changed(src_path, path)
 
     # Now copy new files
     for target, src_path in source_files_copy.items():
@@ -332,14 +330,14 @@ def copy_src_tree():
         shutil.copy(src_path, dst_path)
 
     # Finally copy defines
-    write_file_if_changed(generate_defines_h(),
-                          CORE.relative_src_path('esphome', 'core', 'defines.h'))
-    write_file_if_changed(ESPHOME_README_TXT,
-                          CORE.relative_src_path('esphome', 'README.txt'))
-    write_file_if_changed(ESPHOME_H_FORMAT.format(include_s),
-                          CORE.relative_src_path('esphome.h'))
-    write_file_if_changed(VERSION_H_FORMAT.format(__version__),
-                          CORE.relative_src_path('esphome', 'core', 'version.h'))
+    write_file_if_changed(CORE.relative_src_path('esphome', 'core', 'defines.h'),
+                          generate_defines_h())
+    write_file_if_changed(CORE.relative_src_path('esphome', 'README.txt'),
+                          ESPHOME_README_TXT)
+    write_file_if_changed(CORE.relative_src_path('esphome.h'),
+                          ESPHOME_H_FORMAT.format(include_s))
+    write_file_if_changed(CORE.relative_src_path('esphome', 'core', 'version.h'),
+                          VERSION_H_FORMAT.format(__version__))
 
 
 def generate_defines_h():
@@ -365,7 +363,7 @@ def write_cpp(code_s):
     full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + global_s + CPP_INCLUDE_END
     full_file += code_format[1] + CPP_AUTO_GENERATE_BEGIN + u'\n' + code_s + CPP_AUTO_GENERATE_END
     full_file += code_format[2]
-    write_file_if_changed(full_file, path)
+    write_file_if_changed(path, full_file)
 
 
 def clean_build():

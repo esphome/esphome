@@ -21,8 +21,8 @@ def ensure_multiple_invalid(err):
 # pylint: disable=protected-access, unidiomatic-typecheck
 class _Schema(vol.Schema):
     """Custom cv.Schema that prints similar keys on error."""
-    def __init__(self, schema, extra=vol.PREVENT_EXTRA, extra_schemas=None):
-        super(_Schema, self).__init__(schema, extra=extra)
+    def __init__(self, schema, required=False, extra=vol.PREVENT_EXTRA, extra_schemas=None):
+        super(_Schema, self).__init__(schema, required=required, extra=extra)
         # List of extra schemas to apply after validation
         # Should be used sparingly, as it's not a very voluptuous-way/clean way of
         # doing things.

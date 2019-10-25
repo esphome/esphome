@@ -29,9 +29,15 @@ void ADS1115Component::setup() {
   //        0bxxxx000xxxxxxxxx
   config |= ADS1115_GAIN_6P144 << 9;
 
-  // Set singleshot mode
-  //        0bxxxxxxx1xxxxxxxx
-  config |= 0b0000000100000000;
+  if (this->continuous_mode_) {
+    // Set continuous mode
+    //        0bxxxxxxx0xxxxxxxx
+    config |= 0b0000000000000000;
+  } else {
+    // Set singleshot mode
+    //        0bxxxxxxx1xxxxxxxx
+    config |= 0b0000000100000000;
+  }
 
   // Set data rate - 860 samples per second (we're in singleshot mode)
   //        0bxxxxxxxx100xxxxx
@@ -57,6 +63,8 @@ void ADS1115Component::setup() {
     this->mark_failed();
     return;
   }
+  this->prev_config_ = config;
+
   for (auto *sensor : this->sensors_) {
     this->set_interval(sensor->get_name(), sensor->update_interval(),
                        [this, sensor] { this->request_measurement(sensor); });
@@ -75,13 +83,8 @@ void ADS1115Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    Gain: %u", sensor->get_gain());
   }
 }
-float ADS1115Component::get_setup_priority() const { return setup_priority::DATA; }
 float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
-  uint16_t config;
-  if (!this->read_byte_16(ADS1115_REGISTER_CONFIG, &config)) {
-    this->status_set_warning();
-    return NAN;
-  }
+  uint16_t config = this->prev_config_;
   // Multiplexer
   //        0bxBBBxxxxxxxxxxxx
   config &= 0b1000111111111111;
@@ -91,25 +94,31 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   //        0bxxxxBBBxxxxxxxxx
   config &= 0b1111000111111111;
   config |= (sensor->get_gain() & 0b111) << 9;
-  // Start conversion
-  config |= 0b1000000000000000;
 
-  if (!this->write_byte_16(ADS1115_REGISTER_CONFIG, config)) {
-    this->status_set_warning();
-    return NAN;
+  if (!this->continuous_mode_) {
+    // Start conversion
+    config |= 0b1000000000000000;
   }
 
-  // about 1.6 ms with 860 samples per second
-  delay(2);
-
-  uint32_t start = millis();
-  while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
-    if (millis() - start > 100) {
-      ESP_LOGW(TAG, "Reading ADS1115 timed out");
+  if (!this->continuous_mode_ || this->prev_config_ != config) {
+    if (!this->write_byte_16(ADS1115_REGISTER_CONFIG, config)) {
       this->status_set_warning();
       return NAN;
     }
-    yield();
+    this->prev_config_ = config;
+
+    // about 1.6 ms with 860 samples per second
+    delay(2);
+
+    uint32_t start = millis();
+    while (this->read_byte_16(ADS1115_REGISTER_CONFIG, &config) && (config >> 15) == 0) {
+      if (millis() - start > 100) {
+        ESP_LOGW(TAG, "Reading ADS1115 timed out");
+        this->status_set_warning();
+        return NAN;
+      }
+      yield();
+    }
   }
 
   uint16_t raw_conversion;
@@ -147,10 +156,6 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   return millivolts / 1e3f;
 }
 
-uint8_t ADS1115Sensor::get_multiplexer() const { return this->multiplexer_; }
-void ADS1115Sensor::set_multiplexer(ADS1115Multiplexer multiplexer) { this->multiplexer_ = multiplexer; }
-uint8_t ADS1115Sensor::get_gain() const { return this->gain_; }
-void ADS1115Sensor::set_gain(ADS1115Gain gain) { this->gain_ = gain; }
 float ADS1115Sensor::sample() { return this->parent_->request_measurement(this); }
 void ADS1115Sensor::update() {
   float v = this->parent_->request_measurement(this);

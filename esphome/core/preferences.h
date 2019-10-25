@@ -2,10 +2,6 @@
 
 #include <string>
 
-#ifdef ARDUINO_ARCH_ESP32
-#include <Preferences.h>
-#endif
-
 #include "esphome/core/esphal.h"
 #include "esphome/core/defines.h"
 
@@ -56,7 +52,7 @@ static bool DEFAULT_IN_FLASH = true;
 class ESPPreferences {
  public:
   ESPPreferences();
-  void begin(const std::string &name);
+  void begin();
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
   template<typename T> ESPPreferenceObject make_preference(uint32_t type, bool in_flash = DEFAULT_IN_FLASH);
 
@@ -77,7 +73,7 @@ class ESPPreferences {
 
   uint32_t current_offset_;
 #ifdef ARDUINO_ARCH_ESP32
-  Preferences preferences_;
+  uint32_t nvs_handle_;
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
   void save_esp8266_flash_();

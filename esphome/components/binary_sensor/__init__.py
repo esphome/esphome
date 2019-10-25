@@ -41,6 +41,7 @@ BinarySensorCondition = binary_sensor_ns.class_('BinarySensorCondition', Conditi
 
 # Filters
 Filter = binary_sensor_ns.class_('Filter')
+DelayedOnOffFilter = binary_sensor_ns.class_('DelayedOnOffFilter', Filter, cg.Component)
 DelayedOnFilter = binary_sensor_ns.class_('DelayedOnFilter', Filter, cg.Component)
 DelayedOffFilter = binary_sensor_ns.class_('DelayedOffFilter', Filter, cg.Component)
 InvertFilter = binary_sensor_ns.class_('InvertFilter', Filter)
@@ -53,6 +54,14 @@ validate_filters = cv.validate_registry('filter', FILTER_REGISTRY)
 @FILTER_REGISTRY.register('invert', InvertFilter, {})
 def invert_filter_to_code(config, filter_id):
     yield cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register('delayed_on_off', DelayedOnOffFilter,
+                          cv.positive_time_period_milliseconds)
+def delayed_on_off_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    yield cg.register_component(var, {})
+    yield var
 
 
 @FILTER_REGISTRY.register('delayed_on', DelayedOnFilter,

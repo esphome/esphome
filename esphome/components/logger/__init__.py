@@ -5,7 +5,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import LambdaAction
 from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_UART, CONF_ID, \
-    CONF_LEVEL, CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
+    CONF_LEVEL, CONF_LOGS, CONF_ON_MESSAGE, CONF_TAG, CONF_TRIGGER_ID, CONF_TX_BUFFER_SIZE
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.py_compat import text_type
 
@@ -70,6 +70,9 @@ def validate_local_no_higher_than_global(value):
 
 
 Logger = logger_ns.class_('Logger', cg.Component)
+LoggerMessageTrigger = logger_ns.class_('LoggerMessageTrigger',
+                                        automation.Trigger.template(cg.int_, cg.const_char_ptr,
+                                                                    cg.const_char_ptr))
 
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = 'esp8266_store_log_strings_in_flash'
 CONFIG_SCHEMA = cv.All(cv.Schema({
@@ -80,6 +83,10 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_LEVEL, default='DEBUG'): is_log_level,
     cv.Optional(CONF_LOGS, default={}): cv.Schema({
         cv.string: is_log_level,
+    }),
+    cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
+        cv.Optional(CONF_LEVEL, default='WARN'): is_log_level,
     }),
 
     cv.SplitDefault(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True):
@@ -123,6 +130,8 @@ def to_code(config):
             'TLS_MEM',
             'UPDATER',
             'WIFI',
+            # Spams logs too much:
+            # 'MDNS_RESPONDER',
         }
         for comp in DEBUG_COMPONENTS:
             cg.add_build_flag("-DDEBUG_ESP_{}".format(comp))
@@ -135,6 +144,13 @@ def to_code(config):
 
     # Register at end for safe mode
     yield cg.register_component(log, config)
+
+    for conf in config.get(CONF_ON_MESSAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], log,
+                                   LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL]))
+        yield automation.build_automation(trigger, [(cg.int_, 'level'),
+                                                    (cg.const_char_ptr, 'tag'),
+                                                    (cg.const_char_ptr, 'message')], conf)
 
 
 def maybe_simple_message(schema):
