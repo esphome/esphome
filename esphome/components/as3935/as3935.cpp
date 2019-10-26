@@ -9,10 +9,8 @@ static const char *TAG = "as3935";
 void AS3935Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up AS3935...");
 
-  this->pin_->setup();
-  this->store_.pin = this->pin_->to_isr();
-  LOG_PIN("  Interrupt Pin: ", this->pin_);
-  this->pin_->attach_interrupt(AS3935ComponentStore::gpio_intr, &this->store_, RISING);
+  this->irq_pin_->setup();
+  LOG_PIN("  IRQ Pin: ", this->irq_pin_);
 
   // Write properties to sensor
   this->write_indoor(this->indoor_);
@@ -27,13 +25,13 @@ void AS3935Component::setup() {
 
 void AS3935Component::dump_config() {
   ESP_LOGCONFIG(TAG, "AS3935:");
-  LOG_PIN("  Interrupt Pin: ", this->pin_);
+  LOG_PIN("  Interrupt Pin: ", this->irq_pin_);
 }
 
 float AS3935Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS3935Component::loop() {
-  if (!this->store_.interrupt)
+  if (!this->irq_pin_->digital_read())
     return;
 
   uint8_t int_value = this->read_interrupt_register_();
@@ -53,7 +51,6 @@ void AS3935Component::loop() {
       this->energy_sensor_->publish_state(energy);
   }
   this->thunder_alert_binary_sensor_->publish_state(false);
-  this->store_.interrupt = false;
 }
 
 void AS3935Component::write_indoor(bool indoor) {
@@ -221,8 +218,6 @@ uint8_t AS3935Component::read_register_(uint8_t reg, uint8_t mask) {
   value &= (~mask);
   return value;
 }
-
-void ICACHE_RAM_ATTR AS3935ComponentStore::gpio_intr(AS3935ComponentStore *arg) { arg->interrupt = true; }
 
 }  // namespace as3935
 }  // namespace esphome
