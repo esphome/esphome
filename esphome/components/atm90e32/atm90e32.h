@@ -25,7 +25,7 @@ class ATM90E32Component : public PollingComponent,
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
 
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
-  void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) { 
+  void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
     chip_temperature_sensor_ = chip_temperature_sensor; 
   }
   void set_line_freq(int freq) { line_freq_ = freq; }
