@@ -420,7 +420,7 @@ def rc5_action(var, config, args):
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
 
 RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
-    cv.int_range(min=1, max=8),
+    cv.int_range(min=1, max=10),
     cv.Schema({
         cv.Required(CONF_PULSE_LENGTH): cv.uint32_t,
         cv.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
