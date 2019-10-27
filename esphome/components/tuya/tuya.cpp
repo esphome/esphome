@@ -36,6 +36,9 @@ void Tuya::dump_config() {
     else
       ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
+  if (this->datapoints_.empty()) {
+    ESP_LOGCONFIG(TAG, "  Received no datapoints! Please make sure this is a supported Tuya device.");
+  }
   this->check_uart_settings(9600);
 }
 
