@@ -30,6 +30,7 @@ class Logger : public Component {
 
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
+  uint32_t get_baud_rate() const { return baud_rate_; }
 
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
