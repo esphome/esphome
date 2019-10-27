@@ -172,7 +172,7 @@ dallas:
 
 as3935_spi:
   cs_pin: GPIO12
-  pin: GPIO13
+  irq_pin: GPIO13
 
 sensor:
   - platform: adc
