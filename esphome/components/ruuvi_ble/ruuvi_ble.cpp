@@ -20,13 +20,13 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       const int8_t temperatureBase = int8_t(data[1] & 0x7F);
       const float temperatureFraction = float(data[2]) / 100.0f;
       const float temperature = float(temperatureBase) + temperatureFraction;
-      
+
       const uint8_t pressureHi = uint8_t(data[3] & 0xFF);
       const uint8_t pressureLo = uint8_t(data[4] & 0xFF);
       const float pressure = float((pressureHi * 256.0f + 50000.0f + pressureLo) / 100.0f);
 
       const uint8_t acceleration_xSign = uint8_t(data[5] >> 7 & 1);
-      
+
       const float acceleration_x = float(int16_t((data[5] << 8) + (data[6])) / 1000.0f);
       const float acceleration_y = float(int16_t((data[7] << 8) + (data[8])) / 1000.0f);
       const float acceleration_z = float(int16_t((data[9] << 8) + (data[10])) / 1000.0f);
@@ -34,7 +34,7 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       const uint8_t battHi = uint8_t(data[11] & 0xFF);
       const uint8_t battLo = uint8_t(data[12] & 0xFF);
       const float battery_voltage = float((battHi * 256.0f + battLo) / 1000.0f);
-      
+
       result.humidity = humidity;
       result.temperature = temperatureSign == 1 ? temperature * -1 : temperature;
       result.pressure = pressure;
@@ -48,7 +48,7 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       return false;
   }
 }
-optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device) {  
+optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device) {
   const auto *raw = reinterpret_cast<const uint8_t *>(device.get_manufacturer_data().data());
 
   bool is_ruuvi = raw[0] == 0x99 && raw[1] == 0x04;
@@ -60,9 +60,9 @@ optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &dev
   const uint8_t data_length = device.get_manufacturer_data().size();
   const uint8_t format = raw[2];
   const uint8_t *data = &raw[3];
-  
+
   RuuviParseResult result;
-  
+
   bool success = parse_ruuvi_data_byte(format, data_length, data, result);
   if (!success)
     return {};

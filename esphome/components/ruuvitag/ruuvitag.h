@@ -46,7 +46,7 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
   void set_acceleration_x(sensor::Sensor *acceleration_x) { acceleration_x_ = acceleration_x; }
   void set_acceleration_y(sensor::Sensor *acceleration_y) { acceleration_y_ = acceleration_y; }
-  void set_acceleration_z(sensor::Sensor *acceleration_z) { acceleration_z_ = acceleration_z; }  
+  void set_acceleration_z(sensor::Sensor *acceleration_z) { acceleration_z_ = acceleration_z; }
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
 
  protected:

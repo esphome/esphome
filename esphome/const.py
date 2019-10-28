@@ -29,9 +29,9 @@ HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
 
 CONF_ABOVE = 'above'
 CONF_ACCELERATION = 'acceleration'
-CONF_ACCELERATION_X= 'acceleration_x'
-CONF_ACCELERATION_Y= 'acceleration_y'
-CONF_ACCELERATION_Z= 'acceleration_z'
+CONF_ACCELERATION_X = 'acceleration_x'
+CONF_ACCELERATION_Y = 'acceleration_y'
+CONF_ACCELERATION_Z = 'acceleration_z'
 CONF_ACCURACY = 'accuracy'
 CONF_ACCURACY_DECIMALS = 'accuracy_decimals'
 CONF_ACTION_ID = 'action_id'
