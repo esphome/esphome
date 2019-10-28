@@ -20,8 +20,8 @@ static const char *TAG = "ota";
 uint8_t OTA_VERSION_1_0 = 1;
 
 void OTAComponent::setup() {
-  this->server_ = new WiFiServer(this->port_);
-  this->server_->begin();
+  this->server_ = tcp::make_server();
+  this->server_->bind(this->port_);
 
   this->dump_config();
 }
@@ -56,20 +56,17 @@ void OTAComponent::handle_() {
   uint8_t buf[1024];
   char *sbuf = reinterpret_cast<char *>(buf);
   uint32_t ota_size;
-  uint8_t ota_features;
+  uint8_t ota_features = 0;
   (void) ota_features;
 
-  if (!this->client_.connected()) {
-    this->client_ = this->server_->available();
-
-    if (!this->client_.connected())
-      return;
-  }
+  this->client_ = this->server_->accept();
+  if (!this->client_)
+    return;
 
   // enable nodelay for outgoing data
-  this->client_.setNoDelay(true);
+  this->client_->set_no_delay(true);
 
-  ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_.remoteIP().toString().c_str());
+  ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->get_host().c_str());
   this->status_set_warning();
 
   if (!this->wait_receive_(buf, 5)) {
@@ -85,8 +82,8 @@ void OTAComponent::handle_() {
   }
 
   // Send OK and version - 2 bytes
-  this->client_.write(OTA_RESPONSE_OK);
-  this->client_.write(OTA_VERSION_1_0);
+  this->client_->write_byte(OTA_RESPONSE_OK);
+  this->client_->write_byte(OTA_VERSION_1_0);
 
   // Read features - 1 byte
   if (!this->wait_receive_(buf, 1)) {
@@ -97,10 +94,10 @@ void OTAComponent::handle_() {
   ESP_LOGV(TAG, "OTA features is 0x%02X", ota_features);
 
   // Acknowledge header - 1 byte
-  this->client_.write(OTA_RESPONSE_HEADER_OK);
+  this->client_->write_byte(OTA_RESPONSE_HEADER_OK);
 
   if (!this->password_.empty()) {
-    this->client_.write(OTA_RESPONSE_REQUEST_AUTH);
+    this->client_->write_byte(OTA_RESPONSE_REQUEST_AUTH);
     MD5Builder md5_builder{};
     md5_builder.begin();
     sprintf(sbuf, "%08X", random_uint32());
@@ -110,10 +107,7 @@ void OTAComponent::handle_() {
     ESP_LOGV(TAG, "Auth: Nonce is %s", sbuf);
 
     // Send nonce, 32 bytes hex MD5
-    if (this->client_.write(reinterpret_cast<uint8_t *>(sbuf), 32) != 32) {
-      ESP_LOGW(TAG, "Auth: Writing nonce failed!");
-      goto error;
-    }
+    this->client_->write(reinterpret_cast<uint8_t *>(sbuf), 32);
 
     // prepare challenge
     md5_builder.begin();
@@ -156,7 +150,7 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge auth OK - 1 byte
-  this->client_.write(OTA_RESPONSE_AUTH_OK);
+  this->client_->write_byte(OTA_RESPONSE_AUTH_OK);
 
   // Read size, 4 bytes MSB first
   if (!this->wait_receive_(buf, 4)) {
@@ -208,7 +202,7 @@ void OTAComponent::handle_() {
   update_started = true;
 
   // Acknowledge prepare OK - 1 byte
-  this->client_.write(OTA_RESPONSE_UPDATE_PREPARE_OK);
+  this->client_->write_byte(OTA_RESPONSE_UPDATE_PREPARE_OK);
 
   // Read binary MD5, 32 bytes
   if (!this->wait_receive_(buf, 32)) {
@@ -220,7 +214,7 @@ void OTAComponent::handle_() {
   Update.setMD5(sbuf);
 
   // Acknowledge MD5 OK - 1 byte
-  this->client_.write(OTA_RESPONSE_BIN_MD5_OK);
+  this->client_->write_byte(OTA_RESPONSE_BIN_MD5_OK);
 
   while (!Update.isFinished()) {
     size_t available = this->wait_receive_(buf, 0);
@@ -245,7 +239,7 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge receive OK - 1 byte
-  this->client_.write(OTA_RESPONSE_RECEIVE_OK);
+  this->client_->write_byte(OTA_RESPONSE_RECEIVE_OK);
 
   if (!Update.end()) {
     error_code = OTA_RESPONSE_ERROR_UPDATE_END;
@@ -253,7 +247,7 @@ void OTAComponent::handle_() {
   }
 
   // Acknowledge Update end OK - 1 byte
-  this->client_.write(OTA_RESPONSE_UPDATE_END_OK);
+  this->client_->write_byte(OTA_RESPONSE_UPDATE_END_OK);
 
   // Read ACK
   if (!this->wait_receive_(buf, 1, false) || buf[0] != OTA_RESPONSE_OK) {
@@ -261,8 +255,8 @@ void OTAComponent::handle_() {
     // do not go to error, this is not fatal
   }
 
-  this->client_.flush();
-  this->client_.stop();
+  this->client_->flush();
+  this->client_->close();
   delay(10);
   ESP_LOGI(TAG, "OTA update finished!");
   this->status_clear_warning();
@@ -275,11 +269,12 @@ error:
     Update.printError(ss);
     ESP_LOGW(TAG, "Update end failed! Error: %s", ss.c_str());
   }
-  if (this->client_.connected()) {
-    this->client_.write(static_cast<uint8_t>(error_code));
-    this->client_.flush();
+  if (this->client_ && this->client_->is_connected()) {
+    this->client_->write_byte(static_cast<uint8_t>(error_code));
+    this->client_->flush();
+    this->client_->close();
   }
-  this->client_.stop();
+  this->client_ = nullptr;
 
 #ifdef ARDUINO_ARCH_ESP32
   if (update_started) {
@@ -305,11 +300,11 @@ size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_discon
   uint32_t start = millis();
   do {
     App.feed_wdt();
-    if (check_disconnected && !this->client_.connected()) {
+    if (check_disconnected && !this->client_->is_connected()) {
       ESP_LOGW(TAG, "Error client disconnected while receiving data!");
       return 0;
     }
-    int availi = this->client_.available();
+    int availi = this->client_->available();
     if (availi < 0) {
       ESP_LOGW(TAG, "Error reading data!");
       return 0;
@@ -320,6 +315,7 @@ size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_discon
       return 0;
     }
     available = size_t(availi);
+    this->client_->loop();
     yield();
   } while (bytes == 0 ? available == 0 : available < bytes);
 
@@ -328,16 +324,18 @@ size_t OTAComponent::wait_receive_(uint8_t *buf, size_t bytes, bool check_discon
 
   bool success = false;
   for (uint32_t i = 0; !success && i < 100; i++) {
-    int res = this->client_.read(buf, bytes);
+    this->client_->read(buf, bytes);
+    success = true;
 
-    if (res != int(bytes)) {
+    // if (res != int(bytes)) {
       // ESP32 implementation has an issue where calling read can fail with EAGAIN (race condition)
       // so just re-try it until it works (with generous timeout of 1s)
       // because we check with available() first this should not cause us any trouble in all other cases
-      delay(10);
-    } else {
-      success = true;
-    }
+      // TODO: copy to ESP32 tcp implementation
+    //   delay(10);
+    // } else {
+
+    //}
   }
 
   if (!success) {

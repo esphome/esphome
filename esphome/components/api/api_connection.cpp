@@ -15,29 +15,13 @@ namespace api {
 
 static const char *TAG = "api.connection";
 
-APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
-    : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
-  this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
-  this->client_->onDisconnect([](void *s, AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
-  this->client_->onTimeout([](void *s, AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
-                           this);
-  this->client_->onData([](void *s, AsyncClient *c, void *buf,
-                           size_t len) { ((APIConnection *) s)->on_data_(reinterpret_cast<uint8_t *>(buf), len); },
-                        this);
-
+APIConnection::APIConnection(std::unique_ptr<tcp::TCPSocket> socket, APIServer *parent)
+    : client_(std::move(socket)), parent_(parent),
+      initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
   this->send_buffer_.reserve(64);
   this->recv_buffer_.reserve(32);
-  this->client_info_ = this->client_->remoteIP().toString().c_str();
+  this->client_info_ = this->client_->get_host();
   this->last_traffic_ = millis();
-}
-APIConnection::~APIConnection() { delete this->client_; }
-void APIConnection::on_error_(int8_t error) { this->remove_ = true; }
-void APIConnection::on_disconnect_() { this->remove_ = true; }
-void APIConnection::on_timeout_(uint32_t time) { this->on_fatal_error(); }
-void APIConnection::on_data_(uint8_t *buf, size_t len) {
-  if (len == 0 || buf == nullptr)
-    return;
-  this->recv_buffer_.insert(this->recv_buffer_.end(), buf, buf + len);
 }
 void APIConnection::parse_recv_buffer_() {
   if (this->recv_buffer_.empty() || this->remove_)
@@ -90,10 +74,19 @@ void APIConnection::loop() {
   if (this->remove_)
     return;
 
+  size_t avail = this->client_->available();
+  if (avail != 0) {
+    // TODO: Custom allocator to presevent resize setting zeros
+    size_t old_size = this->recv_buffer_.size();
+    this->recv_buffer_.resize(old_size + avail);
+    this->client_->read(&this->recv_buffer_[old_size], avail);
+  }
+
   if (this->next_close_) {
     this->disconnect_client();
     return;
   }
+  this->client_->loop();
 
   if (!network_is_connected()) {
     // when network is disconnected force disconnect immediately
@@ -101,9 +94,9 @@ void APIConnection::loop() {
     this->on_fatal_error();
     return;
   }
-  if (this->client_->disconnected()) {
+  if (!this->client_->is_connected()) {
     // failsafe for disconnect logic
-    this->on_disconnect_();
+    this->remove_ = true;
     return;
   }
   this->parse_recv_buffer_();
@@ -125,7 +118,7 @@ void APIConnection::loop() {
 
 #ifdef USE_ESP32_CAMERA
   if (this->image_reader_.available()) {
-    uint32_t space = this->client_->space();
+    uint32_t space = this->client_->available_for_write();
     // reserve 15 bytes for metadata, and at least 64 bytes of data
     if (space >= 15 + 64) {
       uint32_t to_send = std::min(space - 15, this->image_reader_.available());
@@ -557,8 +550,7 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 }
 
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
-  this->client_info_ = msg.client_info + " (" + this->client_->remoteIP().toString().c_str();
-  this->client_info_ += ")";
+  this->client_info_ = msg.client_info + " (" + this->client_->get_host() + ")";
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
   HelloResponse resp;
@@ -637,10 +629,11 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
   ProtoVarInt(message_type).encode(header);
 
   size_t needed_space = buffer.get_buffer()->size() + header.size();
+  this->client_->reserve_at_least(needed_space);
 
-  if (needed_space > this->client_->space()) {
+  if (needed_space > this->client_->available_for_write()) {
     delay(0);
-    if (needed_space > this->client_->space()) {
+    if (needed_space > this->client_->available_for_write()) {
       // SubscribeLogsResponse
       if (message_type != 29) {
         ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
@@ -650,10 +643,9 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
   }
 
-  this->client_->add(reinterpret_cast<char *>(header.data()), header.size());
-  this->client_->add(reinterpret_cast<char *>(buffer.get_buffer()->data()), buffer.get_buffer()->size());
-  bool ret = this->client_->send();
-  return ret;
+  this->client_->write_vector(header);
+  this->client_->write_vector(*buffer.get_buffer());
+  return true;
 }
 void APIConnection::on_unauthenticated_access() {
   ESP_LOGD(TAG, "'%s' tried to access without authentication.", this->client_info_.c_str());

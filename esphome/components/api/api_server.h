@@ -4,6 +4,7 @@
 #include "esphome/core/controller.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
+#include "esphome/components/tcp/tcp.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "util.h"
@@ -11,13 +12,6 @@
 #include "subscribe_state.h"
 #include "homeassistant_service.h"
 #include "user_services.h"
-
-#ifdef ARDUINO_ARCH_ESP32
-#include <AsyncTCP.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESPAsyncTCP.h>
-#endif
 
 namespace esphome {
 namespace api {
@@ -79,11 +73,16 @@ class APIServer : public Component, public Controller {
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
  protected:
-  AsyncServer server_{0};
+  void check_accept_();
+  void remove_disconnected_();
+  void loop_clients_();
+  void check_reboot_timeout_();
+
+  std::unique_ptr<tcp::TCPServer> server_;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
-  std::vector<APIConnection *> clients_;
+  std::vector<std::unique_ptr<APIConnection>> clients_;
   std::string password_;
   std::vector<HomeAssistantStateSubscription> state_subs_;
   std::vector<UserServiceDescriptor *> user_services_;

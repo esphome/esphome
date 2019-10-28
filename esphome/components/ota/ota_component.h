@@ -2,8 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include <WiFiServer.h>
-#include <WiFiClient.h>
+#include "esphome/components/tcp/tcp.h"
 
 namespace esphome {
 namespace ota {
@@ -73,8 +72,8 @@ class OTAComponent : public Component {
 
   uint16_t port_;
 
-  WiFiServer *server_{nullptr};
-  WiFiClient client_{};
+  std::unique_ptr<tcp::TCPServer> server_;
+  std::unique_ptr<tcp::TCPSocket> client_;
 
   bool has_safe_mode_{false};              ///< stores whether safe mode can be enabled.
   uint32_t safe_mode_start_time_;          ///< stores when safe mode was enabled.

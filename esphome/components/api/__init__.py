@@ -7,7 +7,7 @@ from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD,
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
-AUTO_LOAD = ['async_tcp']
+AUTO_LOAD = ['tcp']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
