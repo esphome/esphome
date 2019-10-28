@@ -17,7 +17,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_SHUNT_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 3),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
-    cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance, cv.Range(min=0.0)),                                                            
+    cv.Optional(CONF_SHUNT_RESISTANCE, default=0.1): cv.All(cv.resistance, cv.Range(min=0.0)),
     cv.Optional(CONF_MAX_CURRENT, default=3.2): cv.All(cv.current, cv.Range(min=0.0)),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40))
 

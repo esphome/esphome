@@ -31,7 +31,6 @@ static const uint8_t INA226_REGISTER_POWER = 0x03;
 static const uint8_t INA226_REGISTER_CURRENT = 0x04;
 static const uint8_t INA226_REGISTER_CALIBRATION = 0x05;
 
-
 void INA226Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up INA226...");
   // Config Register
@@ -43,7 +42,6 @@ void INA226Component::setup() {
   delay(1);
 
   uint16_t config = 0x0000;
-
 
   // Averaging Mode AVG Bit Settings[11:9] (000 -> 1 sample, 001 -> 4 sample, 111 -> 1024 samples)
   config |= 0b0000001000000000;
@@ -57,14 +55,13 @@ void INA226Component::setup() {
   // Mode Settings [2:0] Combinations (111 -> Shunt and Bus, Continuous)
   config |= 0b0000000000000111;
 
-
   if (!this->write_byte_16(INA226_REGISTER_CONFIG, config)) {
     this->mark_failed();
     return;
   }
 
   // lsb is multiplied by 1000000 to store it as an integer value
-  uint32_t lsb =  ceilf(this->max_current_a_ * 1000000.0f / 32768);
+  uint32_t lsb = ceilf(this->max_current_a_ * 1000000.0f / 32768);
 
   this->calibration_lsb_ = lsb;
 
@@ -140,5 +137,5 @@ void INA226Component::update() {
   this->status_clear_warning();
 }
 
-}  // namespace ina226226
+}  // namespace ina226
 }  // namespace esphome
