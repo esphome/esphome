@@ -1,7 +1,10 @@
 #include "climate_ir.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
-namespace climate {
+namespace climate_ir {
+
+static const char *TAG = "climate_ir";
 
 climate::ClimateTraits ClimateIR::traits() {
   auto traits = climate::ClimateTraits();
@@ -52,6 +55,13 @@ void ClimateIR::control(const climate::ClimateCall &call) {
   this->transmit_state();
   this->publish_state();
 }
+void ClimateIR::dump_config() {
+  LOG_CLIMATE("", "IR Climate", this);
+  ESP_LOGCONFIG(TAG, "  Min. Temperature: %.1f°C", this->minimum_temperature_);
+  ESP_LOGCONFIG(TAG, "  Max. Temperature: %.1f°C", this->maximum_temperature_);
+  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
+  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
+}
 
-}  // namespace climate
+}  // namespace climate_ir
 }  // namespace esphome

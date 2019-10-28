@@ -57,7 +57,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   item->name = name;
   item->type = SchedulerItem::INTERVAL;
   item->interval = interval;
-  item->last_execution = now - offset;
+  item->last_execution = now - offset - interval;
   item->last_execution_major = this->millis_major_;
   if (item->last_execution > now)
     item->last_execution_major--;
@@ -106,7 +106,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
       // Not reached timeout yet, done for this call
       break;
     uint8_t major = item->last_execution_major;
-    if (item->last_execution + item->interval < item->last_execution)
+    if (item->last_execution > now)
       major++;
     if (major != this->millis_major_)
       break;
