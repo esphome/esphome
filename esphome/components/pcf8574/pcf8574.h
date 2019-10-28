@@ -10,7 +10,6 @@ namespace pcf8574 {
 /// Modes for PCF8574 pins
 enum PCF8574GPIOMode : uint8_t {
   PCF8574_INPUT = INPUT,
-  PCF8574_INPUT_PULLUP = INPUT_PULLUP,
   PCF8574_OUTPUT = OUTPUT,
 };
 
