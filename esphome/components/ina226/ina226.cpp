@@ -61,7 +61,7 @@ void INA226Component::setup() {
   }
 
   // lsb is multiplied by 1000000 to store it as an integer value
-  uint32_t lsb = ceilf(this->max_current_a_ * 1000000.0f / 32768);
+  uint32_t lsb = static_cast<uint32_t>(ceilf(this->max_current_a_ * 1000000.0f / 32768));
 
   this->calibration_lsb_ = lsb;
 
