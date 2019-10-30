@@ -109,7 +109,7 @@ void MAX31865Sensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  even count of wires: %s", this->even_pins_ ? "True" : "False");
   ESP_LOGCONFIG(TAG, "  sensor nominal resistance: %.1f", this->r_nominal_);
-  ESP_LOGCONFIG(TAG, "  reference restistance %.1f", this->r_ref_);
+  ESP_LOGCONFIG(TAG, "  Reference Resistance %.1f", this->r_ref_);
 }
 
 float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; }
