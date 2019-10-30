@@ -57,6 +57,9 @@ class DashboardSettings(object):
         if not self.on_hassio:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
+            if not IS_PY2:
+                self.username = str(self.username.encode())
+                password = str(password.encode())
         if self.using_password:
             if IS_PY2:
                 self.password_digest = hmac.new(password).digest()
