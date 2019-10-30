@@ -29,7 +29,7 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       result.acceleration_y = acceleration_y;
       result.acceleration_z = acceleration_z;
       result.battery_voltage = battery_voltage;
-      
+
       return true;
     }
     default:
