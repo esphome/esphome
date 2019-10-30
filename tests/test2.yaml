@@ -160,7 +160,7 @@ sensor:
     pressure:
       name: "RuuviTag Pressure"
     acceleration_x:
-      name: "tRuuviTag Acceleration X"
+      name: "RuuviTag Acceleration X"
     acceleration_y:
       name: "RuuviTag Acceleration Y"
     acceleration_z:
