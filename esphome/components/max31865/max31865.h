@@ -15,7 +15,7 @@ class MAX31865Sensor : public sensor::Sensor,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_pin_count(bool even = false) { this->even_pins_ = even; }
+  void set_pin_count(bool even) { this->even_pins_ = even; }
 
   void update() override;
 
