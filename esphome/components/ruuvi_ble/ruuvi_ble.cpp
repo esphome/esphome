@@ -32,6 +32,34 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
 
       return true;
     }
+    case 0x05: { // RAWv2
+      if (data_length != 26)
+        return false;
+
+      const float temperature = (int16_t(data[0] << 8) + int16_t(data[1])) * 0.005f;
+      const float humidity = (uint16_t(data[2] << 8) + uint16_t(data[3])) * 0.0025f;
+      const float pressure = (uint16_t(data[4] << 8) + uint16_t(data[5]) + 50000.0f) / 100.0f;
+      const float acceleration_x = (int16_t(data[6] << 8) + int16_t(data[7])) / 1000.0f;
+      const float acceleration_y = (int16_t(data[8] << 8) + int16_t(data[9])) / 1000.0f;
+      const float acceleration_z = (int16_t(data[10] << 8) + int16_t(data[11])) / 1000.0f;
+      const float battery_voltage = (uint16_t(data[12] << 3) + uint16_t(data[13] >> 5) + 1600.0f) / 1000.0f;
+      const float tx_power = (uint8_t(data[13] & 0x1F) * 2.0f) - 40.0f;
+      const float movement_counter = float(uint8_t(data[14]));
+      const float measurement_sequence_number = float(uint16_t(data[15] << 8) + uint16_t(data[16]));
+
+      result.humidity = humidity;
+      result.temperature = temperature;
+      result.pressure = pressure;
+      result.acceleration_x = acceleration_x;
+      result.acceleration_y = acceleration_y;
+      result.acceleration_z = acceleration_z;
+      result.battery_voltage = battery_voltage;
+      result.tx_power = tx_power;
+      result.movement_counter = movement_counter;
+      result.measurement_sequence_number = measurement_sequence_number;
+
+      return true;
+    }
     default:
       return false;
   }
@@ -65,7 +93,7 @@ bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   ESP_LOGD(TAG, "Got RuuviTag (%s):", device.address_str().c_str());
 
   if (res->humidity.has_value()) {
-    ESP_LOGD(TAG, "  Humidity: %.1f%%", *res->humidity);
+    ESP_LOGD(TAG, "  Humidity: %.2f%%", *res->humidity);
   }
   if (res->temperature.has_value()) {
     ESP_LOGD(TAG, "  Temperature: %.2f°C", *res->temperature);
@@ -84,6 +112,15 @@ bool RuuviListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
   if (res->battery_voltage.has_value()) {
     ESP_LOGD(TAG, "  Battery Voltage: %.3fV", *res->battery_voltage);
+  }
+  if (res->tx_power.has_value()) {
+    ESP_LOGD(TAG, "  TX Power: %.0fdBm", *res->tx_power);
+  }
+  if (res->movement_counter.has_value()) {
+    ESP_LOGD(TAG, "  Movement Counter: %.0f", *res->movement_counter);
+  }
+  if (res->measurement_sequence_number.has_value()) {
+    ESP_LOGD(TAG, "  Measurement Sequence Number: %.0f", *res->measurement_sequence_number);
   }
 
   return true;

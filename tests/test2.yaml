@@ -86,7 +86,7 @@ sensor:
     temperature:
       name: "Xiaomi LYWSD02 Temperature"
     humidity:
-      name: "Xiaomi LYWSD02 Humidity"    
+      name: "Xiaomi LYWSD02 Humidity"
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -167,6 +167,12 @@ sensor:
       name: "RuuviTag Acceleration Z"
     battery_voltage:
       name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
 
 time:
 - platform: homeassistant

@@ -36,6 +36,12 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
       this->acceleration_z_->publish_state(*res->acceleration_z);
     if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
       this->battery_voltage_->publish_state(*res->battery_voltage);
+    if (res->tx_power.has_value() && this->tx_power_ != nullptr)
+      this->tx_power_->publish_state(*res->tx_power);
+    if (res->movement_counter.has_value() && this->movement_counter_ != nullptr)
+      this->movement_counter_->publish_state(*res->movement_counter);
+    if (res->measurement_sequence_number.has_value() && this->measurement_sequence_number_ != nullptr)
+      this->measurement_sequence_number_->publish_state(*res->measurement_sequence_number);
     return true;
   }
 
@@ -48,6 +54,9 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   void set_acceleration_y(sensor::Sensor *acceleration_y) { acceleration_y_ = acceleration_y; }
   void set_acceleration_z(sensor::Sensor *acceleration_z) { acceleration_z_ = acceleration_z; }
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
+  void set_tx_power(sensor::Sensor *tx_power) { tx_power_ = tx_power; }
+  void set_movement_counter(sensor::Sensor *movement_counter) { movement_counter_ = movement_counter; }
+  void set_measurement_sequence_number(sensor::Sensor *measurement_sequence_number) { measurement_sequence_number_ = measurement_sequence_number; }
 
  protected:
   uint64_t address_;
@@ -58,6 +67,9 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   sensor::Sensor *acceleration_y_{nullptr};
   sensor::Sensor *acceleration_z_{nullptr};
   sensor::Sensor *battery_voltage_{nullptr};
+  sensor::Sensor *tx_power_{nullptr};
+  sensor::Sensor *movement_counter_{nullptr};
+  sensor::Sensor *measurement_sequence_number_{nullptr};
 };
 
 }  // namespace ruuvitag
