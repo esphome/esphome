@@ -45,7 +45,7 @@ float MAX31865Sensor::temperature(unsigned short adc, float rtd_nominal, float r
   r_t /= 32768;
   r_t *= ref_resistor;
 
-  ESP_LOGD(TAG, "'%s': Resistance: %.3f", this->name_.c_str(), r_t);
+  ESP_LOGV(TAG, "'%s': Resistance: %.3f", this->name_.c_str(), r_t);
 
   z1 = -RTD_A;
   z2 = RTD_A * RTD_A - (4 * RTD_B);
@@ -120,7 +120,7 @@ void MAX31865Sensor::read_data_() {
 
   uint16_t val = (data[1] | (data[0] << 8)) >> 1;
 
-  ESP_LOGD(TAG, "'%s': Read ADC of 0x%04X", this->name_.c_str(), val);
+  ESP_LOGVV(TAG, "'%s': Read ADC of 0x%04X", this->name_.c_str(), val);
 
   if ((data[1] & MAX31865_RTD_L_FLT) == MAX31865_RTD_L_FLT) {
     this->enable();
