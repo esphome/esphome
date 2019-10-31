@@ -10,7 +10,7 @@ static const char *TAG = "scheduler";
 static const uint32_t SCHEDULER_DONT_RUN = 4294967295UL;
 
 // Uncomment to debug scheduler
-#define ESPHOME_DEBUG_SCHEDULER
+// #define ESPHOME_DEBUG_SCHEDULER
 
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
                                 std::function<void()> &&func) {
