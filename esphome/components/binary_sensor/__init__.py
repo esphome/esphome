@@ -23,6 +23,7 @@ IS_PLATFORM_COMPONENT = True
 
 binary_sensor_ns = cg.esphome_ns.namespace('binary_sensor')
 BinarySensor = binary_sensor_ns.class_('BinarySensor', cg.Nameable)
+BinarySensorInitiallyOff = binary_sensor_ns.class_('BinarySensorInitiallyOff', BinarySensor)
 BinarySensorPtr = BinarySensor.operator('ptr')
 
 # Triggers

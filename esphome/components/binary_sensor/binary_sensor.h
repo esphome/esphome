@@ -67,7 +67,7 @@ class BinarySensor : public Nameable {
   void send_state_internal(bool state, bool is_initial);
 
   /// Return whether this binary sensor has outputted a state.
-  bool has_state() const;
+  virtual bool has_state() const;
 
   virtual bool is_status_binary_sensor() const;
 
@@ -84,6 +84,11 @@ class BinarySensor : public Nameable {
   Filter *filter_list_{nullptr};
   bool has_state_{false};
   Deduplicator<bool> publish_dedup_;
+};
+
+class BinarySensorInitiallyOff : public BinarySensor {
+ public:
+  bool has_state() const override { return true; }
 };
 
 }  // namespace binary_sensor

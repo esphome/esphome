@@ -394,7 +394,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   bool wait_for_ack_{true};
 };
 
-class NextionTouchComponent : public binary_sensor::BinarySensor {
+class NextionTouchComponent : public binary_sensor::BinarySensorInitiallyOff {
  public:
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   void set_component_id(uint8_t component_id) { component_id_ = component_id; }
