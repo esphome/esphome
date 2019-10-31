@@ -63,12 +63,8 @@ struct SongActionItem {
 template<typename... Ts> class SongAction : public Action<Ts...>, public Component {
  public:
   SongAction(LEDCOutput *parent) : parent_(parent) {}
-  void set_active_level(float active_level) {
-    active_level_ = active_level;
-  }
-  void set_items(const std::vector<SongActionItem> &items) {
-    items_ = items;
-  }
+  void set_active_level(float active_level) { active_level_ = active_level; }
+  void set_items(const std::vector<SongActionItem> &items) { items_ = items; }
 
   void play(Ts... x) {
     // empty, complex action
@@ -127,9 +123,7 @@ template<typename... Ts> class SongAction : public Action<Ts...>, public Compone
     this->high_freq_loop_.stop();
   }
 
-  bool is_running() override {
-    return this->is_running_ || this->is_running_next();
-  }
+  bool is_running() override { return this->is_running_ || this->is_running_next(); }
 
  protected:
   bool is_running_;
