@@ -9,7 +9,7 @@
 namespace esphome {
 namespace ble_presence {
 
-class BLEPresenceDevice : public binary_sensor::BinarySensor,
+class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
                           public esp32_ble_tracker::ESPBTDeviceListener,
                           public Component {
  public:
