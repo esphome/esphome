@@ -95,9 +95,9 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
     while (!this->empty_()) {
       auto item = std::move(this->items_[0]);
       const char *type = item->type == SchedulerItem::INTERVAL ? "interval" : "timeout";
-      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)",
-               type, item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
-               item->next_execution(), item->next_execution_major());
+      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", type, item->name.c_str(),
+                item->interval, item->last_execution, item->last_execution_major, item->next_execution(),
+                item->next_execution_major());
 
       this->pop_raw_();
       old_items.push_back(std::move(item));
@@ -105,7 +105,7 @@ void ICACHE_RAM_ATTR HOT Scheduler::call() {
     ESP_LOGVV(TAG, "\n");
     this->items_ = std::move(old_items);
   }
-#endif // ESPHOME_DEBUG_SCHEDULER
+#endif  // ESPHOME_DEBUG_SCHEDULER
 
   while (!this->empty_()) {
     // use scoping to indicate visibility of `item` variable
@@ -189,9 +189,7 @@ void HOT Scheduler::pop_raw_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->items_.pop_back();
 }
-void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) {
-  this->to_add_.push_back(std::move(item));
-}
+void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
   bool ret = false;
   for (auto &it : this->items_)
@@ -217,7 +215,7 @@ uint32_t Scheduler::millis_() {
 }
 
 bool HOT Scheduler::SchedulerItem::cmp(const std::unique_ptr<SchedulerItem> &a,
-    const std::unique_ptr<SchedulerItem> &b) {
+                                       const std::unique_ptr<SchedulerItem> &b) {
   // min-heap
   // return true if *a* will happen after *b*
   uint32_t a_next_exec = a->next_execution();
