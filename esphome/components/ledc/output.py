@@ -72,7 +72,22 @@ def ledc_set_frequency_to_code(config, action_id, template_arg, args):
     yield var
 
 
-NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
+NOTES = {
+    'C': 0,
+    'C#': 1, 'DB': 2,
+    'D': 2,
+    'D#': 3, 'EB': 3,
+    'E': 4,
+    'F': 5,
+    'F#': 6, 'GB': 6,
+    'G': 7,
+    'G#': 8, 'AB': 8,
+    'A': 9,
+    'A#': 10, 'Bb': 10,
+    # also allow BACH motif (B will be ambiguous, but ok)
+    'B': 11, 'H': 11,
+}
+
 NOTE_PATTERN = r'^([{}])\s*([0-9]*)$'.format(r'|'.join(NOTES))
 
 
@@ -82,14 +97,14 @@ def validate_note(value):
     if match is None:
         raise cv.Invalid("Invalid note '{}'. Please make sure the format is like "
                          "'A' (default octave 4), or 'G#4'.")
-    note = NOTES.index(match.group(1))
+    note = match.group(1)
     octave = int(match.group(2) or 4)
-    return '{}{}'.format(NOTES[note], octave)
+    return '{}{}'.format(note, octave)
 
 
 def note_to_freq(value):
     match = re.match(NOTE_PATTERN, value)
-    note = NOTES.index(match.group(1))
+    note = NOTES[match.group(1)]
     octave = int(match.group(2))
     key = note + octave * len(NOTES)
 
