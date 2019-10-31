@@ -39,9 +39,9 @@ enum class TuyaCommandType : uint8_t {
   WIFI_STATE = 0x03,
   WIFI_RESET = 0x04,
   WIFI_SELECT = 0x05,
-  DP_DELIVER = 0x06,
-  DP_REPORT = 0x07,
-  DP_QUERY = 0x08,
+  DATAPOINT_DELIVER = 0x06,
+  DATAPOINT_REPORT = 0x07,
+  DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
 };
 
@@ -50,7 +50,7 @@ enum class TuyaInitState : uint8_t {
   INIT_PRODUCT,
   INIT_CONF,
   INIT_WIFI,
-  INIT_DP,
+  INIT_DATAPOINT,
   INIT_DONE,
 };
 

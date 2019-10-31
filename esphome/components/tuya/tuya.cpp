@@ -22,7 +22,7 @@ void Tuya::loop() {
 
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
-  ESP_LOGCONFIG(TAG, "  Product: %s", this->product_.c_str());
+  ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   if ((gpio_status_ != -1) || (gpio_reset_ != -1))
     ESP_LOGCONFIG(TAG, "  GPIO MCU configuration not supported!");
   for (auto &info : this->datapoints_) {
@@ -123,7 +123,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       // check it is a valid string made up of printable characters
       bool valid = true;
       for (int i = 0; i < len; i++) {
-        if (!isprint(buffer[i])) {
+        if (!std::isprint(buffer[i])) {
           valid = false;
           break;
         }
@@ -150,8 +150,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       c[1] = 0x00;
       this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
-        this->init_state_ = TuyaInitState::INIT_DP;
-        this->send_empty_command_(TuyaCommandType::DP_QUERY);
+        this->init_state_ = TuyaInitState::INIT_DATAPOINT;
+        this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
     case TuyaCommandType::WIFI_STATE:
@@ -162,15 +162,15 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::WIFI_SELECT:
       ESP_LOGE(TAG, "TUYA_CMD_WIFI_SELECT is not handled");
       break;
-    case TuyaCommandType::DP_DELIVER:
+    case TuyaCommandType::DATAPOINT_DELIVER:
       break;
-    case TuyaCommandType::DP_REPORT:
-      if (this->init_state_ == TuyaInitState::INIT_DP) {
+    case TuyaCommandType::DATAPOINT_REPORT:
+      if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
       }
       this->handle_datapoint_(buffer, len);
       break;
-    case TuyaCommandType::DP_QUERY:
+    case TuyaCommandType::DATAPOINT_QUERY:
       break;
     case TuyaCommandType::WIFI_TEST: {
       c[0] = 0x00;
@@ -301,7 +301,7 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   buffer.push_back(data.size() >> 8);
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
-  this->send_command_(TuyaCommandType::DP_DELIVER, buffer.data(), buffer.size());
+  this->send_command_(TuyaCommandType::DATAPOINT_DELIVER, buffer.data(), buffer.size());
 }
 
 void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
