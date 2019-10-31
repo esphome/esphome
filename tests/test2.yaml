@@ -214,10 +214,6 @@ binary_sensor:
   - platform: as3935
     name: "Storm Alert"
 
-remote_receiver:
-  pin: GPIO32
-  dump: []
-
 esp32_ble_tracker:
 
 #esp32_ble_beacon:
