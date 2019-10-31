@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include <vector>
+#include <memory>
 
 namespace esphome {
 
@@ -34,21 +35,30 @@ class Scheduler {
     bool remove;
     uint8_t last_execution_major;
 
-    static bool cmp(SchedulerItem *a, SchedulerItem *b);
+    inline uint32_t next_execution() { return this->last_execution + this->timeout; }
+    inline uint8_t next_execution_major() {
+      uint32_t next_exec = this->next_execution();
+      uint8_t next_exec_major = this->last_execution_major;
+      if (next_exec < this->last_execution)
+        next_exec_major++;
+      return next_exec_major;
+    }
+
+    static bool cmp(const std::unique_ptr<SchedulerItem> &a, const std::unique_ptr<SchedulerItem> &b);
   };
 
   uint32_t millis_();
   void cleanup_();
   void pop_raw_();
-  void push_(SchedulerItem *item);
+  void push_(std::unique_ptr<SchedulerItem> item);
   bool cancel_item_(Component *component, const std::string &name, SchedulerItem::Type type);
   bool empty_() {
     this->cleanup_();
     return this->items_.empty();
   }
 
-  std::vector<SchedulerItem *> items_;
-  std::vector<SchedulerItem *> to_add_;
+  std::vector<std::unique_ptr<SchedulerItem>> items_;
+  std::vector<std::unique_ptr<SchedulerItem>> to_add_;
   uint32_t last_millis_{0};
   uint8_t millis_major_{0};
 };
