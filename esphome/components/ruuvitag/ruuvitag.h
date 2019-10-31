@@ -28,6 +28,8 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
       this->temperature_->publish_state(*res->temperature);
     if (res->pressure.has_value() && this->pressure_ != nullptr)
       this->pressure_->publish_state(*res->pressure);
+    if (res->acceleration.has_value() && this->acceleration_ != nullptr)
+      this->acceleration_->publish_state(*res->acceleration);
     if (res->acceleration_x.has_value() && this->acceleration_x_ != nullptr)
       this->acceleration_x_->publish_state(*res->acceleration_x);
     if (res->acceleration_y.has_value() && this->acceleration_y_ != nullptr)
@@ -50,6 +52,7 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
+  void set_acceleration(sensor::Sensor *acceleration) { acceleration_ = acceleration; }
   void set_acceleration_x(sensor::Sensor *acceleration_x) { acceleration_x_ = acceleration_x; }
   void set_acceleration_y(sensor::Sensor *acceleration_y) { acceleration_y_ = acceleration_y; }
   void set_acceleration_z(sensor::Sensor *acceleration_z) { acceleration_z_ = acceleration_z; }
@@ -65,6 +68,7 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *pressure_{nullptr};
+  sensor::Sensor *acceleration_{nullptr};
   sensor::Sensor *acceleration_x_{nullptr};
   sensor::Sensor *acceleration_y_{nullptr};
   sensor::Sensor *acceleration_z_{nullptr};

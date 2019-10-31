@@ -12,6 +12,7 @@ struct RuuviParseResult {
   optional<float> humidity;
   optional<float> temperature;
   optional<float> pressure;
+  optional<float> acceleration;
   optional<float> acceleration_x;
   optional<float> acceleration_y;
   optional<float> acceleration_z;
