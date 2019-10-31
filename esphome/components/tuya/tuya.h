@@ -34,15 +34,24 @@ struct TuyaDatapointListener {
 
 enum class TuyaCommandType : uint8_t {
   HEARTBEAT = 0x00,
-  QUERY_PRODUCT = 0x01,
-  MCU_CONF = 0x02,
+  PRODUCT_QUERY = 0x01,
+  CONF_QUERY = 0x02,
   WIFI_STATE = 0x03,
   WIFI_RESET = 0x04,
   WIFI_SELECT = 0x05,
   DP_DELIVER = 0x06,
   DP_REPORT = 0x07,
-  QUERY_STATE = 0x08,
+  DP_QUERY = 0x08,
   WIFI_TEST = 0x0E,
+};
+
+enum class TuyaInitState : uint8_t {
+  INIT_HEARTBEAT = 0x00,
+  INIT_PRODUCT,
+  INIT_CONF,
+  INIT_WIFI,
+  INIT_DP,
+  INIT_DONE,
 };
 
 class Tuya : public Component, public uart::UARTDevice {
@@ -63,8 +72,10 @@ class Tuya : public Component, public uart::UARTDevice {
   void send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_t len);
   void send_empty_command_(TuyaCommandType command) { this->send_command_(command, nullptr, 0); }
 
+  TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
+  std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
   std::vector<uint8_t> rx_message_;

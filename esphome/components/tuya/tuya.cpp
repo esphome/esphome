@@ -8,7 +8,7 @@ namespace tuya {
 static const char *TAG = "tuya";
 
 void Tuya::setup() {
-  this->send_empty_command_(TuyaCommandType::MCU_CONF);
+  this->send_empty_command_(TuyaCommandType::HEARTBEAT);
   this->set_interval("heartbeat", 1000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
@@ -22,6 +22,7 @@ void Tuya::loop() {
 
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
+  ESP_LOGCONFIG(TAG, "  Product: %s", this->product_.c_str());
   if ((gpio_status_ != -1) || (gpio_reset_ != -1))
     ESP_LOGCONFIG(TAG, "  GPIO MCU configuration not supported!");
   for (auto &info : this->datapoints_) {
@@ -111,24 +112,34 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
       if (buffer[0] == 0) {
         ESP_LOGI(TAG, "MCU restarted");
-        this->send_empty_command_(TuyaCommandType::QUERY_STATE);
+        this->init_state_ = TuyaInitState::INIT_HEARTBEAT;
+      }
+      if (this->init_state_ == TuyaInitState::INIT_HEARTBEAT) {
+        this->init_state_ = TuyaInitState::INIT_PRODUCT;
+        this->send_empty_command_(TuyaCommandType::PRODUCT_QUERY);
       }
       break;
-    case TuyaCommandType::QUERY_PRODUCT: {
-      // check it is a valid string
-      bool valid = false;
+    case TuyaCommandType::PRODUCT_QUERY: {
+      // check it is a valid string made up of printable characters
+      bool valid = true;
       for (int i = 0; i < len; i++) {
-        if (buffer[i] == 0x00) {
-          valid = true;
+        if (! isprint(buffer[i])) {
+          valid = false;
           break;
         }
       }
       if (valid) {
-        ESP_LOGD(TAG, "Tuya Product Code: %s", reinterpret_cast<const char *>(buffer));
+        this->product_ = std::string(reinterpret_cast<const char *>(buffer), len);
+        if (this->init_state_ == TuyaInitState::INIT_PRODUCT) {
+          this->init_state_ = TuyaInitState::INIT_CONF;
+          this->send_empty_command_(TuyaCommandType::CONF_QUERY);
+        }
+      } else {
+        this->product_ = "INVALID";
       }
       break;
     }
-    case TuyaCommandType::MCU_CONF:
+    case TuyaCommandType::CONF_QUERY:
       if (len >= 2) {
         gpio_status_ = buffer[0];
         gpio_reset_ = buffer[1];
@@ -138,7 +149,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       c[0] = 0x03;
       c[1] = 0x00;
       this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
-      this->send_empty_command_(TuyaCommandType::QUERY_STATE);
+      if (this->init_state_ == TuyaInitState::INIT_CONF) {
+        this->init_state_ = TuyaInitState::INIT_DP;
+        this->send_empty_command_(TuyaCommandType::DP_QUERY);
+      }
       break;
     case TuyaCommandType::WIFI_STATE:
       break;
@@ -151,9 +165,12 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DP_DELIVER:
       break;
     case TuyaCommandType::DP_REPORT:
+      if (this->init_state_ == TuyaInitState::INIT_DP) {
+        this->init_state_ = TuyaInitState::INIT_DONE;
+      }
       this->handle_datapoint_(buffer, len);
       break;
-    case TuyaCommandType::QUERY_STATE:
+    case TuyaCommandType::DP_QUERY:
       break;
     case TuyaCommandType::WIFI_TEST: {
       c[0] = 0x00;
