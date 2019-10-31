@@ -35,7 +35,7 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
 
       return true;
     }
-    case 0x05: { // RAWv2
+    case 0x05: {  // RAWv2
       if (data_length != 26)
         return false;
 

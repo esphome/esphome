@@ -56,7 +56,9 @@ class RuuviTag : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   void set_battery_voltage(sensor::Sensor *battery_voltage) { battery_voltage_ = battery_voltage; }
   void set_tx_power(sensor::Sensor *tx_power) { tx_power_ = tx_power; }
   void set_movement_counter(sensor::Sensor *movement_counter) { movement_counter_ = movement_counter; }
-  void set_measurement_sequence_number(sensor::Sensor *measurement_sequence_number) { measurement_sequence_number_ = measurement_sequence_number; }
+  void set_measurement_sequence_number(sensor::Sensor *measurement_sequence_number) {
+    measurement_sequence_number_ = measurement_sequence_number;
+  }
 
  protected:
   uint64_t address_;
