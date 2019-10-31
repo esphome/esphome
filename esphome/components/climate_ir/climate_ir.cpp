@@ -62,6 +62,9 @@ void ClimateIR::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
 }
+bool ClimateIR::on_receive(remote_base::RemoteReceiveData data) {
+  return false;
+}
 
 }  // namespace climate_ir
 }  // namespace esphome
