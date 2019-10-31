@@ -74,7 +74,7 @@ def ledc_set_frequency_to_code(config, action_id, template_arg, args):
 
 NOTES = {
     'C': 0,
-    'C#': 1, 'DB': 2,
+    'C#': 1, 'DB': 1,
     'D': 2,
     'D#': 3, 'EB': 3,
     'E': 4,
