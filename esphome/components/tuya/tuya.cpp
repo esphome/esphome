@@ -123,7 +123,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       // check it is a valid string made up of printable characters
       bool valid = true;
       for (int i = 0; i < len; i++) {
-        if (! isprint(buffer[i])) {
+        if (!isprint(buffer[i])) {
           valid = false;
           break;
         }
