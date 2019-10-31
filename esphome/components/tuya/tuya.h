@@ -39,9 +39,10 @@ enum class TuyaCommandType : uint8_t {
   WIFI_STATE = 0x03,
   WIFI_RESET = 0x04,
   WIFI_SELECT = 0x05,
-  SET_DATAPOINT = 0x06,
-  STATE = 0x07,
+  DP_DELIVER = 0x06,
+  DP_REPORT = 0x07,
   QUERY_STATE = 0x08,
+  WIFI_TEST = 0x0E,
 };
 
 class Tuya : public Component, public uart::UARTDevice {

@@ -105,7 +105,7 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
-  uint8_t c;
+  uint8_t c[] = {0x00, 0x00};
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -135,8 +135,9 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       // set wifi state LED to off or on depending on the MCU firmware
       // but it shouldn't be blinking
-      c = 0x3;
-      this->send_command_(TuyaCommandType::WIFI_STATE, &c, 1);
+      c[0] = 0x03;
+      c[1] = 0x00;
+      this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
       this->send_empty_command_(TuyaCommandType::QUERY_STATE);
       break;
     case TuyaCommandType::WIFI_STATE:
@@ -147,14 +148,19 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::WIFI_SELECT:
       ESP_LOGE(TAG, "TUYA_CMD_WIFI_SELECT is not handled");
       break;
-    case TuyaCommandType::SET_DATAPOINT:
+    case TuyaCommandType::DP_DELIVER:
       break;
-    case TuyaCommandType::STATE: {
+    case TuyaCommandType::DP_REPORT:
       this->handle_datapoint_(buffer, len);
       break;
-    }
     case TuyaCommandType::QUERY_STATE:
       break;
+    case TuyaCommandType::WIFI_TEST: {
+      c[0] = 0x00;
+      c[1] = 0x00;
+      this->send_command_(TuyaCommandType::WIFI_TEST, c, 2);
+      break;
+    }
     default:
       ESP_LOGE(TAG, "invalid command (%02x) received", command);
   }
@@ -278,7 +284,7 @@ void Tuya::set_datapoint_value(TuyaDatapoint datapoint) {
   buffer.push_back(data.size() >> 8);
   buffer.push_back(data.size() >> 0);
   buffer.insert(buffer.end(), data.begin(), data.end());
-  this->send_command_(TuyaCommandType::SET_DATAPOINT, buffer.data(), buffer.size());
+  this->send_command_(TuyaCommandType::DP_DELIVER, buffer.data(), buffer.size());
 }
 
 void Tuya::register_listener(uint8_t datapoint_id, const std::function<void(TuyaDatapoint)> &func) {
