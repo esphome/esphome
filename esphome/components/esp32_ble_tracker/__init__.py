@@ -1,3 +1,4 @@
+import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, ESP_PLATFORM_ESP32, CONF_INTERVAL, \
@@ -30,6 +31,50 @@ def validate_scan_parameters(config):
                          "cover all BLE channels.")
 
     return config
+
+
+bt_uuid16_format = 'XXXX'
+bt_uuid32_format = 'XXXXXXXX'
+bt_uuid128_format = 'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX'
+
+
+def bt_uuid(value):
+    in_value = cv.string_strict(value)
+    value = in_value.upper()
+
+    if len(value) == len(bt_uuid16_format):
+        pattern = re.compile("^[A-F|0-9]{4,}$")
+        if not pattern.match(value):
+            raise cv.Invalid(
+                u"Invalid hexadecimal value for 16 bit UUID format: '{}'".format(in_value))
+        return value
+    if len(value) == len(bt_uuid32_format):
+        pattern = re.compile("^[A-F|0-9]{8,}$")
+        if not pattern.match(value):
+            raise cv.Invalid(
+                u"Invalid hexadecimal value for 32 bit UUID format: '{}'".format(in_value))
+        return value
+    if len(value) == len(bt_uuid128_format):
+        pattern = re.compile(
+            "^[A-F|0-9]{8,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{4,}-[A-F|0-9]{12,}$")
+        if not pattern.match(value):
+            raise cv.Invalid(
+                u"Invalid hexadecimal value for 128 UUID format: '{}'".format(in_value))
+        return value
+    raise cv.Invalid(
+        u"Service UUID must be in 16 bit '{}', 32 bit '{}', or 128 bit '{}' format".format(
+            bt_uuid16_format, bt_uuid32_format, bt_uuid128_format))
+
+
+def as_hex(value):
+    return cg.RawExpression('0x{}ULL'.format(value))
+
+
+def as_hex_array(value):
+    value = value.replace("-", "")
+    cpp_array = ['0x{}'.format(part) for part in [value[i:i+2] for i in range(0, len(value), 2)]]
+    return cg.RawExpression(
+        '(uint8_t*)(const uint8_t[16]){{{}}}'.format(','.join(reversed(cpp_array))))
 
 
 CONFIG_SCHEMA = cv.Schema({
