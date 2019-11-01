@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
     CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_0
-from esphome.core import CORE
+from esphome.core import CORE, Lambda
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
 from esphome.py_compat import IS_PY3
 
@@ -99,13 +99,17 @@ HTTP_REQUEST_POST_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL, HTTP_REQUEST_ACTION_SCHEMA.extend({
         cv.Optional(CONF_METHOD, default='POST'): cv.one_of('POST', upper=True),
         cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-        cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
+        cv.Exclusive(CONF_JSON, 'body'): cv.Any(
+            cv.lambda_, cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
+        ),
     })
 )
 HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend({
     cv.Required(CONF_METHOD): cv.one_of('GET', 'POST', 'PUT', 'DELETE', 'PATCH', upper=True),
     cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-    cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
+    cv.Exclusive(CONF_JSON, 'body'): cv.Any(
+        cv.lambda_, cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
+    ),
 })
 
 
@@ -125,9 +129,16 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     if CONF_BODY in config:
         template_ = yield cg.templatable(config[CONF_BODY], args, cg.std_string)
         cg.add(var.set_body(template_))
-    for key in config.get(CONF_JSON, []):
-        template_ = yield cg.templatable(config[CONF_JSON][key], args, cg.std_string)
-        cg.add(var.add_json(key, template_))
+    if CONF_JSON in config:
+        json_ = config[CONF_JSON]
+        if isinstance(json_, Lambda):
+            args_ = args + [(cg.JsonObjectRef, 'root')]
+            lambda_ = yield cg.process_lambda(json_, args_, return_type=cg.void)
+            cg.add(var.set_json(lambda_))
+        else:
+            for key in json_:
+                template_ = yield cg.templatable(json_[key], args, cg.std_string)
+                cg.add(var.add_json(key, template_))
     for key in config.get(CONF_HEADERS, []):
         template_ = yield cg.templatable(config[CONF_HEADERS][key], args, cg.const_char_ptr)
         cg.add(var.add_header(key, template_))

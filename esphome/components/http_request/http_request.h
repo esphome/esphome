@@ -67,6 +67,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void add_json(const char *key, TemplatableValue<std::string, Ts...> value) { this->json_.insert({key, value}); }
 
+  void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
+
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
@@ -75,6 +77,10 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     }
     if (!this->json_.empty()) {
       auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_, this, x..., std::placeholders::_1);
+      this->parent_->set_body(json::build_json(f));
+    }
+    if (this->json_func_ != nullptr) {
+      auto f = std::bind(&HttpRequestSendAction<Ts...>::encode_json_func_, this, x..., std::placeholders::_1);
       this->parent_->set_body(json::build_json(f));
     }
     if (this->useragent_.has_value()) {
@@ -104,9 +110,11 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       root[item.first] = val.value(x...);
     }
   }
+  void encode_json_func_(Ts... x, JsonObject &root) { this->json_func_(x..., root); }
   HttpRequestComponent *parent_;
   std::map<const char *, TemplatableValue<const char *, Ts...>> headers_{};
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
+  std::function<void(Ts..., JsonObject &)> json_func_{nullptr};
 };
 
 }  // namespace http_request
