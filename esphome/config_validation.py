@@ -461,6 +461,8 @@ def time_period_str_unit(value):
     if isinstance(value, int):
         raise Invalid("Don't know what '{0}' means as it has no time *unit*! Did you mean "
                       "'{0}s'?".format(value))
+    if isinstance(value, TimePeriod):
+        value = str(value)
     if not isinstance(value, string_types):
         raise Invalid("Expected string for time period with unit.")
 
