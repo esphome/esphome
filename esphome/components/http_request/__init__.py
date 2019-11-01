@@ -64,7 +64,9 @@ def validate_url(value):
 
 
 def validate_secure_url(config):
-    if config.get(CONF_VERIFY_SSL) and config[CONF_URL].lower().startswith('https:'):
+    url_ = config[CONF_URL]
+    if config.get(CONF_VERIFY_SSL) and not isinstance(url_, Lambda) \
+            and url_.lower().startswith('https:'):
         raise cv.Invalid('Currently ESPHome doesn\'t support SSL verification. '
                          'Set \'verify_ssl: false\' to make insecure HTTPS requests.')
     return config
