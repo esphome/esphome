@@ -99,13 +99,13 @@ HTTP_REQUEST_POST_ACTION_SCHEMA = automation.maybe_conf(
     CONF_URL, HTTP_REQUEST_ACTION_SCHEMA.extend({
         cv.Optional(CONF_METHOD, default='POST'): cv.one_of('POST', upper=True),
         cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-        cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
+        cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
     })
 )
 HTTP_REQUEST_SEND_ACTION_SCHEMA = HTTP_REQUEST_ACTION_SCHEMA.extend({
     cv.Required(CONF_METHOD): cv.one_of('GET', 'POST', 'PUT', 'DELETE', 'PATCH', upper=True),
     cv.Exclusive(CONF_BODY, 'body'): cv.templatable(cv.string),
-    cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string)})),
+    cv.Exclusive(CONF_JSON, 'body'): cv.All(cv.Schema({cv.string: cv.templatable(cv.string_strict)})),
 })
 
 
