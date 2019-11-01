@@ -57,6 +57,7 @@ enum class TuyaInitState : uint8_t {
 class Tuya : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  bool can_proceed() override { return this->init_state_ == TuyaInitState::INIT_DONE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
