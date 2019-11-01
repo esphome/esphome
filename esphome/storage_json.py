@@ -88,7 +88,6 @@ class StorageJSON(object):
         return json.dumps(self.as_dict(), indent=2) + u'\n'
 
     def save(self, path):
-        mkdir_p(os.path.dirname(path))
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
