@@ -8,7 +8,6 @@ namespace tuya {
 static const char *TAG = "tuya";
 
 void Tuya::setup() {
-  this->send_empty_command_(TuyaCommandType::HEARTBEAT);
   this->set_interval("heartbeat", 1000, [this] { this->send_empty_command_(TuyaCommandType::HEARTBEAT); });
 }
 
