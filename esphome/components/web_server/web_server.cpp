@@ -6,15 +6,11 @@
 
 #include "StreamString.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-#include <Update.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <Updater.h>
-#endif
-
 #include <cstdlib>
+
+#ifdef USE_LOGGER
 #include <esphome/components/logger/logger.h>
+#endif
 
 namespace esphome {
 namespace web_server {
@@ -66,7 +62,7 @@ void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
-  this->server_ = new AsyncWebServer(this->port_);
+  this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout
@@ -114,90 +110,20 @@ void WebServer::setup() {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
 #endif
-  this->server_->addHandler(this);
-  this->server_->addHandler(&this->events_);
-
-  this->server_->begin();
+  this->base_->add_handler(&this->events_);
+  this->base_->add_handler(this);
+  this->base_->add_ota_handler();
 
   this->set_interval(10000, [this]() { this->events_.send("", "ping", millis(), 30000); });
 }
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
-  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->port_);
+  ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
+  if (this->using_auth()) {
+    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
+  }
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
-
-void WebServer::handle_update_request(AsyncWebServerRequest *request) {
-  AsyncWebServerResponse *response;
-  if (!Update.hasError()) {
-    response = request->beginResponse(200, "text/plain", "Update Successful!");
-  } else {
-    StreamString ss;
-    ss.print("Update Failed: ");
-    Update.printError(ss);
-    response = request->beginResponse(200, "text/plain", ss);
-  }
-  response->addHeader("Connection", "close");
-  request->send(response);
-}
-
-void report_ota_error() {
-  StreamString ss;
-  Update.printError(ss);
-  ESP_LOGW(TAG, "OTA Update failed! Error: %s", ss.c_str());
-}
-
-void WebServer::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index, uint8_t *data,
-                             size_t len, bool final) {
-  bool success;
-  if (index == 0) {
-    ESP_LOGI(TAG, "OTA Update Start: %s", filename.c_str());
-    this->ota_read_length_ = 0;
-#ifdef ARDUINO_ARCH_ESP8266
-    Update.runAsync(true);
-    success = Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000);
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-    if (Update.isRunning())
-      Update.abort();
-    success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);
-#endif
-    if (!success) {
-      report_ota_error();
-      return;
-    }
-  } else if (Update.hasError()) {
-    // don't spam logs with errors if something failed at start
-    return;
-  }
-
-  success = Update.write(data, len) == len;
-  if (!success) {
-    report_ota_error();
-    return;
-  }
-  this->ota_read_length_ += len;
-
-  const uint32_t now = millis();
-  if (now - this->last_ota_progress_ > 1000) {
-    if (request->contentLength() != 0) {
-      float percentage = (this->ota_read_length_ * 100.0f) / request->contentLength();
-      ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
-    } else {
-      ESP_LOGD(TAG, "OTA in progress: %u bytes read", this->ota_read_length_);
-    }
-    this->last_ota_progress_ = now;
-  }
-
-  if (final) {
-    if (Update.end(true)) {
-      ESP_LOGI(TAG, "OTA update successful!");
-      this->set_timeout(100, []() { App.safe_reboot(); });
-    } else {
-      report_ota_error();
-    }
-  }
-}
 
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
@@ -248,7 +174,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"
-                  "<h2>OTA Update</h2><form method='POST' action=\"/update\" enctype=\"multipart/form-data\"><input "
+                  "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
                   "<h2>Debug Log</h2><pre id=\"log\"></pre>"
                   "<script src=\""));
@@ -490,11 +416,15 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch ma
       if (request->hasParam("color_temp"))
         call.set_color_temperature(request->getParam("color_temp")->value().toFloat());
 
-      if (request->hasParam("flash"))
-        call.set_flash_length((uint32_t) request->getParam("flash")->value().toFloat() * 1000);
+      if (request->hasParam("flash")) {
+        float length_s = request->getParam("flash")->value().toFloat();
+        call.set_flash_length(static_cast<uint32_t>(length_s * 1000));
+      }
 
-      if (request->hasParam("transition"))
-        call.set_transition_length((uint32_t) request->getParam("transition")->value().toFloat() * 1000);
+      if (request->hasParam("transition")) {
+        float length_s = request->getParam("transition")->value().toFloat();
+        call.set_transition_length(static_cast<uint32_t>(length_s * 1000));
+      }
 
       if (request->hasParam("effect")) {
         const char *effect = request->getParam("effect")->value().c_str();
@@ -529,9 +459,6 @@ std::string WebServer::light_json(light::LightState *obj) {
 
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
-    return true;
-
-  if (request->url() == "/update" && request->method() == HTTP_POST)
     return true;
 
   UrlMatch match = match_url(request->url().c_str(), true);
@@ -570,13 +497,12 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
-  if (request->url() == "/") {
-    this->handle_index_request(request);
-    return;
+  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
+    return request->requestAuthentication();
   }
 
-  if (request->url() == "/update") {
-    this->handle_update_request(request);
+  if (request->url() == "/") {
+    this->handle_index_request(request);
     return;
   }
 

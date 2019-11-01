@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
-    ESP_PLATFORM_ESP32
+    ESP_PLATFORM_ESP32, CONF_DATA_PINS, CONF_RESET_PIN, CONF_RESOLUTION, CONF_BRIGHTNESS
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ['api']
@@ -35,23 +35,19 @@ FRAME_SIZES = {
     'UXGA': ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
 }
 
-CONF_DATA_PINS = 'data_pins'
 CONF_VSYNC_PIN = 'vsync_pin'
 CONF_HREF_PIN = 'href_pin'
 CONF_PIXEL_CLOCK_PIN = 'pixel_clock_pin'
 CONF_EXTERNAL_CLOCK = 'external_clock'
 CONF_I2C_PINS = 'i2c_pins'
-CONF_RESET_PIN = 'reset_pin'
 CONF_POWER_DOWN_PIN = 'power_down_pin'
 
 CONF_MAX_FRAMERATE = 'max_framerate'
 CONF_IDLE_FRAMERATE = 'idle_framerate'
-CONF_RESOLUTION = 'resolution'
 CONF_JPEG_QUALITY = 'jpeg_quality'
 CONF_VERTICAL_FLIP = 'vertical_flip'
 CONF_HORIZONTAL_MIRROR = 'horizontal_mirror'
 CONF_CONTRAST = 'contrast'
-CONF_BRIGHTNESS = 'brightness'
 CONF_SATURATION = 'saturation'
 CONF_TEST_PATTERN = 'test_pattern'
 

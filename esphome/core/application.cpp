@@ -33,10 +33,9 @@ void Application::setup() {
 
   for (uint32_t i = 0; i < this->components_.size(); i++) {
     Component *component = this->components_[i];
-    if (component->is_failed())
-      continue;
 
-    component->call_setup();
+    component->call();
+    this->scheduler.process_to_add();
     if (component->can_proceed())
       continue;
 
@@ -45,10 +44,9 @@ void Application::setup() {
 
     do {
       uint32_t new_app_state = STATUS_LED_WARNING;
+      this->scheduler.call();
       for (uint32_t j = 0; j <= i; j++) {
-        if (!this->components_[j]->is_failed()) {
-          this->components_[j]->call_loop();
-        }
+        this->components_[j]->call();
         new_app_state |= this->components_[j]->get_component_state();
         this->app_state_ |= new_app_state;
       }
@@ -63,20 +61,20 @@ void Application::setup() {
 void Application::loop() {
   uint32_t new_app_state = 0;
   const uint32_t start = millis();
+
+  this->scheduler.call();
   for (Component *component : this->components_) {
-    if (!component->is_failed()) {
-      component->call_loop();
-    }
+    component->call();
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
     this->feed_wdt();
   }
   this->app_state_ = new_app_state;
+
   const uint32_t end = millis();
   if (end - start > 200) {
-    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.1f s).", (end - start) / 1e3f);
+    ESP_LOGV(TAG, "A component took a long time in a loop() cycle (%.2f s).", (end - start) / 1e3f);
     ESP_LOGV(TAG, "Components should block for at most 20-30ms in loop().");
-    ESP_LOGV(TAG, "This will become a warning soon.");
   }
 
   const uint32_t now = millis();
@@ -87,13 +85,19 @@ void Application::loop() {
     uint32_t delay_time = this->loop_interval_;
     if (now - this->last_loop_ < this->loop_interval_)
       delay_time = this->loop_interval_ - (now - this->last_loop_);
+
+    uint32_t next_schedule = this->scheduler.next_schedule_in().value_or(delay_time);
+    // next_schedule is max 0.5*delay_time
+    // otherwise interval=0 schedules result in constant looping with almost no sleep
+    next_schedule = std::max(next_schedule, delay_time / 2);
+    delay_time = std::min(next_schedule, delay_time);
     delay(delay_time);
   }
   this->last_loop_ = now;
 
   if (this->dump_config_at_ >= 0 && this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "esphome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
     }
 
     this->components_[this->dump_config_at_]->dump_config();
@@ -114,7 +118,7 @@ void ICACHE_RAM_ATTR HOT Application::feed_wdt() {
     LAST_FEED = now;
 #ifdef USE_STATUS_LED
     if (status_led::global_status_led != nullptr) {
-      status_led::global_status_led->call_loop();
+      status_led::global_status_led->call();
     }
 #endif
   }

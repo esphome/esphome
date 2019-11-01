@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace globals {
@@ -63,6 +64,8 @@ template<class C, typename... Ts> class GlobalVarSetAction : public Action<Ts...
  protected:
   C *parent_;
 };
+
+template<typename T> T &id(GlobalsComponent<T> *value) { return value->value(); }
 
 }  // namespace globals
 }  // namespace esphome

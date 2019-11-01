@@ -1,13 +1,14 @@
 from __future__ import print_function
 
-import codecs
 import os
+import random
+import string
 import unicodedata
 
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.helpers import color, get_bool_env
+from esphome.helpers import color, get_bool_env, write_file
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.py_compat import safe_input, text_type
@@ -52,6 +53,13 @@ wifi:
   ssid: "{ssid}"
   password: "{psk}"
 
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+
+captive_portal:
+
 # Enable logging
 logger:
 
@@ -65,6 +73,14 @@ def sanitize_double_quotes(value):
 
 
 def wizard_file(**kwargs):
+    letters = string.ascii_letters + string.digits
+    ap_name_base = kwargs['name'].replace('_', ' ').title()
+    ap_name = "{} Fallback Hotspot".format(ap_name_base)
+    if len(ap_name) > 32:
+        ap_name = ap_name_base
+    kwargs['fallback_name'] = ap_name
+    kwargs['fallback_psk'] = ''.join(random.choice(letters) for _ in range(12))
+
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
@@ -87,8 +103,7 @@ def wizard_write(path, **kwargs):
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
 
-    with codecs.open(path, 'w', 'utf-8') as f_handle:
-        f_handle.write(wizard_file(**kwargs))
+    write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
@@ -117,8 +132,8 @@ def default_input(text, default):
 
 
 # From https://stackoverflow.com/a/518232/8924614
-def strip_accents(string):
-    return u''.join(c for c in unicodedata.normalize('NFD', text_type(string))
+def strip_accents(value):
+    return u''.join(c for c in unicodedata.normalize('NFD', text_type(value))
                     if unicodedata.category(c) != 'Mn')
 
 

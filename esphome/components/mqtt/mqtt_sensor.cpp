@@ -55,6 +55,9 @@ void MQTTSensorComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryCo
   if (!this->sensor_->get_icon().empty())
     root["icon"] = this->sensor_->get_icon();
 
+  if (this->sensor_->get_force_update())
+    root["force_update"] = true;
+
   config.command_topic = false;
 }
 bool MQTTSensorComponent::send_initial_state() {

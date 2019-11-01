@@ -10,8 +10,8 @@ import re
 # pylint: disable=unused-import, wrong-import-order
 from typing import Any, Dict, List  # noqa
 
-from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    SOURCE_FILE_EXTENSIONS
+from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
+    CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
@@ -495,7 +495,7 @@ class EsphomeCore(object):
         # A list of statements to insert in the global block (includes and global variables)
         self.global_statements = []  # type: List[Statement]
         # A set of platformio libraries to add to the project
-        self.libraries = set()  # type: Set[Library]
+        self.libraries = []  # type: List[Library]
         # A set of build flags to set in the platformio project
         self.build_flags = set()  # type: Set[str]
         # A set of defines to set for the compile process in esphome/core/defines.h
@@ -507,6 +507,8 @@ class EsphomeCore(object):
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
+        # Whether ESPHome was started in verbose mode
+        self.verbose = False
 
     def reset(self):
         self.dashboard = False
@@ -522,7 +524,7 @@ class EsphomeCore(object):
         self.variables = {}
         self.main_statements = []
         self.global_statements = []
-        self.libraries = set()
+        self.libraries = []
         self.build_flags = set()
         self.defines = set()
         self.active_coroutines = {}
@@ -536,6 +538,13 @@ class EsphomeCore(object):
 
         if 'ethernet' in self.config:
             return self.config['ethernet'][CONF_USE_ADDRESS]
+
+        return None
+
+    @property
+    def comment(self):  # type: () -> str
+        if CONF_COMMENT in self.config[CONF_ESPHOME]:
+            return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
 
@@ -666,8 +675,25 @@ class EsphomeCore(object):
         if not isinstance(library, Library):
             raise ValueError(u"Library {} must be instance of Library, not {}"
                              u"".format(library, type(library)))
-        self.libraries.add(library)
         _LOGGER.debug("Adding library: %s", library)
+        for other in self.libraries[:]:
+            if other.name != library.name:
+                continue
+            if library.version is None:
+                # Other requirement is more specific
+                break
+            if other.version is None:
+                # Found more specific version requirement
+                self.libraries.remove(other)
+                continue
+            if other.version == library.version:
+                break
+
+            raise ValueError(u"Version pinning failed! Libraries {} and {} "
+                             u"requested with conflicting versions!"
+                             u"".format(library, other))
+        else:
+            self.libraries.append(library)
         return library
 
     def add_build_flag(self, build_flag):

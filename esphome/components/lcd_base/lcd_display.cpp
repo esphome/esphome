@@ -107,7 +107,7 @@ void LCDDisplay::update() {
   for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
     this->buffer_[i] = ' ';
 
-  this->writer_(*this);
+  this->call_writer();
   this->display();
 }
 void LCDDisplay::command_(uint8_t value) { this->send(value, false); }
@@ -147,6 +147,11 @@ void LCDDisplay::printf(const char *format, ...) {
   va_end(arg);
   if (ret > 0)
     this->print(0, 0, buffer);
+}
+void LCDDisplay::clear() {
+  // clear display, also sets DDRAM address to 0 (home)
+  this->command_(LCD_DISPLAY_COMMAND_CLEAR_DISPLAY);
+  delay(2);
 }
 #ifdef USE_TIME
 void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time) {

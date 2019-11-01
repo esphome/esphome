@@ -155,7 +155,6 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
     this->send_byte_(a_register, data);
   this->disable();
 }
-bool MAX7219Component::is_device_msb_first() { return true; }
 void MAX7219Component::update() {
   for (uint8_t i = 0; i < this->num_chips_ * 8; i++)
     this->buffer_[i] = 0;

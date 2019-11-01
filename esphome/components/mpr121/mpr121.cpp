@@ -10,7 +10,7 @@ void MPR121Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPR121...");
   // soft reset device
   this->write_byte(MPR121_SOFTRESET, 0x63);
-  delay(100);
+  delay(100);  // NOLINT
   if (!this->write_byte(MPR121_ECR, 0x0)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();

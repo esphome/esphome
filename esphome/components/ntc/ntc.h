@@ -9,9 +9,9 @@ namespace ntc {
 class NTC : public Component, public sensor::Sensor {
  public:
   void set_sensor(Sensor *sensor) { sensor_ = sensor; }
-  void set_a(float a) { a_ = a; }
-  void set_b(float b) { b_ = b; }
-  void set_c(float c) { c_ = c; }
+  void set_a(double a) { a_ = a; }
+  void set_b(double b) { b_ = b; }
+  void set_c(double c) { c_ = c; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
@@ -20,9 +20,9 @@ class NTC : public Component, public sensor::Sensor {
   void process_(float value);
 
   sensor::Sensor *sensor_;
-  float a_;
-  float b_;
-  float c_;
+  double a_;
+  double b_;
+  double c_;
 };
 
 }  // namespace ntc

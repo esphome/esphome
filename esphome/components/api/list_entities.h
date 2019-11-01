@@ -2,15 +2,10 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
-#include "api_message.h"
+#include "util.h"
 
 namespace esphome {
 namespace api {
-
-class ListEntitiesRequest : public APIMessage {
- public:
-  APIMessageType message_type() const override;
-};
 
 class APIConnection;
 
