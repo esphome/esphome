@@ -106,7 +106,6 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
-  uint8_t c[] = {0x00, 0x00};
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -139,21 +138,21 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       }
       break;
     }
-    case TuyaCommandType::CONF_QUERY:
+    case TuyaCommandType::CONF_QUERY: {
       if (len >= 2) {
         gpio_status_ = buffer[0];
         gpio_reset_ = buffer[1];
       }
       // set wifi state LED to off or on depending on the MCU firmware
       // but it shouldn't be blinking
-      c[0] = 0x03;
-      c[1] = 0x00;
+      uint8_t c[] = {0x03};
       this->send_command_(TuyaCommandType::WIFI_STATE, c, 1);
       if (this->init_state_ == TuyaInitState::INIT_CONF) {
         this->init_state_ = TuyaInitState::INIT_DATAPOINT;
         this->send_empty_command_(TuyaCommandType::DATAPOINT_QUERY);
       }
       break;
+    }
     case TuyaCommandType::WIFI_STATE:
       break;
     case TuyaCommandType::WIFI_RESET:
@@ -173,8 +172,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_QUERY:
       break;
     case TuyaCommandType::WIFI_TEST: {
-      c[0] = 0x00;
-      c[1] = 0x00;
+      uint8_t c[] = {0x00, 0x00};
       this->send_command_(TuyaCommandType::WIFI_TEST, c, 2);
       break;
     }
