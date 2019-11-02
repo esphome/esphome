@@ -344,7 +344,7 @@ class UInt32Type(TypeInfo):
 class EnumType(TypeInfo):
     @property
     def cpp_type(self):
-        return "Enum" + self._field.type_name[1:]
+        return f'enums::{self._field.type_name[1:]}'
 
     @property
     def decode_varint(self):
@@ -497,17 +497,17 @@ class RepeatedTypeInfo(TypeInfo):
 
 
 def build_enum_type(desc):
-    name = "Enum" + desc.name
+    name = desc.name
     out = f"enum {name} : uint32_t {{\n"
     for v in desc.value:
         out += f'  {v.name} = {v.number},\n'
     out += '};\n'
 
     cpp = f"template<>\n"
-    cpp += f"const char *proto_enum_to_string<{name}>({name} value) {{\n"
+    cpp += f"const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
     cpp += f"  switch (value) {{\n"
     for v in desc.value:
-        cpp += f'    case {v.name}: return "{v.name}";\n'
+        cpp += f'    case enums::{v.name}: return "{v.name}";\n'
     cpp += f'    default: return "UNKNOWN";\n'
     cpp += f'  }}\n'
     cpp += f'}}\n'
@@ -636,10 +636,14 @@ namespace api {
 
 '''
 
+content += 'namespace enums {\n\n'
+
 for enum in file.enum_type:
     s, c = build_enum_type(enum)
     content += s
     cpp += c
+
+content += '\n}  // namespace enums\n\n'
 
 mt = file.message_type
 

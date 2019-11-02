@@ -620,6 +620,7 @@ light:
 servo:
   id: my_servo
   output: out
+  restore: true
 
 ttp229_lsf:
 
