@@ -4,115 +4,115 @@
 namespace esphome {
 namespace api {
 
-template<> const char *proto_enum_to_string<EnumLegacyCoverState>(EnumLegacyCoverState value) {
+template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
   switch (value) {
-    case LEGACY_COVER_STATE_OPEN:
+    case enums::LEGACY_COVER_STATE_OPEN:
       return "LEGACY_COVER_STATE_OPEN";
-    case LEGACY_COVER_STATE_CLOSED:
+    case enums::LEGACY_COVER_STATE_CLOSED:
       return "LEGACY_COVER_STATE_CLOSED";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumCoverOperation>(EnumCoverOperation value) {
+template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
   switch (value) {
-    case COVER_OPERATION_IDLE:
+    case enums::COVER_OPERATION_IDLE:
       return "COVER_OPERATION_IDLE";
-    case COVER_OPERATION_IS_OPENING:
+    case enums::COVER_OPERATION_IS_OPENING:
       return "COVER_OPERATION_IS_OPENING";
-    case COVER_OPERATION_IS_CLOSING:
+    case enums::COVER_OPERATION_IS_CLOSING:
       return "COVER_OPERATION_IS_CLOSING";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumLegacyCoverCommand>(EnumLegacyCoverCommand value) {
+template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::LegacyCoverCommand value) {
   switch (value) {
-    case LEGACY_COVER_COMMAND_OPEN:
+    case enums::LEGACY_COVER_COMMAND_OPEN:
       return "LEGACY_COVER_COMMAND_OPEN";
-    case LEGACY_COVER_COMMAND_CLOSE:
+    case enums::LEGACY_COVER_COMMAND_CLOSE:
       return "LEGACY_COVER_COMMAND_CLOSE";
-    case LEGACY_COVER_COMMAND_STOP:
+    case enums::LEGACY_COVER_COMMAND_STOP:
       return "LEGACY_COVER_COMMAND_STOP";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumFanSpeed>(EnumFanSpeed value) {
+template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed value) {
   switch (value) {
-    case FAN_SPEED_LOW:
+    case enums::FAN_SPEED_LOW:
       return "FAN_SPEED_LOW";
-    case FAN_SPEED_MEDIUM:
+    case enums::FAN_SPEED_MEDIUM:
       return "FAN_SPEED_MEDIUM";
-    case FAN_SPEED_HIGH:
+    case enums::FAN_SPEED_HIGH:
       return "FAN_SPEED_HIGH";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumLogLevel>(EnumLogLevel value) {
+template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
-    case LOG_LEVEL_NONE:
+    case enums::LOG_LEVEL_NONE:
       return "LOG_LEVEL_NONE";
-    case LOG_LEVEL_ERROR:
+    case enums::LOG_LEVEL_ERROR:
       return "LOG_LEVEL_ERROR";
-    case LOG_LEVEL_WARN:
+    case enums::LOG_LEVEL_WARN:
       return "LOG_LEVEL_WARN";
-    case LOG_LEVEL_INFO:
+    case enums::LOG_LEVEL_INFO:
       return "LOG_LEVEL_INFO";
-    case LOG_LEVEL_DEBUG:
+    case enums::LOG_LEVEL_DEBUG:
       return "LOG_LEVEL_DEBUG";
-    case LOG_LEVEL_VERBOSE:
+    case enums::LOG_LEVEL_VERBOSE:
       return "LOG_LEVEL_VERBOSE";
-    case LOG_LEVEL_VERY_VERBOSE:
+    case enums::LOG_LEVEL_VERY_VERBOSE:
       return "LOG_LEVEL_VERY_VERBOSE";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumServiceArgType>(EnumServiceArgType value) {
+template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
-    case SERVICE_ARG_TYPE_BOOL:
+    case enums::SERVICE_ARG_TYPE_BOOL:
       return "SERVICE_ARG_TYPE_BOOL";
-    case SERVICE_ARG_TYPE_INT:
+    case enums::SERVICE_ARG_TYPE_INT:
       return "SERVICE_ARG_TYPE_INT";
-    case SERVICE_ARG_TYPE_FLOAT:
+    case enums::SERVICE_ARG_TYPE_FLOAT:
       return "SERVICE_ARG_TYPE_FLOAT";
-    case SERVICE_ARG_TYPE_STRING:
+    case enums::SERVICE_ARG_TYPE_STRING:
       return "SERVICE_ARG_TYPE_STRING";
-    case SERVICE_ARG_TYPE_BOOL_ARRAY:
+    case enums::SERVICE_ARG_TYPE_BOOL_ARRAY:
       return "SERVICE_ARG_TYPE_BOOL_ARRAY";
-    case SERVICE_ARG_TYPE_INT_ARRAY:
+    case enums::SERVICE_ARG_TYPE_INT_ARRAY:
       return "SERVICE_ARG_TYPE_INT_ARRAY";
-    case SERVICE_ARG_TYPE_FLOAT_ARRAY:
+    case enums::SERVICE_ARG_TYPE_FLOAT_ARRAY:
       return "SERVICE_ARG_TYPE_FLOAT_ARRAY";
-    case SERVICE_ARG_TYPE_STRING_ARRAY:
+    case enums::SERVICE_ARG_TYPE_STRING_ARRAY:
       return "SERVICE_ARG_TYPE_STRING_ARRAY";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumClimateMode>(EnumClimateMode value) {
+template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
-    case CLIMATE_MODE_OFF:
+    case enums::CLIMATE_MODE_OFF:
       return "CLIMATE_MODE_OFF";
-    case CLIMATE_MODE_AUTO:
+    case enums::CLIMATE_MODE_AUTO:
       return "CLIMATE_MODE_AUTO";
-    case CLIMATE_MODE_COOL:
+    case enums::CLIMATE_MODE_COOL:
       return "CLIMATE_MODE_COOL";
-    case CLIMATE_MODE_HEAT:
+    case enums::CLIMATE_MODE_HEAT:
       return "CLIMATE_MODE_HEAT";
     default:
       return "UNKNOWN";
   }
 }
-template<> const char *proto_enum_to_string<EnumClimateAction>(EnumClimateAction value) {
+template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
-    case CLIMATE_ACTION_OFF:
+    case enums::CLIMATE_ACTION_OFF:
       return "CLIMATE_ACTION_OFF";
-    case CLIMATE_ACTION_COOLING:
+    case enums::CLIMATE_ACTION_COOLING:
       return "CLIMATE_ACTION_COOLING";
-    case CLIMATE_ACTION_HEATING:
+    case enums::CLIMATE_ACTION_HEATING:
       return "CLIMATE_ACTION_HEATING";
     default:
       return "UNKNOWN";
@@ -535,11 +535,11 @@ void ListEntitiesCoverResponse::dump_to(std::string &out) const {
 bool CoverStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->legacy_state = value.as_enum<EnumLegacyCoverState>();
+      this->legacy_state = value.as_enum<enums::LegacyCoverState>();
       return true;
     }
     case 5: {
-      this->current_operation = value.as_enum<EnumCoverOperation>();
+      this->current_operation = value.as_enum<enums::CoverOperation>();
       return true;
     }
     default:
@@ -566,10 +566,10 @@ bool CoverStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void CoverStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_enum<EnumLegacyCoverState>(2, this->legacy_state);
+  buffer.encode_enum<enums::LegacyCoverState>(2, this->legacy_state);
   buffer.encode_float(3, this->position);
   buffer.encode_float(4, this->tilt);
-  buffer.encode_enum<EnumCoverOperation>(5, this->current_operation);
+  buffer.encode_enum<enums::CoverOperation>(5, this->current_operation);
 }
 void CoverStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -580,7 +580,7 @@ void CoverStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  legacy_state: ");
-  out.append(proto_enum_to_string<EnumLegacyCoverState>(this->legacy_state));
+  out.append(proto_enum_to_string<enums::LegacyCoverState>(this->legacy_state));
   out.append("\n");
 
   out.append("  position: ");
@@ -594,7 +594,7 @@ void CoverStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  current_operation: ");
-  out.append(proto_enum_to_string<EnumCoverOperation>(this->current_operation));
+  out.append(proto_enum_to_string<enums::CoverOperation>(this->current_operation));
   out.append("\n");
   out.append("}");
 }
@@ -605,7 +605,7 @@ bool CoverCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 3: {
-      this->legacy_command = value.as_enum<EnumLegacyCoverCommand>();
+      this->legacy_command = value.as_enum<enums::LegacyCoverCommand>();
       return true;
     }
     case 4: {
@@ -645,7 +645,7 @@ bool CoverCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void CoverCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->has_legacy_command);
-  buffer.encode_enum<EnumLegacyCoverCommand>(3, this->legacy_command);
+  buffer.encode_enum<enums::LegacyCoverCommand>(3, this->legacy_command);
   buffer.encode_bool(4, this->has_position);
   buffer.encode_float(5, this->position);
   buffer.encode_bool(6, this->has_tilt);
@@ -665,7 +665,7 @@ void CoverCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  legacy_command: ");
-  out.append(proto_enum_to_string<EnumLegacyCoverCommand>(this->legacy_command));
+  out.append(proto_enum_to_string<enums::LegacyCoverCommand>(this->legacy_command));
   out.append("\n");
 
   out.append("  has_position: ");
@@ -781,7 +781,7 @@ bool FanStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 4: {
-      this->speed = value.as_enum<EnumFanSpeed>();
+      this->speed = value.as_enum<enums::FanSpeed>();
       return true;
     }
     default:
@@ -802,7 +802,7 @@ void FanStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
   buffer.encode_bool(3, this->oscillating);
-  buffer.encode_enum<EnumFanSpeed>(4, this->speed);
+  buffer.encode_enum<enums::FanSpeed>(4, this->speed);
 }
 void FanStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -821,7 +821,7 @@ void FanStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  speed: ");
-  out.append(proto_enum_to_string<EnumFanSpeed>(this->speed));
+  out.append(proto_enum_to_string<enums::FanSpeed>(this->speed));
   out.append("\n");
   out.append("}");
 }
@@ -840,7 +840,7 @@ bool FanCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 5: {
-      this->speed = value.as_enum<EnumFanSpeed>();
+      this->speed = value.as_enum<enums::FanSpeed>();
       return true;
     }
     case 6: {
@@ -870,7 +870,7 @@ void FanCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(2, this->has_state);
   buffer.encode_bool(3, this->state);
   buffer.encode_bool(4, this->has_speed);
-  buffer.encode_enum<EnumFanSpeed>(5, this->speed);
+  buffer.encode_enum<enums::FanSpeed>(5, this->speed);
   buffer.encode_bool(6, this->has_oscillating);
   buffer.encode_bool(7, this->oscillating);
 }
@@ -895,7 +895,7 @@ void FanCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  speed: ");
-  out.append(proto_enum_to_string<EnumFanSpeed>(this->speed));
+  out.append(proto_enum_to_string<enums::FanSpeed>(this->speed));
   out.append("\n");
 
   out.append("  has_oscillating: ");
@@ -1740,7 +1740,7 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
 bool SubscribeLogsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
-      this->level = value.as_enum<EnumLogLevel>();
+      this->level = value.as_enum<enums::LogLevel>();
       return true;
     }
     case 2: {
@@ -1752,14 +1752,14 @@ bool SubscribeLogsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   }
 }
 void SubscribeLogsRequest::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_enum<EnumLogLevel>(1, this->level);
+  buffer.encode_enum<enums::LogLevel>(1, this->level);
   buffer.encode_bool(2, this->dump_config);
 }
 void SubscribeLogsRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeLogsRequest {\n");
   out.append("  level: ");
-  out.append(proto_enum_to_string<EnumLogLevel>(this->level));
+  out.append(proto_enum_to_string<enums::LogLevel>(this->level));
   out.append("\n");
 
   out.append("  dump_config: ");
@@ -1770,7 +1770,7 @@ void SubscribeLogsRequest::dump_to(std::string &out) const {
 bool SubscribeLogsResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
-      this->level = value.as_enum<EnumLogLevel>();
+      this->level = value.as_enum<enums::LogLevel>();
       return true;
     }
     case 4: {
@@ -1796,7 +1796,7 @@ bool SubscribeLogsResponse::decode_length(uint32_t field_id, ProtoLengthDelimite
   }
 }
 void SubscribeLogsResponse::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_enum<EnumLogLevel>(1, this->level);
+  buffer.encode_enum<enums::LogLevel>(1, this->level);
   buffer.encode_string(2, this->tag);
   buffer.encode_string(3, this->message);
   buffer.encode_bool(4, this->send_failed);
@@ -1805,7 +1805,7 @@ void SubscribeLogsResponse::dump_to(std::string &out) const {
   char buffer[64];
   out.append("SubscribeLogsResponse {\n");
   out.append("  level: ");
-  out.append(proto_enum_to_string<EnumLogLevel>(this->level));
+  out.append(proto_enum_to_string<enums::LogLevel>(this->level));
   out.append("\n");
 
   out.append("  tag: ");
@@ -2010,7 +2010,7 @@ void GetTimeResponse::dump_to(std::string &out) const {
 bool ListEntitiesServicesArgument::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->type = value.as_enum<EnumServiceArgType>();
+      this->type = value.as_enum<enums::ServiceArgType>();
       return true;
     }
     default:
@@ -2029,7 +2029,7 @@ bool ListEntitiesServicesArgument::decode_length(uint32_t field_id, ProtoLengthD
 }
 void ListEntitiesServicesArgument::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->name);
-  buffer.encode_enum<EnumServiceArgType>(2, this->type);
+  buffer.encode_enum<enums::ServiceArgType>(2, this->type);
 }
 void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   char buffer[64];
@@ -2039,7 +2039,7 @@ void ListEntitiesServicesArgument::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  type: ");
-  out.append(proto_enum_to_string<EnumServiceArgType>(this->type));
+  out.append(proto_enum_to_string<enums::ServiceArgType>(this->type));
   out.append("\n");
   out.append("}");
 }
@@ -2408,7 +2408,7 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       return true;
     }
     case 7: {
-      this->supported_modes.push_back(value.as_enum<EnumClimateMode>());
+      this->supported_modes.push_back(value.as_enum<enums::ClimateMode>());
       return true;
     }
     case 11: {
@@ -2471,7 +2471,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(5, this->supports_current_temperature);
   buffer.encode_bool(6, this->supports_two_point_target_temperature);
   for (auto &it : this->supported_modes) {
-    buffer.encode_enum<EnumClimateMode>(7, it, true);
+    buffer.encode_enum<enums::ClimateMode>(7, it, true);
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
@@ -2509,7 +2509,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   for (const auto &it : this->supported_modes) {
     out.append("  supported_modes: ");
-    out.append(proto_enum_to_string<EnumClimateMode>(it));
+    out.append(proto_enum_to_string<enums::ClimateMode>(it));
     out.append("\n");
   }
 
@@ -2540,7 +2540,7 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
-      this->mode = value.as_enum<EnumClimateMode>();
+      this->mode = value.as_enum<enums::ClimateMode>();
       return true;
     }
     case 7: {
@@ -2548,7 +2548,7 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 8: {
-      this->action = value.as_enum<EnumClimateAction>();
+      this->action = value.as_enum<enums::ClimateAction>();
       return true;
     }
     default:
@@ -2583,13 +2583,13 @@ bool ClimateStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 }
 void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
-  buffer.encode_enum<EnumClimateMode>(2, this->mode);
+  buffer.encode_enum<enums::ClimateMode>(2, this->mode);
   buffer.encode_float(3, this->current_temperature);
   buffer.encode_float(4, this->target_temperature);
   buffer.encode_float(5, this->target_temperature_low);
   buffer.encode_float(6, this->target_temperature_high);
   buffer.encode_bool(7, this->away);
-  buffer.encode_enum<EnumClimateAction>(8, this->action);
+  buffer.encode_enum<enums::ClimateAction>(8, this->action);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2600,7 +2600,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  mode: ");
-  out.append(proto_enum_to_string<EnumClimateMode>(this->mode));
+  out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
   out.append("\n");
 
   out.append("  current_temperature: ");
@@ -2628,7 +2628,7 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  action: ");
-  out.append(proto_enum_to_string<EnumClimateAction>(this->action));
+  out.append(proto_enum_to_string<enums::ClimateAction>(this->action));
   out.append("\n");
   out.append("}");
 }
@@ -2639,7 +2639,7 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 3: {
-      this->mode = value.as_enum<EnumClimateMode>();
+      this->mode = value.as_enum<enums::ClimateMode>();
       return true;
     }
     case 4: {
@@ -2691,7 +2691,7 @@ bool ClimateCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->has_mode);
-  buffer.encode_enum<EnumClimateMode>(3, this->mode);
+  buffer.encode_enum<enums::ClimateMode>(3, this->mode);
   buffer.encode_bool(4, this->has_target_temperature);
   buffer.encode_float(5, this->target_temperature);
   buffer.encode_bool(6, this->has_target_temperature_low);
@@ -2714,7 +2714,7 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append("\n");
 
   out.append("  mode: ");
-  out.append(proto_enum_to_string<EnumClimateMode>(this->mode));
+  out.append(proto_enum_to_string<enums::ClimateMode>(this->mode));
   out.append("\n");
 
   out.append("  has_target_temperature: ");
