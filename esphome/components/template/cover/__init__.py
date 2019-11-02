@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.components import cover
 from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
     CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
-    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA
+    CONF_STATE, CONF_POSITION, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA
 from .. import template_ns
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
@@ -38,6 +38,8 @@ def to_code(config):
         template_ = yield cg.process_lambda(config[CONF_LAMBDA], [],
                                             return_type=cg.optional.template(float))
         cg.add(var.set_state_lambda(template_))
+    if CONF_POSITION in config:
+        cg.add(var.set_has_position(True))
     if CONF_OPEN_ACTION in config:
         yield automation.build_automation(var.get_open_trigger(), [], config[CONF_OPEN_ACTION])
     if CONF_CLOSE_ACTION in config:
