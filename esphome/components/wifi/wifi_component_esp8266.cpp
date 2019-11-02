@@ -394,24 +394,6 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
 
-  // Clear saved STA config
-  station_config default_config{};
-  wifi_station_get_config_default(&default_config);
-  bool is_zero = default_config.ssid[0] == '\0' && default_config.password[0] == '\0' && default_config.bssid[0] == 0 &&
-                 default_config.bssid_set == 0;
-  if (!is_zero) {
-    ESP_LOGV(TAG, "Clearing default wifi STA config");
-
-    memset(&default_config, 0, sizeof(default_config));
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_station_set_config(&default_config);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Clearing default wif STA config failed!");
-    }
-  }
-
   bool ret1, ret2;
   ETS_UART_INTR_DISABLE();
   ret1 = wifi_station_set_auto_connect(0);
@@ -496,11 +478,14 @@ bool WiFiComponent::wifi_scan_start_() {
   return ret;
 }
 bool WiFiComponent::wifi_disconnect_() {
+  bool ret = true;
+  // Only call disconnect if interface is up
+  if (wifi_get_opmode() & WIFI_STA)
+    ret = wifi_station_disconnect();
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
-  wifi_station_set_config(&conf);
-  bool ret = wifi_station_disconnect();
+  wifi_station_set_config_current(&conf);
   ETS_UART_INTR_ENABLE();
   return ret;
 }
