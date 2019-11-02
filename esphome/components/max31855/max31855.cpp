@@ -41,7 +41,7 @@ void MAX31855Sensor::read_data_() {
   this->read_array(data, 4);
   this->disable();
 
-  const uint32_t mem(data[0] << 24 | data[1] << 16 | data[2] <<  8 | data[3] <<  0);
+  const uint32_t mem(data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3] << 0);
 
   // Verify we got data
   if (mem && mem != 0xFFFFFFFF) {
@@ -69,8 +69,7 @@ void MAX31855Sensor::read_data_() {
 
   // Check thermocouple faults
   if (mem & 0x00000001) {
-    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08X)",
-             mem);
+    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08X)", mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
@@ -88,7 +87,8 @@ void MAX31855Sensor::read_data_() {
     return;
   }
   if (mem & 0x00010000) {
-    ESP_LOGW(TAG, "Got faulty reading from MAX31855Thermocouple short circuit to VCC fault from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Got faulty reading from MAX31855Thermocouple short circuit to VCC fault from MAX31855 (0x%08X)",
+             mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
