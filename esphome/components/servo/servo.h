@@ -47,6 +47,7 @@ class Servo : public Component {
   void set_min_level(float min_level) { min_level_ = min_level; }
   void set_idle_level(float idle_level) { idle_level_ = idle_level; }
   void set_max_level(float max_level) { max_level_ = max_level; }
+  void set_restore(bool restore) { restore_ = restore; }
 
  protected:
   void save_level_(float v) { this->rtc_.save(&v); }
