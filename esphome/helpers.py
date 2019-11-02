@@ -80,6 +80,9 @@ def run_system_command(*args):
 
 
 def mkdir_p(path):
+    if not path:
+        # Empty path - means create current dir
+        return
     try:
         os.makedirs(path)
     except OSError as err:
