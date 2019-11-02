@@ -286,8 +286,6 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    import shutil
-
     source_files = {}
     for _, component, _ in iter_components(CORE.config):
         source_files.update(component.source_files)
@@ -326,8 +324,7 @@ def copy_src_tree():
     # Now copy new files
     for target, src_path in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.split('/'))
-        mkdir_p(os.path.dirname(dst_path))
-        shutil.copy(src_path, dst_path)
+        copy_file_if_changed(src_path, dst_path)
 
     # Finally copy defines
     write_file_if_changed(CORE.relative_src_path('esphome', 'core', 'defines.h'),

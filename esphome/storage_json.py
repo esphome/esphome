@@ -7,7 +7,7 @@ import os
 
 from esphome import const
 from esphome.core import CORE
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 # pylint: disable=unused-import, wrong-import-order
 from esphome.core import CoreType  # noqa
@@ -88,7 +88,6 @@ class StorageJSON(object):
         return json.dumps(self.as_dict(), indent=2) + u'\n'
 
     def save(self, path):
-        mkdir_p(os.path.dirname(path))
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
