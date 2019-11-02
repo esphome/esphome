@@ -7,7 +7,7 @@ import os
 
 from esphome import const
 from esphome.core import CORE
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 # pylint: disable=unused-import, wrong-import-order
 from esphome.core import CoreType  # noqa
