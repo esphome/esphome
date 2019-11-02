@@ -31,9 +31,9 @@ bool PCF8574Component::digital_read(uint8_t pin) {
 }
 void PCF8574Component::digital_write(uint8_t pin, bool value) {
   if (value) {
-    this->port_mask_ |= (1 << pin);
+    this->output_mask_ |= (1 << pin);
   } else {
-    this->port_mask_ &= ~(1 << pin);
+    this->output_mask_ &= ~(1 << pin);
   }
 
   this->write_gpio_();
@@ -41,16 +41,14 @@ void PCF8574Component::digital_write(uint8_t pin, bool value) {
 void PCF8574Component::pin_mode(uint8_t pin, uint8_t mode) {
   switch (mode) {
     case PCF8574_INPUT:
-      this->ddr_mask_ &= ~(1 << pin);
-      this->port_mask_ &= ~(1 << pin);
-      break;
-    case PCF8574_INPUT_PULLUP:
-      this->ddr_mask_ &= ~(1 << pin);
-      this->port_mask_ |= (1 << pin);
+      // Clear mode mask bit
+      this->mode_mask_ &= ~(1 << pin);
+      // Write GPIO to enable input mode
+      this->write_gpio_();
       break;
     case PCF8574_OUTPUT:
-      this->ddr_mask_ |= (1 << pin);
-      this->port_mask_ &= ~(1 << pin);
+      // Set mode mask bit
+      this->mode_mask_ |= 1 << pin;
       break;
     default:
       break;
@@ -59,21 +57,20 @@ void PCF8574Component::pin_mode(uint8_t pin, uint8_t mode) {
 bool PCF8574Component::read_gpio_() {
   if (this->is_failed())
     return false;
-
+  bool success;
+  uint8_t data[2];
   if (this->pcf8575_) {
-    if (!this->parent_->raw_receive_16(this->address_, &this->input_mask_, 1)) {
-      this->status_set_warning();
-      return false;
-    }
+    success = this->read_bytes_raw(data, 2);
+    this->input_mask_ = (uint16_t(data[1]) << 8) | (uint16_t(data[0]) << 0);
   } else {
-    uint8_t data;
-    if (!this->parent_->raw_receive(this->address_, &data, 1)) {
-      this->status_set_warning();
-      return false;
-    }
-    this->input_mask_ = data;
+    success = this->read_bytes_raw(data, 1);
+    this->input_mask_ = data[0];
   }
 
+  if (!success) {
+    this->status_set_warning();
+    return false;
+  }
   this->status_clear_warning();
   return true;
 }
@@ -81,20 +78,20 @@ bool PCF8574Component::write_gpio_() {
   if (this->is_failed())
     return false;
 
-  uint16_t value = (this->input_mask_ & ~this->ddr_mask_) | this->port_mask_;
+  uint16_t value = 0;
+  // Pins in OUTPUT mode and where pin is HIGH.
+  value |= this->mode_mask_ & this->output_mask_;
+  // Pins in INPUT mode must also be set here
+  value |= ~this->mode_mask_;
 
-  this->parent_->raw_begin_transmission(this->address_);
-  uint8_t data = value & 0xFF;
-  this->parent_->raw_write(this->address_, &data, 1);
-
-  if (this->pcf8575_) {
-    data = (value >> 8) & 0xFF;
-    this->parent_->raw_write(this->address_, &data, 1);
-  }
-  if (!this->parent_->raw_end_transmission(this->address_)) {
+  uint8_t data[2];
+  data[0] = value;
+  data[1] = value >> 8;
+  if (!this->write_bytes_raw(data, this->pcf8575_ ? 2 : 1)) {
     this->status_set_warning();
     return false;
   }
+
   this->status_clear_warning();
   return true;
 }
