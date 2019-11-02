@@ -1,10 +1,11 @@
 #include "max31855.h"
+
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace max31855 {
 
-static const char *TAG = "max31855";
+static const char* TAG = "max31855";
 
 void MAX31855Sensor::update() {
   this->enable();
@@ -40,10 +41,7 @@ void MAX31855Sensor::read_data_() {
   this->read_array(data, 4);
   this->disable();
 
-  const uint32_t mem(data[0] << 24 |
-                     data[1] << 16 |
-                     data[2] <<  8 |
-                     data[3] <<  0);
+  const uint32_t mem(data[0] << 24 | data[1] << 16 | data[2] <<  8 | data[3] <<  0);
 
   // Verify we got data
   if (mem && mem != 0xFFFFFFFF) {
@@ -51,7 +49,9 @@ void MAX31855Sensor::read_data_() {
   } else {
     ESP_LOGE(TAG, "No data received from MAX31855 (0x%08X). Check wiring!", mem);
     this->publish_state(NAN);
-    if (this->temperature_reference_) { this->temperature_reference_->publish_state(NAN); }
+    if (this->temperature_reference_) {
+      this->temperature_reference_->publish_state(NAN);
+    }
     this->status_set_error();
     return;
   }
@@ -59,15 +59,18 @@ void MAX31855Sensor::read_data_() {
   // Internal reference temperature always works
   if (this->temperature_reference_) {
     int16_t val((mem & 0x0000FFF0) >> 4);
-    if (val & 0x800) { val |= 0xF000; } // Pad out 2's complement
-    const float tRef(float(val) * 0.0625f);
-    ESP_LOGD(TAG, "Got reference temperature: %.4f°C", tRef);
-    this->temperature_reference_->publish_state(tRef);
+    if (val & 0x0800) {
+      val |= 0xF000;  // Pad out 2's complement
+    }
+    const float t_ref(float(val) * 0.0625f);
+    ESP_LOGD(TAG, "Got reference temperature: %.4f°C", t_ref);
+    this->temperature_reference_->publish_state(t_ref);
   }
 
   // Check thermocouple faults
   if (mem & 0x00000001) {
-    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08X)", mem);
+    ESP_LOGW(TAG, "Thermocouple open circuit (not connected) fault from MAX31855 (0x%08X)",
+             mem);
     this->publish_state(NAN);
     this->status_set_warning();
     return;
@@ -93,10 +96,12 @@ void MAX31855Sensor::read_data_() {
 
   // Decode thermocouple temperature
   int16_t val = (mem & 0xFFFC0000) >> 18;
-  if (val & 0x2000) { val |= 0xC000; } // Pad out 2's complement
-  const float tSense(float(val) * 0.25f);
-  ESP_LOGD(TAG, "Got thermocouple temperature: %.2f°C", tSense);
-  this->publish_state(tSense);
+  if (val & 0x2000) {
+    val |= 0xC000;  // Pad out 2's complement
+  }
+  const float t_sense(float(val) * 0.25f);
+  ESP_LOGD(TAG, "Got thermocouple temperature: %.2f°C", t_sense);
+  this->publish_state(t_sense);
   this->status_clear_warning();
 }
 

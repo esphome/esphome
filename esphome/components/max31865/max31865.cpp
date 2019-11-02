@@ -1,10 +1,12 @@
 #include "max31865.h"
+
 #include "esphome/core/log.h"
+#include <cmath>
 
 namespace esphome {
 namespace max31865 {
 
-static const char *TAG = "max31865";
+static const char* TAG = "max31865";
 
 void MAX31865Sensor::update() {
   // Clear existing faults
@@ -14,7 +16,7 @@ void MAX31865Sensor::update() {
 
   // Run fault detection
   write_register_(CONFIGURATION_REG, 0b11101110, 0b10000100);
-  delay(1); // Datasheet spec for fault detect cycle is 600μs max
+  delay(1);  // Datasheet spec for fault detect cycle is 600μs max
   const uint8_t config(read_register_(CONFIGURATION_REG));
   if ((has_fault_ = config & 0b00001100)) {
     ESP_LOGE(TAG, "Fault detection did not finish! (0x%02X) Aborting read.", config);
@@ -37,7 +39,9 @@ void MAX31865Sensor::setup() {
   // Build configuration
   uint8_t config(0b00000010);
   config |= (filter_ & 1) << 0;
-  if (rtd_wires_ == 3) { config |= 1 << 4; }
+  if (rtd_wires_ == 3) {
+    config |= 1 << 4;
+  }
   write_register_(CONFIGURATION_REG, 0b11111111, config);
 }
 
@@ -47,7 +51,8 @@ void MAX31865Sensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Reference Resistance: %.2fΩ", reference_resistance_);
   ESP_LOGCONFIG(TAG, "  RTD: %d-wire %.2fΩ", rtd_wires_, rtd_nominal_resistance_);
-  ESP_LOGCONFIG(TAG, "  Filter: %s", (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
+  ESP_LOGCONFIG(TAG, "  Filter: %s",
+                (filter_ == FILTER_60HZ ? "60 Hz" : (filter_ == FILTER_50HZ ? "50 Hz" : "Unknown!")));
 }
 
 float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; }
@@ -99,11 +104,10 @@ void MAX31865Sensor::read_data_() {
     this->status_set_warning();
   }
   const float rtd_ratio(static_cast<float>(rtd_resistance_register >> 1) / static_cast<float>((1 << 15) - 1));
-  const float rtd_temperature(temperature(rtd_ratio));
-  ESP_LOGD(TAG,
-    "RTD read complete. %.5f (ratio) * %.1fΩ (reference) = %.2fΩ --> %.2f°C",
-    rtd_ratio, reference_resistance_, reference_resistance_ * rtd_ratio, rtd_temperature);
-  this->publish_state(rtd_temperature);
+  const float temperature(calc_temperature_(rtd_ratio));
+  ESP_LOGD(TAG, "RTD read complete. %.5f (ratio) * %.1fΩ (reference) = %.2fΩ --> %.2f°C", rtd_ratio,
+           reference_resistance_, reference_resistance_ * rtd_ratio, temperature);
+  this->publish_state(temperature);
 }
 
 void MAX31865Sensor::write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) {
@@ -139,23 +143,25 @@ const uint16_t MAX31865Sensor::read_register_16_(uint8_t reg) {
   return value;
 }
 
-float MAX31865Sensor::temperature(const float& rtd_ratio) {
+float MAX31865Sensor::calc_temperature_(const float& rtd_ratio) {
   // Based loosely on Adafruit's library: https://github.com/adafruit/Adafruit_MAX31865
-  // Mainly based on formulas provided by Analog: http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
+  // Mainly based on formulas provided by Analog:
+  // http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
 
-  const float A(3.9083e-3);
-  const float B(-5.775e-7);
-  const float C(-4.183e-12);
-  const float Z1(-A);
-  const float Z2(A * A - 4 * B);
-  const float Z3(4 * B / rtd_nominal_resistance_);
-  const float Z4(2 * B);
+  const float a(3.9083e-3);
+  const float b(-5.775e-7);
+  const float z1(-a);
+  const float z2(a * a - 4 * b);
+  const float z3(4 * b / rtd_nominal_resistance_);
+  const float z4(2 * b);
 
   float rtd_resistance(rtd_ratio * reference_resistance_);
 
   // ≥ 0°C Formula
-  const float pos_temp((Z1 + sqrt(Z2 + (Z3 * rtd_resistance))) / Z4);
-  if (pos_temp >= 0) { return pos_temp; }
+  const float pos_temp((z1 + std::sqrt(z2 + (z3 * rtd_resistance))) / z4);
+  if (pos_temp >= 0) {
+    return pos_temp;
+  }
 
   // < 0°C Formula
   if (rtd_nominal_resistance_ != 100) {
