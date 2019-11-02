@@ -478,11 +478,14 @@ bool WiFiComponent::wifi_scan_start_() {
   return ret;
 }
 bool WiFiComponent::wifi_disconnect_() {
+  bool ret = true;
+  // Only call disconnect if interface is up
+  if (wifi_get_opmode() & WIFI_STA)
+    ret = wifi_station_disconnect();
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
   wifi_station_set_config_current(&conf);
-  bool ret = wifi_station_disconnect();
   ETS_UART_INTR_ENABLE();
   return ret;
 }
