@@ -42,11 +42,13 @@ void PCF8574Component::pin_mode(uint8_t pin, uint8_t mode) {
   switch (mode) {
     case PCF8574_INPUT:
       this->ddr_mask_ &= ~(1 << pin);
-      this->port_mask_ &= ~(1 << pin);
+      this->port_mask_ |= ~(1 << pin);
+      this->write_gpio_();
       break;
     case PCF8574_INPUT_PULLUP:
       this->ddr_mask_ &= ~(1 << pin);
       this->port_mask_ |= (1 << pin);
+      this->write_gpio_();
       break;
     case PCF8574_OUTPUT:
       this->ddr_mask_ |= (1 << pin);
