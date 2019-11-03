@@ -44,6 +44,7 @@ class MAX31865Sensor : public sensor::Sensor,
   MAX31865ConfigFilter filter_;
   uint8_t rtd_wires_;
   bool has_fault_ = false;
+  bool has_warn_ = false;
   void read_data_();
   void write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position = 0);
   const uint8_t read_register_(uint8_t reg);
