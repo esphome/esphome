@@ -481,7 +481,7 @@ void WiFiComponent::retry_connect() {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
-    delay(100);
+    delay(100);  // NOLINT
     this->num_retried_ = 0;
   } else {
     this->num_retried_++;

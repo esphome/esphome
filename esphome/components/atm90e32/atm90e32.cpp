@@ -40,8 +40,29 @@ void ATM90E32Component::update() {
   if (this->phase_[2].power_sensor_ != nullptr) {
     this->phase_[2].power_sensor_->publish_state(this->get_active_power_c_());
   }
+  if (this->phase_[0].reactive_power_sensor_ != nullptr) {
+    this->phase_[0].reactive_power_sensor_->publish_state(this->get_reactive_power_a_());
+  }
+  if (this->phase_[1].reactive_power_sensor_ != nullptr) {
+    this->phase_[1].reactive_power_sensor_->publish_state(this->get_reactive_power_b_());
+  }
+  if (this->phase_[2].reactive_power_sensor_ != nullptr) {
+    this->phase_[2].reactive_power_sensor_->publish_state(this->get_reactive_power_c_());
+  }
+  if (this->phase_[0].power_factor_sensor_ != nullptr) {
+    this->phase_[0].power_factor_sensor_->publish_state(this->get_power_factor_a_());
+  }
+  if (this->phase_[1].power_factor_sensor_ != nullptr) {
+    this->phase_[1].power_factor_sensor_->publish_state(this->get_power_factor_b_());
+  }
+  if (this->phase_[2].power_factor_sensor_ != nullptr) {
+    this->phase_[2].power_factor_sensor_->publish_state(this->get_power_factor_c_());
+  }
   if (this->freq_sensor_ != nullptr) {
     this->freq_sensor_->publish_state(this->get_frequency_());
+  }
+  if (this->chip_temperature_sensor_ != nullptr) {
+    this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
   }
   this->status_clear_warning();
 }
@@ -89,13 +110,20 @@ void ATM90E32Component::dump_config() {
   LOG_SENSOR("  ", "Voltage A", this->phase_[0].voltage_sensor_);
   LOG_SENSOR("  ", "Current A", this->phase_[0].current_sensor_);
   LOG_SENSOR("  ", "Power A", this->phase_[0].power_sensor_);
+  LOG_SENSOR("  ", "Reactive Power A", this->phase_[0].reactive_power_sensor_);
+  LOG_SENSOR("  ", "PF A", this->phase_[0].power_factor_sensor_);
   LOG_SENSOR("  ", "Voltage B", this->phase_[1].voltage_sensor_);
   LOG_SENSOR("  ", "Current B", this->phase_[1].current_sensor_);
   LOG_SENSOR("  ", "Power B", this->phase_[1].power_sensor_);
+  LOG_SENSOR("  ", "Reactive Power B", this->phase_[1].reactive_power_sensor_);
+  LOG_SENSOR("  ", "PF B", this->phase_[1].power_factor_sensor_);
   LOG_SENSOR("  ", "Voltage C", this->phase_[2].voltage_sensor_);
   LOG_SENSOR("  ", "Current C", this->phase_[2].current_sensor_);
   LOG_SENSOR("  ", "Power C", this->phase_[2].power_sensor_);
-  LOG_SENSOR("  ", "Frequency", this->freq_sensor_)
+  LOG_SENSOR("  ", "Reactive Power C", this->phase_[2].reactive_power_sensor_);
+  LOG_SENSOR("  ", "PF C", this->phase_[2].power_factor_sensor_);
+  LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
+  LOG_SENSOR("  ", "Chip Temp", this->chip_temperature_sensor_);
 }
 float ATM90E32Component::get_setup_priority() const { return setup_priority::DATA; }
 
@@ -180,9 +208,37 @@ float ATM90E32Component::get_active_power_c_() {
   int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
   return val * 0.00032f;
 }
+float ATM90E32Component::get_reactive_power_a_() {
+  int val = this->read32_(ATM90E32_REGISTER_QMEANA, ATM90E32_REGISTER_QMEANALSB);
+  return val * 0.00032f;
+}
+float ATM90E32Component::get_reactive_power_b_() {
+  int val = this->read32_(ATM90E32_REGISTER_QMEANB, ATM90E32_REGISTER_QMEANBLSB);
+  return val * 0.00032f;
+}
+float ATM90E32Component::get_reactive_power_c_() {
+  int val = this->read32_(ATM90E32_REGISTER_QMEANC, ATM90E32_REGISTER_QMEANCLSB);
+  return val * 0.00032f;
+}
+float ATM90E32Component::get_power_factor_a_() {
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANA);
+  return (float) pf / 1000;
+}
+float ATM90E32Component::get_power_factor_b_() {
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANB);
+  return (float) pf / 1000;
+}
+float ATM90E32Component::get_power_factor_c_() {
+  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
+  return (float) pf / 1000;
+}
 float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
   return (float) freq / 100;
+}
+float ATM90E32Component::get_chip_temperature_() {
+  uint16_t ctemp = this->read16_(ATM90E32_REGISTER_TEMP);
+  return (float) ctemp;
 }
 }  // namespace atm90e32
 }  // namespace esphome

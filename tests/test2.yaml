@@ -54,13 +54,22 @@ deep_sleep:
   sleep_duration: 50s
 
 as3935_i2c:
-  pin: GPIO12
+  irq_pin: GPIO12
 
 
 sensor:
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
+  - platform: ble_rssi
+    service_uuid: '11aa'
+    name: "BLE Test Service 16"
+  - platform: ble_rssi
+    service_uuid: '11223344'
+    name: "BLE Test Service 32"
+  - platform: ble_rssi
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128"
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
@@ -170,6 +179,15 @@ binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
+  - platform: ble_presence
+    service_uuid: '11aa'
+    name: "BLE Test Service 16 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344'
+    name: "BLE Test Service 32 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128 Presence"
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27

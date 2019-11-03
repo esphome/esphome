@@ -2,14 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
-    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, \
-    ICON_FLASH, UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_POWER_FACTOR, CONF_FREQUENCY, \
+    ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
+    UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS
 
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
 CONF_PHASE_C = 'phase_c'
 
+CONF_REACTIVE_POWER = 'reactive_power'
 CONF_LINE_FREQUENCY = 'line_frequency'
+CONF_CHIP_TEMPERATURE = 'chip_temperature'
 CONF_GAIN_PGA = 'gain_pga'
 CONF_GAIN_VOLTAGE = 'gain_voltage'
 CONF_GAIN_CT = 'gain_ct'
@@ -28,8 +31,10 @@ ATM90E32Component = atm90e32_ns.class_('ATM90E32Component', cg.PollingComponent,
 
 ATM90E32_PHASE_SCHEMA = cv.Schema({
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 2),
-    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
+    cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_CURRENT_AC, 2),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 2),
+    cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(UNIT_EMPTY, ICON_LIGHTBULB, 2),
+    cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
     cv.Optional(CONF_GAIN_VOLTAGE, default=41820): cv.uint16_t,
     cv.Optional(CONF_GAIN_CT, default=25498): cv.uint16_t,
 })
@@ -39,7 +44,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
-    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HZ, ICON_FLASH, 1),
+    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HZ, ICON_CURRENT_AC, 1),
+    cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
@@ -65,8 +71,17 @@ def to_code(config):
         if CONF_POWER in conf:
             sens = yield sensor.new_sensor(conf[CONF_POWER])
             cg.add(var.set_power_sensor(i, sens))
+        if CONF_REACTIVE_POWER in conf:
+            sens = yield sensor.new_sensor(conf[CONF_REACTIVE_POWER])
+            cg.add(var.set_react_pow_sensor(i, sens))
+        if CONF_POWER_FACTOR in conf:
+            sens = yield sensor.new_sensor(conf[CONF_POWER_FACTOR])
+            cg.add(var.set_pf_sensor(i, sens))
     if CONF_FREQUENCY in config:
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
+    if CONF_CHIP_TEMPERATURE in config:
+        sens = yield sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
+        cg.add(var.set_chip_temp_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))

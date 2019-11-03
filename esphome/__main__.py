@@ -364,14 +364,15 @@ def command_update_all(args):
     def print_bar(middle_text):
         middle_text = " {} ".format(middle_text)
         width = len(click.unstyle(middle_text))
-        half_line = "=" * ((twidth - width) / 2)
+        half_line = "=" * ((twidth - width) // 2)
         click.echo("%s%s%s" % (half_line, middle_text, half_line))
 
     for f in files:
         print("Updating {}".format(color('cyan', f)))
         print('-' * twidth)
         print()
-        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs')
+        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs', '--upload-port',
+                                  'OTA')
         if rc == 0:
             print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
             success[f] = True

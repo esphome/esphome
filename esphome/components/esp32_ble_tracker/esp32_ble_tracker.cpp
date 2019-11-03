@@ -134,7 +134,7 @@ bool ESP32BLETracker::ble_setup() {
   }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
-  delay(200);
+  delay(200);  // NOLINT
 
   return true;
 }
@@ -245,6 +245,7 @@ bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   }
   return false;
 }
+esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
 std::string ESPBTUUID::to_string() {
   char sbuf[64];
   switch (this->uuid_.len) {

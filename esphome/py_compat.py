@@ -1,5 +1,6 @@
 import functools
 import sys
+import codecs
 
 PYTHON_MAJOR = sys.version_info[0]
 IS_PY2 = PYTHON_MAJOR == 2
@@ -75,15 +76,14 @@ def indexbytes(buf, i):
         return ord(buf[i])
 
 
-if IS_PY2:
-    def decode_text(data, encoding='utf-8', errors='strict'):
-        # type: (str, str, str) -> unicode
-        if isinstance(data, unicode):
-            return data
-        return unicode(data, encoding=encoding, errors=errors)
-else:
-    def decode_text(data, encoding='utf-8', errors='strict'):
-        # type: (bytes, str, str) -> str
-        if isinstance(data, str):
-            return data
-        return data.decode(encoding=encoding, errors=errors)
+def decode_text(data, encoding='utf-8', errors='strict'):
+    if isinstance(data, text_type):
+        return data
+    return codecs.decode(data, encoding, errors)
+
+
+def encode_text(data, encoding='utf-8', errors='strict'):
+    if isinstance(data, binary_type):
+        return data
+
+    return codecs.encode(data, encoding, errors)

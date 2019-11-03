@@ -2,6 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 namespace esphome {
 namespace uart {
@@ -41,6 +46,12 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -145,6 +156,13 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
+
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
 
 void UARTComponent::write_byte(uint8_t data) {
