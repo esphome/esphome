@@ -45,7 +45,7 @@ void MAX31865Sensor::update() {
     config = read_register_(CONFIGURATION_REG);
     fault_detect_time = micros() - start_time;
     if ((fault_detect_time >= 6000) && (config & 0b00001100)) {
-      ESP_LOGE(TAG, "Fault detection incomplete (0x%02X) after %uμs (spec is 600)! Aborting read.",
+      ESP_LOGE(TAG, "Fault detection incomplete (0x%02X) after %uμs (datasheet spec is 600μs max)! Aborting read.",
                config, fault_detect_time);
       this->publish_state(NAN);
       this->status_set_error();
