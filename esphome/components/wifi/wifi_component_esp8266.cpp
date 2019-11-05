@@ -579,7 +579,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
-  conf.ssid_hidden = 0;
+  conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 

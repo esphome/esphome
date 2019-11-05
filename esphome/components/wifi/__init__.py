@@ -179,7 +179,8 @@ def to_code(config):
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        cg.add(var.set_ap(wifi_network(conf, config.get(CONF_MANUAL_IP))))
+        ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        cg.add(var.set_ap(wifi_network(conf, ip_config)))
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
