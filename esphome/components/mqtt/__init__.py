@@ -155,7 +155,7 @@ def to_code(config):
     yield cg.register_component(var, config)
 
     # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library('AsyncMqttClient-esphome', '0.8.3')
+    cg.add_library('AsyncMqttClient-esphome', '0.8.4')
     cg.add_define('USE_MQTT')
     cg.add_global(mqtt_ns.using)
 
