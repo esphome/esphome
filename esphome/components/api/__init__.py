@@ -70,7 +70,7 @@ def to_code(config):
     cg.add_global(api_ns.using)
 
 
-KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.lambda_})
+KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.returning_lambda})
 
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
