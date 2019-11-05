@@ -1,7 +1,5 @@
 # Dummy integration to allow relying on AsyncTCP
 import esphome.codegen as cg
-from esphome.const import ARDUINO_VERSION_ESP32_1_0_0, ARDUINO_VERSION_ESP32_1_0_1, \
-    ARDUINO_VERSION_ESP32_1_0_2
 from esphome.core import CORE, coroutine_with_priority
 
 
