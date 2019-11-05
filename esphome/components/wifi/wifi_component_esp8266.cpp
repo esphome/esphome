@@ -410,19 +410,6 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
-  // Make sure the default opmode is OFF
-  uint8_t default_opmode = wifi_get_opmode_default();
-  if (default_opmode != 0) {
-    ESP_LOGV(TAG, "Setting default WiFi Mode to 0 (was %u)", default_opmode);
-
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_set_opmode(0);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Setting default WiFi mode failed!");
-    }
-  }
 
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
