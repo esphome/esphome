@@ -32,7 +32,6 @@ static const uint16_t STATE_DECREMENT_COUNTER_1 = 0x1000;
 // Bit 2&3 (0x0C) encodes state S0-S3
 // Bit 4 (0x10) encodes clockwise/counter-clockwise rotation
 
-
 // Only apply if DRAM_ATTR exists on this platform (exists on ESP32, not on ESP8266)
 #ifndef DRAM_ATTR
 #define DRAM_ATTR
