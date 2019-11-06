@@ -11,7 +11,7 @@ static const char* TAG = "max31865";
 void MAX31865Sensor::update() {
   // Check new faults since last measurement
   if (!has_fault_) {
-    const uint8_t faults(read_register_(FAULT_STATUS_REG));
+    const uint8_t faults = this->read_register_(FAULT_STATUS_REG);
     if (faults & 0b11111100) {
       if (faults & (1 << 2)) {
         ESP_LOGW(TAG, "Overvoltage/undervoltage fault between measurements");
@@ -38,11 +38,11 @@ void MAX31865Sensor::update() {
 
   // Run fault detection
   write_register_(CONFIGURATION_REG, 0b11101110, 0b10000110);
-  const uint32_t start_time(micros());
+  const uint32_t start_time = micros();
   uint8_t config;
   uint32_t fault_detect_time;
   do {
-    config = read_register_(CONFIGURATION_REG);
+    config = this->read_register_(CONFIGURATION_REG);
     fault_detect_time = micros() - start_time;
     if ((fault_detect_time >= 6000) && (config & 0b00001100)) {
       ESP_LOGE(TAG, "Fault detection incomplete (0x%02X) after %uμs (datasheet spec is 600μs max)! Aborting read.",
@@ -55,7 +55,7 @@ void MAX31865Sensor::update() {
   ESP_LOGV(TAG, "Fault detection completed in %uμs.", fault_detect_time);
 
   // Start 1-shot conversion
-  write_register_(CONFIGURATION_REG, 0b11100000, 0b10100000);
+  this->write_register_(CONFIGURATION_REG, 0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
   auto f = std::bind(&MAX31865Sensor::read_data_, this);
@@ -67,12 +67,12 @@ void MAX31865Sensor::setup() {
   this->spi_setup();
 
   // Build configuration
-  uint8_t config(0b00000010);
+  uint8_t config = 0b00000010;
   config |= (filter_ & 1) << 0;
   if (rtd_wires_ == 3) {
     config |= 1 << 4;
   }
-  write_register_(CONFIGURATION_REG, 0b11111111, config);
+  this->write_register_(CONFIGURATION_REG, 0b11111111, config);
 }
 
 void MAX31865Sensor::dump_config() {
@@ -89,11 +89,11 @@ float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; 
 
 void MAX31865Sensor::read_data_() {
   // Read temperature, disable V_BIAS (save power)
-  const uint16_t rtd_resistance_register(read_register_16_(RTD_RESISTANCE_MSB_REG));
-  write_register_(CONFIGURATION_REG, 0b11000000, 0b00000000);
+  const uint16_t rtd_resistance_register = this->read_register_16_(RTD_RESISTANCE_MSB_REG);
+  this->write_register_(CONFIGURATION_REG, 0b11000000, 0b00000000);
 
   // Check faults
-  const uint8_t faults(read_register_(FAULT_STATUS_REG));
+  const uint8_t faults = this->read_register_(FAULT_STATUS_REG);
   if ((has_fault_ = faults & 0b00111100)) {
     if (faults & (1 << 2)) {
       ESP_LOGE(TAG, "Overvoltage/undervoltage fault");
@@ -130,15 +130,15 @@ void MAX31865Sensor::read_data_() {
     ESP_LOGW(TAG, "RTD Resistance Registers fault bit set! (0x%04X)", rtd_resistance_register);
     this->status_set_warning();
   }
-  const float rtd_ratio(static_cast<float>(rtd_resistance_register >> 1) / static_cast<float>((1 << 15) - 1));
-  const float temperature(calc_temperature_(rtd_ratio));
+  const float rtd_ratio = static_cast<float>(rtd_resistance_register >> 1) / static_cast<float>((1 << 15) - 1);
+  const float temperature = this->calc_temperature_(rtd_ratio);
   ESP_LOGV(TAG, "RTD read complete. %.5f (ratio) * %.1fΩ (reference) = %.2fΩ --> %.2f°C", rtd_ratio,
            reference_resistance_, reference_resistance_ * rtd_ratio, temperature);
   this->publish_state(temperature);
 }
 
 void MAX31865Sensor::write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) {
-  uint8_t value(this->read_register_(reg));
+  uint8_t value = this->read_register_(reg);
 
   value &= (~mask);
   value |= (bits << start_position);
@@ -175,17 +175,17 @@ float MAX31865Sensor::calc_temperature_(const float& rtd_ratio) {
   // Mainly based on formulas provided by Analog:
   // http://www.analog.com/media/en/technical-documentation/application-notes/AN709_0.pdf
 
-  const float a(3.9083e-3);
-  const float b(-5.775e-7);
-  const float z1(-a);
-  const float z2(a * a - 4 * b);
-  const float z3(4 * b / rtd_nominal_resistance_);
-  const float z4(2 * b);
+  const float a = 3.9083e-3;
+  const float b = -5.775e-7;
+  const float z1 = -a;
+  const float z2 = a * a - 4 * b;
+  const float z3 = 4 * b / rtd_nominal_resistance_;
+  const float z4 = 2 * b;
 
-  float rtd_resistance(rtd_ratio * reference_resistance_);
+  float rtd_resistance = rtd_ratio * reference_resistance_;
 
   // ≥ 0°C Formula
-  const float pos_temp((z1 + std::sqrt(z2 + (z3 * rtd_resistance))) / z4);
+  const float pos_temp = (z1 + std::sqrt(z2 + (z3 * rtd_resistance))) / z4;
   if (pos_temp >= 0) {
     return pos_temp;
   }

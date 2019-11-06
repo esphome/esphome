@@ -41,10 +41,10 @@ void MAX31855Sensor::read_data_() {
   this->read_array(data, 4);
   this->disable();
 
-  const uint32_t mem(data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3] << 0);
+  const uint32_t mem = data[0] << 24 | data[1] << 16 | data[2] << 8 | data[3] << 0;
 
   // Verify we got data
-  if (mem && mem != 0xFFFFFFFF) {
+  if (mem != 0 && mem != 0xFFFFFFFF) {
     this->status_clear_error();
   } else {
     ESP_LOGE(TAG, "No data received from MAX31855 (0x%08X). Check wiring!", mem);
@@ -58,11 +58,11 @@ void MAX31855Sensor::read_data_() {
 
   // Internal reference temperature always works
   if (this->temperature_reference_) {
-    int16_t val((mem & 0x0000FFF0) >> 4);
+    int16_t val = (mem & 0x0000FFF0) >> 4;
     if (val & 0x0800) {
       val |= 0xF000;  // Pad out 2's complement
     }
-    const float t_ref(float(val) * 0.0625f);
+    const float t_ref = float(val) * 0.0625f;
     ESP_LOGD(TAG, "Got reference temperature: %.4f°C", t_ref);
     this->temperature_reference_->publish_state(t_ref);
   }
@@ -98,7 +98,7 @@ void MAX31855Sensor::read_data_() {
   if (val & 0x2000) {
     val |= 0xC000;  // Pad out 2's complement
   }
-  const float t_sense(float(val) * 0.25f);
+  const float t_sense = float(val) * 0.25f;
   ESP_LOGD(TAG, "Got thermocouple temperature: %.2f°C", t_sense);
   this->publish_state(t_sense);
   this->status_clear_warning();
