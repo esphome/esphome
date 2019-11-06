@@ -135,6 +135,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
