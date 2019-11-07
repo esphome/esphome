@@ -16,11 +16,14 @@ RESTORE_MODES = {
     'RESTORE_AND_CALL': TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
 }
 
+CONF_HAS_POSITION = 'has_position'
+
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateCover),
     cv.Optional(CONF_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
+    cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
     cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
@@ -38,8 +41,6 @@ def to_code(config):
         template_ = yield cg.process_lambda(config[CONF_LAMBDA], [],
                                             return_type=cg.optional.template(float))
         cg.add(var.set_state_lambda(template_))
-    if CONF_POSITION in config:
-        cg.add(var.set_has_position(True))
     if CONF_OPEN_ACTION in config:
         yield automation.build_automation(var.get_open_trigger(), [], config[CONF_OPEN_ACTION])
     if CONF_CLOSE_ACTION in config:
@@ -58,6 +59,7 @@ def to_code(config):
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 
 @automation.register_action('cover.template.publish', cover.CoverPublishAction, cv.Schema({
