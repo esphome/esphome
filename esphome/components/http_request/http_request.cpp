@@ -13,7 +13,7 @@ void HttpRequestComponent::dump_config() {
 }
 
 void HttpRequestComponent::send() {
-  bool begin_status;
+  bool begin_status = false;
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(this->url_);
 #endif
