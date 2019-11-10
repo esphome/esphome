@@ -76,7 +76,7 @@ def to_code(config):
             cg.add(var.set_react_pow_sensor(i, sens))
         if CONF_POWER_FACTOR in conf:
             sens = yield sensor.new_sensor(conf[CONF_POWER_FACTOR])
-            cg.add(var.set_pf_sensor(i, sens))
+            cg.add(var.set_power_factor_sensor(i, sens))
     if CONF_FREQUENCY in config:
         sens = yield sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
