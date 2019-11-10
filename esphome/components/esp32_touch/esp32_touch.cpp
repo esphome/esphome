@@ -124,6 +124,15 @@ void ESP32TouchComponent::loop() {
     if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
+
+    if (child->get_samples() > 0 && now - this->adaptive_threshold_last_run_ > child->get_interval()*1000) {
+      if (this->sample_ < child->get_samples()) {
+        abs(value-child->get_threshold()) > child->get_tolerance() ? this->sample_++; : this->sample_ = 0;
+      } else {
+        child->set_threshold(value);
+        this->sample_ = 0;
+      }
+    }
   }
 
   if (should_print) {
@@ -142,6 +151,8 @@ void ESP32TouchComponent::on_shutdown() {
 
 ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold)
     : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold) {}
+ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold, uint16_t tolerance, uint16_t interval, uint16_t samples)
+    : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold), tolerance_(tolerance), interval_(interval), samples_(samples) {}
 
 }  // namespace esp32_touch
 }  // namespace esphome
