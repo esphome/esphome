@@ -739,6 +739,10 @@ binary_sensor:
     pin: GPIO27
     threshold: 1000
     id: btn_left
+    adaptive_threshold:
+      tolerance: 2
+      interval: 2s
+      samples: 10
   - platform: nextion
     page_id: 0
     component_id: 2
