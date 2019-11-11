@@ -740,6 +740,7 @@ binary_sensor:
     threshold: 1000
     id: btn_left
     adaptive_threshold:
+      offset: 5
       tolerance: 2
       interval: 2s
       samples: 10

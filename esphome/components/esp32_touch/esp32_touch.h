@@ -60,13 +60,14 @@ class ESP32TouchComponent : public Component {
 class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
  public:
   ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold);
-  ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold, uint16_t tolerance,
-                         uint16_t interval, uint16_t samples);
+  ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold, uint16_t offset,
+                         uint16_t tolerance, uint16_t interval, uint16_t samples);
 
   touch_pad_t get_touch_pad() const { return touch_pad_; }
   uint16_t get_threshold() const { return threshold_; }
   void set_threshold(uint16_t threshold) { threshold_ = threshold; }
   uint16_t get_value() const { return value_; }
+  uint16_t get_offset() const { return offset_; }
   uint16_t get_tolerance() const { return tolerance_; }
   uint16_t get_interval() const { return interval_; }
   uint16_t get_samples() const { return samples_; }
@@ -77,6 +78,7 @@ class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
   touch_pad_t touch_pad_;
   uint16_t threshold_;
   uint16_t value_;
+  uint16_t offset_;
   uint16_t tolerance_;
   uint16_t interval_;
   uint16_t samples_{0};
