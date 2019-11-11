@@ -53,7 +53,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
 def to_code(config):
     hub = yield cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     if CONF_ADAPTIVE_THRESHOLD in config:
-	conf = config[CONF_ADAPTIVE_THRESHOLD]
+        conf = config[CONF_ADAPTIVE_THRESHOLD]
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], TOUCH_PADS[config[CONF_PIN]],
                                config[CONF_THRESHOLD], conf.get(CONF_TOLERANCE),
                                conf.get(CONF_INTERVAL), conf.get(CONF_SAMPLES))
