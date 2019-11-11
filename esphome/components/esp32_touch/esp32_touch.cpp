@@ -134,7 +134,7 @@ void ESP32TouchComponent::loop() {
 
     if (child->get_samples() > 0 && now - this->adaptive_threshold_last_run_ > child->get_interval() * 1000) {
       if (this->sample_ < child->get_samples()) {
-        abs(value - child->get_threshold()) > child->get_tolerance() ? this->sample_++ : this->sample_ = 0;
+        abs(value - child->get_threshold() + child->get_offset()) > child->get_tolerance() ? this->sample_++ : this->sample_ = 0;
       } else {
         child->set_threshold(value > child->get_offset() ? value - child->get_offset() : 0);
         if (should_print) {
