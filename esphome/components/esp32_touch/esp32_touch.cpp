@@ -143,6 +143,7 @@ void ESP32TouchComponent::loop() {
         this->sample_ = 0;
       }
     }
+    this->adaptive_threshold_last_run_ = now;
   }
 
   if (should_print) {
