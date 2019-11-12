@@ -390,6 +390,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   WiFiMockClass::_event_callback(event);
 }
 
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  uint8_t val = static_cast<uint8_t>(output_power * 4);
+  system_phy_set_max_tpw(val);
+  return true;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;

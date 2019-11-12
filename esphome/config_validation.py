@@ -616,6 +616,7 @@ angle = float_with_unit("angle", u"(°|deg)", optional_unit=True)
 _temperature_c = float_with_unit("temperature", u"(°C|° C|°|C)?")
 _temperature_k = float_with_unit("temperature", u"(° K|° K|K)?")
 _temperature_f = float_with_unit("temperature", u"(°F|° F|F)?")
+decibel = float_with_unit("decibel", u"(dB|dBm|db|dbm)", optional_unit=True)
 
 if IS_PY2:
     # Override voluptuous invalid to unicode for py2
