@@ -28,7 +28,7 @@ REQUIRES = [
     'paho-mqtt==1.4.0',
     'colorlog==4.0.2',
     'tornado==5.1.1',
-    'typing>=3.6.6;python_version<"3.5"',
+    'typing>=3.6.6;python_version<"3.6"',
     'protobuf==3.10.0',
     'tzlocal==2.0.0',
     'pytz==2019.3',
@@ -69,7 +69,7 @@ setup(
     zip_safe=False,
     platforms='any',
     test_suite='tests',
-    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,<4.0',
+    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4.0',
     install_requires=REQUIRES,
     keywords=['home', 'automation'],
     entry_points={
