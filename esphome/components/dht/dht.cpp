@@ -47,8 +47,10 @@ void DHT::update() {
   if (error) {
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    this->temperature_sensor_->publish_state(temperature);
-    this->humidity_sensor_->publish_state(humidity);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   } else {
     const char *str = "";
@@ -56,8 +58,10 @@ void DHT::update() {
       str = " and consider manually specifying the DHT model using the model option";
     }
     ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
-    this->temperature_sensor_->publish_state(NAN);
-    this->humidity_sensor_->publish_state(NAN);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(NAN);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(NAN);
     this->status_set_warning();
   }
 }
