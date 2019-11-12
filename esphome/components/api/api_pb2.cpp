@@ -404,6 +404,10 @@ bool BinarySensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->state = value.as_bool();
       return true;
     }
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -421,6 +425,7 @@ bool BinarySensorStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value
 void BinarySensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_bool(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
 }
 void BinarySensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -432,6 +437,10 @@ void BinarySensorStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append(YESNO(this->state));
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
   out.append("\n");
   out.append("}");
 }
@@ -1451,6 +1460,16 @@ void ListEntitiesSensorResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+bool SensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool SensorStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
   switch (field_id) {
     case 1: {
@@ -1468,6 +1487,7 @@ bool SensorStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
 void SensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_float(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
 }
 void SensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1480,6 +1500,10 @@ void SensorStateResponse::dump_to(std::string &out) const {
   out.append("  state: ");
   sprintf(buffer, "%g", this->state);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
   out.append("\n");
   out.append("}");
 }
@@ -1700,6 +1724,16 @@ void ListEntitiesTextSensorResponse::dump_to(std::string &out) const {
   out.append("\n");
   out.append("}");
 }
+bool TextSensorStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 3: {
+      this->missing_state = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool TextSensorStateResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 2: {
@@ -1723,6 +1757,7 @@ bool TextSensorStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) 
 void TextSensorStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_fixed32(1, this->key);
   buffer.encode_string(2, this->state);
+  buffer.encode_bool(3, this->missing_state);
 }
 void TextSensorStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -1734,6 +1769,10 @@ void TextSensorStateResponse::dump_to(std::string &out) const {
 
   out.append("  state: ");
   out.append("'").append(this->state).append("'");
+  out.append("\n");
+
+  out.append("  missing_state: ");
+  out.append(YESNO(this->missing_state));
   out.append("\n");
   out.append("}");
 }

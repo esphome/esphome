@@ -188,8 +188,9 @@ class ListEntitiesBinarySensorResponse : public ProtoMessage {
 };
 class BinarySensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};    // NOLINT
-  bool state{false};  // NOLINT
+  uint32_t key{0};            // NOLINT
+  bool state{false};          // NOLINT
+  bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
@@ -380,13 +381,15 @@ class ListEntitiesSensorResponse : public ProtoMessage {
 };
 class SensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};    // NOLINT
-  float state{0.0f};  // NOLINT
+  uint32_t key{0};            // NOLINT
+  float state{0.0f};          // NOLINT
+  bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class ListEntitiesSwitchResponse : public ProtoMessage {
  public:
@@ -442,14 +445,16 @@ class ListEntitiesTextSensorResponse : public ProtoMessage {
 };
 class TextSensorStateResponse : public ProtoMessage {
  public:
-  uint32_t key{0};      // NOLINT
-  std::string state{};  // NOLINT
+  uint32_t key{0};            // NOLINT
+  std::string state{};        // NOLINT
+  bool missing_state{false};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeLogsRequest : public ProtoMessage {
  public:
