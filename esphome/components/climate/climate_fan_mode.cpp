@@ -28,4 +28,4 @@ const char *climate_fan_mode_to_string(ClimateFanMode fan_mode) {
   }
 }
 }  // namespace climate
-}  // namespace climate
+}  // namespace esphome

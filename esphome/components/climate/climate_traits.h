@@ -46,7 +46,7 @@ class ClimateTraits {
   void set_supports_auto_mode(bool supports_auto_mode);
   void set_supports_cool_mode(bool supports_cool_mode);
   void set_supports_heat_mode(bool supports_heat_mode);
-  void set_supports_fan_only_mode(bool supports_fan_mode);
+  void set_supports_fan_only_mode(bool supports_fan_only_mode);
   void set_supports_dry_mode(bool supports_dry_mode);
   void set_supports_away(bool supports_away);
   bool get_supports_away() const;
