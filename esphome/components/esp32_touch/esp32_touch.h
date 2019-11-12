@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#include <unordered_map>
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -52,36 +53,44 @@ class ESP32TouchComponent : public Component {
   bool setup_mode_{false};
   uint32_t setup_mode_last_log_print_{};
   uint32_t iir_filter_{0};
-  uint32_t adaptive_threshold_last_run_{};
-  uint16_t sample_{0};
 };
 
 /// Simple helper class to expose a touch pad value as a binary sensor.
 class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
  public:
   ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold);
-  ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold, uint16_t offset,
-                         uint16_t tolerance, uint16_t interval, uint16_t samples);
+  ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t offset, uint16_t interval,
+                         uint16_t sample_size);
 
   touch_pad_t get_touch_pad() const { return touch_pad_; }
   uint16_t get_threshold() const { return threshold_; }
   void set_threshold(uint16_t threshold) { threshold_ = threshold; }
   uint16_t get_value() const { return value_; }
   uint16_t get_offset() const { return offset_; }
-  uint16_t get_tolerance() const { return tolerance_; }
   uint16_t get_interval() const { return interval_; }
-  uint16_t get_samples() const { return samples_; }
+  uint16_t get_sample_size() const { return sample_size_; }
+  void add_sample(uint16_t sample) { samples_[sample]++; }
+  void clear_samples() { samples_.clear(); }
+  uint32_t get_last_run() const { return last_run_; }
+  void set_last_run(uint32_t last_run) { last_run_ = last_run; }
+  uint16_t get_count() const { return count_; }
+  void increment_count() { count_++; }
+  void reset_count() { count_ = 0; }
+
+  uint16_t find_most_freq();
 
  protected:
   friend ESP32TouchComponent;
 
   touch_pad_t touch_pad_;
-  uint16_t threshold_;
+  uint16_t threshold_{};
   uint16_t value_;
   uint16_t offset_;
-  uint16_t tolerance_;
   uint16_t interval_;
-  uint16_t samples_{0};
+  uint16_t sample_size_{};
+  uint16_t count_{};
+  uint32_t last_run_{};
+  std::unordered_map<uint16_t, uint16_t> samples_;
 };
 
 }  // namespace esp32_touch

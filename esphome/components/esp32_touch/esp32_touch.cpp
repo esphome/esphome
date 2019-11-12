@@ -104,12 +104,11 @@ void ESP32TouchComponent::dump_config() {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
     ESP_LOGCONFIG(TAG, "    Pad: T%d", child->get_touch_pad());
     ESP_LOGCONFIG(TAG, "    Threshold: %u", child->get_threshold());
-    if (child->get_samples() > 0) {
+    if (child->get_sample_size() > 0) {
       ESP_LOGCONFIG(TAG, "    Adaptive threshold:");
       ESP_LOGCONFIG(TAG, "      Offset: %u", child->get_offset());
-      ESP_LOGCONFIG(TAG, "      Tolerance: %u", child->get_tolerance());
-      ESP_LOGCONFIG(TAG, "      Interval: %ums", child->get_interval());
-      ESP_LOGCONFIG(TAG, "      Samples: %u", child->get_samples());
+      ESP_LOGCONFIG(TAG, "      Interval: %us", child->get_interval() / 1000);
+      ESP_LOGCONFIG(TAG, "      Samples: %u", child->get_sample_size());
     }
   }
 }
@@ -132,17 +131,25 @@ void ESP32TouchComponent::loop() {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
 
-    if (child->get_samples() > 0 && now - this->adaptive_threshold_last_run_ > child->get_interval() * 1000) {
-      if (this->sample_ < child->get_samples()) {
-        abs(value - child->get_threshold() + child->get_offset()) > child->get_tolerance() ? this->sample_++ : this->sample_ = 0;
+    if (child->get_sample_size() > 0 && now - child->get_last_run() > child->get_interval()) {
+      if (child->get_count() < child->get_sample_size()) {
+        child->add_sample(value);
+        child->increment_count();
       } else {
-        child->set_threshold(value > child->get_offset() ? value - child->get_offset() : 0);
-        if (should_print) {
+        value = child->find_most_freq();
+        // Check underflow
+        if (value < child->get_offset()) {
+          child->set_threshold(0);
+        } else {
+          child->set_threshold(value - child->get_offset());
+        }
+        if (this->setup_mode_) {
           ESP_LOGD(TAG, "New threshold set: %u", child->get_threshold());
         }
-        this->sample_ = 0;
+        child->clear_samples();
+        child->reset_count();
       }
-      this->adaptive_threshold_last_run_ = now;
+      child->set_last_run(now);
     }
   }
 
@@ -162,15 +169,24 @@ void ESP32TouchComponent::on_shutdown() {
 
 ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold)
     : BinarySensor(name), touch_pad_(touch_pad), threshold_(threshold) {}
-ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t threshold,
-                                               uint16_t offset, uint16_t tolerance, uint16_t interval, uint16_t samples)
+ESP32TouchBinarySensor::ESP32TouchBinarySensor(const std::string &name, touch_pad_t touch_pad, uint16_t offset,
+                                               uint16_t interval, uint16_t sample_size)
     : BinarySensor(name),
       touch_pad_(touch_pad),
-      threshold_(threshold),
       offset_(offset),
-      tolerance_(tolerance),
-      interval_(interval),
-      samples_(samples) {}
+      interval_(interval * 1000),
+      sample_size_(sample_size) {}
+
+uint16_t ESP32TouchBinarySensor::find_most_freq() {
+  uint16_t max_count = 0, most_freq = 0;
+  for (auto i : this->samples_) {
+    if (max_count < i.second) {
+      most_freq = i.first;
+      max_count = i.second;
+    }
+  }
+  return most_freq;
+}
 
 }  // namespace esp32_touch
 }  // namespace esphome

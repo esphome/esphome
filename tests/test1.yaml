@@ -737,12 +737,10 @@ binary_sensor:
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
-    threshold: 1000
     id: btn_left
     adaptive_threshold:
       offset: 5
-      tolerance: 2
-      interval: 2s
+      interval: 1s
       samples: 10
   - platform: nextion
     page_id: 0

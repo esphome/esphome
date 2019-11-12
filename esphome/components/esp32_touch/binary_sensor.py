@@ -2,8 +2,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (CONF_NAME, CONF_PIN, CONF_THRESHOLD, CONF_ADAPTIVE_THRESHOLD,
-                           CONF_OFFSET, CONF_TOLERANCE, CONF_INTERVAL, CONF_SAMPLES,
-                           ESP_PLATFORM_ESP32, CONF_ID)
+                           CONF_OFFSET, CONF_INTERVAL, CONF_SAMPLES, ESP_PLATFORM_ESP32,
+                           CONF_ID)
 from esphome.pins import validate_gpio_pin
 from . import esp32_touch_ns, ESP32TouchComponent
 
@@ -37,7 +37,6 @@ ESP32TouchBinarySensor = esp32_touch_ns.class_('ESP32TouchBinarySensor', binary_
 
 ADAPTIVE_THRESHOLD_SCHEMA = cv.Schema({
     cv.Required(CONF_OFFSET): cv.positive_int,
-    cv.Required(CONF_TOLERANCE): cv.positive_int,
     cv.Optional(CONF_INTERVAL, default='2s'): cv.positive_time_period_seconds,
     cv.Optional(CONF_SAMPLES, default=10): cv.positive_not_null_int
 })
@@ -46,8 +45,8 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(ESP32TouchBinarySensor),
     cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_id(ESP32TouchComponent),
     cv.Required(CONF_PIN): validate_touch_pad,
-    cv.Required(CONF_THRESHOLD): cv.uint16_t,
-    cv.Optional(CONF_ADAPTIVE_THRESHOLD): ADAPTIVE_THRESHOLD_SCHEMA
+    cv.Exclusive(CONF_THRESHOLD, 'threshold_group'): cv.uint16_t,
+    cv.Exclusive(CONF_ADAPTIVE_THRESHOLD, 'threshold_group'): ADAPTIVE_THRESHOLD_SCHEMA
 })
 
 
@@ -56,8 +55,7 @@ def to_code(config):
     if CONF_ADAPTIVE_THRESHOLD in config:
         conf = config[CONF_ADAPTIVE_THRESHOLD]
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], TOUCH_PADS[config[CONF_PIN]],
-                               config[CONF_THRESHOLD], conf.get(CONF_OFFSET),
-                               conf.get(CONF_TOLERANCE), conf.get(CONF_INTERVAL),
+                               conf.get(CONF_OFFSET), conf.get(CONF_INTERVAL),
                                conf.get(CONF_SAMPLES))
     else:
         var = cg.new_Pvariable(config[CONF_ID], config[CONF_NAME], TOUCH_PADS[config[CONF_PIN]],
