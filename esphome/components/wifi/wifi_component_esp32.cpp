@@ -53,6 +53,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   return ret;
 }
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  int8_t val = static_cast<uint8_t>(output_power * 4);
+  return esp_wifi_set_max_tx_power(val) == ESP_OK;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
