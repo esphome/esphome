@@ -478,7 +478,7 @@ message TextSensorStateResponse {
 
   fixed32 key = 1;
   string state = 2;
-  // If the sensor does not have a valid state yet.
+  // If the text sensor does not have a valid state yet.
   // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
   bool missing_state = 3;
 }
