@@ -14,7 +14,7 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
     CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
-from esphome.py_compat import IS_PY2, safe_input
+from esphome.py_compat import IS_PY2, safe_input, IS_PY3
 from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -518,6 +518,10 @@ def run_esphome(argv):
         _LOGGER.warning("You're using ESPHome with python 2. Support for python 2 is deprecated "
                         "and will be removed in 1.15.0. Please reinstall ESPHome with python 3.6 "
                         "or higher.")
+    elif IS_PY3 and sys.version_info < (3, 6, 0):
+        _LOGGER.warning("You're using ESPHome with python 3.5. Support for python 3.5 is "
+                        "deprecated and will be removed in 1.15.0. Please reinstall ESPHome with "
+                        "python 3.6 or higher.")
 
     if args.command in PRE_CONFIG_ACTIONS:
         try:
