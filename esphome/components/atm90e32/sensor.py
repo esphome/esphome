@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
     CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_FREQUENCY, \
-    ICON_FLASH, UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+    ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_HERTZ, ICON_CURRENT_AC
 
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PHASE_A): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_B): ATM90E32_PHASE_SCHEMA,
     cv.Optional(CONF_PHASE_C): ATM90E32_PHASE_SCHEMA,
-    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HZ, ICON_FLASH, 1),
+    cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HERTZ, ICON_CURRENT_AC, 1),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
