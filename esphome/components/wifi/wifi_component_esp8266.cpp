@@ -391,7 +391,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
 }
 
 bool WiFiComponent::wifi_apply_output_power_(float output_power) {
-  uint8_t val = output_power * 4;
+  uint8_t val = static_cast<uint8_t>(output_power * 4);
   system_phy_set_max_tpw(val);
   return true;
 }
