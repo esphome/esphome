@@ -74,7 +74,11 @@ def validate_method_pin(value):
         method_pins['BIT_BANG'] = list(range(0, 16))
     elif CORE.is_esp32:
         method_pins['BIT_BANG'] = list(range(0, 32))
-    pins_ = method_pins[method]
+    pins_ = method_pins.get(method)
+    if pins_ is None:
+        # all pins allowed for this method
+        return value
+
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
             raise cv.Invalid("Method {} only supports pin(s) {}".format(
