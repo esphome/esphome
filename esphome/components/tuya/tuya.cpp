@@ -20,6 +20,10 @@ void Tuya::loop() {
 }
 
 void Tuya::dump_config() {
+  this->set_timeout("dump_config", 2000, [this] { this->dump_config_(); });
+}
+
+void Tuya::dump_config_() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   if ((gpio_status_ != -1) || (gpio_reset_ != -1))
