@@ -67,7 +67,6 @@ class Tuya : public Component, public uart::UARTDevice {
   void handle_char_(uint8_t c);
   void handle_datapoint_(const uint8_t *buffer, size_t len);
   bool validate_message_();
-  void dump_config_();
 
   void handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len);
   void send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_t len);
