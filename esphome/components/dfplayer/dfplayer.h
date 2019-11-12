@@ -27,29 +27,56 @@ class DFPlayer : public uart::UARTDevice, public Component {
  public:
   void loop() override;
 
-  void next() { this->send_cmd_(0x01); }
-  void previous() { this->send_cmd_(0x02); }
+  void next() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x01);
+  }
+  void previous() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x02);
+  }
   void play_file(uint16_t file) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x03, file);
   }
-  void play_file_loop(uint16_t file) { this->send_cmd_(0x08, file); }
+  void play_file_loop(uint16_t file) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x08, file);
+  }
   void play_folder(uint16_t folder, uint16_t file);
-  void play_folder_loop(uint16_t folder) { this->send_cmd_(0x17, folder); }
+  void play_folder_loop(uint16_t folder) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x17, folder);
+  }
   void volume_up() { this->send_cmd_(0x04); }
   void volume_down() { this->send_cmd_(0x05); }
   void set_device(Device device) { this->send_cmd_(0x09, device); }
   void set_volume(uint8_t volume) { this->send_cmd_(0x06, volume); }
   void set_eq(EqPreset preset) { this->send_cmd_(0x07, preset); }
-  void sleep() { this->send_cmd_(0x0A); }
-  void reset() { this->send_cmd_(0x0C); }
-  void start() { this->send_cmd_(0x0D); }
+  void sleep() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x0A);
+  }
+  void reset() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x0C);
+  }
+  void start() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x0D);
+  }
   void pause() {
     this->ack_reset_is_playing_ = true;
     this->send_cmd_(0x0E);
   }
-  void stop() { this->send_cmd_(0x16); }
-  void random() { this->send_cmd_(0x18); }
+  void stop() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x16);
+  }
+  void random() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x18);
+  }
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;
