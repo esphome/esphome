@@ -188,6 +188,10 @@ def upload_program(config, args, host):
 
     from esphome import espota2
 
+    if CONF_OTA not in config:
+        raise EsphomeError("Cannot upload Over the Air as the config does not include the ota: "
+                           "component")
+
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf[CONF_PASSWORD]
