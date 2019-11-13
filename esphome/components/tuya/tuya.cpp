@@ -22,7 +22,7 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %d",
+    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
                   this->init_state_);
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
@@ -40,8 +40,8 @@ void Tuya::dump_config() {
       ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
   if ((this->gpio_status_ != -1) || (this->gpio_reset_ != -1)) {
-    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)",
-                  this->gpio_status_, this->gpio_reset_);
+    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)", this->gpio_status_,
+                  this->gpio_reset_);
   }
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   this->check_uart_settings(9600);
@@ -175,7 +175,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        if (!this->dump_complete_){
+        if (!this->dump_complete_) {
           this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
         }
       }
