@@ -335,8 +335,6 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
         ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                  format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       }
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason=%s", buf,
-               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {
