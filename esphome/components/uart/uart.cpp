@@ -46,12 +46,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
-#ifdef USE_LOGGER
-  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
-    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
-                  "disable logging over the serial port by setting logger->baud_rate to 0.");
-  }
-#endif
+  this->check_logger_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -156,13 +151,7 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
-
-#ifdef USE_LOGGER
-  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
-    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
-                  "disable logging over the serial port by setting logger->baud_rate to 0.");
-  }
-#endif
+  this->check_logger_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -387,6 +376,28 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
     ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
              this->parent_->stop_bits_);
   }
+}
+
+void UARTDevice::check_logger(){
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0)
+    return
+
+  auto logger_uart = logger::global_logger->get_uart();
+
+  if ((this->hw_serial_ == &Serial  && logger_uart == logger::UARTSelection::UART_SELECTION_UART0) ||
+      (this->hw_serial_ == &Serial1 && logger_uart == logger::UARTSelection::UART_SELECTION_UART1) ||
+#ifdef ARDUINO_ARCH_ESP32
+      (this->hw_serial_ == &Serial2 && logger_uart == logger::UARTSelection::UART_SELECTION_UART2)){
+#endif
+#ifdef ARDUINO_ARCH_ESP8266
+      (this->hw_serial_ == &Serial && logger_uart == logger::UARTSelection::UART_SELECTION_UART0_SWAP)){}
+#endif
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+
+  }
+#endif
 }
 
 }  // namespace uart
