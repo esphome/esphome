@@ -56,7 +56,7 @@ enum class TuyaInitState : uint8_t {
 
 class Tuya : public Component, public uart::UARTDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -75,6 +75,7 @@ class Tuya : public Component, public uart::UARTDevice {
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
+  bool dump_complete_ = false;
   std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;

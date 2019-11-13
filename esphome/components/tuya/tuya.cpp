@@ -21,8 +21,9 @@ void Tuya::loop() {
 
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
-  if (this->init_state_ < TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete.");
+  if (this->init_state_ != TuyaInitState::INIT_DONE) {
+    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %d",
+                  this->init_state_);
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
@@ -39,10 +40,12 @@ void Tuya::dump_config() {
       ESP_LOGCONFIG(TAG, "  Datapoint %d: unknown", info.id);
   }
   if ((this->gpio_status_ != -1) || (this->gpio_reset_ != -1)) {
-    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)", this->gpio_status_, this->gpio_reset_);
+    ESP_LOGCONFIG(TAG, "  GPIO Configuration: status: pin %d, reset: pin %d (not supported)",
+                  this->gpio_status_, this->gpio_reset_);
   }
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   this->check_uart_settings(9600);
+  this->dump_complete_ = true;
 }
 
 bool Tuya::validate_message_() {
@@ -92,7 +95,7 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] STATE=%hhu", command, version,
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
            hexencode(message_data, length).c_str(), this->init_state_);
   this->handle_command_(command, version, message_data, length);
 
@@ -172,7 +175,9 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
+        if (!this->dump_complete_){
+          this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
+        }
       }
       this->handle_datapoint_(buffer, len);
       break;
@@ -255,7 +260,7 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   uint8_t len_lo = len >> 0;
   uint8_t version = 0;
 
-  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02hhX VERSION=%u DATA=[%s] STATE=%hhu", command, version,
+  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
            hexencode(buffer, len).c_str(), this->init_state_);
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command, len_hi, len_lo});
