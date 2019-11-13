@@ -45,7 +45,6 @@ void Tuya::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
   this->check_uart_settings(9600);
-  this->dump_complete_ = true;
 }
 
 bool Tuya::validate_message_() {
@@ -175,9 +174,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::DATAPOINT_REPORT:
       if (this->init_state_ == TuyaInitState::INIT_DATAPOINT) {
         this->init_state_ = TuyaInitState::INIT_DONE;
-        if (!this->dump_complete_) {
-          this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
-        }
+        this->set_timeout("datapoint_dump", 1000, [this] { this->dump_config(); });
       }
       this->handle_datapoint_(buffer, len);
       break;

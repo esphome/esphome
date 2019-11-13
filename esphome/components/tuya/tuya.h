@@ -75,7 +75,6 @@ class Tuya : public Component, public uart::UARTDevice {
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
   int gpio_status_ = -1;
   int gpio_reset_ = -1;
-  bool dump_complete_ = false;
   std::string product_ = "";
   std::vector<TuyaDatapointListener> listeners_;
   std::vector<TuyaDatapoint> datapoints_;
