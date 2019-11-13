@@ -25,6 +25,8 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_COOLING = 2,
   /// The climate device is actively heating (usually in heat or auto mode)
   CLIMATE_ACTION_HEATING = 3,
+  /// The climate device is idle (applicable for any mode)
+  CLIMATE_ACTION_IDLE = 4,
 };
 
 /// Convert the given ClimateMode to a human-readable string.

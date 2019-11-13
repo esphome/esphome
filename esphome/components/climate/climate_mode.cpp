@@ -25,6 +25,8 @@ const char *climate_action_to_string(ClimateAction action) {
       return "COOLING";
     case CLIMATE_ACTION_HEATING:
       return "HEATING";
+    case CLIMATE_ACTION_IDLE:
+      return "IDLE";
     default:
       return "UNKNOWN";
   }
