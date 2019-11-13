@@ -46,7 +46,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
-  this->check_logger_();
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -151,7 +151,7 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
-  this->check_logger_();
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -367,18 +367,7 @@ int UARTComponent::peek() {
   return data;
 }
 
-void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
-  if (this->parent_->baud_rate_ != baud_rate) {
-    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
-             this->parent_->baud_rate_);
-  }
-  if (this->parent_->stop_bits_ != stop_bits) {
-    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
-             this->parent_->stop_bits_);
-  }
-}
-
-void UARTDevice::check_logger(){
+void UARTComponent::check_logger_conflict_(){
 #ifdef USE_LOGGER
   if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0)
     return
@@ -398,6 +387,17 @@ void UARTDevice::check_logger(){
 
   }
 #endif
+}
+
+void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
+  if (this->parent_->baud_rate_ != baud_rate) {
+    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
+             this->parent_->baud_rate_);
+  }
+  if (this->parent_->stop_bits_ != stop_bits) {
+    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
+             this->parent_->stop_bits_);
+  }
 }
 
 }  // namespace uart
