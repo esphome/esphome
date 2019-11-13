@@ -1,7 +1,6 @@
 #pragma once
 
 #include "climate_mode.h"
-#include "climate_fan_mode.h"
 
 namespace esphome {
 namespace climate {
@@ -28,8 +27,10 @@ namespace climate {
  *      target temperature settings: one target temp setting for "away" mode and one for non-away mode.
  *  - supports action - if the climate device supports reporting the active
  *    current action of the device with the action property.
- *  - supoprts fan modes - optionally, if it has a fan which can be configured in different ways:
+ *  - supports fan modes - optionally, if it has a fan which can be configured in different ways:
  *    - on, off, auto, high, medium, low, middle, focus, diffuse
+ *  - supports swing modes - optionally, if it has a swing which can be configured in different ways:
+ *    - off, both, vertical, horizontal
  *
  * This class also contains static data for the climate device display:
  *  - visual min/max temperature - tells the frontend what range of temperatures the climate device
@@ -64,6 +65,12 @@ class ClimateTraits {
   void set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse);
   bool supports_fan_mode(ClimateFanMode fan_mode) const;
   bool get_supports_fan_modes() const;
+  void set_supports_swing_mode_off(bool supports_swing_mode_off);
+  void set_supports_swing_mode_both(bool supports_swing_mode_both);
+  void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical);
+  void set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal);
+  bool supports_swing_mode(ClimateSwingMode swing_mode) const;
+  bool get_supports_swing_modes() const;
 
   float get_visual_min_temperature() const;
   void set_visual_min_temperature(float visual_min_temperature);
@@ -92,6 +99,10 @@ class ClimateTraits {
   bool supports_fan_mode_middle_{false};
   bool supports_fan_mode_focus_{false};
   bool supports_fan_mode_diffuse_{false};
+  bool supports_swing_mode_off_{false};
+  bool supports_swing_mode_both_{false};
+  bool supports_swing_mode_vertical_{false};
+  bool supports_swing_mode_horizontal_{false};
 
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};

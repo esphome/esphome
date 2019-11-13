@@ -160,7 +160,7 @@ bool MQTTClimateComponent::publish_state_() {
       mode_s = "heat";
       break;
     case CLIMATE_MODE_FAN_ONLY:
-      mode_s = "fan";
+      mode_s = "fan_only";
       break;
     case CLIMATE_MODE_DRY:
       mode_s = "dry";

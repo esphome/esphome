@@ -21,6 +21,9 @@ from pathlib import Path
 from textwrap import dedent
 from subprocess import call
 
+# Generate with
+# protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
+
 import api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
 

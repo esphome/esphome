@@ -136,6 +136,20 @@ template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::Climat
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
+  switch (value) {
+    case enums::CLIMATE_SWING_OFF:
+      return "CLIMATE_SWING_OFF";
+    case enums::CLIMATE_SWING_BOTH:
+      return "CLIMATE_SWING_BOTH";
+    case enums::CLIMATE_SWING_VERTICAL:
+      return "CLIMATE_SWING_VERTICAL";
+    case enums::CLIMATE_SWINT_HORIZONTAL:
+      return "CLIMATE_SWINT_HORIZONTAL";
+    default:
+      return "UNKNOWN";
+  }
+}
 template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
     case enums::CLIMATE_ACTION_OFF:
@@ -148,6 +162,16 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "UNKNOWN";
   }
 }
+bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->client_version = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -158,12 +182,20 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
       return false;
   }
 }
-void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
+void HelloRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->client_info);
+  buffer.encode_uint32(2, this->client_version);
+}
 void HelloRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HelloRequest {\n");
   out.append("  client_info: ");
   out.append("'").append(this->client_info).append("'");
+  out.append("\n");
+
+  out.append("  client_version: ");
+  sprintf(buffer, "%u", this->client_version);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -2492,6 +2524,10 @@ bool ListEntitiesClimateResponse::decode_varint(uint32_t field_id, ProtoVarInt v
       this->supported_fan_modes.push_back(value.as_enum<enums::ClimateFanMode>());
       return true;
     }
+    case 14: {
+      this->supported_swing_modes.push_back(value.as_enum<enums::ClimateSwingMode>());
+      return true;
+    }
     default:
       return false;
   }
@@ -2553,6 +2589,9 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
     buffer.encode_enum<enums::ClimateFanMode>(13, it, true);
+  }
+  for (auto &it : this->supported_swing_modes) {
+    buffer.encode_enum<enums::ClimateSwingMode>(14, it, true);
   }
 }
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -2617,6 +2656,12 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
     out.append(proto_enum_to_string<enums::ClimateFanMode>(it));
     out.append("\n");
   }
+
+  for (const auto &it : this->supported_swing_modes) {
+    out.append("  supported_swing_modes: ");
+    out.append(proto_enum_to_string<enums::ClimateSwingMode>(it));
+    out.append("\n");
+  }
   out.append("}");
 }
 bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
@@ -2634,7 +2679,11 @@ bool ClimateStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 9: {
-      this->fan = value.as_enum<enums::ClimateFanMode>();
+      this->fan_mode = value.as_enum<enums::ClimateFanMode>();
+      return true;
+    }
+    case 10: {
+      this->swing_mode = value.as_enum<enums::ClimateSwingMode>();
       return true;
     }
     default:
@@ -2676,7 +2725,8 @@ void ClimateStateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(6, this->target_temperature_high);
   buffer.encode_bool(7, this->away);
   buffer.encode_enum<enums::ClimateAction>(8, this->action);
-  buffer.encode_enum<enums::ClimateFanMode>(9, this->fan);
+  buffer.encode_enum<enums::ClimateFanMode>(9, this->fan_mode);
+  buffer.encode_enum<enums::ClimateSwingMode>(10, this->swing_mode);
 }
 void ClimateStateResponse::dump_to(std::string &out) const {
   char buffer[64];
@@ -2718,8 +2768,12 @@ void ClimateStateResponse::dump_to(std::string &out) const {
   out.append(proto_enum_to_string<enums::ClimateAction>(this->action));
   out.append("\n");
 
-  out.append("  fan: ");
-  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan));
+  out.append("  fan_mode: ");
+  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
+  out.append("\n");
+
+  out.append("  swing_mode: ");
+  out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
   out.append("\n");
   out.append("}");
 }
@@ -2754,11 +2808,19 @@ bool ClimateCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 12: {
-      this->has_fan = value.as_bool();
+      this->has_fan_mode = value.as_bool();
       return true;
     }
     case 13: {
-      this->fan = value.as_enum<enums::ClimateFanMode>();
+      this->fan_mode = value.as_enum<enums::ClimateFanMode>();
+      return true;
+    }
+    case 14: {
+      this->has_swing_mode = value.as_bool();
+      return true;
+    }
+    case 15: {
+      this->swing_mode = value.as_enum<enums::ClimateSwingMode>();
       return true;
     }
     default:
@@ -2799,8 +2861,10 @@ void ClimateCommandRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_float(9, this->target_temperature_high);
   buffer.encode_bool(10, this->has_away);
   buffer.encode_bool(11, this->away);
-  buffer.encode_bool(12, this->has_fan);
-  buffer.encode_enum<enums::ClimateFanMode>(13, this->fan);
+  buffer.encode_bool(12, this->has_fan_mode);
+  buffer.encode_enum<enums::ClimateFanMode>(13, this->fan_mode);
+  buffer.encode_bool(14, this->has_swing_mode);
+  buffer.encode_enum<enums::ClimateSwingMode>(15, this->swing_mode);
 }
 void ClimateCommandRequest::dump_to(std::string &out) const {
   char buffer[64];
@@ -2853,12 +2917,20 @@ void ClimateCommandRequest::dump_to(std::string &out) const {
   out.append(YESNO(this->away));
   out.append("\n");
 
-  out.append("  has_fan: ");
-  out.append(YESNO(this->has_fan));
+  out.append("  has_fan_mode: ");
+  out.append(YESNO(this->has_fan_mode));
   out.append("\n");
 
-  out.append("  fan: ");
-  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan));
+  out.append("  fan_mode: ");
+  out.append(proto_enum_to_string<enums::ClimateFanMode>(this->fan_mode));
+  out.append("\n");
+
+  out.append("  has_swing_mode: ");
+  out.append(YESNO(this->has_swing_mode));
+  out.append("\n");
+
+  out.append("  swing_mode: ");
+  out.append(proto_enum_to_string<enums::ClimateSwingMode>(this->swing_mode));
   out.append("\n");
   out.append("}");
 }

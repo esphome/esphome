@@ -446,7 +446,13 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   auto traits = climate->get_traits();
   ClimateStateResponse resp{};
   resp.key = climate->get_object_id_hash();
-  resp.mode = static_cast<enums::ClimateMode>(climate->mode);
+  // Set mode to auto instead of DRY or FAN_ONLY is they aren't supported by the client
+  auto mode = static_cast<enums::ClimateMode>(climate->mode);
+  if (this->client_version_ < 1 &&
+      (mode == enums::ClimateMode::CLIMATE_MODE_DRY || mode == enums::ClimateMode::CLIMATE_MODE_FAN_ONLY)) {
+    mode = enums::ClimateMode::CLIMATE_MODE_AUTO;
+  }
+  resp.mode = mode;
   resp.action = static_cast<enums::ClimateAction>(climate->action);
   if (traits.get_supports_current_temperature())
     resp.current_temperature = climate->current_temperature;
@@ -459,7 +465,9 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   if (traits.get_supports_away())
     resp.away = climate->away;
   if (traits.get_supports_fan_modes())
-    resp.fan = static_cast<enums::ClimateFanMode>(climate->fan_mode);
+    resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode);
+  if (traits.get_supports_swing_modes())
+    resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
   return this->send_climate_state_response(resp);
 }
 bool APIConnection::send_climate_info(climate::Climate *climate) {
@@ -472,9 +480,15 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
   for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
-                    climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY}) {
+                    climate::CLIMATE_MODE_HEAT}) {
     if (traits.supports_mode(mode))
       msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
+  }
+  if (this->client_version_ > 0) {
+    for (auto mode : {climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY}) {
+      if (traits.supports_mode(mode))
+        msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
+    }
   }
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
@@ -486,6 +500,11 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
                         climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_DIFFUSE}) {
     if (traits.supports_fan_mode(fan_mode))
       msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
+  }
+  for (auto swing_mode : {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+                          climate::CLIMATE_SWING_HORIZONTAL}) {
+    if (traits.supports_swing_mode(swing_mode))
+      msg.supported_swing_modes.push_back(static_cast<enums::ClimateSwingMode>(swing_mode));
   }
   return this->send_list_entities_climate_response(msg);
 }
@@ -505,8 +524,10 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_high(msg.target_temperature_high);
   if (msg.has_away)
     call.set_away(msg.away);
-  if (msg.has_fan)
-    call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan));
+  if (msg.has_fan_mode)
+    call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
+  if (msg.has_swing_mode)
+    call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
 }
 #endif
@@ -574,7 +595,8 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->client_->remoteIP().toString().c_str();
   this->client_info_ += ")";
-  ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
+  this->client_version_ = msg.client_version;
+  ESP_LOGV(TAG, "Hello from client: '%s' v: %d", this->client_info_.c_str(), msg.client_version);
 
   HelloResponse resp;
   resp.api_version_major = 1;

@@ -17,6 +17,10 @@ void ClimateCall::perform() {
     const char *fan_mode_s = climate_fan_mode_to_string(*this->fan_mode_);
     ESP_LOGD(TAG, "  Fan: %s", fan_mode_s);
   }
+  if (this->swing_mode_.has_value()) {
+    const char *swing_mode_s = climate_swing_mode_to_string(*this->swing_mode_);
+    ESP_LOGD(TAG, "  Swing: %s", swing_mode_s);
+  }
   if (this->target_temperature_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature: %.2f", *this->target_temperature_);
   }
@@ -45,6 +49,13 @@ void ClimateCall::validate_() {
     if (!traits.supports_fan_mode(fan_mode)) {
       ESP_LOGW(TAG, "  Fan Mode %s is not supported by this device!", climate_fan_mode_to_string(fan_mode));
       this->fan_mode_.reset();
+    }
+  }
+  if (this->swing_mode_.has_value()) {
+    auto swing_mode = *this->swing_mode_;
+    if (!traits.supports_swing_mode(swing_mode)) {
+      ESP_LOGW(TAG, "  Swing Mode %s is not supported by this device!", climate_swing_mode_to_string(swing_mode));
+      this->swing_mode_.reset();
     }
   }
   if (this->target_temperature_.has_value()) {
@@ -140,6 +151,24 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
   return *this;
 }
 
+ClimateCall &ClimateCall::set_swing_mode(ClimateSwingMode swing_mode) {
+  this->swing_mode_ = swing_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
+  if (str_equals_case_insensitive(swing_mode, "OFF")) {
+    this->set_swing_mode(CLIMATE_SWING_OFF);
+  } else if (str_equals_case_insensitive(swing_mode, "BOTH")) {
+    this->set_swing_mode(CLIMATE_SWING_BOTH);
+  } else if (str_equals_case_insensitive(swing_mode, "VERTICAL")) {
+    this->set_swing_mode(CLIMATE_SWING_VERTICAL);
+  } else if (str_equals_case_insensitive(swing_mode, "HORIZONTAL")) {
+    this->set_swing_mode(CLIMATE_SWING_HORIZONTAL);
+  } else {
+    ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
+  }
+}
+
 ClimateCall &ClimateCall::set_target_temperature(float target_temperature) {
   this->target_temperature_ = target_temperature;
   return *this;
@@ -158,6 +187,7 @@ const optional<float> &ClimateCall::get_target_temperature_low() const { return 
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<bool> &ClimateCall::get_away() const { return this->away_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
+const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
   this->away_ = away;
   return *this;
@@ -184,6 +214,10 @@ ClimateCall &ClimateCall::set_mode(optional<ClimateMode> mode) {
 }
 ClimateCall &ClimateCall::set_fan_mode(optional<ClimateFanMode> fan_mode) {
   this->fan_mode_ = fan_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) {
+  this->swing_mode_ = swing_mode;
   return *this;
 }
 
@@ -217,6 +251,9 @@ void Climate::save_state_() {
   if (traits.get_supports_fan_modes()) {
     state.fan_mode = this->fan_mode;
   }
+  if (traits.get_supports_swing_modes()) {
+    state.swing_mode = this->swing_mode;
+  }
 
   this->rtc_.save(&state);
 }
@@ -230,6 +267,9 @@ void Climate::publish_state() {
   }
   if (traits.get_supports_fan_modes()) {
     ESP_LOGD(TAG, "  Fan Mode: %s", climate_fan_mode_to_string(this->fan_mode));
+  }
+  if (traits.get_supports_swing_modes()) {
+    ESP_LOGD(TAG, "  Swing Mode: %s", climate_swing_mode_to_string(this->swing_mode));
   }
   if (traits.get_supports_current_temperature()) {
     ESP_LOGD(TAG, "  Current Temperature: %.2f°C", this->current_temperature);
@@ -294,6 +334,9 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_fan_modes()) {
     call.set_fan_mode(this->fan_mode);
   }
+  if (traits.get_supports_swing_modes()) {
+    call.set_swing_mode(this->swing_mode);
+  }
   return call;
 }
 void ClimateDeviceRestoreState::apply(Climate *climate) {
@@ -310,6 +353,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_fan_modes()) {
     climate->fan_mode = this->fan_mode;
+  }
+  if (traits.get_supports_swing_modes()) {
+    climate->swing_mode = this->swing_mode;
   }
   climate->publish_state();
 }

@@ -50,6 +50,22 @@ climate::ClimateTraits ClimateIR::traits() {
         break;
     }
   }
+  for (auto swing_mode : this->swing_modes_) {
+    switch (swing_mode) {
+      case climate::CLIMATE_SWING_OFF:
+        traits.set_supports_swing_mode_off(true);
+        break;
+      case climate::CLIMATE_SWING_BOTH:
+        traits.set_supports_swing_mode_both(true);
+        break;
+      case climate::CLIMATE_SWING_VERTICAL:
+        traits.set_supports_swing_mode_vertical(true);
+        break;
+      case climate::CLIMATE_SWING_HORIZONTAL:
+        traits.set_supports_swing_mode_horizontal(true);
+        break;
+    }
+  }
   return traits;
 }
 
@@ -74,6 +90,7 @@ void ClimateIR::setup() {
     this->target_temperature =
         roundf(clamp(this->current_temperature, this->minimum_temperature_, this->maximum_temperature_));
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
   // Never send nan to HA
   if (isnan(this->target_temperature))
@@ -87,6 +104,9 @@ void ClimateIR::control(const climate::ClimateCall &call) {
     this->target_temperature = *call.get_target_temperature();
   if (call.get_fan_mode().has_value()) {
     this->fan_mode = *call.get_fan_mode();
+  }
+  if (call.get_swing_mode().has_value()) {
+    this->swing_mode = *call.get_swing_mode();
   }
   this->transmit_state();
   this->publish_state();

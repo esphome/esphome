@@ -119,5 +119,35 @@ bool ClimateTraits::get_supports_fan_modes() const {
          this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
          this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_;
 }
+void ClimateTraits::set_supports_swing_mode_off(bool supports_swing_mode_off) {
+  this->supports_swing_mode_off_ = supports_swing_mode_off;
+}
+void ClimateTraits::set_supports_swing_mode_both(bool supports_swing_mode_both) {
+  this->supports_swing_mode_both_ = supports_swing_mode_both;
+}
+void ClimateTraits::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
+  this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
+}
+void ClimateTraits::set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
+  this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
+}
+bool ClimateTraits::supports_swing_mode(ClimateSwingMode swing_mode) const {
+  switch (swing_mode) {
+    case climate::CLIMATE_SWING_OFF:
+      return this->supports_swing_mode_off_;
+    case climate::CLIMATE_SWING_BOTH:
+      return this->supports_swing_mode_both_;
+    case climate::CLIMATE_SWING_VERTICAL:
+      return this->supports_swing_mode_vertical_;
+    case climate::CLIMATE_SWING_HORIZONTAL:
+      return this->supports_swing_mode_horizontal_;
+    default:
+      return false;
+  }
+}
+bool ClimateTraits::get_supports_swing_modes() const {
+  return this->supports_swing_mode_off_ || this->supports_swing_mode_both_ || supports_swing_mode_vertical_ ||
+         supports_swing_mode_horizontal_;
+}
 }  // namespace climate
 }  // namespace esphome
