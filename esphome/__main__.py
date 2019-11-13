@@ -183,6 +183,8 @@ def upload_using_esptool(config, port):
     if rc == 0 or first_baudrate == 115200:
         return rc
     # Try with 115200 baud rate, with some serial chips the faster baud rates do not work well
+    _LOGGER.info("Upload with baud rate %s failed. Trying again with baud rate 115200.",
+                 first_baudrate)
     return run_esptool(115200)
 
 
