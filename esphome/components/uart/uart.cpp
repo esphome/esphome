@@ -373,16 +373,7 @@ void UARTComponent::check_logger_conflict_() {
     return;
   }
 
-  auto logger_uart = logger::global_logger->get_uart();
-
-  if ((this->hw_serial_ == &Serial && logger_uart == logger::UARTSelection::UART_SELECTION_UART0) ||
-      (this->hw_serial_ == &Serial1 && logger_uart == logger::UARTSelection::UART_SELECTION_UART1) ||
-#ifdef ARDUINO_ARCH_ESP32
-      (this->hw_serial_ == &Serial2 && logger_uart == logger::UARTSelection::UART_SELECTION_UART2)) {
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-      (this->hw_serial_ == &Serial && logger_uart == logger::UARTSelection::UART_SELECTION_UART0_SWAP)) {
-#endif
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
     ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
                   "disable logging over the serial port by setting logger->baud_rate to 0.");
   }
