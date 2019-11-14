@@ -22,7 +22,7 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
+    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",  // NOLINT
                   this->init_state_);
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
@@ -94,7 +94,7 @@ bool Tuya::validate_message_() {
 
   // valid message
   const uint8_t *message_data = data + 6;
-  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
+  ESP_LOGV(TAG, "Received Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
            hexencode(message_data, length).c_str(), this->init_state_);
   this->handle_command_(command, version, message_data, length);
 
@@ -257,7 +257,7 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   uint8_t len_lo = len >> 0;
   uint8_t version = 0;
 
-  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,
+  ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
            hexencode(buffer, len).c_str(), this->init_state_);
 
   this->write_array({0x55, 0xAA, version, (uint8_t) command, len_hi, len_lo});
