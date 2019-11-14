@@ -165,16 +165,27 @@ def compile_program(args, config):
 
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
-    cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
-           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)),
-           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
+    first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)
 
-    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
-        import esptool
-        # pylint: disable=protected-access
-        return run_external_command(esptool._main, *cmd)
+    def run_esptool(baud_rate):
+        cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+               '--baud', str(baud_rate),
+               '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
-    return run_external_process(*cmd)
+        if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+            import esptool
+            # pylint: disable=protected-access
+            return run_external_command(esptool._main, *cmd)
+
+        return run_external_process(*cmd)
+
+    rc = run_esptool(first_baudrate)
+    if rc == 0 or first_baudrate == 115200:
+        return rc
+    # Try with 115200 baud rate, with some serial chips the faster baud rates do not work well
+    _LOGGER.info("Upload with baud rate %s failed. Trying again with baud rate 115200.",
+                 first_baudrate)
+    return run_esptool(115200)
 
 
 def upload_program(config, args, host):
