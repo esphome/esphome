@@ -156,7 +156,6 @@ class APIConnection : public APIServerConnection {
   std::vector<uint8_t> send_buffer_;
   std::vector<uint8_t> recv_buffer_;
 
-  uint32_t client_version_{0};
   std::string client_info_;
 #ifdef USE_ESP32_CAMERA
   esp32_camera::CameraImageReader image_reader_;

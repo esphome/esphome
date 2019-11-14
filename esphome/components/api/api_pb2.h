@@ -82,14 +82,12 @@ enum ClimateAction : uint32_t {
 
 class HelloRequest : public ProtoMessage {
  public:
-  std::string client_info{};   // NOLINT
-  uint32_t client_version{0};  // NOLINT
+  std::string client_info{};  // NOLINT
   void encode(ProtoWriteBuffer buffer) const override;
   void dump_to(std::string &out) const override;
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
-  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HelloResponse : public ProtoMessage {
  public:

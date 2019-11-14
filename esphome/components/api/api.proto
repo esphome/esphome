@@ -71,7 +71,6 @@ message HelloRequest {
   // Not strictly necessary to send but nice for debugging
   // purposes.
   string client_info = 1;
-  uint32 client_version = 2;
 }
 
 // Confirmation of successful connection request.

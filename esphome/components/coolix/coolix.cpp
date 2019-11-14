@@ -59,54 +59,58 @@ const uint16_t COOLIX_BITS = 24;
 void CoolixClimate::transmit_state() {
   uint32_t remote_state = 0xB20F00;
 
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_COOL:
-      remote_state |= COOLIX_COOL;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      remote_state |= COOLIX_HEAT;
-      break;
-    case climate::CLIMATE_MODE_AUTO:
-      remote_state |= COOLIX_AUTO;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-    case climate::CLIMATE_MODE_DRY:
-      remote_state |= COOLIX_DRY_FAN;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-    default:
-      remote_state = COOLIX_OFF;
-      break;
-  }
-  if (this->mode != climate::CLIMATE_MODE_OFF) {
-    if (this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
-      auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
-      remote_state |= COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN];
-    } else {
-      remote_state |= COOLIX_FAN_TEMP_CODE;
+  if (send_swing_cmd_) {
+    send_swing_cmd_ = false;
+    remote_state = COOLIX_SWING;
+  } else {
+    switch (this->mode) {
+      case climate::CLIMATE_MODE_COOL:
+        remote_state |= COOLIX_COOL;
+        break;
+      case climate::CLIMATE_MODE_HEAT:
+        remote_state |= COOLIX_HEAT;
+        break;
+      case climate::CLIMATE_MODE_AUTO:
+        remote_state |= COOLIX_AUTO;
+        break;
+      case climate::CLIMATE_MODE_FAN_ONLY:
+      case climate::CLIMATE_MODE_DRY:
+        remote_state |= COOLIX_DRY_FAN;
+        break;
+      case climate::CLIMATE_MODE_OFF:
+      default:
+        remote_state = COOLIX_OFF;
+        break;
     }
-    if (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_DRY) {
-      this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      remote_state |= COOLIX_FAN_MODE_AUTO_DRY;
-    } else {
-      switch (this->fan_mode) {
-        case climate::CLIMATE_FAN_HIGH:
-          remote_state |= COOLIX_FAN_MAX;
-          break;
-        case climate::CLIMATE_FAN_MEDIUM:
-          remote_state |= COOLIX_FAN_MED;
-          break;
-        case climate::CLIMATE_FAN_LOW:
-          remote_state |= COOLIX_FAN_MIN;
-          break;
-        case climate::CLIMATE_FAN_AUTO:
-        default:
-          remote_state |= COOLIX_FAN_AUTO;
-          break;
+    if (this->mode != climate::CLIMATE_MODE_OFF) {
+      if (this->mode != climate::CLIMATE_MODE_FAN_ONLY) {
+        auto temp = (uint8_t) roundf(clamp(this->target_temperature, COOLIX_TEMP_MIN, COOLIX_TEMP_MAX));
+        remote_state |= COOLIX_TEMP_MAP[temp - COOLIX_TEMP_MIN];
+      } else {
+        remote_state |= COOLIX_FAN_TEMP_CODE;
+      }
+      if (this->mode == climate::CLIMATE_MODE_AUTO || this->mode == climate::CLIMATE_MODE_DRY) {
+        this->fan_mode = climate::CLIMATE_FAN_AUTO;
+        remote_state |= COOLIX_FAN_MODE_AUTO_DRY;
+      } else {
+        switch (this->fan_mode) {
+          case climate::CLIMATE_FAN_HIGH:
+            remote_state |= COOLIX_FAN_MAX;
+            break;
+          case climate::CLIMATE_FAN_MEDIUM:
+            remote_state |= COOLIX_FAN_MED;
+            break;
+          case climate::CLIMATE_FAN_LOW:
+            remote_state |= COOLIX_FAN_MIN;
+            break;
+          case climate::CLIMATE_FAN_AUTO:
+          default:
+            remote_state |= COOLIX_FAN_AUTO;
+            break;
+        }
       }
     }
   }
-
   ESP_LOGV(TAG, "Sending coolix code: 0x%02X", remote_state);
 
   auto transmit = this->transmitter_->transmit();
@@ -186,6 +190,9 @@ bool CoolixClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   if (remote_state == COOLIX_OFF) {
     this->mode = climate::CLIMATE_MODE_OFF;
+  } else if (remote_state == COOLIX_SWING) {
+    this->swing_mode =
+        this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
     if ((remote_state & COOLIX_MODE_MASK) == COOLIX_HEAT)
       this->mode = climate::CLIMATE_MODE_HEAT;

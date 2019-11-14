@@ -162,16 +162,6 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "UNKNOWN";
   }
 }
-bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->client_version = value.as_uint32();
-      return true;
-    }
-    default:
-      return false;
-  }
-}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -182,20 +172,12 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
       return false;
   }
 }
-void HelloRequest::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_string(1, this->client_info);
-  buffer.encode_uint32(2, this->client_version);
-}
+void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
 void HelloRequest::dump_to(std::string &out) const {
   char buffer[64];
   out.append("HelloRequest {\n");
   out.append("  client_info: ");
   out.append("'").append(this->client_info).append("'");
-  out.append("\n");
-
-  out.append("  client_version: ");
-  sprintf(buffer, "%u", this->client_version);
-  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
