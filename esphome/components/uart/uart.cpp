@@ -46,12 +46,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
-#ifdef USE_LOGGER
-  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
-    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
-                  "disable logging over the serial port by setting logger->baud_rate to 0.");
-  }
-#endif
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -156,13 +151,7 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
-
-#ifdef USE_LOGGER
-  if (this->hw_serial_ == &Serial && logger::global_logger->get_baud_rate() != 0) {
-    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
-                  "disable logging over the serial port by setting logger->baud_rate to 0.");
-  }
-#endif
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -376,6 +365,19 @@ int UARTComponent::peek() {
   if (!this->peek_byte(&data))
     return -1;
   return data;
+}
+
+void UARTComponent::check_logger_conflict_() {
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
+    return;
+  }
+
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
 
 void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
