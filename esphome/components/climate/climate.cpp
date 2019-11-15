@@ -167,6 +167,7 @@ ClimateCall &ClimateCall::set_swing_mode(const std::string &swing_mode) {
   } else {
     ESP_LOGW(TAG, "'%s' - Unrecognized swing mode %s", this->parent_->get_name().c_str(), swing_mode.c_str());
   }
+  return *this;
 }
 
 ClimateCall &ClimateCall::set_target_temperature(float target_temperature) {
