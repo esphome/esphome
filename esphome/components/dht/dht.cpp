@@ -165,10 +165,11 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
-    *humidity = data[0];
+    // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit check sum
+    *humidity = data[0] + data[1] * .1f;
     if (*humidity > 100)
       *humidity = NAN;
-    *temperature = data[2];
+    *temperature = data[2] + data[3] * .1f;
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
