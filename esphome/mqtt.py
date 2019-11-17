@@ -67,7 +67,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
                        tls_version=tls_version, ciphers=None)
 
     try:
-        client.connect(config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT])
+        client.connect(str(config[CONF_MQTT][CONF_BROKER]), config[CONF_MQTT][CONF_PORT])
     except socket.error as err:
         raise EsphomeError("Cannot connect to MQTT broker: {}".format(err))
 
@@ -127,7 +127,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
 
 # From marvinroger/async-mqtt-client -> scripts/get-fingerprint/get-fingerprint.py
 def get_fingerprint(config):
-    addr = config[CONF_MQTT][CONF_BROKER], config[CONF_MQTT][CONF_PORT]
+    addr = str(config[CONF_MQTT][CONF_BROKER]), config[CONF_MQTT][CONF_PORT]
     _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
     try:
         cert_pem = ssl.get_server_certificate(addr)
