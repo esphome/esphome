@@ -37,7 +37,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(cv.Schema({
         cv.Optional(CONF_DURATION, default='5min'): cv.positive_time_period_seconds,
         cv.Optional(CONF_INTERVAL, default='320ms'): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_WINDOW, default='200ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_WINDOW, default='30ms'): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }), validate_scan_parameters),
 

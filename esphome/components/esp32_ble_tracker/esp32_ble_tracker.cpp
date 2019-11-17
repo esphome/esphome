@@ -441,8 +441,8 @@ const optional<ESPBTUUID> &ESPBTDevice::get_service_data_uuid() const { return t
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
   ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
-  ESP_LOGCONFIG(TAG, "  Scan Interval: %u ms", this->scan_interval_);
-  ESP_LOGCONFIG(TAG, "  Scan Window: %u ms", this->scan_window_);
+  ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
+  ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
