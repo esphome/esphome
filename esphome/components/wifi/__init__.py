@@ -126,7 +126,8 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
         cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-    cv.Optional(CONF_OUTPUT_POWER): cv.All(cv.decibel, cv.float_range(min=10.0, max=20.5)),
+    cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
+        cv.decibel, cv.float_range(min=10.0, max=20.5)),
 
     cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
