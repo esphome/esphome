@@ -165,18 +165,24 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
-    // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
-    // check sum
-    const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
-    *temperature = raw_temperature / 10.0f;
-    if ((data[3] & 0x80) != 0) {
-      // negative
-      *temperature *= -1;
+    if (checksum_a == data[4]) {
+      // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
+      // check sum - some models always have 0 in the decimal part
+      const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
+      *temperature = raw_temperature / 10.0f;
+      if ((data[3] & 0x80) != 0) {
+        // negative
+        *temperature *= -1;
+      }
+
+      const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
+      *humidity = raw_humidity / 10.0f;
+    } else {
+      // For compatibily with DHT11 models which might only use 2 bytes checksums, only use the data from these two
+      // bytes
+      *temperature = data[2];
+      *humidity = data[0];
     }
-
-    const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
-    *humidity = raw_humidity / 10.0f;
-
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
