@@ -83,6 +83,6 @@ def to_code(config):
         cg.add(var.set_freq_sensor(sens))
     if CONF_CHIP_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
-        cg.add(var.set_chip_temp_sensor(sens))
+        cg.add(var.set_chip_temperature_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
