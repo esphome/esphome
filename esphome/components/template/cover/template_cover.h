@@ -25,6 +25,7 @@ class TemplateCover : public cover::Cover, public Component {
   Trigger<float> *get_tilt_trigger() const;
   void set_optimistic(bool optimistic);
   void set_assumed_state(bool assumed_state);
+  void set_position_lambda(std::function<optional<float>()> &&state_f);
   void set_tilt_lambda(std::function<optional<float>()> &&tilt_f);
   void set_has_position(bool has_position);
   void set_has_tilt(bool has_tilt);
