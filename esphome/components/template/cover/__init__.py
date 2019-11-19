@@ -43,6 +43,7 @@ def to_code(config):
         cg.add(var.set_state_lambda(template_))
     if CONF_OPEN_ACTION in config:
         yield automation.build_automation(var.get_open_trigger(), [], config[CONF_OPEN_ACTION])
+        yield automation.build_automation(var.get_position_trigger(), [], config[CONF_OPEN_ACTION])
     if CONF_CLOSE_ACTION in config:
         yield automation.build_automation(var.get_close_trigger(), [], config[CONF_CLOSE_ACTION])
     if CONF_STOP_ACTION in config:
