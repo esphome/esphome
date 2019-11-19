@@ -116,6 +116,7 @@ CoverTraits TemplateCover::get_traits() {
 Trigger<float> *TemplateCover::get_position_trigger() const { return this->position_trigger_; }
 Trigger<float> *TemplateCover::get_tilt_trigger() const { return this->tilt_trigger_; }
 void TemplateCover::set_tilt_lambda(std::function<optional<float>()> &&tilt_f) { this->tilt_f_ = tilt_f; }
+void TemplateCover::set_position_lambda(std::function<optional<float>()> &&state_f) { this->state_f_ = state_f; }
 void TemplateCover::set_has_position(bool has_position) { this->has_position_ = has_position; }
 void TemplateCover::set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
 void TemplateCover::stop_prev_trigger_() {
