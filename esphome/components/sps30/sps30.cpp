@@ -22,32 +22,33 @@ static const size_t SERIAL_NUMBER_LENGTH = 8;
 
 void SPS30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sps30...");
+  this->write_command_(SPS30_CMD_SOFT_RESET);
+  delayMicroseconds(50000);
   /// Firmware version identification
   if (!this->write_command_(SPS30_CMD_GET_FIRMWARE_VERSION)) {
-    this->error_code_ = FIRMWARE_VERSION_IDENTIFICATION_FAILED;
+    this->error_code_ = FIRMWARE_VERSION_REQUEST_FAILED;
     this->mark_failed();
     return;
   }
 
   uint16_t raw_firmware_version[4];
   if (!this->read_data_(raw_firmware_version, 4)) {
-    this->error_code_ = FIRMWARE_VERSION_IDENTIFICATION_FAILED;
+    this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
     this->mark_failed();
     return;
   }
   ESP_LOGD(TAG, "  Firmware version v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
-
   /// Serial number identification
   if (!this->write_command_(SPS30_CMD_GET_SERIAL_NUMBER)) {
-    this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
+    this->error_code_ = SERIAL_NUMBER_REQUEST_FAILED;
     this->mark_failed();
     return;
   }
 
   uint16_t raw_serial_number[8];
   if (!this->read_data_(raw_serial_number, 8)) {
-    this->error_code_ = SERIAL_NUMBER_IDENTIFICATION_FAILED;
+    this->error_code_ = SERIAL_NUMBER_READ_FAILED;
     this->mark_failed();
     return;
   }
@@ -58,13 +59,6 @@ void SPS30Component::setup() {
   }
   ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
 
-  /// Sensor initialization
-  if (!this->write_command_(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS)) {
-    ESP_LOGE(TAG, "Sensor SPS30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
   this->start_continuous_measurement_();
 }
 
@@ -79,8 +73,17 @@ void SPS30Component::dump_config() {
       case MEASUREMENT_INIT_FAILED:
         ESP_LOGW(TAG, "Measurement Initialization failed!");
         break;
-      case SERIAL_NUMBER_IDENTIFICATION_FAILED:
+      case SERIAL_NUMBER_REQUEST_FAILED:
+        ESP_LOGW(TAG, "Unable to request sensor serial number");
+        break;
+      case SERIAL_NUMBER_READ_FAILED:
         ESP_LOGW(TAG, "Unable to read sensor serial number");
+        break;
+      case FIRMWARE_VERSION_REQUEST_FAILED:
+        ESP_LOGW(TAG, "Unable to request sensor firmware version");
+        break;
+      case FIRMWARE_VERSION_READ_FAILED:
+        ESP_LOGW(TAG, "Unable to read sensor firmware version");
         break;
       default:
         ESP_LOGW(TAG, "Unknown setup error!");
@@ -96,6 +99,14 @@ void SPS30Component::dump_config() {
 }
 
 void SPS30Component::update() {
+  /// Check if warning flag active (sensor reconnected?)
+  if (this->status_has_warning()) {
+    ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
+    this->write_command_(SPS30_CMD_SOFT_RESET);
+    delayMicroseconds(50000);
+    this->start_continuous_measurement_();
+  }
+
   /// Check if measurement is ready before reading the value
   if (!this->write_command_(SPS30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
@@ -104,13 +115,13 @@ void SPS30Component::update() {
 
   uint16_t raw_read_status[1];
   if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
-    this->status_set_warning();
     ESP_LOGW(TAG, "Data not ready yet!");
+    delayMicroseconds(50000);
     return;
   }
 
   if (!this->write_command_(SPS30_CMD_READ_MEASUREMENT)) {
-    ESP_LOGW(TAG, "Error reading measurement!");
+    ESP_LOGW(TAG, "Error reading measurement status!");
     this->status_set_warning();
     return;
   }
@@ -118,6 +129,7 @@ void SPS30Component::update() {
   this->set_timeout(50, [this]() {
     uint16_t raw_data[20];
     if (!this->read_data_(raw_data, 20)) {
+      ESP_LOGW(TAG, "Error reading measurement data!");
       this->status_set_warning();
       return;
     }
