@@ -59,15 +59,22 @@ void PZEM004T::loop() {
         if (this->power_sensor_ != nullptr)
           this->power_sensor_->publish_state(power);
         ESP_LOGD(TAG, "Got Power %u W", power);
-        this->write_state_(DONE);
+        this->write_state_(READ_ENERGY);
         break;
       }
+      case 0xA3: {  // Energy Response
+        uint32_t energy = (uint32_t(resp[1]) << 16) | (uint16_t(resp[2]) << 8) | (uint16_t(resp[3]) << 0);
+        if (this->energy_sensor_ != nullptr)
+          this->energy_sensor_->publish_state(energy);
+        ESP_LOGD(TAG, "Got Energy %u Wh", energy);
+        this->write_state_(DONE);
+        break;
+      } 
 
-      case 0xA3:  // Energy Response
       case 0xA5:  // Set Power Alarm Response
       case 0xB0:  // Voltage Request
       case 0xB1:  // Current Request
-      case 0xB2:  // Active Power Response
+      case 0xB2:  // Active Power Request
       case 0xB3:  // Energy Request
       case 0xB4:  // Set Module Address Request
       case 0xB5:  // Set Power Alarm Request
@@ -103,6 +110,7 @@ void PZEM004T::dump_config() {
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
+  LOG_SENSOR("", "Energy", this->energy_sensor_);
 }
 
 }  // namespace pzem004t
