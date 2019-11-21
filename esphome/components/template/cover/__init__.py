@@ -4,8 +4,7 @@ from esphome import automation
 from esphome.components import cover
 from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
     CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
-    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA, \
-    CONF_POSITION_ACTION, CONF_POSITION_LAMBDA
+    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA, CONF_POSITION_ACTION
 from .. import template_ns
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
@@ -31,7 +30,6 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-    cv.Optional(CONF_POSITION_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -66,10 +64,6 @@ def to_code(config):
         yield automation.build_automation(var.get_position_trigger(), [(float, 'pos')],
                                           config[CONF_POSITION_ACTION])
         cg.add(var.set_has_position(True))
-    if CONF_POSITION_LAMBDA in config:
-        position_template_ = yield cg.process_lambda(config[CONF_POSITION_LAMBDA], [],
-                                                     return_type=cg.optional.template(float))
-        cg.add(var.set_state_lambda(position_template_))
 
 
 @automation.register_action('cover.template.publish', cover.CoverPublishAction, cv.Schema({
