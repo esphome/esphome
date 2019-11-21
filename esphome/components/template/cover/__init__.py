@@ -67,7 +67,7 @@ def to_code(config):
         yield automation.build_automation(var.get_position_trigger(), [(float, 'pos')],
                                           config[CONF_POSITION_ACTION])
         cg.add(var.set_has_position(True))
-    if CONF_POSITION in config:
+    if CONF_POSITION_LAMBDA in config:
         position_template_ = yield cg.process_lambda(config[CONF_POSITION_LAMBDA], [],
                                                  return_type=cg.optional.template(float))
         cg.add(var.set_state_lambda(position_template_))
