@@ -90,7 +90,6 @@ void TemplateCover::control(const CoverCall &call) {
       this->position_trigger_->trigger(pos);
     }
 
-
     if (this->optimistic_) {
       this->position = pos;
     }
