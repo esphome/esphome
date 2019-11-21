@@ -69,7 +69,7 @@ void PZEM004T::loop() {
         ESP_LOGD(TAG, "Got Energy %u Wh", energy);
         this->write_state_(DONE);
         break;
-      } 
+      }
 
       case 0xA5:  // Set Power Alarm Response
       case 0xB0:  // Voltage Request
