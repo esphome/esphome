@@ -298,6 +298,8 @@ sensor:
       name: "PZEM004T Current"
     power:
       name: "PZEM004T Power"
+    energy:
+      name: "PZEM004T Energy"
   - platform: pzemac
     voltage:
       name: "PZEMAC Voltage"
