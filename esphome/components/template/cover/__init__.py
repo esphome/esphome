@@ -3,9 +3,9 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import cover
 from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
-    CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
-    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA, \
-    CONF_POSITION_ACTION
+    CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_RESTORE_MODE, \
+    CONF_STATE, CONF_STOP_ACTION, CONF_HAS_TILT, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA, \
+    CONF_HAS_POSITION, CONF_POSITION, CONF_POSITION_ACTION, CONF_POSITION_LAMBDA
 from .. import template_ns
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)
@@ -17,20 +17,20 @@ RESTORE_MODES = {
     'RESTORE_AND_CALL': TemplateCoverRestoreMode.COVER_RESTORE_AND_CALL,
 }
 
-CONF_HAS_POSITION = 'has_position'
-
 CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateCover),
-    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+    cv.Exclusive(CONF_LAMBDA, 'pos'): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
     cv.Optional(CONF_ASSUMED_STATE, default=False): cv.boolean,
-    cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
     cv.Optional(CONF_OPEN_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_CLOSE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_STOP_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_HAS_POSITION, default=False): cv.boolean,
+    cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
+    cv.Exclusive(CONF_POSITION_LAMBDA, 'pos'): cv.returning_lambda,
+    cv.Optional(CONF_HAS_TILT, default=False): cv.boolean,
     cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
-    cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -49,20 +49,26 @@ def to_code(config):
         yield automation.build_automation(var.get_close_trigger(), [], config[CONF_CLOSE_ACTION])
     if CONF_STOP_ACTION in config:
         yield automation.build_automation(var.get_stop_trigger(), [], config[CONF_STOP_ACTION])
+    if CONF_POSITION_ACTION in config:
+        yield automation.build_automation(var.get_position_trigger(), [(float, 'pos')],
+                                          config[CONF_POSITION_ACTION])
+    if CONF_POSITION_LAMBDA in config:
+        position_template_ = yield cg.process_lambda(config[CONF_POSITION_LAMBDA], [],
+                                                     return_type=cg.optional.template(float))
+        cg.add(var.set_state_lambda(position_template_))
+    if CONF_POSITION_ACTION in config or CONF_POSITION_LAMBDA in config or \
+       config[CONF_HAS_POSITION]:
+        cg.add(var.set_has_position(True))
     if CONF_TILT_ACTION in config:
         yield automation.build_automation(var.get_tilt_trigger(), [(float, 'tilt')],
                                           config[CONF_TILT_ACTION])
-        cg.add(var.set_has_tilt(True))
     if CONF_TILT_LAMBDA in config:
         tilt_template_ = yield cg.process_lambda(config[CONF_TILT_LAMBDA], [],
                                                  return_type=cg.optional.template(float))
         cg.add(var.set_tilt_lambda(tilt_template_))
-    if CONF_POSITION_ACTION in config:
-        yield automation.build_automation(var.get_position_trigger(), [(float, 'pos')],
-                                          config[CONF_POSITION_ACTION])
-        cg.add(var.set_has_position(True))
-    else:
-        cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
+    if CONF_TILT_ACTION in config or CONF_TILT_LAMBDA in config or config[CONF_HAS_TILT]:
+        cg.add(var.set_has_tilt(True))
+
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
