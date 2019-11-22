@@ -127,6 +127,8 @@ void Dimmer::setup() {
     }
   }
   this->gate_pin_->setup();
+  this->zero_cross_pin_->setup();
+
   this->store_.gate_pin = this->gate_pin_->to_isr();
   this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
   // TODO: why FALLING here?
