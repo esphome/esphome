@@ -2,9 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-from esphome.const import CONF_ID, ESP_PLATFORM_ESP8266
-
-ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]
+from esphome.const import CONF_ID
 
 dimmer_ns = cg.esphome_ns.namespace('dimmer')
 Dimmer = dimmer_ns.class_('Dimmer', output.FloatOutput, cg.Component)
