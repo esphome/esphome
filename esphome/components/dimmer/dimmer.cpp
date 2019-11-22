@@ -94,7 +94,9 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     // fully off, disable output immediately
     this->gate_pin->digital_write(false);
   } else {
-    // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmentic
+    this->gate_pin->digital_write(false);
+
+    // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
     this->enable_time_us = ((255 - this->value) * this->cycle_time_us) / 255;
     // Keep signal HIGH for 10µs
     this->disable_time_us = this->enable_time_us + GATE_ENABLE_TIME;
@@ -119,14 +121,7 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
 // timer_interrupt() function to auto-reschedule
 static hw_timer_t *dimmer_timer = nullptr;
 void ICACHE_RAM_ATTR HOT DimmerDataStore::s_timer_intr() {
-  uint32_t next_interrupt = timer_interrupt();
-  // Reset timer, stop from executing while this function executes
-  timerStop(dimmer_timer);
-  timerWrite(dimmer_timer, 0);
-  // Write timer value
-  timerAlarmWrite(dimmer_timer, next_interrupt, false);
-  // Start counter again
-  timerStart(dimmer_timer);
+  timer_interrupt();
 }
 #endif
 
@@ -156,8 +151,11 @@ void Dimmer::setup() {
   // 80 Divider -> 1 count=1µs
   dimmer_timer = timerBegin(0, 80, true);
   timerAttachInterrupt(dimmer_timer, &DimmerDataStore::s_timer_intr, true);
-  // run timer interrupt once to schedule next call
-  DimmerDataStore::s_timer_intr();
+  // For ESP32, we can't use dynamic interval calculation because the timerX functions
+  // are not callable from ISR (placed in flash storage).
+  // Here we just use an interrupt firing every 50 µs.
+  timerAlarmWrite(dimmer_timer, 50, true);
+  timerAlarmEnable(dimmer_timer);
 #endif
 }
 void Dimmer::write_state(float state) { this->store_.value = roundf(state * 255); }
