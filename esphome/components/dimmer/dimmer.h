@@ -10,6 +10,8 @@ namespace dimmer {
 struct DimmerDataStore {
   /// Zero-cross pin
   ISRInternalGPIOPin *zero_cross_pin;
+  /// Zero-cross pin number - used to share ZC pin across multiple dimmers
+  uint8_t zero_cross_pin_number;
   /// Output pin to write to
   ISRInternalGPIOPin *gate_pin;
   /// Value of the dimmer - 0 to 255.

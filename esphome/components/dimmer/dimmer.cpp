@@ -100,7 +100,19 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     this->disable_time_us = this->enable_time_us + GATE_ENABLE_TIME;
   }
 }
-void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) { store->gpio_intr(); }
+void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
+  // Attaching pin interrupts on the same pin will override the previous interupt
+  // However, the user expects that multiple dimmers sharing the same ZC pin will work.
+  // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
+  // if any of them are using the same ZC pin, and also trigger the interrupt for *them*.
+  for (auto *dimmer : all_dimmers) {
+    if (dimmer == nullptr)
+      break;
+    if (dimmer->zero_cross_pin_number == store->zero_cross_pin_number) {
+      dimmer->gpio_intr();
+    }
+  }
+}
 
 #ifdef ARDUINO_ARCH_ESP32
 // ESP32 implementation, uses basically the same code but needs to wrap
@@ -131,6 +143,7 @@ void Dimmer::setup() {
 
   this->store_.gate_pin = this->gate_pin_->to_isr();
   this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
+  this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
   // TODO: why FALLING here?
   this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
 
