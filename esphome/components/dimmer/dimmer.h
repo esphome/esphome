@@ -38,12 +38,8 @@ class Dimmer : public output::FloatOutput, public Component {
   void setup() override;
 
   void dump_config() override;
-  void set_gate_pin(GPIOPin *gate_pin) {
-    gate_pin_ = gate_pin;
-  }
-  void set_zero_cross_pin(GPIOPin *zero_cross_pin) {
-    zero_cross_pin_ = zero_cross_pin;
-  }
+  void set_gate_pin(GPIOPin *gate_pin) { gate_pin_ = gate_pin; }
+  void set_zero_cross_pin(GPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
 
  protected:
   void write_state(float state) override;
