@@ -29,7 +29,7 @@ struct DimmerDataStore {
   uint32_t timer_intr(uint32_t now);
 
   void gpio_intr();
-  static void s_gpio_intr(DimmerDataStore *arg);
+  static void s_gpio_intr(DimmerDataStore *store);
 #ifdef ARDUINO_ARCH_ESP32
   static void s_timer_intr();
 #endif

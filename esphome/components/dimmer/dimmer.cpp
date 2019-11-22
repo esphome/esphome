@@ -120,9 +120,7 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
 static hw_timer_t *dimmer_timer = nullptr;
-void ICACHE_RAM_ATTR HOT DimmerDataStore::s_timer_intr() {
-  timer_interrupt();
-}
+void ICACHE_RAM_ATTR HOT DimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
 void Dimmer::setup() {
@@ -158,7 +156,7 @@ void Dimmer::setup() {
   timerAlarmEnable(dimmer_timer);
 #endif
 }
-void Dimmer::write_state(float state) { this->store_.value = roundf(state * 255); }
+void Dimmer::write_state(float state) { this->store_.value = static_cast<uint8_t>(roundf(state * 255)); }
 void Dimmer::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
   LOG_PIN("  Output Pin: ", this->gate_pin_);
