@@ -999,6 +999,10 @@ output:
     id: id24
     pin: GPIO26
     period: 15s
+  - platform: dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO20
 
 light:
   - platform: binary
