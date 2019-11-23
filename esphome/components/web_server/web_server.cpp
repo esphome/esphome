@@ -18,6 +18,8 @@ namespace web_server {
 static const char *TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+  if (obj->is_internal())
+    return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
   stream->print("\" id=\"");
@@ -135,41 +137,37 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "sensor", "");
+    write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    if (!obj->is_internal())
-      write_row(stream, obj, "switch", "<button>Toggle</button>");
+    write_row(stream, obj, "switch", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "binary_sensor", "");
+    write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    if (!obj->is_internal())
-      write_row(stream, obj, "fan", "<button>Toggle</button>");
+    write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    if (!obj->is_internal())
-      write_row(stream, obj, "light", "<button>Toggle</button>");
+    write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "text_sensor", "");
+    write_row(stream, obj, "text_sensor", "");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "

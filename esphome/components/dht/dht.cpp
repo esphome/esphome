@@ -47,8 +47,10 @@ void DHT::update() {
   if (error) {
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    this->temperature_sensor_->publish_state(temperature);
-    this->humidity_sensor_->publish_state(humidity);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   } else {
     const char *str = "";
@@ -56,8 +58,10 @@ void DHT::update() {
       str = " and consider manually specifying the DHT model using the model option";
     }
     ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
-    this->temperature_sensor_->publish_state(NAN);
-    this->humidity_sensor_->publish_state(NAN);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(NAN);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(NAN);
     this->status_set_warning();
   }
 }
@@ -161,10 +165,24 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
-    *humidity = data[0];
-    if (*humidity > 100)
-      *humidity = NAN;
-    *temperature = data[2];
+    if (checksum_a == data[4]) {
+      // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
+      // check sum - some models always have 0 in the decimal part
+      const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
+      *temperature = raw_temperature / 10.0f;
+      if ((data[3] & 0x80) != 0) {
+        // negative
+        *temperature *= -1;
+      }
+
+      const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
+      *humidity = raw_humidity / 10.0f;
+    } else {
+      // For compatibily with DHT11 models which might only use 2 bytes checksums, only use the data from these two
+      // bytes
+      *temperature = data[2];
+      *humidity = data[0];
+    }
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);

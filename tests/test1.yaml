@@ -261,6 +261,10 @@ sensor:
         name: "EMON CT1 Current"
       power:
         name: "EMON Active Power CT1"
+      reactive_power:
+        name: "EMON Reactive Power CT1"
+      power_factor:
+        name: "EMON Power Factor CT1"
       gain_voltage: 47660
       gain_ct: 12577
     phase_b:
@@ -268,6 +272,10 @@ sensor:
         name: "EMON CT2 Current"
       power:
         name: "EMON Active Power CT2"
+      reactive_power:
+        name: "EMON Reactive Power CT2"
+      power_factor:
+        name: "EMON Power Factor CT2"
       gain_voltage: 47660
       gain_ct: 12577
     phase_c:
@@ -275,10 +283,16 @@ sensor:
         name: "EMON CT3 Current"
       power:
         name: "EMON Active Power CT3"
+      reactive_power:
+        name: "EMON Reactive Power CT3"
+      power_factor:
+        name: "EMON Power Factor CT3"
       gain_voltage: 47660
       gain_ct: 12577
     frequency:
       name: "EMON Line Frequency"
+    chip_temperature:
+      name: "EMON Chip Temp A"
     line_frequency: 50Hz
     gain_pga: 2X
   - platform: bh1750

@@ -325,13 +325,15 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   }
 
   ESP_LOGVV(TAG, "Adv data: %s",
-            hexencode_string(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
+            hexencode_string(
+                std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len + param.scan_rsp_len))
+                .c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   size_t offset = 0;
   const uint8_t *payload = param.ble_adv;
-  uint8_t len = param.adv_data_len;
+  uint8_t len = param.adv_data_len + param.scan_rsp_len;
 
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
@@ -442,8 +444,8 @@ const optional<ESPBTUUID> &ESPBTDevice::get_service_data_uuid() const { return t
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
   ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
-  ESP_LOGCONFIG(TAG, "  Scan Interval: %u ms", this->scan_interval_);
-  ESP_LOGCONFIG(TAG, "  Scan Window: %u ms", this->scan_window_);
+  ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
+  ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {

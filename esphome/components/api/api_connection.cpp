@@ -163,6 +163,7 @@ bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary
   BinarySensorStateResponse resp;
   resp.key = binary_sensor->get_object_id_hash();
   resp.state = state;
+  resp.missing_state = !binary_sensor->has_state();
   return this->send_binary_sensor_state_response(resp);
 }
 bool APIConnection::send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor) {
@@ -362,6 +363,7 @@ bool APIConnection::send_sensor_state(sensor::Sensor *sensor, float state) {
   SensorStateResponse resp{};
   resp.key = sensor->get_object_id_hash();
   resp.state = state;
+  resp.missing_state = !sensor->has_state();
   return this->send_sensor_state_response(resp);
 }
 bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
@@ -375,6 +377,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.icon = sensor->get_icon();
   msg.unit_of_measurement = sensor->get_unit_of_measurement();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
+  msg.force_update = sensor->get_force_update();
   return this->send_list_entities_sensor_response(msg);
 }
 #endif
@@ -419,6 +422,7 @@ bool APIConnection::send_text_sensor_state(text_sensor::TextSensor *text_sensor,
   TextSensorStateResponse resp{};
   resp.key = text_sensor->get_object_id_hash();
   resp.state = std::move(state);
+  resp.missing_state = !text_sensor->has_state();
   return this->send_text_sensor_state_response(resp);
 }
 bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) {
@@ -454,6 +458,10 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
   }
   if (traits.get_supports_away())
     resp.away = climate->away;
+  if (traits.get_supports_fan_modes())
+    resp.fan_mode = static_cast<enums::ClimateFanMode>(climate->fan_mode);
+  if (traits.get_supports_swing_modes())
+    resp.swing_mode = static_cast<enums::ClimateSwingMode>(climate->swing_mode);
   return this->send_climate_state_response(resp);
 }
 bool APIConnection::send_climate_info(climate::Climate *climate) {
@@ -466,7 +474,7 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.supports_current_temperature = traits.get_supports_current_temperature();
   msg.supports_two_point_target_temperature = traits.get_supports_two_point_target_temperature();
   for (auto mode : {climate::CLIMATE_MODE_AUTO, climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL,
-                    climate::CLIMATE_MODE_HEAT}) {
+                    climate::CLIMATE_MODE_HEAT, climate::CLIMATE_MODE_DRY, climate::CLIMATE_MODE_FAN_ONLY}) {
     if (traits.supports_mode(mode))
       msg.supported_modes.push_back(static_cast<enums::ClimateMode>(mode));
   }
@@ -475,6 +483,17 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
   msg.visual_temperature_step = traits.get_visual_temperature_step();
   msg.supports_away = traits.get_supports_away();
   msg.supports_action = traits.get_supports_action();
+  for (auto fan_mode : {climate::CLIMATE_FAN_ON, climate::CLIMATE_FAN_OFF, climate::CLIMATE_FAN_AUTO,
+                        climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH,
+                        climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_DIFFUSE}) {
+    if (traits.supports_fan_mode(fan_mode))
+      msg.supported_fan_modes.push_back(static_cast<enums::ClimateFanMode>(fan_mode));
+  }
+  for (auto swing_mode : {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+                          climate::CLIMATE_SWING_HORIZONTAL}) {
+    if (traits.supports_swing_mode(swing_mode))
+      msg.supported_swing_modes.push_back(static_cast<enums::ClimateSwingMode>(swing_mode));
+  }
   return this->send_list_entities_climate_response(msg);
 }
 void APIConnection::climate_command(const ClimateCommandRequest &msg) {
@@ -493,6 +512,10 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_high(msg.target_temperature_high);
   if (msg.has_away)
     call.set_away(msg.away);
+  if (msg.has_fan_mode)
+    call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
+  if (msg.has_swing_mode)
+    call.set_swing_mode(static_cast<climate::ClimateSwingMode>(msg.swing_mode));
   call.perform();
 }
 #endif
