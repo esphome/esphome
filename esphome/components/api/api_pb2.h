@@ -77,6 +77,8 @@ enum ClimateAction : uint32_t {
   CLIMATE_ACTION_COOLING = 2,
   CLIMATE_ACTION_HEATING = 3,
   CLIMATE_ACTION_IDLE = 4,
+  CLIMATE_ACTION_DRYING = 5,
+  CLIMATE_ACTION_FAN = 6,
 };
 
 }  // namespace enums

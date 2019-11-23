@@ -31,6 +31,10 @@ const char *climate_action_to_string(ClimateAction action) {
       return "HEATING";
     case CLIMATE_ACTION_IDLE:
       return "IDLE";
+    case CLIMATE_ACTION_DRYING:
+      return "DRYING";
+    case CLIMATE_ACTION_FAN:
+      return "FAN";
     default:
       return "UNKNOWN";
   }
