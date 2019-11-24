@@ -103,7 +103,7 @@ void SPS30Component::update() {
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
     this->write_command_(SPS30_CMD_SOFT_RESET);
-    delayMicroseconds(50000);
+    delayMicroseconds(300000);
     this->start_continuous_measurement_();
   }
 
@@ -116,7 +116,7 @@ void SPS30Component::update() {
   uint16_t raw_read_status[1];
   if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
     ESP_LOGW(TAG, "Data not ready yet!");
-    delayMicroseconds(50000);
+    delayMicroseconds(300000);
     return;
   }
 
