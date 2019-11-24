@@ -23,7 +23,7 @@ static const size_t SERIAL_NUMBER_LENGTH = 8;
 void SPS30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sps30...");
   this->write_command_(SPS30_CMD_SOFT_RESET);
-  delayMicroseconds(50000);
+  delayMicroseconds(500000);
   /// Firmware version identification
   if (!this->write_command_(SPS30_CMD_GET_FIRMWARE_VERSION)) {
     this->error_code_ = FIRMWARE_VERSION_REQUEST_FAILED;
@@ -102,85 +102,90 @@ void SPS30Component::update() {
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Retrying to reconnect the sensor.");
-    this->write_command_(SPS30_CMD_SOFT_RESET);
-    delayMicroseconds(300000);
-    this->start_continuous_measurement_();
-  }
-
-  /// Check if measurement is ready before reading the value
-  if (!this->write_command_(SPS30_CMD_GET_DATA_READY_STATUS)) {
-    this->status_set_warning();
-    return;
-  }
-
-  uint16_t raw_read_status[1];
-  if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
-    ESP_LOGW(TAG, "Data not ready yet!");
-    delayMicroseconds(300000);
-    return;
-  }
-
-  if (!this->write_command_(SPS30_CMD_READ_MEASUREMENT)) {
-    ESP_LOGW(TAG, "Error reading measurement status!");
-    this->status_set_warning();
-    return;
-  }
-
-  this->set_timeout(50, [this]() {
-    uint16_t raw_data[20];
-    if (!this->read_data_(raw_data, 20)) {
-      ESP_LOGW(TAG, "Error reading measurement data!");
+    if (this->write_command_(SPS30_CMD_SOFT_RESET)) {
+      /// Sensor restarted and reading attempt made next cycle
+      delayMicroseconds(500000);
+      this->start_continuous_measurement_();
+      this->status_clear_warning();
+      ESP_LOGD(TAG, "Sensor reconnected!");
+    } else {
+      ESP_LOGD(TAG, "Sensor offline?");
+    }
+  } else {
+    /// Check if measurement is ready before reading the value
+    if (!this->write_command_(SPS30_CMD_GET_DATA_READY_STATUS)) {
       this->status_set_warning();
       return;
     }
 
-    union uint32_float_t {
-      uint32_t uint32;
-      float value;
-    };
+    uint16_t raw_read_status[1];
+    if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
+      ESP_LOGW(TAG, "Data not ready yet!");
+      return;
+    }
 
-    /// Reading and converting Mass concentration
-    uint32_float_t pm_1_0{.uint32 = (((uint32_t(raw_data[0])) << 16) | (uint32_t(raw_data[1])))};
-    uint32_float_t pm_2_5{.uint32 = (((uint32_t(raw_data[2])) << 16) | (uint32_t(raw_data[3])))};
-    uint32_float_t pm_4_0{.uint32 = (((uint32_t(raw_data[4])) << 16) | (uint32_t(raw_data[5])))};
-    uint32_float_t pm_10_0{.uint32 = (((uint32_t(raw_data[6])) << 16) | (uint32_t(raw_data[7])))};
-    
-    /// Reading and converting Number concentration
-    uint32_float_t pmc_0_5{.uint32 = (((uint32_t(raw_data[8])) << 16) | (uint32_t(raw_data[9])))};
-    uint32_float_t pmc_1_0{.uint32 = (((uint32_t(raw_data[10])) << 16) | (uint32_t(raw_data[11])))};
-    uint32_float_t pmc_2_5{.uint32 = (((uint32_t(raw_data[12])) << 16) | (uint32_t(raw_data[13])))};
-    uint32_float_t pmc_4_0{.uint32 = (((uint32_t(raw_data[14])) << 16) | (uint32_t(raw_data[15])))};
-    uint32_float_t pmc_10_0{.uint32 = (((uint32_t(raw_data[16])) << 16) \
-    | (uint32_t(raw_data[17])))};
+    if (!this->write_command_(SPS30_CMD_READ_MEASUREMENT)) {
+      ESP_LOGW(TAG, "Error reading measurement status!");
+      this->status_set_warning();
+      return;
+    }
 
-    /// Reading and converting Typical size
-    uint32_float_t pm_size{.uint32 = (((uint32_t(raw_data[18])) << 16) | (uint32_t(raw_data[19])))};
+    this->set_timeout(50, [this]() {
+      uint16_t raw_data[20];
+      if (!this->read_data_(raw_data, 20)) {
+        ESP_LOGW(TAG, "Error reading measurement data!");
+        this->status_set_warning();
+        return;
+      }
 
-    if (this->pm_1_0_sensor_ != nullptr)
-      this->pm_1_0_sensor_->publish_state(pm_1_0.value);
-    if (this->pm_2_5_sensor_ != nullptr)
-      this->pm_2_5_sensor_->publish_state(pm_2_5.value);
-    if (this->pm_4_0_sensor_ != nullptr)
-      this->pm_4_0_sensor_->publish_state(pm_4_0.value);
-    if (this->pm_10_0_sensor_ != nullptr)
-      this->pm_10_0_sensor_->publish_state(pm_10_0.value);
+      union uint32_float_t {
+        uint32_t uint32;
+        float value;
+      };
 
-    if (this->pmc_0_5_sensor_ != nullptr)
-      this->pmc_0_5_sensor_->publish_state(pmc_0_5.value);
-    if (this->pmc_1_0_sensor_ != nullptr)
-      this->pmc_1_0_sensor_->publish_state(pmc_1_0.value);
-    if (this->pmc_2_5_sensor_ != nullptr)
-      this->pmc_2_5_sensor_->publish_state(pmc_2_5.value);
-    if (this->pmc_4_0_sensor_ != nullptr)
-      this->pmc_4_0_sensor_->publish_state(pmc_4_0.value);
-    if (this->pmc_10_0_sensor_ != nullptr)
-      this->pmc_10_0_sensor_->publish_state(pmc_10_0.value);
+      /// Reading and converting Mass concentration
+      uint32_float_t pm_1_0{.uint32 = (((uint32_t(raw_data[0])) << 16) | (uint32_t(raw_data[1])))};
+      uint32_float_t pm_2_5{.uint32 = (((uint32_t(raw_data[2])) << 16) | (uint32_t(raw_data[3])))};
+      uint32_float_t pm_4_0{.uint32 = (((uint32_t(raw_data[4])) << 16) | (uint32_t(raw_data[5])))};
+      uint32_float_t pm_10_0{.uint32 = (((uint32_t(raw_data[6])) << 16) | (uint32_t(raw_data[7])))};
 
-    if (this->pm_size_sensor_ != nullptr)
-      this->pm_size_sensor_->publish_state(pm_size.value);
+      /// Reading and converting Number concentration
+      uint32_float_t pmc_0_5{.uint32 = (((uint32_t(raw_data[8])) << 16) | (uint32_t(raw_data[9])))};
+      uint32_float_t pmc_1_0{.uint32 = (((uint32_t(raw_data[10])) << 16) | (uint32_t(raw_data[11])))};
+      uint32_float_t pmc_2_5{.uint32 = (((uint32_t(raw_data[12])) << 16) | (uint32_t(raw_data[13])))};
+      uint32_float_t pmc_4_0{.uint32 = (((uint32_t(raw_data[14])) << 16) | (uint32_t(raw_data[15])))};
+      uint32_float_t pmc_10_0{.uint32 = (((uint32_t(raw_data[16])) << 16) \
+      | (uint32_t(raw_data[17])))};
 
-    this->status_clear_warning();
-  });
+      /// Reading and converting Typical size
+      uint32_float_t pm_size{.uint32 = (((uint32_t(raw_data[18])) << 16) | (uint32_t(raw_data[19])))};
+
+      if (this->pm_1_0_sensor_ != nullptr)
+        this->pm_1_0_sensor_->publish_state(pm_1_0.value);
+      if (this->pm_2_5_sensor_ != nullptr)
+        this->pm_2_5_sensor_->publish_state(pm_2_5.value);
+      if (this->pm_4_0_sensor_ != nullptr)
+        this->pm_4_0_sensor_->publish_state(pm_4_0.value);
+      if (this->pm_10_0_sensor_ != nullptr)
+        this->pm_10_0_sensor_->publish_state(pm_10_0.value);
+
+      if (this->pmc_0_5_sensor_ != nullptr)
+        this->pmc_0_5_sensor_->publish_state(pmc_0_5.value);
+      if (this->pmc_1_0_sensor_ != nullptr)
+        this->pmc_1_0_sensor_->publish_state(pmc_1_0.value);
+      if (this->pmc_2_5_sensor_ != nullptr)
+        this->pmc_2_5_sensor_->publish_state(pmc_2_5.value);
+      if (this->pmc_4_0_sensor_ != nullptr)
+        this->pmc_4_0_sensor_->publish_state(pmc_4_0.value);
+      if (this->pmc_10_0_sensor_ != nullptr)
+        this->pmc_10_0_sensor_->publish_state(pmc_10_0.value);
+
+      if (this->pm_size_sensor_ != nullptr)
+        this->pm_size_sensor_->publish_state(pm_size.value);
+
+      this->status_clear_warning();
+    });
+  }
 }
 
 bool SPS30Component::write_command_(uint16_t command) {
@@ -211,7 +216,7 @@ uint8_t SPS30Component::sht_crc_(uint8_t data1, uint8_t data2) {
   return crc;
 }
 
-void SPS30Component::start_continuous_measurement_() {
+bool SPS30Component::start_continuous_measurement_() {
   uint8_t data[4];
   data[0] = SPS30_CMD_START_CONTINUOUS_MEASUREMENTS & 0xFF;
   data[1] = 0x03;
@@ -219,7 +224,9 @@ void SPS30Component::start_continuous_measurement_() {
   data[3] = sht_crc_(0x03, 0x00);
   if (!this->write_bytes(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS >> 8, data, 4)) {
     ESP_LOGE(TAG, "Error initiating measurements");
+    return false;
   }
+  return true;
 }
 
 bool SPS30Component::read_data_(uint16_t *data, uint8_t len) {
