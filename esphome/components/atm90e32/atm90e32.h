@@ -30,6 +30,8 @@ class ATM90E32Component : public PollingComponent,
   }
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
+  int read16(int a_register);
+  void write16(int a_register, int val);
 
  protected:
   uint16_t read16_(uint16_t a_register);

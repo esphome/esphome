@@ -71,7 +71,7 @@ void ATM90E32Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ATM90E32Component...");
   this->spi_setup();
 
-  uint16_t mmode0 = 0x185;
+  uint16_t mmode0 = 0x085;
   if (line_freq_ == 60) {
     mmode0 |= 1 << 12;
   }
@@ -145,6 +145,10 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   ESP_LOGVV(TAG, "read16_ 0x%04X output 0x%04X", a_register, output);
   return output;
 }
+int ATM90E32Component::read16(int a_register) {
+  uint16_t rd = this->read16_((uint16_t)a_register);
+  return (int)rd;
+}
 
 int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
   uint16_t val_h = this->read16_(addr_h);
@@ -170,6 +174,9 @@ void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
   this->write_byte((val >> 8) & 0xff);
   this->write_byte(val & 0xFF);
   this->disable();
+}
+void ATM90E32Component::write16(int a_register, int val) {
+  this->write16_((uint16_t)a_register, (uint16_t)val);
 }
 
 float ATM90E32Component::get_line_voltage_a_() {
