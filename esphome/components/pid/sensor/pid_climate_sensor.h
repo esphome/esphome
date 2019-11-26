@@ -11,10 +11,10 @@ class PIDClimateSensor : public sensor::Sensor, public Component {
   void setup() override;
   void set_parent(PIDClimate *parent) { parent_ = parent; }
 
+  void dump_config() override;
+
  protected:
-  void update_from_parent_() {
-    this->publish_state(this->parent_->get_output_value());
-  }
+  void update_from_parent_();
   PIDClimate *parent_;
 };
 
