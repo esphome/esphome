@@ -9,44 +9,36 @@ from esphome.py_compat import text_type
 
 DEPENDENCIES = ['i2c']
 
-hmc5883l_ns = cg.esphome_ns.namespace('hmc5883l')
+qmc5883l_ns = cg.esphome_ns.namespace('qmc5883l')
 
 CONF_FIELD_STRENGTH_X = 'field_strength_x'
 CONF_FIELD_STRENGTH_Y = 'field_strength_y'
 CONF_FIELD_STRENGTH_Z = 'field_strength_z'
 CONF_HEADING = 'heading'
 
-HMC5883LComponent = hmc5883l_ns.class_('HMC5883LComponent', cg.PollingComponent, i2c.I2CDevice)
+QMC5883LComponent = qmc5883l_ns.class_(
+    'QMC5883LComponent', cg.PollingComponent, i2c.I2CDevice)
 
-HMC5883LOversampling = hmc5883l_ns.enum('HMC5883LOversampling')
-HMC5883LOversamplings = {
-    1: HMC5883LOversampling.HMC5883L_OVERSAMPLING_1,
-    2: HMC5883LOversampling.HMC5883L_OVERSAMPLING_2,
-    4: HMC5883LOversampling.HMC5883L_OVERSAMPLING_4,
-    8: HMC5883LOversampling.HMC5883L_OVERSAMPLING_8,
+QMC5883LDatarate = qmc5883l_ns.enum('QMC5883LDatarate')
+QMC5883LDatarates = {
+    10: QMC5883LDatarate.QMC5883L_DATARATE_10_HZ,
+    50: QMC5883LDatarate.QMC5883L_DATARATE_50_HZ,
+    100: QMC5883LDatarate.QMC5883L_DATARATE_100_HZ,
+    200: QMC5883LDatarate.QMC5883L_DATARATE_200_HZ,
 }
 
-HMC5883LDatarate = hmc5883l_ns.enum('HMC5883LDatarate')
-HMC5883LDatarates = {
-    0.75: HMC5883LDatarate.HMC5883L_DATARATE_0_75_HZ,
-    1.5: HMC5883LDatarate.HMC5883L_DATARATE_1_5_HZ,
-    3.0: HMC5883LDatarate.HMC5883L_DATARATE_3_0_HZ,
-    7.5: HMC5883LDatarate.HMC5883L_DATARATE_7_5_HZ,
-    15: HMC5883LDatarate.HMC5883L_DATARATE_15_0_HZ,
-    30: HMC5883LDatarate.HMC5883L_DATARATE_30_0_HZ,
-    75: HMC5883LDatarate.HMC5883L_DATARATE_75_0_HZ,
+QMC5883LRange = qmc5883l_ns.enum('QMC5883LRange')
+QMC5883L_RANGES = {
+    200: QMC5883LRange.QMC5883L_RANGE_200_UT,
+    800: QMC5883LRange.QMC5883L_RANGE_800_UT,
 }
 
-HMC5883LRange = hmc5883l_ns.enum('HMC5883LRange')
-HMC5883L_RANGES = {
-    88: HMC5883LRange.HMC5883L_RANGE_88_UT,
-    130: HMC5883LRange.HMC5883L_RANGE_130_UT,
-    190: HMC5883LRange.HMC5883L_RANGE_190_UT,
-    250: HMC5883LRange.HMC5883L_RANGE_250_UT,
-    400: HMC5883LRange.HMC5883L_RANGE_400_UT,
-    470: HMC5883LRange.HMC5883L_RANGE_470_UT,
-    560: HMC5883LRange.HMC5883L_RANGE_560_UT,
-    810: HMC5883LRange.HMC5883L_RANGE_810_UT,
+QMC5883LOversampling = qmc5883l_ns.enum('QMC5883LOversampling')
+QMC5883LOversamplings = {
+    512: QMC5883LOversampling.QMC5883L_SAMPLING_512,
+    256: QMC5883LOversampling.QMC5883L_SAMPLING_256,
+    128: QMC5883LOversampling.QMC5883L_SAMPLING_128,
+    64: QMC5883LOversampling.QMC5883L_SAMPLING_64,
 }
 
 
@@ -71,24 +63,24 @@ field_strength_schema = sensor.sensor_schema(UNIT_MICROTESLA, ICON_MAGNET, 1)
 heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(HMC5883LComponent),
+    cv.GenerateID(): cv.declare_id(QMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
-    cv.Optional(CONF_OVERSAMPLING, default='1x'): validate_enum(HMC5883LOversamplings, units="x"),
-    cv.Optional(CONF_RANGE, default=u'130µT'): validate_enum(HMC5883L_RANGES, units=["uT", u"µT"]),
+    cv.Optional(CONF_RANGE, default=u'200µT'): validate_enum(QMC5883L_RANGES, units=["uT", u"µT"]),
+    cv.Optional(CONF_OVERSAMPLING, default="512x"): validate_enum(QMC5883LOversamplings, units="x"),
     cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Z): field_strength_schema,
     cv.Optional(CONF_HEADING): heading_schema,
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x1E))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x0D))
 
 
 def auto_data_rate(config):
     interval_sec = config[CONF_UPDATE_INTERVAL].seconds
     interval_hz = 1.0/interval_sec
-    for datarate in sorted(HMC5883LDatarates.keys()):
+    for datarate in sorted(QMC5883LDatarates.keys()):
         if float(datarate) >= interval_hz:
-            return HMC5883LDatarates[datarate]
-    return HMC5883LDatarates[75]
+            return QMC5883LDatarates[datarate]
+    return QMC5883LDatarates[200]
 
 
 def to_code(config):
