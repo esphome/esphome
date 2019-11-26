@@ -16,19 +16,19 @@ struct PIDController {
     // u(t) ... output value
 
     // e(t) := r(t) - y(t)
-    double error = setpoint - process_value;
+    error = setpoint - process_value;
 
     // p(t) := K_p * e(t)
-    double proportional_term = this->kp * error;
+    proportional_term = kp * error;
 
     // i(t) := K_i * \int_{0}^{t} e(t) dt
-    this->accumulated_integral_ += error * this->sample_time;
-    double integral_term = this->ki * error;
+    accumulated_integral_ += error * sample_time;
+    integral_term = ki * error;
 
     // d(t) := K_d * de(t)/dt
-    double derivative = (error - this->previous_error_) / this->sample_time;
-    double derivative_term = this->kd * derivative;
-    this->previous_error_ = error;
+    double derivative = (error - previous_error_) / sample_time;
+    derivative_term = kd * derivative;
+    previous_error_ = error;
 
     // u(t) := p(t) + i(t) + d(t)
     return proportional_term + integral_term + derivative_term;
@@ -43,6 +43,12 @@ struct PIDController {
 
   /// The time between measurements in seconds.
   double sample_time;
+
+  // Store computed values in struct so that values can be monitored through sensors
+  double error;
+  double proportional_term;
+  double integral_term;
+  double derivative_term;
 
  protected:
   /// Error from previous update used for derivative term
@@ -65,6 +71,10 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   void set_kd(double kd) { controller_.kd = kd; }
 
   float get_output_value() const { return output_value_; }
+  double get_error_value() const { return controller_.error; }
+  double get_proportional_term() const { return controller_.proportional_term; }
+  double get_integral_term() const { return controller_.integral_term; }
+  double get_derivative_term() const { return controller_.derivative_term; }
 
  protected:
   /// Override control to change settings of the climate device.

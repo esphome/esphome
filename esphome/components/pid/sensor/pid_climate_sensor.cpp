@@ -14,7 +14,33 @@ void PIDClimateSensor::setup() {
   this->update_from_parent_();
 }
 void PIDClimateSensor::update_from_parent_() {
-  float value = clamp(this->parent_->get_output_value(), -1.0f, 1.0f)
+  float value;
+  switch (this->type_) {
+    case PID_SENSOR_TYPE_RESULT:
+      value = this->parent_->get_output_value();
+      break;
+    case PID_SENSOR_TYPE_ERROR:
+      value = this->parent_->get_error_value();
+      break;
+    case PID_SENSOR_TYPE_PROPORTIONAL:
+      value = this->parent_->get_proportional_term();
+      break;
+    case PID_SENSOR_TYPE_INTEGRAL:
+      value = this->parent_->get_integral_term();
+      break;
+    case PID_SENSOR_TYPE_DERIVATIVE:
+      value = this->parent_->get_derivative_term();
+      break;
+    case PID_SENSOR_TYPE_HEAT:
+      value = clamp(this->parent_->get_output_value(), 0.0f, 1.0f);
+      break;
+    case PID_SENSOR_TYPE_COOL:
+      value = clamp(-this->parent_->get_output_value(), 0.0f, 1.0f);
+      break;
+    default:
+      value = NAN;
+      break;
+  }
   this->publish_state(value * 100.0f);
 }
 void PIDClimateSensor::dump_config() {
