@@ -330,8 +330,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
-               get_disconnect_reason_str(it.reason));
+      if (it.reason == REASON_NO_AP_FOUND) {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      } else {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      }
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -390,6 +394,11 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   WiFiMockClass::_event_callback(event);
 }
 
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  uint8_t val = static_cast<uint8_t>(output_power * 4);
+  system_phy_set_max_tpw(val);
+  return true;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -410,19 +419,6 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
-  // Make sure the default opmode is OFF
-  uint8_t default_opmode = wifi_get_opmode_default();
-  if (default_opmode != 0) {
-    ESP_LOGV(TAG, "Setting default WiFi Mode to 0 (was %u)", default_opmode);
-
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_set_opmode(0);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Setting default WiFi mode failed!");
-    }
-  }
 
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
@@ -579,7 +575,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
-  conf.ssid_hidden = 0;
+  conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 

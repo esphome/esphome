@@ -261,6 +261,10 @@ sensor:
         name: "EMON CT1 Current"
       power:
         name: "EMON Active Power CT1"
+      reactive_power:
+        name: "EMON Reactive Power CT1"
+      power_factor:
+        name: "EMON Power Factor CT1"
       gain_voltage: 47660
       gain_ct: 12577
     phase_b:
@@ -268,6 +272,10 @@ sensor:
         name: "EMON CT2 Current"
       power:
         name: "EMON Active Power CT2"
+      reactive_power:
+        name: "EMON Reactive Power CT2"
+      power_factor:
+        name: "EMON Power Factor CT2"
       gain_voltage: 47660
       gain_ct: 12577
     phase_c:
@@ -275,10 +283,16 @@ sensor:
         name: "EMON CT3 Current"
       power:
         name: "EMON Active Power CT3"
+      reactive_power:
+        name: "EMON Reactive Power CT3"
+      power_factor:
+        name: "EMON Power Factor CT3"
       gain_voltage: 47660
       gain_ct: 12577
     frequency:
       name: "EMON Line Frequency"
+    chip_temperature:
+      name: "EMON Chip Temp A"
     line_frequency: 50Hz
     gain_pga: 2X
   - platform: bh1750
@@ -424,6 +438,19 @@ sensor:
     max_voltage: 32.0V
     max_current: 3.2A
     update_interval: 15s
+  - platform: ina226
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      name: "INA226 Current"
+    power:
+      name: "INA226 Power"
+    bus_voltage:
+      name: "INA226 Bus Voltage"
+    shunt_voltage:
+      name: "INA226 Shunt Voltage"
+    max_current: 3.2A
+    update_interval: 15s
   - platform: ina3221
     address: 0x40
     channel_1:
@@ -451,6 +478,14 @@ sensor:
     name: "Den Temperature"
     cs_pin: GPIO23
     update_interval: 15s
+    reference_temperature:
+      name: "MAX31855 Internal Temperature"
+  - platform: max31865
+    name: "Water Tank Temperature"
+    cs_pin: GPIO23
+    update_interval: 15s
+    reference_resistance: "430 Ω"
+    rtd_nominal_resistance: "100 Ω"
   - platform: mhz19
     co2:
       name: "MH-Z19 CO2 Value"

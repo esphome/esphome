@@ -578,6 +578,10 @@ cover:
       - output.set_level:
           id: out
           level: !lambda "return tilt;"
+    position_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return pos;"
 
 
 output:

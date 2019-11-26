@@ -76,7 +76,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif8266@<platformio version>")
+                             "espressif8266@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
@@ -84,7 +84,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif32@<platformio version>")
+                             "espressif32@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value

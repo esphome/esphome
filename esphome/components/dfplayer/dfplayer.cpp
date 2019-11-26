@@ -8,8 +8,10 @@ static const char* TAG = "dfplayer";
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
   if (folder < 100 && file < 256) {
+    this->ack_set_is_playing_ = true;
     this->send_cmd_(0x0F, (uint8_t) folder, (uint8_t) file);
   } else if (folder <= 10 && file <= 1000) {
+    this->ack_set_is_playing_ = true;
     this->send_cmd_(0x14, (((uint16_t) folder) << 12) | file);
   } else {
     ESP_LOGE(TAG, "Cannot play folder %d file %d.", folder, file);
@@ -93,6 +95,10 @@ void DFPlayer::loop() {
               ESP_LOGI(TAG, "USB, TF Card available");
             }
             break;
+          case 0x40:
+            ESP_LOGV(TAG, "Nack");
+            this->ack_set_is_playing_ = false;
+            this->ack_reset_is_playing_ = false;
           case 0x41:
             ESP_LOGV(TAG, "Ack ok");
             this->is_playing_ |= this->ack_set_is_playing_;

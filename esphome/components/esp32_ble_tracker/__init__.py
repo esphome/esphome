@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, ESP_PLATFORM_ESP32, CONF_INTERVAL, \
 from esphome.core import coroutine
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
-AUTO_LOAD = ['xiaomi_ble']
+AUTO_LOAD = ['xiaomi_ble', 'ruuvi_ble']
 
 CONF_ESP32_BLE_ID = 'esp32_ble_id'
 CONF_SCAN_PARAMETERS = 'scan_parameters'
@@ -82,7 +82,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(cv.Schema({
         cv.Optional(CONF_DURATION, default='5min'): cv.positive_time_period_seconds,
         cv.Optional(CONF_INTERVAL, default='320ms'): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_WINDOW, default='200ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_WINDOW, default='30ms'): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }), validate_scan_parameters),
 
