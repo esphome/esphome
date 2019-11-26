@@ -11,8 +11,7 @@ DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
 xiaomi_xmtzc0xhm_ns = cg.esphome_ns.namespace('xiaomi_xmtzc0xhm')
-XiaomiMiscale = xiaomi_xmtzc0xhm_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPBTDeviceListener,
-                                         cg.Component)
+XiaomiMiscale = xiaomi_xmtzc0xhm_ns.class_('XiaomiMiscale', esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(XiaomiMiscale),
