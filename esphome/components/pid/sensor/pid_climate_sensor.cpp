@@ -8,7 +8,7 @@ namespace pid {
 static const char *TAG = "pid.sensor";
 
 void PIDClimateSensor::setup() {
-  this->parent_->add_on_state_callback([this]() {
+  this->parent_->add_on_pid_computed_callback([this]() {
     this->update_from_parent_();
   });
   this->update_from_parent_();

@@ -77,6 +77,7 @@ void PIDClimate::write_output_(float value) {
     this->action = new_action;
     this->publish_state();
   }
+  this->pid_computed_callback_.call();
 }
 void PIDClimate::handle_non_auto_mode_() {
   // in non-auto mode, switch directly to appropriate action

@@ -22,7 +22,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PERCENT, ICON_GAUGE, 1).extend({
     cv.GenerateID(): cv.declare_id(PIDClimateSensor),
     cv.GenerateID(CONF_CLIMATE_ID): cv.use_id(PIDClimate),
 
-    cv.Optional(CONF_TYPE, default='RESULT'): cv.enum(PIDClimateSensorType, upper=True),
+    cv.Optional(CONF_TYPE, default='RESULT'): cv.enum(PID_CLIMATE_SENSOR_TYPES, upper=True),
 }).extend(cv.COMPONENT_SCHEMA)
 
 

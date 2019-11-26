@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/output/float_output.h"
@@ -75,6 +76,9 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   double get_proportional_term() const { return controller_.proportional_term; }
   double get_integral_term() const { return controller_.integral_term; }
   double get_derivative_term() const { return controller_.derivative_term; }
+  void add_on_pid_computed_callback(std::function<void()> &&callback) {
+    this->pid_computed_callback_.add(std::move(callback));
+  }
 
  protected:
   /// Override control to change settings of the climate device.
@@ -94,6 +98,7 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   PIDController controller_;
   /// Output value as reported by the PID controller, for PIDClimateSensor
   float output_value_;
+  CallbackManager<void()> pid_computed_callback_;
 };
 
 }  // namespace pid
