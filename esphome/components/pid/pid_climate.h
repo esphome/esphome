@@ -79,6 +79,9 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   void add_on_pid_computed_callback(std::function<void()> &&callback) {
     this->pid_computed_callback_.add(std::move(callback));
   }
+  void set_default_target_temperature(float default_target_temperature) {
+    default_target_temperature_ = default_target_temperature;
+  }
 
  protected:
   /// Override control to change settings of the climate device.
@@ -99,6 +102,7 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   /// Output value as reported by the PID controller, for PIDClimateSensor
   float output_value_;
   CallbackManager<void()> pid_computed_callback_;
+  float default_target_temperature_;
 };
 
 }  // namespace pid

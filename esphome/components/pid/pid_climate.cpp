@@ -22,6 +22,7 @@ void PIDClimate::setup() {
   } else {
     // restore from defaults, change_away handles those for us
     this->mode = climate::CLIMATE_MODE_AUTO;
+    this->target_temperature = this->default_target_temperature_;
   }
 }
 void PIDClimate::control(const climate::ClimateCall &call) {
@@ -46,9 +47,7 @@ climate::ClimateTraits PIDClimate::traits() {
   traits.set_supports_action(true);
   return traits;
 }
-void PIDClimate::dump_config() {
-  LOG_CLIMATE("", "PID Climate", this);
-}
+void PIDClimate::dump_config() { LOG_CLIMATE("", "PID Climate", this); }
 void PIDClimate::write_output_(float value) {
   this->output_value_ = value;
 

@@ -8,9 +8,7 @@ namespace pid {
 static const char *TAG = "pid.sensor";
 
 void PIDClimateSensor::setup() {
-  this->parent_->add_on_pid_computed_callback([this]() {
-    this->update_from_parent_();
-  });
+  this->parent_->add_on_pid_computed_callback([this]() { this->update_from_parent_(); });
   this->update_from_parent_();
 }
 void PIDClimateSensor::update_from_parent_() {
@@ -43,9 +41,7 @@ void PIDClimateSensor::update_from_parent_() {
   }
   this->publish_state(value * 100.0f);
 }
-void PIDClimateSensor::dump_config() {
-  LOG_SENSOR("", "PID Climate Sensor", this);
-}
+void PIDClimateSensor::dump_config() { LOG_SENSOR("", "PID Climate Sensor", this); }
 
 }  // namespace pid
 }  // namespace esphome
