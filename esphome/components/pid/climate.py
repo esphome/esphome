@@ -4,7 +4,7 @@ from esphome.components import climate, sensor, output
 from esphome.const import CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace('pid')
-PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
+PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.PollingComponent)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 

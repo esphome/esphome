@@ -64,6 +64,8 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   void set_ki(double ki) { controller_.ki = ki; }
   void set_kd(double kd) { controller_.kd = kd; }
 
+  float get_output_value() const { return output_value_; }
+
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
@@ -72,7 +74,6 @@ class PIDClimate : public climate::Climate, public PollingComponent {
 
   void update() override;
 
- protected:
   void write_output_(float value);
   void handle_non_auto_mode_();
 
@@ -81,6 +82,8 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   output::FloatOutput *cool_output_ = nullptr;
   output::FloatOutput *heat_output_ = nullptr;
   PIDController controller_;
+  /// Output value as reported by the PID controller, for PIDClimateSensor
+  float output_value_;
 };
 
 }  // namespace pid

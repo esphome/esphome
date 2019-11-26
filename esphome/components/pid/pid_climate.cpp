@@ -50,6 +50,8 @@ void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
 }
 void PIDClimate::write_output_(float value) {
+  this->output_value_ = value;
+
   // value < 0 means cool, > 0 means heat
   if (this->cool_output_ != nullptr) {
     float cool_value = clamp(-value, 0.0, 1.0f);
