@@ -1418,6 +1418,10 @@ display:
   full_update_every: 30
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: tm1651
+  id: tm1651_battery
+  clk_pin: GPIO23
+  dio_pin: GPIO23
 
 remote_receiver:
   pin: GPIO32

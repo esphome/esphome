@@ -138,6 +138,19 @@ api:
       then:
         - dfplayer.random
 
+    - service: battery_level
+      variables:
+        level: float
+      then:
+        - lambda: |-
+            id(tm1651_battery).set_level(level);
+    - service: battery_brightness
+      variables:
+        brightness: int
+      then:
+        - lambda: |-
+            id(tm1651_battery).set_brightness(brightness);
+
 wifi:
   ssid: 'MySSID'
   password: 'password1'
@@ -651,3 +664,9 @@ dfplayer:
             dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
+
+display:
+  - platform: tm1651
+    id: tm1651_battery
+    clk_pin: D6
+    dio_pin: D5
