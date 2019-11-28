@@ -47,7 +47,16 @@ climate::ClimateTraits PIDClimate::traits() {
   traits.set_supports_action(true);
   return traits;
 }
-void PIDClimate::dump_config() { LOG_CLIMATE("", "PID Climate", this); }
+void PIDClimate::dump_config() {
+  LOG_CLIMATE("", "PID Climate", this);
+  LOG_UPDATE_INTERVAL(this);
+  ESP_LOGCONFIG(TAG, "  Control Parameters:");
+  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f", controller_.kp, controller_.ki, controller_.kd);
+
+  if (this->autotuner_ != nullptr) {
+    this->autotuner_->dump_config();
+  }
+}
 void PIDClimate::write_output_(float value) {
   this->output_value_ = value;
 
@@ -93,7 +102,7 @@ void PIDClimate::handle_non_auto_mode_() {
   }
 }
 void PIDClimate::update() {
-  double value;
+  float value;
   if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
     // if any control parameters are nan, turn off all outputs
     value = 0.0;
@@ -101,6 +110,22 @@ void PIDClimate::update() {
     // Update PID controller irrespective of current mode, to not mess up D/I terms
     // In non-auto mode, we just discard the output value
     value = this->controller_.update(this->target_temperature, this->current_temperature);
+
+    // Check autotuner
+    if (this->autotuner_ != nullptr) {
+      auto res = this->autotuner_->update(this->target_temperature, this->current_temperature);
+      if (res.result_params.has_value()) {
+        this->controller_.kp = res.result_params->kp;
+        this->controller_.ki = res.result_params->ki;
+        this->controller_.kd = res.result_params->kd;
+        // keep autotuner instance so that subsequent dump_configs will print the long result message.
+      } else {
+        value = res.output;
+        if (mode != climate::CLIMATE_MODE_AUTO) {
+          ESP_LOGW(TAG, "For PID autotuner you need to set AUTO (also called heat/cool) mode!");
+        }
+      }
+    }
   }
 
   if (this->mode != climate::CLIMATE_MODE_AUTO) {
