@@ -137,7 +137,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             if key_node.tag == 'tag:yaml.org,2002:merge':
                 del node.value[index]
                 if isinstance(value_node, yaml.MappingNode):
-                    self.custom_flatten_mapping(value_node, True)
+                    self.custom_flatten_mapping(value_node)
                     merge.extend(value_node.value)
                 elif isinstance(value_node, yaml.SequenceNode):
                     submerge = []
