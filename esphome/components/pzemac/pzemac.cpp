@@ -36,13 +36,16 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint32_t raw_active_power = pzem_get_32bit(6);
   float active_power = raw_active_power / 10.0f;  // max 429496729.5 W
 
+  uint32_t raw_energy = pzem_get_32bit(10);
+  float energy = raw_energy / 1.0f;  // max 4294967295 Wh
+
   uint16_t raw_frequency = pzem_get_16bit(14);
   float frequency = raw_frequency / 10.0f;
 
   uint16_t raw_power_factor = pzem_get_16bit(16);
   float power_factor = raw_power_factor / 100.0f;
 
-  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, F=%.1f Hz, PF=%.2f", voltage, current, active_power, frequency,
+  ESP_LOGD(TAG, "PZEM AC: V=%.1f V, I=%.3f A, P=%.1f W, E=%.1f Wh, F=%.1f Hz, PF=%.2f", voltage, current, active_power, energy, frequency,
            power_factor);
   if (this->voltage_sensor_ != nullptr)
     this->voltage_sensor_->publish_state(voltage);
@@ -50,6 +53,8 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
     this->current_sensor_->publish_state(current);
   if (this->power_sensor_ != nullptr)
     this->power_sensor_->publish_state(active_power);
+  if (this->energy_sensor_ != nullptr)
+    this->energy_sensor_->publish_state(energy);
   if (this->frequency_sensor_ != nullptr)
     this->frequency_sensor_->publish_state(frequency);
   if (this->power_factor_sensor_ != nullptr)
@@ -63,6 +68,7 @@ void PZEMAC::dump_config() {
   LOG_SENSOR("", "Voltage", this->voltage_sensor_);
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
+  LOG_SENSOR("", "Energy", this->energy_sensor_);
   LOG_SENSOR("", "Frequency", this->frequency_sensor_);
   LOG_SENSOR("", "Power Factor", this->power_factor_sensor_);
 }
