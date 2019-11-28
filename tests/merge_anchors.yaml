@@ -1,0 +1,20 @@
+substitutions: &esphome
+  name: "yaml_anchors"
+  comment: "Testing yaml anchors"
+
+esphome:
+  <<: *esphome
+  platform: ESP8266
+  board: d1_mini
+  build_path: build/test3
+
+switch:
+  - &restart
+    platform: restart
+    id: "${name}_restart"
+    name: "${name} restart"
+    internal: true
+  - <<: *restart
+    id: "id_overridden"
+    name: "name overridden"
+
