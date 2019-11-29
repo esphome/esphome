@@ -7,12 +7,11 @@ namespace pid {
 static const char *TAG = "pid.climate";
 
 void PIDClimate::setup() {
-  this->controller_.sample_time = this->update_interval_ / 1000.0;
   this->sensor_->add_on_state_callback([this](float state) {
+    // only publish if state/current temperature has changed in two digits of precision
+    this->do_publish_ = roundf(state * 100) != roundf(this->current_temperature * 100);
     this->current_temperature = state;
-    // current temperature changed, publish state
-    // but do not re-compute values - PID controller is re-evaluated at constant interval
-    this->publish_state();
+    this->update_pid_();
   });
   this->current_temperature = this->sensor_->state;
   // restore set points
@@ -42,14 +41,13 @@ climate::ClimateTraits PIDClimate::traits() {
   traits.set_supports_current_temperature(true);
   traits.set_supports_auto_mode(true);
   traits.set_supports_two_point_target_temperature(false);
-  traits.set_supports_cool_mode(this->cool_output_ != nullptr);
-  traits.set_supports_heat_mode(this->heat_output_ != nullptr);
+  traits.set_supports_cool_mode(this->supports_cool_());
+  traits.set_supports_heat_mode(this->supports_heat_());
   traits.set_supports_action(true);
   return traits;
 }
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
-  LOG_UPDATE_INTERVAL(this);
   ESP_LOGCONFIG(TAG, "  Control Parameters:");
   ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f", controller_.kp, controller_.ki, controller_.kd);
 
@@ -60,21 +58,23 @@ void PIDClimate::dump_config() {
 void PIDClimate::write_output_(float value) {
   this->output_value_ = value;
 
+  // first ensure outputs are off (both outputs not active at the same time)
+  if (this->supports_cool_() && value >= 0)
+    this->cool_output_->set_level(0.0f);
+  if (this->supports_heat_() && value <= 0)
+    this->heat_output_->set_level(0.0f);
+
   // value < 0 means cool, > 0 means heat
-  if (this->cool_output_ != nullptr) {
-    float cool_value = clamp(-value, 0.0, 1.0f);
-    this->cool_output_->set_level(cool_value);
-  }
-  if (this->heat_output_ != nullptr) {
-    float heat_value = clamp(value, 0.0, 1.0f);
-    this->heat_output_->set_level(heat_value);
-  }
+  if (this->supports_cool_() && value < 0)
+    this->cool_output_->set_level(std::min(1.0f, -value));
+  if (this->supports_heat_() && value > 0)
+    this->heat_output_->set_level(std::min(1.0f, value));
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (value < 0.0 && this->cool_output_ != nullptr)
+  if (this->supports_cool_() && value < 0)
     new_action = climate::CLIMATE_ACTION_COOLING;
-  else if (value > 0.0 && this->heat_output_ != nullptr)
+  else if (this->supports_heat_() && value > 0)
     new_action = climate::CLIMATE_ACTION_HEATING;
   else if (this->mode == climate::CLIMATE_MODE_OFF)
     new_action = climate::CLIMATE_ACTION_OFF;
@@ -83,7 +83,7 @@ void PIDClimate::write_output_(float value) {
 
   if (new_action != this->action) {
     this->action = new_action;
-    this->publish_state();
+    this->do_publish_ = true;
   }
   this->pid_computed_callback_.call();
 }
@@ -101,7 +101,7 @@ void PIDClimate::handle_non_auto_mode_() {
     assert(false);
   }
 }
-void PIDClimate::update() {
+void PIDClimate::update_pid_() {
   float value;
   if (isnan(this->current_temperature) || isnan(this->target_temperature)) {
     // if any control parameters are nan, turn off all outputs
@@ -112,7 +112,7 @@ void PIDClimate::update() {
     value = this->controller_.update(this->target_temperature, this->current_temperature);
 
     // Check autotuner
-    if (this->autotuner_ != nullptr) {
+    if (this->autotuner_ != nullptr && !this->autotuner_->is_finished()) {
       auto res = this->autotuner_->update(this->target_temperature, this->current_temperature);
       if (res.result_params.has_value()) {
         this->controller_.kp = res.result_params->kp;
@@ -130,10 +130,22 @@ void PIDClimate::update() {
 
   if (this->mode != climate::CLIMATE_MODE_AUTO) {
     this->handle_non_auto_mode_();
-    return;
+  } else {
+    this->write_output_(value);
   }
 
-  this->write_output_(value);
+  if (this->do_publish_)
+    this->publish_state();
+}
+void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
+  this->autotuner_ = std::move(autotune);
+  float min_value = this->supports_cool_() ? -1.0f : 0.0f;
+  float max_value = this->supports_heat_() ? 1.0f : 0.0f;
+  this->autotuner_->config(min_value, max_value);
+  this->set_interval("autotune-progress", 10000, [this](){
+    if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
+      this->autotuner_->dump_config();
+  });
 }
 
 }  // namespace pid

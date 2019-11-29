@@ -72,6 +72,11 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
     return res;
   }
 
+  if (!isnan(this->setpoint_) && this->setpoint_ != setpoint) {
+    ESP_LOGW(TAG, "Setpoint changed during autotune! The result will not be accurate!");
+  }
+  this->setpoint_ = setpoint;
+
   float error = setpoint - process_variable;
   const uint32_t now = millis();
 
@@ -80,15 +85,26 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   this->amplitude_detector_.update(error, this->relay_function_.state);
   res.output = output;
 
-  if (!this->frequency_detector_.has_enough_data() || !this->amplitude_detector_.has_enough_data())
+  if (!this->frequency_detector_.has_enough_data() || !this->amplitude_detector_.has_enough_data()) {
     // not enough data for calculation yet
+    ESP_LOGV(TAG, "  Not enough data yet for aututuner");
     return res;
+  }
 
-  if (!this->frequency_detector_.is_increase_decrease_symmetrical() ||
-      !this->amplitude_detector_.is_amplitude_convergent()) {
+  bool zc_symmetrical = this->frequency_detector_.is_increase_decrease_symmetrical();
+  bool amplitude_convergent = this->frequency_detector_.is_increase_decrease_symmetrical();
+  if (!zc_symmetrical || !amplitude_convergent) {
     // The frequency/amplitude is not fully accurate yet, try to wait
     // until the fault clears, or terminate after a while anyway
+    if (zc_symmetrical) {
+      ESP_LOGVV(TAG, "  ZC is not symmetrical");
+    }
+    if (amplitude_convergent) {
+      ESP_LOGVV(TAG, "  Amplitude is not convergent");
+    }
     uint32_t phase = this->relay_function_.phase_count;
+    ESP_LOGVV(TAG, "  Phase %u, enough=%u", phase, enough_data_phase_);
+
     if (this->enough_data_phase_ == 0) {
       this->enough_data_phase_ = phase;
     } else if (phase - this->enough_data_phase_ <= 6) {
@@ -100,14 +116,16 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
     }
   }
 
+  ESP_LOGI(TAG, "PID Autotune finished!");
+
   float osc_ampl = this->amplitude_detector_.get_mean_oscillation_amplitude();
   float d = (this->relay_function_.output_positive - this->relay_function_.output_negative) / 2.0f;
+  ESP_LOGVV(TAG, "  Relay magnitude: %f", d);
   this->ku_ = 4.0f * d / float(M_PI * osc_ampl);
   this->pu_ = this->frequency_detector_.get_mean_oscillation_period();
 
   this->state_ = AUTOTUNE_SUCCEEDED;
   res.result_params = this->get_ziegler_nichols_pid_();
-  ESP_LOGI(TAG, "PID Autotune finished!");
   this->dump_config();
 
   return res;
@@ -127,7 +145,7 @@ void PIDAutotuner::dump_config() {
       ESP_LOGW(
           TAG,
           "    This is usually because the heat and cool processes do not change the temperature at the same rate.");
-      ESP_LOGW(TAG, "    Please try reducing the heat_output value (or increase cool_output in case of a cooler)");
+      ESP_LOGW(TAG, "    Please try reducing the positive_output value (or increase negative_output in case of a cooler)");
       has_issue = true;
     }
     if (!has_issue) {
@@ -136,13 +154,17 @@ void PIDAutotuner::dump_config() {
 
     auto fac = get_ziegler_nichols_pid_();
     ESP_LOGI(TAG, "  Calculated PID parameters (\"Ziegler-Nichols PID\" rule):");
-    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, " ");
     ESP_LOGI(TAG, "  control_parameters:");
     ESP_LOGI(TAG, "    kp: %.5f", fac.kp);
     ESP_LOGI(TAG, "    ki: %.5f", fac.ki);
     ESP_LOGI(TAG, "    kd: %.5f", fac.kd);
-    ESP_LOGI(TAG, "");
+    ESP_LOGI(TAG, " ");
     ESP_LOGI(TAG, "  Please copy these values into your YAML configuration! They will reset on the next reboot.");
+
+    ESP_LOGV(TAG, "  Oscillation Period: %f", this->frequency_detector_.get_mean_oscillation_period());
+    ESP_LOGV(TAG, "  Oscillation Amplitude: %f", this->amplitude_detector_.get_mean_oscillation_amplitude());
+    ESP_LOGV(TAG, "  Ku: %f, Pu: %f", this->ku_, this->pu_);
 
     ESP_LOGD(TAG, "  Alternative Rules:");
     // http://www.mstarlabs.com/control/znrule.html
@@ -154,6 +176,7 @@ void PIDAutotuner::dump_config() {
 
   if (this->state_ == AUTOTUNE_RUNNING) {
     ESP_LOGI(TAG, "  Autotune is still running!");
+    ESP_LOGD(TAG, "  Status: Trying to reach %.1f °C", setpoint_ - relay_function_.current_target_error());
     ESP_LOGD(TAG, "  Stats so far:");
     ESP_LOGD(TAG, "    Phases: %u", relay_function_.phase_count);
     ESP_LOGD(TAG, "    Detected %u zero-crossings", frequency_detector_.zerocrossing_intervals.size());  // NOLINT
@@ -194,10 +217,13 @@ float PIDAutotuner::RelayFunction::update(float error) {
     change = true;
   }
 
-  if (change)
+  float output = state == RELAY_FUNCTION_POSITIVE ? output_positive : output_negative;
+  if (change) {
     this->phase_count++;
+    ESP_LOGV(TAG, "Autotune: Turning output to %.1f%%", output*100);
+  }
 
-  return state == RELAY_FUNCTION_POSITIVE ? output_positive : output_negative;
+  return output;
 }
 
 // ================== OscillationFrequencyDetector ==================
@@ -218,8 +244,10 @@ void PIDAutotuner::OscillationFrequencyDetector::update(uint32_t now, float erro
 
   if (had_crossing) {
     // Had crossing above hysteresis threshold, record
+    ESP_LOGV(TAG, "Autotune: Detected Zero-Cross at %u", now);
     if (this->last_zerocross != 0) {
       uint32_t dt = now - this->last_zerocross;
+      ESP_LOGV(TAG, "  dt: %u", dt);
       this->zerocrossing_intervals.push_back(dt);
     }
     this->last_zerocross = now;
@@ -268,11 +296,13 @@ void PIDAutotuner::OscillationAmplitudeDetector::update(float error,
       // The positive error peak must have been in previous segment (180° shifted)
       // record phase_max
       this->phase_maxs.push_back(phase_max);
+      ESP_LOGV(TAG, "Autotune: Phase Max: %f", phase_max);
     } else if (last_relay_state == RelayFunction::RELAY_FUNCTION_NEGATIVE) {
       // Transitioned from negative error to positive error.
       // The negative error peak must have been in previous segment (180° shifted)
       // record phase_min
       this->phase_mins.push_back(phase_min);
+      ESP_LOGV(TAG, "Autotune: Phase Min: %f", phase_min);
     }
     // reset phase values for next phase
     this->phase_min = error;

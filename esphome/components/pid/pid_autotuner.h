@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 #include "pid_controller.h"
+#include "pid_simulator.h"
 
 namespace esphome {
 namespace pid {
@@ -24,12 +25,29 @@ class PIDAutotuner {
     relay_function_.output_positive = std::min(relay_function_.output_positive, output_max);
   }
   PIDAutotuneResult update(float setpoint, float process_variable);
+  bool is_finished() const { return state_ != AUTOTUNE_RUNNING; }
 
   void dump_config();
+
+  void set_noiseband(float noiseband) {
+    relay_function_.noiseband = noiseband;
+    // ZC detector uses 1/10 the noiseband of relay function (noise suppression)
+    frequency_detector_.noiseband = noiseband / 10;
+  }
+  void set_output_positive(float output_positive) { relay_function_.output_positive = output_positive; }
+  void set_output_negative(float output_negative) { relay_function_.output_negative = output_negative; }
 
  protected:
   struct RelayFunction {
     float update(float error);
+
+    float current_target_error() const {
+      if (state == RELAY_FUNCTION_INIT)
+        return 0;
+      if (state == RELAY_FUNCTION_POSITIVE)
+        return -noiseband;
+      return noiseband;
+    }
 
     enum RelayFunctionState {
       RELAY_FUNCTION_INIT,
@@ -78,10 +96,10 @@ class PIDAutotuner {
   void print_rule_(const char *name, float kp_factor, float ki_factor, float kd_factor);
   PIDResult get_ziegler_nichols_pid_() {
     return calculate_pid_(0.6f, 1.2f, 0.075f);
-    ;
   }
 
   uint32_t enough_data_phase_ = 0;
+  float setpoint_ = NAN;
   enum State {
     AUTOTUNE_RUNNING,
     AUTOTUNE_SUCCEEDED,

@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/output/float_output.h"
@@ -11,7 +12,7 @@
 namespace esphome {
 namespace pid {
 
-class PIDClimate : public climate::Climate, public PollingComponent {
+class PIDClimate : public climate::Climate, public Component {
  public:
   PIDClimate() = default;
   void setup() override;
@@ -23,6 +24,8 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   void set_kp(float kp) { controller_.kp = kp; }
   void set_ki(float ki) { controller_.ki = ki; }
   void set_kd(float kd) { controller_.kd = kd; }
+  void set_min_integral(float min_integral) { controller_.min_integral = min_integral; }
+  void set_max_integral(float max_integral) { controller_.max_integral = max_integral; }
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error; }
@@ -35,6 +38,7 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   void set_default_target_temperature(float default_target_temperature) {
     default_target_temperature_ = default_target_temperature;
   }
+  void start_autotune(std::unique_ptr<PIDAutotuner> &&autotune);
 
  protected:
   /// Override control to change settings of the climate device.
@@ -42,7 +46,14 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
 
-  void update() override;
+  void update_pid_();
+
+  bool supports_cool_() const {
+    return this->cool_output_ != nullptr;
+  }
+  bool supports_heat_() const {
+    return this->heat_output_ != nullptr;
+  }
 
   void write_output_(float value);
   void handle_non_auto_mode_();
@@ -57,6 +68,37 @@ class PIDClimate : public climate::Climate, public PollingComponent {
   CallbackManager<void()> pid_computed_callback_;
   float default_target_temperature_;
   std::unique_ptr<PIDAutotuner> autotuner_;
+  bool do_publish_ = false;
+};
+
+
+template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
+ public:
+  PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(Ts... x) {
+    auto tuner = make_unique<PIDAutotuner>();
+    tuner->set_noiseband(this->noiseband_);
+    tuner->set_output_negative(this->negative_output_);
+    tuner->set_output_positive(this->positive_output_);
+    this->parent_->start_autotune(std::move(tuner));
+  }
+
+  void set_noiseband(float noiseband) {
+    noiseband_ = noiseband;
+  }
+  void set_positive_output(float positive_output) {
+    positive_output_ = positive_output;
+  }
+  void set_negative_output(float negative_output) {
+    negative_output_ = negative_output;
+  }
+
+ protected:
+  float noiseband_;
+  float positive_output_;
+  float negative_output_;
+  PIDClimate *parent_;
 };
 
 }  // namespace pid

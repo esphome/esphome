@@ -1,10 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.components import climate, sensor, output
 from esphome.const import CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace('pid')
-PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.PollingComponent)
+PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
+PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 
@@ -14,6 +16,11 @@ CONF_KD = 'kd'
 CONF_CONTROL_PARAMETERS = 'control_parameters'
 CONF_COOL_OUTPUT = 'cool_output'
 CONF_HEAT_OUTPUT = 'heat_output'
+CONF_NOISEBAND = 'noiseband'
+CONF_POSITIVE_OUTPUT = 'positive_output'
+CONF_NEGATIVE_OUTPUT = 'negative_output'
+CONF_MIN_INTEGRAL = 'min_integral'
+CONF_MAX_INTEGRAL = 'max_integral'
 
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(PIDClimate),
@@ -25,9 +32,10 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
         cv.Required(CONF_KP): cv.float_,
         cv.Optional(CONF_KI, default=0.0): cv.float_,
         cv.Optional(CONF_KD, default=0.0): cv.float_,
+        cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
+        cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
     }),
-}).extend(cv.polling_component_schema('1s')),
-                       cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT))
+}), cv.has_at_least_one_key(CONF_COOL_OUTPUT, CONF_HEAT_OUTPUT))
 
 
 def to_code(config):
@@ -48,4 +56,24 @@ def to_code(config):
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
     cg.add(var.set_kd(params[CONF_KD]))
+    if CONF_MIN_INTEGRAL in params:
+        cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
+    if CONF_MAX_INTEGRAL in params:
+        cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
+
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
+
+
+@automation.register_action('climate.pid.autotune', PIDAutotuneAction, automation.maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(PIDClimate),
+    cv.Optional(CONF_NOISEBAND, default=0.5): cv.float_,
+    cv.Optional(CONF_POSITIVE_OUTPUT, default=1.0): cv.possibly_negative_percentage,
+    cv.Optional(CONF_NEGATIVE_OUTPUT, default=-1.0): cv.possibly_negative_percentage,
+}))
+def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_noiseband(config[CONF_NOISEBAND]))
+    cg.add(var.set_positive_output(config[CONF_POSITIVE_OUTPUT]))
+    cg.add(var.set_negative_output(config[CONF_NEGATIVE_OUTPUT]))
+    yield var
