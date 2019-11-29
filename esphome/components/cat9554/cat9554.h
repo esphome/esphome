@@ -13,6 +13,12 @@ enum CAT9554GPIOMode : uint8_t {
   CAT9554_OUTPUT = OUTPUT,
 };
 
+enum CAT9554Commands {
+  INPUT_REG = 0x00,
+  OUTPUT_REG = 0x01,
+  CONFIG_REG = 0x03,
+};
+
 class CAT9554Component : public Component, public i2c::I2CDevice {
  public:
   CAT9554Component() = default;
@@ -25,6 +31,10 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, uint8_t mode);
+  /// Need update GPIO status.
+  void update_gpio_needed(bool needed) { this->update_gpio_ = needed; };
+  /// Setup irq pin.
+  void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; };
 
   float get_setup_priority() const override;
 
@@ -32,15 +42,22 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
 
  protected:
   bool read_gpio_();
-
   bool write_gpio_();
+  bool config_gpio_();
+  bool read_config_();
 
   /// Mask for the pin mode - 1 means output, 0 means input
-  uint16_t mode_mask_{0x00};
+  uint16_t config_mask_{0x00};
   /// The mask to write as output state - 1 means HIGH, 0 means LOW
   uint16_t output_mask_{0x00};
   /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
+  /// IRQ pin.
+  GPIOPin *irq_pin_;
+  /// Interrupt handler
+  ISRInternalGPIOPin *isr_;
+  /// Need update GPIO
+  bool update_gpio_;
 
 };
 
