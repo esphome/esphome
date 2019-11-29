@@ -145,7 +145,8 @@ void PIDAutotuner::dump_config() {
       ESP_LOGW(
           TAG,
           "    This is usually because the heat and cool processes do not change the temperature at the same rate.");
-      ESP_LOGW(TAG, "    Please try reducing the positive_output value (or increase negative_output in case of a cooler)");
+      ESP_LOGW(TAG,
+               "    Please try reducing the positive_output value (or increase negative_output in case of a cooler)");
       has_issue = true;
     }
     if (!has_issue) {
@@ -220,7 +221,7 @@ float PIDAutotuner::RelayFunction::update(float error) {
   float output = state == RELAY_FUNCTION_POSITIVE ? output_positive : output_negative;
   if (change) {
     this->phase_count++;
-    ESP_LOGV(TAG, "Autotune: Turning output to %.1f%%", output*100);
+    ESP_LOGV(TAG, "Autotune: Turning output to %.1f%%", output * 100);
   }
 
   return output;

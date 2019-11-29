@@ -48,12 +48,8 @@ class PIDClimate : public climate::Climate, public Component {
 
   void update_pid_();
 
-  bool supports_cool_() const {
-    return this->cool_output_ != nullptr;
-  }
-  bool supports_heat_() const {
-    return this->heat_output_ != nullptr;
-  }
+  bool supports_cool_() const { return this->cool_output_ != nullptr; }
+  bool supports_heat_() const { return this->heat_output_ != nullptr; }
 
   void write_output_(float value);
   void handle_non_auto_mode_();
@@ -71,7 +67,6 @@ class PIDClimate : public climate::Climate, public Component {
   bool do_publish_ = false;
 };
 
-
 template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
  public:
   PIDAutotuneAction(PIDClimate *parent) : parent_(parent) {}
@@ -84,15 +79,9 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
     this->parent_->start_autotune(std::move(tuner));
   }
 
-  void set_noiseband(float noiseband) {
-    noiseband_ = noiseband;
-  }
-  void set_positive_output(float positive_output) {
-    positive_output_ = positive_output;
-  }
-  void set_negative_output(float negative_output) {
-    negative_output_ = negative_output;
-  }
+  void set_noiseband(float noiseband) { noiseband_ = noiseband; }
+  void set_positive_output(float positive_output) { positive_output_ = positive_output; }
+  void set_negative_output(float negative_output) { negative_output_ = negative_output; }
 
  protected:
   float noiseband_;

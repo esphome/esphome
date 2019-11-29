@@ -94,9 +94,7 @@ class PIDAutotuner {
   } amplitude_detector_;
   PIDResult calculate_pid_(float kp_factor, float ki_factor, float kd_factor);
   void print_rule_(const char *name, float kp_factor, float ki_factor, float kd_factor);
-  PIDResult get_ziegler_nichols_pid_() {
-    return calculate_pid_(0.6f, 1.2f, 0.075f);
-  }
+  PIDResult get_ziegler_nichols_pid_() { return calculate_pid_(0.6f, 1.2f, 0.075f); }
 
   uint32_t enough_data_phase_ = 0;
   float setpoint_ = NAN;

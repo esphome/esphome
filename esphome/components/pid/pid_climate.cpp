@@ -142,7 +142,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
   float max_value = this->supports_heat_() ? 1.0f : 0.0f;
   this->autotuner_->config(min_value, max_value);
-  this->set_interval("autotune-progress", 10000, [this](){
+  this->set_interval("autotune-progress", 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });
