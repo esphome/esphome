@@ -6,6 +6,65 @@ namespace pid {
 
 static const char *TAG = "pid.autotune";
 
+/*
+ * # PID Autotuner
+ *
+ * Autotuning of PID parameters is a very interesting topic. There has been
+ * a lot of research over the years to create algorithms that can efficiently determine
+ * suitable starting PID parameters.
+ *
+ * The most basic approach is the Ziegler-Nichols method, which can determine good PID parameters
+ * in a manual process:
+ *  - Set ki, kd to zero.
+ *  - Increase kp until the output oscillates *around* the setpoint. This value kp is called the
+ *    "ultimate gain" K_u.
+ *  - Additionally, record the period of the observed oscillation as P_u (also called T_u).
+ *  - suitable PID parameters are then: kp=0.6*K_u, ki=1.2*K_u/P_u, kd=0.075*K_u*P_u (additional variants of
+ *    these "magic" factors exist as well [2]).
+ *
+ * Now we'd like to automate that process to get K_u and P_u without the user. So we'd like to somehow
+ * make the observed variable oscillate. One observation is that in many applications of PID controllers
+ * the observed variable has some amount of "delay" to the output value (think heating an object, it will
+ * take a few seconds before the sensor can sense the change of temperature) [3].
+ *
+ * It turns out one way to induce such an oscillation is by using a really dumb heating controller:
+ * When the observed value is below the setpoint, heat at 100%. If it's below, cool at 100% (or disable heating).
+ * We call this the "RelayFunction" - the class is responsible for making the observed value oscillate around the
+ * setpoint. We actually use a hysteresis filter (like the bang bang controller) to make the process immune to
+ * noise in the input data, but the math is the same [1].
+ *
+ * Next, now that we have induced an oscillation, we want to measure the frequency (or period) of oscillation.
+ * This is what "OscillationFrequencyDetector" is for: it records zerocrossing events (when the observed value
+ * crosses the setpoint). From that data, we can determine the average oscillating period. This is the P_u of the
+ * ZN-method.
+ *
+ * Finally, we need to determine K_u, the ultimate gain. It turns out we can calculate this based on the amplitude of
+ * oscillation ("induced amplitude `a`) as described in [1]:
+ *   K_u = (4d) / (πa)
+ * where d is the magnitude of the relay function (in range -d to +d).
+ * To measure `a`, we look at the current phase the relay function is in - if it's in the "heating" phase, then we
+ * expect the lowest temperature (=highest error) to be found in the phase because the peak will always happen slightly
+ * after the relay function has changed state (assuming a delay-dominated process).
+ *
+ * Finally, we use some heuristics to determine if the data we've received so far is good:
+ *  - First, of course we must have enough data to calculate the values.
+ *  - The ZC events need to happen at a relatively periodic rate. If the heating/cooling speeds are very different,
+ *    I've observed the ZN parameters are not very useful.
+ *  - The induced amplitude should not deviate too much. If the amplitudes deviate too much this means there has
+ *    been some outside influence (or noise) on the system, and the measured amplitude values are not reliable.
+ *
+ * There are many ways this method can be improved, but on my simulation data the current method already produces very
+ * good results. Some ideas for future improvements:
+ *  - Relay Function improvements:
+ *    - Integrator, Preload, Saturation Relay ([1])
+ *  - Use phase of measured signal relative to relay function.
+ *  - Apply PID parameters from ZN, but continuously tweak them in a second step.
+ *
+ * [1]: https://warwick.ac.uk/fac/cross_fac/iatl/reinvention/archive/volume5issue2/hornsey/
+ * [2]: http://www.mstarlabs.com/control/znrule.html
+ * [3]: https://www.academia.edu/38620114/SEBORG_3rd_Edition_Process_Dynamics_and_Control
+ */
+
 PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float process_variable) {
   PIDAutotuner::PIDAutotuneResult res;
   if (this->state_ == AUTOTUNE_SUCCEEDED) {
