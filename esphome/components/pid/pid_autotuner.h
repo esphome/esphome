@@ -31,8 +31,8 @@ class PIDAutotuner {
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
-    // ZC detector uses 1/10 the noiseband of relay function (noise suppression)
-    frequency_detector_.noiseband = noiseband / 10;
+    // ZC detector uses 1/4 the noiseband of relay function (noise suppression)
+    frequency_detector_.noiseband = noiseband / 4;
   }
   void set_output_positive(float output_positive) { relay_function_.output_positive = output_positive; }
   void set_output_negative(float output_negative) { relay_function_.output_negative = output_negative; }
