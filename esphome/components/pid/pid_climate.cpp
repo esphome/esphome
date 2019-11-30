@@ -19,199 +19,132 @@ void PidClimate::setup() {
   if (restore.has_value()) {
     restore->to_call(this).perform();
   } else {
-    // restore from defaults, change_away handles those for us
-    this->mode = climate::CLIMATE_MODE_AUTO;
+    this->mode = climate::CLIMATE_MODE_OFF;
   }
 }
 
 void PidClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
-    this->set_mode_(*call.get_mode());
+    this->switch_to_mode_(*call.get_mode());
   if (call.get_target_temperature().has_value())
     this->target_temperature = *call.get_target_temperature();
 
-  this->compute_state_();
   this->publish_state();
 }
 
-void PidClimate::set_mode_(climate::ClimateMode new_mode) {
-  if (new_mode == this->mode) {
-    // Mode has not changed
-    return;
-  }
-
-  this->mode = new_mode;
-  if (new_mode != climate::CLIMATE_MODE_AUTO) {
-    // Mode is no longer AUTO, disable the PID controller.
-    this->pid_controller_->SetMode(MANUAL);
-  }
-}
-
-void PidClimate::loop() {
-  this->input_ = this->current_temperature;
-  this->setpoint_ = this->target_temperature;
-
-  if (isnan(this->input_) || this->mode != climate::CLIMATE_MODE_AUTO) {
-    // Current temperature reading is NaN or mode is not AUTO. No need to 
-    // perform any calculations
+void PidClimate::update() {
+  if (this->mode != climate::CLIMATE_MODE_AUTO 
+      || isnan(this->current_temperature) 
+      || isnan(this->target_temperature) 
+      || isnan(this->previous_temperature_)) {
+    this->previous_temperature_ = this->current_temperature;
     return;
   }
   
-  if (this->pid_controller_->GetMode() != AUTOMATIC) {
-    // PID controller has not been initialized for use. Initialize it now.
-    ESP_LOGI(TAG, "Setting PID controller to AUTOMATIC mode");
-    this->pid_controller_->SetSampleTime(this->pid_config_.sample_time);
-    this->pid_controller_->SetOutputLimits(-100, 100);
-    this->pid_controller_->SetTunings(this->pid_config_.kp, this->pid_config_.ki, this->pid_config_.kd);
-    this->pid_controller_->SetMode(AUTOMATIC);
-  }
-  
-  if(this->pid_controller_->Compute()) {
-    // A PID computation was made. Re-compute the state.
-    this->log_state();
-    this->compute_state_();
-  }
-}
+  double prev_error = this->target_temperature - this->previous_temperature_;
+  double error = this->target_temperature - this->current_temperature;
+  double d_err = error - prev_error;
 
-void PidClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
-    // in non-auto mode
-    this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
-    return;
-  }
-  if (isnan(this->current_temperature) || isnan(this->target_temperature) || isnan(this->output_)) {
-    // if any control values are nan, go to OFF (idle) mode
-    this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
-    return;
-  }
-  
-  const bool too_cold = this->output_ > 0;
-  const bool too_hot = this->output_ <= 0;
-
-  climate::ClimateAction target_action;
-  if (too_cold) {
-    // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
-      target_action = climate::CLIMATE_ACTION_HEATING;
-    else
-      target_action = climate::CLIMATE_ACTION_OFF;
-  } else if (too_hot) {
-    // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
-      target_action = climate::CLIMATE_ACTION_COOLING;
-    else
-      target_action = climate::CLIMATE_ACTION_OFF;
+  if (error < this->tuning_params_.i_enable) {
+    // Clamp integrator to prevent integral windup
+    this->i_err_ = min(this->i_err_ + error, static_cast<double>(this->tuning_params_.i_max));
   } else {
-    // neither too hot nor too cold -> in range
-    if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle mode
-      target_action = climate::CLIMATE_ACTION_OFF;
-    } else {
-      // else use current mode and don't change (hysteresis)
-      target_action = this->action;
-    }
+    // Error is too large, disable integral accumulation
+    this->i_err_ = 0;
   }
 
-  this->switch_to_action_(target_action);
+  double proportional = (this->tuning_params_.kp * error);
+  double integral = (this->tuning_params_.ki * this->i_err_);
+  double derivative = (this->tuning_params_.kd * d_err);
+  double output = proportional + integral + derivative;
+  double clamped_output = max(0.0, min(output / 100, 1.0));
+
+  ESP_LOGI(TAG, "PID calculation:"); 
+  ESP_LOGI(TAG, "  Input: %lf", this->current_temperature); 
+  ESP_LOGI(TAG, "  Prev Input: %lf", this->previous_temperature_); 
+  ESP_LOGI(TAG, "  Setpoint: %lf", this->target_temperature); 
+  ESP_LOGI(TAG, "  Error: %lf", error); 
+  ESP_LOGI(TAG, "  Rate of change: %lf", d_err); 
+  ESP_LOGI(TAG, "  -------------------------"); 
+  ESP_LOGI(TAG, "  Proportional: %lf", proportional); 
+  ESP_LOGI(TAG, "  Integral: %lf", integral); 
+  ESP_LOGI(TAG, "  Derivative: %lf", derivative); 
+  ESP_LOGI(TAG, "  -------------------------"); 
+  ESP_LOGI(TAG, "  Output: %lf", output); 
+  ESP_LOGI(TAG, "  Output (clamped): %lf", clamped_output); 
+
+  this->output = output;
+  this->output_p = proportional;
+  this->output_i = integral;
+  this->output_d = derivative;
+
+  this->previous_temperature_ = this->current_temperature;
+  this->float_output_->set_level(clamped_output);
+  this->switch_to_action_(clamped_output > 0 
+      ? climate::ClimateAction::CLIMATE_ACTION_HEATING
+      : climate::ClimateAction::CLIMATE_ACTION_OFF);
+}
+
+
+void PidClimate::switch_to_mode_(climate::ClimateMode mode) {
+  if (mode == this->mode) {
+    // already in target mode
+    return;
+  }
+
+  this->mode = mode;
+  switch(mode) {
+    case climate::ClimateMode::CLIMATE_MODE_HEAT:
+      this->switch_to_action_(climate::ClimateAction::CLIMATE_ACTION_HEATING);
+      this->float_output_->turn_on();
+      break;
+    case climate::ClimateMode::CLIMATE_MODE_OFF:
+      this->switch_to_action_(climate::ClimateAction::CLIMATE_ACTION_OFF);
+      this->float_output_->turn_off();
+      break;
+    case climate::ClimateMode::CLIMATE_MODE_AUTO:
+      break;
+    default:
+      ESP_LOGE(TAG, "Attempt to switch to unhandled mode: %d", mode);
+      break;
+  }
 }
 
 void PidClimate::switch_to_action_(climate::ClimateAction action) {
   if (action == this->action) {
-    // already in target mode
+    // already in target action
     return;
   }
-  
-  if (this->prev_trigger_ != nullptr) {
-    this->prev_trigger_->stop();
-    this->prev_trigger_ = nullptr;
-  }
 
-  Trigger<> *trig;
-  switch (action) {
-    case climate::CLIMATE_ACTION_OFF:
-      trig = this->idle_trigger_;
-      break;
-    case climate::CLIMATE_ACTION_COOLING:
-      trig = this->cool_trigger_;
-      break;
-    case climate::CLIMATE_ACTION_HEATING:
-      trig = this->heat_trigger_;
-      break;
-    default:
-      trig = nullptr;
-  }
-
-  if (trig != nullptr) {
-    // trig should never be null, but still check so that we don't crash
-    trig->trigger();
-    this->action = action;
-    this->prev_trigger_ = trig;
-    this->publish_state();
-  }
-}
-
-void PidClimate::log_state() {
-  ESP_LOGI(TAG, "Input: %lf", this->current_temperature);
-  ESP_LOGI(TAG, "Setpoint: %lf", this->target_temperature);
-  ESP_LOGI(TAG, "PID Output: %lf", this->output_);
+  this->action = action;
+  this->publish_state();
 }
 
 climate::ClimateTraits PidClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
   traits.set_supports_auto_mode(true);
-  traits.set_supports_cool_mode(this->supports_cool_);
-  traits.set_supports_heat_mode(this->supports_heat_);
+  traits.set_supports_heat_mode(true);
   traits.set_supports_action(true);
   return traits;
 }
 
-void PidClimate::set_pid_config(const PidClimatePidConfig &pid_config) {
-  this->pid_config_ = pid_config;
+void PidClimate::dump_config() {
+   LOG_CLIMATE("", "PID Climate", this);
+   LOG_UPDATE_INTERVAL(this);
+   ESP_LOGCONFIG(TAG, "  kP: %lf", this->tuning_params_.kp);
+   ESP_LOGCONFIG(TAG, "  kI: %lf", this->tuning_params_.ki);
+   ESP_LOGCONFIG(TAG, "  kD: %lf", this->tuning_params_.kd);
+   ESP_LOGCONFIG(TAG, "  I Max: %lf", this->tuning_params_.i_max);
+   ESP_LOGCONFIG(TAG, "  I Enable: %lf", this->tuning_params_.i_enable);
+
 }
 
-PidClimate::PidClimate() : 
-    Component(), 
-    idle_trigger_(new Trigger<>()), 
-    cool_trigger_(new Trigger<>()), 
-    heat_trigger_(new Trigger<>()),
-    pid_controller_(new PID(
-      (double *)&this->input_, 
-      &this->output_, 
-      (double *)&this->setpoint_, 
-      0, 0, 0, DIRECT)) {}
+PidClimate::PidClimate() : PollingComponent(1000) {}
 
-void PidClimate::set_sensor(sensor::Sensor *sensor) { 
-  this->sensor_ = sensor; 
-}
-
-Trigger<> *PidClimate::get_idle_trigger() const { 
-  return this->idle_trigger_; 
-  }
-
-Trigger<> *PidClimate::get_cool_trigger() const { 
-  return this->cool_trigger_; 
-}
-
-void PidClimate::set_supports_cool(bool supports_cool) { 
-  this->supports_cool_ = supports_cool;
-}
-
-Trigger<> *PidClimate::get_heat_trigger() const { 
-  return this->heat_trigger_; 
-}
-
-void PidClimate::set_supports_heat(bool supports_heat) { 
-  this->supports_heat_ = supports_heat; 
-}
-
-void PidClimate::set_target_temperature(float target_temperature ) { 
-  this->target_temperature = target_temperature; 
-}
-
-PidClimatePidConfig::PidClimatePidConfig() = default;
-PidClimatePidConfig::PidClimatePidConfig(unsigned int sample_time, float kp, float ki, float kd)
-    : sample_time(sample_time), kp(kp), ki(ki), kd(kd) {}
+PidClimateTuningParams::PidClimateTuningParams() = default;
+PidClimateTuningParams::PidClimateTuningParams(float kp, float ki, float kd, float i_max, float i_enable)
+    : kp(kp), ki(ki), kd(kd), i_max(i_max), i_enable(i_enable) {}
 
 }  // namespace pid
 }  // namespace esphome

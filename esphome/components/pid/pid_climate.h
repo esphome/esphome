@@ -1,91 +1,60 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
-#include "PID_v1.h"
+#include "esphome/components/output/float_output.h"
 
 namespace esphome {
 namespace pid {
 
-struct PidClimatePidConfig {
+struct PidClimateTuningParams {
  public:
-  PidClimatePidConfig();
-  PidClimatePidConfig(unsigned int sample_time, float kp, float ki, float kd);
+  PidClimateTuningParams();
+  PidClimateTuningParams(float kp, float ki, float kd, float i_max, float i_enable);
 
-  unsigned int sample_time{200};
   float kp{NAN};
   float ki{NAN};
   float kd{NAN};
+  float i_max{NAN};
+  float i_enable{NAN};
 };
 
-class PidClimate : public climate::Climate, public Component {
+class PidClimate : public climate::Climate, public PollingComponent {
  public:
   PidClimate();
   void setup() override;
+  void dump_config() override;
+  void update() override;
 
-  void set_sensor(sensor::Sensor *sensor);
-  Trigger<> *get_idle_trigger() const;
-  Trigger<> *get_cool_trigger() const;
-  void set_supports_cool(bool supports_cool);
-  Trigger<> *get_heat_trigger() const;
-  void set_supports_heat(bool supports_heat);
-  void set_target_temperature(float target_temperature);
-  void set_pid_config(const PidClimatePidConfig &config);
-  void log_state();
+  void set_target_temperature(float target_temperature) { this->target_temperature = target_temperature; }
+  void set_sensor(sensor::Sensor *sensor) { sensor_ = sensor; };
+  void set_tuning_params(const PidClimateTuningParams &config) { tuning_params_ = config; }
+  void set_output(output::FloatOutput *output) { float_output_ = output; }
+
+  // Expose values from last PID calculation for use in lambdas in other components.
+  double output{0};
+  double output_p{0};
+  double output_i{0};
+  double output_d{0};
 
  protected:
-  /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
-  void loop() override;
-  /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
-
-  /// Re-compute the state of this climate controller.
-  void compute_state_();
-  void set_mode_(climate::ClimateMode new_mode);
-
-  /// Switch the climate device to the given climate mode.
+  
+  void switch_to_mode_(climate::ClimateMode mode);
   void switch_to_action_(climate::ClimateAction action);
 
-  /// The sensor used for getting the current temperature
+  // The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
-  /** The trigger to call when the controller should switch to idle mode.
-   *
-   * In idle mode, the controller is assumed to have both heating and cooling disabled.
-   */
-  Trigger<> *idle_trigger_;
-  /** The trigger to call when the controller should switch to cooling mode.
-   */
-  Trigger<> *cool_trigger_;
-  /** Whether the controller supports cooling.
-   *
-   * A false value for this attribute means that the controller has no cooling action
-   * (for example a thermostat, where only heating and not-heating is possible).
-   */
-  bool supports_cool_{false};
-  /** The trigger to call when the controller should switch to heating mode.
-   *
-   * A null value for this attribute means that the controller has no heating action
-   * For example window blinds, where only cooling (blinds closed) and not-cooling
-   * (blinds open) is possible.
-   */
-  Trigger<> *heat_trigger_{nullptr};
-  bool supports_heat_{false};
+  // The output that will be updated with the output of the PID loop
+  output::FloatOutput *float_output_;
 
-  /** A reference to the trigger that was previously active.
-   *
-   * This is so that the previous trigger can be stopped before enabling a new one.
-   */
-  Trigger<> *prev_trigger_{nullptr};
+  // PID loop tuning parameters
+  PidClimateTuningParams tuning_params_{};
 
-  PidClimatePidConfig pid_config_{};
-    
-  double input_{NAN};
-  double setpoint_{NAN};
-  double output_{0};
-  PID *pid_controller_{nullptr};
+  double previous_temperature_{NAN};
+  double i_err_{0};
 };
 
 }  // namespace pid
