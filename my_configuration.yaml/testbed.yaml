@@ -1,0 +1,41 @@
+esphome:
+  name: distance
+  platform: ESP8266
+  board: esp01_1m
+  esp8266_restore_from_flash: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_pass
+#  manual_ip:
+#    static_ip: 192.168.107.30
+#    gateway: 192.168.107.1
+#    subnet: 255.255.255.0
+
+  
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_pass
+
+ota:
+  password: !secret api_pass
+
+web_server:
+  port: 80
+
+mqtt:
+  id: mqtt_bk
+  broker: !secret mqtt_host
+  username: !secret mqtt_user
+  password: !secret mqtt_pass
+
+sensor:
+  - platform: ultrasonic
+    trigger_pin: GPIO14
+    echo_pin: GPIO12
+    name: distance
+    update_interval: 2s

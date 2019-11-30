@@ -97,6 +97,9 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);    // B line current gain
   this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);  // C Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);    // C line current gain
+  for (auto &reg : this->setup_writes_) {
+    this->write16_(reg.addr, reg.data);    // extra setup from yaml config
+  }
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);                 // end configuration
 }
 

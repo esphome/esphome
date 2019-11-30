@@ -1,0 +1,169 @@
+esphome:
+  name: tb2
+  platform: ESP8266
+  board: esp01_1m
+  esp8266_restore_from_flash: true
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_pass
+#  manual_ip:
+#    static_ip: 192.168.107.30
+#    gateway: 192.168.107.1
+#    subnet: 255.255.255.0
+
+  
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+  password: !secret api_pass
+
+ota:
+  password: !secret api_pass
+
+web_server:
+  port: 80
+spi:
+  miso_pin: GPIO1 # GPIO5 #TX
+  clk_pin: GPIO3 #GPIO4  #RX
+
+sensor:
+  - platform: max6675
+    name: "Living Room Temperature"
+    cs_pin: GPIO14
+    update_interval: 0.1s
+    on_raw_value:
+      then:
+      - lambda: |-
+          {
+            static double last_error = 0.0;
+            static double pid_i = 0.0;
+            static double k_p = 1.0;
+            static double k_i = 0.0;
+            static double k_d = 0.0;
+            static char str[10];
+            int n;
+            if (id(temperature_mode) != 0 ) {
+              double pid_error;
+              double pid_p;
+              double pid_i;
+              double pid_d;
+              double set_temp;
+              double _pid;
+              // were ae on
+              switch (id(temperature_mode) ) {
+              case 1:
+                set_temp =  98.0;
+              case 2:
+                set_temp =  140.0;
+              default:
+                set_temp =  85.0;
+              }
+              pid_error = set_temp - x;
+              pid_p = k_p * pid_error;
+              pid_d = (k_d * (pid_error - last_error))/0.1; // update interval
+              pid_i += (k_i * pid_error);
+              last_error = pid_error;
+              _pid = pid_p + pid_i + pid_d;
+              if (_pid > 1.0 ) _pid = 1.0;
+              if (_pid < 0.0 ) _pid = 0.0;
+              id(ss_relay).set_level(_pid);
+              n = sprintf(str,"%1.3f",_pid);
+              id(pid).publish_state(str);
+            } else {
+              last_error = 0;
+              pid_i = 0;
+              id(ss_relay).set_level(0.0);
+              id(pid).publish_state("0.000");
+            }
+          }
+
+text_sensor:
+  - platform: template
+    name: "mode"
+    id: mode
+    lambda: |-
+            switch (id(temperature_mode) ) {
+            case 1:
+              return {"Coffee"};
+            case 2:
+              return {"Stream"};
+            case 3:
+              return {"Tea"};
+            default:
+              return {"Off"};
+            }
+  - platform: template
+    name: "pid"
+    id: pid
+        
+output:
+  - platform: esp8266_pwm
+    pin: GPIO13
+    frequency: 10 Hz
+    id: ss_relay
+
+binary_sensor:
+  - platform: gpio
+    pin:
+      number: GPIO0
+      mode: INPUT_PULLUP
+      inverted: True
+    name: "push"
+    on_multi_click:
+    - timing:
+      - ON for 1s to 2s
+      - OFF for at least 0.5s
+      then:
+        - lambda: !lambda |- 
+            id(temperature_mode) +=1;
+            if (id(temperature_mode) > 3 ) {
+              id(temperature_mode) = 1;
+            }
+    - timing:
+      - ON for at most 1s
+      - OFF for at least 0.5s
+      then:
+      - lambda: |-
+          if (id(temperature_mode) != 0 ) {
+            id(temperature_mode) = 0;
+          } else {
+            id(temperature_mode) = 1;
+          }
+    on_release:
+      then:
+      - lambda: |-
+            switch (id(temperature_mode) ) {
+            case 1:
+              id(mode).publish_state("Coffee");
+              break;
+            case 2:
+              id(mode).publish_state("Stream");
+              break;
+            case 3:
+              id(mode).publish_state("Tea");
+              break;
+            default:
+              id(mode).publish_state("Off");
+              break;
+            }
+#text_sensor:
+#  - platform: homeassistant
+#    name: "Coffee Water Temperature"
+#    entity_id: sensor.coffee_temp
+#  - platform: homeassistant
+#    name: "Tea Water Temperature"
+#    entity_id: sensor.tea_temp
+#  - platform: homeassistant
+#    name: "Stream Temperature"
+#    entity_id: sensor.stream_temp
+#
+globals:
+  - id: temperature_mode
+    # 0-off 1-coffee, 2-stream, 3-tea
+    type: int    
+    restore_value: yes
+    initial_value: '0'
