@@ -28,14 +28,13 @@ void DutyCycleOutput::loop() {
 }
 
 void DutyCycleOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Time Proportioning Output:");
+  ESP_LOGCONFIG(TAG, "Duty Cycle Output:");
   LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
   LOG_FLOAT_OUTPUT(this);
 }
 
 void DutyCycleOutput::write_state(float state) {
-  ESP_LOGI(TAG, "write_state: new state: %f", state);
   this->state_ = state;
 }
 
