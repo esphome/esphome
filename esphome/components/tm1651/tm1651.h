@@ -9,7 +9,6 @@ namespace esphome {
 namespace tm1651 {
 
 class TM1651Display : public Component {
-
  public:
   void set_clk_pin(GPIOPin *pin) { clk_pin_ = pin; }
   void set_dio_pin(GPIOPin *pin) { dio_pin_ = pin; }
