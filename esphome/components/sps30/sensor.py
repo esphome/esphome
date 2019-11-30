@@ -20,7 +20,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PM_4_0): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
                                                    ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PM_10_0): sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER,
-                                                   ICON_CHEMICAL_WEAPON, 0),
+                                                    ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
                                                     ICON_COUNTER, 0),
     cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(UNIT_COUNTS_PER_CUBIC_METER,
                                                      ICON_COUNTER, 0),
     cv.Optional(CONF_PM_SIZE): sensor.sensor_schema(UNIT_MICROMETER,
-                                                     ICON_RULER, 0),
+                                                    ICON_RULER, 0),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x69))
 
 

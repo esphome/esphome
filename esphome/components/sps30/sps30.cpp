@@ -53,9 +53,9 @@ void SPS30Component::setup() {
     return;
   }
 
-  for(size_t i=0; i<8; ++i) {
-    this->serial_number_[i*2] = uint16_t(uint16_t(raw_serial_number[i]) >> 8);
-    this->serial_number_[i*2+1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
+  for(size_t i = 0; i < 8; ++i) {
+    this->serial_number_[i * 2] = uint16_t(uint16_t(raw_serial_number[i]) >> 8);
+    this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
   }
   ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
 
@@ -154,8 +154,7 @@ void SPS30Component::update() {
       uint32_float_t pmc_1_0{.uint32 = (((uint32_t(raw_data[10])) << 16) | (uint32_t(raw_data[11])))};
       uint32_float_t pmc_2_5{.uint32 = (((uint32_t(raw_data[12])) << 16) | (uint32_t(raw_data[13])))};
       uint32_float_t pmc_4_0{.uint32 = (((uint32_t(raw_data[14])) << 16) | (uint32_t(raw_data[15])))};
-      uint32_float_t pmc_10_0{.uint32 = (((uint32_t(raw_data[16])) << 16) \
-      | (uint32_t(raw_data[17])))};
+      uint32_float_t pmc_10_0{.uint32 = (((uint32_t(raw_data[16])) << 16) | (uint32_t(raw_data[17])))};
 
       /// Reading and converting Typical size
       uint32_float_t pm_size{.uint32 = (((uint32_t(raw_data[18])) << 16) | (uint32_t(raw_data[19])))};

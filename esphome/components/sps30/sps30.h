@@ -15,7 +15,6 @@ class SPS30Component : public PollingComponent, public i2c::I2CDevice {
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5) { pm_2_5_sensor_ = pm_2_5; }
   void set_pm_4_0_sensor(sensor::Sensor *pm_4_0) { pm_4_0_sensor_ = pm_4_0; }
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0) { pm_10_0_sensor_ = pm_10_0; }
-  
   void set_pmc_0_5_sensor(sensor::Sensor *pmc_0_5) { pmc_0_5_sensor_ = pmc_0_5; }
   void set_pmc_1_0_sensor(sensor::Sensor *pmc_1_0) { pmc_1_0_sensor_ = pmc_1_0; }
   void set_pmc_2_5_sensor(sensor::Sensor *pmc_2_5) { pmc_2_5_sensor_ = pmc_2_5; }
@@ -33,7 +32,7 @@ class SPS30Component : public PollingComponent, public i2c::I2CDevice {
   bool write_command_(uint16_t command);
   bool read_data_(uint16_t *data, uint8_t len);
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
-  char serial_number_[17] = { 0 }; /// Terminating NULL character
+  char serial_number_[17] = {0}; /// Terminating NULL character
   bool start_continuous_measurement_();
 
   enum ErrorCode {
@@ -50,7 +49,6 @@ class SPS30Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_4_0_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
-  
   sensor::Sensor *pmc_0_5_sensor_{nullptr};
   sensor::Sensor *pmc_1_0_sensor_{nullptr};
   sensor::Sensor *pmc_2_5_sensor_{nullptr};
