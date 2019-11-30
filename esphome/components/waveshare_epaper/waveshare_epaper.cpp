@@ -477,7 +477,8 @@ void HOT WaveshareEPaper2P9InB::display() {
   this->command(0x13);
   delay(2);
   this->start_data_();
-  for (int i = 0; i < this->get_buffer_length_(); i++) this->write_byte(0x00);
+  for (int i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);
   this->end_data_();
   delay(2);
 
