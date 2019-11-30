@@ -126,7 +126,7 @@ void SPS30Component::update() {
   uint16_t raw_read_status[1];
   if (!this->read_data_(raw_read_status, 1) || raw_read_status[0] == 0x00) {
     ESP_LOGD(TAG, "Sensor measurement not ready yet.");
-    this->skipped_data_read_cycles_ ++;
+    this->skipped_data_read_cycles_++;
     /// The following logic is required to address the cases when a sensor is quickly replaced before it's marked
     /// as failed so that new sensor is eventually forced to be reinitialized for continuous measurement.
     if (this->skipped_data_read_cycles_ > MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR) {
