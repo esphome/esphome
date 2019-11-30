@@ -10,7 +10,7 @@ namespace tm1651 {
 
 class TM1651Display : public Component {
 
-public:
+ public:
   void set_clk_pin(GPIOPin *pin) { clk_pin_ = pin; }
   void set_dio_pin(GPIOPin *pin) { dio_pin_ = pin; }
 
@@ -25,13 +25,13 @@ public:
 
   void repaint();
 
-protected:
-  TM1651 *batteryDisplay;
+ protected:
+  TM1651 *batteryDisplay_;
   GPIOPin *clk_pin_;
   GPIOPin *dio_pin_;
 
-  uint8_t brightness;
-  uint8_t level;
+  uint8_t brightness_;
+  uint8_t level_;
 };
 
 }  // namespace tm1651

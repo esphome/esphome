@@ -14,9 +14,9 @@ void TM1651Display::setup() {
   uint8_t clk = clk_pin_->get_pin();
   uint8_t dio = dio_pin_->get_pin();
 
-  batteryDisplay = new TM1651(clk, dio);
-  batteryDisplay->init();
-  batteryDisplay->clearDisplay();
+  batteryDisplay_ = new TM1651(clk, dio);
+  batteryDisplay_->init();
+  batteryDisplay_->clearDisplay();
 }
 
 void TM1651Display::dump_config() {
@@ -26,18 +26,18 @@ void TM1651Display::dump_config() {
 }
 
 void TM1651Display::set_level(float new_level) {
-  this->level = calculate_level(new_level);
+  this->level_ = calculate_level(new_level);
   this->repaint();
 }
 
 void TM1651Display::set_brightness(uint8_t new_brightness) {
-  this->brightness = calculate_brightness(new_brightness);
+  this->brightness_ = calculate_brightness(new_brightness);
   this->repaint();
 }
 
 void TM1651Display::repaint() {
-  batteryDisplay->set(this->brightness);
-  batteryDisplay->displayLevel(this->level);
+  batteryDisplay_->set(this->brightness_);
+  batteryDisplay_->displayLevel(this->level_);
 }
 
 uint8_t TM1651Display::calculate_level(float level) {
