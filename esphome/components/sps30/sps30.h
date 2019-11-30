@@ -34,6 +34,7 @@ class SPS30Component : public PollingComponent, public i2c::I2CDevice {
   uint8_t sht_crc_(uint8_t data1, uint8_t data2);
   char serial_number_[17] = {0};  /// Terminating NULL character
   bool start_continuous_measurement_();
+  uint8_t skipped_data_read_cycles_ = 0;
 
   enum ErrorCode {
     COMMUNICATION_FAILED,
