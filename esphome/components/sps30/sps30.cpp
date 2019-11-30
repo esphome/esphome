@@ -53,7 +53,7 @@ void SPS30Component::setup() {
     return;
   }
 
-  for(size_t i = 0; i < 8; ++i) {
+  for (size_t i = 0; i < 8; ++i) {
     this->serial_number_[i * 2] = uint16_t(uint16_t(raw_serial_number[i]) >> 8);
     this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
   }
