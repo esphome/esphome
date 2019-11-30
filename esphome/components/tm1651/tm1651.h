@@ -26,7 +26,7 @@ class TM1651Display : public Component {
   void repaint();
 
  protected:
-  TM1651 *batteryDisplay_;
+  TM1651 *battery_display_;
   GPIOPin *clk_pin_;
   GPIOPin *dio_pin_;
 
