@@ -118,9 +118,14 @@ ESP32_METHODS = {
 
 def format_method(config):
     variant = VARIANTS[config[CONF_VARIANT]]
-    if config[CONF_INVERT] == True:
-        variant += 'Inverted'
     method = config[CONF_METHOD]
+
+    if config[CONF_INVERT] == True:
+        if method == 'ESP8266_DMA':
+            variant = 'Inverted'+variant;
+        else:
+            variant += 'Inverted';
+    
     if CORE.is_esp8266:
         return ESP8266_METHODS[method].format(variant)
     if CORE.is_esp32:
