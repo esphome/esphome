@@ -1,19 +1,22 @@
-from esphome import pins, automation
+from esphome import pins
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import (CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP8266,
-    CONF_PERIOD)
+from esphome.const import CONF_ID, CONF_PIN, CONF_PERIOD
 
-duty_cycle_ns = cg.esphome_ns.namespace('duty_cycle')
-DutyCycleOutput = duty_cycle_ns.class_('DutyCycleOutput', output.FloatOutput, cg.Component)
+duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
+DutyCycleOutput = duty_cycle_ns.class_(
+    "DutyCycleOutput", output.FloatOutput, cg.Component
+)
 validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
 
-CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
-    cv.Required(CONF_ID): cv.declare_id(DutyCycleOutput),
-    cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
+    {
+        cv.Required(CONF_ID): cv.declare_id(DutyCycleOutput),
+        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+    }
+).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
