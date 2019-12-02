@@ -163,11 +163,16 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             else:
                 index += 1
         if merge:
-            def determine(key, value, haystack):
+            def determine(key, haystack):
                 return key.value in haystack
 
-            keys = [key.value for (key, value) in node.value]
-            merge = [(key, value) for key, value in merge if not determine(key, value, keys)]
+            # Generate an array with keys that should override values in `merge`.
+            haystack = [key.value for (key, value) in node.value]
+
+            # Remove nodes from merge that will be overriden.
+            merge = [(key, _) for key, _ in merge if not determine(key, haystack)]
+
+            # Merge
             node.value = merge + node.value
 
     def custom_construct_pairs(self, node):
