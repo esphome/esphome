@@ -73,8 +73,8 @@ void RFBridgeComponent::loop() {
 }
 
 void RFBridgeComponent::send_code(RFBridgeData data) {
-  ESP_LOGD(TAG, "Sending code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
-           data.high, data.code);
+  ESP_LOGD(TAG, "Sending code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low, data.high,
+           data.code);
   this->write(RF_CODE_START);
   this->write(RF_CODE_RFOUT);
   this->write(data.sync);
