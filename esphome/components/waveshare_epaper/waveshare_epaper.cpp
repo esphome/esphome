@@ -423,6 +423,85 @@ void WaveshareEPaper2P7In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//               2.90in Type B (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf
+//  - https://github.com/soonuse/epd-library-arduino/blob/master/2.9inch_e-paper_b/epd2in9b/epd2in9b.cpp
+// ========================================================
+
+void WaveshareEPaper2P9InB::initialize() {
+  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
+  // EPD hardware init start
+  this->reset_();
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x17);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  // 128x296 resolution:        10
+  // LUT from OTP:              0
+  // B/W mode (doesn't work):   1
+  // scan-up:                   1
+  // shift-right:               1
+  // booster ON:                1
+  // no soft reset:             1
+  this->data(0x9F);
+
+  // COMMAND RESOLUTION SETTING
+  // set to 128x296 by COMMAND PANNEL SETTING
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  // use defaults for white border and ESPHome image polarity
+
+  // EPD hardware init end
+}
+void HOT WaveshareEPaper2P9InB::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (int i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper2P9InB::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InB::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in (B)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
