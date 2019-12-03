@@ -43,8 +43,8 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void learn();
 
  protected:
-  void rfbAck_();
-  void rfbDecode_();
+  void ack_();
+  void decode_();
 
   unsigned long last_ = 0;
   unsigned char uartbuf_[RF_MESSAGE_SIZE + 3] = {0};

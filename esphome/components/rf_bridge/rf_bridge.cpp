@@ -7,7 +7,7 @@ namespace rf_bridge {
 
 static const char* TAG = "rf_bridge";
 
-void RFBridgeComponent::rfbAck_() {
+void RFBridgeComponent::ack_() {
  ESP_LOGD(TAG, "Sending ACK");
  this->write(RF_CODE_START);
  this->write(RF_CODE_ACK);
@@ -15,7 +15,7 @@ void RFBridgeComponent::rfbAck_() {
  this->flush();
 }
 
-void RFBridgeComponent::rfbDecode_() {
+void RFBridgeComponent::decode_() {
  byte action = uartbuf_[0];
  RFBridgeData data{};
 
@@ -24,13 +24,13 @@ void RFBridgeComponent::rfbDecode_() {
    ESP_LOGD(TAG, "Action OK");
    break;
   case RF_CODE_LEARN_KO:
-   this->rfbAck_();
+   this->ack_();
    ESP_LOGD(TAG, "Learn timeout");
    break;
   case RF_CODE_LEARN_OK:
-   ESP_LOGD(TAG, "Learn ok");
+   ESP_LOGD(TAG, "Learn started");
   case RF_CODE_RFIN:
-   this->rfbAck_();
+   this->ack_();
 
    data.sync = (uartbuf_[1] << 8) | uartbuf_[2];
    data.low = (uartbuf_[3] << 8) | uartbuf_[4];
@@ -58,7 +58,7 @@ void RFBridgeComponent::loop() {
   byte c = this->read();
   if (RECEIVING) {
    if (c == RF_CODE_STOP && (this->uartpos_ == 1 || this->uartpos_ == RF_MESSAGE_SIZE + 1)) {
-    this->rfbDecode_();
+    this->decode_();
     RECEIVING = false;
    } else if (this->uartpos_ <= RF_MESSAGE_SIZE) {
     this->uartbuf_[uartpos_++] = c;
