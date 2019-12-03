@@ -49,7 +49,7 @@ uint8_t TM1651Display::calculate_level_(uint8_t new_level) {
     return 0;
   }
 
-  double calculated_level = TM1651_MAX_LEVEL / (MAX_INPUT_LEVEL / new_level);
+  float calculated_level = TM1651_MAX_LEVEL / (float) (MAX_INPUT_LEVEL / new_level);
   return (uint8_t) roundf(calculated_level);
 }
 
