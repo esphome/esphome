@@ -64,6 +64,9 @@ void ATM90E32Component::update() {
   if (this->chip_temperature_sensor_ != nullptr) {
     this->chip_temperature_sensor_->publish_state(this->get_chip_temperature_());
   }
+  for (auto &reg : this->setup_reads_) {
+    reg.sen->publish_state(this->read16_(reg.addr));
+  }
   this->status_clear_warning();
 }
 
@@ -98,9 +101,9 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);  // C Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);    // C line current gain
   for (auto &reg : this->setup_writes_) {
-    this->write16_(reg.addr, reg.data);    // extra setup from yaml config
+    this->write16_(reg.addr, reg.data);  // extra setup from yaml config
   }
-  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);                 // end configuration
+  this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);  // end configuration
 }
 
 void ATM90E32Component::dump_config() {
@@ -149,7 +152,7 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   return output;
 }
 int ATM90E32Component::read16(int a_register) {
-  uint16_t rd = this->read16_((uint16_t)a_register);
+  uint16_t rd = this->read16_((uint16_t) a_register);
   return (int)rd;
 }
 

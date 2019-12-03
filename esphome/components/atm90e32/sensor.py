@@ -8,6 +8,7 @@ from esphome.const import \
 
 atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
 ATM90E32RegWrite = atm90e32_ns.struct('ATM90E32RegWrite')
+#ATM90E32RegReadSensor = atm90e32_ns.struct('ATM90E32RegReadSensor')
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
 CONF_PHASE_C = 'phase_c'
@@ -18,9 +19,11 @@ CONF_CHIP_TEMPERATURE = 'chip_temperature'
 CONF_GAIN_PGA = 'gain_pga'
 CONF_GAIN_VOLTAGE = 'gain_voltage'
 CONF_GAIN_CT = 'gain_ct'
-CONF_REG_ADDR = 'addr'
-CONF_REG_DATA = 'data'
-CONF_REG_WRITE = 'write'
+CONF_ADDR = 'addr'
+CONF_DATA = 'data'
+CONF_WRITE = 'write'
+CONF_READ = 'read'
+CONF_REGISTER = 'register'
 LINE_FREQS = {
     '50HZ': 50,
     '60HZ': 60,
@@ -35,8 +38,13 @@ atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
 ATM90E32Component = atm90e32_ns.class_('ATM90E32Component', cg.PollingComponent, spi.SPIDevice)
 
 ATM90E32_REG_WRITE_SCHEMA = cv.Schema({
-    cv.Required(CONF_REG_ADDR): cv.uint16_t,
-    cv.Required(CONF_REG_DATA): cv.uint16_t,
+    cv.Required(CONF_ADDR): cv.uint16_t,
+    cv.Required(CONF_DATA): cv.uint16_t,
+})
+
+ATM90E32_REG_READ_SCHEMA = cv.Schema({
+    cv.Required(CONF_REGISTER): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 0),
+    cv.Required(CONF_ADDR): cv.uint16_t,
 })
 
 ATM90E32_PHASE_SCHEMA = cv.Schema({
@@ -58,7 +66,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
-    cv.Optional(CONF_REG_WRITE): cv.ensure_list(ATM90E32_REG_WRITE_SCHEMA),
+    cv.Optional(CONF_WRITE): cv.ensure_list(ATM90E32_REG_WRITE_SCHEMA),
+    cv.Optional(CONF_READ): cv.ensure_list(ATM90E32_REG_READ_SCHEMA),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
 
 def register_write(config):
@@ -66,9 +75,18 @@ def register_write(config):
         return None
     return cg.StructInitializer(
         ATM90E32RegWrite,
-        ('addr', config[CONF_REG_ADDR]),
-        ('data', config[CONF_REG_DATA]),
+        ('addr', config[CONF_ADDR]),
+        ('data', config[CONF_DATA]),
     )
+#def register_read(config):
+#    if config is None:
+#        return None
+#    sen = yield sensor.new_sensor(config[CONF_ADDR]);
+#    return cg.StructInitializer(
+#        ATM90E32RegReadSensor,
+#        ('addr', config[CONF_ADDR]),
+#        ('sen', sen),
+#    )
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -104,5 +122,8 @@ def to_code(config):
         cg.add(var.set_chip_temp_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))
-    for reg in config.get(CONF_REG_WRITE, []):
+    for reg in config.get(CONF_WRITE, []):
         cg.add(var.add_reg_write(register_write(reg)))
+    for reg in config.get(CONF_READ, []):
+        sens = yield sensor.new_sensor(reg[CONF_REGISTER])
+        cg.add(var.add_reg_sensor(reg[CONF_ADDR],sens))

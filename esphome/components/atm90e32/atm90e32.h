@@ -8,8 +8,13 @@ namespace esphome {
 namespace atm90e32 {
 
 struct ATM90E32RegWrite {
-    uint16_t addr;
-    uint16_t data;
+  uint16_t addr;
+  uint16_t data;
+};
+
+struct ATM90E32RegReadSensor {
+  uint16_t addr;
+  sensor::Sensor *sen;
 };
 
 class ATM90E32Component : public PollingComponent,
@@ -29,6 +34,7 @@ class ATM90E32Component : public PollingComponent,
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].volt_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
   void add_reg_write(const ATM90E32RegWrite &reg) { this->setup_writes_.push_back(reg); };
+  void add_reg_sensor(uint16_t addr, sensor::Sensor *obj) {ATM90E32RegReadSensor reg; reg.addr = addr; reg.sen = obj;  this->setup_reads_.push_back(reg); };
 
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_chip_temperature_sensor(sensor::Sensor *chip_temperature_sensor) {
@@ -76,6 +82,7 @@ class ATM90E32Component : public PollingComponent,
   uint16_t pga_gain_{0x15};
   int line_freq_{60};
   std::vector<ATM90E32RegWrite> setup_writes_;
+  std::vector<ATM90E32RegReadSensor> setup_reads_;
   
 };
 
