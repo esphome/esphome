@@ -140,16 +140,18 @@ api:
 
     - service: battery_level
       variables:
-        level: float
+        level: int
       then:
-        - lambda: |-
-            id(tm1651_battery).set_level(level);
+        - tm1651.set_level:
+            id: tm1651_battery
+            level: !lambda 'return level;'
     - service: battery_brightness
       variables:
         brightness: int
       then:
-        - lambda: |-
-            id(tm1651_battery).set_brightness(brightness);
+        - tm1651.set_brightness:
+            id: tm1651_battery
+            brightness: !lambda 'return brightness;'
 
 wifi:
   ssid: 'MySSID'
@@ -665,8 +667,7 @@ dfplayer:
         then:
           logger.log: 'Playback finished event'
 
-display:
-  - platform: tm1651
-    id: tm1651_battery
-    clk_pin: D6
-    dio_pin: D5
+tm1651:
+  id: tm1651_battery
+  clk_pin: D6
+  dio_pin: D5
