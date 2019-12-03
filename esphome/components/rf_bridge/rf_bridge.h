@@ -26,77 +26,70 @@ static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
 struct RFBridgeData {
-  uint16_t sync;
-  uint16_t low;
-  uint16_t high;
-  uint32_t code;
+ uint16_t sync;
+ uint16_t low;
+ uint16_t high;
+ uint32_t code;
 };
 
 class RFBridgeComponent : public uart::UARTDevice, public Component {
-  public:
-    void loop() override;
-    void dump_config() override;
-    void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
-      this->callback_.add(std::move(callback));
-    }
-    void send_code(RFBridgeData data);
-    void learn();
+ public:
+  void loop() override;
+  void dump_config() override;
+  void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
+   this->callback_.add(std::move(callback));
+  }
+  void send_code(RFBridgeData data);
+  void learn();
 
-  private:
-    bool rfbToChar_(byte *in, char *out, int n);
-    void rfbAck_();
-    void rfbDecode_();
+ protected:
+  void rfbAck_();
+  void rfbDecode_();
 
-    unsigned long last_ = 0;
-    unsigned char uartbuf_[RF_MESSAGE_SIZE + 3] = {0};
-    unsigned char uartpos_ = 0;
+  unsigned long last_ = 0;
+  unsigned char uartbuf_[RF_MESSAGE_SIZE + 3] = {0};
+  unsigned char uartpos_ = 0;
 
-    CallbackManager<void(RFBridgeData)> callback_;
+  CallbackManager<void(RFBridgeData)> callback_;
 };
 
 class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
-  public:
-    explicit RFBridgeReceivedCodeTrigger(RFBridgeComponent *parent) {
-      parent->add_on_code_received_callback(
-        [this](RFBridgeData data) {
-          this->trigger(data);
-        }
-      );
-    }
+ public:
+  explicit RFBridgeReceivedCodeTrigger(RFBridgeComponent *parent) {
+   parent->add_on_code_received_callback([this](RFBridgeData data) { this->trigger(data); });
+  }
 };
 
 template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
-  public:
-    RFBridgeSendCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
-    TEMPLATABLE_VALUE(uint16_t, sync)
-    TEMPLATABLE_VALUE(uint16_t, low)
-    TEMPLATABLE_VALUE(uint16_t, high)
-    TEMPLATABLE_VALUE(uint32_t, code)
+ public:
+  RFBridgeSendCodeAction(RFBridgeComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint16_t, sync)
+  TEMPLATABLE_VALUE(uint16_t, low)
+  TEMPLATABLE_VALUE(uint16_t, high)
+  TEMPLATABLE_VALUE(uint32_t, code)
 
-    void play(Ts... x) {
-      RFBridgeData data{};
-      data.sync = this->sync_.value(x...);
-      data.low = this->low_.value(x...);
-      data.high = this->high_.value(x...);
-      data.code = this->code_.value(x...);
-      this->parent_->send_code(data);
-    }
+  void play(Ts... x) {
+   RFBridgeData data{};
+   data.sync = this->sync_.value(x...);
+   data.low = this->low_.value(x...);
+   data.high = this->high_.value(x...);
+   data.code = this->code_.value(x...);
+   this->parent_->send_code(data);
+  }
 
-  protected:
-    RFBridgeComponent *parent_;
+ protected:
+  RFBridgeComponent *parent_;
 };
 
 template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
-  public:
-    RFBridgeLearnAction(RFBridgeComponent *parent) : parent_(parent) {}
+ public:
+  RFBridgeLearnAction(RFBridgeComponent *parent) : parent_(parent) {}
 
-    void play(Ts... x) {
-      this->parent_->learn();
-    }
+  void play(Ts... x) { this->parent_->learn(); }
 
-  protected:
-    RFBridgeComponent *parent_;
+ protected:
+  RFBridgeComponent *parent_;
 };
 
-} // namespace rf_bridge
-} // namespace esphome
+}  // namespace rf_bridge
+}  // namespace esphome
