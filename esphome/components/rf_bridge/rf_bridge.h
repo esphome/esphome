@@ -26,10 +26,10 @@ static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
 struct RFBridgeData {
- uint16_t sync;
- uint16_t low;
- uint16_t high;
- uint32_t code;
+  uint16_t sync;
+  uint16_t low;
+  uint16_t high;
+  uint32_t code;
 };
 
 class RFBridgeComponent : public uart::UARTDevice, public Component {
@@ -37,7 +37,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void loop() override;
   void dump_config() override;
   void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
-   this->callback_.add(std::move(callback));
+    this->callback_.add(std::move(callback));
   }
   void send_code(RFBridgeData data);
   void learn();
@@ -56,7 +56,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
 class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
  public:
   explicit RFBridgeReceivedCodeTrigger(RFBridgeComponent *parent) {
-   parent->add_on_code_received_callback([this](RFBridgeData data) { this->trigger(data); });
+    parent->add_on_code_received_callback([this](RFBridgeData data) { this->trigger(data); });
   }
 };
 
@@ -69,12 +69,12 @@ template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint32_t, code)
 
   void play(Ts... x) {
-   RFBridgeData data{};
-   data.sync = this->sync_.value(x...);
-   data.low = this->low_.value(x...);
-   data.high = this->high_.value(x...);
-   data.code = this->code_.value(x...);
-   this->parent_->send_code(data);
+    RFBridgeData data{};
+    data.sync = this->sync_.value(x...);
+    data.low = this->low_.value(x...);
+    data.high = this->high_.value(x...);
+    data.code = this->code_.value(x...);
+    this->parent_->send_code(data);
   }
 
  protected:
