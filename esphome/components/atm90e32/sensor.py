@@ -8,7 +8,6 @@ from esphome.const import \
 
 atm90e32_ns = cg.esphome_ns.namespace('atm90e32')
 ATM90E32RegWrite = atm90e32_ns.struct('ATM90E32RegWrite')
-#ATM90E32RegReadSensor = atm90e32_ns.struct('ATM90E32RegReadSensor')
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
 CONF_PHASE_C = 'phase_c'
@@ -69,6 +68,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_READ): cv.ensure_list(ATM90E32_REG_READ_SCHEMA),
 }).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
 
+
 def register_write(config):
     if config is None:
         return None
@@ -77,15 +77,7 @@ def register_write(config):
         ('addr', config[CONF_ADDR]),
         ('data', config[CONF_DATA]),
     )
-#def register_read(config):
-#    if config is None:
-#        return None
-#    sen = yield sensor.new_sensor(config[CONF_ADDR]);
-#    return cg.StructInitializer(
-#        ATM90E32RegReadSensor,
-#        ('addr', config[CONF_ADDR]),
-#        ('sen', sen),
-#    )
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
