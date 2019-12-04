@@ -11,8 +11,9 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(SlowPWMOutput),
         cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_PERIOD): cv.Range(
-            cv.positive_time_period_milliseconds, core.TimePeriod(milliseconds=100)
+        cv.Required(CONF_PERIOD): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=core.TimePeriod(milliseconds=100)),
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
