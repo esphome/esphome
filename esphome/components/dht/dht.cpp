@@ -71,80 +71,101 @@ void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
-bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
+bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;
 
-  disable_interrupts();
-  this->pin_->digital_write(false);
-  this->pin_->pin_mode(OUTPUT);
-  this->pin_->digital_write(false);
-
-  if (this->model_ == DHT_MODEL_DHT11) {
-    delayMicroseconds(18000);
-  } else if (this->model_ == DHT_MODEL_SI7021) {
-    delayMicroseconds(500);
-    this->pin_->digital_write(true);
-    delayMicroseconds(40);
-  } else {
-    delayMicroseconds(800);
-  }
-  this->pin_->pin_mode(INPUT_PULLUP);
-  delayMicroseconds(40);
-
+  int error_code = 0;
+  int8_t i = 0;
   uint8_t data[5] = {0, 0, 0, 0, 0};
-  uint8_t bit = 7;
-  uint8_t byte = 0;
 
-  for (int8_t i = -1; i < 40; i++) {
-    uint32_t start_time = micros();
+  {
+    InterruptLock lock;
 
-    // Wait for rising edge
-    while (!this->pin_->digital_read()) {
-      if (micros() - start_time > 90) {
-        enable_interrupts();
-        if (report_errors) {
-          if (i < 0) {
-            ESP_LOGW(TAG, "Waiting for DHT communication to clear failed!");
-          } else {
-            ESP_LOGW(TAG, "Rising edge for bit %d failed!", i);
-          }
+    this->pin_->digital_write(false);
+    this->pin_->pin_mode(OUTPUT);
+    this->pin_->digital_write(false);
+
+    if (this->model_ == DHT_MODEL_DHT11) {
+      delayMicroseconds(18000);
+    } else if (this->model_ == DHT_MODEL_SI7021) {
+      delayMicroseconds(500);
+      this->pin_->digital_write(true);
+      delayMicroseconds(40);
+    } else {
+      delayMicroseconds(800);
+    }
+    this->pin_->pin_mode(INPUT_PULLUP);
+    delayMicroseconds(40);
+
+    uint8_t bit = 7;
+    uint8_t byte = 0;
+
+    for (i = -1; i < 40; i++) {
+      uint32_t start_time = micros();
+
+      // Wait for rising edge
+      while (!this->pin_->digital_read()) {
+        if (micros() - start_time > 90) {
+          if (i < 0)
+            error_code = 1;
+          else
+            error_code = 2;
+          break;
         }
-        return false;
       }
-    }
+      if (error_code != 0)
+        break;
 
-    start_time = micros();
-    uint32_t end_time = start_time;
+      start_time = micros();
+      uint32_t end_time = start_time;
 
-    // Wait for falling edge
-    while (this->pin_->digital_read()) {
-      if ((end_time = micros()) - start_time > 90) {
-        enable_interrupts();
-        if (report_errors) {
-          if (i < 0) {
-            ESP_LOGW(TAG, "Requesting data from DHT failed!");
-          } else {
-            ESP_LOGW(TAG, "Falling edge for bit %d failed!", i);
-          }
+      // Wait for falling edge
+      while (this->pin_->digital_read()) {
+        if ((end_time = micros()) - start_time > 90) {
+          if (i < 0)
+            error_code = 3;
+          else
+            error_code = 4;
+          break;
         }
-        return false;
       }
-    }
+      if (error_code != 0)
+        break;
 
-    if (i < 0)
-      continue;
+      if (i < 0)
+        continue;
 
-    if (end_time - start_time >= 40) {
-      data[byte] |= 1 << bit;
+      if (end_time - start_time >= 40) {
+        data[byte] |= 1 << bit;
+      }
+      if (bit == 0) {
+        bit = 7;
+        byte++;
+      } else
+        bit--;
     }
-    if (bit == 0) {
-      bit = 7;
-      byte++;
-    } else
-      bit--;
   }
-  enable_interrupts();
+  if (!report_errors && error_code != 0)
+    return false;
+
+  switch (error_code) {
+    case 1:
+      ESP_LOGW(TAG, "Waiting for DHT communication to clear failed!");
+      return false;
+    case 2:
+      ESP_LOGW(TAG, "Rising edge for bit %d failed!", i);
+      return false;
+    case 3:
+      ESP_LOGW(TAG, "Requesting data from DHT failed!");
+      return false;
+    case 4:
+      ESP_LOGW(TAG, "Falling edge for bit %d failed!", i);
+      return false;
+    case 0:
+    default:
+      break;
+  }
 
   ESP_LOGVV(TAG,
             "Data: Hum=0b" BYTE_TO_BINARY_PATTERN BYTE_TO_BINARY_PATTERN

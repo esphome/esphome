@@ -60,6 +60,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Using cache: .*",
     r'Installing dependencies',
     r'.* @ .* is already installed',
+    r'Building in .* mode',
 ]
 
 
