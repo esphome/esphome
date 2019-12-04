@@ -111,9 +111,8 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
             error_code = 1;
           else
             error_code = 2;
-        }
-        if (error_code != 0)
           break;
+        }
       }
       if (error_code != 0)
         break;
@@ -128,9 +127,8 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
             error_code = 3;
           else
             error_code = 4;
-        }
-        if (error_code != 0)
           break;
+        }
       }
       if (error_code != 0)
         break;
