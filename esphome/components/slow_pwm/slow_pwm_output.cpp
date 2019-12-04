@@ -1,17 +1,17 @@
-#include "duty_cycle_output.h"
+#include "slow_pwm_output.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace duty_cycle {
+namespace slow_pwm {
 
-static const char *TAG = "output.duty_cycle";
+static const char *TAG = "output.slow_pwm";
 
-void DutyCycleOutput::setup() {
+void SlowPWMOutput::setup() {
   this->pin_->setup();
   this->turn_off();
 }
 
-void DutyCycleOutput::loop() {
+void SlowPWMOutput::loop() {
   unsigned long now = millis();
   float scaled_state = this->state_ * this->period_;
 
@@ -27,16 +27,16 @@ void DutyCycleOutput::loop() {
   }
 }
 
-void DutyCycleOutput::dump_config() {
-  ESP_LOGCONFIG(TAG, "Duty Cycle Output:");
+void SlowPWMOutput::dump_config() {
+  ESP_LOGCONFIG(TAG, "Slow PWM Output:");
   LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
   LOG_FLOAT_OUTPUT(this);
 }
 
-void DutyCycleOutput::write_state(float state) {
+void SlowPWMOutput::write_state(float state) {
   this->state_ = state;
 }
 
-}  // namespace duty_cycle
+}  // namespace slow_pwm
 }  // namespace esphome

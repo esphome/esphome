@@ -5,9 +5,9 @@
 #include "esphome/components/output/float_output.h"
 
 namespace esphome {
-namespace duty_cycle {
+namespace slow_pwm {
 
-class DutyCycleOutput : public output::FloatOutput, public Component {
+class SlowPWMOutput : public output::FloatOutput, public Component {
   public:
     void set_pin(GPIOPin *pin) { pin_ = pin; };
     void set_period(unsigned int period) { period_ = period; };
@@ -28,5 +28,5 @@ class DutyCycleOutput : public output::FloatOutput, public Component {
     unsigned int period_{5000};
 };
 
-} // namespace duty_cycle
+} // namespace slow_pwm
 } // namespace esphome

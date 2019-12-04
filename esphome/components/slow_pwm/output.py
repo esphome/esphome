@@ -1,20 +1,19 @@
-from esphome import pins
+from esphome import pins, core
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_PIN, CONF_PERIOD
 
-duty_cycle_ns = cg.esphome_ns.namespace("duty_cycle")
-DutyCycleOutput = duty_cycle_ns.class_(
-    "DutyCycleOutput", output.FloatOutput, cg.Component
-)
-validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
+slow_pwm_ns = cg.esphome_ns.namespace("slow_pwm")
+SlowPWMOutput = slow_pwm_ns.class_("SlowPWMOutput", output.FloatOutput, cg.Component)
 
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
-        cv.Required(CONF_ID): cv.declare_id(DutyCycleOutput),
+        cv.Required(CONF_ID): cv.declare_id(SlowPWMOutput),
         cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-        cv.Required(CONF_PERIOD): cv.positive_time_period_milliseconds,
+        cv.Required(CONF_PERIOD): cv.Range(
+            cv.positive_time_period_milliseconds, core.TimePeriod(milliseconds=100)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

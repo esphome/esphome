@@ -667,7 +667,7 @@ sensor:
       name: "Windspeed"
     wind_direction_degrees:
       name: "Winddirection Degrees"
-    pin: 
+    pin:
       number: GPIO04
       mode: INPUT
   - platform: zyaura
@@ -965,7 +965,7 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
-  - platform: duty_cycle
+  - platform: slow_pwm
     id: id24
     pin: GPIO26
     period: 15s
@@ -1086,7 +1086,7 @@ light:
           name: "Test For Custom Lambda Effect"
           lambda: |-
             it[0] = current_color;
-                
+
     - automation:
         name: Custom Effect
         sequence:
@@ -1355,7 +1355,7 @@ interval:
             static uint16_t btn_left_state = id(btn_left)->get_value();
 
             ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
-            
+
             btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
