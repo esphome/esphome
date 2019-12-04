@@ -149,10 +149,8 @@ void Application::safe_reboot() {
 
 void Application::calculate_looping_components_() {
   for (auto *obj : this->components_) {
-    if ((void*)(obj->*(&Component::loop)) != (void*)(&Component::loop) ||
-        (void*)(obj->*(&Component::call_loop)) != (void*)(&Component::call_loop) ||) {
+    if (obj->has_overridden_loop())
       this->looping_components_.push_back(obj);
-    }
   }
 }
 
