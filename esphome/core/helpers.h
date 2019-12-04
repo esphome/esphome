@@ -137,6 +137,7 @@ class InterruptLock {
  public:
   InterruptLock();
   ~InterruptLock();
+
  protected:
 #ifdef ARDUINO_ARCH_ESP8266
   uint32_t xt_state_;

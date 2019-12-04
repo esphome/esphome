@@ -11,9 +11,9 @@ extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
 #include "lwip/dhcp.h"
-#include "lwip/init.h" // LWIP_VERSION_
+#include "lwip/init.h"  // LWIP_VERSION_
 #if LWIP_IPV6
-#include "lwip/netif.h" // struct netif
+#include "lwip/netif.h"  // struct netif
 #endif
 }
 
@@ -88,10 +88,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
   lwip v2 needs to be notified of IP changes, see also
   https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
  */
-#undef netif_set_addr // need to call lwIP-v1.4 netif_set_addr()
+#undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
 extern "C" {
-  struct netif* eagle_lwip_getif (int netif_index);
-  void netif_set_addr(struct netif* netif, ip4_addr_t* ip, ip4_addr_t* netmask, ip4_addr_t* gw);
+struct netif *eagle_lwip_getif(int netif_index);
+void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
 };
 #endif
 
@@ -153,8 +153,10 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 #if LWIP_VERSION_MAJOR != 1
   // trigger address change by calling lwIP-v1.4 api
   // only when ip is already set by other mean (generally dhcp)
-  if (previp.ip.addr != 0 && previp.ip.addr != info.ip.addr)
-    netif_set_addr(eagle_lwip_getif(STATION_IF), &info.ip, &info.netmask, &info.gw);
+  if (previp.ip.addr != 0 && previp.ip.addr != info.ip.addr) {
+    netif_set_addr(eagle_lwip_getif(STATION_IF), reinterpret_cast<const ip4_addr_t *>(&info.ip),
+                   reinterpret_cast<const ip4_addr_t *>(&info.netmask), reinterpret_cast<const ip4_addr_t *>(&info.gw));
+  }
 #endif
   return ret;
 }
@@ -167,17 +169,17 @@ IPAddress WiFiComponent::wifi_sta_ip_() {
   return {ip.ip.addr};
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  std::string hostname = App.get_name();
+  const std::string &hostname = App.get_name();
   bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Setting WiFi Hostname failed!");
   }
 
   // inform dhcp server of hostname change using dhcp_renew()
-  for (netif* intf = netif_list; intf; intf = intf->next) {
+  for (netif *intf = netif_list; intf; intf = intf->next) {
     // unconditionally update all known interfaces
 #if LWIP_VERSION_MAJOR == 1
-    intf->hostname = (char*)wifi_station_get_hostname();
+    intf->hostname = (char *) wifi_station_get_hostname();
 #else
     intf->hostname = wifi_station_get_hostname();
 #endif
@@ -185,8 +187,8 @@ bool WiFiComponent::wifi_apply_hostname_() {
       // renew already started DHCP leases
       err_t lwipret = dhcp_renew(intf);
       if (lwipret != ERR_OK) {
-        DEBUG_WIFI_GENERIC("WiFi.hostname(%s): lwIP error %d on interface %c%c (index %d)\n",
-                           intf->hostname, (int)lwipret, intf->name[0], intf->name[1], intf->num);
+        ESP_LOGW("wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname, (int) lwipret,
+                 intf->name[0], intf->name[1], intf->num);
         ret = false;
       }
     }
