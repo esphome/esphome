@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
-    CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_POWER_FACTOR, CONF_FREQUENCY, \
+    CONF_DATA, CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_POWER_FACTOR, CONF_FREQUENCY, \
     ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
     UNIT_HZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS
 
@@ -20,7 +20,6 @@ CONF_GAIN_PGA = 'gain_pga'
 CONF_GAIN_VOLTAGE = 'gain_voltage'
 CONF_GAIN_CT = 'gain_ct'
 CONF_ADDR = 'addr'
-CONF_DATA = 'data'
 CONF_WRITE = 'write'
 CONF_READ = 'read'
 CONF_REGISTER = 'register'
@@ -126,4 +125,4 @@ def to_code(config):
         cg.add(var.add_reg_write(register_write(reg)))
     for reg in config.get(CONF_READ, []):
         sens = yield sensor.new_sensor(reg[CONF_REGISTER])
-        cg.add(var.add_reg_sensor(reg[CONF_ADDR],sens))
+        cg.add(var.add_reg_sensor(reg[CONF_ADDR], sens))

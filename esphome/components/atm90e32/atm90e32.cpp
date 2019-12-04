@@ -153,7 +153,7 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
 }
 int ATM90E32Component::read16(int a_register) {
   uint16_t rd = this->read16_((uint16_t) a_register);
-  return (int)rd;
+  return (int) rd;
 }
 
 int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
@@ -181,9 +181,7 @@ void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
   this->write_byte(val & 0xFF);
   this->disable();
 }
-void ATM90E32Component::write16(int a_register, int val) {
-  this->write16_((uint16_t)a_register, (uint16_t)val);
-}
+void ATM90E32Component::write16(int a_register, int val) { this->write16_((uint16_t) a_register, (uint16_t) val); }
 
 float ATM90E32Component::get_line_voltage_a_() {
   uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSA);
