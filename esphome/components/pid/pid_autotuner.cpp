@@ -177,7 +177,7 @@ void PIDAutotuner::dump_config() {
 
   if (this->state_ == AUTOTUNE_RUNNING) {
     ESP_LOGI(TAG, "  Autotune is still running!");
-    ESP_LOGD(TAG, "  Status: Trying to reach %.1f °C", setpoint_ - relay_function_.current_target_error());
+    ESP_LOGD(TAG, "  Status: Trying to reach %.2f °C", setpoint_ - relay_function_.current_target_error());
     ESP_LOGD(TAG, "  Stats so far:");
     ESP_LOGD(TAG, "    Phases: %u", relay_function_.phase_count);
     ESP_LOGD(TAG, "    Detected %u zero-crossings", frequency_detector_.zerocrossing_intervals.size());  // NOLINT
