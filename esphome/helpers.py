@@ -306,6 +306,6 @@ def add_class_to_obj(value, cls):
         for type_, func in _TYPE_OVERLOADS.items():
             # Use type() here, we only need to trigger if it's the exact type,
             # as otherwise we don't need to overload the class
-            if type(value) is type_:
+            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
                 return add_class_to_obj(func(value), cls)
         raise

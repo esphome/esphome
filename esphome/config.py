@@ -385,19 +385,17 @@ def recursive_check_replaceme(value):
 
     if isinstance(value, list):
         return cv.Schema([recursive_check_replaceme])(value)
-    elif isinstance(value, dict):
+    if isinstance(value, dict):
         return cv.Schema({cv.valid: recursive_check_replaceme})(value)
-    elif isinstance(value, ESPForceValue):
+    if isinstance(value, ESPForceValue):
         pass
-    elif isinstance(value, string_types):
-        if value != 'REPLACEME':
-            return
-
+    if isinstance(value, string_types) and value == 'REPLACEME':
         raise cv.Invalid("Found 'REPLACEME' in configuration, this is most likely an error. "
                          "Please make sure you have replaced all fields from the sample "
                          "configuration.\n"
                          "If you want to use the literal REPLACEME string, "
                          "please use \"!force REPLACEME\"")
+    return value
 
 
 def validate_config(config):
