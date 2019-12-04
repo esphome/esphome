@@ -435,7 +435,7 @@ sensor:
   - platform: hx711
     name: "HX711 Value"
     dout_pin: GPIO23
-    clk_pin: GPIO24
+    clk_pin: GPIO25
     gain: 128
     update_interval: 15s
   - platform: ina219
@@ -542,7 +542,7 @@ sensor:
     name: "Rotary Encoder"
     id: rotary_encoder1
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO25
     pin_reset: GPIO25
     filters:
       - or:
@@ -655,7 +655,7 @@ sensor:
     integration_time: 402ms
     gain: 16x
   - platform: ultrasonic
-    trigger_pin: GPIO24
+    trigger_pin: GPIO25
     echo_pin:
       number: GPIO23
       inverted: true
@@ -1396,11 +1396,11 @@ display:
   dimensions: 18x4
   data_pins:
   - GPIO19
-  - GPIO20
   - GPIO21
   - GPIO22
+  - GPIO23
   enable_pin: GPIO23
-  rs_pin: GPIO24
+  rs_pin: GPIO25
   lambda: |-
     it.print("Hello World!");
 - platform: lcd_pcf8574
@@ -1528,7 +1528,7 @@ stepper:
 - platform: a4988
   id: my_stepper
   step_pin: GPIO23
-  dir_pin: GPIO24
+  dir_pin: GPIO25
   sleep_pin: GPIO25
   max_speed: 250 steps/s
   acceleration: 100 steps/s^2
