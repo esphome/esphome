@@ -49,25 +49,25 @@ void RFBridgeComponent::decode_() {
 }
 
 void RFBridgeComponent::loop() {
-  static bool RECEIVING = false;
+  bool receiving = false;
   if (this->last_ != 0 && millis() - this->last_ > RF_DEBOUNCE) {
     this->last_ = 0;
   }
 
   while (this->available()) {
     uint8_t c = this->read();
-    if (RECEIVING) {
+    if (receiving) {
       if (c == RF_CODE_STOP && (this->uartpos_ == 1 || this->uartpos_ == RF_MESSAGE_SIZE + 1)) {
         this->decode_();
-        RECEIVING = false;
+        receiving = false;
       } else if (this->uartpos_ <= RF_MESSAGE_SIZE) {
         this->uartbuf_[uartpos_++] = c;
       } else {
-        RECEIVING = false;
+        receiving = false;
       }
     } else if (c == RF_CODE_START) {
       this->uartpos_ = 0;
-      RECEIVING = true;
+      receiving = true;
     }
   }
 }
