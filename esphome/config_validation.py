@@ -19,7 +19,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY,
     CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
-from esphome.helpers import list_starts_with
+from esphome.helpers import list_starts_with, add_class_to_obj
 from esphome.py_compat import integer_types, string_types, text_type, IS_PY2, decode_text
 from esphome.voluptuous_schema import _Schema
 
@@ -964,11 +964,8 @@ def enum(mapping, **kwargs):
     one_of_validator = one_of(*mapping, **kwargs)
 
     def validator(value):
-        from esphome.yaml_util import make_data_base
-
-        value = make_data_base(one_of_validator(value))
-        cls = value.__class__
-        value.__class__ = cls.__class__(cls.__name__ + "Enum", (cls, core.EnumValue), {})
+        value = one_of_validator(value)
+        value = add_class_to_obj(value, core.EnumValue)
         value.enum_value = mapping[value]
         return value
 
