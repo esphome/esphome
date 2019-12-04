@@ -291,7 +291,7 @@ def copy_src_tree():
         source_files.update(component.source_files)
 
     # Convert to list and sort
-    source_files_l = [it for it in source_files.items()]
+    source_files_l = list(source_files.items())
     source_files_l.sort()
 
     # Build #include list for esphome.h
