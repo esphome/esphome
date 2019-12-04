@@ -187,8 +187,8 @@ bool WiFiComponent::wifi_apply_hostname_() {
       // renew already started DHCP leases
       err_t lwipret = dhcp_renew(intf);
       if (lwipret != ERR_OK) {
-        ESP_LOGW("wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname, (int) lwipret,
-                 intf->name[0], intf->name[1], intf->num);
+        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
+                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
         ret = false;
       }
     }
