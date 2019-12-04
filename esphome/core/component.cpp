@@ -138,6 +138,16 @@ float Component::get_actual_setup_priority() const {
   return this->setup_priority_override_;
 }
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+bool Component::has_overridden_loop() const {
+#ifdef CLANG_TIDY
+  bool loop_overridden = true;
+  bool call_loop_overridden = true;
+#else
+  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
+  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
+#endif
+  return loop_overridden || call_loop_overridden;
+}
 
 PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
 
