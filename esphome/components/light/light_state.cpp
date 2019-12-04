@@ -416,8 +416,6 @@ LightColorValues LightCall::validate_() {
   if (this->brightness_.has_value())
     v.set_brightness(*this->brightness_);
 
-  if (this->brightness_.has_value())
-    v.set_brightness(*this->brightness_);
   if (this->red_.has_value())
     v.set_red(*this->red_);
   if (this->green_.has_value())
