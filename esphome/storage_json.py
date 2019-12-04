@@ -10,8 +10,8 @@ from esphome.core import CORE
 from esphome.helpers import write_file_if_changed
 
 # pylint: disable=unused-import, wrong-import-order
-from esphome.core import CoreType  # noqa
-from typing import Any, Dict, Optional  # noqa
+from esphome.core import CoreType
+from typing import Any, Optional, List
 
 from esphome.py_compat import text_type
 

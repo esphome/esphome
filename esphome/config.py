@@ -18,12 +18,12 @@ from esphome.components.substitutions import CONF_SUBSTITUTIONS
 from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
-from esphome.py_compat import text_type, IS_PY2, decode_text
+from esphome.py_compat import text_type, IS_PY2, decode_text, string_types
 from esphome.util import safe_print, OrderedDict
 
 from typing import List, Optional, Tuple, Union  # noqa
 from esphome.core import ConfigType  # noqa
-from esphome.yaml_util import is_secret, ESPHomeDataBase
+from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
 
 _LOGGER = logging.getLogger(__name__)
@@ -380,6 +380,24 @@ def do_id_pass(result):  # type: (Config) -> None
                 result.add_str_error("Couldn't resolve ID for type '{}'".format(id.type), path)
 
 
+def recursive_check_replaceme(value):
+    import esphome.config_validation as cv
+
+    if isinstance(value, list):
+        return cv.Schema([recursive_check_replaceme])(value)
+    if isinstance(value, dict):
+        return cv.Schema({cv.valid: recursive_check_replaceme})(value)
+    if isinstance(value, ESPForceValue):
+        pass
+    if isinstance(value, string_types) and value == 'REPLACEME':
+        raise cv.Invalid("Found 'REPLACEME' in configuration, this is most likely an error. "
+                         "Please make sure you have replaced all fields from the sample "
+                         "configuration.\n"
+                         "If you want to use the literal REPLACEME string, "
+                         "please use \"!force REPLACEME\"")
+    return value
+
+
 def validate_config(config):
     result = Config()
 
@@ -392,6 +410,12 @@ def validate_config(config):
         except vol.Invalid as err:
             result.add_error(err)
             return result
+
+    # 1.1. Check for REPLACEME special value
+    try:
+        recursive_check_replaceme(config)
+    except vol.Invalid as err:
+        result.add_error(err)
 
     if 'esphomeyaml' in config:
         _LOGGER.warning("The esphomeyaml section has been renamed to esphome in 1.11.0. "
@@ -588,7 +612,7 @@ def _nested_getitem(data, path):
 
 def humanize_error(config, validation_error):
     validation_error = text_type(validation_error)
-    m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error)
+    m = re.match(r'^(.*?)\s*(?:for dictionary value )?@ data\[.*$', validation_error, re.DOTALL)
     if m is not None:
         validation_error = m.group(1)
     validation_error = validation_error.strip()

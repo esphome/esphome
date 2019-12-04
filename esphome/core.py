@@ -8,7 +8,7 @@ import os
 import re
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List  # noqa
+from typing import Any, Dict, List, Optional, Set  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
     CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
@@ -271,7 +271,7 @@ class ID(object):
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type = type  # type: Optional[MockObjClass]
+        self.type = type  # type: Optional['MockObjClass']
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -489,11 +489,11 @@ class EsphomeCore(object):
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables = {}  # type: Dict[str, MockObj]
+        self.variables = {}  # type: Dict[str, 'MockObj']
         # A list of statements that go in the main setup() block
-        self.main_statements = []  # type: List[Statement]
+        self.main_statements = []  # type: List['Statement']
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements = []  # type: List[Statement]
+        self.global_statements = []  # type: List['Statement']
         # A set of platformio libraries to add to the project
         self.libraries = []  # type: List[Library]
         # A set of build flags to set in the platformio project
