@@ -322,8 +322,7 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
     ESP_LOGVV(TAG, "    Data: %s", hexencode(data.data).c_str());
   }
 
-  ESP_LOGVV(TAG, "Adv data: %s",
-            hexencode(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
+  ESP_LOGVV(TAG, "Adv data: %s", hexencode(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
