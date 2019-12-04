@@ -21,9 +21,9 @@ void SlowPWMOutput::loop() {
   }
 
   if (scaled_state > now - this->period_start_time_) {
-      this->pin_->digital_write(true);
+    this->pin_->digital_write(true);
   } else {
-      this->pin_->digital_write(false);
+    this->pin_->digital_write(false);
   }
 }
 
@@ -34,9 +34,7 @@ void SlowPWMOutput::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
-void SlowPWMOutput::write_state(float state) {
-  this->state_ = state;
-}
+void SlowPWMOutput::write_state(float state) { this->state_ = state; }
 
 }  // namespace slow_pwm
 }  // namespace esphome
