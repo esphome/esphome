@@ -1,6 +1,6 @@
 #include "rf_bridge.h"
 #include "esphome/core/log.h"
-#include <string.h>
+#include <cstring>
 
 namespace esphome {
 namespace rf_bridge {
@@ -8,7 +8,7 @@ namespace rf_bridge {
 static const char* TAG = "rf_bridge";
 
 void RFBridgeComponent::ack_() {
-  ESP_LOGD(TAG, "Sending ACK");
+  ESP_LOGV(TAG, "Sending ACK");
   this->write(RF_CODE_START);
   this->write(RF_CODE_ACK);
   this->write(RF_CODE_STOP);
@@ -16,7 +16,7 @@ void RFBridgeComponent::ack_() {
 }
 
 void RFBridgeComponent::decode_() {
-  byte action = uartbuf_[0];
+  uint8_t action = uartbuf_[0];
   RFBridgeData data{};
 
   switch (action) {
@@ -55,7 +55,7 @@ void RFBridgeComponent::loop() {
   }
 
   while (this->available()) {
-    byte c = this->read();
+    uint8_t c = this->read();
     if (RECEIVING) {
       if (c == RF_CODE_STOP && (this->uartpos_ == 1 || this->uartpos_ == RF_MESSAGE_SIZE + 1)) {
         this->decode_();

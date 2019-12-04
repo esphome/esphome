@@ -7,10 +7,10 @@ from esphome.components import uart
 DEPENDENCIES = ['uart']
 
 rf_bridge_ns = cg.esphome_ns.namespace('rf_bridge')
-RFBridgeComponent = rf_bridge_ns.class_('RFBridgeComponent', cg.Component)
+RFBridgeComponent = rf_bridge_ns.class_('RFBridgeComponent', cg.Component, uart.UARTDevice)
 
 RFBridgeReceivedCodeTrigger = rf_bridge_ns.class_('RFBridgeReceivedCodeTrigger',
-                                                  automation.Trigger)
+                                                  automation.Trigger.template(RFBridgeData))
 
 RFBridgeSendCodeAction = rf_bridge_ns.class_('RFBridgeSendCodeAction', automation.Action)
 RFBridgeLearnAction = rf_bridge_ns.class_('RFBridgeLearnAction', automation.Action)
@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_ON_CODE_RECEIVED): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(RFBridgeReceivedCodeTrigger),
     }),
-}).extend(uart.UART_DEVICE_SCHEMA))
+}).extend(uart.UART_DEVICE_SCHEMA).extend(COMPONENT_SCHEMA))
 
 
 def to_code(config):
