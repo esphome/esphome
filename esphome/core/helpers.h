@@ -133,6 +133,28 @@ uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
 
+/***
+ * An interrupt helper class.
+ *
+ * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
+ * (including flash reads) will be disabled.
+ *
+ * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
+ * pulled from flash).
+ *
+ * Example:
+ *
+ * ```cpp
+ * // interrupts are enabled
+ * {
+ *   InterruptLock lock;
+ *   // do something
+ *   // interrupts are disabled
+ * }
+ * // interrupts are enabled
+ * ```
+ */
 class InterruptLock {
  public:
   InterruptLock();
