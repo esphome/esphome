@@ -133,16 +133,15 @@ uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
 
-/** Cross-platform method to disable interrupts.
- *
- * Useful when you need to do some timing-dependent communication.
- *
- * @see Do not forget to call `enable_interrupts()` again or otherwise things will go very wrong.
- */
-void disable_interrupts();
-
-/// Cross-platform method to enable interrupts after they have been disabled.
-void enable_interrupts();
+class InterruptLock {
+ public:
+  InterruptLock();
+  ~InterruptLock();
+ protected:
+#ifdef ARDUINO_ARCH_ESP8266
+  uint32_t xt_state_;
+#endif
+};
 
 /// Calculate a crc8 of data with the provided data length.
 uint8_t crc8(uint8_t *data, uint8_t len);
