@@ -93,50 +93,66 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return super(ESPHomeLoader, self).construct_yaml_seq(node)
 
     def custom_flatten_mapping(self, node):
-        pre_merge = []
-        post_merge = []
+        merge = []
         index = 0
         while index < len(node.value):
-            if isinstance(node.value[index], yaml.ScalarNode):
-                index += 1
-                continue
-
             key_node, value_node = node.value[index]
-            if key_node.tag == u'tag:yaml.org,2002:merge':
+            if key_node.tag == 'tag:yaml.org,2002:merge':
                 del node.value[index]
-
                 if isinstance(value_node, yaml.MappingNode):
                     self.custom_flatten_mapping(value_node)
-                    node.value = node.value[:index] + value_node.value + node.value[index:]
+                    merge.extend(value_node.value)
                 elif isinstance(value_node, yaml.SequenceNode):
                     submerge = []
                     for subnode in value_node.value:
                         if not isinstance(subnode, yaml.MappingNode):
                             raise yaml.constructor.ConstructorError(
                                 "while constructing a mapping", node.start_mark,
-                                "expected a mapping for merging, but found %{}".format(subnode.id),
+                                "expected a mapping for merging, but found {}".format(subnode.id),
                                 subnode.start_mark)
                         self.custom_flatten_mapping(subnode)
                         submerge.append(subnode.value)
-                    # submerge.reverse()
-                    node.value = node.value[:index] + submerge + node.value[index:]
-                elif isinstance(value_node, yaml.ScalarNode):
-                    node.value = node.value[:index] + [value_node] + node.value[index:]
-                    # post_merge.append(value_node)
+                    submerge.reverse()
+                    for value in submerge:
+                        merge.extend(value)
                 else:
                     raise yaml.constructor.ConstructorError(
                         "while constructing a mapping", node.start_mark,
                         "expected a mapping or list of mappings for merging, "
                         "but found {}".format(value_node.id), value_node.start_mark)
-            elif key_node.tag == u'tag:yaml.org,2002:value':
-                key_node.tag = u'tag:yaml.org,2002:str'
+            elif key_node.tag == 'tag:yaml.org,2002:value':
+                key_node.tag = 'tag:yaml.org,2002:str'
                 index += 1
             else:
                 index += 1
-        if pre_merge:
-            node.value = pre_merge + node.value
-        if post_merge:
-            node.value = node.value + post_merge
+        if merge:
+            # https://yaml.org/type/merge.html
+            # Generate a set of keys that should override values in `merge`.
+            haystack = {key.value for (key, _) in node.value}
+
+            # Construct a new merge set with values overridden by current mapping or earlier
+            # sequence entries removed
+            new_merge = []
+
+            for key, value in merge:
+                if key.value in haystack:
+                    # key already in the current map or from an earlier merge sequence entry,
+                    # do not override
+                    #
+                    # "... each of its key/value pairs is inserted into the current mapping,
+                    # unless the key already exists in it."
+                    #
+                    # "If the value associated with the merge key is a sequence, then this sequence
+                    #  is expected to contain mapping nodes and each of these nodes is merged in
+                    #  turn according to its order in the sequence. Keys in mapping nodes earlier
+                    #  in the sequence override keys specified in later mapping nodes."
+                    continue
+                new_merge.append((key, value))
+                # Add key node to haystack, for sequence merge values.
+                haystack.add(key.value)
+
+            # Merge
+            node.value = new_merge + node.value
 
     def custom_construct_pairs(self, node):
         pairs = []
