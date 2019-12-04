@@ -91,7 +91,10 @@ void RFBridgeComponent::learn() {
   this->write(RF_CODE_STOP);
 }
 
-void RFBridgeComponent::dump_config() { ESP_LOGCONFIG(TAG, "RF_Bridge:"); }
+void RFBridgeComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "RF_Bridge:");
+  this->check_uart_settings(19200);
+}
 
 }  // namespace rf_bridge
 }  // namespace esphome
