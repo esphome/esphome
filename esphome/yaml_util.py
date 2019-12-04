@@ -163,17 +163,33 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
             else:
                 index += 1
         if merge:
-            def determine(key, haystack):
-                return key.value in haystack
+            # https://yaml.org/type/merge.html
+            # Generate a set of keys that should override values in `merge`.
+            haystack = {key.value for (key, _) in node.value}
 
-            # Generate an array with keys that should override values in `merge`.
-            haystack = [key.value for (key, value) in node.value]
+            # Construct a new merge set with values overridden by current mapping or earlier
+            # sequence entries removed
+            new_merge = []
 
-            # Remove nodes from merge that will be overriden.
-            merge = [(key, _) for key, _ in merge if not determine(key, haystack)]
+            for key, value in merge:
+                if key.value in haystack:
+                    # key already in the current map or from an earlier merge sequence entry,
+                    # do not override
+                    #
+                    # "... each of its key/value pairs is inserted into the current mapping,
+                    # unless the key already exists in it."
+                    #
+                    # "If the value associated with the merge key is a sequence, then this sequence
+                    #  is expected to contain mapping nodes and each of these nodes is merged in
+                    #  turn according to its order in the sequence. Keys in mapping nodes earlier
+                    #  in the sequence override keys specified in later mapping nodes."
+                    continue
+                new_merge.append((key, value))
+                # Add key node to haystack, for sequence merge values.
+                haystack.add(key.value)
 
             # Merge
-            node.value = merge + node.value
+            node.value = new_merge + node.value
 
     def custom_construct_pairs(self, node):
         pairs = []
