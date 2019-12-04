@@ -348,15 +348,17 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     const uint8_t record_length = field_length - 1;
     offset += record_length;
 
-    // See also Generic Access Profile Assigned Numbers: https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/
-    // See also ADVERTISING AND SCAN RESPONSE DATA FORMAT: https://www.bluetooth.com/specifications/bluetooth-core-specification/ (vol 3, part C, 11)
-    // See also Core Specification Supplement: https://www.bluetooth.com/specifications/bluetooth-core-specification/ (called CSS here)
+    // See also Generic Access Profile Assigned Numbers:
+    // https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/ See also ADVERTISING AND SCAN
+    // RESPONSE DATA FORMAT: https://www.bluetooth.com/specifications/bluetooth-core-specification/ (vol 3, part C, 11)
+    // See also Core Specification Supplement: https://www.bluetooth.com/specifications/bluetooth-core-specification/
+    // (called CSS here)
 
     switch (record_type) {
       case ESP_BLE_AD_TYPE_NAME_CMPL: {
         // CSS 1.2 LOCAL NAME
-        // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the device."
-        // CSS 1: Optional in this context; shall not appear more than once in a block.
+        // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the
+        // device." CSS 1: Optional in this context; shall not appear more than once in a block.
         this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
         break;
       }

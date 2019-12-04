@@ -81,7 +81,7 @@ class ESPBTDevice {
   }
   const std::vector<int8_t> &get_tx_powers() const { return tx_powers_; }
 
-  const optional<uint16_t> &get_appearance() const { return appearance_;}
+  const optional<uint16_t> &get_appearance() const { return appearance_; }
   const optional<uint8_t> &get_ad_flag() const { return ad_flag_; }
   const std::vector<ESPBTUUID> &get_service_uuids() const { return service_uuids_; }
 
