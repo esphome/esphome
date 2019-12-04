@@ -122,7 +122,7 @@ def format_method(config):
 
     if config[CONF_INVERT] == True:
         if method == 'ESP8266_DMA':
-            variant = 'Inverted'+variant;
+            variant = 'Inverted' + variant
         else:
             variant += 'Inverted';
     
