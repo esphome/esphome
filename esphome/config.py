@@ -5,6 +5,10 @@ import importlib
 import logging
 import re
 import os.path
+import importlib.machinery
+import importlib.util
+import importlib.resources
+import sys
 
 # pylint: disable=unused-import, wrong-import-order
 import sys
@@ -32,14 +36,24 @@ _COMPONENT_CACHE = {}
 
 
 class ComponentManifest(object):
-    def __init__(self, module, base_components_path, is_core=False, is_platform=False):
+    def __init__(self, module):
         self.module = module
-        self._is_core = is_core
-        self.is_platform = is_platform
-        self.base_components_path = base_components_path
+
+    @property
+    def is_platform(self):
+        # Platforms are modules like `esphome.components.uptime.sensor`
+        # (so they can be loaded with `platform: uptime` under `sensor`)
+        return self.module.__name__.count('.') == 3
+
+    @property
+    def _is_python_package(self):
+        # Return if this module is a python package (points to a __init__.py file)
+        return self.module.__package__ == self.module.__name__
 
     @property
     def is_platform_component(self):
+        # Platform components are components that define a namespace
+        # For example switch, light (but not uptime)
         return getattr(self.module, 'IS_PLATFORM_COMPONENT', False)
 
     @property
@@ -70,39 +84,35 @@ class ComponentManifest(object):
     def auto_load(self):
         return getattr(self.module, 'AUTO_LOAD', [])
 
-    def _get_flags_set(self, name, config):
-        if not hasattr(self.module, name):
-            return set()
-        obj = getattr(self.module, name)
-        if callable(obj):
-            obj = obj(config)
-        if obj is None:
-            return set()
-        if not isinstance(obj, (list, tuple, set)):
-            obj = [obj]
-        return set(obj)
-
     @property
     def source_files(self):
-        if self._is_core:
-            core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), 'core'))
-            source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
-            ret = {}
-            for f in source_files:
-                ret['esphome/core/{}'.format(f)] = os.path.join(core_p, f)
-            return ret
-
         source_files = core.find_source_files(self.module.__file__)
         ret = {}
         # Make paths absolute
         directory = os.path.abspath(os.path.dirname(self.module.__file__))
         for x in source_files:
             full_file = os.path.join(directory, x)
-            rel = os.path.relpath(full_file, self.base_components_path)
-            # Always use / for C++ include names
-            rel = rel.replace(os.sep, '/')
-            target_file = 'esphome/components/{}'.format(rel)
+            target_parts = ['esphome', 'components']
+            # ['esphome', 'components', 'uptime', 'sensor']
+            name_parts = self.module.__name__.split('.')
+            target_parts.append(name_parts[2])
+            if self.is_platform and self._is_python_package:
+                # file like esphome/components/gpio/switch/gpio_switch.h
+                target_parts.append(name_parts[3])
+            target_parts.append(x)
+            target_file = '/'.join(target_parts)
             ret[target_file] = full_file
+        return ret
+
+
+class CoreComponentManifest(ComponentManifest):
+    @property
+    def source_files(self):
+        core_p = os.path.abspath(os.path.join(os.path.dirname(__file__), 'core'))
+        source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
+        ret = {}
+        for f in source_files:
+            ret['esphome/core/{}'.format(f)] = os.path.join(core_p, f)
         return ret
 
 
@@ -111,47 +121,74 @@ _UNDEF = object()
 CUSTOM_COMPONENTS_PATH = _UNDEF
 
 
-def _mount_config_dir():
-    global CUSTOM_COMPONENTS_PATH
-    if CUSTOM_COMPONENTS_PATH is not _UNDEF:
-        return
-    custom_path = os.path.abspath(os.path.join(CORE.config_dir, 'custom_components'))
-    if not os.path.isdir(custom_path):
-        CUSTOM_COMPONENTS_PATH = None
-        return
-    init_path = os.path.join(custom_path, '__init__.py')
-    if IS_PY2 and not os.path.isfile(init_path):
-        _LOGGER.warning("Found 'custom_components' folder, but file __init__.py was not found. "
-                        "ESPHome will automatically create it now....")
-        with open(init_path, 'w') as f:
-            f.write('\n')
-    if CORE.config_dir not in sys.path:
-        sys.path.insert(0, CORE.config_dir)
-    CUSTOM_COMPONENTS_PATH = custom_path
+class MyFinder:
+    @classmethod
+    def _path_hooks(cls, path):
+        """Search sys.path_hooks for a finder for 'path'."""
+        for hook in sys.path_hooks:
+            try:
+                return hook(path)
+            except ImportError:
+                continue
+        else:
+            return None
+
+    @classmethod
+    def _path_importer_cache(cls, path):
+        """Get or create a finder for path."""
+        try:
+            finder = sys.path_importer_cache[path]
+        except KeyError:
+            finder = cls._path_hooks(path)
+            sys.path_importer_cache[path] = finder
+        return finder
+
+    @classmethod
+    def _get_custom_spec(cls, fullname, path):
+        for entry in path:
+            if not isinstance(entry, (str, bytes)):
+                continue
+        return None
+
+    @classmethod
+    def find_spec(cls, fullname, path=None, target=None):
+        if not fullname.startswith('esphome.components.'):
+            return None
+
+        if fullname.count('.') != 2:
+            # Only handle direct imports, lower levels are handled by
+            # later finders in sys.meta_path (via path)
+            return None
+        custom_path = os.path.abspath(os.path.join(CORE.config_dir, 'custom_components'))
+        finder = cls._path_importer_cache(custom_path)
+        if finder is None:
+            # No finder for path
+            return None
+        spec = finder.find_spec(fullname)
+        if spec is None:
+            return None
+        if spec.loader is None:
+            # Disallow namespace packages (custom components must have a __init__.py)
+            return None
+        return spec
 
 
-def _lookup_module(domain, is_platform):
+_SETUP_IMPORTER_RAN = False
+
+
+def _setup_importer():
+    global _SETUP_IMPORTER_RAN
+    if _SETUP_IMPORTER_RAN:
+        return
+    sys.meta_path.insert(0, MyFinder)
+    _SETUP_IMPORTER_RAN = True
+
+
+def _lookup_module(domain):
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
-    _mount_config_dir()
-    # First look for custom_components
-    try:
-        module = importlib.import_module('custom_components.{}'.format(domain))
-    except ImportError as e:
-        # ImportError when no such module
-        if 'No module named' not in str(e):
-            _LOGGER.warning("Unable to import custom component %s:", domain, exc_info=True)
-    except Exception:  # pylint: disable=broad-except
-        # Other error means component has an issue
-        _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
-        return None
-    else:
-        # Found in custom components
-        manif = ComponentManifest(module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
-
+    _setup_importer()
     try:
         module = importlib.import_module('esphome.components.{}'.format(domain))
     except ImportError as e:
@@ -162,24 +199,22 @@ def _lookup_module(domain, is_platform):
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
     else:
-        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
+        manif = ComponentManifest(module)
         _COMPONENT_CACHE[domain] = manif
         return manif
 
 
 def get_component(domain):
     assert '.' not in domain
-    return _lookup_module(domain, False)
+    return _lookup_module(domain)
 
 
 def get_platform(domain, platform):
     full = '{}.{}'.format(platform, domain)
-    return _lookup_module(full, True)
+    return _lookup_module(full)
 
 
-_COMPONENT_CACHE['esphome'] = ComponentManifest(
-    core_config, CORE_COMPONENTS_PATH, is_core=True, is_platform=False,
-)
+_COMPONENT_CACHE['esphome'] = CoreComponentManifest(core_config)
 
 
 def iter_components(config):
