@@ -58,7 +58,6 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   ISRInternalGPIOPin *isr_;
   /// Need update GPIO
   bool update_gpio_;
-
 };
 
 /// Helper class to expose a CAT9554 pin as an internal input GPIO pin.
