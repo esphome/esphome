@@ -3,9 +3,13 @@ from __future__ import print_function
 import json
 import os
 
-from esphome.config import load_config, _format_vol_invalid
-from esphome.core import CORE
+from esphome.config import load_config, _format_vol_invalid, Config
+from esphome.core import CORE, DocumentRange
 from esphome.py_compat import text_type, safe_input
+
+# pylint: disable=unused-import, wrong-import-order
+import voluptuous as vol
+from typing import Optional
 
 
 def _get_invalid_range(res, invalid):

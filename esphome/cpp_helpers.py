@@ -59,7 +59,7 @@ def register_parented(var, value):
 
 
 def extract_registry_entry_config(registry, full_config):
-    # type: (Registry, ConfigType) -> RegistryEntry
+    # type: ('Registry', 'ConfigType') -> 'RegistryEntry'
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     return registry[key], config
 

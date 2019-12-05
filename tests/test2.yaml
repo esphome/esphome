@@ -10,7 +10,7 @@ substitutions:
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
-  mdio_pin: GPIO24
+  mdio_pin: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
@@ -286,7 +286,7 @@ stepper:
   - platform: uln2003
     id: my_stepper
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO27
     pin_c: GPIO25
     pin_d: GPIO26
     sleep_when_done: no
