@@ -43,7 +43,11 @@ class ESPForceValue(object):
 
 
 def make_data_base(value):
-    return add_class_to_obj(value, ESPHomeDataBase)
+    try:
+        return add_class_to_obj(value, ESPHomeDataBase)
+    except TypeError:
+        # Adding class failed, ignore error
+        return value
 
 
 def _add_data_ref(fn):
