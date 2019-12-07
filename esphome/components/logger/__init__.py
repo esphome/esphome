@@ -118,7 +118,7 @@ def to_code(config):
 
     if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
-        cg.add_build_flag("-DDEBUG_ESP_PORT={}".format(debug_serial_port))
+        cg.add_build_flag(f"-DDEBUG_ESP_PORT={debug_serial_port}")
         cg.add_build_flag("-DLWIP_DEBUG")
         DEBUG_COMPONENTS = {
             'HTTP_CLIENT',
@@ -133,7 +133,7 @@ def to_code(config):
             # 'MDNS_RESPONDER',
         }
         for comp in DEBUG_COMPONENTS:
-            cg.add_build_flag("-DDEBUG_ESP_{}".format(comp))
+            cg.add_build_flag(f"-DDEBUG_ESP_{comp}")
     if CORE.is_esp32 and is_at_least_verbose:
         cg.add_build_flag('-DCORE_DEBUG_LEVEL=5')
     if CORE.is_esp32 and is_at_least_very_verbose:

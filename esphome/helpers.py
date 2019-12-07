@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import codecs
 
 import logging
@@ -16,7 +14,7 @@ def ensure_unique_string(preferred_string, current_strings):
 
     while test_string in current_strings_set:
         tries += 1
-        test_string = "{}_{}".format(preferred_string, tries)
+        test_string = f"{preferred_string}_{tries}"
 
     return test_string
 
@@ -89,7 +87,7 @@ def mkdir_p(path):
             pass
         else:
             from esphome.core import EsphomeError
-            raise EsphomeError(u"Error creating directories {}: {}".format(path, err))
+            raise EsphomeError(f"Error creating directories {path}: {err}")
 
 
 def is_ip_address(host):
@@ -116,7 +114,7 @@ def _resolve_with_zeroconf(host):
     try:
         info = zc.resolve_host(host + '.')
     except Exception as err:
-        raise EsphomeError("Error resolving mDNS hostname: {}".format(err))
+        raise EsphomeError(f"Error resolving mDNS hostname: {err}")
     finally:
         zc.close()
     if info is None:
@@ -139,7 +137,7 @@ def resolve_ip_address(host):
 
     try:
         return socket.gethostbyname(host)
-    except socket.error as err:
+    except OSError as err:
         errs.append(str(err))
         raise EsphomeError("Error resolving IP address: {}"
                            "".format(', '.join(errs)))
@@ -165,10 +163,10 @@ def read_file(path):
             return f_handle.read()
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Error reading file {}: {}".format(path, err))
+        raise EsphomeError(f"Error reading file {path}: {err}")
     except UnicodeDecodeError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError("Error reading file {}: {}".format(path, err))
+        raise EsphomeError(f"Error reading file {path}: {err}")
 
 
 def _write_file(path, text):
@@ -201,7 +199,7 @@ def write_file(path, text):
         _write_file(path, text)
     except OSError:
         from esphome.core import EsphomeError
-        raise EsphomeError("Could not write file at {}".format(path))
+        raise EsphomeError(f"Could not write file at {path}")
 
 
 def write_file_if_changed(path, text):
@@ -221,7 +219,7 @@ def copy_file_if_changed(src, dst):
         shutil.copy(src, dst)
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Error copying file {} to {}: {}".format(src, dst, err))
+        raise EsphomeError(f"Error copying file {src} to {dst}: {err}")
 
 
 def list_starts_with(list_, sub):

@@ -1,4 +1,3 @@
-# coding=utf-8
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation

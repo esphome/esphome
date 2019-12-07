@@ -1,5 +1,3 @@
-from __future__ import division
-
 import logging
 
 import esphome.config_validation as cv
@@ -271,7 +269,7 @@ def _lookup_pin(value):
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise cv.Invalid("Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
+    raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {CORE.board}.")
 
 
 def _translate_pin(value):
@@ -301,7 +299,7 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32:
         if value < 0 or value > 39:
-            raise cv.Invalid("ESP32: Invalid pin number: {}".format(value))
+            raise cv.Invalid(f"ESP32: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid("This pin cannot be used on ESP32s and is already used by "
                              "the flash interface (function: {})".format(_ESP_SDIO_PINS[value]))
@@ -311,11 +309,11 @@ def validate_gpio_pin(value):
         if value in (20, 24, 28, 29, 30, 31):
             # These pins are not exposed in GPIO mux (reason unknown)
             # but they're missing from IO_MUX list in datasheet
-            raise cv.Invalid("The pin GPIO{} is not usable on ESP32s.".format(value))
+            raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")
         return value
     if CORE.is_esp8266:
         if value < 0 or value > 17:
-            raise cv.Invalid("ESP8266: Invalid pin number: {}".format(value))
+            raise cv.Invalid(f"ESP8266: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid("This pin cannot be used on ESP8266s and is already used by "
                              "the flash interface (function: {})".format(_ESP_SDIO_PINS[value]))

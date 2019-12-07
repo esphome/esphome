@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 from datetime import datetime
 import hashlib
 import logging
@@ -36,7 +34,7 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
                 if client.reconnect() == 0:
                     _LOGGER.info("Successfully reconnected to the MQTT server")
                     break
-            except socket.error:
+            except OSError:
                 pass
 
             wait_time = min(2**tries, 300)
@@ -69,8 +67,8 @@ def initialize(config, subscriptions, on_message, username, password, client_id)
         host = str(config[CONF_MQTT][CONF_BROKER])
         port = int(config[CONF_MQTT][CONF_PORT])
         client.connect(host, port)
-    except socket.error as err:
-        raise EsphomeError("Cannot connect to MQTT broker: {}".format(err))
+    except OSError as err:
+        raise EsphomeError(f"Cannot connect to MQTT broker: {err}")
 
     try:
         client.loop_forever()
@@ -108,7 +106,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
     if topic is None:
         discovery_prefix = config[CONF_MQTT].get(CONF_DISCOVERY_PREFIX, 'homeassistant')
         name = config[CONF_ESPHOME][CONF_NAME]
-        topic = '{}/+/{}/#'.format(discovery_prefix, name)
+        topic = f'{discovery_prefix}/+/{name}/#'
     _LOGGER.info("Clearing messages from '%s'", topic)
     _LOGGER.info("Please close this window when no more messages appear and the "
                  "MQTT topic has been cleared of retained messages.")
@@ -117,7 +115,7 @@ def clear_topic(config, topic, username=None, password=None, client_id=None):
         if not msg.payload or not msg.retain:
             return
         try:
-            print("Clearing topic {}".format(msg.topic))
+            print(f"Clearing topic {msg.topic}")
         except UnicodeDecodeError:
             print("Skipping non-UTF-8 topic (prohibited by MQTT standard)")
             return
@@ -132,7 +130,7 @@ def get_fingerprint(config):
     _LOGGER.info("Getting fingerprint from %s:%s", addr[0], addr[1])
     try:
         cert_pem = ssl.get_server_certificate(addr)
-    except IOError as err:
+    except OSError as err:
         _LOGGER.error("Unable to connect to server: %s", err)
         return 1
     cert_der = ssl.PEM_cert_to_DER_cert(cert_pem)

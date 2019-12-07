@@ -1,4 +1,3 @@
-# coding=utf-8
 import functools
 
 from esphome import core
@@ -34,7 +33,7 @@ def validate_glyphs(value):
             return -1
         if len(x_) > len(y_):
             return 1
-        raise cv.Invalid("Found duplicate glyph {}".format(x))
+        raise cv.Invalid(f"Found duplicate glyph {x}")
 
     value.sort(key=functools.cmp_to_key(comparator))
     return value
@@ -85,7 +84,7 @@ def to_code(config):
     try:
         font = ImageFont.truetype(path, config[CONF_SIZE])
     except Exception as e:
-        raise core.EsphomeError("Could not load truetype file {}: {}".format(path, e))
+        raise core.EsphomeError(f"Could not load truetype file {path}: {e}")
 
     ascent, descent = font.getmetrics()
 

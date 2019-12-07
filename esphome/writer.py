@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import logging
 import os
 import re
@@ -163,11 +161,11 @@ def format_ini(data):
     content = ''
     for key, value in sorted(data.items()):
         if isinstance(value, (list, set, tuple)):
-            content += '{} =\n'.format(key)
+            content += f'{key} =\n'
             for x in value:
-                content += '    {}\n'.format(x)
+                content += f'    {x}\n'
         else:
-            content += '{} = {}\n'.format(key, value)
+            content += f'{key} = {value}\n'
     return content
 
 
@@ -216,7 +214,7 @@ def get_ini_content():
     # data['lib_ldf_mode'] = 'chain'
     data.update(CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {}))
 
-    content = '[env:{}]\n'.format(CORE.name)
+    content = f'[env:{CORE.name}]\n'
     content += format_ini(data)
 
     return content
@@ -298,7 +296,7 @@ def copy_src_tree():
     include_l = []
     for target, path in source_files_l:
         if os.path.splitext(path)[1] in HEADER_FILE_EXTENSIONS:
-            include_l.append('#include "{}"'.format(target))
+            include_l.append(f'#include "{target}"')
     include_l.append('')
     include_s = '\n'.join(include_l)
 

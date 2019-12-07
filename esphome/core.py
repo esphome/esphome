@@ -28,11 +28,11 @@ base_int = int
 class HexInt(base_int):
     def __str__(self):
         if 0 <= self <= 255:
-            return "0x{:02X}".format(self)
-        return "0x{:X}".format(self)
+            return f"0x{self:02X}"
+        return f"0x{self:X}"
 
 
-class IPAddress(object):
+class IPAddress:
     def __init__(self, *args):
         if len(args) != 4:
             raise ValueError("IPAddress must consist up 4 items")
@@ -42,21 +42,21 @@ class IPAddress(object):
         return '.'.join(str(x) for x in self.args)
 
 
-class MACAddress(object):
+class MACAddress:
     def __init__(self, *parts):
         if len(parts) != 6:
             raise ValueError("MAC Address must consist of 6 items")
         self.parts = parts
 
     def __str__(self):
-        return ':'.join('{:02X}'.format(part) for part in self.parts)
+        return ':'.join(f'{part:02X}' for part in self.parts)
 
     @property
     def as_hex(self):
         from esphome.cpp_generator import RawExpression
 
-        num = ''.join('{:02X}'.format(part) for part in self.parts)
-        return RawExpression('0x{}ULL'.format(num))
+        num = ''.join(f'{part:02X}' for part in self.parts)
+        return RawExpression(f'0x{num}ULL')
 
 
 def is_approximately_integer(value):
@@ -65,7 +65,7 @@ def is_approximately_integer(value):
     return abs(value - round(value)) < 0.001
 
 
-class TimePeriod(object):
+class TimePeriod:
     def __init__(self, microseconds=None, milliseconds=None, seconds=None,
                  minutes=None, hours=None, days=None):
         if days is not None:
@@ -133,17 +133,17 @@ class TimePeriod(object):
 
     def __str__(self):
         if self.microseconds is not None:
-            return '{}us'.format(self.total_microseconds)
+            return f'{self.total_microseconds}us'
         if self.milliseconds is not None:
-            return '{}ms'.format(self.total_milliseconds)
+            return f'{self.total_milliseconds}ms'
         if self.seconds is not None:
-            return '{}s'.format(self.total_seconds)
+            return f'{self.total_seconds}s'
         if self.minutes is not None:
-            return '{}min'.format(self.total_minutes)
+            return f'{self.total_minutes}min'
         if self.hours is not None:
-            return '{}h'.format(self.total_hours)
+            return f'{self.total_hours}h'
         if self.days is not None:
-            return '{}d'.format(self.total_days)
+            return f'{self.total_days}d'
         return '0s'
 
     @property
@@ -220,7 +220,7 @@ class TimePeriodMinutes(TimePeriod):
 LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 
-class Lambda(object):
+class Lambda:
     def __init__(self, value):
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
@@ -256,10 +256,10 @@ class Lambda(object):
         return self.value
 
     def __repr__(self):
-        return 'Lambda<{}>'.format(self.value)
+        return f'Lambda<{self.value}>'
 
 
-class ID(object):
+class ID:
     def __init__(self, id, is_declaration=False, type=None, is_manual=None):
         self.id = id
         if is_manual is None:
@@ -301,7 +301,7 @@ class ID(object):
                   is_manual=self.is_manual)
 
 
-class DocumentLocation(object):
+class DocumentLocation:
     def __init__(self, document, line, column):
         # type: (str, int, int) -> None
         self.document = document  # type: str
@@ -317,10 +317,10 @@ class DocumentLocation(object):
         )
 
     def __str__(self):
-        return '{} {}:{}'.format(self.document, self.line, self.column)
+        return f'{self.document} {self.line}:{self.column}'
 
 
-class DocumentRange(object):
+class DocumentRange:
     def __init__(self, start_mark, end_mark):
         # type: (DocumentLocation, DocumentLocation) -> None
         self.start_mark = start_mark  # type: DocumentLocation
@@ -334,10 +334,10 @@ class DocumentRange(object):
         )
 
     def __str__(self):
-        return '[{} - {}]'.format(self.start_mark, self.end_mark)
+        return f'[{self.start_mark} - {self.end_mark}]'
 
 
-class Define(object):
+class Define:
     def __init__(self, name, value=None):
         self.name = name
         self.value = value
@@ -345,14 +345,14 @@ class Define(object):
     @property
     def as_build_flag(self):
         if self.value is None:
-            return '-D{}'.format(self.name)
-        return '-D{}={}'.format(self.name, self.value)
+            return f'-D{self.name}'
+        return f'-D{self.name}={self.value}'
 
     @property
     def as_macro(self):
         if self.value is None:
-            return '#define {}'.format(self.name)
-        return '#define {} {}'.format(self.name, self.value)
+            return f'#define {self.name}'
+        return f'#define {self.name} {self.value}'
 
     @property
     def as_tuple(self):
@@ -365,7 +365,7 @@ class Define(object):
         return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
 
 
-class Library(object):
+class Library:
     def __init__(self, name, version):
         self.name = name
         self.version = version
@@ -374,7 +374,7 @@ class Library(object):
     def as_lib_dep(self):
         if self.version is None:
             return self.name
-        return '{}@{}'.format(self.name, self.version)
+        return f'{self.name}@{self.version}'
 
     @property
     def as_tuple(self):
@@ -457,7 +457,7 @@ def find_source_files(file):
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
-class EsphomeCore(object):
+class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
         self.dashboard = False
@@ -635,7 +635,7 @@ class EsphomeCore(object):
         if self.active_coroutines:
             raise EsphomeError()
         if self.component_ids:
-            comps = ', '.join("'{}'".format(x) for x in self.component_ids)
+            comps = ', '.join(f"'{x}'" for x in self.component_ids)
             _LOGGER.warning("Components %s were never registered. Please create a bug report",
                             comps)
             _LOGGER.warning("with your configuration.")
@@ -711,7 +711,7 @@ class EsphomeCore(object):
 
     def get_variable(self, id):
         if not isinstance(id, ID):
-            raise ValueError("ID {!r} must be of type ID!".format(id))
+            raise ValueError(f"ID {id!r} must be of type ID!")
         while True:
             if id in self.variables:
                 yield self.variables[id]
@@ -731,7 +731,7 @@ class EsphomeCore(object):
 
     def register_variable(self, id, obj):
         if id in self.variables:
-            raise EsphomeError("ID {} is already registered".format(id))
+            raise EsphomeError(f"ID {id} is already registered")
         _LOGGER.debug("Registered variable %s of type %s", id.id, id.type)
         self.variables[id] = obj
 
@@ -765,7 +765,7 @@ class AutoLoad(OrderedDict):
     pass
 
 
-class EnumValue(object):
+class EnumValue:
     """Special type used by ESPHome to mark enum values for cv.enum."""
     @property
     def enum_value(self):

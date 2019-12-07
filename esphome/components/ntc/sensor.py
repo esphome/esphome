@@ -1,4 +1,3 @@
-# coding=utf-8
 from math import log
 
 import esphome.config_validation as cv

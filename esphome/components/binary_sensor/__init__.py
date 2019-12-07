@@ -119,7 +119,7 @@ def parse_multi_click_timing_str(value):
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid("Multi Click Grammar Parsing length failed: {}".format(err))
+            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}")
         return {
             CONF_STATE: state,
             key: str(length)
@@ -131,12 +131,12 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid("Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid("Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
 
     return {
         CONF_STATE: state,

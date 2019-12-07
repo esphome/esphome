@@ -184,7 +184,7 @@ def include_file(path, basename):
     _, ext = os.path.splitext(path)
     if ext in ['.h', '.hpp', '.tcc']:
         # Header, add include statement
-        cg.add_global(cg.RawStatement('#include "{}"'.format(basename)))
+        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 @coroutine_with_priority(-1000.0)
@@ -238,7 +238,7 @@ def to_code(config):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            cg.add_build_flag('-Wl,-T{}'.format(ld_script))
+            cg.add_build_flag(f'-Wl,-T{ld_script}')
 
     cg.add_build_flag('-fno-exceptions')
 

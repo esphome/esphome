@@ -37,7 +37,7 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 _LOGGER = logging.getLogger(__name__)
 
 
-class ProgressBar(object):
+class ProgressBar:
     def __init__(self):
         self.last_progress = None
 
@@ -82,20 +82,20 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
 
     try:
         data += recv_decode(sock, 1, decode=decode)
-    except socket.error as err:
-        raise OTAError("Error receiving acknowledge {}: {}".format(msg, err))
+    except OSError as err:
+        raise OTAError(f"Error receiving acknowledge {msg}: {err}")
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError("Error {}: {}".format(msg, err))
+        raise OTAError(f"Error {msg}: {err}")
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)
-        except socket.error as err:
-            raise OTAError("Error receiving {}: {}".format(msg, err))
+        except OSError as err:
+            raise OTAError(f"Error receiving {msg}: {err}")
     return data
 
 
@@ -150,8 +150,8 @@ def send_check(sock, data, msg):
             data = data.encode('utf8')
 
         sock.sendall(data)
-    except socket.error as err:
-        raise OTAError("Error sending {}: {}".format(msg, err))
+    except OSError as err:
+        raise OTAError(f"Error sending {msg}: {err}")
 
 
 def perform_ota(sock, password, file_handle, filename):
@@ -167,7 +167,7 @@ def perform_ota(sock, password, file_handle, filename):
 
     _, version = receive_exactly(sock, 2, 'version', RESPONSE_OK)
     if version != OTA_VERSION_1_0:
-        raise OTAError("Unsupported OTA version {}".format(version))
+        raise OTAError(f"Unsupported OTA version {version}")
 
     # Features
     send_check(sock, 0x00, 'features')
@@ -224,9 +224,9 @@ def perform_ota(sock, password, file_handle, filename):
 
         try:
             sock.sendall(chunk)
-        except socket.error as err:
+        except OSError as err:
             sys.stderr.write('\n')
-            raise OTAError("Error sending data: {}".format(err))
+            raise OTAError(f"Error sending data: {err}")
 
         progress.update(offset / float(file_size))
     progress.done()
@@ -266,7 +266,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
     sock.settimeout(10.0)
     try:
         sock.connect((ip, remote_port))
-    except socket.error as err:
+    except OSError as err:
         sock.close()
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1

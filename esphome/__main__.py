@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import argparse
 import functools
 import logging
@@ -65,7 +63,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
     for res, desc in get_serial_ports():
         options.append((f"{res} ({desc})", res))
     if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
-        options.append(("Over The Air ({})".format(CORE.address), CORE.address))
+        options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == 'OTA':
             return CORE.address
     if show_mqtt and 'mqtt' in CORE.config:
@@ -122,7 +120,7 @@ def wrap_to_code(name, comp):
     @functools.wraps(comp.to_code)
     @coroutine_with_priority(coro.priority)
     def wrapped(conf):
-        cg.add(cg.LineComment("{}:".format(name)))
+        cg.add(cg.LineComment(f"{name}:"))
         if comp.config_schema is not None:
             conf_str = yaml_util.dump(conf)
             conf_str = conf_str.replace('//', '')
@@ -236,7 +234,7 @@ def setup_log(debug=False, quiet=False):
         log_level = logging.INFO
     logging.basicConfig(level=log_level)
     fmt = "%(levelname)s %(message)s"
-    colorfmt = "%(log_color)s{}%(reset)s".format(fmt)
+    colorfmt = f"%(log_color)s{fmt}%(reset)s"
     datefmt = '%H:%M:%S'
 
     logging.getLogger('urllib3').setLevel(logging.WARNING)
@@ -342,7 +340,7 @@ def command_mqtt_fingerprint(args, config):
 
 
 def command_version(args):
-    safe_print("Version: {}".format(const.__version__))
+    safe_print(f"Version: {const.__version__}")
     return 0
 
 
@@ -370,10 +368,10 @@ def command_update_all(args):
     twidth = 60
 
     def print_bar(middle_text):
-        middle_text = " {} ".format(middle_text)
+        middle_text = f" {middle_text} "
         width = len(click.unstyle(middle_text))
         half_line = "=" * ((twidth - width) // 2)
-        click.echo("%s%s%s" % (half_line, middle_text, half_line))
+        click.echo(f"{half_line}{middle_text}{half_line}")
 
     for f in files:
         print("Updating {}".format(color('cyan', f)))
@@ -424,7 +422,7 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description='ESPHome v{}'.format(const.__version__))
+    parser = argparse.ArgumentParser(description=f'ESPHome v{const.__version__}')
     parser.add_argument('-v', '--verbose', help="Enable verbose esphome logs.",
                         action='store_true')
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
@@ -540,7 +538,7 @@ def run_esphome(argv):
         CORE.config = config
 
         if args.command not in POST_CONFIG_ACTIONS:
-            safe_print("Unknown command {}".format(args.command))
+            safe_print(f"Unknown command {args.command}")
 
         try:
             rc = POST_CONFIG_ACTIONS[args.command](args, config)

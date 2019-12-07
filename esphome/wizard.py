@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import os
 import random
 import string
@@ -74,7 +72,7 @@ def sanitize_double_quotes(value):
 def wizard_file(**kwargs):
     letters = string.ascii_letters + string.digits
     ap_name_base = kwargs['name'].replace('_', ' ').title()
-    ap_name = "{} Fallback Hotspot".format(ap_name_base)
+    ap_name = f"{ap_name_base} Fallback Hotspot"
     if len(ap_name) > 32:
         ap_name = ap_name_base
     kwargs['fallback_name'] = ap_name
@@ -118,7 +116,7 @@ else:
 def safe_print_step(step, big):
     safe_print()
     safe_print()
-    safe_print("============= STEP {} =============".format(step))
+    safe_print(f"============= STEP {step} =============")
     safe_print(big)
     safe_print("===================================")
     sleep(0.25)
@@ -126,7 +124,7 @@ def safe_print_step(step, big):
 
 def default_input(text, default):
     safe_print()
-    safe_print("Press ENTER for default ({})".format(default))
+    safe_print(f"Press ENTER for default ({default})")
     return input(text.format(default)) or default
 
 
@@ -225,7 +223,7 @@ def wizard(path):
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
-            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists.".format(board)))
+            safe_print(color('red', f"Sorry, I don't think the board \"{board}\" exists."))
             safe_print()
             sleep(0.25)
             safe_print()
@@ -240,7 +238,7 @@ def wizard(path):
     safe_print()
     sleep(1)
     safe_print("First, what's the " + color('green', 'SSID') +
-               " (the name) of the WiFi network {} I should connect to?".format(name))
+               f" (the name) of the WiFi network {name} I should connect to?")
     sleep(1.5)
     safe_print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:

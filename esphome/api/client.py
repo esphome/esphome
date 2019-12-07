@@ -189,8 +189,8 @@ class APIClient(threading.Thread):
         self._socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         try:
             self._socket.connect((ip, self._port))
-        except socket.error as err:
-            err = APIConnectionError("Error connecting to {}: {}".format(ip, err))
+        except OSError as err:
+            err = APIConnectionError(f"Error connecting to {ip}: {err}")
             self._fatal_error(err)
             raise err
         self._socket.settimeout(0.1)
@@ -198,7 +198,7 @@ class APIClient(threading.Thread):
         self._socket_open_event.set()
 
         hello = pb.HelloRequest()
-        hello.client_info = 'ESPHome v{}'.format(const.__version__)
+        hello.client_info = f'ESPHome v{const.__version__}'
         try:
             resp = self._send_message_await_response(hello, pb.HelloResponse)
         except APIConnectionError as err:
@@ -249,8 +249,8 @@ class APIClient(threading.Thread):
         with self._socket_write_lock:
             try:
                 self._socket.sendall(data)
-            except socket.error as err:
-                err = APIConnectionError("Error while writing data: {}".format(err))
+            except OSError as err:
+                err = APIConnectionError(f"Error while writing data: {err}")
                 self._fatal_error(err)
                 raise err
 
@@ -350,8 +350,8 @@ class APIClient(threading.Thread):
                 raise APIConnectionError("Socket was closed")
             except socket.timeout:
                 continue
-            except socket.error as err:
-                raise APIConnectionError("Error while receiving data: {}".format(err))
+            except OSError as err:
+                raise APIConnectionError(f"Error while receiving data: {err}")
             ret += val
         return ret
 

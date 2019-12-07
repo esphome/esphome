@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import json
 import logging
 import os
@@ -244,7 +242,7 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-class IDEData(object):
+class IDEData:
     def __init__(self, raw):
         if not isinstance(raw, dict):
             self.raw = {}

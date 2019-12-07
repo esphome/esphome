@@ -432,7 +432,7 @@ class SInt64Type(TypeInfo):
 
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field):
-        super(RepeatedTypeInfo, self).__init__(field)
+        super().__init__(field)
         self._ti = TYPE_INFO[field.type](field)
 
     @property

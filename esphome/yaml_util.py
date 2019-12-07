@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import fnmatch
 import functools
 import inspect
@@ -27,7 +25,7 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
-class ESPHomeDataBase(object):
+class ESPHomeDataBase:
     @property
     def esp_range(self):
         return getattr(self, '_esp_range', None)
@@ -37,7 +35,7 @@ class ESPHomeDataBase(object):
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
 
 
-class ESPForceValue(object):
+class ESPForceValue:
     pass
 
 
@@ -73,27 +71,27 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_yaml_int(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_int(node)
+        return super().construct_yaml_int(node)
 
     @_add_data_ref
     def construct_yaml_float(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_float(node)
+        return super().construct_yaml_float(node)
 
     @_add_data_ref
     def construct_yaml_binary(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_binary(node)
+        return super().construct_yaml_binary(node)
 
     @_add_data_ref
     def construct_yaml_omap(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_omap(node)
+        return super().construct_yaml_omap(node)
 
     @_add_data_ref
     def construct_yaml_str(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_str(node)
+        return super().construct_yaml_str(node)
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_seq(node)
+        return super().construct_yaml_seq(node)
 
     @_add_data_ref
     def construct_yaml_map(self, node):
@@ -129,12 +127,12 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     hash(key)
                 except TypeError:
                     raise yaml.constructor.ConstructorError(
-                        'Invalid key "{}" (not hashable)'.format(key), key_node.start_mark)
+                        f'Invalid key "{key}" (not hashable)', key_node.start_mark)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:
                     raise yaml.constructor.ConstructorError(
-                        'Duplicate key "{}"'.format(key), key_node.start_mark,
+                        f'Duplicate key "{key}"', key_node.start_mark,
                         'NOTE: Previous declaration here:', seen_keys[key],
                     )
                 seen_keys[key] = key_node.start_mark
@@ -197,7 +195,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
-            "Environment variable '{}' not defined".format(node.value), node.start_mark
+            f"Environment variable '{node.value}' not defined", node.start_mark
         )
 
     @property
@@ -212,7 +210,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
-                "Secret '{}' not defined".format(node.value), node.start_mark
+                f"Secret '{node.value}' not defined", node.start_mark
             )
         val = secrets[node.value]
         _SECRET_VALUES[str(val)] = node.value

@@ -1,11 +1,10 @@
-# coding=utf-8
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 15
 PATCH_VERSION = '0-dev'
-__short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
-__version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
+__short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
+__version__ = f'{__short_version__}.{PATCH_VERSION}'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
@@ -545,7 +544,7 @@ ICON_WIFI = 'mdi:wifi'
 
 UNIT_AMPERE = 'A'
 UNIT_CELSIUS = '°C'
-UNIT_COUNTS_PER_CUBIC_METER = u'#/m³'
+UNIT_COUNTS_PER_CUBIC_METER = '#/m³'
 UNIT_DECIBEL = 'dB'
 UNIT_DECIBEL_MILLIWATT = 'dBm'
 UNIT_DEGREE_PER_SECOND = '°/s'

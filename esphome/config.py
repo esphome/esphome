@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import collections
 import importlib
 import logging
@@ -30,7 +28,7 @@ _LOGGER = logging.getLogger(__name__)
 _COMPONENT_CACHE = {}
 
 
-class ComponentManifest(object):
+class ComponentManifest:
     def __init__(self, module, base_components_path, is_core=False, is_platform=False):
         self.module = module
         self._is_core = is_core
@@ -88,7 +86,7 @@ class ComponentManifest(object):
             source_files = core.find_source_files(os.path.join(core_p, 'dummy'))
             ret = {}
             for f in source_files:
-                ret['esphome/core/{}'.format(f)] = os.path.join(core_p, f)
+                ret[f'esphome/core/{f}'] = os.path.join(core_p, f)
             return ret
 
         source_files = core.find_source_files(self.module.__file__)
@@ -100,7 +98,7 @@ class ComponentManifest(object):
             rel = os.path.relpath(full_file, self.base_components_path)
             # Always use / for C++ include names
             rel = rel.replace(os.sep, '/')
-            target_file = 'esphome/components/{}'.format(rel)
+            target_file = f'esphome/components/{rel}'
             ret[target_file] = full_file
         return ret
 
@@ -130,7 +128,7 @@ def _lookup_module(domain, is_platform):
     _mount_config_dir()
     # First look for custom_components
     try:
-        module = importlib.import_module('custom_components.{}'.format(domain))
+        module = importlib.import_module(f'custom_components.{domain}')
     except ImportError as e:
         # ImportError when no such module
         if 'No module named' not in str(e):
@@ -146,7 +144,7 @@ def _lookup_module(domain, is_platform):
         return manif
 
     try:
-        module = importlib.import_module('esphome.components.{}'.format(domain))
+        module = importlib.import_module(f'esphome.components.{domain}')
     except ImportError as e:
         if 'No module named' not in str(e):
             _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
@@ -166,7 +164,7 @@ def get_component(domain):
 
 
 def get_platform(domain, platform):
-    full = '{}.{}'.format(platform, domain)
+    full = f'{platform}.{domain}'
     return _lookup_module(full, True)
 
 
@@ -201,7 +199,7 @@ def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
 
 class Config(OrderedDict):
     def __init__(self):
-        super(Config, self).__init__()
+        super().__init__()
         # A list of voluptuous errors
         self.errors = []  # type: List[vol.Invalid]
         # A list of paths that should be fully outputted
@@ -305,12 +303,10 @@ def iter_ids(config, path=None):
             yield id, path
     elif isinstance(config, list):
         for i, item in enumerate(config):
-            for result in iter_ids(item, path + [i]):
-                yield result
+            yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
-            for result in iter_ids(value, path + [key]):
-                yield result
+            yield from iter_ids(value, path + [key])
 
 
 def do_id_pass(result):  # type: (Config) -> None
@@ -326,7 +322,7 @@ def do_id_pass(result):  # type: (Config) -> None
                 match = next((v for v in declare_ids if v[0].id == id.id), None)
                 if match is not None:
                     opath = '->'.join(str(v) for v in match[1])
-                    result.add_str_error("ID {} redefined! Check {}".format(id.id, opath), path)
+                    result.add_str_error(f"ID {id.id} redefined! Check {opath}", path)
                     continue
             declare_ids.append((id, path))
         else:
@@ -350,8 +346,8 @@ def do_id_pass(result):  # type: (Config) -> None
                 # Find candidates
                 matches = difflib.get_close_matches(id.id, [v[0].id for v in declare_ids])
                 if matches:
-                    matches_s = ', '.join('"{}"'.format(x) for x in matches)
-                    error += " These IDs look similar: {}.".format(matches_s)
+                    matches_s = ', '.join(f'"{x}"' for x in matches)
+                    error += f" These IDs look similar: {matches_s}."
                 result.add_str_error(error, path)
                 continue
             if not isinstance(match.type, MockObjClass) or not isinstance(id.type, MockObjClass):
@@ -370,7 +366,7 @@ def do_id_pass(result):  # type: (Config) -> None
                     id.id = v[0].id
                     break
             else:
-                result.add_str_error("Couldn't resolve ID for type '{}'".format(id.type), path)
+                result.add_str_error(f"Couldn't resolve ID for type '{id.type}'", path)
 
 
 def recursive_check_replaceme(value):
@@ -457,7 +453,7 @@ def validate_config(config):
         component = get_component(domain)
         path = [domain]
         if component is None:
-            result.add_str_error("Component not found: {}".format(domain), path)
+            result.add_str_error(f"Component not found: {domain}", path)
             continue
         CORE.loaded_integrations.add(domain)
 
@@ -485,7 +481,7 @@ def validate_config(config):
         for i, p_config in enumerate(conf):
             path = [domain, i]
             # Construct temporary unknown output path
-            p_domain = '{}.unknown'.format(domain)
+            p_domain = f'{domain}.unknown'
             result.add_output_path(path, p_domain)
             result[domain][i] = p_config
             if not isinstance(p_config, dict):
@@ -497,12 +493,12 @@ def validate_config(config):
                 continue
             # Remove temp output path and construct new one
             result.remove_output_path(path, p_domain)
-            p_domain = '{}.{}'.format(domain, p_name)
+            p_domain = f'{domain}.{p_name}'
             result.add_output_path(path, p_domain)
             # Try Load platform
             platform = get_platform(domain, p_name)
             if platform is None:
-                result.add_str_error("Platform not found: '{}'".format(p_domain), path)
+                result.add_str_error(f"Platform not found: '{p_domain}'", path)
                 continue
             CORE.loaded_integrations.add(p_name)
 
@@ -635,7 +631,7 @@ def _format_vol_invalid(ex, config):
     if isinstance(ex, ExtraKeysInvalid):
         if ex.candidates:
             message += '[{}] is an invalid option for [{}]. Did you mean {}?'.format(
-                ex.path[-1], paren, ', '.join('[{}]'.format(x) for x in ex.candidates))
+                ex.path[-1], paren, ', '.join(f'[{x}]' for x in ex.candidates))
         else:
             message += '[{}] is an invalid option for [{}]. Please check the indentation.'.format(
                 ex.path[-1], paren)
@@ -655,8 +651,8 @@ class InvalidYAMLError(EsphomeError):
             base = str(base_exc)
         except UnicodeDecodeError:
             base = repr(base_exc)
-        message = u"Invalid YAML syntax:\n\n{}".format(base)
-        super(InvalidYAMLError, self).__init__(message)
+        message = f"Invalid YAML syntax:\n\n{base}"
+        super().__init__(message)
         self.base_exc = base_exc
 
 
@@ -682,7 +678,7 @@ def load_config():
     try:
         return _load_config()
     except vol.Invalid as err:
-        raise EsphomeError("Error while parsing config: {}".format(err))
+        raise EsphomeError(f"Error while parsing config: {err}")
 
 
 def line_info(obj, highlight=True):
@@ -752,7 +748,7 @@ def dump_dict(config, path, at_root=True):
             if error is not None:
                 ret += '\n' + color('bold_red', _format_vol_invalid(error, config)) + '\n'
 
-            st = '{}: '.format(k)
+            st = f'{k}: '
             if config.is_in_error_path(path_):
                 st = color('red', st)
             msg, m = dump_dict(config, path_, at_root=False)
@@ -834,7 +830,7 @@ def read_config():
             if not res.is_in_error_path(path):
                 continue
 
-            safe_print(color('bold_red', '{}:'.format(domain)) + ' ' +
+            safe_print(color('bold_red', f'{domain}:') + ' ' +
                        (line_info(res.get_nested_item(path)) or ''))
             safe_print(indent(dump_dict(res, path)[0]))
         return None

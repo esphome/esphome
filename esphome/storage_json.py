@@ -20,11 +20,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path():  # type: () -> str
-    return CORE.relative_config_path('.esphome', '{}.json'.format(CORE.config_filename))
+    return CORE.relative_config_path('.esphome', f'{CORE.config_filename}.json')
 
 
 def ext_storage_path(base_path, config_filename):  # type: (str, str) -> str
-    return os.path.join(base_path, '.esphome', '{}.json'.format(config_filename))
+    return os.path.join(base_path, '.esphome', f'{config_filename}.json')
 
 
 def esphome_storage_path(base_path):  # type: (str) -> str
@@ -36,7 +36,7 @@ def trash_storage_path(base_path):  # type: (str) -> str
 
 
 # pylint: disable=too-many-instance-attributes
-class StorageJSON(object):
+class StorageJSON:
     def __init__(self, storage_version, name, comment, esphome_version,
                  src_version, arduino_version, address, esp_platform, board, build_path,
                  firmware_bin_path, loaded_integrations):
@@ -157,7 +157,7 @@ class StorageJSON(object):
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
 
 
-class EsphomeStorageJSON(object):
+class EsphomeStorageJSON:
     def __init__(self, storage_version, cookie_secret, last_update_check,
                  remote_version):
         # Version of the storage JSON schema

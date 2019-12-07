@@ -39,14 +39,14 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     for d in ['x', 'y', 'z']:
-        accel_key = 'accel_{}'.format(d)
+        accel_key = f'accel_{d}'
         if accel_key in config:
             sens = yield sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, 'set_accel_{}_sensor'.format(d))(sens))
-        accel_key = 'gyro_{}'.format(d)
+            cg.add(getattr(var, f'set_accel_{d}_sensor')(sens))
+        accel_key = f'gyro_{d}'
         if accel_key in config:
             sens = yield sensor.new_sensor(config[accel_key])
-            cg.add(getattr(var, 'set_gyro_{}_sensor'.format(d))(sens))
+            cg.add(getattr(var, f'set_gyro_{d}_sensor')(sens))
 
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])

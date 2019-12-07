@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import collections
 import io
 import logging
@@ -13,7 +11,7 @@ from esphome import const
 _LOGGER = logging.getLogger(__name__)
 
 
-class RegistryEntry(object):
+class RegistryEntry:
     def __init__(self, name, fun, type_id, schema):
         self.name = name
         self.fun = fun
@@ -33,7 +31,7 @@ class RegistryEntry(object):
 
 class Registry(dict):
     def __init__(self, base_schema=None, type_id_key=None):
-        super(Registry, self).__init__()
+        super().__init__()
         self.base_schema = base_schema or {}
         self.type_id_key = type_id_key
 
@@ -90,7 +88,7 @@ def shlex_quote(s):
 ANSI_ESCAPE = re.compile(r'\033[@-_][0-?]*[ -/]*[@-~]')
 
 
-class RedirectText(object):
+class RedirectText:
     def __init__(self, out, filter_lines=None):
         self._out = out
         if filter_lines is None:

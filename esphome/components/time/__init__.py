@@ -32,10 +32,10 @@ def _tz_timedelta(td):
     if offset_hour == 0 and offset_minute == 0 and offset_second == 0:
         return '0'
     if offset_minute == 0 and offset_second == 0:
-        return '{}'.format(offset_hour)
+        return f'{offset_hour}'
     if offset_second == 0:
-        return '{}:{}'.format(offset_hour, offset_minute)
-    return '{}:{}:{}'.format(offset_hour, offset_minute, offset_second)
+        return f'{offset_hour}:{offset_minute}'
+    return f'{offset_hour}:{offset_minute}:{offset_second}'
 
 
 # https://stackoverflow.com/a/16804556/8924614
@@ -142,7 +142,7 @@ def _parse_cron_int(value, special_mapping, message):
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
     if part in ('*', '?'):
-        return set(x for x in range(min_value, max_value + 1))
+        return {x for x in range(min_value, max_value + 1)}
     if '/' in part:
         data = part.split('/')
         if len(data) > 2:
@@ -159,7 +159,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         except ValueError:
             raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
-        return set(x for x in range(offset_n, max_value + 1, repeat_n))
+        return {x for x in range(offset_n, max_value + 1, repeat_n)}
     if '-' in part:
         data = part.split('-')
         if len(data) > 2:
@@ -171,9 +171,9 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         end_n = _parse_cron_int(end, special_mapping, "Number for time range must be integer, "
                                                       "got {}")
         if end_n < begin_n:
-            return set(x for x in range(end_n, max_value + 1)) | \
-                   set(x for x in range(min_value, begin_n + 1))
-        return set(x for x in range(begin_n, end_n + 1))
+            return {x for x in range(end_n, max_value + 1)} | \
+                   {x for x in range(min_value, begin_n + 1)}
+        return {x for x in range(begin_n, end_n + 1)}
 
     return {_parse_cron_int(part, special_mapping, "Number for time expression must be an "
                                                    "integer, got {}")}
@@ -248,7 +248,7 @@ def validate_cron_keys(value):
     if CONF_CRON in value:
         for key in value.keys():
             if key in CRON_KEYS:
-                raise cv.Invalid("Cannot use option {} when cron: is specified.".format(key))
+                raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
         if CONF_AT in value:
             raise cv.Invalid("Cannot use option at with cron!")
         cron_ = value[CONF_CRON]
@@ -258,7 +258,7 @@ def validate_cron_keys(value):
     if CONF_AT in value:
         for key in value.keys():
             if key in CRON_KEYS:
-                raise cv.Invalid("Cannot use option {} when at: is specified.".format(key))
+                raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
         at_ = value[CONF_AT]
         value = {x: value[x] for x in value if x != CONF_AT}
         value.update(at_)

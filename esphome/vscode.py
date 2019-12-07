@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import json
 import os
 from typing import Optional
@@ -32,7 +30,7 @@ def _dump_range(range):
     }
 
 
-class VSCodeResult(object):
+class VSCodeResult:
     def __init__(self):
         self.yaml_errors = []
         self.validation_errors = []

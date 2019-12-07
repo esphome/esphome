@@ -1,6 +1,4 @@
-# coding=utf-8
 """Helpers for config validation using voluptuous."""
-from __future__ import print_function
 
 import logging
 import os
@@ -81,7 +79,7 @@ class Optional(vol.Optional):
     """
 
     def __init__(self, key, default=UNDEFINED):
-        super(Optional, self).__init__(key, default=default)
+        super().__init__(key, default=default)
 
 
 class Required(vol.Required):
@@ -93,7 +91,7 @@ class Required(vol.Required):
     """
 
     def __init__(self, key):
-        super(Required, self).__init__(key)
+        super().__init__(key)
 
 
 def check_not_templatable(value):
@@ -239,7 +237,7 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
-        raise Invalid("Expected integer, but cannot parse {} as an integer".format(value))
+        raise Invalid(f"Expected integer, but cannot parse {value} as an integer")
 
 
 def int_range(min=None, max=None, min_included=True, max_included=True):
@@ -292,7 +290,7 @@ def validate_id_name(value):
                           "character and numbers. The character '{}' cannot be used"
                           "".format(char))
     if value in RESERVED_IDS:
-        raise Invalid("ID '{}' is reserved internally and cannot be used".format(value))
+        raise Invalid(f"ID '{value}' is reserved internally and cannot be used")
     if value in CORE.loaded_integrations:
         raise Invalid("ID '{}' conflicts with the name of an esphome integration, please use "
                       "another ID name.".format(value))
@@ -355,7 +353,7 @@ def only_on(platforms):
 
     def validator_(obj):
         if CORE.esp_platform not in platforms:
-            raise Invalid("This feature is only available on {}".format(platforms))
+            raise Invalid(f"This feature is only available on {platforms}")
         return obj
 
     return validator_
@@ -542,7 +540,7 @@ def time_of_day(value):
         try:
             date = datetime.strptime(value, '%H:%M:%S %p')
         except ValueError:
-            raise Invalid("Invalid time of day: {}".format(err))
+            raise Invalid(f"Invalid time of day: {err}")
 
     return {
         CONF_HOUR: date.hour,
@@ -591,7 +589,7 @@ def float_with_unit(quantity, regex_suffix, optional_unit=False):
         match = pattern.match(string(value))
 
         if match is None:
-            raise Invalid("Expected {} with unit, got {}".format(quantity, value))
+            raise Invalid(f"Expected {quantity} with unit, got {value}")
 
         mantissa = float(match.group(1))
         if match.group(2) not in METRIC_SUFFIXES:
@@ -656,7 +654,7 @@ def validate_bytes(value):
     match = re.match(r"^([0-9]+)\s*(\w*?)(?:byte|B|b)?s?$", value)
 
     if match is None:
-        raise Invalid("Expected number of bytes with unit, got {}".format(value))
+        raise Invalid(f"Expected number of bytes with unit, got {value}")
 
     mantissa = int(match.group(1))
     if match.group(2) not in METRIC_SUFFIXES:
@@ -685,7 +683,7 @@ def domain(value):
     try:
         return str(ipv4(value))
     except Invalid:
-        raise Invalid("Invalid domain: {}".format(value))
+        raise Invalid(f"Invalid domain: {value}")
 
 
 def domain_name(value):
@@ -790,7 +788,7 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
-        raise Invalid("MQTT Quality of Service must be integer, got {}".format(value))
+        raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
     return one_of(0, 1, 2)(value)
 
 
@@ -798,7 +796,7 @@ def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
     def validator(value):
         if comp not in CORE.raw_config:
-            raise Invalid("This option requires component {}".format(comp))
+            raise Invalid(f"This option requires component {comp}")
         return value
 
     return validator
@@ -900,7 +898,7 @@ def one_of(*values, **kwargs):
       - *float* (``bool``, default=False): Whether to convert the incoming values to floats.
       - *space* (``str``, default=' '): What to convert spaces in the input string to.
     """
-    options = ', '.join("'{}'".format(x) for x in values)
+    options = ', '.join(f"'{x}'" for x in values)
     lower = kwargs.pop('lower', False)
     upper = kwargs.pop('upper', False)
     string_ = kwargs.pop('string', False) or lower or upper
@@ -929,8 +927,8 @@ def one_of(*values, **kwargs):
             matches = difflib.get_close_matches(option, options_)
             if matches:
                 raise Invalid("Unknown value '{}', did you mean {}?"
-                              "".format(value, ", ".join("'{}'".format(x) for x in matches)))
-            raise Invalid("Unknown value '{}', valid options are {}.".format(value, options))
+                              "".format(value, ", ".join(f"'{x}'" for x in matches)))
+            raise Invalid(f"Unknown value '{value}', valid options are {options}.")
         return value
 
     return validator
@@ -1074,7 +1072,7 @@ def entity_id(value):
     for x in value.split('.'):
         for c in x:
             if c not in ENTITY_ID_CHARACTERS:
-                raise Invalid("Invalid character for entity ID: {}".format(c))
+                raise Invalid(f"Invalid character for entity ID: {c}")
     return value
 
 
@@ -1118,14 +1116,14 @@ class GenerateID(Optional):
     """Mark this key as being an auto-generated ID key."""
 
     def __init__(self, key=CONF_ID):
-        super(GenerateID, self).__init__(key, default=lambda: None)
+        super().__init__(key, default=lambda: None)
 
 
 class SplitDefault(Optional):
     """Mark this key to have a split default for ESP8266/ESP32."""
 
     def __init__(self, key, esp8266=vol.UNDEFINED, esp32=vol.UNDEFINED):
-        super(SplitDefault, self).__init__(key)
+        super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
         self._esp32_default = vol.default_factory(esp32)
 
@@ -1147,7 +1145,7 @@ class OnlyWith(Optional):
     """Set the default value only if the given component is loaded."""
 
     def __init__(self, key, component, default=None):
-        super(OnlyWith, self).__init__(key)
+        super().__init__(key)
         self._component = component
         self._default = vol.default_factory(default)
 
@@ -1196,9 +1194,9 @@ def validate_registry_entry(name, registry):
                           "".format(name.title(), value))
         key = next((x for x in value if x not in ignore_keys), None)
         if key is None:
-            raise Invalid("Key missing from {}! Got {}".format(name, value))
+            raise Invalid(f"Key missing from {name}! Got {value}")
         if key not in registry:
-            raise Invalid("Unable to find {} with the name '{}'".format(name, key), [key])
+            raise Invalid(f"Unable to find {name} with the name '{key}'", [key])
         key2 = next((x for x in value if x != key and x not in ignore_keys), None)
         if key2 is not None:
             raise Invalid("Cannot have two {0}s in one item. Key '{1}' overrides '{2}'! "

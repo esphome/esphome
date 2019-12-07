@@ -31,9 +31,9 @@ GAIN = {
 
 def validate_gain(value):
     if isinstance(value, float):
-        value = '{:0.03f}'.format(value)
+        value = f'{value:0.03f}'
     elif not isinstance(value, str):
-        raise cv.Invalid('invalid gain "{}"'.format(value))
+        raise cv.Invalid(f'invalid gain "{value}"')
 
     return cv.enum(GAIN)(value)
 

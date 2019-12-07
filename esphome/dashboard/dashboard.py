@@ -1,5 +1,4 @@
 # pylint: disable=wrong-import-position
-from __future__ import print_function
 
 import codecs
 import collections
@@ -41,7 +40,7 @@ from esphome.zeroconf import DashboardStatus, Zeroconf
 _LOGGER = logging.getLogger(__name__)
 
 
-class DashboardSettings(object):
+class DashboardSettings:
     def __init__(self):
         self.config_dir = ''
         self.password_digest = ''
@@ -174,7 +173,7 @@ def websocket_method(name):
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
-        super(EsphomeCommandWebSocket, self).__init__(application, request, **kwargs)
+        super().__init__(application, request, **kwargs)
         self._proc = None
         self._is_closed = False
 
@@ -345,8 +344,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         path = storage_json.firmware_bin_path
         self.set_header('Content-Type', 'application/octet-stream')
-        filename = '{}.bin'.format(storage_json.name)
-        self.set_header("Content-Disposition", 'attachment; filename="{}"'.format(filename))
+        filename = f'{storage_json.name}.bin'
+        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         with open(path, 'rb') as f:
             while True:
                 data = f.read(16384)
@@ -361,7 +360,7 @@ def _list_dashboard_entries():
     return [DashboardEntry(file) for file in files]
 
 
-class DashboardEntry(object):
+class DashboardEntry:
     def __init__(self, path):
         self.path = path
         self._storage = None
@@ -653,7 +652,7 @@ def get_static_file_url(name):
         with open(path, 'rb') as f_handle:
             hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
-    return './static/{}?hash={}'.format(name, hash_)
+    return f'./static/{name}?hash={hash_}'
 
 
 def make_app(debug=False):
@@ -744,7 +743,7 @@ def start_web_server(args):
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open('localhost:{}'.format(args.port))
+            webbrowser.open(f'localhost:{args.port}')
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

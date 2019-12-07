@@ -51,7 +51,7 @@ def register_trigger(name, type, data_type):
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
         cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
     })
-    registerer = TRIGGER_REGISTRY.register('on_{}'.format(name), validator)
+    registerer = TRIGGER_REGISTRY.register(f'on_{name}', validator)
 
     def decorator(func):
         @coroutine
@@ -97,7 +97,7 @@ def register_action(name, type_, schema):
         cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
         cv.Optional(CONF_REPEAT): validate_repeat,
     })
-    registerer = automation.register_action('remote_transmitter.transmit_{}'.format(name),
+    registerer = automation.register_action(f'remote_transmitter.transmit_{name}',
                                             type_, validator)
 
     def decorator(func):
@@ -121,11 +121,11 @@ def register_action(name, type_, schema):
 
 
 def declare_protocol(name):
-    data = ns.struct('{}Data'.format(name))
-    binary_sensor_ = ns.class_('{}BinarySensor'.format(name), RemoteReceiverBinarySensorBase)
-    trigger = ns.class_('{}Trigger'.format(name), RemoteReceiverTrigger)
-    action = ns.class_('{}Action'.format(name), RemoteTransmitterActionBase)
-    dumper = ns.class_('{}Dumper'.format(name), RemoteTransmitterDumper)
+    data = ns.struct(f'{name}Data')
+    binary_sensor_ = ns.class_(f'{name}BinarySensor', RemoteReceiverBinarySensorBase)
+    trigger = ns.class_(f'{name}Trigger', RemoteReceiverTrigger)
+    action = ns.class_(f'{name}Action', RemoteTransmitterActionBase)
+    dumper = ns.class_(f'{name}Dumper', RemoteTransmitterDumper)
     return data, binary_sensor_, trigger, action, dumper
 
 

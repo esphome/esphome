@@ -19,7 +19,7 @@ def show_new(value):
     if 'name' in value:
         args.append(('name', value['name']))
     args.append(('turn_on_action', {
-        'remote_transmitter.transmit_{}'.format(key): val
+        f'remote_transmitter.transmit_{key}': val
     }))
 
     text = yaml_util.dump([OrderedDict(args)])
