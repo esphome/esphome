@@ -1,17 +1,16 @@
-# coding=utf-8
 """Constants used by esphome."""
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 15
 PATCH_VERSION = '0-dev'
-__short_version__ = '{}.{}'.format(MAJOR_VERSION, MINOR_VERSION)
-__version__ = '{}.{}'.format(__short_version__, PATCH_VERSION)
+__short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
+__version__ = f'{__short_version__}.{PATCH_VERSION}'
 
 ESP_PLATFORM_ESP32 = 'ESP32'
 ESP_PLATFORM_ESP8266 = 'ESP8266'
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32, ESP_PLATFORM_ESP8266]
 
-ALLOWED_NAME_CHARS = u'abcdefghijklmnopqrstuvwxyz0123456789_'
+ALLOWED_NAME_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 ARDUINO_VERSION_ESP32_DEV = 'https://github.com/platformio/platform-espressif32.git#feature/stage'
 ARDUINO_VERSION_ESP32_1_0_0 = 'espressif32@1.5.0'
 ARDUINO_VERSION_ESP32_1_0_1 = 'espressif32@1.6.0'
@@ -544,12 +543,12 @@ ICON_WEATHER_WINDY = 'mdi:weather-windy'
 ICON_WIFI = 'mdi:wifi'
 
 UNIT_AMPERE = 'A'
-UNIT_CELSIUS = u'°C'
-UNIT_COUNTS_PER_CUBIC_METER = u'#/m³'
+UNIT_CELSIUS = '°C'
+UNIT_COUNTS_PER_CUBIC_METER = '#/m³'
 UNIT_DECIBEL = 'dB'
 UNIT_DECIBEL_MILLIWATT = 'dBm'
-UNIT_DEGREE_PER_SECOND = u'°/s'
-UNIT_DEGREES = u'°'
+UNIT_DEGREE_PER_SECOND = '°/s'
+UNIT_DEGREES = '°'
 UNIT_EMPTY = ''
 UNIT_G = 'G'
 UNIT_HECTOPASCAL = 'hPa'
@@ -559,12 +558,12 @@ UNIT_KILOMETER = 'km'
 UNIT_KILOMETER_PER_HOUR = 'km/h'
 UNIT_LUX = 'lx'
 UNIT_METER = 'm'
-UNIT_METER_PER_SECOND_SQUARED = u'm/s²'
-UNIT_MICROGRAMS_PER_CUBIC_METER = u'µg/m³'
+UNIT_METER_PER_SECOND_SQUARED = 'm/s²'
+UNIT_MICROGRAMS_PER_CUBIC_METER = 'µg/m³'
 UNIT_MICROMETER = 'µm'
-UNIT_MICROSIEMENS_PER_CENTIMETER = u'µS/cm'
-UNIT_MICROTESLA = u'µT'
-UNIT_OHM = u'Ω'
+UNIT_MICROSIEMENS_PER_CENTIMETER = 'µS/cm'
+UNIT_MICROTESLA = 'µT'
+UNIT_OHM = 'Ω'
 UNIT_PARTS_PER_BILLION = 'ppb'
 UNIT_PARTS_PER_MILLION = 'ppm'
 UNIT_PERCENT = '%'

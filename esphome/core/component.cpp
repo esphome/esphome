@@ -138,6 +138,9 @@ float Component::get_actual_setup_priority() const {
   return this->setup_priority_override_;
 }
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
 bool Component::has_overridden_loop() const {
 #ifdef CLANG_TIDY
   bool loop_overridden = true;
@@ -148,6 +151,7 @@ bool Component::has_overridden_loop() const {
 #endif
   return loop_overridden || call_loop_overridden;
 }
+#pragma GCC diagnostic pop
 
 PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
 

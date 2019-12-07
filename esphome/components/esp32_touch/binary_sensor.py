@@ -27,7 +27,7 @@ TOUCH_PADS = {
 def validate_touch_pad(value):
     value = validate_gpio_pin(value)
     if value not in TOUCH_PADS:
-        raise cv.Invalid("Pin {} does not support touch pads.".format(value))
+        raise cv.Invalid(f"Pin {value} does not support touch pads.")
     return value
 
 

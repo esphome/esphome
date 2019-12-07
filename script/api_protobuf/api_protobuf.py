@@ -39,12 +39,12 @@ content = prot.read_bytes()
 d = descriptor.FileDescriptorSet.FromString(content)
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 def camel_to_snake(name):
@@ -432,7 +432,7 @@ class SInt64Type(TypeInfo):
 
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field):
-        super(RepeatedTypeInfo, self).__init__(field)
+        super().__init__(field)
         self._ti = TYPE_INFO[field.type](field)
 
     @property
