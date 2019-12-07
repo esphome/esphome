@@ -105,9 +105,10 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         # A list of key-value pairs we find while resolving merges ('<<' key), will be
         # added to pairs in a second pass
         merge_pairs = []
-        # A list of seen keys so far, used to alert the user of duplicate keys and checking
+        # A dict of seen keys so far, used to alert the user of duplicate keys and checking
         # which keys to merge.
-        seen_keys = set()
+        # Value of dict items is the start mark of the previous declaration.
+        seen_keys = {}
 
         for key_node, value_node in node.value:
             # merge key is '<<'
@@ -129,15 +130,15 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     hash(key)
                 except TypeError:
                     raise yaml.constructor.ConstructorError(
-                        "while constructing a mapping", node.start_mark,
-                        'invalid key "{}" (not hashable)'.format(key), key_node.start_mark)
+                        'Invalid key "{}" (not hashable)'.format(key), key_node.start_mark)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:
                     raise yaml.constructor.ConstructorError(
-                        "while constructing a mapping", node.start_mark,
-                        'duplicate key "{}"'.format(key), key_node.start_mark)
-                seen_keys.add(key)
+                        'Duplicate key "{}"'.format(key), key_node.start_mark,
+                        'NOTE: Previous declaration here:', seen_keys[key],
+                    )
+                seen_keys[key] = key_node.start_mark
 
                 # Add to pairs
                 pairs.append((key, value))
@@ -154,14 +155,14 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                 for item in value:
                     if not isinstance(item, dict):
                         raise yaml.constructor.ConstructorError(
-                            "while constructing a mapping", node.start_mark,
-                            "expected a mapping for merging, but found {}".format(type(item)),
+                            "While constructing a mapping", node.start_mark,
+                            "Expected a mapping for merging, but found {}".format(type(item)),
                             value_node.start_mark)
                     merge_pairs.extend(item.items())
             else:
                 raise yaml.constructor.ConstructorError(
-                    "while constructing a mapping", node.start_mark,
-                    "expected a mapping or list of mappings for merging, "
+                    "While constructing a mapping", node.start_mark,
+                    "Expected a mapping or list of mappings for merging, "
                     "but found {}".format(type(value)), value_node.start_mark)
 
         if merge_pairs:
@@ -184,7 +185,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     continue
                 pairs.append((key, value))
                 # Add key node to seen keys, for sequence merge values.
-                seen_keys.add(key)
+                seen_keys[key] = None
 
         return OrderedDict(pairs)
 
@@ -197,8 +198,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
-            context=u"Environment variable '{}' not defined".format(node.value),
-            context_mark=node.start_mark
+            u"Environment variable '{}' not defined".format(node.value), node.start_mark
         )
 
     @property
@@ -213,8 +213,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
-                context=u"Secret '{}' not defined".format(node.value),
-                context_mark=node.start_mark
+                u"Secret '{}' not defined".format(node.value), node.start_mark
             )
         val = secrets[node.value]
         _SECRET_VALUES[text_type(val)] = node.value
