@@ -114,8 +114,8 @@ def valid_name(value):
     value = string_strict(value)
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
-            raise Invalid("'{}' is an invalid character for names. Valid characters are: {}"
-                          " (lowercase, no spaces)".format(c, ALLOWED_NAME_CHARS))
+            raise Invalid(f"'{c}' is an invalid character for names. Valid characters are: "
+                          f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)")
     return value
 
 

@@ -43,7 +43,7 @@ def choose_prompt(options):
 
     safe_print("Found multiple options, please choose one:")
     for i, (desc, _) in enumerate(options):
-        safe_print("  [{}] {}".format(i + 1, desc))
+        safe_print(f"  [{i+1}] {desc}")
 
     while True:
         opt = input('(number): ')
@@ -56,14 +56,14 @@ def choose_prompt(options):
                 raise ValueError
             break
         except ValueError:
-            safe_print(color('red', "Invalid option: '{}'".format(opt)))
+            safe_print(color('red', f"Invalid option: '{opt}'"))
     return options[opt - 1][1]
 
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
     for res, desc in get_serial_ports():
-        options.append(("{} ({})".format(res, desc), res))
+        options.append((f"{res} ({desc})", res))
     if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
         options.append(("Over The Air ({})".format(CORE.address), CORE.address))
         if default == 'OTA':
