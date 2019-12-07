@@ -505,7 +505,7 @@ RC_SWITCH_TYPE_D_SCHEMA = cv.Schema({
 RC_SWITCH_TRANSMITTER = cv.Schema({
     cv.Optional(CONF_REPEAT, default={CONF_TIMES: 5}): cv.Schema({
         cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
-        cv.Optional(CONF_WAIT_TIME, default='10ms'):
+        cv.Optional(CONF_WAIT_TIME, default='0us'):
             cv.templatable(cv.positive_time_period_microseconds),
     }),
 })

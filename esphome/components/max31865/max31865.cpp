@@ -37,7 +37,7 @@ void MAX31865Sensor::update() {
   }
 
   // Run fault detection
-  write_register_(CONFIGURATION_REG, 0b11101110, 0b10000110);
+  this->write_config_(0b11101110, 0b10000110);
   const uint32_t start_time = micros();
   uint8_t config;
   uint32_t fault_detect_time;
@@ -55,7 +55,7 @@ void MAX31865Sensor::update() {
   ESP_LOGV(TAG, "Fault detection completed in %uμs.", fault_detect_time);
 
   // Start 1-shot conversion
-  this->write_register_(CONFIGURATION_REG, 0b11100000, 0b10100000);
+  this->write_config_(0b11100000, 0b10100000);
 
   // Datasheet max conversion time is 55ms for 60Hz / 66ms for 50Hz
   auto f = std::bind(&MAX31865Sensor::read_data_, this);
@@ -66,13 +66,15 @@ void MAX31865Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX31865Sensor '%s'...", this->name_.c_str());
   this->spi_setup();
 
-  // Build configuration
-  uint8_t config = 0b00000010;
-  config |= (filter_ & 1) << 0;
+  // Build base configuration
+  base_config_ = 0b00000000;
+  base_config_ |= (filter_ & 1) << 0;
   if (rtd_wires_ == 3) {
-    config |= 1 << 4;
+    base_config_ |= 1 << 4;
   }
-  this->write_register_(CONFIGURATION_REG, 0b11111111, config);
+
+  // Clear any existing faults & set base config
+  this->write_config_(0b00000010, 0b00000010);
 }
 
 void MAX31865Sensor::dump_config() {
@@ -90,7 +92,7 @@ float MAX31865Sensor::get_setup_priority() const { return setup_priority::DATA; 
 void MAX31865Sensor::read_data_() {
   // Read temperature, disable V_BIAS (save power)
   const uint16_t rtd_resistance_register = this->read_register_16_(RTD_RESISTANCE_MSB_REG);
-  this->write_register_(CONFIGURATION_REG, 0b11000000, 0b00000000);
+  this->write_config_(0b11000000, 0b00000000);
 
   // Check faults
   const uint8_t faults = this->read_register_(FAULT_STATUS_REG);
@@ -137,12 +139,16 @@ void MAX31865Sensor::read_data_() {
   this->publish_state(temperature);
 }
 
-void MAX31865Sensor::write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) {
-  uint8_t value = this->read_register_(reg);
+void MAX31865Sensor::write_config_(uint8_t mask, uint8_t bits, uint8_t start_position) {
+  uint8_t value = base_config_;
 
   value &= (~mask);
   value |= (bits << start_position);
 
+  this->write_register_(CONFIGURATION_REG, value);
+}
+
+void MAX31865Sensor::write_register_(uint8_t reg, uint8_t value) {
   this->enable();
   this->write_byte(reg |= SPI_WRITE_M);
   this->write_byte(value);

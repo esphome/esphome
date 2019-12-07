@@ -43,10 +43,12 @@ class MAX31865Sensor : public sensor::Sensor,
   float rtd_nominal_resistance_;
   MAX31865ConfigFilter filter_;
   uint8_t rtd_wires_;
+  uint8_t base_config_;
   bool has_fault_ = false;
   bool has_warn_ = false;
   void read_data_();
-  void write_register_(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position = 0);
+  void write_config_(uint8_t mask, uint8_t bits, uint8_t start_position = 0);
+  void write_register_(uint8_t reg, uint8_t value);
   const uint8_t read_register_(uint8_t reg);
   const uint16_t read_register_16_(uint8_t reg);
   float calc_temperature_(const float& rtd_ratio);

@@ -29,6 +29,12 @@ enum ClimateAction : uint8_t {
   CLIMATE_ACTION_COOLING = 2,
   /// The climate device is actively heating (usually in heat or auto mode)
   CLIMATE_ACTION_HEATING = 3,
+  /// The climate device is idle (monitoring climate but no action needed)
+  CLIMATE_ACTION_IDLE = 4,
+  /// The climate device is drying (either mode DRY or AUTO)
+  CLIMATE_ACTION_DRYING = 5,
+  /// The climate device is in fan only mode (either mode FAN_ONLY or AUTO)
+  CLIMATE_ACTION_FAN = 6,
 };
 
 /// Enum for all modes a climate fan can be in

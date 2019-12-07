@@ -8,10 +8,12 @@ namespace ruuvi_ble {
 
 static const char *TAG = "ruuvi_ble";
 
-bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t *data, RuuviParseResult &result) {
+bool parse_ruuvi_data_byte(const esp32_ble_tracker::adv_data_t &adv_data, RuuviParseResult &result) {
+  const uint8_t data_type = adv_data[0];
+  const auto *data = &adv_data[1];
   switch (data_type) {
     case 0x03: {  // RAWv1
-      if (data_length != 16)
+      if (adv_data.size() != 14)
         return false;
 
       const uint8_t temp_sign = (data[1] >> 7) & 1;
@@ -32,13 +34,13 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       result.acceleration_y = acceleration_y;
       result.acceleration_z = acceleration_z;
       result.acceleration =
-          sqrt(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z);
+          sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y + acceleration_z * acceleration_z);
       result.battery_voltage = battery_voltage;
 
       return true;
     }
     case 0x05: {  // RAWv2
-      if (data_length != 26)
+      if (adv_data.size() != 24)
         return false;
 
       const float temperature = (int16_t(data[0] << 8) + int16_t(data[1])) * 0.005f;
@@ -63,8 +65,8 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
       result.acceleration_z = data[10] == 0xFF && data[11] == 0xFF ? NAN : acceleration_z;
       result.acceleration = result.acceleration_x == NAN || result.acceleration_y == NAN || result.acceleration_z == NAN
                                 ? NAN
-                                : sqrt(acceleration_x * acceleration_x + acceleration_y * acceleration_y +
-                                       acceleration_z * acceleration_z);
+                                : sqrtf(acceleration_x * acceleration_x + acceleration_y * acceleration_y +
+                                        acceleration_z * acceleration_z);
       result.battery_voltage = (power_info >> 5) == 0x7FF ? NAN : battery_voltage;
       result.tx_power = (power_info & 0x1F) == 0x1F ? NAN : tx_power;
       result.movement_counter = movement_counter;
@@ -77,21 +79,16 @@ bool parse_ruuvi_data_byte(uint8_t data_type, uint8_t data_length, const uint8_t
   }
 }
 optional<RuuviParseResult> parse_ruuvi(const esp32_ble_tracker::ESPBTDevice &device) {
-  const auto *raw = reinterpret_cast<const uint8_t *>(device.get_manufacturer_data().data());
+  bool success = false;
+  RuuviParseResult result{};
+  for (auto &it : device.get_manufacturer_datas()) {
+    bool is_ruuvi = it.uuid.contains(0x99, 0x04);
+    if (!is_ruuvi)
+      continue;
 
-  bool is_ruuvi = raw[0] == 0x99 && raw[1] == 0x04;
-
-  if (!is_ruuvi) {
-    return {};
+    if (parse_ruuvi_data_byte(it.data, result))
+      success = true;
   }
-
-  const uint8_t data_length = device.get_manufacturer_data().size();
-  const uint8_t format = raw[2];
-  const uint8_t *data = &raw[3];
-
-  RuuviParseResult result;
-
-  bool success = parse_ruuvi_data_byte(format, data_length, data, result);
   if (!success)
     return {};
   return result;

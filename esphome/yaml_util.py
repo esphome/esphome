@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import fnmatch
 import functools
+import inspect
 import logging
 import math
 import os
@@ -13,6 +14,7 @@ import yaml.constructor
 from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
+from esphome.helpers import add_class_to_obj
 from esphome.py_compat import text_type, IS_PY2
 from esphome.util import OrderedDict, filter_yaml_files
 
@@ -26,14 +28,6 @@ _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
-class NodeListClass(list):
-    pass
-
-
-class NodeStrClass(text_type):
-    pass
-
-
 class ESPHomeDataBase(object):
     @property
     def esp_range(self):
@@ -44,56 +38,25 @@ class ESPHomeDataBase(object):
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
 
 
-class ESPInt(int, ESPHomeDataBase):
+class ESPForceValue(object):
     pass
-
-
-class ESPFloat(float, ESPHomeDataBase):
-    pass
-
-
-class ESPStr(str, ESPHomeDataBase):
-    pass
-
-
-class ESPDict(OrderedDict, ESPHomeDataBase):
-    pass
-
-
-class ESPList(list, ESPHomeDataBase):
-    pass
-
-
-class ESPLambda(Lambda, ESPHomeDataBase):
-    pass
-
-
-ESP_TYPES = {
-    int: ESPInt,
-    float: ESPFloat,
-    str: ESPStr,
-    dict: ESPDict,
-    list: ESPList,
-    Lambda: ESPLambda,
-}
-if IS_PY2:
-    class ESPUnicode(unicode, ESPHomeDataBase):
-        pass
-
-    ESP_TYPES[unicode] = ESPUnicode
 
 
 def make_data_base(value):
-    for typ, cons in ESP_TYPES.items():
-        if isinstance(value, typ):
-            return cons(value)
-    return value
+    return add_class_to_obj(value, ESPHomeDataBase)
 
 
 def _add_data_ref(fn):
     @functools.wraps(fn)
     def wrapped(loader, node):
         res = fn(loader, node)
+        # newer PyYAML versions use generators, resolve them
+        if inspect.isgenerator(res):
+            generator = res
+            res = next(generator)
+            # Let generator finish
+            for _ in generator:
+                pass
         res = make_data_base(res)
         if isinstance(res, ESPHomeDataBase):
             res.from_node(node)
@@ -130,50 +93,66 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return super(ESPHomeLoader, self).construct_yaml_seq(node)
 
     def custom_flatten_mapping(self, node):
-        pre_merge = []
-        post_merge = []
+        merge = []
         index = 0
         while index < len(node.value):
-            if isinstance(node.value[index], yaml.ScalarNode):
-                index += 1
-                continue
-
             key_node, value_node = node.value[index]
-            if key_node.tag == u'tag:yaml.org,2002:merge':
+            if key_node.tag == 'tag:yaml.org,2002:merge':
                 del node.value[index]
-
                 if isinstance(value_node, yaml.MappingNode):
                     self.custom_flatten_mapping(value_node)
-                    node.value = node.value[:index] + value_node.value + node.value[index:]
+                    merge.extend(value_node.value)
                 elif isinstance(value_node, yaml.SequenceNode):
                     submerge = []
                     for subnode in value_node.value:
                         if not isinstance(subnode, yaml.MappingNode):
                             raise yaml.constructor.ConstructorError(
                                 "while constructing a mapping", node.start_mark,
-                                "expected a mapping for merging, but found %{}".format(subnode.id),
+                                "expected a mapping for merging, but found {}".format(subnode.id),
                                 subnode.start_mark)
                         self.custom_flatten_mapping(subnode)
                         submerge.append(subnode.value)
-                    # submerge.reverse()
-                    node.value = node.value[:index] + submerge + node.value[index:]
-                elif isinstance(value_node, yaml.ScalarNode):
-                    node.value = node.value[:index] + [value_node] + node.value[index:]
-                    # post_merge.append(value_node)
+                    submerge.reverse()
+                    for value in submerge:
+                        merge.extend(value)
                 else:
                     raise yaml.constructor.ConstructorError(
                         "while constructing a mapping", node.start_mark,
                         "expected a mapping or list of mappings for merging, "
                         "but found {}".format(value_node.id), value_node.start_mark)
-            elif key_node.tag == u'tag:yaml.org,2002:value':
-                key_node.tag = u'tag:yaml.org,2002:str'
+            elif key_node.tag == 'tag:yaml.org,2002:value':
+                key_node.tag = 'tag:yaml.org,2002:str'
                 index += 1
             else:
                 index += 1
-        if pre_merge:
-            node.value = pre_merge + node.value
-        if post_merge:
-            node.value = node.value + post_merge
+        if merge:
+            # https://yaml.org/type/merge.html
+            # Generate a set of keys that should override values in `merge`.
+            haystack = {key.value for (key, _) in node.value}
+
+            # Construct a new merge set with values overridden by current mapping or earlier
+            # sequence entries removed
+            new_merge = []
+
+            for key, value in merge:
+                if key.value in haystack:
+                    # key already in the current map or from an earlier merge sequence entry,
+                    # do not override
+                    #
+                    # "... each of its key/value pairs is inserted into the current mapping,
+                    # unless the key already exists in it."
+                    #
+                    # "If the value associated with the merge key is a sequence, then this sequence
+                    #  is expected to contain mapping nodes and each of these nodes is merged in
+                    #  turn according to its order in the sequence. Keys in mapping nodes earlier
+                    #  in the sequence override keys specified in later mapping nodes."
+                    continue
+                new_merge.append((key, value))
+                # Add key node to haystack, for sequence merge values.
+                haystack.add(key.value)
+
+            # Merge
+            node.value = new_merge + node.value
 
     def custom_construct_pairs(self, node):
         pairs = []
@@ -296,6 +275,11 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
     def construct_lambda(self, node):
         return Lambda(text_type(node.value))
 
+    @_add_data_ref
+    def construct_force(self, node):
+        obj = self.construct_scalar(node)
+        return add_class_to_obj(obj, ESPForceValue)
+
 
 ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
 ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
@@ -314,6 +298,7 @@ ESPHomeLoader.add_constructor('!include_dir_named', ESPHomeLoader.construct_incl
 ESPHomeLoader.add_constructor('!include_dir_merge_named',
                               ESPHomeLoader.construct_include_dir_merge_named)
 ESPHomeLoader.add_constructor('!lambda', ESPHomeLoader.construct_lambda)
+ESPHomeLoader.add_constructor('!force', ESPHomeLoader.construct_force)
 
 
 def load_yaml(fname):
