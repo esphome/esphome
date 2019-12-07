@@ -118,7 +118,7 @@ class RedirectText:
         # str
         # If the conversion fails, we will create an exception, which is okay because we won't
         # be able to print it anyway.
-        text = str(s)
+        text = s.decode()
 
         if self._filter_pattern is not None:
             self._line_buffer += text
