@@ -1009,6 +1009,10 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: slow_pwm
+    id: id24
+    pin: GPIO26
+    period: 15s
 
 light:
   - platform: binary
