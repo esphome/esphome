@@ -8,7 +8,7 @@ import os
 import re
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
     CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI

@@ -7,13 +7,17 @@ from esphome.util import Registry
 
 
 def maybe_simple_id(*validators):
+    return maybe_conf(CONF_ID, *validators)
+
+
+def maybe_conf(conf, *validators):
     validator = cv.All(*validators)
 
     def validate(value):
         if isinstance(value, dict):
             return validator(value)
-        with cv.remove_prepend_path([CONF_ID]):
-            return validator({CONF_ID: value})
+        with cv.remove_prepend_path([conf]):
+            return validator({conf: value})
 
     return validate
 

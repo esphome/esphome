@@ -81,6 +81,8 @@ class DashboardSettings(object):
     def check_password(self, username, password):
         if not self.using_auth:
             return True
+        if username != self.username:
+            return False
 
         password = hmac.new(password.encode()).digest()
         return username == self.username and hmac.compare_digest(self.password_digest, password)
@@ -597,8 +599,8 @@ class LoginHandler(BaseHandler):
             'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
         }
         data = {
-            'username': str(self.get_argument('username', '')),
-            'password': str(self.get_argument('password', ''))
+            'username': decode_text(self.get_argument('username', '')),
+            'password': decode_text(self.get_argument('password', ''))
         }
         try:
             req = requests.post('http://hassio/auth', headers=headers, data=data)
@@ -615,8 +617,8 @@ class LoginHandler(BaseHandler):
         self.render_login_page(error="Invalid username or password")
 
     def post_native_login(self):
-        username = str(self.get_argument("username", '').encode('utf-8'))
-        password = str(self.get_argument("password", '').encode('utf-8'))
+        username = decode_text(self.get_argument("username", ''))
+        password = decode_text(self.get_argument("password", ''))
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
             self.redirect("/")

@@ -6,8 +6,16 @@
 
 #include <utility>
 #include <algorithm>
+
+extern "C" {
 #include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/dhcp.h"
+#include "lwip/init.h"  // LWIP_VERSION_
+#if LWIP_IPV6
+#include "lwip/netif.h"  // struct netif
+#endif
+}
 
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
@@ -74,6 +82,19 @@ bool WiFiComponent::wifi_apply_power_save_() {
   }
   return wifi_set_sleep_type(power_save);
 }
+
+#if LWIP_VERSION_MAJOR != 1
+/*
+  lwip v2 needs to be notified of IP changes, see also
+  https://github.com/d-a-v/Arduino/blob/0e7d21e17144cfc5f53c016191daca8723e89ee8/libraries/ESP8266WiFi/src/ESP8266WiFiSTA.cpp#L251
+ */
+#undef netif_set_addr  // need to call lwIP-v1.4 netif_set_addr()
+extern "C" {
+struct netif *eagle_lwip_getif(int netif_index);
+void netif_set_addr(struct netif *netif, const ip4_addr_t *ip, const ip4_addr_t *netmask, const ip4_addr_t *gw);
+};
+#endif
+
 bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
@@ -93,6 +114,13 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   bool ret = true;
+
+#if LWIP_VERSION_MAJOR != 1
+  // get current->previous IP address
+  // (check below)
+  ip_info previp{};
+  wifi_get_ip_info(STATION_IF, &previp);
+#endif
 
   struct ip_info info {};
   info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
@@ -122,6 +150,14 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     dns_setserver(1, &dns);
   }
 
+#if LWIP_VERSION_MAJOR != 1
+  // trigger address change by calling lwIP-v1.4 api
+  // only when ip is already set by other mean (generally dhcp)
+  if (previp.ip.addr != 0 && previp.ip.addr != info.ip.addr) {
+    netif_set_addr(eagle_lwip_getif(STATION_IF), reinterpret_cast<const ip4_addr_t *>(&info.ip),
+                   reinterpret_cast<const ip4_addr_t *>(&info.netmask), reinterpret_cast<const ip4_addr_t *>(&info.gw));
+  }
+#endif
   return ret;
 }
 
@@ -133,10 +169,31 @@ IPAddress WiFiComponent::wifi_sta_ip_() {
   return {ip.ip.addr};
 }
 bool WiFiComponent::wifi_apply_hostname_() {
-  bool ret = wifi_station_set_hostname(const_cast<char *>(App.get_name().c_str()));
+  const std::string &hostname = App.get_name();
+  bool ret = wifi_station_set_hostname(const_cast<char *>(hostname.c_str()));
   if (!ret) {
     ESP_LOGV(TAG, "Setting WiFi Hostname failed!");
   }
+
+  // inform dhcp server of hostname change using dhcp_renew()
+  for (netif *intf = netif_list; intf; intf = intf->next) {
+    // unconditionally update all known interfaces
+#if LWIP_VERSION_MAJOR == 1
+    intf->hostname = (char *) wifi_station_get_hostname();
+#else
+    intf->hostname = wifi_station_get_hostname();
+#endif
+    if (netif_dhcp_data(intf) != nullptr) {
+      // renew already started DHCP leases
+      err_t lwipret = dhcp_renew(intf);
+      if (lwipret != ERR_OK) {
+        ESP_LOGW(TAG, "wifi_apply_hostname_(%s): lwIP error %d on interface %c%c (index %d)", intf->hostname,
+                 (int) lwipret, intf->name[0], intf->name[1], intf->num);
+        ret = false;
+      }
+    }
+  }
+
   return ret;
 }
 
@@ -330,8 +387,12 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=%s reason='%s'", buf, format_mac_addr(it.bssid).c_str(),
-               get_disconnect_reason_str(it.reason));
+      if (it.reason == REASON_NO_AP_FOUND) {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      } else {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      }
       break;
     }
     case EVENT_STAMODE_AUTHMODE_CHANGE: {
@@ -390,27 +451,14 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
   WiFiMockClass::_event_callback(event);
 }
 
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  uint8_t val = static_cast<uint8_t>(output_power * 4);
+  system_phy_set_max_tpw(val);
+  return true;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
-
-  // Clear saved STA config
-  station_config default_config{};
-  wifi_station_get_config_default(&default_config);
-  bool is_zero = default_config.ssid[0] == '\0' && default_config.password[0] == '\0' && default_config.bssid[0] == 0 &&
-                 default_config.bssid_set == 0;
-  if (!is_zero) {
-    ESP_LOGV(TAG, "Clearing default wifi STA config");
-
-    memset(&default_config, 0, sizeof(default_config));
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_station_set_config(&default_config);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Clearing default wif STA config failed!");
-    }
-  }
 
   bool ret1, ret2;
   ETS_UART_INTR_DISABLE();
@@ -428,19 +476,6 @@ bool WiFiComponent::wifi_sta_pre_setup_() {
 
 void WiFiComponent::wifi_pre_setup_() {
   wifi_set_event_handler_cb(&WiFiComponent::wifi_event_callback);
-  // Make sure the default opmode is OFF
-  uint8_t default_opmode = wifi_get_opmode_default();
-  if (default_opmode != 0) {
-    ESP_LOGV(TAG, "Setting default WiFi Mode to 0 (was %u)", default_opmode);
-
-    ETS_UART_INTR_DISABLE();
-    bool ret = wifi_set_opmode(0);
-    ETS_UART_INTR_ENABLE();
-
-    if (!ret) {
-      ESP_LOGW(TAG, "Setting default WiFi mode failed!");
-    }
-  }
 
   // Make sure WiFi is in clean state before anything starts
   this->wifi_mode_(false, false);
@@ -496,11 +531,14 @@ bool WiFiComponent::wifi_scan_start_() {
   return ret;
 }
 bool WiFiComponent::wifi_disconnect_() {
+  bool ret = true;
+  // Only call disconnect if interface is up
+  if (wifi_get_opmode() & WIFI_STA)
+    ret = wifi_station_disconnect();
   station_config conf{};
   memset(&conf, 0, sizeof(conf));
   ETS_UART_INTR_DISABLE();
-  wifi_station_set_config(&conf);
-  bool ret = wifi_station_disconnect();
+  wifi_station_set_config_current(&conf);
   ETS_UART_INTR_ENABLE();
   return ret;
 }
@@ -594,7 +632,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   strcpy(reinterpret_cast<char *>(conf.ssid), ap.get_ssid().c_str());
   conf.ssid_len = static_cast<uint8>(ap.get_ssid().size());
   conf.channel = ap.get_channel().value_or(1);
-  conf.ssid_hidden = 0;
+  conf.ssid_hidden = ap.get_hidden();
   conf.max_connection = 5;
   conf.beacon_interval = 100;
 

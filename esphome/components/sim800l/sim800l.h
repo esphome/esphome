@@ -37,6 +37,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   /// Retrieve the latest sensor values. This operation takes approximately 16ms.
   void update() override;
   void loop() override;
+  void dump_config() override;
   void add_on_sms_received_callback(std::function<void(std::string, std::string)> callback) {
     this->callback_.add(std::move(callback));
   }

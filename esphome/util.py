@@ -182,6 +182,7 @@ def run_external_command(func, *cmd, **kwargs):
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
+        return 1
     finally:
         sys.argv = orig_argv
         sys.exit = orig_exit
@@ -214,6 +215,7 @@ def run_external_process(*cmd, **kwargs):
     except Exception as err:  # pylint: disable=broad-except
         _LOGGER.error("Running command failed: %s", err)
         _LOGGER.error("Please try running %s locally.", full_cmd)
+        return 1
     finally:
         if capture_stdout:
             # pylint: disable=lost-exception

@@ -138,6 +138,21 @@ api:
       then:
         - dfplayer.random
 
+    - service: battery_level
+      variables:
+        level: int
+      then:
+        - tm1651.set_level:
+            id: tm1651_battery
+            level: !lambda 'return level;'
+    - service: battery_brightness
+      variables:
+        brightness: int
+      then:
+        - tm1651.set_brightness:
+            id: tm1651_battery
+            brightness: !lambda 'return brightness;'
+
 wifi:
   ssid: 'MySSID'
   password: 'password1'
@@ -578,6 +593,10 @@ cover:
       - output.set_level:
           id: out
           level: !lambda "return tilt;"
+    position_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return pos;"
 
 
 output:
@@ -620,6 +639,7 @@ light:
 servo:
   id: my_servo
   output: out
+  restore: true
 
 ttp229_lsf:
 
@@ -646,3 +666,8 @@ dfplayer:
             dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
+
+tm1651:
+  id: tm1651_battery
+  clk_pin: D6
+  dio_pin: D5

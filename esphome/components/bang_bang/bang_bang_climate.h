@@ -21,6 +21,7 @@ class BangBangClimate : public climate::Climate, public Component {
  public:
   BangBangClimate();
   void setup() override;
+  void dump_config() override;
 
   void set_sensor(sensor::Sensor *sensor);
   Trigger<> *get_idle_trigger() const;

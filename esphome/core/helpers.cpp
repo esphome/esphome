@@ -156,21 +156,6 @@ ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
 
 const char *HOSTNAME_CHARACTER_WHITELIST = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_";
 
-void disable_interrupts() {
-#ifdef ARDUINO_ARCH_ESP32
-  portDISABLE_INTERRUPTS();
-#else
-  noInterrupts();
-#endif
-}
-void enable_interrupts() {
-#ifdef ARDUINO_ARCH_ESP32
-  portENABLE_INTERRUPTS();
-#else
-  interrupts();
-#endif
-}
-
 uint8_t crc8(uint8_t *data, uint8_t len) {
   uint8_t crc = 0;
 
@@ -193,8 +178,8 @@ void delay_microseconds_accurate(uint32_t usec) {
   if (usec <= 16383UL) {
     delayMicroseconds(usec);
   } else {
-    delay(usec / 1000UL);
-    delayMicroseconds(usec % 1000UL);
+    delay(usec / 16383UL);
+    delayMicroseconds(usec % 16383UL);
   }
 }
 
@@ -329,5 +314,14 @@ std::string hexencode(const uint8_t *data, uint32_t len) {
   res += buf;
   return res;
 }
+
+#ifdef ARDUINO_ARCH_ESP8266
+ICACHE_RAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
+ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+ICACHE_RAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
+ICACHE_RAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#endif
 
 }  // namespace esphome

@@ -45,6 +45,8 @@ def validate_board(value):
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
+    '2.6.2': 'espressif8266@2.3.1',
+    '2.6.1': 'espressif8266@2.3.0',
     '2.5.2': 'espressif8266@2.2.3',
     '2.5.1': 'espressif8266@2.1.0',
     '2.5.0': 'espressif8266@2.0.1',
@@ -76,7 +78,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif8266@<platformio version>")
+                             "espressif8266@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
@@ -84,7 +86,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif32@<platformio version>")
+                             "espressif32@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value

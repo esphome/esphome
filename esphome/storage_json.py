@@ -7,9 +7,12 @@ import os
 
 from esphome import const
 from esphome.core import CORE
-from esphome.helpers import mkdir_p
+from esphome.helpers import write_file_if_changed
 
 # pylint: disable=unused-import, wrong-import-order
+from esphome.core import CoreType
+from typing import Any, Optional, List
+
 from esphome.core import CoreType  # noqa
 from typing import Any, Optional, List
 
@@ -86,9 +89,7 @@ class StorageJSON(object):
         return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):
-        mkdir_p(os.path.dirname(path))
-        with codecs.open(path, 'w', encoding='utf-8') as f_handle:
-            f_handle.write(self.to_json())
+        write_file_if_changed(path, self.to_json())
 
     @staticmethod
     def from_esphome_core(esph, old):  # type: (CoreType, Optional[StorageJSON]) -> StorageJSON
@@ -128,8 +129,7 @@ class StorageJSON(object):
     @staticmethod
     def _load_impl(path):  # type: (str) -> Optional[StorageJSON]
         with codecs.open(path, 'r', encoding='utf-8') as f_handle:
-            text = f_handle.read()
-        storage = json.loads(text, encoding='utf-8')
+            storage = json.load(f_handle)
         storage_version = storage['storage_version']
         name = storage.get('name')
         comment = storage.get('comment')
@@ -193,15 +193,12 @@ class EsphomeStorageJSON(object):
         return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):  # type: (str) -> None
-        mkdir_p(os.path.dirname(path))
-        with codecs.open(path, 'w', encoding='utf-8') as f_handle:
-            f_handle.write(self.to_json())
+        write_file_if_changed(path, self.to_json())
 
     @staticmethod
     def _load_impl(path):  # type: (str) -> Optional[EsphomeStorageJSON]
         with codecs.open(path, 'r', encoding='utf-8') as f_handle:
-            text = f_handle.read()
-        storage = json.loads(text, encoding='utf-8')
+            storage = json.load(f_handle)
         storage_version = storage['storage_version']
         cookie_secret = storage.get('cookie_secret')
         last_update_check = storage.get('last_update_check')

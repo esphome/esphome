@@ -9,6 +9,10 @@ from esphome.config import load_config, _format_vol_invalid, Config
 from esphome.core import CORE, DocumentRange
 import esphome.config_validation as cv
 
+# pylint: disable=unused-import, wrong-import-order
+import voluptuous as vol
+from typing import Optional
+
 
 def _get_invalid_range(res, invalid):
     # type: (Config, cv.Invalid) -> Optional[DocumentRange]

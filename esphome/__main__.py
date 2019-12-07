@@ -158,16 +158,27 @@ def compile_program(args, config):
 
 def upload_using_esptool(config, port):
     path = CORE.firmware_bin
-    cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
-           '--baud', str(config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)),
-           '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
+    first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get('upload_speed', 460800)
 
-    if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
-        import esptool
-        # pylint: disable=protected-access
-        return run_external_command(esptool._main, *cmd)
+    def run_esptool(baud_rate):
+        cmd = ['esptool.py', '--before', 'default_reset', '--after', 'hard_reset',
+               '--baud', str(baud_rate),
+               '--chip', 'esp8266', '--port', port, 'write_flash', '0x0', path]
 
-    return run_external_process(*cmd)
+        if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
+            import esptool
+            # pylint: disable=protected-access
+            return run_external_command(esptool._main, *cmd)
+
+        return run_external_process(*cmd)
+
+    rc = run_esptool(first_baudrate)
+    if rc == 0 or first_baudrate == 115200:
+        return rc
+    # Try with 115200 baud rate, with some serial chips the faster baud rates do not work well
+    _LOGGER.info("Upload with baud rate %s failed. Trying again with baud rate 115200.",
+                 first_baudrate)
+    return run_esptool(115200)
 
 
 def upload_program(config, args, host):
@@ -180,6 +191,10 @@ def upload_program(config, args, host):
         return platformio_api.run_upload(config, CORE.verbose, host)
 
     from esphome import espota2
+
+    if CONF_OTA not in config:
+        raise EsphomeError("Cannot upload Over the Air as the config does not include the ota: "
+                           "component")
 
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
@@ -357,14 +372,15 @@ def command_update_all(args):
     def print_bar(middle_text):
         middle_text = " {} ".format(middle_text)
         width = len(click.unstyle(middle_text))
-        half_line = "=" * ((twidth - width) / 2)
+        half_line = "=" * ((twidth - width) // 2)
         click.echo("%s%s%s" % (half_line, middle_text, half_line))
 
     for f in files:
         print("Updating {}".format(color('cyan', f)))
         print('-' * twidth)
         print()
-        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs')
+        rc = run_external_process('esphome', '--dashboard', f, 'run', '--no-logs', '--upload-port',
+                                  'OTA')
         if rc == 0:
             print_bar("[{}] {}".format(color('bold_green', 'SUCCESS'), f))
             success[f] = True
@@ -502,9 +518,9 @@ def run_esphome(argv):
         _LOGGER.error("Missing configuration parameter, see esphome --help.")
         return 1
 
-    if sys.version_info[0] == 2:
-        _LOGGER.error("You're running ESPHome with python 2. ESPHome is no longer compatible "
-                      "with python 2. Please reinstall ESPHome with python 3.")
+    if sys.version_info < (3, 6, 0):
+        _LOGGER.error("You're running ESPHome with Python <3.6. ESPHome is no longer compatible "
+                      "with this Python version. Please reinstall ESPHome with Python 3.6+")
         return 1
 
     if args.command in PRE_CONFIG_ACTIONS:

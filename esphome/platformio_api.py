@@ -59,6 +59,7 @@ FILTER_PLATFORMIO_LINES = [
     r"Using cache: .*",
     r'Installing dependencies',
     r'.* @ .* is already installed',
+    r'Building in .* mode',
 ]
 
 
@@ -99,12 +100,14 @@ def run_upload(config, verbose, port):
 def run_idedata(config):
     args = ['-t', 'idedata']
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True).decode()
-    match = re.search(r'{.*}', stdout)
+    match = re.search(r'{\s*".*}', stdout)
     if match is None:
+        _LOGGER.debug("Could not match IDEData for %s", stdout)
         return IDEData(None)
     try:
         return IDEData(json.loads(match.group()))
     except ValueError:
+        _LOGGER.debug("Could not load IDEData for %s", stdout, exc_info=1)
         return IDEData(None)
 
 
@@ -163,11 +166,13 @@ ESP8266_EXCEPTION_CODES = {
 def _decode_pc(config, addr):
     idedata = get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
         return
     command = [idedata.addr2line_path, '-pfiaC', '-e', idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).strip()
+        translation = decode_text(subprocess.check_output(command)).strip()
     except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
     if "?? ??:0" in translation:

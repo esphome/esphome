@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import codecs
 import os
 import random
 import string
@@ -9,7 +8,7 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.helpers import color, get_bool_env
+from esphome.helpers import color, get_bool_env, write_file
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
@@ -103,8 +102,7 @@ def wizard_write(path, **kwargs):
         kwargs['platform'] = 'ESP8266' if board in ESP8266_BOARD_PINS else 'ESP32'
     platform = kwargs['platform']
 
-    with codecs.open(path, 'w', 'utf-8') as f_handle:
-        f_handle.write(wizard_file(**kwargs))
+    write_file(path, wizard_file(**kwargs))
     storage = StorageJSON.from_wizard(name, name + '.local', platform, board)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)

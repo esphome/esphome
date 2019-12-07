@@ -70,14 +70,14 @@ def to_code(config):
     cg.add_global(api_ns.using)
 
 
-KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string)})
+KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
     cv.Required(CONF_SERVICE): cv.templatable(cv.string),
     cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
     cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-    cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_VARIABLES, default={}): cv.Schema({cv.string: cv.returning_lambda}),
 })
 
 
