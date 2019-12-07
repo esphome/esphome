@@ -58,6 +58,7 @@ FILTER_PLATFORMIO_LINES = [
     r'Installing dependencies',
     r'.* @ .* is already installed',
     r'Building in .* mode',
+    r'Advanced Memory Usage is available via .*',
 ]
 
 
