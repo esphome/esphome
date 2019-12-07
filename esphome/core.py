@@ -22,10 +22,7 @@ class EsphomeError(Exception):
     """General ESPHome exception occurred."""
 
 
-base_int = int
-
-
-class HexInt(base_int):
+class HexInt(int):
     def __str__(self):
         if 0 <= self <= 255:
             return f"0x{self:02X}"
