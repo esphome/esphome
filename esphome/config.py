@@ -663,8 +663,7 @@ class InvalidYAMLError(EsphomeError):
         except UnicodeDecodeError:
             base = repr(base_exc)
         base = decode_text(base)
-        message = u"Invalid YAML syntax. Please see YAML syntax reference or use an " \
-                  u"online YAML syntax validator:\n\n{}".format(base)
+        message = u"Invalid YAML syntax:\n\n{}".format(base)
         super(InvalidYAMLError, self).__init__(message)
         self.base_exc = base_exc
 
