@@ -1,7 +1,6 @@
 from datetime import datetime
 import hashlib
 import logging
-import socket
 import ssl
 import sys
 import time

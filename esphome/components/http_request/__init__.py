@@ -1,3 +1,5 @@
+import urllib.parse as urlparse
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -5,12 +7,6 @@ from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
     CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_0
 from esphome.core import CORE, Lambda
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
-from esphome.py_compat import IS_PY3
-
-if IS_PY3:
-    import urllib.parse as urlparse  # pylint: disable=no-name-in-module,import-error
-else:
-    import urlparse  # pylint: disable=import-error
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']

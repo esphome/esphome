@@ -47,7 +47,6 @@ def cpp_string_escape(string, encoding='utf-8'):
         string = string.encode(encoding)
     result = ''
     for character in string:
-        character = character
         if _should_escape(character):
             result += f'\\{character:03o}'
         else:

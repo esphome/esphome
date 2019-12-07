@@ -576,7 +576,7 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
         self.on_update({key: self.host_status(key) for key in self.key_to_host})
 
     def request_query(self, hosts):
-        self.query_hosts = {host for host in hosts.values()}
+        self.query_hosts = set(hosts.values())
         self.key_to_host = hosts
         self.query_event.set()
 

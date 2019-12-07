@@ -142,7 +142,7 @@ def _parse_cron_int(value, special_mapping, message):
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
     if part in ('*', '?'):
-        return {x for x in range(min_value, max_value + 1)}
+        return set(range(min_value, max_value + 1))
     if '/' in part:
         data = part.split('/')
         if len(data) > 2:
@@ -159,7 +159,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         except ValueError:
             raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
-        return {x for x in range(offset_n, max_value + 1, repeat_n)}
+        return set(range(offset_n, max_value + 1, repeat_n))
     if '-' in part:
         data = part.split('-')
         if len(data) > 2:
@@ -171,9 +171,8 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         end_n = _parse_cron_int(end, special_mapping, "Number for time range must be integer, "
                                                       "got {}")
         if end_n < begin_n:
-            return {x for x in range(end_n, max_value + 1)} | \
-                   {x for x in range(min_value, begin_n + 1)}
-        return {x for x in range(begin_n, end_n + 1)}
+            return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
+        return set(range(begin_n, end_n + 1))
 
     return {_parse_cron_int(part, special_mapping, "Number for time expression must be an "
                                                    "integer, got {}")}

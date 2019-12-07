@@ -598,8 +598,8 @@ class LoginHandler(BaseHandler):
             'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
         }
         data = {
-            'username': decode_text(self.get_argument('username', '')),
-            'password': decode_text(self.get_argument('password', ''))
+            'username': self.get_argument('username', ''),
+            'password': self.get_argument('password', '')
         }
         try:
             req = requests.post('http://hassio/auth', headers=headers, data=data)
@@ -616,8 +616,8 @@ class LoginHandler(BaseHandler):
         self.render_login_page(error="Invalid username or password")
 
     def post_native_login(self):
-        username = decode_text(self.get_argument("username", ''))
-        password = decode_text(self.get_argument("password", ''))
+        username = self.get_argument("username", '')
+        password = self.get_argument("password", '')
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
             self.redirect("/")

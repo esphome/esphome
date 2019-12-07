@@ -1,6 +1,5 @@
 import json
 import os
-from typing import Optional
 
 # pylint: disable=unused-import
 from esphome.config import load_config, _format_vol_invalid, Config
@@ -8,7 +7,6 @@ from esphome.core import CORE, DocumentRange
 import esphome.config_validation as cv
 
 # pylint: disable=unused-import, wrong-import-order
-import voluptuous as vol
 from typing import Optional
 
 

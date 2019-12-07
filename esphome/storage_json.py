@@ -13,9 +13,6 @@ from esphome.helpers import write_file_if_changed
 from esphome.core import CoreType
 from typing import Any, Optional, List
 
-from esphome.core import CoreType  # noqa
-from typing import Any, Optional, List
-
 _LOGGER = logging.getLogger(__name__)
 
 
