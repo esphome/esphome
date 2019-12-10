@@ -68,6 +68,51 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // action_topic
     root["action_topic"] = this->get_action_state_topic();
   }
+
+  if (traits.get_supports_fan_modes()) {
+    // fan_mode_command_topic
+    root["fan_mode_command_topic"] = this->get_fan_mode_command_topic();
+    // fan_mode_state_topic
+    root["fan_mode_state_topic"] = this->get_fan_mode_state_topic();
+    // fan_modes
+    JsonArray &fan_modes = root.createNestedArray("fan_modes");
+    if (traits.supports_fan_mode(CLIMATE_FAN_ON))
+      fan_modes.add("on");
+    if (traits.supports_fan_mode(CLIMATE_FAN_OFF))
+      fan_modes.add("off");
+    if (traits.supports_fan_mode(CLIMATE_FAN_AUTO))
+      fan_modes.add("auto");
+    if (traits.supports_fan_mode(CLIMATE_FAN_LOW))
+      fan_modes.add("low");
+    if (traits.supports_fan_mode(CLIMATE_FAN_MEDIUM))
+      fan_modes.add("medium");
+    if (traits.supports_fan_mode(CLIMATE_FAN_HIGH))
+      fan_modes.add("high");
+    if (traits.supports_fan_mode(CLIMATE_FAN_MIDDLE))
+      fan_modes.add("middle");
+    if (traits.supports_fan_mode(CLIMATE_FAN_FOCUS))
+      fan_modes.add("focus");
+    if (traits.supports_fan_mode(CLIMATE_FAN_DIFFUSE))
+      fan_modes.add("diffuse");
+  }
+
+  if (traits.get_supports_swing_modes()) {
+    // swing_mode_command_topic
+    root["swing_mode_command_topic"] = this->get_swing_mode_command_topic();
+    // swing_mode_state_topic
+    root["swing_mode_state_topic"] = this->get_swing_mode_state_topic();
+    // swing_modes
+    JsonArray &swing_modes = root.createNestedArray("swing_modes");
+    if (traits.supports_swing_mode(CLIMATE_SWING_OFF))
+      swing_modes.add("off");
+    if (traits.supports_swing_mode(CLIMATE_SWING_BOTH))
+      swing_modes.add("both");
+    if (traits.supports_swing_mode(CLIMATE_SWING_VERTICAL))
+      swing_modes.add("vertical");
+    if (traits.supports_swing_mode(CLIMATE_SWING_HORIZONTAL))
+      swing_modes.add("horizontal");
+  }
+
   config.state_topic = false;
   config.command_topic = false;
 }
@@ -135,6 +180,22 @@ void MQTTClimateComponent::setup() {
           ESP_LOGW(TAG, "Unknown payload '%s'", payload.c_str());
           return;
       }
+      call.perform();
+    });
+  }
+
+  if (traits.get_supports_fan_modes()) {
+    this->subscribe(this->get_fan_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto call = this->device_->make_call();
+      call.set_fan_mode(payload);
+      call.perform();
+    });
+  }
+
+  if (traits.get_supports_swing_modes()) {
+    this->subscribe(this->get_swing_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto call = this->device_->make_call();
+      call.set_swing_mode(payload);
       call.perform();
     });
   }
@@ -220,6 +281,61 @@ bool MQTTClimateComponent::publish_state_() {
         break;
     }
     if (!this->publish(this->get_action_state_topic(), payload))
+      success = false;
+  }
+
+  if (traits.get_supports_fan_modes()) {
+    const char *payload = "";
+    switch (this->device_->fan_mode) {
+      case CLIMATE_FAN_ON:
+        payload = "on";
+        break;
+      case CLIMATE_FAN_OFF:
+        payload = "off";
+        break;
+      case CLIMATE_FAN_AUTO:
+        payload = "auto";
+        break;
+      case CLIMATE_FAN_LOW:
+        payload = "low";
+        break;
+      case CLIMATE_FAN_MEDIUM:
+        payload = "medium";
+        break;
+      case CLIMATE_FAN_HIGH:
+        payload = "high";
+        break;
+      case CLIMATE_FAN_MIDDLE:
+        payload = "middle";
+        break;
+      case CLIMATE_FAN_FOCUS:
+        payload = "focus";
+        break;
+      case CLIMATE_FAN_DIFFUSE:
+        payload = "diffuse";
+        break;
+    }
+    if (!this->publish(this->get_fan_mode_state_topic(), payload))
+      success = false;
+  }
+
+  if (traits.get_supports_swing_modes()) {
+    const char *payload = "";
+    switch (this->device_->swing_mode) {
+      case CLIMATE_SWING_OFF:
+        payload = "off";
+        break;
+      case CLIMATE_SWING_BOTH:
+        payload = "both";
+        break;
+      case CLIMATE_SWING_VERTICAL:
+        payload = "vertical";
+        break;
+      case CLIMATE_SWING_HORIZONTAL:
+        payload = "horizontal";
+        break;
+    }
+    if (!this->publish(this->get_swing_mode_state_topic(), payload))
       success = false;
   }
 
