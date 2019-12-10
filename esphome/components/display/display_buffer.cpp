@@ -204,9 +204,18 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, int color, TextAlign alig
     this->print(x, y, font, color, align, buffer);
 }
 void DisplayBuffer::image(int x, int y, Image *image) {
-  for (int img_x = 0; img_x < image->get_width(); img_x++) {
-    for (int img_y = 0; img_y < image->get_height(); img_y++) {
-      this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_ON : COLOR_OFF);
+  if (image->get_type()==0) {
+    for (int img_x = 0; img_x < image->get_width(); img_x++) {
+      for (int img_y = 0; img_y < image->get_height(); img_y++) {
+        this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_ON : COLOR_OFF);
+      }
+    }
+  }
+  else if (image->get_type()==1) {
+    for (int img_x = 0; img_x < image->get_width(); img_x++) {
+      for (int img_y = 0; img_y < image->get_height(); img_y++) {
+        this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
+      }
     }
   }
 }
@@ -431,10 +440,22 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
+
+int Image::get_color_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+
+  const uint32_t pos = (x + y * this->width_)*2;
+  int color = (pgm_read_byte(this->data_start_ + pos)<<8) + (pgm_read_byte(this->data_start_ + pos + 1));
+  return color;
+}
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
+int Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height)
     : width_(width), height_(height), data_start_(data_start) {}
+Image::Image(const uint8_t *data_start, int width, int height, int type)
+    : width_(width), height_(height), type_(type), data_start_(data_start) {}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
