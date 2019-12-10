@@ -378,13 +378,17 @@ class Font {
 class Image {
  public:
   Image(const uint8_t *data_start, int width, int height);
+  Image(const uint8_t *data_start, int width, int height, int type);
   bool get_pixel(int x, int y) const;
+  int get_color_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
+  int get_type() const;
 
  protected:
   int width_;
   int height_;
+  int type_=0;
   const uint8_t *data_start_;
 };
 
