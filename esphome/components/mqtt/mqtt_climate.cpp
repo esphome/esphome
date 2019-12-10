@@ -14,12 +14,13 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
   auto traits = this->device_->get_traits();
   // current_temperature_topic
   if (traits.get_supports_current_temperature()) {
-    root["current_temperature_topic"] = this->get_current_temperature_state_topic();
+    // current_temperature_topic
+    root["curr_temp_t"] = this->get_current_temperature_state_topic();
   }
   // mode_command_topic
-  root["mode_command_topic"] = this->get_mode_command_topic();
+  root["mode_cmd_t"] = this->get_mode_command_topic();
   // mode_state_topic
-  root["mode_state_topic"] = this->get_mode_state_topic();
+  root["mode_stat_t"] = this->get_mode_state_topic();
   // modes
   JsonArray &modes = root.createNestedArray("modes");
   // sort array for nice UI in HA
@@ -37,18 +38,18 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
 
   if (traits.get_supports_two_point_target_temperature()) {
     // temperature_low_command_topic
-    root["temperature_low_command_topic"] = this->get_target_temperature_low_command_topic();
+    root["temp_lo_cmd_t"] = this->get_target_temperature_low_command_topic();
     // temperature_low_state_topic
-    root["temperature_low_state_topic"] = this->get_target_temperature_low_state_topic();
+    root["temp_lo_stat_t"] = this->get_target_temperature_low_state_topic();
     // temperature_high_command_topic
-    root["temperature_high_command_topic"] = this->get_target_temperature_high_command_topic();
+    root["temp_hi_cmd_t"] = this->get_target_temperature_high_command_topic();
     // temperature_high_state_topic
-    root["temperature_high_state_topic"] = this->get_target_temperature_high_state_topic();
+    root["temp_hi_stat_t"] = this->get_target_temperature_high_state_topic();
   } else {
     // temperature_command_topic
-    root["temperature_command_topic"] = this->get_target_temperature_command_topic();
+    root["temp_cmd_t"] = this->get_target_temperature_command_topic();
     // temperature_state_topic
-    root["temperature_state_topic"] = this->get_target_temperature_state_topic();
+    root["temp_stat_t"] = this->get_target_temperature_state_topic();
   }
 
   // min_temp
@@ -60,20 +61,20 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
 
   if (traits.get_supports_away()) {
     // away_mode_command_topic
-    root["away_mode_command_topic"] = this->get_away_command_topic();
+    root["away_mode_cmd_t"] = this->get_away_command_topic();
     // away_mode_state_topic
-    root["away_mode_state_topic"] = this->get_away_state_topic();
+    root["away_mode_stat_t"] = this->get_away_state_topic();
   }
   if (traits.get_supports_action()) {
     // action_topic
-    root["action_topic"] = this->get_action_state_topic();
+    root["act_t"] = this->get_action_state_topic();
   }
 
   if (traits.get_supports_fan_modes()) {
     // fan_mode_command_topic
-    root["fan_mode_command_topic"] = this->get_fan_mode_command_topic();
+    root["fan_mode_cmd_t"] = this->get_fan_mode_command_topic();
     // fan_mode_state_topic
-    root["fan_mode_state_topic"] = this->get_fan_mode_state_topic();
+    root["fan_mode_stat_t"] = this->get_fan_mode_state_topic();
     // fan_modes
     JsonArray &fan_modes = root.createNestedArray("fan_modes");
     if (traits.supports_fan_mode(CLIMATE_FAN_ON))
@@ -98,9 +99,9 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
 
   if (traits.get_supports_swing_modes()) {
     // swing_mode_command_topic
-    root["swing_mode_command_topic"] = this->get_swing_mode_command_topic();
+    root["swing_mode_cmd_t"] = this->get_swing_mode_command_topic();
     // swing_mode_state_topic
-    root["swing_mode_state_topic"] = this->get_swing_mode_state_topic();
+    root["swing_mode_stat_t"] = this->get_swing_mode_state_topic();
     // swing_modes
     JsonArray &swing_modes = root.createNestedArray("swing_modes");
     if (traits.supports_swing_mode(CLIMATE_SWING_OFF))
