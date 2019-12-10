@@ -49,16 +49,16 @@ void Nextion::display_picture(int picture_id, int x_start, int y_start) {
   this->send_command_printf("pic %d %d %d", x_start, y_start, picture_id);
 }
 void Nextion::set_component_background_color(const char *component, const char *color) {
-  this->send_command_printf("%s.bco=\"%s\"", component, color);
+  this->send_command_printf("%s.bco=%s", component, color);
 }
 void Nextion::set_component_pressed_background_color(const char *component, const char *color) {
-  this->send_command_printf("%s.bco2=\"%s\"", component, color);
+  this->send_command_printf("%s.bco2=%s", component, color);
 }
 void Nextion::set_component_font_color(const char *component, const char *color) {
-  this->send_command_printf("%s.pco=\"%s\"", component, color);
+  this->send_command_printf("%s.pco=%s", component, color);
 }
 void Nextion::set_component_pressed_font_color(const char *component, const char *color) {
-  this->send_command_printf("%s.pco2=\"%s\"", component, color);
+  this->send_command_printf("%s.pco2=%s", component, color);
 }
 void Nextion::set_component_coordinates(const char *component, int x, int y) {
   this->send_command_printf("%s.xcen=%d", component, x);
