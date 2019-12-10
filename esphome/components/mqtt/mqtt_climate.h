@@ -30,6 +30,7 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(target_temperature_high, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(away, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(away, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(action, state)
 
  protected:
   std::string friendly_name() const override;

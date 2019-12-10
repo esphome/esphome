@@ -64,6 +64,10 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     // away_mode_state_topic
     root["away_mode_state_topic"] = this->get_away_state_topic();
   }
+  if (traits.get_supports_action()) {
+    // action_topic
+    root["action_topic"] = this->get_action_state_topic();
+  }
   config.state_topic = false;
   config.command_topic = false;
 }
@@ -191,6 +195,31 @@ bool MQTTClimateComponent::publish_state_() {
   if (traits.get_supports_away()) {
     std::string payload = ONOFF(this->device_->away);
     if (!this->publish(this->get_away_state_topic(), payload))
+      success = false;
+  }
+  if (traits.get_supports_action()) {
+    const char *payload = "unknown";
+    switch (this->device_->action) {
+      case CLIMATE_ACTION_OFF:
+        payload = "off";
+        break;
+      case CLIMATE_ACTION_COOLING:
+        payload = "cooling";
+        break;
+      case CLIMATE_ACTION_HEATING:
+        payload = "heating";
+        break;
+      case CLIMATE_ACTION_IDLE:
+        payload = "idle";
+        break;
+      case CLIMATE_ACTION_DRYING:
+        payload = "drying";
+        break;
+      case CLIMATE_ACTION_FAN:
+        payload = "fan";
+        break;
+    }
+    if (!this->publish(this->get_action_state_topic(), payload))
       success = false;
   }
 
