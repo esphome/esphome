@@ -39,10 +39,9 @@ void TelegramBotComponent::make_request_(const char *method, std::string body, c
 
   String response = this->request_->getString();
   if (response != "") {
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject &root = jsonBuffer.parseObject(response);
+    JsonObject &root = this->json_buffer_.parseObject(response);
     callback(root);
-    jsonBuffer.clear();
+    this->json_buffer_.clear();
   } else {
     ESP_LOGD(TAG, "Got empty response for method %s", method);
   }
@@ -71,12 +70,11 @@ std::string TelegramBotComponent::build_inline_keyboard_(std::list<KeyboardButto
     return "";
   }
 
-  DynamicJsonBuffer jsonBuffer; // TODO: Наверное стоит завести один буффер
-  JsonArray &buttons = jsonBuffer.createArray();
-  JsonArray &row = jsonBuffer.createArray();
+  JsonArray &buttons = this->json_buffer_.createArray();
+  JsonArray &row = this->json_buffer_.createArray();
 
   for (KeyboardButton btn : inline_keyboard) {
-    JsonObject &button = jsonBuffer.createObject();
+    JsonObject &button = this->json_buffer_.createObject();
     button["text"] = btn.text;
     if (btn.url != "") {
       button["url"] = btn.url;
@@ -92,7 +90,7 @@ std::string TelegramBotComponent::build_inline_keyboard_(std::list<KeyboardButto
   buttons.printTo(keyboard);
   keyboard += "}";
 
-  jsonBuffer.clear();
+  this->json_buffer_.clear();
   return keyboard;
 }
 

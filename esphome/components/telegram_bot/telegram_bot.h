@@ -43,6 +43,7 @@ class TelegramBotComponent : public Component {
   const char *token_;
   std::list<std::string> chat_ids_{};
   http_request::HttpRequestComponent *request_;
+  DynamicJsonBuffer json_buffer_;
   void make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback);
   std::string build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard);
 };
