@@ -13,6 +13,7 @@ TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', 
 TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.std_string))
 
 CONF_TOKEN = 'token'
+CONF_SCAN_INTERVAL = 'scan_interval'  # Don't use CONF_UPDATE_INTERVAL here
 CONF_MESSAGE = 'message'
 CONF_CHAT_ID = 'chat_id'
 CONF_ALLOWED_CHAT_IDS = 'allowed_chat_ids'
@@ -30,22 +31,27 @@ CONFIG_SCHEMA = cv.Schema({
         cv.Optional(CONF_MESSAGE): cv.string_strict,
     }),
     cv.Optional(CONF_ALLOWED_CHAT_IDS): cv.ensure_list(cv.string),
+    cv.Optional(CONF_SCAN_INTERVAL): cv.update_interval,
 }).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_token(config[CONF_TOKEN]))
-    yield cg.register_component(var, config)
-
     for chat_id in config.get(CONF_ALLOWED_CHAT_IDS, []):
         cg.add(var.add_chat_id(chat_id))
+    yield cg.register_component(var, config)
+
+    updater = cg.new_Pvariable(config[CONF_UPDATER_ID], var)
+    scan_interval = 10000
+    if CONF_ON_MESSAGE not in config:
+        scan_interval = cv.update_interval('never')
+    elif CONF_SCAN_INTERVAL in config:
+        scan_interval = config[CONF_SCAN_INTERVAL]
+    cg.add(updater.set_update_interval(scan_interval))
+    yield cg.register_component(updater, config)
 
     if CONF_ON_MESSAGE in config:
-        updater = cg.new_Pvariable(config[CONF_UPDATER_ID], var)
-        yield cg.register_component(updater, config)
-        # TODO: не работает если нет on_message
-
         for conf in config[CONF_ON_MESSAGE]:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], updater)
             if CONF_MESSAGE in conf:

@@ -50,8 +50,7 @@ class TelegramBotComponent : public Component {
 // TelegramBotMessageUpdater
 class TelegramBotMessageUpdater : public PollingComponent {
  public:
-  // TODO: 10000 в параметры
-  explicit TelegramBotMessageUpdater(TelegramBotComponent *parent) : PollingComponent(10000) {
+  explicit TelegramBotMessageUpdater(TelegramBotComponent *parent) : PollingComponent() {
     this->parent_ = parent;
   };
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
