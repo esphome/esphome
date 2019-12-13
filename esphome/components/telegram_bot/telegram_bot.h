@@ -21,6 +21,12 @@ struct Message {
   int update_id = 0;
 };
 
+struct KeyboardButton {
+  std::string text;
+  std::string url;
+  std::string callback_data;
+};
+
 // TelegramBotComponent
 class TelegramBotComponent : public Component {
  public:
@@ -31,12 +37,14 @@ class TelegramBotComponent : public Component {
   void add_chat_id(std::string chat_id) { this->chat_ids_.push_back(chat_id); }
   void get_updates(long offset, const std::function<void(JsonObject &)> &callback);
   bool is_chat_allowed(std::string chat_id);
+  void send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard);
 
  protected:
   const char *token_;
   std::list<std::string> chat_ids_{};
   http_request::HttpRequestComponent *request_;
   void make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback);
+  std::string build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard);
 };
 
 // TelegramBotMessageUpdater
@@ -74,6 +82,30 @@ class TelegramBotMessageTrigger : public Trigger<std::string> {
 
  protected:
   std::string message_;
+};
+
+// TelegramBotSendAction
+template<typename... Ts> class TelegramBotSendAction : public Action<Ts...> {
+ public:
+  TelegramBotSendAction(TelegramBotComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, chat_id)
+  TEMPLATABLE_VALUE(std::string, message)
+
+  void add_keyboard_button(const char *text, const char *url, const char *callback_data) {
+    KeyboardButton button;
+    button.text = text;
+    button.url = url;
+    button.callback_data = callback_data;
+    this->inline_keyboard_.push_back(button);
+  }
+
+  void play(Ts... x) override {
+    this->parent_->send_message(this->chat_id_.value(x...), this->message_.value(x...), this->inline_keyboard_);
+  }
+
+ protected:
+  TelegramBotComponent *parent_;
+  std::list<KeyboardButton> inline_keyboard_{};
 };
 
 }  // namespace telegram_bot

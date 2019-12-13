@@ -1,22 +1,25 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_ON_MESSAGE
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_ON_MESSAGE, CONF_URL
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json', 'http_request']
 
 telegram_bot_ns = cg.esphome_ns.namespace('telegram_bot')
 TelegramBotComponent = telegram_bot_ns.class_('TelegramBotComponent', cg.Component)
-# TODO: Actions
-# TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
+TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
 TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', cg.PollingComponent)
 TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.std_string))
 
 CONF_TOKEN = 'token'
 CONF_MESSAGE = 'message'
+CONF_CHAT_ID = 'chat_id'
 CONF_ALLOWED_CHAT_IDS = 'allowed_chat_ids'
 CONF_UPDATER_ID = 'updater_id'
+CONF_INLINE_KEYBOARD = 'inline_keyboard'
+CONF_TEXT = 'text'
+CONF_CALLBACK_DATA = 'callback_data'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TelegramBotComponent),
@@ -41,9 +44,39 @@ def to_code(config):
     if CONF_ON_MESSAGE in config:
         updater = cg.new_Pvariable(config[CONF_UPDATER_ID], var)
         yield cg.register_component(updater, config)
+        # TODO: не работает если нет on_message
 
         for conf in config[CONF_ON_MESSAGE]:
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], updater)
             if CONF_MESSAGE in conf:
                 cg.add(trigger.set_message(conf[CONF_MESSAGE]))
             yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)
+
+
+TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
+    cv.GenerateID(): cv.use_id(TelegramBotComponent),
+    cv.Required(CONF_CHAT_ID): cv.templatable(cv.string),
+    cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
+    cv.Optional(CONF_INLINE_KEYBOARD): cv.ensure_list(cv.All(cv.Schema({
+        cv.Required(CONF_TEXT): cv.string,
+        cv.Optional(CONF_URL): cv.string,
+        cv.Optional(CONF_CALLBACK_DATA): cv.string,
+    }), cv.has_exactly_one_key(CONF_URL, CONF_CALLBACK_DATA))),
+})
+
+
+@automation.register_action('telegram_bot.send_message', TelegramBotSendAction,
+                            TELEGRAM_BOT_ACTION_SCHEMA)
+def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
+    parent = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    chat_id_ = yield cg.templatable(config[CONF_CHAT_ID], args, cg.std_string)
+    cg.add(var.set_chat_id(chat_id_))
+    message_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
+    cg.add(var.set_message(message_))
+
+    for btn in config.get(CONF_INLINE_KEYBOARD, []):
+        cg.add(var.add_keyboard_button(btn[CONF_TEXT], btn.get(CONF_URL, ''), btn.get(CONF_CALLBACK_DATA, '')))
+
+    yield var

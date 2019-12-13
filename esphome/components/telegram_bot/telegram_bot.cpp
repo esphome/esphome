@@ -42,6 +42,7 @@ void TelegramBotComponent::make_request_(const char *method, std::string body, c
     DynamicJsonBuffer jsonBuffer;
     JsonObject &root = jsonBuffer.parseObject(response);
     callback(root);
+    jsonBuffer.clear();
   } else {
     ESP_LOGD(TAG, "Got empty response for method %s", method);
   }
@@ -53,6 +54,46 @@ void TelegramBotComponent::get_updates(long offset, const std::function<void(Jso
   ESP_LOGV(TAG, "Get updates from id: %ld", offset);
   std::string body = "{\"offset\": " + to_string(offset) + ", \"limit\": 1, \"allowed_updates\": [\"message\", \"channel_post\", \"callback_query\"]}";
   this->make_request_("getUpdates", body, callback);
+}
+
+void TelegramBotComponent::send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard) {
+  ESP_LOGV(TAG, "Send message to chat '%s': %s", chat_id.c_str(), message.c_str());
+
+  std::string keyboard = this->build_inline_keyboard_(inline_keyboard);
+  std::string body = "{\"chat_id\": \"" + chat_id + "\", \"text\": \"" + message + "\"" + keyboard + "}";
+  this->make_request_("sendMessage", body, [this](JsonObject &root) {
+    ESP_LOGW("Telegram", "Sent %s", root["ok"].as<char *>());
+  }); // TODO:
+}
+
+std::string TelegramBotComponent::build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard) {
+  if (inline_keyboard.empty()) {
+    return "";
+  }
+
+  DynamicJsonBuffer jsonBuffer; // TODO: Наверное стоит завести один буффер
+  JsonArray &buttons = jsonBuffer.createArray();
+  JsonArray &row = jsonBuffer.createArray();
+
+  for (KeyboardButton btn : inline_keyboard) {
+    JsonObject &button = jsonBuffer.createObject();
+    button["text"] = btn.text;
+    if (btn.url != "") {
+      button["url"] = btn.url;
+    }
+    if (btn.callback_data != "") {
+      button["callback_data"] = btn.callback_data;
+    }
+    row.add(button);
+  }
+  buttons.add(row);
+
+  std::string keyboard = ", \"reply_markup\": {\"inline_keyboard\": ";
+  buttons.printTo(keyboard);
+  keyboard += "}";
+
+  jsonBuffer.clear();
+  return keyboard;
 }
 
 // TelegramBotMessageUpdater
@@ -69,6 +110,7 @@ void TelegramBotMessageUpdater::update() {
           bool chat_allowed = this->parent_->is_chat_allowed(msg.chat_id);
 
           if (chat_allowed) {
+            ESP_LOGV(TAG, "Got message: %s", msg.text.c_str());
             this->message_callback_.call(msg.text);
           } else {
             ESP_LOGD(TAG, "Message from disallowed chat");
