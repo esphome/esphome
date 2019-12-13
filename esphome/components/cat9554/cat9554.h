@@ -31,8 +31,6 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   void digital_write(uint8_t pin, bool value);
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, uint8_t mode);
-  /// Need update GPIO status.
-  void update_gpio_needed(bool needed) { this->update_gpio_ = needed; };
   /// Setup irq pin.
   void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; };
 
