@@ -21,7 +21,7 @@ CONF_CAT9554 = 'cat9554'
 CONF_IRQ_PIN = 'irq_pin'
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(CAT9554Component),
-    cv.Required(CONF_IRQ_PIN): pins.gpio_input_pin_schema,
+    cv.Optional(CONF_IRQ_PIN): pins.internal_gpio_input_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x20))
 
 
@@ -33,24 +33,16 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
 
-def validate_cat9554_gpio_mode(value):
-    value = cv.string(value)
-    if value.upper() == 'INPUT_PULLUP':
-        raise cv.Invalid("INPUT_PULLUP mode has been removed in 1.14 and been combined into "
-                         "INPUT mode (they were the same thing). Please use INPUT instead.")
-    return cv.enum(CAT9554_GPIO_MODES, upper=True)(value)
-
-
 CAT9554_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_CAT9554): cv.use_id(CAT9554Component),
-    cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="OUTPUT"): validate_cat9554_gpio_mode,
+    cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
+    cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(CAT9554_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 CAT9554_INPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_CAT9554): cv.use_id(CAT9554Component),
     cv.Required(CONF_NUMBER): cv.int_,
-    cv.Optional(CONF_MODE, default="INPUT"): validate_cat9554_gpio_mode,
+    cv.Optional(CONF_MODE, default="INPUT"): cv.enum(CAT9554_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
