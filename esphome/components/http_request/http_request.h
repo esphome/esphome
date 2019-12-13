@@ -28,6 +28,7 @@ class HttpRequestComponent : public Component {
 #ifdef ARDUINO_ARCH_ESP8266
     this->wifi_client_ = new BearSSL::WiFiClientSecure();
     this->wifi_client_->setInsecure();
+    this->wifi_client_->setBufferSizes(512, 512);
 #endif
   }
   void dump_config() override;
@@ -40,6 +41,9 @@ class HttpRequestComponent : public Component {
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
   void send();
+  void close();
+  int getSize();
+  const String& getString();
 
  protected:
   HTTPClient client_{};
@@ -101,6 +105,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       this->parent_->set_headers(headers);
     }
     this->parent_->send();
+    this->parent_->close();
   }
 
  protected:

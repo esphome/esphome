@@ -41,8 +41,6 @@ void HttpRequestComponent::send() {
   }
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
-  this->client_.end();
-
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_, HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
@@ -57,6 +55,18 @@ void HttpRequestComponent::send() {
 
   this->status_clear_warning();
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
+}
+
+void HttpRequestComponent::close() {
+  this->client_.end();
+}
+
+int HttpRequestComponent::getSize() {
+  return this->client_.getSize();
+}
+
+const String& HttpRequestComponent::getString() {
+  return this->client_.getString();
 }
 
 }  // namespace http_request

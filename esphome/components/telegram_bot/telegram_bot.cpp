@@ -1,0 +1,141 @@
+#include "telegram_bot.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace telegram_bot {
+
+static const char *TAG = "telegram_bot";
+
+void TelegramBotComponent::setup() {
+  this->request_ = new http_request::HttpRequestComponent();
+  this->request_->setup();
+
+  std::list<http_request::Header> headers;
+  http_request::Header header;
+  header.name = "Content-Type";
+  header.value = "application/json";
+  headers.push_back(header);
+
+  this->request_->set_headers(headers);
+  this->request_->set_method("POST");
+  this->request_->set_useragent("ESPHome Telegram Bot");
+  this->request_->set_timeout(5000);
+}
+
+void TelegramBotComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "Telegram Bot:");
+  ESP_LOGCONFIG(TAG, "  Token: %s", this->token_);
+}
+
+bool TelegramBotComponent::is_chat_allowed(std::string chat_id) {
+  return this->chat_ids_.empty() || std::find(this->chat_ids_.begin(), this->chat_ids_.end(), chat_id) != this->chat_ids_.end();
+}
+
+void TelegramBotComponent::make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback) {
+  std::string url = "https://api.telegram.org/bot" + to_string(this->token_) + "/" + to_string(method);
+  this->request_->set_url(url.c_str());
+  this->request_->set_body(body);
+  this->request_->send();
+
+  String response = this->request_->getString();
+  if (response != "") {
+    DynamicJsonBuffer jsonBuffer;
+    JsonObject &root = jsonBuffer.parseObject(response);
+    callback(root);
+  } else {
+    ESP_LOGD(TAG, "Got empty response for method %s", method);
+  }
+
+  this->request_->close();
+}
+
+void TelegramBotComponent::get_updates(long offset, const std::function<void(JsonObject &)> &callback) {
+  ESP_LOGV(TAG, "Get updates from id: %ld", offset);
+  std::string body = "{\"offset\": " + to_string(offset) + ", \"limit\": 1, \"allowed_updates\": [\"message\", \"channel_post\", \"callback_query\"]}";
+  this->make_request_("getUpdates", body, callback);
+}
+
+// TelegramBotMessageUpdater
+void TelegramBotMessageUpdater::update() {
+  this->parent_->get_updates(this->last_message_id_ + 1, [this](JsonObject &root) {
+    if (root.success()) {
+      bool is_ok = root["ok"].as<bool>() && root.containsKey("result");
+      int size = root["result"].size();
+      ESP_LOGV(TAG, "Response size: %d", size);
+
+      if (is_ok && size > 0) {
+        for (int i = 0; i < size; i++) {
+          Message msg = this->process_message_(root["result"][i]);
+          bool chat_allowed = this->parent_->is_chat_allowed(msg.chat_id);
+
+          if (chat_allowed) {
+            this->message_callback_.call(msg.text);
+          } else {
+            ESP_LOGD(TAG, "Message from disallowed chat");
+          }
+
+          this->schedule_update();
+        }
+      }
+    } else {
+      ESP_LOGW(TAG, "Error parsing response, message skipped");
+      this->last_message_id_++;
+      this->schedule_update();
+    }
+  });
+}
+
+void TelegramBotMessageUpdater::schedule_update() {
+  this->set_timeout("update", 1000, [this]() { this->update(); });
+}
+
+void TelegramBotMessageUpdater::add_on_message_callback(std::function<void(std::string)> &&callback) {
+  this->message_callback_.add(std::move(callback));
+}
+
+Message TelegramBotMessageUpdater::process_message_(JsonObject &result) {
+  int update_id = result["update_id"];
+
+  Message message;
+  if (this->last_message_id_ == update_id) {
+    return message;
+  }
+  this->last_message_id_ = update_id;
+
+  message.update_id = update_id;
+  message.from_id = "";
+  message.from_name = "";
+  message.chat_title = "";
+  message.date = result["message"]["date"].as<std::string>();
+
+  if (result.containsKey("message")) {
+    JsonObject &data = result["message"];
+    message.type = "message";
+    message.from_id = data["from"]["id"].as<std::string>();
+    message.from_name = data["from"]["first_name"].as<std::string>();
+
+    message.text = data["text"].as<std::string>();
+    message.chat_id = data["chat"]["id"].as<std::string>();
+    message.chat_title = data["chat"]["title"].as<std::string>();
+  } else if (result.containsKey("channel_post")) {
+    JsonObject &data = result["channel_post"];
+    message.type = "channel_post";
+
+    message.text = data["text"].as<std::string>();
+    message.chat_id = data["chat"]["id"].as<std::string>();
+    message.chat_title = data["chat"]["title"].as<std::string>();
+  } else if (result.containsKey("callback_query")) {
+    JsonObject &data = result["callback_query"];
+    message.type = "callback_query";
+    message.from_id = data["from"]["id"].as<std::string>();
+    message.from_name = data["from"]["first_name"].as<std::string>();
+
+    message.text = data["data"].as<std::string>();
+    message.chat_id = data["message"]["chat"]["id"].as<std::string>();
+  }
+
+  return message;
+}
+
+}  // namespace telegram_bot
+}  // namespace esphome
