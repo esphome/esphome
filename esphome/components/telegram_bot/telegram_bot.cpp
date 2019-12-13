@@ -111,7 +111,7 @@ void TelegramBotMessageUpdater::update() {
 
           if (chat_allowed) {
             ESP_LOGV(TAG, "Got message: %s", msg.text.c_str());
-            this->message_callback_.call(msg.text);
+            this->message_callback_.call(msg);
           } else {
             ESP_LOGD(TAG, "Message from disallowed chat");
           }
@@ -131,7 +131,7 @@ void TelegramBotMessageUpdater::schedule_update() {
   this->set_timeout("update", 1000, [this]() { this->update(); });
 }
 
-void TelegramBotMessageUpdater::add_on_message_callback(std::function<void(std::string)> &&callback) {
+void TelegramBotMessageUpdater::add_on_message_callback(std::function<void(Message)> &&callback) {
   this->message_callback_.add(std::move(callback));
 }
 

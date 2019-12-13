@@ -56,31 +56,34 @@ class TelegramBotMessageUpdater : public PollingComponent {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void update() override;
   void schedule_update();
-  void add_on_message_callback(std::function<void(std::string)> &&callback);
+  void add_on_message_callback(std::function<void(Message)> &&callback);
 
  protected:
   TelegramBotComponent *parent_{nullptr};
   long last_message_id_ = -6; // Get last 5 unread messages one by one
-  CallbackManager<void(std::string)> message_callback_{};
+  CallbackManager<void(Message)> message_callback_{};
   Message process_message_(JsonObject &result);
 };
 
 // TelegramBotMessageTrigger
-class TelegramBotMessageTrigger : public Trigger<std::string> {
+class TelegramBotMessageTrigger : public Trigger<Message> {
  public:
   explicit TelegramBotMessageTrigger(TelegramBotMessageUpdater *parent) {
-    parent->add_on_message_callback([this](std::string message) {
-      bool message_allowed = this->message_.size() == 0 || this->message_ == message;
-      if (message_allowed) {
-        // TODO: В триггере в лямбду передать весь мессадж
+    parent->add_on_message_callback([this](Message message) {
+      bool type_allowed = this->type_.size() == 0 || this->type_ == message.type;
+      bool message_allowed = this->message_.size() == 0 || this->message_ == message.text;
+      if (message_allowed && type_allowed) {
+        // TODO: Проверить лямбду
         this->trigger(message);
       }
     });
   }
   void set_message(std::string message) { this->message_ = message; }
+  void set_type(std::string type) { this->type_ = type; }
 
  protected:
   std::string message_;
+  std::string type_;
 };
 
 // TelegramBotSendAction

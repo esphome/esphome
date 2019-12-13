@@ -10,11 +10,12 @@ telegram_bot_ns = cg.esphome_ns.namespace('telegram_bot')
 TelegramBotComponent = telegram_bot_ns.class_('TelegramBotComponent', cg.Component)
 TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
 TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', cg.PollingComponent)
-TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.std_string))
+TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.esphome_ns.struct('telegram_bot::Message')))
 
 CONF_TOKEN = 'token'
 CONF_SCAN_INTERVAL = 'scan_interval'  # Don't use CONF_UPDATE_INTERVAL here
 CONF_MESSAGE = 'message'
+CONF_TYPE = 'type'
 CONF_CHAT_ID = 'chat_id'
 CONF_ALLOWED_CHAT_IDS = 'allowed_chat_ids'
 CONF_UPDATER_ID = 'updater_id'
@@ -29,6 +30,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TelegramBotMessageTrigger),
         cv.Optional(CONF_MESSAGE): cv.string_strict,
+        cv.Optional(CONF_TYPE): cv.one_of('message', 'channel_post', 'callback_query', lower=True),
     }),
     cv.Optional(CONF_ALLOWED_CHAT_IDS): cv.ensure_list(cv.string),
     cv.Optional(CONF_SCAN_INTERVAL): cv.update_interval,
@@ -56,13 +58,16 @@ def to_code(config):
             trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], updater)
             if CONF_MESSAGE in conf:
                 cg.add(trigger.set_message(conf[CONF_MESSAGE]))
-            yield automation.build_automation(trigger, [(cg.std_string, 'x')], conf)
+            if CONF_TYPE in conf:
+                cg.add(trigger.set_type(conf[CONF_TYPE]))
+            yield automation.build_automation(trigger, [(cg.esphome_ns.struct('telegram_bot::Message'), 'x')], conf)
 
 
 TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(TelegramBotComponent),
     cv.Required(CONF_CHAT_ID): cv.templatable(cv.string),
     cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
+    # TODO: answer callback & remove message
     cv.Optional(CONF_INLINE_KEYBOARD): cv.ensure_list(cv.All(cv.Schema({
         cv.Required(CONF_TEXT): cv.string,
         cv.Optional(CONF_URL): cv.string,
