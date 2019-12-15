@@ -5,9 +5,12 @@ from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_LEVEL, CONF_BRIGHTNESS
 
 tm1651_ns = cg.esphome_ns.namespace('tm1651')
 TM1651Display = tm1651_ns.class_('TM1651Display', cg.Component)
+SetLevelPercentAction = tm1651_ns.class_('SetLevelPercentAction', automation.Action)
 SetLevelAction = tm1651_ns.class_('SetLevelAction', automation.Action)
 SetBrightnessAction = tm1651_ns.class_('SetBrightnessAction', automation.Action)
-validate_level = cv.All(cv.int_range(min=0, max=100))
+
+CONF_DIO_PIN = 'dio_pin'
+CONF_LEVEL_PERCENT = 'level_percent'
 
 TM1651_BRIGHTNESS_OPTIONS = {
     1: TM1651Display.TM1651_BRIGHTNESS_LOW,
@@ -15,13 +18,15 @@ TM1651_BRIGHTNESS_OPTIONS = {
     3: TM1651Display.TM1651_BRIGHTNESS_HIGH
 }
 
-CONF_DIO_PIN = 'dio_pin'
-
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TM1651Display),
     cv.Required(CONF_CLK_PIN): pins.internal_gpio_output_pin_schema,
     cv.Required(CONF_DIO_PIN): pins.internal_gpio_output_pin_schema,
 })
+
+validate_level_percent = cv.All(cv.int_range(min=0, max=100))
+validate_level = cv.All(cv.int_range(min=0, max=7))
+validate_brightness = cv.enum(TM1651_BRIGHTNESS_OPTIONS, int=True)
 
 
 def to_code(config):
@@ -37,10 +42,28 @@ def to_code(config):
     cg.add_library('6865', '1.0.0')
 
 
-@automation.register_action('tm1651.set_level', SetLevelAction, cv.maybe_simple_value({
-    cv.GenerateID(): cv.use_id(TM1651Display),
-    cv.Required(CONF_LEVEL): cv.templatable(validate_level),
-}, key=CONF_LEVEL))
+@automation.register_action(
+    'tm1651.set_level_percent',
+    SetLevelPercentAction,
+    cv.maybe_simple_value({
+        cv.GenerateID(): cv.use_id(TM1651Display),
+        cv.Required(CONF_LEVEL_PERCENT): cv.templatable(validate_level_percent),
+    }, key=CONF_LEVEL_PERCENT))
+def tm1651_set_level_percent_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
+    template_ = yield cg.templatable(config[CONF_LEVEL_PERCENT], args, cg.uint8)
+    cg.add(var.set_level_percent(template_))
+    yield var
+
+
+@automation.register_action(
+    'tm1651.set_level',
+    SetLevelAction,
+    cv.maybe_simple_value({
+        cv.GenerateID(): cv.use_id(TM1651Display),
+        cv.Required(CONF_LEVEL): cv.templatable(validate_level),
+    }, key=CONF_LEVEL))
 def tm1651_set_level_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
@@ -49,10 +72,13 @@ def tm1651_set_level_to_code(config, action_id, template_arg, args):
     yield var
 
 
-@automation.register_action('tm1651.set_brightness', SetBrightnessAction, cv.maybe_simple_value({
-    cv.GenerateID(): cv.use_id(TM1651Display),
-    cv.Required(CONF_BRIGHTNESS): cv.templatable(validate_level),
-}, key=CONF_BRIGHTNESS))
+@automation.register_action(
+    'tm1651.set_brightness',
+    SetBrightnessAction,
+    cv.maybe_simple_value({
+        cv.GenerateID(): cv.use_id(TM1651Display),
+        cv.Required(CONF_BRIGHTNESS): cv.templatable(validate_brightness),
+    }, key=CONF_BRIGHTNESS))
 def tm1651_set_brightness_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
