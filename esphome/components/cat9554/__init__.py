@@ -28,8 +28,9 @@ CONFIG_SCHEMA = cv.Schema({
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
-    irq_pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
-    cg.add(var.set_irq_pin(irq_pin))
+    if CONF_IRQ_PIN in config:
+        irq_pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+        cg.add(var.set_irq_pin(irq_pin))
     yield i2c.register_i2c_device(var, config)
 
 

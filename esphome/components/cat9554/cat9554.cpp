@@ -15,12 +15,14 @@ void CAT9554Component::setup() {
     return;
   }
 
-  this->irq_pin_->setup();
-  this->isr_ = this->irq_pin_->to_isr();
-  this->irq_pin_->attach_interrupt(gpio_intr, &this->update_gpio_, FALLING);
+  if (this->enable_irq_) {
+    this->irq_pin_->setup();
+    this->isr_ = this->irq_pin_->to_isr();
+    this->irq_pin_->attach_interrupt(gpio_intr, &this->update_gpio_, FALLING);
+    this->update_gpio_ = false;
+  }
   this->read_gpio_();
   this->read_config_();
-  this->update_gpio_ = false;
 }
 void CAT9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CAT9554:");
@@ -30,7 +32,7 @@ void CAT9554Component::dump_config() {
   }
 }
 bool CAT9554Component::digital_read(uint8_t pin) {
-  if (this->update_gpio_) {
+  if (!this->enable_irq_ || this->update_gpio_) {
     this->read_gpio_();
     this->update_gpio_ = false;
   }

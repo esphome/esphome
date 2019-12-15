@@ -21,7 +21,7 @@ enum CAT9554Commands {
 
 class CAT9554Component : public Component, public i2c::I2CDevice {
  public:
-  CAT9554Component() = default;
+  CAT9554Component() { enable_irq_ = false; };
 
   /// Check i2c availability and setup masks
   void setup() override;
@@ -32,7 +32,7 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, uint8_t mode);
   /// Setup irq pin.
-  void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; };
+  void set_irq_pin(GPIOPin *irq_pin) { enable_irq_ = true; irq_pin_ = irq_pin; };
 
   float get_setup_priority() const override;
 
@@ -50,6 +50,8 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   uint16_t output_mask_{0x00};
   /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
+  /// IRQ is enabled.
+  bool enable_irq_;
   /// IRQ pin.
   GPIOPin *irq_pin_;
   /// Interrupt handler
