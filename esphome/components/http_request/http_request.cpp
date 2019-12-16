@@ -59,7 +59,9 @@ void HttpRequestComponent::send() {
 
 void HttpRequestComponent::close() { this->client_.end(); }
 
-const String &HttpRequestComponent::get_string() { return this->client_.getString(); }
+const char *HttpRequestComponent::get_string() {
+  return this->client_.getString().c_str();
+}
 
 }  // namespace http_request
 }  // namespace esphome
