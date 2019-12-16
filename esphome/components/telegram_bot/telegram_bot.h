@@ -46,7 +46,6 @@ class TelegramBotComponent : public Component {
   http_request::HttpRequestComponent *request_;
   DynamicJsonBuffer json_buffer_;
   void make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback);
-  std::string build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard);
 };
 
 // TelegramBotMessageUpdater

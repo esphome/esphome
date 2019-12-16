@@ -51,54 +51,52 @@ void TelegramBotComponent::make_request_(const char *method, std::string body, c
 
 void TelegramBotComponent::get_updates(long offset, const std::function<void(JsonObject &)> &callback) {
   ESP_LOGV(TAG, "Get updates from id: %ld", offset);
-  std::string body = "{\"offset\": " + to_string(offset) + ", \"limit\": 1, \"allowed_updates\": [\"message\", \"channel_post\", \"callback_query\"]}";
-  this->make_request_("getUpdates", body, callback);
+
+  JsonObject &body = this->json_buffer_.createObject();
+  body["offset"] = offset;
+  body["limit"] = 1;
+  JsonArray &allowed_updates = body.createNestedArray("allowed_updates");
+  allowed_updates.add("message");
+  allowed_updates.add("channel_post");
+  allowed_updates.add("callback_query");
+
+  this->make_request_("getUpdates", ((JsonVariant) body).as<std::string>(), callback);
+  this->json_buffer_.clear();
 }
 
 void TelegramBotComponent::send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard) {
   ESP_LOGV(TAG, "Send message to chat '%s': %s", chat_id.c_str(), message.c_str());
 
-  std::string keyboard = this->build_inline_keyboard_(inline_keyboard);
-  std::string body = "{\"chat_id\": \"" + chat_id + "\", \"text\": \"" + message + "\"" + keyboard + "}";
-  this->make_request_("sendMessage", body, [this](JsonObject &root) {
+  JsonObject &body = this->json_buffer_.createObject();
+  body["chat_id"] = chat_id;
+  body["text"] = message;
+
+  if (!inline_keyboard.empty()) {
+    JsonArray &buttons = body.createNestedObject("reply_markup").createNestedArray("inline_keyboard").createNestedArray();
+    for (KeyboardButton btn : inline_keyboard) {
+      JsonObject &button = buttons.createNestedObject();
+      button["text"] = btn.text;
+      if (btn.url != "") {
+        button["url"] = btn.url;
+      }
+      if (btn.callback_data != "") {
+        button["callback_data"] = btn.callback_data;
+      }
+    }
+  }
+
+  this->make_request_("sendMessage", ((JsonVariant) body).as<std::string>(), [this](JsonObject &root) {
     if (!root.success() || !root["ok"].as<bool>()) {
       ESP_LOGW(TAG, "Message was not sent: bad response");
     }
   });
+
+  this->json_buffer_.clear();
 }
 
 void TelegramBotComponent::send_message(std::string chat_id, std::string message) {
   std::list<telegram_bot::KeyboardButton> inline_keyboard;
   this->send_message(chat_id, message, inline_keyboard);
-}
-
-std::string TelegramBotComponent::build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard) {
-  if (inline_keyboard.empty()) {
-    return "";
-  }
-
-  JsonArray &buttons = this->json_buffer_.createArray();
-  JsonArray &row = this->json_buffer_.createArray();
-
-  for (KeyboardButton btn : inline_keyboard) {
-    JsonObject &button = this->json_buffer_.createObject();
-    button["text"] = btn.text;
-    if (btn.url != "") {
-      button["url"] = btn.url;
-    }
-    if (btn.callback_data != "") {
-      button["callback_data"] = btn.callback_data;
-    }
-    row.add(button);
-  }
-  buttons.add(row);
-
-  std::string keyboard = ", \"reply_markup\": {\"inline_keyboard\": ";
-  buttons.printTo(keyboard);
-  keyboard += "}";
-
-  this->json_buffer_.clear();
-  return keyboard;
 }
 
 // TelegramBotMessageUpdater
