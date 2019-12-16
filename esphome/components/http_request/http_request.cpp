@@ -61,11 +61,7 @@ void HttpRequestComponent::close() {
   this->client_.end();
 }
 
-int HttpRequestComponent::getSize() {
-  return this->client_.getSize();
-}
-
-const String& HttpRequestComponent::getString() {
+const String& HttpRequestComponent::get_string() {
   return this->client_.getString();
 }
 

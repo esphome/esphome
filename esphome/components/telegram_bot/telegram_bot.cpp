@@ -37,7 +37,7 @@ void TelegramBotComponent::make_request_(const char *method, std::string body, c
   this->request_->set_body(body);
   this->request_->send();
 
-  String response = this->request_->getString();
+  String response = this->request_->get_string();
   if (response != "") {
     JsonObject &root = this->json_buffer_.parseObject(response);
     callback(root);
