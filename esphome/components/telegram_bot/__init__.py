@@ -9,6 +9,7 @@ AUTO_LOAD = ['json', 'http_request']
 telegram_bot_ns = cg.esphome_ns.namespace('telegram_bot')
 TelegramBotComponent = telegram_bot_ns.class_('TelegramBotComponent', cg.Component)
 TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
+TelegramBotAnswerCallbackAction = telegram_bot_ns.class_('TelegramBotAnswerCallbackAction', automation.Action)
 TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', cg.PollingComponent)
 TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.esphome_ns.struct('telegram_bot::Message')))
 
@@ -17,6 +18,7 @@ CONF_SCAN_INTERVAL = 'scan_interval'  # Don't use CONF_UPDATE_INTERVAL here
 CONF_MESSAGE = 'message'
 CONF_TYPE = 'type'
 CONF_CHAT_ID = 'chat_id'
+CONF_CALLBACK_QUERY_ID = 'callback_query_id'
 CONF_ALLOWED_CHAT_IDS = 'allowed_chat_ids'
 CONF_UPDATER_ID = 'updater_id'
 CONF_INLINE_KEYBOARD = 'inline_keyboard'
@@ -63,11 +65,14 @@ def to_code(config):
             yield automation.build_automation(trigger, [(cg.esphome_ns.struct('telegram_bot::Message'), 'x')], conf)
 
 
+# TODO: remove message
 TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(TelegramBotComponent),
-    cv.Required(CONF_CHAT_ID): cv.templatable(cv.string),
     cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
-    # TODO: answer callback & remove message
+})
+
+TELEGRAM_BOT_SEND_ACTION_SCHEMA = TELEGRAM_BOT_ACTION_SCHEMA.extend({
+    cv.Required(CONF_CHAT_ID): cv.templatable(cv.string),
     cv.Optional(CONF_INLINE_KEYBOARD): cv.ensure_list(cv.All(cv.Schema({
         cv.Required(CONF_TEXT): cv.string,
         cv.Optional(CONF_URL): cv.string,
@@ -75,9 +80,12 @@ TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
     }), cv.has_exactly_one_key(CONF_URL, CONF_CALLBACK_DATA))),
 })
 
+TELEGRAM_BOT_CALLBACK_ACTION_SCHEMA = TELEGRAM_BOT_ACTION_SCHEMA.extend({
+    cv.Required(CONF_CALLBACK_QUERY_ID): cv.templatable(cv.string),
+})
 
 @automation.register_action('telegram_bot.send_message', TelegramBotSendAction,
-                            TELEGRAM_BOT_ACTION_SCHEMA)
+                            TELEGRAM_BOT_SEND_ACTION_SCHEMA)
 def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
     parent = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
@@ -89,5 +97,18 @@ def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
 
     for btn in config.get(CONF_INLINE_KEYBOARD, []):
         cg.add(var.add_keyboard_button(btn[CONF_TEXT], btn.get(CONF_URL, ''), btn.get(CONF_CALLBACK_DATA, '')))
+
+    yield var
+
+@automation.register_action('telegram_bot.answer_callback_query', TelegramBotAnswerCallbackAction,
+                            TELEGRAM_BOT_CALLBACK_ACTION_SCHEMA)
+def telegram_bot_callback_action_to_code(config, action_id, template_arg, args):
+    parent = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    callback_id_ = yield cg.templatable(config[CONF_CALLBACK_QUERY_ID], args, cg.int_)
+    cg.add(var.set_callback_id(callback_id_))
+    message_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
+    cg.add(var.set_message(message_))
 
     yield var

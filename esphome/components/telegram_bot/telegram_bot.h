@@ -11,6 +11,7 @@ namespace esphome {
 namespace telegram_bot {
 
 struct Message {
+  std::string id;
   std::string text;
   std::string chat_id;
   std::string chat_title;
@@ -18,7 +19,7 @@ struct Message {
   std::string from_name;
   std::string date;
   std::string type;
-  int update_id = 0;
+  int update_id;
 };
 
 struct KeyboardButton {
@@ -39,6 +40,7 @@ class TelegramBotComponent : public Component {
   bool is_chat_allowed(std::string chat_id);
   void send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard);
   void send_message(std::string chat_id, std::string message);
+  void answer_callback_query(std::string callback_query_id, std::string message);
 
  protected:
   const char *token_;
@@ -108,6 +110,21 @@ template<typename... Ts> class TelegramBotSendAction : public Action<Ts...> {
  protected:
   TelegramBotComponent *parent_;
   std::list<KeyboardButton> inline_keyboard_{};
+};
+
+// TelegramBotAnswerCallbackAction
+template<typename... Ts> class TelegramBotAnswerCallbackAction : public Action<Ts...> {
+ public:
+  TelegramBotAnswerCallbackAction(TelegramBotComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, callback_id)
+  TEMPLATABLE_VALUE(std::string, message)
+
+  void play(Ts... x) override {
+    this->parent_->answer_callback_query(this->callback_id_.value(x...), this->message_.value(x...));
+  }
+
+ protected:
+  TelegramBotComponent *parent_;
 };
 
 }  // namespace telegram_bot

@@ -99,6 +99,22 @@ void TelegramBotComponent::send_message(std::string chat_id, std::string message
   this->send_message(chat_id, message, inline_keyboard);
 }
 
+void TelegramBotComponent::answer_callback_query(std::string callback_query_id, std::string message) {
+  ESP_LOGV(TAG, "Send callback to '%s': %s", callback_query_id.c_str(), message.c_str());
+
+  JsonObject &body = this->json_buffer_.createObject();
+  body["callback_query_id"] = callback_query_id;
+  body["text"] = message;
+
+  this->make_request_("answerCallbackQuery", ((JsonVariant) body).as<std::string>(), [this](JsonObject &root) {
+    if (!root.success() || !root["ok"].as<bool>()) {
+      ESP_LOGW(TAG, "Callback was not sent: bad response");
+    }
+  });
+
+  this->json_buffer_.clear();
+}
+
 // TelegramBotMessageUpdater
 void TelegramBotMessageUpdater::update() {
   this->parent_->get_updates(this->last_message_id_ + 1, [this](JsonObject &root) {
@@ -156,25 +172,25 @@ Message TelegramBotMessageUpdater::process_message_(JsonObject &result) {
   if (result.containsKey("message")) {
     JsonObject &data = result["message"];
     message.type = "message";
+    message.id = data["message_id"].as<std::string>();
     message.from_id = data["from"]["id"].as<std::string>();
     message.from_name = data["from"]["first_name"].as<std::string>();
-
     message.text = data["text"].as<std::string>();
     message.chat_id = data["chat"]["id"].as<std::string>();
     message.chat_title = data["chat"]["title"].as<std::string>();
   } else if (result.containsKey("channel_post")) {
     JsonObject &data = result["channel_post"];
     message.type = "channel_post";
-
+    message.id = data["message_id"].as<std::string>();
     message.text = data["text"].as<std::string>();
     message.chat_id = data["chat"]["id"].as<std::string>();
     message.chat_title = data["chat"]["title"].as<std::string>();
   } else if (result.containsKey("callback_query")) {
     JsonObject &data = result["callback_query"];
     message.type = "callback_query";
+    message.id = data["id"].as<std::string>();
     message.from_id = data["from"]["id"].as<std::string>();
     message.from_name = data["from"]["first_name"].as<std::string>();
-
     message.text = data["data"].as<std::string>();
     message.chat_id = data["message"]["chat"]["id"].as<std::string>();
   }
