@@ -253,8 +253,8 @@ def validate_effects(allowed_effects):
             name = x[key][CONF_NAME]
             if name in names:
                 errors.append(
-                    cv.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                               u"unique names".format(name), [i])
+                    cv.Invalid("Found the effect name '{}' twice. All effects must have "
+                               "unique names".format(name), [i])
                 )
                 continue
             names.add(name)

@@ -37,8 +37,8 @@ def validate_board(value):
         raise NotImplementedError
 
     if value not in board_pins:
-        raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
-            value, u', '.join(sorted(board_pins.keys()))))
+        raise cv.Invalid("Could not find board '{}'. Valid boards are {}".format(
+            value, ', '.join(sorted(board_pins.keys()))))
     return value
 
 
@@ -108,8 +108,8 @@ def valid_include(value):
     value = cv.file_(value)
     _, ext = os.path.splitext(value)
     if ext not in VALID_INCLUDE_EXTS:
-        raise cv.Invalid(u"Include has invalid file extension {} - valid extensions are {}"
-                         u"".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
+        raise cv.Invalid("Include has invalid file extension {} - valid extensions are {}"
+                         "".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
     return value
 
 
@@ -184,7 +184,7 @@ def include_file(path, basename):
     _, ext = os.path.splitext(path)
     if ext in ['.h', '.hpp', '.tcc']:
         # Header, add include statement
-        cg.add_global(cg.RawStatement(u'#include "{}"'.format(basename)))
+        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 @coroutine_with_priority(-1000.0)
@@ -238,7 +238,7 @@ def to_code(config):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            cg.add_build_flag('-Wl,-T{}'.format(ld_script))
+            cg.add_build_flag(f'-Wl,-T{ld_script}')
 
     cg.add_build_flag('-fno-exceptions')
 
