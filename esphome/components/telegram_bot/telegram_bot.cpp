@@ -61,8 +61,15 @@ void TelegramBotComponent::send_message(std::string chat_id, std::string message
   std::string keyboard = this->build_inline_keyboard_(inline_keyboard);
   std::string body = "{\"chat_id\": \"" + chat_id + "\", \"text\": \"" + message + "\"" + keyboard + "}";
   this->make_request_("sendMessage", body, [this](JsonObject &root) {
-    ESP_LOGW("Telegram", "Sent %s", root["ok"].as<char *>());
-  }); // TODO:
+    if (!root.success() || !root["ok"].as<bool>()) {
+      ESP_LOGW(TAG, "Message was not sent: bad response");
+    }
+  });
+}
+
+void TelegramBotComponent::send_message(std::string chat_id, std::string message) {
+  std::list<telegram_bot::KeyboardButton> inline_keyboard;
+  this->send_message(chat_id, message, inline_keyboard);
 }
 
 std::string TelegramBotComponent::build_inline_keyboard_(std::list<KeyboardButton> inline_keyboard) {

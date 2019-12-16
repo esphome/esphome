@@ -38,6 +38,7 @@ class TelegramBotComponent : public Component {
   void get_updates(long offset, const std::function<void(JsonObject &)> &callback);
   bool is_chat_allowed(std::string chat_id);
   void send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard);
+  void send_message(std::string chat_id, std::string message);
 
  protected:
   const char *token_;
@@ -74,7 +75,6 @@ class TelegramBotMessageTrigger : public Trigger<Message> {
       bool type_allowed = this->type_.size() == 0 || this->type_ == message.type;
       bool message_allowed = this->message_.size() == 0 || this->message_ == message.text;
       if (message_allowed && type_allowed) {
-        // TODO: Проверить лямбду
         this->trigger(message);
       }
     });
