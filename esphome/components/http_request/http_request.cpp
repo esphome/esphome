@@ -57,13 +57,9 @@ void HttpRequestComponent::send() {
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
 }
 
-void HttpRequestComponent::close() {
-  this->client_.end();
-}
+void HttpRequestComponent::close() { this->client_.end(); }
 
-const String &HttpRequestComponent::get_string() {
-  return this->client_.getString();
-}
+const String &HttpRequestComponent::get_string() { return this->client_.getString(); }
 
 }  // namespace http_request
 }  // namespace esphome
