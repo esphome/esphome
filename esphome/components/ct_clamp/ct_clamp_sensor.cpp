@@ -64,6 +64,8 @@ void CTClampSensor::loop() {
 
   // Perform a single sample
   float value = this->source_->sample();
+  if (isnan(value))
+    return;
 
   if (this->is_calibrating_offset_) {
     this->sample_sum_ += value;
