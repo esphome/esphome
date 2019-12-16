@@ -73,8 +73,8 @@ class TelegramBotMessageTrigger : public Trigger<Message> {
  public:
   explicit TelegramBotMessageTrigger(TelegramBotMessageUpdater *parent) {
     parent->add_on_message_callback([this](Message message) {
-      bool type_allowed = this->type_.size() == 0 || this->type_ == message.type;
-      bool message_allowed = this->message_.size() == 0 || this->message_ == message.text;
+      bool type_allowed = this->type_.empty() || this->type_ == message.type;
+      bool message_allowed = this->message_.empty() || this->message_ == message.text;
       if (message_allowed && type_allowed) {
         this->trigger(message);
       }
