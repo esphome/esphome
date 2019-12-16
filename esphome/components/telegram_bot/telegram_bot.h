@@ -53,9 +53,7 @@ class TelegramBotComponent : public Component {
 // TelegramBotMessageUpdater
 class TelegramBotMessageUpdater : public PollingComponent {
  public:
-  explicit TelegramBotMessageUpdater(TelegramBotComponent *parent) : PollingComponent() {
-    this->parent_ = parent;
-  };
+  explicit TelegramBotMessageUpdater(TelegramBotComponent *parent) : PollingComponent() { this->parent_ = parent; };
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void update() override;
   void schedule_update();
@@ -63,7 +61,7 @@ class TelegramBotMessageUpdater : public PollingComponent {
 
  protected:
   TelegramBotComponent *parent_{nullptr};
-  long last_message_id_ = -6; // Get last 5 unread messages one by one
+  long last_message_id_ = -6;  // Get last 5 unread messages one by one
   CallbackManager<void(Message)> message_callback_{};
   Message process_message_(JsonObject &result);
 };

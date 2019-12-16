@@ -61,7 +61,7 @@ void HttpRequestComponent::close() {
   this->client_.end();
 }
 
-const String& HttpRequestComponent::get_string() {
+const String &HttpRequestComponent::get_string() {
   return this->client_.getString();
 }
 
