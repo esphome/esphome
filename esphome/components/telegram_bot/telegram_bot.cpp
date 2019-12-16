@@ -32,7 +32,8 @@ bool TelegramBotComponent::is_chat_allowed(std::string chat_id) {
          std::find(this->chat_ids_.begin(), this->chat_ids_.end(), chat_id) != this->chat_ids_.end();
 }
 
-void TelegramBotComponent::make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback) {
+void TelegramBotComponent::make_request_(const char *method, std::string body,
+                                         const std::function<void(JsonObject &)> &callback) {
   std::string url = "https://api.telegram.org/bot" + to_string(this->token_) + "/" + to_string(method);
   this->request_->set_url(url.c_str());
   this->request_->set_body(body);
