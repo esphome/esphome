@@ -32,7 +32,10 @@ class CAT9554Component : public Component, public i2c::I2CDevice {
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, uint8_t mode);
   /// Setup irq pin.
-  void set_irq_pin(GPIOPin *irq_pin) { enable_irq_ = true; irq_pin_ = irq_pin; };
+  void set_irq_pin(GPIOPin *irq_pin) {
+    enable_irq_ = true;
+    irq_pin_ = irq_pin;
+  };
 
   float get_setup_priority() const override;
 
