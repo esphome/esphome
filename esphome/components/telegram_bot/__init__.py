@@ -11,7 +11,7 @@ TelegramBotComponent = telegram_bot_ns.class_('TelegramBotComponent', cg.Compone
 TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
 TelegramBotAnswerCallbackAction = telegram_bot_ns.class_('TelegramBotAnswerCallbackAction', automation.Action)
 TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', cg.PollingComponent)
-TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(cg.esphome_ns.struct('telegram_bot::Message')))
+TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(telegram_bot_ns.struct('Message')))
 
 CONF_TOKEN = 'token'
 CONF_SCAN_INTERVAL = 'scan_interval'  # Don't use CONF_UPDATE_INTERVAL here
@@ -62,7 +62,7 @@ def to_code(config):
                 cg.add(trigger.set_message(conf[CONF_MESSAGE]))
             if CONF_TYPE in conf:
                 cg.add(trigger.set_type(conf[CONF_TYPE]))
-            yield automation.build_automation(trigger, [(cg.esphome_ns.struct('telegram_bot::Message'), 'x')], conf)
+            yield automation.build_automation(trigger, [(telegram_bot_ns.struct('Message'), 'x')], conf)
 
 
 # TODO: remove message
