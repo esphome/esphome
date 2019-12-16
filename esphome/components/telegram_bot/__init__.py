@@ -65,7 +65,6 @@ def to_code(config):
             yield automation.build_automation(trigger, [(telegram_bot_ns.struct('Message'), 'x')], conf)
 
 
-# TODO: remove message
 TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(TelegramBotComponent),
     cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
