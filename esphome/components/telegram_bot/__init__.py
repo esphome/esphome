@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_ON_MESSAGE, CONF_URL
+from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_ON_MESSAGE, CONF_URL, CONF_TYPE
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json', 'http_request']
@@ -9,14 +9,16 @@ AUTO_LOAD = ['json', 'http_request']
 telegram_bot_ns = cg.esphome_ns.namespace('telegram_bot')
 TelegramBotComponent = telegram_bot_ns.class_('TelegramBotComponent', cg.Component)
 TelegramBotSendAction = telegram_bot_ns.class_('TelegramBotSendAction', automation.Action)
-TelegramBotAnswerCallbackAction = telegram_bot_ns.class_('TelegramBotAnswerCallbackAction', automation.Action)
-TelegramBotMessageUpdater = telegram_bot_ns.class_('TelegramBotMessageUpdater', cg.PollingComponent)
-TelegramBotMessageTrigger = telegram_bot_ns.class_('TelegramBotMessageTrigger', automation.Trigger.template(telegram_bot_ns.struct('Message')))
+TelegramBotAnswerCallbackAction = telegram_bot_ns.class_(
+    'TelegramBotAnswerCallbackAction', automation.Action)
+TelegramBotMessageUpdater = telegram_bot_ns.class_(
+    'TelegramBotMessageUpdater', cg.PollingComponent)
+TelegramBotMessageTrigger = telegram_bot_ns.class_(
+    'TelegramBotMessageTrigger', automation.Trigger.template(telegram_bot_ns.struct('Message')))
 
 CONF_TOKEN = 'token'
 CONF_SCAN_INTERVAL = 'scan_interval'  # Don't use CONF_UPDATE_INTERVAL here
 CONF_MESSAGE = 'message'
-CONF_TYPE = 'type'
 CONF_CHAT_ID = 'chat_id'
 CONF_CALLBACK_QUERY_ID = 'callback_query_id'
 CONF_ALLOWED_CHAT_IDS = 'allowed_chat_ids'
@@ -62,7 +64,8 @@ def to_code(config):
                 cg.add(trigger.set_message(conf[CONF_MESSAGE]))
             if CONF_TYPE in conf:
                 cg.add(trigger.set_type(conf[CONF_TYPE]))
-            yield automation.build_automation(trigger, [(telegram_bot_ns.struct('Message'), 'x')], conf)
+            yield automation.build_automation(trigger, [(telegram_bot_ns.struct('Message'), 'x')],
+                                              conf)
 
 
 TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
@@ -95,7 +98,8 @@ def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_message(message_))
 
     for btn in config.get(CONF_INLINE_KEYBOARD, []):
-        cg.add(var.add_keyboard_button(btn[CONF_TEXT], btn.get(CONF_URL, ''), btn.get(CONF_CALLBACK_DATA, '')))
+        cg.add(var.add_keyboard_button(btn[CONF_TEXT], btn.get(CONF_URL, ''),
+                                       btn.get(CONF_CALLBACK_DATA, '')))
 
     yield var
 
