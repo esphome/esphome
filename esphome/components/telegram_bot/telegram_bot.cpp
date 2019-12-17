@@ -28,8 +28,8 @@ void TelegramBotComponent::dump_config() {
 }
 
 bool TelegramBotComponent::is_chat_allowed(std::string chat_id) {
-  return this->chat_ids_.empty() ||
-         std::find(this->chat_ids_.begin(), this->chat_ids_.end(), chat_id) != this->chat_ids_.end();
+  return this->allowed_chat_ids_.empty() ||
+         std::find(this->allowed_chat_ids_.begin(), this->allowed_chat_ids_.end(), chat_id) != this->allowed_chat_ids_.end();
 }
 
 void TelegramBotComponent::make_request_(const char *method, std::string body,

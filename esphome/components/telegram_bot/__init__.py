@@ -45,7 +45,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_token(config[CONF_TOKEN]))
     for chat_id in config.get(CONF_ALLOWED_CHAT_IDS, []):
-        cg.add(var.add_chat_id(chat_id))
+        cg.add(var.add_allowed_chat_id(chat_id))
     yield cg.register_component(var, config)
 
     updater = cg.new_Pvariable(config[CONF_UPDATER_ID], var)

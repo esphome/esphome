@@ -35,7 +35,7 @@ class TelegramBotComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
   void set_token(const char *token) { this->token_ = token; }
-  void add_chat_id(std::string chat_id) { this->chat_ids_.push_back(chat_id); }
+  void add_allowed_chat_id(std::string chat_id) { this->allowed_chat_ids_.push_back(chat_id); }
   void get_updates(long offset, const std::function<void(JsonObject &)> &callback);
   bool is_chat_allowed(std::string chat_id);
   void send_message(std::string chat_id, std::string message, std::list<KeyboardButton> inline_keyboard);
@@ -44,7 +44,7 @@ class TelegramBotComponent : public Component {
 
  protected:
   const char *token_;
-  std::list<std::string> chat_ids_{};
+  std::list<std::string> allowed_chat_ids_{};
   http_request::HttpRequestComponent *request_;
   DynamicJsonBuffer json_buffer_;
   void make_request_(const char *method, std::string body, const std::function<void(JsonObject &)> &callback);
@@ -92,9 +92,7 @@ template<typename... Ts> class TelegramBotSendAction : public Action<Ts...> {
   TelegramBotSendAction(TelegramBotComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, message)
 
-  void add_chat_id(std::string chat_id) {
-    this->chat_ids_.push_back(chat_id);
-  }
+  void add_chat_id(std::string chat_id) { this->chat_ids_.push_back(chat_id); }
 
   void add_keyboard_button(const char *text, const char *url, const char *callback_data) {
     KeyboardButton button;
