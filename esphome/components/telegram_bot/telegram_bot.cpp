@@ -39,13 +39,15 @@ void TelegramBotComponent::make_request_(const char *method, std::string body,
   this->request_->set_body(body);
   this->request_->send();
 
-  const char *response = this->request_->get_string();
-  if (response[0] != '\0') {
-    JsonObject &root = this->json_buffer_.parseObject(response);
-    callback(root);
-    this->json_buffer_.clear();
-  } else {
-    ESP_LOGD(TAG, "Got empty response for method %s", method);
+  if (callback != nullptr) {
+    const char *response = this->request_->get_string();
+    if (response[0] != '\0') {
+      JsonObject &root = this->json_buffer_.parseObject(response);
+      callback(root);
+      this->json_buffer_.clear();
+    } else {
+      ESP_LOGD(TAG, "Got empty response for method %s", method);
+    }
   }
 
   this->request_->close();
@@ -89,12 +91,7 @@ void TelegramBotComponent::send_message(std::string chat_id, std::string message
     }
   }
 
-  this->make_request_("sendMessage", ((JsonVariant) body).as<std::string>(), [](JsonObject &root) {
-    if (!root.success() || !root["ok"].as<bool>()) {
-      ESP_LOGW(TAG, "Message was not sent: bad response");
-    }
-  });
-
+  this->make_request_("sendMessage", ((JsonVariant) body).as<std::string>(), nullptr);
   this->json_buffer_.clear();
 }
 
@@ -110,12 +107,7 @@ void TelegramBotComponent::answer_callback_query(std::string callback_query_id, 
   body["callback_query_id"] = callback_query_id;
   body["text"] = message;
 
-  this->make_request_("answerCallbackQuery", ((JsonVariant) body).as<std::string>(), [](JsonObject &root) {
-    if (!root.success() || !root["ok"].as<bool>()) {
-      ESP_LOGW(TAG, "Callback was not sent: bad response");
-    }
-  });
-
+  this->make_request_("answerCallbackQuery", ((JsonVariant) body).as<std::string>(), nullptr);
   this->json_buffer_.clear();
 }
 
