@@ -14,14 +14,15 @@ void HttpRequestComponent::dump_config() {
 
 void HttpRequestComponent::send() {
   bool begin_status = false;
+  this->client_.setReuse(true);
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(this->url_);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
+  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
 #endif
 #endif
 
