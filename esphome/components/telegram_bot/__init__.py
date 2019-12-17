@@ -74,7 +74,7 @@ TELEGRAM_BOT_ACTION_SCHEMA = cv.Schema({
 })
 
 TELEGRAM_BOT_SEND_ACTION_SCHEMA = TELEGRAM_BOT_ACTION_SCHEMA.extend({
-    cv.Required(CONF_CHAT_ID): cv.templatable(cv.string),
+    cv.Required(CONF_CHAT_ID): cv.ensure_list(cv.templatable(cv.string)),
     cv.Optional(CONF_INLINE_KEYBOARD): cv.ensure_list(cv.All(cv.Schema({
         cv.Required(CONF_TEXT): cv.string,
         cv.Optional(CONF_URL): cv.string,
@@ -92,10 +92,12 @@ def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
     parent = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
-    chat_id_ = yield cg.templatable(config[CONF_CHAT_ID], args, cg.std_string)
-    cg.add(var.set_chat_id(chat_id_))
     message_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(message_))
+
+    for chat_id_template_ in config[CONF_CHAT_ID]:
+        chat_id_ = yield cg.templatable(chat_id_template_, args, cg.std_string)
+        cg.add(var.add_chat_id(chat_id_))
 
     for btn in config.get(CONF_INLINE_KEYBOARD, []):
         cg.add(var.add_keyboard_button(btn[CONF_TEXT], btn.get(CONF_URL, ''),

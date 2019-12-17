@@ -90,8 +90,11 @@ class TelegramBotMessageTrigger : public Trigger<Message> {
 template<typename... Ts> class TelegramBotSendAction : public Action<Ts...> {
  public:
   TelegramBotSendAction(TelegramBotComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(std::string, chat_id)
   TEMPLATABLE_VALUE(std::string, message)
+
+  void add_chat_id(std::string chat_id) {
+    this->chat_ids_.push_back(chat_id);
+  }
 
   void add_keyboard_button(const char *text, const char *url, const char *callback_data) {
     KeyboardButton button;
@@ -102,11 +105,14 @@ template<typename... Ts> class TelegramBotSendAction : public Action<Ts...> {
   }
 
   void play(Ts... x) override {
-    this->parent_->send_message(this->chat_id_.value(x...), this->message_.value(x...), this->inline_keyboard_);
+    for (const std::string &chat_id : this->chat_ids_) {
+      this->parent_->send_message(chat_id, this->message_.value(x...), this->inline_keyboard_);
+    }
   }
 
  protected:
   TelegramBotComponent *parent_;
+  std::list<std::string> chat_ids_{};
   std::list<KeyboardButton> inline_keyboard_{};
 };
 
