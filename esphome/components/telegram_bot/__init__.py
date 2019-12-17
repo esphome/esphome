@@ -111,7 +111,7 @@ def telegram_bot_callback_action_to_code(config, action_id, template_arg, args):
     parent = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
 
-    callback_id_ = yield cg.templatable(config[CONF_CALLBACK_QUERY_ID], args, cg.int_)
+    callback_id_ = yield cg.templatable(config[CONF_CALLBACK_QUERY_ID], args, cg.std_string)
     cg.add(var.set_callback_id(callback_id_))
     message_ = yield cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
     cg.add(var.set_message(message_))
