@@ -42,12 +42,11 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   command1 = (command1 << 8) | ((~command1) & 0xff);
   command2 = (command2 << 8) | ((~command2) & 0xff);
 
-  if (data.rc_code_2 == 0) {
+  if (data.rc_code_2 == 0)
     dst->reserve(68);
-  }
-  else {
+  else
     dst->reserve((68 * 2) + 1);
-  }
+
   dst->set_carrier_frequency(40000);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
