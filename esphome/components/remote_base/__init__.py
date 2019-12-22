@@ -289,7 +289,8 @@ def nec_action(var, config, args):
 
 
 # Pioneer
-PioneerData, PioneerBinarySensor, PioneerTrigger, PioneerAction, PioneerDumper = declare_protocol('Pioneer')
+PioneerData, PioneerBinarySensor, PioneerTrigger, PioneerAction,
+ PioneerDumper = declare_protocol('Pioneer')
 PIONEER_SCHEMA = cv.Schema({
     cv.Required(CONF_RC_CODE_1): cv.hex_uint16_t,
     cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint16_t,
