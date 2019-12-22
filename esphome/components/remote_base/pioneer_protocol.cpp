@@ -85,7 +85,6 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
 
     dst->mark(BIT_HIGH_US);
   }
-  
 }
 optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   uint16_t address1 = 0;
