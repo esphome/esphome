@@ -811,6 +811,13 @@ binary_sensor:
       mode: INPUT
       inverted: True
   - platform: gpio
+    name: "CAT9554 binary sensor"
+    pin:
+      cat9554: cat9554_hub
+      number: 1
+      mode: INPUT
+      inverted: True
+  - platform: gpio
     name: "MCP21 binary sensor"
     pin:
       mcp23017: mcp23017_hub
@@ -930,6 +937,13 @@ output:
     id: id2
     pin:
       pcf8574: pcf8574_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
+  - platform: gpio
+    id: cat9554_output
+    pin:
+      cat9554: cat9554_hub
       number: 0
       mode: OUTPUT
       inverted: False
@@ -1476,6 +1490,10 @@ pcf8574:
   - id: 'pcf8574_hub'
     address: 0x21
     pcf8575: False
+
+cat9554:
+  - id: 'cat9554_hub'
+    address: 0x20
 
 mcp23017:
   - id: 'mcp23017_hub'
