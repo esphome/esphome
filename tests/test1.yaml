@@ -523,6 +523,20 @@ sensor:
       name: "MPU6050 Gyro z"
     temperature:
       name: "MPU6050 Temperature"
+  - platform: mlx90393
+    field_strength_x:
+      name: "MLX90393 Field X"
+    field_strength_y:
+      name: "MLX90393 Field Y"
+    field_strength_z:
+      name: "MLX90393 Field Z"
+    temperature:
+      name: "MLX90393 Temperature"
+    address: 0x0C
+    update_interval: 15s
+    gain: 2x
+    range: 16bit
+    oversampling: 4x
   - platform: ms5611
     temperature:
       name: "Outside Temperature"
