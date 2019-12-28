@@ -37,22 +37,22 @@ static const float SENS_Z[] = {1.210, 0.968, 0.726, 0.605, 0.484, 0.403, 0.323, 
 
 static const char *gain_to_str(MLX90393Gain gain) {
   switch (gain) {
-    case MLX9039_GAIN_5:
-      return "5x";
-    case MLX9039_GAIN_4:
-      return "4x";
-    case MLX9039_GAIN_3:
-      return "3x";
-    case MLX9039_GAIN_2P5:
-      return "2.5x";
-    case MLX9039_GAIN_2:
-      return "2x";
-    case MLX9039_GAIN_1P67:
-      return "1.67x";
-    case MLX9039_GAIN_1P33:
-      return "1.33x";
     case MLX9039_GAIN_1:
       return "1x";
+    case MLX9039_GAIN_1P25:
+      return "1.25x";
+    case MLX9039_GAIN_1P67:
+      return "1.67x";
+    case MLX9039_GAIN_2:
+      return "2x";
+    case MLX9039_GAIN_2P5:
+      return "2.5x";
+    case MLX9039_GAIN_3:
+      return "3x";
+    case MLX9039_GAIN_3P75:
+      return "3.75x";
+    case MLX9039_GAIN_5:
+      return "5x";
     default:
       return "UNKNOWN";
   }
