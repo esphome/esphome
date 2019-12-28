@@ -31,6 +31,10 @@ static const uint8_t MLX90393_STATUS_ERROR = 0b00010000;
 static const uint8_t MLX90393_STATUS_RESET_PERFORMED = 0b00000100;
 static const uint8_t MLX90393_CONFIG_3_DIG_FILT = 7;  // 128x
 
+// µT/bit
+static const float SENS_XY[] = {0.751, 0.601, 0.451, 0.376, 0.300, 0.250, 0.200, 0.150};
+static const float SENS_Z[] = {1.210, 0.968, 0.726, 0.605, 0.484, 0.403, 0.323, 0.242};
+
 static const char *gain_to_str(MLX90393Gain gain) {
   switch (gain) {
     case MLX9039_GAIN_5:
@@ -83,10 +87,6 @@ static const char *range_to_str(MLX90393Range range) {
       return "UNKNOWN";
   }
 }
-
-// µT/bit
-static const float sens_xy[] = {0.805, 0.644, 0.483, 0.403, 0.322, 0.268, 0.215, 0.161};
-static const float sens_z[8] = {1.468, 1.174, 0.881, 0.734, 0.587, 0.489, 0.391, 0.294};
 
 static uint32_t measurement_time(MLX90393Oversampling oversampling) {
   // T_stby + T_active + T_conv_end
@@ -150,8 +150,8 @@ void MLX90393Component::setup() {
     this->mark_failed();
     return;
   }
-  *config1 &= 0xFE00; // Preserve ANA_RESERVED_LOW
-  *config1 |= 0x0C;   // Recommended HALLCONF
+  *config1 &= 0xFE00;  // Preserve ANA_RESERVED_LOW
+  *config1 |= 0x0C;    // Recommended HALLCONF
   *config1 |= uint16_t(this->gain_) << 4;
   if (!this->write_register_(MLX90393_REGISTER_CONFIG_1, *config1)) {
     ESP_LOGE(TAG, "Error writing configuration register!");
@@ -170,11 +170,11 @@ void MLX90393Component::setup() {
   }
 
   uint16_t config3 = MLX90393_CONFIG_3_DIG_FILT << 2;
-  config3 |= uint16_t(this->oversampling_);       // Magnetic
-  config3 |= uint16_t(this->oversampling_) << 11; // Temperature
-  config3 |= uint16_t(this->range_) << 5;         // X
-  config3 |= uint16_t(this->range_) << 7;         // Y
-  config3 |= uint16_t(this->range_) << 9;         // Z
+  config3 |= uint16_t(this->oversampling_);        // Magnetic
+  config3 |= uint16_t(this->oversampling_) << 11;  // Temperature
+  config3 |= uint16_t(this->range_) << 5;          // X
+  config3 |= uint16_t(this->range_) << 7;          // Y
+  config3 |= uint16_t(this->range_) << 9;          // Z
   if (!this->write_register_(MLX90393_REGISTER_CONFIG_3, config3)) {
     ESP_LOGE(TAG, "Error writing configuration register!");
     this->error_code_ = CONFIGURE_FAILED;
@@ -258,9 +258,9 @@ void MLX90393Component::update() {
     this->status_clear_warning();
 
     const float t = 35.0f + (((data[1] << 8) | data[2]) - this->tref_) / 45.2f;
-    const float x = convert_raw((data[3] << 8) | data[4], this->range_, sens_xy[this->gain_]);
-    const float y = convert_raw((data[5] << 8) | data[6], this->range_, sens_xy[this->gain_]);
-    const float z = convert_raw((data[7] << 8) | data[8], this->range_, sens_z[this->gain_]);
+    const float x = convert_raw((data[3] << 8) | data[4], this->range_, SENS_XY[this->gain_]);
+    const float y = convert_raw((data[5] << 8) | data[6], this->range_, SENS_XY[this->gain_]);
+    const float z = convert_raw((data[7] << 8) | data[8], this->range_, SENS_Z[this->gain_]);
 
     ESP_LOGD(TAG, "Got x=%0.1fµT y=%0.1fµT z=%0.1fµT temperature=%.1f°C", x, y, z, t);
 
