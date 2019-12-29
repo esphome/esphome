@@ -6,7 +6,7 @@ here = Path(__file__).parent
 
 
 @pytest.fixture
-def fixtures() -> Path:
+def fixture_path() -> Path:
     """
     Location of all fixture files.
     """
