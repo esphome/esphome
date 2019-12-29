@@ -1,5 +1,8 @@
 import pytest
 
+from hypothesis import given
+from hypothesis.provisional import ip4_addr_strings
+
 from esphome import helpers
 
 
@@ -63,16 +66,20 @@ def test_cpp_string_escape(string, expected):
     assert actual == expected
 
 
-@pytest.mark.parametrize("host, expected", (
-        ("127.0.0.1", True),
-        ("127.0.0", False),
-        ("localhost", False),
-        ("127.0.0.b", False),
+@pytest.mark.parametrize("host", (
+    "127.0.0", "localhost", "127.0.0.b",
 ))
-def test_is_ip_address(host, expected):
+def test_is_ip_address__invalid(host):
     actual = helpers.is_ip_address(host)
 
-    assert actual == expected
+    assert actual is False
+
+
+@given(value=ip4_addr_strings())
+def test_is_ip_address__valid(value):
+    actual = helpers.is_ip_address(value)
+
+    assert actual is True
 
 
 @pytest.mark.parametrize("var, value, default, expected", (
