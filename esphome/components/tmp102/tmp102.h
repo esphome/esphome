@@ -23,5 +23,5 @@ class TMP102Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_{nullptr};
 };
 
-} // namespace tmp102
-} // namespace esphome
+}  // namespace tmp102
+}  // namespace esphome
