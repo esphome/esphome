@@ -23,8 +23,6 @@ struct DimmerDataStore {
   uint32_t crossed_zero_at;
   /// Time since last ZC pulse to enable gate pin. 0 means not set.
   uint32_t enable_time_us;
-  /// Time since last ZC pulse to disable gate pin again. 0 means not set.
-  uint32_t disable_time_us;
 
   uint32_t timer_intr(uint32_t now);
 
