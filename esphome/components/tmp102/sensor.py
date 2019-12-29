@@ -22,4 +22,3 @@ def to_code(config):
     if CONF_TEMPERATURE in config:
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
-
