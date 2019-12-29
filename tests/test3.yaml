@@ -331,6 +331,9 @@ sensor:
       name: "PZEMDC Current"
     power:
       name: "PZEMDC Power"
+  - platform: tmp102
+    temperature:
+      name: "TMP102 Temperature"
 
 time:
 - platform: homeassistant
