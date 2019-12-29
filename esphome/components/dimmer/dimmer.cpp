@@ -34,26 +34,11 @@ uint32_t ICACHE_RAM_ATTR HOT DimmerDataStore::timer_intr(uint32_t now) {
       // Reset enable time
       this->enable_time_us = 0;
 
-      // Return time until disable
-      if (now > this->disable_time_us)
-        // Range check
-        return 1;
-      return this->disable_time_us - now;
+      // Wait next reschedule
+      return 0;
     } else {
       // Next event is enable, return time until that event
       return this->enable_time_us - time_since_zc;
-    }
-  }
-  if (this->disable_time_us != 0) {
-    if (time_since_zc >= this->disable_time_us) {
-      this->gate_pin->digital_write(false);
-      this->disable_time_us = 0;
-      // Return run next cycle, minus
-
-      return this->cycle_time_us - GATE_ENABLE_TIME;
-    } else {
-      // Next event is disable, return time until that event
-      return this->disable_time_us - time_since_zc;
     }
   }
 
@@ -94,12 +79,9 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     // fully off, disable output immediately
     this->gate_pin->digital_write(false);
   } else {
-    this->gate_pin->digital_write(false);
-
     // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
     this->enable_time_us = ((255 - this->value) * this->cycle_time_us) / 255;
-    // Keep signal HIGH for 10µs
-    this->disable_time_us = this->enable_time_us + GATE_ENABLE_TIME;
+    this->gate_pin->digital_write(false);
   }
 }
 void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
