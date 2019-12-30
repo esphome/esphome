@@ -45,13 +45,15 @@ def to_code(config):
     if CONF_CSS_INCLUDE in config:
         if os.access(config[CONF_CSS_INCLUDE], os.R_OK):
             with open(config[CONF_CSS_INCLUDE], "r") as myfile:
-              cg.add(var.set_css_include(myfile.read()))
+                cg.add(var.set_css_include(myfile.read()))
         else:
-            raise EsphomeError("Option {}.{} is defined, but file {} is not readable.".format(web_server_ns, CONF_CSS_INCLUDE, config[CONF_CSS_INCLUDE]))
+            raise EsphomeError("Option {}.{} is defined, but file {} is not readable."
+                               "".format(web_server_ns, CONF_CSS_INCLUDE, config[CONF_CSS_INCLUDE]))
 
     if CONF_JS_INCLUDE in config:
         if os.access(config[CONF_JS_INCLUDE], os.R_OK):
             with open(config[CONF_JS_INCLUDE], "r") as myfile:
                 cg.add(var.set_js_include(myfile.read()))
         else:
-            raise EsphomeError("Option {}.{} is defined, but file {} is not readable.".format(web_server_ns, CONF_JS_INCLUDE, config[CONF_JS_INCLUDE]))
+            raise EsphomeError("Option {}.{} is defined, but file {} is not readable."
+                               "".format(web_server_ns, CONF_JS_INCLUDE, config[CONF_JS_INCLUDE]))
