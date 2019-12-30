@@ -195,9 +195,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-  
   stream->print(F("</article></body></html>"));
-  
+
   request->send(stream);
 }
 
