@@ -42,7 +42,7 @@ def to_code(config):
     if CONF_AUTH in config:
         cg.add(var.set_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(var.set_password(config[CONF_AUTH][CONF_PASSWORD]))
-    if CONF_CSS_INCLUDE in config:
+    if CONF_CSS_INCLUDE in config and config[CONF_CSS_INCLUDE] != "":
         if os.access(config[CONF_CSS_INCLUDE], os.R_OK):
             with open(config[CONF_CSS_INCLUDE], "r") as myfile:
                 cg.add(var.set_css_include(myfile.read()))
@@ -50,7 +50,7 @@ def to_code(config):
             raise EsphomeError("Option {}.{} is defined, but file {} is not readable."
                                "".format(web_server_ns, CONF_CSS_INCLUDE, config[CONF_CSS_INCLUDE]))
 
-    if CONF_JS_INCLUDE in config:
+    if CONF_JS_INCLUDE in config and config[CONF_JS_INCLUDE] != "":
         if os.access(config[CONF_JS_INCLUDE], os.R_OK):
             with open(config[CONF_JS_INCLUDE], "r") as myfile:
                 cg.add(var.set_js_include(myfile.read()))
