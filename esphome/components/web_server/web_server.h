@@ -41,12 +41,24 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
+
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
   void set_js_url(const char *js_url);
+
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param js_include Local path to web server script.
+   */
+  void set_js_include(const char *js_include);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -135,7 +147,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *username_{nullptr};
   const char *password_{nullptr};
   const char *css_url_{nullptr};
+  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+  const char *js_include_{nullptr};
 };
 
 }  // namespace web_server
