@@ -135,9 +135,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   std::string title = App.get_name() + " Web Server";
   stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
-  stream->print(F("</title><link rel=\"stylesheet\" href=\""));
-  stream->print(this->css_url_);
-  stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
+  stream->print(F("</title>"));
+  if (this->css_include_ != nullptr) {
+    stream->print(F("<style type=\"text/css\">"));
+    stream->print(this->css_include_);
+    stream->print(F("</style>"));
+  } else {
+    stream->print(F("<link rel=\"stylesheet\" href=\""));
+    stream->print(this->css_url_);
+    stream->print(F("\">"));
+  }
+  stream->print(F("</head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
   // All content is controlled and created by user - so allowing all origins is fine here.
@@ -177,11 +185,19 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
                   "REST API documentation.</p>"
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"
-                  "<script src=\""));
-  stream->print(this->js_url_);
-  stream->print(F("\"></script></article></body></html>"));
-
+                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+  if (this->js_include_ != nullptr) {
+    stream->print(F("<script type=\"text/javascript\">"));
+    stream->print(this->js_include_);
+    stream->print(F("</script>"));
+  } else {
+    stream->print(F("<script src=\""));
+    stream->print(this->js_url_);
+    stream->print(F("\"></script>"));
+  }
+  
+  stream->print(F("</article></body></html>"));
+  
   request->send(stream);
 }
 
