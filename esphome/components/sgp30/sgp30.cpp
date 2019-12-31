@@ -197,10 +197,13 @@ void SGP30Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  eCO2 Baseline: 0x%04X%s", this->eco2_baseline_,
-                  ((this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) ? " (enabled)" : " (disabled)"));
-    ESP_LOGCONFIG(TAG, "  TVOC Baseline: 0x%04X%s", this->tvoc_baseline_,
-                  ((this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) ? " (enabled)" : " (disabled)"));
+    if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
+      ESP_LOGCONFIG(TAG, "  Baseline:");
+      ESP_LOGCONFIG(TAG, "    eCO2 Baseline: 0x%04X", this->eco2_baseline_);
+      ESP_LOGCONFIG(TAG, "    TVOC Baseline: 0x%04X", this->tvoc_baseline_);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
+    }
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
