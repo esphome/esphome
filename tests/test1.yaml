@@ -1206,7 +1206,8 @@ climate:
     name: Fujitsu General Climate
   - platform: yashima
     name: Yashima Climate
-
+  - platform: mitsubishi
+    name: Mitsubishi
 
 switch:
   - platform: gpio

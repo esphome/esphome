@@ -63,9 +63,6 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};
-
-  /// Handle received IR Buffer, so it is optional to implement
-  bool on_receive(remote_base::RemoteReceiveData data) override;
 };
 
 }  // namespace climate_ir
