@@ -28,6 +28,7 @@ class HttpRequestComponent : public Component {
 #ifdef ARDUINO_ARCH_ESP8266
     this->wifi_client_ = new BearSSL::WiFiClientSecure();
     this->wifi_client_->setInsecure();
+    this->wifi_client_->setBufferSizes(512, 512);
 #endif
   }
   void dump_config() override;
