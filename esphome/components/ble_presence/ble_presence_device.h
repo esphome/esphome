@@ -82,8 +82,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
         auto ibeacon = device.get_ibeacon();
         if (ibeacon.has_value()) {
           for (int i = 0; i < ESP_UUID_LEN_128; i++) {
-            if (ibeacon->get_uuid().get_uuid().uuid.uuid128[i] !=
-                this->uuid_.get_uuid().uuid.uuid128[i]) {
+            if (ibeacon->get_uuid().get_uuid().uuid.uuid128[i] != this->uuid_.get_uuid().uuid.uuid128[i]) {
               return false;
             }
           }
