@@ -61,17 +61,35 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
             }
             break;
           case ESP_UUID_LEN_128:
+            bool still_matching = true;
             if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
               for (int i = 0; i < ESP_UUID_LEN_128; i++) {
                 if (this->uuid_.get_uuid().uuid.uuid128[i] != uuid.get_uuid().uuid.uuid128[i]) {
-                  return false;
+                  still_matching = false;
+                  break;
                 }
               }
-              this->publish_state(true);
-              this->found_ = true;
-              return true;
+              if (still_matching) {
+                this->publish_state(true);
+                this->found_ = true;
+                return true;
+              }
             }
             break;
+        }
+      }
+      if (this->uuid_.get_uuid().len == ESP_UUID_LEN_128) {
+        auto ibeacon = device.get_ibeacon();
+        if (ibeacon.has_value()) {
+          for (int i = 0; i < ESP_UUID_LEN_128; i++) {
+            if (ibeacon->get_uuid().get_uuid().uuid.uuid128[i] !=
+                this->uuid_.get_uuid().uuid.uuid128[i]) {
+              return false;
+            }
+          }
+          this->publish_state(true);
+          this->found_ = true;
+          return true;
         }
       }
     }
