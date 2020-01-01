@@ -74,7 +74,7 @@ def as_hex_array(value):
     value = value.replace("-", "")
     cpp_array = [f'0x{part}' for part in [value[i:i+2] for i in range(0, len(value), 2)]]
     return cg.RawExpression(
-        '(uint8_t*)(const uint8_t[16]){{{}}}'.format(','.join(reversed(cpp_array))))
+        '(uint8_t*)(const uint8_t[16]){{{}}}'.format(','.join(cpp_array)))
 
 
 CONFIG_SCHEMA = cv.Schema({
