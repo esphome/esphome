@@ -7,11 +7,11 @@ static const char *TAG = "azure_iot_hub";
 
 void AzureIoTHub::dump_config() {
     ESP_LOGCONFIG(TAG, "Azure IoT Hub:");
-    ESP_LOGCONFIG(TAG, "  Device ID: %s", this->iot_hub_device_id_);
-    ESP_LOGCONFIG(TAG, "  REST URL: %s", this->iot_hub_rest_url_);
-    ESP_LOGCONFIG(TAG, "  SAS Token: %s", this->iot_hub_sas_token_);
-    ESP_LOGCONFIG(TAG, "  SAS Token Expiration: %s", this->iot_hub_sas_token_expiration_string_);
-    ESP_LOGCONFIG(TAG, "  SSL SHA1 Fingerprint: %s", this->iot_hub_ssl_sha1_fingerprint_.empty() ? "<NULL>" : this->iot_hub_ssl_sha1_fingerprint_);
+    ESP_LOGCONFIG(TAG, "  Device ID: %s", this->iot_hub_device_id_.c_str());
+    ESP_LOGCONFIG(TAG, "  REST URL: %s", this->iot_hub_rest_url_.c_str());
+    ESP_LOGCONFIG(TAG, "  SAS Token: %s", this->iot_hub_sas_token_.c_str());
+    ESP_LOGCONFIG(TAG, "  SAS Token Expiration: %s", this->iot_hub_sas_token_expiration_string_.c_str());
+    ESP_LOGCONFIG(TAG, "  SSL SHA1 Fingerprint: %s", this->iot_hub_ssl_sha1_fingerprint_.empty() ? "<NULL>" : this->iot_hub_ssl_sha1_fingerprint_.c_str());
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
@@ -160,11 +160,11 @@ void AzureIoTHub::on_cover_update(cover::Cover *cover) {
     }
 
 
-    if (traits.get_supports_tilt) {
+    if (traits.get_supports_tilt()) {
         json_payload.append(", \"tilt\": ");
         json_payload.append(String(cover->tilt).c_str());
     }
-    if (traits.set_supports_position) {
+    if (traits.get_supports_position()) {
         json_payload.append(", \"position\": ");
         json_payload.append(String(cover->position).c_str());
     }
