@@ -57,6 +57,7 @@ bool AzureIoTHub::set_fingerprint_bytes(const char *fingerprint_string) {
 #endif
 
 void AzureIoTHub::setup() {
+    this->setup_controller();
 #ifdef ARDUINO_ARCH_ESP8266
     this->wifi_client_ = new BearSSL::WiFiClientSecure();
     if (this->iot_hub_ssl_sha1_fingerprint_.length() >= 20) {
@@ -91,7 +92,9 @@ void AzureIoTHub::set_baltimore_root_ca_pem(const std::string &baltimore__root_c
 #endif
 
 bool AzureIoTHub::post_json_to_iot_hub(const std::string json_payload) {
+    ESP_LOGD(TAG, "Posting to URL '%s' Payload: %s", this->iot_hub_rest_url_.c_str(), json_payload.c_str());
     String url{this->iot_hub_rest_url_.c_str()};
+
     
 #ifndef CLANG_TIDY
     this->http_client_.begin(*this->wifi_client_, url);
@@ -103,6 +106,8 @@ bool AzureIoTHub::post_json_to_iot_hub(const std::string json_payload) {
 
     int httpCode = this->http_client_.POST(json_payload.c_str());
     this->http_client_.end();
+    ESP_LOGD(TAG, "HTTP Request to Azure IoT Hub completed with code: %d", httpCode);
+
     return httpCode == HTTP_CODE_OK || httpCode == HTTP_CODE_NO_CONTENT;
 }
 

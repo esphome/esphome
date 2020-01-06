@@ -11,9 +11,13 @@ from urllib.request import urlopen
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID
-from esphome.core import coroutine_with_priority, CORE
+from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ['network']
+
+azure_iot_hub_ns = cg.esphome_ns.namespace('azure_iot_hub')
+AzureIoTHub = azure_iot_hub_ns.class_('AzureIoTHub', cg.Component, cg.Controller)
+
 
 # Required configuration variables
 CONF_HUB_NAME = 'hub_name'
@@ -46,6 +50,7 @@ def validate_hub_name(value):
 
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
+    cv.GenerateID(): cv.declare_id(AzureIoTHub),
     cv.Required(CONF_HUB_NAME): cv.string,
     cv.Required(CONF_DEVICE_ID): cv.string,
     cv.Required(CONF_DEVICE_KEY): cv.string,
@@ -95,13 +100,14 @@ def retrieve_ssl_certificate_fingerprint_and_expiration(host_name, port):
             return expiration, thumb_sha1
 
 
+@coroutine_with_priority(40.0)
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
     iot_hub_uri = f'https://{config[CONF_HUB_NAME].strip()}.azure-devices.net/devices/{config[CONF_DEVICE_ID].strip()}/messages/events '
     if config[CONF_API_VERSION]:
-        iot_hub_uri += f'?api-version={config[CONF_API_VERSION].strip()}'
+        iot_hub_uri = iot_hub_uri.strip() + f'?api-version={config[CONF_API_VERSION].strip()}'
 
     cg.add(var.set_iot_hub_rest_url(iot_hub_uri))
     cg.add(var.set_iot_hub_device_id(config[CONF_DEVICE_ID]))
@@ -128,7 +134,7 @@ def to_code(config):
     cg.add(var.set_iot_hub_sas_token(sas_token))
 
     # put string representation of expiration for debugging
-    dt = datetime.fromtimestamp(sas_token)
+    dt = datetime.fromtimestamp(token_expiration)
     cg.add(var.set_iot_hub_sas_token_expiration_string(dt.isoformat()))
 
 

@@ -19,7 +19,7 @@ namespace azure_iot_hub {
 
 class AzureIoTHub : public Component, public Controller {
 public:
-    AzureIoTHub();
+    AzureIoTHub() { }
 
     void setup() override;
     void dump_config() override;
