@@ -6,21 +6,21 @@ namespace azure_iot_hub {
 static const char *TAG = "azure_iot_hub";
 
 void AzureIoTHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "Azure IoT Hub:");
-  ESP_LOGCONFIG(TAG, "  REST URL: %s", this->iot_hub_rest_url_);
-  ESP_LOGCONFIG(TAG, "  SAS Token: %s", this->iot_hub_sas_token_);
-  ESP_LOGCONFIG(TAG, "  SSL SHA1 Fingerprint: %s", this->iot_hub_ssl_sha1_fingerprint_);
-  ESP_LOGCONFIG(TAG, "  Device ID: %s", this->iot_hub_device_id_);
-  ESP_LOGCONFIG(TAG, "  SAS Token Expiration: %u", this->iot_hub_sas_token_expiration_);
+    ESP_LOGCONFIG(TAG, "Azure IoT Hub:");
+    ESP_LOGCONFIG(TAG, "  Device ID: %s", this->iot_hub_device_id_);
+    ESP_LOGCONFIG(TAG, "  REST URL: %s", this->iot_hub_rest_url_);
+    ESP_LOGCONFIG(TAG, "  SAS Token: %s", this->iot_hub_sas_token_);
+    ESP_LOGCONFIG(TAG, "  SAS Token Expiration: %s", this->iot_hub_sas_token_expiration_string_);
+    ESP_LOGCONFIG(TAG, "  SSL SHA1 Fingerprint: %s", this->iot_hub_ssl_sha1_fingerprint_.empty() ? "<NULL>" : this->iot_hub_ssl_sha1_fingerprint_);
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
 static uint8_t htoi (unsigned char c)
 {
-  if (c>='0' && c <='9') return c - '0';
-  else if (c>='A' && c<='F') return 10 + c - 'A';
-  else if (c>='a' && c<='f') return 10 + c - 'a';
-  else return 255;
+    if (c>='0' && c <='9') return c - '0';
+    else if (c>='A' && c<='F') return 10 + c - 'A';
+    else if (c>='a' && c<='f') return 10 + c - 'a';
+    else return 255;
 }
 
 // Set a fingerprint by parsing an ASCII string,
@@ -28,32 +28,32 @@ static uint8_t htoi (unsigned char c)
 // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/WiFiClientSecureBearSSL.cpp
 // Preserving this helps reduce setup and handle CLANG ESP8266 dependency not having relevant overload
 bool setFingerprintBytes(const char *fingerprint_string, uint8_t* fingerprint_bytes) {
-  int idx = 0;
-  uint8_t c, d;
+    int idx = 0;
+    uint8_t c, d;
 
-  while (idx < 20) {
-    c = *fingerprint_string++;
-    if (!c) break; // String ended, done processing
-    d = *fingerprint_string++;
-    if (!d) return false; // Only half of the last hex digit, error
-    c = htoi(c);
-    d = htoi(d);
-    if ((c>15) || (d>15)) {
-      return false; // Error in one of the hex characters
-    }
-    fingerprint_bytes[idx++] = (c<<4)|d;
+    while (idx < 20) {
+        c = *fingerprint_string++;
+        if (!c) break; // String ended, done processing
+        d = *fingerprint_string++;
+        if (!d) return false; // Only half of the last hex digit, error
+        c = htoi(c);
+        d = htoi(d);
+        if ((c>15) || (d>15)) {
+        return false; // Error in one of the hex characters
+        }
+        fingerprint_bytes[idx++] = (c<<4)|d;
 
-    // Skip 0 or more spaces or colons
-    while ( *fingerprint_string && (*fingerprint_string == ' ' || *fingerprint_string == ':' ) ) {
-      fingerprint_string++;
+        // Skip 0 or more spaces or colons
+        while ( *fingerprint_string && (*fingerprint_string == ' ' || *fingerprint_string == ':' ) ) {
+        fingerprint_string++;
+        }
     }
-  }
-  if ((idx != 20)) {
-    return false; // Garbage at EOL or we didn't have enough hex digits
-  }
-  else {
-    return true;
-  }
+    if ((idx != 20)) {
+        return false; // Garbage at EOL or we didn't have enough hex digits
+    }
+    else {
+        return true;
+    }
 }
 #endif
 
@@ -83,7 +83,7 @@ void AzureIoTHub::set_iot_hub_device_id(const std::string &device_id) { this->io
 void AzureIoTHub::set_iot_hub_sas_token(const std::string &sas_token) { this->iot_hub_sas_token_ = sas_token; }
 void AzureIoTHub::set_iot_hub_rest_url(const std::string &rest_url) { this->iot_hub_rest_url_ = rest_url; }
 void AzureIoTHub::set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint) { this->iot_hub_ssl_sha1_fingerprint_ = fingerprint; }
-void AzureIoTHub::set_iot_hub_sas_token_expiration(const uint32_t &expiration) { this->iot_hub_sas_token_expiration_ = expiration; }
+void AzureIoTHub::set_iot_hub_sas_token_expiration_string(const std::string &expirationString) { this->iot_hub_sas_token_expiration_string_ = expirationString; }
 
 bool AzureIoTHub::post_json_to_iot_hub(const std::string json_payload) {
     String url{this->iot_hub_rest_url_.c_str()};

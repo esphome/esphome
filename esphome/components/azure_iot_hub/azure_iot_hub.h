@@ -28,7 +28,8 @@ public:
     void set_iot_hub_sas_token(const std::string &sas_token);
     void set_iot_hub_rest_url(const std::string &rest_url);
     void set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint);
-    void set_iot_hub_sas_token_expiration(const uint32_t &expiration);
+    // Expiration string is only there for debug purposes. dump_config will allow to identify when token is expired
+    void set_iot_hub_sas_token_expiration_string(const std::string &expirationString);
     
 #ifdef USE_BINARY_SENSOR
     void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
@@ -60,7 +61,7 @@ protected:
     std::string iot_hub_rest_url_;
     std::string iot_hub_ssl_sha1_fingerprint_;
     std::string iot_hub_device_id_;
-    uint32_t iot_hub_sas_token_expiration_;
+    std::string iot_hub_sas_token_expiration_string_;
     HTTPClient http_client_{};
     bool post_json_to_iot_hub(const std::string json_payload);
 #ifdef ARDUINO_ARCH_ESP8266
