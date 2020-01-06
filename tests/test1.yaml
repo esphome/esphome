@@ -1598,3 +1598,10 @@ text_sensor:
     name: "SSID"
   bssid:
     name: "BSSID"
+    
+    
+azure_iot_hub:
+  hub_name: esphome-fake-hub
+  device_id: test01
+  device_key: ZXNwaG9tZS1kZXZpY2U=
+  

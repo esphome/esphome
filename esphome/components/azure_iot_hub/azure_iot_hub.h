@@ -10,8 +10,8 @@
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #include <ESP8266HTTPClient.h>
-#include <WiFiClientSecure.h>
 #endif
+#include <WiFiClientSecure.h>
 
 namespace esphome {
 namespace azure_iot_hub {
@@ -27,7 +27,12 @@ public:
     void set_iot_hub_device_id(const std::string &device_id);
     void set_iot_hub_sas_token(const std::string &sas_token);
     void set_iot_hub_rest_url(const std::string &rest_url);
+#ifdef ARDUINO_ARCH_ESP8266
     void set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint);
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+    void set_baltimore_root_ca_pem(const std::string &baltimore__root_ca_pem);
+#endif
     // Expiration string is only there for debug purposes. dump_config will allow to identify when token is expired
     void set_iot_hub_sas_token_expiration_string(const std::string &expirationString);
     
@@ -59,17 +64,23 @@ public:
 protected:
     std::string iot_hub_sas_token_;
     std::string iot_hub_rest_url_;
-    std::string iot_hub_ssl_sha1_fingerprint_;
     std::string iot_hub_device_id_;
     std::string iot_hub_sas_token_expiration_string_;
     HTTPClient http_client_{};
     bool post_json_to_iot_hub(const std::string json_payload);
-#ifdef ARDUINO_ARCH_ESP8266
-    BearSSL::WiFiClientSecure *wifi_client_;
-#endif
+
 private:
+#ifdef ARDUINO_ARCH_ESP8266
+    std::string iot_hub_ssl_sha1_fingerprint_;
     uint8_t ssl_sha1_fingerprint_bytes_[20];
-    bool secure_ssl_{false};
+    BearSSL::WiFiClientSecure *wifi_client_;
+    bool set_fingerprint_bytes(const char *fingerprint_string);
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+    std::string baltimore_root_ca_pem_;
+    WiFiClientSecure *wifi_client_;
+#endif
+    
 };
 
 

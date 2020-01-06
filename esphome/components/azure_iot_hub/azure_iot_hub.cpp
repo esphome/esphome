@@ -11,7 +11,6 @@ void AzureIoTHub::dump_config() {
     ESP_LOGCONFIG(TAG, "  REST URL: %s", this->iot_hub_rest_url_.c_str());
     ESP_LOGCONFIG(TAG, "  SAS Token: %s", this->iot_hub_sas_token_.c_str());
     ESP_LOGCONFIG(TAG, "  SAS Token Expiration: %s", this->iot_hub_sas_token_expiration_string_.c_str());
-    ESP_LOGCONFIG(TAG, "  SSL SHA1 Fingerprint: %s", this->iot_hub_ssl_sha1_fingerprint_.empty() ? "<NULL>" : this->iot_hub_ssl_sha1_fingerprint_.c_str());
 }
 
 #ifdef ARDUINO_ARCH_ESP8266
@@ -27,7 +26,7 @@ static uint8_t htoi (unsigned char c)
 // based on codebase of ESP8266 arduino core. 
 // https://github.com/esp8266/Arduino/blob/master/libraries/ESP8266WiFi/src/WiFiClientSecureBearSSL.cpp
 // Preserving this helps reduce setup and handle CLANG ESP8266 dependency not having relevant overload
-bool setFingerprintBytes(const char *fingerprint_string, uint8_t* fingerprint_bytes) {
+bool AzureIoTHub::set_fingerprint_bytes(const char *fingerprint_string) {
     int idx = 0;
     uint8_t c, d;
 
@@ -41,7 +40,7 @@ bool setFingerprintBytes(const char *fingerprint_string, uint8_t* fingerprint_by
         if ((c>15) || (d>15)) {
         return false; // Error in one of the hex characters
         }
-        fingerprint_bytes[idx++] = (c<<4)|d;
+        this->ssl_sha1_fingerprint_bytes_[idx++] = (c<<4)|d;
 
         // Skip 0 or more spaces or colons
         while ( *fingerprint_string && (*fingerprint_string == ' ' || *fingerprint_string == ':' ) ) {
@@ -58,17 +57,10 @@ bool setFingerprintBytes(const char *fingerprint_string, uint8_t* fingerprint_by
 #endif
 
 void AzureIoTHub::setup() {
-    if (this->iot_hub_ssl_sha1_fingerprint_.length() >= 20) {
-        this->secure_ssl_ = setFingerprintBytes(this->iot_hub_ssl_sha1_fingerprint_.c_str(), this->ssl_sha1_fingerprint_bytes_);
-    }
-    else {
-        this->secure_ssl_ = false;
-    }
-
 #ifdef ARDUINO_ARCH_ESP8266
     this->wifi_client_ = new BearSSL::WiFiClientSecure();
-    
-    if (this->secure_ssl_) {
+    if (this->iot_hub_ssl_sha1_fingerprint_.length() >= 20) {
+        set_fingerprint_bytes(this->iot_hub_ssl_sha1_fingerprint_.c_str());
         this->wifi_client_->setFingerprint(this->ssl_sha1_fingerprint_bytes_);
     }
     else {
@@ -76,31 +68,35 @@ void AzureIoTHub::setup() {
     }
     this->wifi_client_->setBufferSizes(512, 512);
 #endif
+
+#ifdef ARDUINO_ARCH_ESP32
+    this->wifi_client_ = new WiFiClientSecure();
+    if (!this->baltimore_root_ca_pem_.empty()) {
+        this->wifi_client_->setCACert(this->baltimore_root_ca_pem_.c_str());
+    }
+#endif
 }
 
 
 void AzureIoTHub::set_iot_hub_device_id(const std::string &device_id) { this->iot_hub_device_id_ = device_id; }
 void AzureIoTHub::set_iot_hub_sas_token(const std::string &sas_token) { this->iot_hub_sas_token_ = sas_token; }
 void AzureIoTHub::set_iot_hub_rest_url(const std::string &rest_url) { this->iot_hub_rest_url_ = rest_url; }
-void AzureIoTHub::set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint) { this->iot_hub_ssl_sha1_fingerprint_ = fingerprint; }
 void AzureIoTHub::set_iot_hub_sas_token_expiration_string(const std::string &expirationString) { this->iot_hub_sas_token_expiration_string_ = expirationString; }
+
+#ifdef ARDUINO_ARCH_ESP8266
+void AzureIoTHub::set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint) { this->iot_hub_ssl_sha1_fingerprint_ = fingerprint; }
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+void AzureIoTHub::set_baltimore_root_ca_pem(const std::string &baltimore__root_ca_pem) { this->baltimore_root_ca_pem_ = baltimore__root_ca_pem; }
+#endif
 
 bool AzureIoTHub::post_json_to_iot_hub(const std::string json_payload) {
     String url{this->iot_hub_rest_url_.c_str()};
     
-#if ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
     this->http_client_.begin(*this->wifi_client_, url);
 #endif
-#endif
-#if ARDUINO_ARCH_ESP32
-    if (this->secure_ssl_) {
-        this->http_client_.begin(url, this->ssl_sha1_fingerprint_bytes_);
-    }
-    else {
-        this->http_client_.begin(url);
-    }
-#endif
+
     this->http_client_.addHeader(F("Authorization"), this->iot_hub_sas_token_.c_str());
     this->http_client_.addHeader(F("Content-Type"), F("application/json"));
     this->http_client_.addHeader(F("Content-Length"), String(json_payload.length()));

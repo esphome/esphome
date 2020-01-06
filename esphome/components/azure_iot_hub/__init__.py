@@ -7,7 +7,7 @@ from base64 import b64encode, b64decode
 from time import time, strptime, mktime
 from urllib import parse
 from hmac import HMAC
-import requests
+from urllib.request import urlopen
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID
@@ -24,37 +24,16 @@ CONF_DEVICE_KEY = 'device_key'
 # api version. Can normally be omitted by required for IoT Edge connection
 CONF_API_VERSION = 'api_version'
 
-# if set to false, *.azure-devices.net SSL certificate will not be validated
-CONF_VALIDATE_SSL = 'validate_ssl'
-
-# SSL certificate fingerprint to expect from *.azure-devices.net.
-# If not supplied and validate_ssl is true, it is auto generated
-CONF_SSL_SHA1_FINGERPRINT = 'ssl_sha1_fingerprint'
-
 # Expiration in seconds of generated token. Will be
 # reduced to SSL certificate expiration if validate_ssl is enabled. Default is -1 which sets it to 10 years or ssl
 # expiration (whichever is shorter)
 CONF_TOKEN_EXPIRATION_SECONDS = 'token_expiration_seconds'
 
-# If enabled (default yes), an empty message will
-# be sent to IoT hub to verify that device is valid
-CONF_VALIDATE_IOT_HUB_CONNECTION = 'validate_iot_hub_connection'
-
 
 def validate_config(value):
     out = value.copy()
-    if CONF_SSL_SHA1_FINGERPRINT in value:
-        # SSL fingerprint defined. Do basic check for format
-        out[CONF_SSL_SHA1_FINGERPRINT] = validate_fingerprint(value[CONF_SSL_SHA1_FINGERPRINT])
     out[CONF_HUB_NAME] = validate_hub_name(value[CONF_HUB_NAME])
     return out
-
-
-def validate_fingerprint(value):
-    value = cv.string(value)
-    if value != '' and re.match(r'^[0-9a-f]{40}$', value) is None:
-        raise cv.Invalid(CONF_SSL_SHA1_FINGERPRINT + ' must be a valid SHA1 hash (if supplied)')
-    return value
 
 
 def validate_hub_name(value):
@@ -71,10 +50,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Required(CONF_DEVICE_ID): cv.string,
     cv.Required(CONF_DEVICE_KEY): cv.string,
     cv.Optional(CONF_API_VERSION, default='2018-06-30'): cv.string,
-    cv.Optional(CONF_VALIDATE_SSL, default=True): cv.boolean,
-    cv.Optional(CONF_SSL_SHA1_FINGERPRINT, default=None): cv.string,
-    cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'): cv.Any(cv.int_, cv.one_of("AUTO", upper=True)),
-    cv.Optional(CONF_VALIDATE_IOT_HUB_CONNECTION, default=True): cv.boolean
+    cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'): cv.Any(cv.int_, cv.one_of("AUTO", upper=True))
 }).extend(cv.COMPONENT_SCHEMA), validate_config)
 
 
@@ -91,6 +67,14 @@ def generate_iot_hub_sas_token(uri, key, expiry_seconds):
     }
 
     return 'SharedAccessSignature ' + parse.urlencode(raw_token)
+
+
+def retrieve_baltimore_root_ca():
+    cert_url = 'https://dl.cacerts.digicert.com/BaltimoreCyberTrustRoot.crt.pem'
+    with urlopen(cert_url) as response:
+        charset = response.info().get_content_charset()
+        charset = charset if charset else 'utf-8'
+        return response.read().decode(charset)
 
 
 # based on example from https://www.solrac.nl/retrieve-thumbprint-ssltls-python/
@@ -124,13 +108,15 @@ def to_code(config):
 
     # figure out expiration of SSL certificate
     token_expiration = time() + 100 * 365 * 24 * 60 * 60
-    if config[CONF_VALIDATE_SSL]:
+    if CORE.is_esp8266:
         expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
             f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
-        cg.add(var.set_iot_hub_ssl_sha1_fingerprint(config[CONF_SSL_SHA1_FINGERPRINT] if config[CONF_SSL_SHA1_FINGERPRINT] else ssl_hash))
+        cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
         token_expiration = min(token_expiration, mktime(expiration))
-    else:
-        cg.add(var.set_iot_hub_ssl_sha1_fingerprint(''))
+    if CORE.is_esp32:
+        baltimore_root_ca_pem = retrieve_baltimore_root_ca()
+        # can't validate root CA expiration without pem library or open ssl. So just keep it as is
+        cg.add(var.set_baltimore_root_ca_pem(baltimore_root_ca_pem))
 
     if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
         token_expiration = min(token_expiration, time() + config[CONF_TOKEN_EXPIRATION_SECONDS])
