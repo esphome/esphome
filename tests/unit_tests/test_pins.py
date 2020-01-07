@@ -5,6 +5,8 @@ These tests cover the process of identifying information about pins, they do not
 check if the definition of MCUs and pins is correct.
 
 """
+import logging
+
 import pytest
 
 from esphome.config_validation import Invalid
@@ -121,3 +123,67 @@ class Test_translate_pin:
         actual = pins._translate_pin(value)
 
         assert actual == expected
+
+    @pytest.mark.parametrize("value", ({}, None))
+    def test_invalid_values(self, core_esp32, value):
+        with pytest.raises(Invalid, match="This variable only supports"):
+            pins._translate_pin(value)
+
+
+class Test_validate_gpio_pin:
+    def test_esp32_valid(self, core_esp32):
+        actual = pins.validate_gpio_pin("GPIO22")
+
+        assert actual == 22
+
+    @pytest.mark.parametrize("value, match", (
+            (-1, "ESP32: Invalid pin number: -1"),
+            (40, "ESP32: Invalid pin number: 40"),
+            (6, "This pin cannot be used on ESP32s and"),
+            (7, "This pin cannot be used on ESP32s and"),
+            (8, "This pin cannot be used on ESP32s and"),
+            (11, "This pin cannot be used on ESP32s and"),
+            (20, "The pin GPIO20 is not usable on ESP32s"),
+            (24, "The pin GPIO24 is not usable on ESP32s"),
+            (28, "The pin GPIO28 is not usable on ESP32s"),
+            (29, "The pin GPIO29 is not usable on ESP32s"),
+            (30, "The pin GPIO30 is not usable on ESP32s"),
+            (31, "The pin GPIO31 is not usable on ESP32s"),
+    ))
+    def test_esp32_invalid_pin(self, core_esp32, value, match):
+        with pytest.raises(Invalid, match=match):
+            pins.validate_gpio_pin(value)
+
+    @pytest.mark.parametrize("value", (9, 10))
+    def test_esp32_warning(self, core_esp32, caplog, value):
+        caplog.at_level(logging.WARNING)
+        pins.validate_gpio_pin(value)
+
+        assert len(caplog.messages) == 1
+        assert caplog.messages[0].endswith("flash interface in QUAD IO flash mode.")
+
+    def test_esp8266_valid(self, core_esp8266):
+        actual = pins.validate_gpio_pin("GPIO12")
+
+        assert actual == 12
+
+    @pytest.mark.parametrize("value, match", (
+            (-1, "ESP8266: Invalid pin number: -1"),
+            (18, "ESP8266: Invalid pin number: 18"),
+            (6, "This pin cannot be used on ESP8266s and"),
+            (7, "This pin cannot be used on ESP8266s and"),
+            (8, "This pin cannot be used on ESP8266s and"),
+            (11, "This pin cannot be used on ESP8266s and"),
+    ))
+    def test_esp8266_invalid_pin(self, core_esp8266, value, match):
+        with pytest.raises(Invalid, match=match):
+            pins.validate_gpio_pin(value)
+
+    @pytest.mark.parametrize("value", (9, 10))
+    def test_esp8266_warning(self, core_esp8266, caplog, value):
+        caplog.at_level(logging.WARNING)
+        pins.validate_gpio_pin(value)
+
+        assert len(caplog.messages) == 1
+        assert caplog.messages[0].endswith("flash interface in QUAD IO flash mode.")
+
