@@ -1,39 +1,36 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/automation.h"
-#include "esphome/components/climate/climate.h"
-#include "esphome/components/remote_base/remote_base.h"
-#include "esphome/components/remote_transmitter/remote_transmitter.h"
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/climate_ir/climate_ir.h"
 
 namespace esphome {
 namespace whirlpool {
 
-class WhirlpoolClimate : public climate::Climate, public Component {
+// Temperature
+const float WHIRLPOOL_TEMP_MAX = 30.0;
+const float WHIRLPOOL_TEMP_MIN = 16.0;
+
+class WhirlpoolClimate : public climate_ir::ClimateIR {
  public:
-  void setup() override;
-  void set_transmitter(remote_transmitter::RemoteTransmitterComponent *transmitter) {
-    this->transmitter_ = transmitter;
+  WhirlpoolClimate()
+      : climate_ir::ClimateIR(WHIRLPOOL_TEMP_MIN, WHIRLPOOL_TEMP_MAX, 1.0f, true, true,
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
+
+  void setup() override {
+    climate_ir::ClimateIR::setup();
+
+    this->powered_on_assumed_ = this->mode != climate::CLIMATE_MODE_OFF;
   }
-  void set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-  void set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-  void set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
 
  protected:
-  /// Override control to change settings of the climate device.
-  void control(const climate::ClimateCall &call) override;
-  /// Return the traits of this controller.
-  climate::ClimateTraits traits() override;
-
   /// Transmit via IR the state of this climate controller.
-  void transmit_state_();
+  void transmit_state() override;
+  /// Handle received IR Buffer
+  // bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  bool supports_cool_{true};
-  bool supports_heat_{true};
-
-  remote_transmitter::RemoteTransmitterComponent *transmitter_;
-  sensor::Sensor *sensor_{nullptr};
+  // used to track when to send the power toggle command
+  bool powered_on_assumed_;
 };
 
 }  // namespace whirlpool
