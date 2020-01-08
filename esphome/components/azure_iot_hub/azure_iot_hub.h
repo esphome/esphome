@@ -14,85 +14,77 @@
 #endif
 #include <WiFiClientSecure.h>
 
-
-
 #ifndef ESP32_BALTIMORE_ROOT_PEM
 // default for when codegen didn't define proper certificate
 #define ESP32_BALTIMORE_ROOT_PEM nullptr
 #endif
 
-
-
 namespace esphome {
 namespace azure_iot_hub {
 
-
 class AzureIoTHub : public Component, public Controller {
-public:
-    AzureIoTHub() { }
+ public:
+  AzureIoTHub() {}
 
-    void setup() override;
-    void dump_config() override;
+  void setup() override;
+  void dump_config() override;
 
-    std::string get_iot_hub_device_id() const;
+  std::string get_iot_hub_device_id() const;
 
-    void set_iot_hub_device_id(const std::string &device_id);
-    void set_iot_hub_sas_token(const std::string &sas_token);
-    void set_iot_hub_rest_url(const std::string &rest_url);
+  void set_iot_hub_device_id(const std::string &device_id);
+  void set_iot_hub_sas_token(const std::string &sas_token);
+  void set_iot_hub_rest_url(const std::string &rest_url);
 #ifdef ARDUINO_ARCH_ESP8266
-    // ESP32 doesn't currently support fingerprints in its SSL stack
-    void set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint);
+  // ESP32 doesn't currently support fingerprints in its SSL stack
+  void set_iot_hub_ssl_sha1_fingerprint(const std::string &fingerprint);
 #endif
-    // Expiration string is only there for debug purposes. dump_config will allow to identify when token is expired
-    void set_iot_hub_sas_token_expiration_string(const std::string &expirationString);
-    
+  // Expiration string is only there for debug purposes. dump_config will allow to identify when token is expired
+  void set_iot_hub_sas_token_expiration_string(const std::string &expirationString);
+
 #ifdef USE_BINARY_SENSOR
-    void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
+  void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
 #endif
 #ifdef USE_COVER
-    void on_cover_update(cover::Cover *obj) override;
+  void on_cover_update(cover::Cover *obj) override;
 #endif
 #ifdef USE_FAN
-    void on_fan_update(fan::FanState *obj) override;
+  void on_fan_update(fan::FanState *obj) override;
 #endif
 #ifdef USE_LIGHT
-    void on_light_update(light::LightState *obj) override;
+  void on_light_update(light::LightState *obj) override;
 #endif
 #ifdef USE_SENSOR
-    void on_sensor_update(sensor::Sensor *obj, float state) override;
+  void on_sensor_update(sensor::Sensor *obj, float state) override;
 #endif
 #ifdef USE_SWITCH
-    void on_switch_update(switch_::Switch *obj, bool state) override;
+  void on_switch_update(switch_::Switch *obj, bool state) override;
 #endif
 #ifdef USE_TEXT_SENSOR
-    void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
+  void on_text_sensor_update(text_sensor::TextSensor *obj, std::string state) override;
 #endif
 #ifdef USE_CLIMATE
-    void on_climate_update(climate::Climate *obj) override;
+  void on_climate_update(climate::Climate *obj) override;
 #endif
 
-protected:
-    std::string iot_hub_sas_token_;
-    std::string iot_hub_rest_url_;
-    std::string iot_hub_device_id_;
-    std::string iot_hub_sas_token_expiration_string_;
-    HTTPClient http_client_{};
-    bool post_json_to_iot_hub(const std::string json_payload);
-
-private:
+ protected:
+  std::string iot_hub_sas_token_;
+  std::string iot_hub_rest_url_;
+  std::string iot_hub_device_id_;
+  std::string iot_hub_sas_token_expiration_string_;
+  HTTPClient http_client_{};
+  bool post_json_to_iot_hub(const std::string json_payload);
 #ifdef ARDUINO_ARCH_ESP8266
-    uint8_t ssl_sha1_fingerprint_bytes_[20] {0};
-    bool ssl_fingerprint_supplied_{false};
-    BearSSL::WiFiClientSecure *wifi_client_;
-    bool set_fingerprint_bytes(const char *fingerprint_string);
+  uint8_t ssl_sha1_fingerprint_bytes_[20]{0};
+  bool ssl_fingerprint_supplied_{false};
+  BearSSL::WiFiClientSecure *wifi_client_;
+  bool set_fingerprint_bytes(const char *fingerprint_string);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
-    WiFiClientSecure *wifi_client_;
-    // Marking it const char will make the characters occupy flash space rather than memory
-    const char* baltimore_root_pem_ = ESP32_BALTIMORE_ROOT_PEM;
+  WiFiClientSecure *wifi_client_;
+  // Marking it const char will make the characters occupy flash space rather than memory
+  const char *baltimore_root_pem_ = ESP32_BALTIMORE_ROOT_PEM;
 #endif
 };
-
 
 }  // namespace azure_iot_hub
 }  // namespace esphome

@@ -1,15 +1,15 @@
-import re
-from datetime import datetime
-from ssl import create_default_context
-from socket import create_connection
-from hashlib import sha1, sha256, md5
 from base64 import b64encode, b64decode
+from datetime import datetime
+from hashlib import sha1, sha256
+from hmac import HMAC
+from socket import create_connection
+from ssl import create_default_context
 from time import time, strptime, mktime
 from urllib import parse
-from hmac import HMAC
 from urllib.request import urlopen
-import esphome.config_validation as cv
+
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 
@@ -32,7 +32,8 @@ CONF_API_VERSION = 'api_version'
 CONF_INSECURE_SSL = 'insecure_ssl'
 
 # Expiration in seconds of generated token. Will be
-# reduced to SSL certificate expiration if validate_ssl is enabled. Default is -1 which sets it to 10 years or ssl
+# reduced to SSL certificate expiration if insecure_ssl is disabled.
+# Default is AUTO which sets it to 100 years or ssl
 # expiration (whichever is shorter)
 CONF_TOKEN_EXPIRATION_SECONDS = 'token_expiration_seconds'
 
@@ -59,7 +60,8 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Required(CONF_DEVICE_KEY): cv.string,
     cv.Optional(CONF_API_VERSION, default='2018-06-30'): cv.string,
     cv.Optional(CONF_INSECURE_SSL, default=False): cv.boolean,
-    cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'): cv.Any(cv.int_, cv.one_of("AUTO", upper=True))
+    cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'):
+        cv.Any(cv.int_, cv.one_of("AUTO", upper=True))
 }).extend(cv.COMPONENT_SCHEMA), validate_config)
 
 
@@ -92,14 +94,13 @@ def retrieve_ssl_certificate_fingerprint_and_expiration(host_name, port):
     with create_connection((host_name, port)) as sock:
         sock.settimeout(1)
         with context.wrap_socket(sock, server_hostname=host_name) as wrappedSocket:
+            # pylint: disable=no-member
             ssl_date_fmt = r'%b %d %H:%M:%S %Y %Z'
             der_cert_bin = wrappedSocket.getpeercert(True)
             expiration = strptime(wrappedSocket.getpeercert()['notAfter'], ssl_date_fmt)
 
             # Thumbprint
-            thumb_md5 = md5(der_cert_bin).hexdigest()
             thumb_sha1 = sha1(der_cert_bin).hexdigest()
-            thumb_sha256 = sha256(der_cert_bin).hexdigest()
 
             return expiration, thumb_sha1
 
@@ -109,9 +110,10 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
 
-    iot_hub_uri = f'https://{config[CONF_HUB_NAME].strip()}.azure-devices.net/devices/{config[CONF_DEVICE_ID].strip()}/messages/events '
+    iot_hub_uri = f'https://{config[CONF_HUB_NAME].strip()}.azure-devices.net' \
+                  + f'/devices/{config[CONF_DEVICE_ID].strip()}/messages/events'
     if config[CONF_API_VERSION]:
-        iot_hub_uri = iot_hub_uri.strip() + f'?api-version={config[CONF_API_VERSION].strip()}'
+        iot_hub_uri = iot_hub_uri + f'?api-version={config[CONF_API_VERSION].strip()}'
 
     cg.add(var.set_iot_hub_rest_url(iot_hub_uri))
     cg.add(var.set_iot_hub_device_id(config[CONF_DEVICE_ID]))
@@ -128,7 +130,7 @@ def to_code(config):
         if CORE.is_esp32:
             baltimore_root_ca_pem = retrieve_baltimore_root_ca()
             # can't validate root CA expiration without pem library or open ssl. So just keep it as is
-            if (baltimore_root_ca_pem): 
+            if baltimore_root_ca_pem:
                 cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
 
     if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
@@ -143,6 +145,3 @@ def to_code(config):
     # put string representation of expiration for debugging
     dt = datetime.fromtimestamp(token_expiration)
     cg.add(var.set_iot_hub_sas_token_expiration_string(dt.isoformat()))
-
-
-
