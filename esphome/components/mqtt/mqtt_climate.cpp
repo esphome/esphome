@@ -30,6 +30,10 @@ void MQTTClimateComponent::send_discovery(JsonObject &root, mqtt::SendDiscoveryC
     modes.add("cool");
   if (traits.supports_mode(CLIMATE_MODE_HEAT))
     modes.add("heat");
+  if (traits.supports_mode(CLIMATE_MODE_FAN_ONLY))
+    modes.add("fan_only");
+  if (traits.supports_mode(CLIMATE_MODE_DRY))
+    modes.add("dry");
 
   if (traits.get_supports_two_point_target_temperature()) {
     // temperature_low_command_topic
@@ -154,6 +158,12 @@ bool MQTTClimateComponent::publish_state_() {
       break;
     case CLIMATE_MODE_HEAT:
       mode_s = "heat";
+      break;
+    case CLIMATE_MODE_FAN_ONLY:
+      mode_s = "fan_only";
+      break;
+    case CLIMATE_MODE_DRY:
+      mode_s = "dry";
       break;
   }
   bool success = true;

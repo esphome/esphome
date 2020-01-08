@@ -1,5 +1,4 @@
 # pylint: disable=wrong-import-position
-from __future__ import print_function
 
 import codecs
 import collections
@@ -29,7 +28,6 @@ import tornado.websocket
 from esphome import const, util
 from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
-from esphome.py_compat import IS_PY2, decode_text
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote
@@ -42,23 +40,23 @@ from esphome.zeroconf import DashboardStatus, Zeroconf
 _LOGGER = logging.getLogger(__name__)
 
 
-class DashboardSettings(object):
+class DashboardSettings:
     def __init__(self):
         self.config_dir = ''
         self.password_digest = ''
+        self.username = ''
         self.using_password = False
         self.on_hassio = False
         self.cookie_secret = None
 
     def parse_args(self, args):
         self.on_hassio = args.hassio
+        password = args.password or os.getenv('PASSWORD', '')
         if not self.on_hassio:
-            self.using_password = bool(args.password)
+            self.username = args.username or os.getenv('USERNAME', '')
+            self.using_password = bool(password)
         if self.using_password:
-            if IS_PY2:
-                self.password_digest = hmac.new(args.password).digest()
-            else:
-                self.password_digest = hmac.new(args.password.encode()).digest()
+            self.password_digest = hmac.new(password.encode()).digest()
         self.config_dir = args.configuration[0]
 
     @property
@@ -79,15 +77,14 @@ class DashboardSettings(object):
     def using_auth(self):
         return self.using_password or self.using_hassio_auth
 
-    def check_password(self, password):
+    def check_password(self, username, password):
         if not self.using_auth:
             return True
+        if username != self.username:
+            return False
 
-        if IS_PY2:
-            password = hmac.new(password).digest()
-        else:
-            password = hmac.new(password.encode()).digest()
-        return hmac.compare_digest(self.password_digest, password)
+        password = hmac.new(password.encode()).digest()
+        return username == self.username and hmac.compare_digest(self.password_digest, password)
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
@@ -98,10 +95,7 @@ class DashboardSettings(object):
 
 settings = DashboardSettings()
 
-if IS_PY2:
-    cookie_authenticated_yes = 'yes'
-else:
-    cookie_authenticated_yes = b'yes'
+cookie_authenticated_yes = b'yes'
 
 
 def template_args():
@@ -179,7 +173,7 @@ def websocket_method(name):
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
-        super(EsphomeCommandWebSocket, self).__init__(application, request, **kwargs)
+        super().__init__(application, request, **kwargs)
         self._proc = None
         self._is_closed = False
 
@@ -202,7 +196,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             # spawn can only be called once
             return
         command = self.build_command(json_message)
-        _LOGGER.info(u"Running command '%s'", ' '.join(shlex_quote(x) for x in command))
+        _LOGGER.info("Running command '%s'", ' '.join(shlex_quote(x) for x in command))
         self._proc = tornado.process.Subprocess(command,
                                                 stdout=tornado.process.Subprocess.STREAM,
                                                 stderr=subprocess.STDOUT,
@@ -225,10 +219,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
     @tornado.gen.coroutine
     def _redirect_stdout(self):
-        if IS_PY2:
-            reg = '[\n\r]'
-        else:
-            reg = b'[\n\r]'
+        reg = b'[\n\r]'
 
         while True:
             try:
@@ -334,8 +325,8 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: u''.join(decode_text(x) for x in v) for k, v in self.request.arguments.items()}
-        destination = settings.rel_path(kwargs['name'] + u'.yaml')
+        kwargs = {k: ''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
+        destination = settings.rel_path(kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('./?begin=True')
 
@@ -353,8 +344,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
         path = storage_json.firmware_bin_path
         self.set_header('Content-Type', 'application/octet-stream')
-        filename = '{}.bin'.format(storage_json.name)
-        self.set_header("Content-Disposition", 'attachment; filename="{}"'.format(filename))
+        filename = f'{storage_json.name}.bin'
+        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         with open(path, 'rb') as f:
             while True:
                 data = f.read(16384)
@@ -369,7 +360,7 @@ def _list_dashboard_entries():
     return [DashboardEntry(file) for file in files]
 
 
-class DashboardEntry(object):
+class DashboardEntry:
     def __init__(self, path):
         self.path = path
         self._storage = None
@@ -397,6 +388,12 @@ class DashboardEntry(object):
         if self.storage is None:
             return self.filename[:-len('.yaml')]
         return self.storage.name
+
+    @property
+    def comment(self):
+        if self.storage is None:
+            return None
+        return self.storage.comment
 
     @property
     def esp_platform(self):
@@ -530,9 +527,12 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
-        with open(settings.rel_path(configuration), 'r') as f:
-            content = f.read()
+        filename = settings.rel_path(configuration)
+        content = ''
+        if os.path.isfile(filename):
+            # pylint: disable=no-value-for-parameter
+            with open(filename, 'r') as f:
+                content = f.read()
         self.write(content)
 
     @authenticated
@@ -582,16 +582,14 @@ PING_REQUEST = threading.Event()
 
 class LoginHandler(BaseHandler):
     def get(self):
-        if settings.using_hassio_auth:
-            self.render_hassio_login()
-            return
-        self.write('<html><body><form action="./login" method="post">'
-                   'Password: <input type="password" name="password">'
-                   '<input type="submit" value="Sign in">'
-                   '</form></body></html>')
+        if is_authenticated(self):
+            self.redirect('/')
+        else:
+            self.render_login_page()
 
-    def render_hassio_login(self, error=None):
-        self.render("templates/login.html", error=error, **template_args())
+    def render_login_page(self, error=None):
+        self.render("templates/login.html", error=error, hassio=settings.using_hassio_auth,
+                    has_username=bool(settings.username), **template_args())
 
     def post_hassio_login(self):
         import requests
@@ -600,8 +598,8 @@ class LoginHandler(BaseHandler):
             'X-HASSIO-KEY': os.getenv('HASSIO_TOKEN'),
         }
         data = {
-            'username': str(self.get_argument('username', '')),
-            'password': str(self.get_argument('password', ''))
+            'username': self.get_argument('username', ''),
+            'password': self.get_argument('password', '')
         }
         try:
             req = requests.post('http://hassio/auth', headers=headers, data=data)
@@ -612,20 +610,34 @@ class LoginHandler(BaseHandler):
         except Exception as err:  # pylint: disable=broad-except
             _LOGGER.warning("Error during Hass.io auth request: %s", err)
             self.set_status(500)
-            self.render_hassio_login(error="Internal server error")
+            self.render_login_page(error="Internal server error")
             return
         self.set_status(401)
-        self.render_hassio_login(error="Invalid username or password")
+        self.render_login_page(error="Invalid username or password")
+
+    def post_native_login(self):
+        username = self.get_argument("username", '')
+        password = self.get_argument("password", '')
+        if settings.check_password(username, password):
+            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
+            self.redirect("/")
+            return
+        error_str = "Invalid username or password" if settings.username else "Invalid password"
+        self.set_status(401)
+        self.render_login_page(error=error_str)
 
     def post(self):
         if settings.using_hassio_auth:
             self.post_hassio_login()
-            return
+        else:
+            self.post_native_login()
 
-        password = str(self.get_argument("password", ''))
-        if settings.check_password(password):
-            self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-        self.redirect("/")
+
+class LogoutHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        self.clear_cookie("authenticated")
+        self.redirect('./login')
 
 
 _STATIC_FILE_HASHES = {}
@@ -640,7 +652,7 @@ def get_static_file_url(name):
         with open(path, 'rb') as f_handle:
             hash_ = hashlib.md5(f_handle.read()).hexdigest()[:8]
         _STATIC_FILE_HASHES[name] = hash_
-    return u'./static/{}?hash={}'.format(name, hash_)
+    return f'./static/{name}?hash={hash_}'
 
 
 def make_app(debug=False):
@@ -678,6 +690,7 @@ def make_app(debug=False):
     app = tornado.web.Application([
         (rel + "", MainRequestHandler),
         (rel + "login", LoginHandler),
+        (rel + "logout", LogoutHandler),
         (rel + "logs", EsphomeLogsHandler),
         (rel + "upload", EsphomeUploadHandler),
         (rel + "compile", EsphomeCompileHandler),
@@ -730,7 +743,7 @@ def start_web_server(args):
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open('localhost:{}'.format(args.port))
+            webbrowser.open(f'localhost:{args.port}')
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()

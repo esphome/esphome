@@ -12,8 +12,6 @@ import time
 
 import ifaddr
 
-from esphome.py_compat import indexbytes, text_type
-
 log = logging.getLogger(__name__)
 
 # Some timing constants
@@ -83,7 +81,7 @@ class IncomingDecodeError(Error):
 
 
 # pylint: disable=no-init
-class QuietLogger(object):
+class QuietLogger:
     _seen_logs = {}
 
     @classmethod
@@ -112,7 +110,7 @@ class QuietLogger(object):
         logger(*args)
 
 
-class DNSEntry(object):
+class DNSEntry:
     """A DNS entry"""
 
     def __init__(self, name, type_, class_):
@@ -281,7 +279,7 @@ class DNSIncoming(QuietLogger):
 
     def read_utf(self, offset, length):
         """Reads a UTF-8 string of a given length from the packet"""
-        return text_type(self.data[offset:offset + length], 'utf-8', 'replace')
+        return str(self.data[offset:offset + length], 'utf-8', 'replace')
 
     def read_name(self):
         """Reads a domain name from the packet"""
@@ -291,7 +289,7 @@ class DNSIncoming(QuietLogger):
         first = off
 
         while True:
-            length = indexbytes(self.data, off)
+            length = self.data[off]
             off += 1
             if length == 0:
                 break
@@ -302,13 +300,13 @@ class DNSIncoming(QuietLogger):
             elif t == 0xC0:
                 if next_ < 0:
                     next_ = off + 1
-                off = ((length & 0x3F) << 8) | indexbytes(self.data, off)
+                off = ((length & 0x3F) << 8) | self.data[off]
                 if off >= first:
                     raise IncomingDecodeError(
-                        "Bad domain name (circular) at %s" % (off,))
+                        f"Bad domain name (circular) at {off}")
                 first = off
             else:
-                raise IncomingDecodeError("Bad domain name at %s" % (off,))
+                raise IncomingDecodeError(f"Bad domain name at {off}")
 
         if next_ >= 0:
             self.offset = next_
@@ -318,7 +316,7 @@ class DNSIncoming(QuietLogger):
         return result
 
 
-class DNSOutgoing(object):
+class DNSOutgoing:
     """Object representation of an outgoing packet"""
 
     def __init__(self, flags):
@@ -461,7 +459,7 @@ class Engine(threading.Thread):
                             if reader:
                                 reader.handle_read(socket_)
 
-                except (select.error, socket.error) as e:
+                except OSError as e:
                     # If the socket was closed by another thread, during
                     # shutdown, ignore it and exit
                     if e.args[0] != socket.EBADF or not self.zc.done:
@@ -500,7 +498,7 @@ class Listener(QuietLogger):
             self.zc.handle_response(msg)
 
 
-class RecordUpdateListener(object):
+class RecordUpdateListener:
     def update_record(self, zc, now, record):
         raise NotImplementedError()
 
@@ -578,7 +576,7 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
         self.on_update({key: self.host_status(key) for key in self.key_to_host})
 
     def request_query(self, hosts):
-        self.query_hosts = set(host for host in hosts.values())
+        self.query_hosts = set(hosts.values())
         self.key_to_host = hosts
         self.query_event.set()
 
@@ -605,12 +603,12 @@ class DashboardStatus(RecordUpdateListener, threading.Thread):
 
 
 def get_all_addresses():
-    return list(set(
+    return list({
         addr.ip
         for iface in ifaddr.get_adapters()
         for addr in iface.ips
         if addr.is_IPv4 and addr.network_prefix != 32  # Host only netmask 255.255.255.255
-    ))
+    })
 
 
 def new_socket():
@@ -631,7 +629,7 @@ def new_socket():
     else:
         try:
             s.setsockopt(socket.SOL_SOCKET, reuseport, 1)
-        except (OSError, socket.error) as err:
+        except OSError as err:
             # OSError on python 3, socket.error on python 2
             if err.errno != errno.ENOPROTOOPT:
                 raise
@@ -662,7 +660,7 @@ class Zeroconf(QuietLogger):
                 _value = socket.inet_aton(_MDNS_ADDR) + socket.inet_aton(i)
                 self._listen_socket.setsockopt(
                     socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, _value)
-            except socket.error as e:
+            except OSError as e:
                 _errno = e.args[0]
                 if _errno == errno.EADDRINUSE:
                     log.info(

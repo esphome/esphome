@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import pins, automation
 from esphome.components import sensor
 from esphome.const import CONF_ID, CONF_RESOLUTION, CONF_MIN_VALUE, CONF_MAX_VALUE, UNIT_STEPS, \
-    ICON_ROTATE_RIGHT
+    ICON_ROTATE_RIGHT, CONF_VALUE, CONF_PIN_A, CONF_PIN_B
 
 rotary_encoder_ns = cg.esphome_ns.namespace('rotary_encoder')
 RotaryEncoderResolution = rotary_encoder_ns.enum('RotaryEncoderResolution')
@@ -13,11 +13,11 @@ RESOLUTIONS = {
     4: RotaryEncoderResolution.ROTARY_ENCODER_4_PULSES_PER_CYCLE,
 }
 
-CONF_PIN_A = 'pin_a'
-CONF_PIN_B = 'pin_b'
 CONF_PIN_RESET = 'pin_reset'
 
 RotaryEncoderSensor = rotary_encoder_ns.class_('RotaryEncoderSensor', sensor.Sensor, cg.Component)
+RotaryEncoderSetValueAction = rotary_encoder_ns.class_('RotaryEncoderSetValueAction',
+                                                       automation.Action)
 
 
 def validate_min_max_value(config):
@@ -60,3 +60,16 @@ def to_code(config):
         cg.add(var.set_min_value(config[CONF_MIN_VALUE]))
     if CONF_MAX_VALUE in config:
         cg.add(var.set_max_value(config[CONF_MAX_VALUE]))
+
+
+@automation.register_action('sensor.rotary_encoder.set_value', RotaryEncoderSetValueAction,
+                            cv.Schema({
+                                cv.Required(CONF_ID): cv.use_id(sensor.Sensor),
+                                cv.Required(CONF_VALUE): cv.templatable(cv.int_),
+                            }))
+def sensor_template_publish_to_code(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = yield cg.templatable(config[CONF_VALUE], args, int)
+    cg.add(var.set_value(template_))
+    yield var

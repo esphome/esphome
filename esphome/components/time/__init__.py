@@ -14,7 +14,6 @@ from esphome.const import CONF_CRON, CONF_DAYS_OF_MONTH, CONF_DAYS_OF_WEEK, CONF
     CONF_MINUTES, CONF_MONTHS, CONF_ON_TIME, CONF_SECONDS, CONF_TIMEZONE, CONF_TRIGGER_ID, \
     CONF_AT, CONF_SECOND, CONF_HOUR, CONF_MINUTE
 from esphome.core import coroutine, coroutine_with_priority
-from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -33,10 +32,10 @@ def _tz_timedelta(td):
     if offset_hour == 0 and offset_minute == 0 and offset_second == 0:
         return '0'
     if offset_minute == 0 and offset_second == 0:
-        return '{}'.format(offset_hour)
+        return f'{offset_hour}'
     if offset_second == 0:
-        return '{}:{}'.format(offset_hour, offset_minute)
-    return '{}:{}:{}'.format(offset_hour, offset_minute, offset_second)
+        return f'{offset_hour}:{offset_minute}'
+    return f'{offset_hour}:{offset_minute}:{offset_second}'
 
 
 # https://stackoverflow.com/a/16804556/8924614
@@ -133,7 +132,7 @@ def detect_tz():
 
 def _parse_cron_int(value, special_mapping, message):
     special_mapping = special_mapping or {}
-    if isinstance(value, string_types) and value in special_mapping:
+    if isinstance(value, str) and value in special_mapping:
         return special_mapping[value]
     try:
         return int(value)
@@ -143,41 +142,40 @@ def _parse_cron_int(value, special_mapping, message):
 
 def _parse_cron_part(part, min_value, max_value, special_mapping):
     if part in ('*', '?'):
-        return set(x for x in range(min_value, max_value + 1))
+        return set(range(min_value, max_value + 1))
     if '/' in part:
         data = part.split('/')
         if len(data) > 2:
-            raise cv.Invalid(u"Can't have more than two '/' in one time expression, got {}"
+            raise cv.Invalid("Can't have more than two '/' in one time expression, got {}"
                              .format(part))
         offset, repeat = data
         offset_n = 0
         if offset:
             offset_n = _parse_cron_int(offset, special_mapping,
-                                       u"Offset for '/' time expression must be an integer, got {}")
+                                       "Offset for '/' time expression must be an integer, got {}")
 
         try:
             repeat_n = int(repeat)
         except ValueError:
-            raise cv.Invalid(u"Repeat for '/' time expression must be an integer, got {}"
+            raise cv.Invalid("Repeat for '/' time expression must be an integer, got {}"
                              .format(repeat))
-        return set(x for x in range(offset_n, max_value + 1, repeat_n))
+        return set(range(offset_n, max_value + 1, repeat_n))
     if '-' in part:
         data = part.split('-')
         if len(data) > 2:
-            raise cv.Invalid(u"Can't have more than two '-' in range time expression '{}'"
+            raise cv.Invalid("Can't have more than two '-' in range time expression '{}'"
                              .format(part))
         begin, end = data
-        begin_n = _parse_cron_int(begin, special_mapping, u"Number for time range must be integer, "
-                                                          u"got {}")
-        end_n = _parse_cron_int(end, special_mapping, u"Number for time range must be integer, "
-                                                      u"got {}")
+        begin_n = _parse_cron_int(begin, special_mapping, "Number for time range must be integer, "
+                                                          "got {}")
+        end_n = _parse_cron_int(end, special_mapping, "Number for time range must be integer, "
+                                                      "got {}")
         if end_n < begin_n:
-            return set(x for x in range(end_n, max_value + 1)) | \
-                   set(x for x in range(min_value, begin_n + 1))
-        return set(x for x in range(begin_n, end_n + 1))
+            return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
+        return set(range(begin_n, end_n + 1))
 
-    return {_parse_cron_int(part, special_mapping, u"Number for time expression must be an "
-                                                   u"integer, got {}")}
+    return {_parse_cron_int(part, special_mapping, "Number for time expression must be an "
+                                                   "integer, got {}")}
 
 
 def cron_expression_validator(name, min_value, max_value, special_mapping=None):
@@ -249,7 +247,7 @@ def validate_cron_keys(value):
     if CONF_CRON in value:
         for key in value.keys():
             if key in CRON_KEYS:
-                raise cv.Invalid("Cannot use option {} when cron: is specified.".format(key))
+                raise cv.Invalid(f"Cannot use option {key} when cron: is specified.")
         if CONF_AT in value:
             raise cv.Invalid("Cannot use option at with cron!")
         cron_ = value[CONF_CRON]
@@ -259,7 +257,7 @@ def validate_cron_keys(value):
     if CONF_AT in value:
         for key in value.keys():
             if key in CRON_KEYS:
-                raise cv.Invalid("Cannot use option {} when at: is specified.".format(key))
+                raise cv.Invalid(f"Cannot use option {key} when at: is specified.")
         at_ = value[CONF_AT]
         value = {x: value[x] for x in value if x != CONF_AT}
         value.update(at_)
@@ -301,17 +299,17 @@ def setup_time_core_(time_var, config):
     for conf in config.get(CONF_ON_TIME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], time_var)
 
-        seconds = conf.get(CONF_SECONDS, [x for x in range(0, 61)])
+        seconds = conf.get(CONF_SECONDS, list(range(0, 61)))
         cg.add(trigger.add_seconds(seconds))
-        minutes = conf.get(CONF_MINUTES, [x for x in range(0, 60)])
+        minutes = conf.get(CONF_MINUTES, list(range(0, 60)))
         cg.add(trigger.add_minutes(minutes))
-        hours = conf.get(CONF_HOURS, [x for x in range(0, 24)])
+        hours = conf.get(CONF_HOURS, list(range(0, 24)))
         cg.add(trigger.add_hours(hours))
-        days_of_month = conf.get(CONF_DAYS_OF_MONTH, [x for x in range(1, 32)])
+        days_of_month = conf.get(CONF_DAYS_OF_MONTH, list(range(1, 32)))
         cg.add(trigger.add_days_of_month(days_of_month))
-        months = conf.get(CONF_MONTHS, [x for x in range(1, 13)])
+        months = conf.get(CONF_MONTHS, list(range(1, 13)))
         cg.add(trigger.add_months(months))
-        days_of_week = conf.get(CONF_DAYS_OF_WEEK, [x for x in range(1, 8)])
+        days_of_week = conf.get(CONF_DAYS_OF_WEEK, list(range(1, 8)))
         cg.add(trigger.add_days_of_week(days_of_week))
 
         yield cg.register_component(trigger, conf)

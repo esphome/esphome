@@ -45,9 +45,9 @@ class WaveshareEPaper : public PollingComponent,
   void reset_() {
     if (this->reset_pin_ != nullptr) {
       this->reset_pin_->digital_write(false);
-      delay(200);
+      delay(200);  // NOLINT
       this->reset_pin_->digital_write(true);
-      delay(200);
+      delay(200);  // NOLINT
     }
   }
 
@@ -67,6 +67,7 @@ enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_1_54_IN = 0,
   WAVESHARE_EPAPER_2_13_IN,
   WAVESHARE_EPAPER_2_9_IN,
+  TTGO_EPAPER_2_13_IN,
 };
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
@@ -88,7 +89,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void set_full_update_every(uint32_t full_update_every);
 
  protected:
-  void write_lut_(const uint8_t *lut);
+  void write_lut_(const uint8_t *lut, uint8_t size);
 
   int get_width_internal() override;
 
@@ -106,6 +107,26 @@ enum WaveshareEPaperTypeBModel {
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper2P9InB : public WaveshareEPaper {
  public:
   void initialize() override;
 
@@ -143,7 +164,7 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
     // COMMAND PANEL SETTING
     this->command(0x00);
 
-    delay(100);
+    delay(100);  // NOLINT
 
     // COMMAND POWER SETTING
     this->command(0x01);
@@ -152,7 +173,7 @@ class WaveshareEPaper4P2In : public WaveshareEPaper {
     this->data(0x00);
     this->data(0x00);
     this->data(0x00);
-    delay(100);
+    delay(100);  // NOLINT
 
     // COMMAND POWER OFF
     this->command(0x02);

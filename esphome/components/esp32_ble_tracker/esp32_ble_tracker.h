@@ -25,17 +25,26 @@ class ESPBTUUID {
 
   bool contains(uint8_t data1, uint8_t data2) const;
 
+  esp_bt_uuid_t get_uuid();
+
   std::string to_string();
 
  protected:
   esp_bt_uuid_t uuid_;
 };
 
+using adv_data_t = std::vector<uint8_t>;
+
+struct ServiceData {
+  ESPBTUUID uuid;
+  adv_data_t data;
+};
+
 class ESPBLEiBeacon {
  public:
   ESPBLEiBeacon() { memset(&this->beacon_data_, 0, sizeof(this->beacon_data_)); }
   ESPBLEiBeacon(const uint8_t *data);
-  static optional<ESPBLEiBeacon> from_manufacturer_data(const std::string &data);
+  static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
 
   uint16_t get_major() { return reverse_bits_16(this->beacon_data_.major); }
   uint16_t get_minor() { return reverse_bits_16(this->beacon_data_.minor); }
@@ -44,7 +53,6 @@ class ESPBLEiBeacon {
 
  protected:
   struct {
-    uint16_t manufacturer_id;
     uint8_t sub_type;
     uint8_t proximity_uuid[16];
     uint16_t major;
@@ -61,18 +69,33 @@ class ESPBTDevice {
 
   uint64_t address_uint64() const;
 
-  esp_ble_addr_type_t get_address_type() const;
-  int get_rssi() const;
-  const std::string &get_name() const;
-  const optional<int8_t> &get_tx_power() const;
-  const optional<uint16_t> &get_appearance() const;
-  const optional<uint8_t> &get_ad_flag() const;
-  const std::vector<ESPBTUUID> &get_service_uuids() const;
-  const std::string &get_manufacturer_data() const;
-  const std::string &get_service_data() const;
-  const optional<ESPBTUUID> &get_service_data_uuid() const;
-  const optional<ESPBLEiBeacon> get_ibeacon() const {
-    return ESPBLEiBeacon::from_manufacturer_data(this->manufacturer_data_);
+  esp_ble_addr_type_t get_address_type() const { return this->address_type_; }
+  int get_rssi() const { return rssi_; }
+  const std::string &get_name() const { return this->name_; }
+
+  ESPDEPRECATED("Use get_tx_powers() instead")
+  optional<int8_t> get_tx_power() const {
+    if (this->tx_powers_.empty())
+      return {};
+    return this->tx_powers_[0];
+  }
+  const std::vector<int8_t> &get_tx_powers() const { return tx_powers_; }
+
+  const optional<uint16_t> &get_appearance() const { return appearance_; }
+  const optional<uint8_t> &get_ad_flag() const { return ad_flag_; }
+  const std::vector<ESPBTUUID> &get_service_uuids() const { return service_uuids_; }
+
+  const std::vector<ServiceData> &get_manufacturer_datas() const { return manufacturer_datas_; }
+
+  const std::vector<ServiceData> &get_service_datas() const { return service_datas_; }
+
+  optional<ESPBLEiBeacon> get_ibeacon() const {
+    for (auto &it : this->manufacturer_datas_) {
+      auto res = ESPBLEiBeacon::from_manufacturer_data(it);
+      if (res.has_value())
+        return *res;
+    }
+    return {};
   }
 
  protected:
@@ -84,13 +107,12 @@ class ESPBTDevice {
   esp_ble_addr_type_t address_type_{BLE_ADDR_TYPE_PUBLIC};
   int rssi_{0};
   std::string name_{};
-  optional<int8_t> tx_power_{};
+  std::vector<int8_t> tx_powers_{};
   optional<uint16_t> appearance_{};
   optional<uint8_t> ad_flag_{};
   std::vector<ESPBTUUID> service_uuids_;
-  std::string manufacturer_data_{};
-  std::string service_data_{};
-  optional<ESPBTUUID> service_data_uuid_{};
+  std::vector<ServiceData> manufacturer_datas_{};
+  std::vector<ServiceData> service_datas_{};
 };
 
 class ESP32BLETracker;
@@ -107,7 +129,10 @@ class ESPBTDeviceListener {
 
 class ESP32BLETracker : public Component {
  public:
-  void set_scan_interval(uint32_t scan_interval);
+  void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
+  void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
+  void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
+  void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
@@ -142,7 +167,10 @@ class ESP32BLETracker : public Component {
   /// A structure holding the ESP BLE scan parameters.
   esp_ble_scan_params_t scan_params_;
   /// The interval in seconds to perform scans.
-  uint32_t scan_interval_{300};
+  uint32_t scan_duration_;
+  uint32_t scan_interval_;
+  uint32_t scan_window_;
+  bool scan_active_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};

@@ -21,6 +21,7 @@ class BangBangClimate : public climate::Climate, public Component {
  public:
   BangBangClimate();
   void setup() override;
+  void dump_config() override;
 
   void set_sensor(sensor::Sensor *sensor);
   Trigger<> *get_idle_trigger() const;
@@ -43,7 +44,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void compute_state_();
 
   /// Switch the climate device to the given climate mode.
-  void switch_to_mode_(climate::ClimateMode mode);
+  void switch_to_action_(climate::ClimateAction action);
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
@@ -74,11 +75,6 @@ class BangBangClimate : public climate::Climate, public Component {
    * This is so that the previous trigger can be stopped before enabling a new one.
    */
   Trigger<> *prev_trigger_{nullptr};
-  /** The climate mode that is currently active - for a `.mode = AUTO` this will
-   * contain the actual mode the device
-   *
-   */
-  climate::ClimateMode internal_mode_{climate::CLIMATE_MODE_OFF};
 
   BangBangClimateTargetTempConfig normal_config_{};
   bool supports_away_{false};

@@ -1,16 +1,15 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
     CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
 
 
 def validate_pin_number(value):
-    valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 39]
+    valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
     if value[CONF_NUMBER] not in valid_pins:
-        raise cv.Invalid(u"Only pins {} support wakeup"
-                         u"".format(', '.join(str(x) for x in valid_pins)))
+        raise cv.Invalid("Only pins {} support wakeup"
+                         "".format(', '.join(str(x) for x in valid_pins)))
     return value
 
 
@@ -85,7 +84,7 @@ def to_code(config):
     cg.add_define('USE_DEEP_SLEEP')
 
 
-DEEP_SLEEP_ACTION_SCHEMA = maybe_simple_id({
+DEEP_SLEEP_ACTION_SCHEMA = automation.maybe_simple_id({
     cv.GenerateID(): cv.use_id(DeepSleepComponent),
 })
 

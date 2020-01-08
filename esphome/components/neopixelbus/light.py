@@ -74,11 +74,15 @@ def validate_method_pin(value):
         method_pins['BIT_BANG'] = list(range(0, 16))
     elif CORE.is_esp32:
         method_pins['BIT_BANG'] = list(range(0, 32))
-    pins_ = method_pins[method]
+    pins_ = method_pins.get(method)
+    if pins_ is None:
+        # all pins allowed for this method
+        return value
+
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
             raise cv.Invalid("Method {} only supports pin(s) {}".format(
-                method, ', '.join('GPIO{}'.format(x) for x in pins_)
+                method, ', '.join(f'GPIO{x}' for x in pins_)
             ), path=[CONF_METHOD])
     return value
 
@@ -169,4 +173,4 @@ def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library('NeoPixelBus', '2.5.0')
+    cg.add_library('NeoPixelBus-esphome', '2.5.2')

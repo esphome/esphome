@@ -10,22 +10,21 @@ from esphome.core import (  # noqa
     TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
     EnumValue)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
-from esphome.py_compat import integer_types, string_types, text_type
 from esphome.util import OrderedDict
 
 
-class Expression(object):
+class Expression:
     def __str__(self):
         raise NotImplementedError
 
 
-SafeExpType = Union[Expression, bool, str, text_type, int, float, TimePeriod,
+SafeExpType = Union[Expression, bool, str, str, int, float, TimePeriod,
                     Type[bool], Type[int], Type[float], List[Any]]
 
 
 class RawExpression(Expression):
-    def __init__(self, text):  # type: (Union[str, unicode]) -> None
-        super(RawExpression, self).__init__()
+    def __init__(self, text):  # type: (Union[str, str]) -> None
+        super().__init__()
         self.text = text
 
     def __str__(self):
@@ -35,7 +34,7 @@ class RawExpression(Expression):
 # pylint: disable=redefined-builtin
 class AssignmentExpression(Expression):
     def __init__(self, type, modifier, name, rhs, obj):
-        super(AssignmentExpression, self).__init__()
+        super().__init__()
         self.type = type
         self.modifier = modifier
         self.name = name
@@ -44,24 +43,24 @@ class AssignmentExpression(Expression):
 
     def __str__(self):
         if self.type is None:
-            return u"{} = {}".format(self.name, self.rhs)
-        return u"{} {}{} = {}".format(self.type, self.modifier, self.name, self.rhs)
+            return f"{self.name} = {self.rhs}"
+        return f"{self.type} {self.modifier}{self.name} = {self.rhs}"
 
 
 class VariableDeclarationExpression(Expression):
     def __init__(self, type, modifier, name):
-        super(VariableDeclarationExpression, self).__init__()
+        super().__init__()
         self.type = type
         self.modifier = modifier
         self.name = name
 
     def __str__(self):
-        return u"{} {}{}".format(self.type, self.modifier, self.name)
+        return f"{self.type} {self.modifier}{self.name}"
 
 
 class ExpressionList(Expression):
     def __init__(self, *args):
-        super(ExpressionList, self).__init__()
+        super().__init__()
         # Remove every None on end
         args = list(args)
         while args and args[-1] is None:
@@ -69,7 +68,7 @@ class ExpressionList(Expression):
         self.args = [safe_exp(arg) for arg in args]
 
     def __str__(self):
-        text = u", ".join(text_type(x) for x in self.args)
+        text = ", ".join(str(x) for x in self.args)
         return indent_all_but_first_and_last(text)
 
     def __iter__(self):
@@ -78,11 +77,11 @@ class ExpressionList(Expression):
 
 class TemplateArguments(Expression):
     def __init__(self, *args):  # type: (*SafeExpType) -> None
-        super(TemplateArguments, self).__init__()
+        super().__init__()
         self.args = ExpressionList(*args)
 
     def __str__(self):
-        return u'<{}>'.format(self.args)
+        return f'<{self.args}>'
 
     def __iter__(self):
         return iter(self.args)
@@ -90,7 +89,7 @@ class TemplateArguments(Expression):
 
 class CallExpression(Expression):
     def __init__(self, base, *args):  # type: (Expression, *SafeExpType) -> None
-        super(CallExpression, self).__init__()
+        super().__init__()
         self.base = base
         if args and isinstance(args[0], TemplateArguments):
             self.template_args = args[0]
@@ -101,13 +100,13 @@ class CallExpression(Expression):
 
     def __str__(self):
         if self.template_args is not None:
-            return u'{}{}({})'.format(self.base, self.template_args, self.args)
-        return u'{}({})'.format(self.base, self.args)
+            return f'{self.base}{self.template_args}({self.args})'
+        return f'{self.base}({self.args})'
 
 
 class StructInitializer(Expression):
     def __init__(self, base, *args):  # type: (Expression, *Tuple[str, SafeExpType]) -> None
-        super(StructInitializer, self).__init__()
+        super().__init__()
         self.base = base
         if not isinstance(args, OrderedDict):
             args = OrderedDict(args)
@@ -119,16 +118,16 @@ class StructInitializer(Expression):
             self.args[key] = exp
 
     def __str__(self):
-        cpp = u'{}{{\n'.format(self.base)
+        cpp = f'{self.base}{{\n'
         for key, value in self.args.items():
-            cpp += u'  .{} = {},\n'.format(key, value)
-        cpp += u'}'
+            cpp += f'  .{key} = {value},\n'
+        cpp += '}'
         return cpp
 
 
 class ArrayInitializer(Expression):
     def __init__(self, *args, **kwargs):  # type: (*Any, **Any) -> None
-        super(ArrayInitializer, self).__init__()
+        super().__init__()
         self.multiline = kwargs.get('multiline', False)
         self.args = []
         for arg in args:
@@ -139,30 +138,30 @@ class ArrayInitializer(Expression):
 
     def __str__(self):
         if not self.args:
-            return u'{}'
+            return '{}'
         if self.multiline:
-            cpp = u'{\n'
+            cpp = '{\n'
             for arg in self.args:
-                cpp += u'  {},\n'.format(arg)
-            cpp += u'}'
+                cpp += f'  {arg},\n'
+            cpp += '}'
         else:
-            cpp = u'{' + u', '.join(str(arg) for arg in self.args) + u'}'
+            cpp = '{' + ', '.join(str(arg) for arg in self.args) + '}'
         return cpp
 
 
 class ParameterExpression(Expression):
     def __init__(self, type, id):
-        super(ParameterExpression, self).__init__()
+        super().__init__()
         self.type = safe_exp(type)
         self.id = id
 
     def __str__(self):
-        return u"{} {}".format(self.type, self.id)
+        return f"{self.type} {self.id}"
 
 
 class ParameterListExpression(Expression):
     def __init__(self, *parameters):
-        super(ParameterListExpression, self).__init__()
+        super().__init__()
         self.parameters = []
         for parameter in parameters:
             if not isinstance(parameter, ParameterExpression):
@@ -170,12 +169,12 @@ class ParameterListExpression(Expression):
             self.parameters.append(parameter)
 
     def __str__(self):
-        return u", ".join(text_type(x) for x in self.parameters)
+        return ", ".join(str(x) for x in self.parameters)
 
 
 class LambdaExpression(Expression):
     def __init__(self, parts, parameters, capture='=', return_type=None):
-        super(LambdaExpression, self).__init__()
+        super().__init__()
         self.parts = parts
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
@@ -184,15 +183,15 @@ class LambdaExpression(Expression):
         self.return_type = safe_exp(return_type) if return_type is not None else None
 
     def __str__(self):
-        cpp = u'[{}]({})'.format(self.capture, self.parameters)
+        cpp = f'[{self.capture}]({self.parameters})'
         if self.return_type is not None:
-            cpp += u' -> {}'.format(self.return_type)
-        cpp += u' {{\n{}\n}}'.format(self.content)
+            cpp += f' -> {self.return_type}'
+        cpp += f' {{\n{self.content}\n}}'
         return indent_all_but_first_and_last(cpp)
 
     @property
     def content(self):
-        return u''.join(text_type(part) for part in self.parts)
+        return ''.join(str(part) for part in self.parts)
 
 
 class Literal(Expression):
@@ -201,41 +200,41 @@ class Literal(Expression):
 
 
 class StringLiteral(Literal):
-    def __init__(self, string):  # type: (Union[str, unicode]) -> None
-        super(StringLiteral, self).__init__()
+    def __init__(self, string):  # type: (Union[str, str]) -> None
+        super().__init__()
         self.string = string
 
     def __str__(self):
-        return u'{}'.format(cpp_string_escape(self.string))
+        return '{}'.format(cpp_string_escape(self.string))
 
 
 class IntLiteral(Literal):
-    def __init__(self, i):  # type: (Union[int, long]) -> None
-        super(IntLiteral, self).__init__()
+    def __init__(self, i):  # type: (Union[int]) -> None
+        super().__init__()
         self.i = i
 
     def __str__(self):
         if self.i > 4294967295:
-            return u'{}ULL'.format(self.i)
+            return f'{self.i}ULL'
         if self.i > 2147483647:
-            return u'{}UL'.format(self.i)
+            return f'{self.i}UL'
         if self.i < -2147483648:
-            return u'{}LL'.format(self.i)
-        return text_type(self.i)
+            return f'{self.i}LL'
+        return str(self.i)
 
 
 class BoolLiteral(Literal):
     def __init__(self, binary):  # type: (bool) -> None
-        super(BoolLiteral, self).__init__()
+        super().__init__()
         self.binary = binary
 
     def __str__(self):
-        return u"true" if self.binary else u"false"
+        return "true" if self.binary else "false"
 
 
 class HexIntLiteral(Literal):
     def __init__(self, i):  # type: (int) -> None
-        super(HexIntLiteral, self).__init__()
+        super().__init__()
         self.i = HexInt(i)
 
     def __str__(self):
@@ -244,18 +243,18 @@ class HexIntLiteral(Literal):
 
 class FloatLiteral(Literal):
     def __init__(self, value):  # type: (float) -> None
-        super(FloatLiteral, self).__init__()
+        super().__init__()
         self.float_ = value
 
     def __str__(self):
         if math.isnan(self.float_):
-            return u"NAN"
-        return u"{}f".format(self.float_)
+            return "NAN"
+        return f"{self.float_}f"
 
 
 # pylint: disable=bad-continuation
 def safe_exp(
-        obj  # type: Union[Expression, bool, str, unicode, int, long, float, TimePeriod, list]
+        obj  # type: Union[Expression, bool, str, int, float, TimePeriod, list]
              ):
     # type: (...) -> Expression
     """Try to convert obj to an expression by automatically converting native python types to
@@ -269,11 +268,11 @@ def safe_exp(
         return safe_exp(obj.enum_value)
     if isinstance(obj, bool):
         return BoolLiteral(obj)
-    if isinstance(obj, string_types):
+    if isinstance(obj, str):
         return StringLiteral(obj)
     if isinstance(obj, HexInt):
         return HexIntLiteral(obj)
-    if isinstance(obj, integer_types):
+    if isinstance(obj, int):
         return IntLiteral(obj)
     if isinstance(obj, float):
         return FloatLiteral(obj)
@@ -294,15 +293,15 @@ def safe_exp(
     if obj is float:
         return float_
     if isinstance(obj, ID):
-        raise ValueError(u"Object {} is an ID. Did you forget to register the variable?"
-                         u"".format(obj))
+        raise ValueError("Object {} is an ID. Did you forget to register the variable?"
+                         "".format(obj))
     if inspect.isgenerator(obj):
-        raise ValueError(u"Object {} is a coroutine. Did you forget to await the expression with "
-                         u"'yield'?".format(obj))
-    raise ValueError(u"Object is not an expression", obj)
+        raise ValueError("Object {} is a coroutine. Did you forget to await the expression with "
+                         "'yield'?".format(obj))
+    raise ValueError("Object is not an expression", obj)
 
 
-class Statement(object):
+class Statement:
     def __init__(self):
         pass
 
@@ -312,7 +311,7 @@ class Statement(object):
 
 class RawStatement(Statement):
     def __init__(self, text):
-        super(RawStatement, self).__init__()
+        super().__init__()
         self.text = text
 
     def __str__(self):
@@ -321,38 +320,38 @@ class RawStatement(Statement):
 
 class ExpressionStatement(Statement):
     def __init__(self, expression):
-        super(ExpressionStatement, self).__init__()
+        super().__init__()
         self.expression = safe_exp(expression)
 
     def __str__(self):
-        return u"{};".format(self.expression)
+        return f"{self.expression};"
 
 
 class LineComment(Statement):
-    def __init__(self, value):  # type: (unicode) -> None
-        super(LineComment, self).__init__()
+    def __init__(self, value):  # type: (str) -> None
+        super().__init__()
         self._value = value
 
     def __str__(self):
-        parts = self._value.split(u'\n')
-        parts = [u'// {}'.format(x) for x in parts]
-        return u'\n'.join(parts)
+        parts = self._value.split('\n')
+        parts = [f'// {x}' for x in parts]
+        return '\n'.join(parts)
 
 
 class ProgmemAssignmentExpression(AssignmentExpression):
     def __init__(self, type, name, rhs, obj):
-        super(ProgmemAssignmentExpression, self).__init__(
+        super().__init__(
             type, '', name, rhs, obj
         )
 
     def __str__(self):
         type_ = self.type
-        return u"static const {} {}[] PROGMEM = {}".format(type_, self.name, self.rhs)
+        return f"static const {type_} {self.name}[] PROGMEM = {self.rhs}"
 
 
 def progmem_array(id, rhs):
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'.')
+    obj = MockObj(id, '.')
     assignment = ProgmemAssignmentExpression(id.type, id, rhs, obj)
     CORE.add(assignment)
     CORE.register_variable(id, obj)
@@ -381,7 +380,7 @@ def variable(id,  # type: ID
     """
     assert isinstance(id, ID)
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'.')
+    obj = MockObj(id, '.')
     if type is not None:
         id.type = type
     assignment = AssignmentExpression(id.type, '', id, rhs, obj)
@@ -405,7 +404,7 @@ def Pvariable(id,  # type: ID
     :returns The new variable as a MockObj.
     """
     rhs = safe_exp(rhs)
-    obj = MockObj(id, u'->')
+    obj = MockObj(id, '->')
     if type is not None:
         id.type = type
     decl = VariableDeclarationExpression(id.type, '*', id)
@@ -594,51 +593,51 @@ class MockObj(Expression):
 
     Mostly consists of magic methods that allow ESPHome's codegen syntax.
     """
-    def __init__(self, base, op=u'.'):
+    def __init__(self, base, op='.'):
         self.base = base
         self.op = op
-        super(MockObj, self).__init__()
+        super().__init__()
 
     def __getattr__(self, attr):  # type: (str) -> MockObj
-        next_op = u'.'
-        if attr.startswith(u'P') and self.op not in ['::', '']:
+        next_op = '.'
+        if attr.startswith('P') and self.op not in ['::', '']:
             attr = attr[1:]
-            next_op = u'->'
-        if attr.startswith(u'_'):
+            next_op = '->'
+        if attr.startswith('_'):
             attr = attr[1:]
-        return MockObj(u'{}{}{}'.format(self.base, self.op, attr), next_op)
+        return MockObj(f'{self.base}{self.op}{attr}', next_op)
 
     def __call__(self, *args):  # type: (SafeExpType) -> MockObj
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 
-    def __str__(self):  # type: () -> unicode
-        return text_type(self.base)
+    def __str__(self):  # type: () -> str
+        return str(self.base)
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(text_type(self.base))
+        return 'MockObj<{}>'.format(str(self.base))
 
     @property
     def _(self):  # type: () -> MockObj
-        return MockObj(u'{}{}'.format(self.base, self.op))
+        return MockObj(f'{self.base}{self.op}')
 
     @property
     def new(self):  # type: () -> MockObj
-        return MockObj(u'new {}'.format(self.base), u'->')
+        return MockObj(f'new {self.base}', '->')
 
     def template(self, *args):  # type: (*SafeExpType) -> MockObj
         if len(args) != 1 or not isinstance(args[0], TemplateArguments):
             args = TemplateArguments(*args)
         else:
             args = args[0]
-        return MockObj(u'{}{}'.format(self.base, args))
+        return MockObj(f'{self.base}{args}')
 
     def namespace(self, name):  # type: (str) -> MockObj
-        return MockObj(u'{}{}'.format(self._, name), u'::')
+        return MockObj(f'{self._}{name}', '::')
 
     def class_(self, name, *parents):  # type: (str, *MockObjClass) -> MockObjClass
         op = '' if self.op == '' else '::'
-        return MockObjClass(u'{}{}{}'.format(self.base, op, name), u'.', parents=parents)
+        return MockObjClass(f'{self.base}{op}{name}', '.', parents=parents)
 
     def struct(self, name):  # type: (str) -> MockObjClass
         return self.class_(name)
@@ -648,24 +647,24 @@ class MockObj(Expression):
 
     def operator(self, name):  # type: (str) -> MockObj
         if name == 'ref':
-            return MockObj(u'{} &'.format(self.base), u'')
+            return MockObj(f'{self.base} &', '')
         if name == 'ptr':
-            return MockObj(u'{} *'.format(self.base), u'')
+            return MockObj(f'{self.base} *', '')
         if name == "const":
-            return MockObj(u'const {}'.format(self.base), u'')
+            return MockObj(f'const {self.base}', '')
         raise NotImplementedError
 
     @property
     def using(self):  # type: () -> MockObj
         assert self.op == '::'
-        return MockObj(u'using namespace {}'.format(self.base))
+        return MockObj(f'using namespace {self.base}')
 
     def __getitem__(self, item):  # type: (Union[str, Expression]) -> MockObj
-        next_op = u'.'
-        if isinstance(item, str) and item.startswith(u'P'):
+        next_op = '.'
+        if isinstance(item, str) and item.startswith('P'):
             item = item[1:]
-            next_op = u'->'
-        return MockObj(u'{}[{}]'.format(self.base, item), next_op)
+            next_op = '->'
+        return MockObj(f'{self.base}[{item}]', next_op)
 
 
 class MockObjEnum(MockObj):
@@ -679,13 +678,13 @@ class MockObjEnum(MockObj):
         kwargs['base'] = base
         MockObj.__init__(self, *args, **kwargs)
 
-    def __str__(self):  # type: () -> unicode
+    def __str__(self):  # type: () -> str
         if self._is_class:
-            return super(MockObjEnum, self).__str__()
-        return u'{}{}{}'.format(self.base, self.op, self._enum)
+            return super().__str__()
+        return f'{self.base}{self.op}{self._enum}'
 
     def __repr__(self):
-        return u'MockObj<{}>'.format(text_type(self.base))
+        return 'MockObj<{}>'.format(str(self.base))
 
 
 class MockObjClass(MockObj):
@@ -716,7 +715,7 @@ class MockObjClass(MockObj):
             args = args[0]
         new_parents = self._parents[:]
         new_parents.append(self)
-        return MockObjClass(u'{}{}'.format(self.base, args), parents=new_parents)
+        return MockObjClass(f'{self.base}{args}', parents=new_parents)
 
     def __repr__(self):
-        return u'MockObjClass<{}, parents={}>'.format(text_type(self.base), self._parents)
+        return 'MockObjClass<{}, parents={}>'.format(str(self.base), self._parents)

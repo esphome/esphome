@@ -209,7 +209,10 @@ class Application {
 
   void register_component_(Component *comp);
 
+  void calculate_looping_components_();
+
   std::vector<Component *> components_{};
+  std::vector<Component *> looping_components_{};
 
 #ifdef USE_BINARY_SENSOR
   std::vector<binary_sensor::BinarySensor *> binary_sensors_{};

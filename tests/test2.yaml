@@ -10,7 +10,7 @@ substitutions:
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
-  mdio_pin: GPIO24
+  mdio_pin: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
@@ -45,35 +45,65 @@ logger:
   level: DEBUG
 
 web_server:
+  auth:
+    username: admin
+    password: admin
 
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
 
+as3935_i2c:
+  irq_pin: GPIO12
+
+
 sensor:
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
-  - platform: xiaomi_miflora
+  - platform: ble_rssi
+    service_uuid: '11aa'
+    name: "BLE Test Service 16"
+  - platform: ble_rssi
+    service_uuid: '11223344'
+    name: "BLE Test Service 32"
+  - platform: ble_rssi
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128"
+  - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
-      name: "Xiaomi MiFlora Temperature"
+      name: "Xiaomi HHCCJCY01 Temperature"
     moisture:
-      name: "Xiaomi MiFlora Moisture"
+      name: "Xiaomi HHCCJCY01 Moisture"
     illuminance:
-      name: "Xiaomi MiFlora Illuminance"
+      name: "Xiaomi HHCCJCY01 Illuminance"
     conductivity:
-      name: "Xiaomi MiFlora Soil Conductivity"
+      name: "Xiaomi HHCCJCY01 Soil Conductivity"
     battery_level:
-      name: "Xiaomi MiFlora Battery Level"
-  - platform: xiaomi_mijia
+      name: "Xiaomi HHCCJCY01 Battery Level"
+  - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: "Xiaomi MiJia Temperature"
+      name: "Xiaomi LYWSDCGQ Temperature"
     humidity:
-      name: "Xiaomi MiJia Humidity"
+      name: "Xiaomi LYWSDCGQ Humidity"
     battery_level:
-      name: "Xiaomi MiJia Battery Level"
+      name: "Xiaomi LYWSDCGQ Battery Level"
+  - platform: xiaomi_lywsd02
+    mac_address: 3F:5B:7D:82:58:4E
+    temperature:
+      name: "Xiaomi LYWSD02 Temperature"
+    humidity:
+      name: "Xiaomi LYWSD02 Humidity"
+  - platform: xiaomi_cgg1
+    mac_address: 7A:80:8E:19:36:BA
+    temperature:
+      name: "Xiaomi CGG1 Temperature"
+    humidity:
+      name: "Xiaomi CGG1 Humidity"
+    battery_level:
+      name: "Xiaomi CGG1 Battery Level"
   - platform: pmsx003
     type: PMSX003
     pm_1_0:
@@ -125,6 +155,33 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: "RuuviTag Humidity"
+    temperature:
+      name: "RuuviTag Temperature"
+    pressure:
+      name: "RuuviTag Pressure"
+    acceleration_x:
+      name: "RuuviTag Acceleration X"
+    acceleration_y:
+      name: "RuuviTag Acceleration Y"
+    acceleration_z:
+      name: "RuuviTag Acceleration Z"
+    battery_voltage:
+      name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
 
 time:
 - platform: homeassistant
@@ -144,6 +201,15 @@ binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
+  - platform: ble_presence
+    service_uuid: '11aa'
+    name: "BLE Test Service 16 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344'
+    name: "BLE Test Service 32 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128 Presence"
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
@@ -163,13 +229,10 @@ binary_sensor:
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
-
-remote_receiver:
-  pin: GPIO32
-  dump: []
+  - platform: as3935
+    name: "Storm Alert"
 
 esp32_ble_tracker:
-  scan_interval: 300s
 
 #esp32_ble_beacon:
 #  type: iBeacon
@@ -223,7 +286,7 @@ stepper:
   - platform: uln2003
     id: my_stepper
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO27
     pin_c: GPIO25
     pin_d: GPIO26
     sleep_when_done: no

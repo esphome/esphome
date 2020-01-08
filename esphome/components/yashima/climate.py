@@ -1,16 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate, remote_transmitter, sensor
-from esphome.const import CONF_ID, CONF_SENSOR
+from esphome.components.remote_base import CONF_TRANSMITTER_ID
+from esphome.const import CONF_ID, CONF_SENSOR, CONF_SUPPORTS_COOL, CONF_SUPPORTS_HEAT
 
 AUTO_LOAD = ['sensor']
 
 yashima_ns = cg.esphome_ns.namespace('yashima')
 YashimaClimate = yashima_ns.class_('YashimaClimate', climate.Climate, cg.Component)
-
-CONF_TRANSMITTER_ID = 'transmitter_id'
-CONF_SUPPORTS_HEAT = 'supports_heat'
-CONF_SUPPORTS_COOL = 'supports_cool'
 
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(YashimaClimate),

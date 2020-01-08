@@ -18,6 +18,8 @@ namespace web_server {
 static const char *TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+  if (obj->is_internal())
+    return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
   stream->print("\" id=\"");
@@ -62,6 +64,7 @@ void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
+  this->setup_controller();
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
@@ -119,6 +122,9 @@ void WebServer::setup() {
 void WebServer::dump_config() {
   ESP_LOGCONFIG(TAG, "Web Server:");
   ESP_LOGCONFIG(TAG, "  Address: %s:%u", network_get_address().c_str(), this->base_->get_port());
+  if (this->using_auth()) {
+    ESP_LOGCONFIG(TAG, "  Basic authentication enabled");
+  }
 }
 float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f; }
 
@@ -132,41 +138,37 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "sensor", "");
+    write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    if (!obj->is_internal())
-      write_row(stream, obj, "switch", "<button>Toggle</button>");
+    write_row(stream, obj, "switch", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "binary_sensor", "");
+    write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    if (!obj->is_internal())
-      write_row(stream, obj, "fan", "<button>Toggle</button>");
+    write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    if (!obj->is_internal())
-      write_row(stream, obj, "light", "<button>Toggle</button>");
+    write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "text_sensor", "");
+    write_row(stream, obj, "text_sensor", "");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
@@ -413,11 +415,15 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch ma
       if (request->hasParam("color_temp"))
         call.set_color_temperature(request->getParam("color_temp")->value().toFloat());
 
-      if (request->hasParam("flash"))
-        call.set_flash_length((uint32_t) request->getParam("flash")->value().toFloat() * 1000);
+      if (request->hasParam("flash")) {
+        float length_s = request->getParam("flash")->value().toFloat();
+        call.set_flash_length(static_cast<uint32_t>(length_s * 1000));
+      }
 
-      if (request->hasParam("transition"))
-        call.set_transition_length((uint32_t) request->getParam("transition")->value().toFloat() * 1000);
+      if (request->hasParam("transition")) {
+        float length_s = request->getParam("transition")->value().toFloat();
+        call.set_transition_length(static_cast<uint32_t>(length_s * 1000));
+      }
 
       if (request->hasParam("effect")) {
         const char *effect = request->getParam("effect")->value().c_str();
@@ -490,6 +496,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
+  if (this->using_auth() && !request->authenticate(this->username_, this->password_)) {
+    return request->requestAuthentication();
+  }
+
   if (request->url() == "/") {
     this->handle_index_request(request);
     return;

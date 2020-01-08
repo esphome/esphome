@@ -45,14 +45,14 @@ std::string IntegrationSensor::unit_of_measurement() {
 }
 void IntegrationSensor::process_sensor_value_(float value) {
   const uint32_t now = millis();
-  const float old_value = this->last_value_;
-  const float new_value = value;
+  const double old_value = this->last_value_;
+  const double new_value = value;
   const uint32_t dt_ms = now - this->last_update_;
-  const float dt = dt_ms * this->get_time_factor_();
-  float area = 0.0f;
+  const double dt = dt_ms * this->get_time_factor_();
+  double area = 0.0f;
   switch (this->method_) {
     case INTEGRATION_METHOD_TRAPEZOID:
-      area = dt * (old_value + new_value) / 2.0f;
+      area = dt * (old_value + new_value) / 2.0;
       break;
     case INTEGRATION_METHOD_LEFT:
       area = dt * old_value;

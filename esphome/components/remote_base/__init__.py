@@ -7,7 +7,6 @@ from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, 
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
     CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
 from esphome.core import coroutine
-from esphome.py_compat import string_types, text_type
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ['binary_sensor']
@@ -52,7 +51,7 @@ def register_trigger(name, type, data_type):
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
         cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
     })
-    registerer = TRIGGER_REGISTRY.register('on_{}'.format(name), validator)
+    registerer = TRIGGER_REGISTRY.register(f'on_{name}', validator)
 
     def decorator(func):
         @coroutine
@@ -98,7 +97,7 @@ def register_action(name, type_, schema):
         cv.GenerateID(CONF_TRANSMITTER_ID): cv.use_id(RemoteTransmitterBase),
         cv.Optional(CONF_REPEAT): validate_repeat,
     })
-    registerer = automation.register_action('remote_transmitter.transmit_{}'.format(name),
+    registerer = automation.register_action(f'remote_transmitter.transmit_{name}',
                                             type_, validator)
 
     def decorator(func):
@@ -122,11 +121,11 @@ def register_action(name, type_, schema):
 
 
 def declare_protocol(name):
-    data = ns.struct('{}Data'.format(name))
-    binary_sensor_ = ns.class_('{}BinarySensor'.format(name), RemoteReceiverBinarySensorBase)
-    trigger = ns.class_('{}Trigger'.format(name), RemoteReceiverTrigger)
-    action = ns.class_('{}Action'.format(name), RemoteTransmitterActionBase)
-    dumper = ns.class_('{}Dumper'.format(name), RemoteTransmitterDumper)
+    data = ns.struct(f'{name}Data')
+    binary_sensor_ = ns.class_(f'{name}BinarySensor', RemoteReceiverBinarySensorBase)
+    trigger = ns.class_(f'{name}Trigger', RemoteReceiverTrigger)
+    action = ns.class_(f'{name}Action', RemoteTransmitterActionBase)
+    dumper = ns.class_(f'{name}Dumper', RemoteTransmitterDumper)
     return data, binary_sensor_, trigger, action, dumper
 
 
@@ -141,7 +140,7 @@ DUMPER_REGISTRY = Registry({
 
 
 def validate_dumpers(value):
-    if isinstance(value, string_types) and value.lower() == 'all':
+    if isinstance(value, str) and value.lower() == 'all':
         return validate_dumpers(list(DUMPER_REGISTRY.keys()))
     return cv.validate_registry('dumper', DUMPER_REGISTRY)(value)
 
@@ -420,7 +419,7 @@ def rc5_action(var, config, args):
 RC_SWITCH_TIMING_SCHEMA = cv.All([cv.uint8_t], cv.Length(min=2, max=2))
 
 RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
-    cv.int_range(min=1, max=7),
+    cv.int_range(min=1, max=8),
     cv.Schema({
         cv.Required(CONF_PULSE_LENGTH): cv.uint32_t,
         cv.Optional(CONF_SYNC, default=[1, 31]): RC_SWITCH_TIMING_SCHEMA,
@@ -432,14 +431,14 @@ RC_SWITCH_PROTOCOL_SCHEMA = cv.Any(
 
 
 def validate_rc_switch_code(value):
-    if not isinstance(value, (str, text_type)):
+    if not isinstance(value, (str, str)):
         raise cv.Invalid("All RCSwitch codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1'):
-            raise cv.Invalid(u"Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
-                             u"".format(c))
-    if len(value) > 32:
-        raise cv.Invalid("Maximum length for RCSwitch codes is 32, code '{}' has length {}"
+            raise cv.Invalid("Invalid RCSwitch code character '{}'. Only '0' and '1' are allowed"
+                             "".format(c))
+    if len(value) > 64:
+        raise cv.Invalid("Maximum length for RCSwitch codes is 64, code '{}' has length {}"
                          "".format(value, len(value)))
     if not value:
         raise cv.Invalid("RCSwitch code must not be empty")
@@ -447,15 +446,15 @@ def validate_rc_switch_code(value):
 
 
 def validate_rc_switch_raw_code(value):
-    if not isinstance(value, (str, text_type)):
+    if not isinstance(value, (str, str)):
         raise cv.Invalid("All RCSwitch raw codes must be in quotes ('')")
     for c in value:
         if c not in ('0', '1', 'x'):
             raise cv.Invalid(
                 "Invalid RCSwitch raw code character '{}'.Only '0', '1' and 'x' are allowed"
                 .format(c))
-    if len(value) > 32:
-        raise cv.Invalid("Maximum length for RCSwitch raw codes is 32, code '{}' has length {}"
+    if len(value) > 64:
+        raise cv.Invalid("Maximum length for RCSwitch raw codes is 64, code '{}' has length {}"
                          "".format(value, len(value)))
     if not value:
         raise cv.Invalid("RCSwitch raw code must not be empty")
@@ -505,7 +504,7 @@ RC_SWITCH_TYPE_D_SCHEMA = cv.Schema({
 RC_SWITCH_TRANSMITTER = cv.Schema({
     cv.Optional(CONF_REPEAT, default={CONF_TIMES: 5}): cv.Schema({
         cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
-        cv.Optional(CONF_WAIT_TIME, default='10ms'):
+        cv.Optional(CONF_WAIT_TIME, default='0us'):
             cv.templatable(cv.positive_time_period_microseconds),
     }),
 })
@@ -640,7 +639,7 @@ def samsung_dumper(var, config):
 
 @register_action('samsung', SamsungAction, SAMSUNG_SCHEMA)
 def samsung_action(var, config, args):
-    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = yield cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
 
 

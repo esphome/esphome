@@ -3,7 +3,7 @@
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375/
-  BASE_VERSION: '1.8.3'
+  BASE_VERSION: '2.0.1'
   TZ: UTC
 
 stages:
@@ -33,7 +33,7 @@ stages:
     - docker info
     - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
   script:
-    - docker run --rm --privileged hassioaddons/qemu-user-static:latest
+    - docker run --rm --privileged multiarch/qemu-user-static:4.1.0-1 --reset -p yes
     - TAG="${CI_COMMIT_TAG#v}"
     - TAG="${TAG:-${CI_COMMIT_SHA:0:7}}"
     - echo "Tag ${TAG}"
@@ -107,10 +107,6 @@ lint-tidy:
   <<: *lint
   script:
     - pio init --ide atom
-    - |
-      if ! patch -R -p0 -s -f --dry-run <script/.neopixelbus.patch; then
-        patch -p0 < script/.neopixelbus.patch
-      fi
     - script/clang-tidy --all-headers --fix
     - script/ci-suggest-changes
 

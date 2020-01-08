@@ -1,6 +1,7 @@
 #include "esp32_ble_tracker.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
+#include "esphome/core/helpers.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
@@ -133,7 +134,7 @@ bool ESP32BLETracker::ble_setup() {
   }
 
   // BLE takes some time to be fully set up, 200ms should be more than enough
-  delay(200);
+  delay(200);  // NOLINT
 
   return true;
 }
@@ -150,21 +151,16 @@ void ESP32BLETracker::start_scan(bool first) {
       listener->on_scan_end();
   }
   this->already_discovered_.clear();
-  this->scan_params_.scan_type = BLE_SCAN_TYPE_ACTIVE;
+  this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
-  // Values determined empirically, higher scan intervals and lower scan windows make the ESP more stable
-  // Ideally, these values should both be quite low, especially scan window. 0x10/0x10 is the esp-idf
-  // default and works quite well. 0x100/0x50 discovers a few less BLE broadcast packets but is a lot
-  // more stable (order of several hours). The old ESPHome default (1600/1600) was terrible with
-  // crashes every few minutes
-  this->scan_params_.scan_interval = 0x200;
-  this->scan_params_.scan_window = 0x30;
+  this->scan_params_.scan_interval = this->scan_interval_;
+  this->scan_params_.scan_window = this->scan_window_;
 
   esp_ble_gap_set_scan_params(&this->scan_params_);
-  esp_ble_gap_start_scanning(this->scan_interval_);
+  esp_ble_gap_start_scanning(this->scan_duration_);
 
-  this->set_timeout("scan", this->scan_interval_ * 2000, []() {
+  this->set_timeout("scan", this->scan_duration_ * 2000, []() {
     ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
     App.reboot();
   });
@@ -207,22 +203,6 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
   }
 }
 
-std::string hexencode(const std::string &raw_data) {
-  char buf[20];
-  std::string res;
-  for (size_t i = 0; i < raw_data.size(); i++) {
-    if (i + 1 != raw_data.size()) {
-      sprintf(buf, "0x%02X.", static_cast<uint8_t>(raw_data[i]));
-    } else {
-      sprintf(buf, "0x%02X ", static_cast<uint8_t>(raw_data[i]));
-    }
-    res += buf;
-  }
-  sprintf(buf, "(%zu)", raw_data.size());
-  res += buf;
-  return res;
-}
-
 ESPBTUUID::ESPBTUUID() : uuid_() {}
 ESPBTUUID ESPBTUUID::from_uint16(uint16_t uuid) {
   ESPBTUUID ret;
@@ -261,6 +241,7 @@ bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   }
   return false;
 }
+esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
 std::string ESPBTUUID::to_string() {
   char sbuf[64];
   switch (this->uuid_.len) {
@@ -282,13 +263,13 @@ std::string ESPBTUUID::to_string() {
 }
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }
-optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const std::string &data) {
-  if (data.size() != 25)
-    return {};
-  if (data[0] != 0x4C || data[1] != 0x00)
+optional<ESPBLEiBeacon> ESPBLEiBeacon::from_manufacturer_data(const ServiceData &data) {
+  if (!data.uuid.contains(0x4C, 0x00))
     return {};
 
-  return ESPBLEiBeacon(reinterpret_cast<const uint8_t *>(data.data()));
+  if (data.data.size() != 23)
+    return {};
+  return ESPBLEiBeacon(data.data.data());
 }
 
 void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
@@ -320,8 +301,8 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
 
   ESP_LOGVV(TAG, "  RSSI: %d", this->rssi_);
   ESP_LOGVV(TAG, "  Name: '%s'", this->name_.c_str());
-  if (this->tx_power_.has_value()) {
-    ESP_LOGVV(TAG, "  TX Power: %d", *this->tx_power_);
+  for (auto &it : this->tx_powers_) {
+    ESP_LOGVV(TAG, "  TX Power: %d", it);
   }
   if (this->appearance_.has_value()) {
     ESP_LOGVV(TAG, "  Appearance: %u", *this->appearance_);
@@ -329,24 +310,25 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   if (this->ad_flag_.has_value()) {
     ESP_LOGVV(TAG, "  Ad Flag: %u", *this->ad_flag_);
   }
-  for (auto uuid : this->service_uuids_) {
+  for (auto &uuid : this->service_uuids_) {
     ESP_LOGVV(TAG, "  Service UUID: %s", uuid.to_string().c_str());
   }
-  ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(this->manufacturer_data_).c_str());
-  ESP_LOGVV(TAG, "  Service data: %s", hexencode(this->service_data_).c_str());
-
-  if (this->service_data_uuid_.has_value()) {
-    ESP_LOGVV(TAG, "  Service Data UUID: %s", this->service_data_uuid_->to_string().c_str());
+  for (auto &data : this->manufacturer_datas_) {
+    ESP_LOGVV(TAG, "  Manufacturer data: %s", hexencode(data.data).c_str());
+  }
+  for (auto &data : this->service_datas_) {
+    ESP_LOGVV(TAG, "  Service data:");
+    ESP_LOGVV(TAG, "    UUID: %s", data.uuid.to_string().c_str());
+    ESP_LOGVV(TAG, "    Data: %s", hexencode(data.data).c_str());
   }
 
-  ESP_LOGVV(TAG, "Adv data: %s",
-            hexencode(std::string(reinterpret_cast<const char *>(param.ble_adv), param.adv_data_len)).c_str());
+  ESP_LOGVV(TAG, "Adv data: %s", hexencode(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   size_t offset = 0;
   const uint8_t *payload = param.ble_adv;
-  uint8_t len = param.adv_data_len;
+  uint8_t len = param.adv_data_len + param.scan_rsp_len;
 
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
@@ -359,25 +341,52 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     const uint8_t record_length = field_length - 1;
     offset += record_length;
 
+    // See also Generic Access Profile Assigned Numbers:
+    // https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile/ See also ADVERTISING AND SCAN
+    // RESPONSE DATA FORMAT: https://www.bluetooth.com/specifications/bluetooth-core-specification/ (vol 3, part C, 11)
+    // See also Core Specification Supplement: https://www.bluetooth.com/specifications/bluetooth-core-specification/
+    // (called CSS here)
+
     switch (record_type) {
       case ESP_BLE_AD_TYPE_NAME_CMPL: {
+        // CSS 1.2 LOCAL NAME
+        // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the
+        // device." CSS 1: Optional in this context; shall not appear more than once in a block.
         this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
         break;
       }
       case ESP_BLE_AD_TYPE_TX_PWR: {
-        this->tx_power_ = *payload;
+        // CSS 1.5 TX POWER LEVEL
+        // "The TX Power Level data type indicates the transmitted power level of the packet containing the data type."
+        // CSS 1: Optional in this context (may appear more than once in a block).
+        this->tx_powers_.push_back(*payload);
         break;
       }
       case ESP_BLE_AD_TYPE_APPEARANCE: {
+        // CSS 1.12 APPEARANCE
+        // "The Appearance data type defines the external appearance of the device."
+        // See also https://www.bluetooth.com/specifications/gatt/characteristics/
+        // CSS 1: Optional in this context; shall not appear more than once in a block and shall not appear in both
+        // the AD and SRD of the same extended advertising interval.
         this->appearance_ = *reinterpret_cast<const uint16_t *>(record);
         break;
       }
       case ESP_BLE_AD_TYPE_FLAG: {
+        // CSS 1.3 FLAGS
+        // "The Flags data type contains one bit Boolean flags. The Flags data type shall be included when any of the
+        // Flag bits are non-zero and the advertising packet is connectable, otherwise the Flags data type may be
+        // omitted."
+        // CSS 1: Optional in this context; shall not appear more than once in a block.
         this->ad_flag_ = *record;
         break;
       }
+      // CSS 1.1 SERVICE UUID
+      // The Service UUID data type is used to include a list of Service or Service Class UUIDs.
+      // There are six data types defined for the three sizes of Service UUIDs that may be returned:
+      // CSS 1: Optional in this context (may appear more than once in a block).
       case ESP_BLE_AD_TYPE_16SRV_CMPL:
       case ESP_BLE_AD_TYPE_16SRV_PART: {
+        // • 16-bit Bluetooth Service UUIDs
         for (uint8_t i = 0; i < record_length / 2; i++) {
           this->service_uuids_.push_back(ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record + 2 * i)));
         }
@@ -385,6 +394,7 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
       }
       case ESP_BLE_AD_TYPE_32SRV_CMPL:
       case ESP_BLE_AD_TYPE_32SRV_PART: {
+        // • 32-bit Bluetooth Service UUIDs
         for (uint8_t i = 0; i < record_length / 4; i++) {
           this->service_uuids_.push_back(ESPBTUUID::from_uint32(*reinterpret_cast<const uint32_t *>(record + 4 * i)));
         }
@@ -392,41 +402,70 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
       }
       case ESP_BLE_AD_TYPE_128SRV_CMPL:
       case ESP_BLE_AD_TYPE_128SRV_PART: {
+        // • Global 128-bit Service UUIDs
         this->service_uuids_.push_back(ESPBTUUID::from_raw(record));
         break;
       }
       case ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE: {
-        this->manufacturer_data_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        // CSS 1.4 MANUFACTURER SPECIFIC DATA
+        // "The Manufacturer Specific data type is used for manufacturer specific data. The first two data octets shall
+        // contain a company identifier from Assigned Numbers. The interpretation of any other octets within the data
+        // shall be defined by the manufacturer specified by the company identifier."
+        // CSS 1: Optional in this context (may appear more than once in a block).
+        if (record_length < 2) {
+          ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_MANUFACTURER_SPECIFIC_TYPE");
+          break;
+        }
+        ServiceData data{};
+        data.uuid = ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record));
+        data.data.assign(record + 2UL, record + record_length);
+        this->manufacturer_datas_.push_back(data);
         break;
       }
+
+      // CSS 1.11 SERVICE DATA
+      // "The Service Data data type consists of a service UUID with the data associated with that service."
+      // CSS 1: Optional in this context (may appear more than once in a block).
       case ESP_BLE_AD_TYPE_SERVICE_DATA: {
+        // «Service Data - 16 bit UUID»
+        // Size: 2 or more octets
+        // The first 2 octets contain the 16 bit Service UUID fol- lowed by additional service data
         if (record_length < 2) {
           ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_SERVICE_DATA");
           break;
         }
-        this->service_data_uuid_ = ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record));
-        if (record_length > 2)
-          this->service_data_ = std::string(reinterpret_cast<const char *>(record + 2), record_length - 2UL);
+        ServiceData data{};
+        data.uuid = ESPBTUUID::from_uint16(*reinterpret_cast<const uint16_t *>(record));
+        data.data.assign(record + 2UL, record + record_length);
+        this->service_datas_.push_back(data);
         break;
       }
       case ESP_BLE_AD_TYPE_32SERVICE_DATA: {
+        // «Service Data - 32 bit UUID»
+        // Size: 4 or more octets
+        // The first 4 octets contain the 32 bit Service UUID fol- lowed by additional service data
         if (record_length < 4) {
           ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_32SERVICE_DATA");
           break;
         }
-        this->service_data_uuid_ = ESPBTUUID::from_uint32(*reinterpret_cast<const uint32_t *>(record));
-        if (record_length > 4)
-          this->service_data_ = std::string(reinterpret_cast<const char *>(record + 4), record_length - 4UL);
+        ServiceData data{};
+        data.uuid = ESPBTUUID::from_uint32(*reinterpret_cast<const uint32_t *>(record));
+        data.data.assign(record + 4UL, record + record_length);
+        this->service_datas_.push_back(data);
         break;
       }
       case ESP_BLE_AD_TYPE_128SERVICE_DATA: {
+        // «Service Data - 128 bit UUID»
+        // Size: 16 or more octets
+        // The first 16 octets contain the 128 bit Service UUID followed by additional service data
         if (record_length < 16) {
           ESP_LOGV(TAG, "Record length too small for ESP_BLE_AD_TYPE_128SERVICE_DATA");
           break;
         }
-        this->service_data_uuid_ = ESPBTUUID::from_raw(record);
-        if (record_length > 16)
-          this->service_data_ = std::string(reinterpret_cast<const char *>(record + 16), record_length - 16UL);
+        ServiceData data{};
+        data.uuid = ESPBTUUID::from_raw(record);
+        data.data.assign(record + 16UL, record + record_length);
+        this->service_datas_.push_back(data);
         break;
       }
       default: {
@@ -443,21 +482,13 @@ std::string ESPBTDevice::address_str() const {
   return mac;
 }
 uint64_t ESPBTDevice::address_uint64() const { return ble_addr_to_uint64(this->address_); }
-esp_ble_addr_type_t ESPBTDevice::get_address_type() const { return this->address_type_; }
-int ESPBTDevice::get_rssi() const { return this->rssi_; }
-const std::string &ESPBTDevice::get_name() const { return this->name_; }
-const optional<int8_t> &ESPBTDevice::get_tx_power() const { return this->tx_power_; }
-const optional<uint16_t> &ESPBTDevice::get_appearance() const { return this->appearance_; }
-const optional<uint8_t> &ESPBTDevice::get_ad_flag() const { return this->ad_flag_; }
-const std::vector<ESPBTUUID> &ESPBTDevice::get_service_uuids() const { return this->service_uuids_; }
-const std::string &ESPBTDevice::get_manufacturer_data() const { return this->manufacturer_data_; }
-const std::string &ESPBTDevice::get_service_data() const { return this->service_data_; }
-const optional<ESPBTUUID> &ESPBTDevice::get_service_data_uuid() const { return this->service_data_uuid_; }
 
-void ESP32BLETracker::set_scan_interval(uint32_t scan_interval) { this->scan_interval_ = scan_interval; }
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
-  ESP_LOGCONFIG(TAG, "  Scan Interval: %u s", this->scan_interval_);
+  ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
+  ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
+  ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
+  ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
 }
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
@@ -491,8 +522,8 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   ESP_LOGD(TAG, "  Address Type: %s", address_type_s);
   if (!device.get_name().empty())
     ESP_LOGD(TAG, "  Name: '%s'", device.get_name().c_str());
-  if (device.get_tx_power().has_value()) {
-    ESP_LOGD(TAG, "  TX Power: %d", *device.get_tx_power());
+  for (auto &tx_power : device.get_tx_powers()) {
+    ESP_LOGD(TAG, "  TX Power: %d", tx_power);
   }
 }
 

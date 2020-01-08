@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """esphome setup script."""
 from setuptools import setup, find_packages
 import os
@@ -23,17 +23,16 @@ GITHUB_URL = 'https://github.com/{}'.format(GITHUB_PATH)
 DOWNLOAD_URL = '{}/archive/v{}.zip'.format(GITHUB_URL, const.__version__)
 
 REQUIRES = [
-    'voluptuous>=0.11.5,<0.12',
-    'PyYAML>=5.1,<6',
-    'paho-mqtt>=1.4,<2',
-    'colorlog>=4.0.2',
-    'tornado>=5.1.1,<6',
-    'typing>=3.6.6;python_version<"3.5"',
-    'protobuf>=3.7,<3.8',
-    'tzlocal>=1.5.1',
-    'pytz>=2019.1',
-    'pyserial>=3.4,<4',
-    'ifaddr>=0.1.6,<1',
+    'voluptuous==0.11.7',
+    'PyYAML==5.2',
+    'paho-mqtt==1.5.0',
+    'colorlog==4.0.2',
+    'tornado==5.1.1',
+    'protobuf==3.11.1',
+    'tzlocal==2.0.0',
+    'pytz==2019.3',
+    'pyserial==3.4',
+    'ifaddr==0.1.6',
 ]
 
 # If you have problems importing platformio and esptool as modules you can set
@@ -41,8 +40,8 @@ REQUIRES = [
 # This means they have to be in your $PATH.
 if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
     REQUIRES.extend([
-        'platformio>=3.6.5',
-        'esptool>=2.6,<3',
+        'platformio==4.1.0',
+        'esptool==2.7',
     ])
 
 CLASSIFIERS = [
@@ -69,7 +68,7 @@ setup(
     zip_safe=False,
     platforms='any',
     test_suite='tests',
-    python_requires='>=2.7,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,<4.0',
+    python_requires='>=3.6,<4.0',
     install_requires=REQUIRES,
     keywords=['home', 'automation'],
     entry_points={

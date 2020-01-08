@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import json
 import logging
 import os
@@ -12,27 +10,18 @@ from esphome.util import run_external_command, run_external_process
 _LOGGER = logging.getLogger(__name__)
 
 
-def is_platformio4():
-    from platformio import VERSION
-    return VERSION[0] >= 4
-
-
 def patch_structhash():
     # Patch platformio's structhash to not recompile the entire project when files are
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    # pylint: disable=no-member,no-name-in-module,import-error
-    from platformio.commands import run
-    from platformio import util
-    if is_platformio4():
-        from platformio.project.helpers import get_project_dir
-    else:
-        from platformio.util import get_project_dir
+    from platformio.commands.run import helpers, command
     from os.path import join, isdir, getmtime
     from os import makedirs
 
     def patched_clean_build_dir(build_dir, *args):
+        from platformio import util
+        from platformio.project.helpers import get_project_dir
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
@@ -43,10 +32,34 @@ def patch_structhash():
             makedirs(build_dir)
 
     # pylint: disable=protected-access
-    if is_platformio4():
-        run.helpers.clean_build_dir = patched_clean_build_dir
-    else:
-        run._clean_build_dir = patched_clean_build_dir
+    helpers.clean_build_dir = patched_clean_build_dir
+    command.clean_build_dir = patched_clean_build_dir
+
+
+IGNORE_LIB_WARNINGS = r'(?:' + '|'.join(['Hash', 'Update']) + r')'
+FILTER_PLATFORMIO_LINES = [
+    r'Verbose mode can be enabled via `-v, --verbose` option.*',
+    r'CONFIGURATION: https://docs.platformio.org/.*',
+    r'PLATFORM: .*',
+    r'DEBUG: Current.*',
+    r'PACKAGES: .*',
+    r'LDF: Library Dependency Finder -> http://bit.ly/configure-pio-ldf.*',
+    r'LDF Modes: Finder ~ chain, Compatibility ~ soft.*',
+    r'Looking for ' + IGNORE_LIB_WARNINGS + r' library in registry',
+    r"Warning! Library `.*'" + IGNORE_LIB_WARNINGS +
+    r".*` has not been found in PlatformIO Registry.",
+    r"You can ignore this message, if `.*" + IGNORE_LIB_WARNINGS + r".*` is a built-in library.*",
+    r'Scanning dependencies...',
+    r"Found \d+ compatible libraries",
+    r'Memory Usage -> http://bit.ly/pio-memory-usage',
+    r'esptool.py v.*',
+    r"Found: https://platformio.org/lib/show/.*",
+    r"Using cache: .*",
+    r'Installing dependencies',
+    r'.* @ .* is already installed',
+    r'Building in .* mode',
+    r'Advanced Memory Usage is available via .*',
+]
 
 
 def run_platformio_cli(*args, **kwargs):
@@ -54,6 +67,9 @@ def run_platformio_cli(*args, **kwargs):
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
     cmd = ['platformio'] + list(args)
+
+    if not CORE.verbose:
+        kwargs['filter_lines'] = FILTER_PLATFORMIO_LINES
 
     if os.environ.get('ESPHOME_USE_SUBPROCESS') is not None:
         return run_external_process(*cmd, **kwargs)
@@ -82,13 +98,15 @@ def run_upload(config, verbose, port):
 
 def run_idedata(config):
     args = ['-t', 'idedata']
-    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
-    match = re.search(r'{.*}', stdout)
+    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True).decode()
+    match = re.search(r'{\s*".*}', stdout)
     if match is None:
+        _LOGGER.debug("Could not match IDEData for %s", stdout)
         return IDEData(None)
     try:
         return IDEData(json.loads(match.group()))
     except ValueError:
+        _LOGGER.debug("Could not load IDEData for %s", stdout, exc_info=1)
         return IDEData(None)
 
 
@@ -147,11 +165,13 @@ ESP8266_EXCEPTION_CODES = {
 def _decode_pc(config, addr):
     idedata = get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
         return
     command = [idedata.addr2line_path, '-pfiaC', '-e', idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).strip()
+        translation = subprocess.check_output(command).decode().strip()
     except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
     if "?? ??:0" in translation:
@@ -223,7 +243,7 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-class IDEData(object):
+class IDEData:
     def __init__(self, raw):
         if not isinstance(raw, dict):
             self.raw = {}

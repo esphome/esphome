@@ -107,7 +107,7 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
   App.scheduler.set_timeout(this, "", timeout, std::move(f));
 }
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
-  App.scheduler.set_timeout(this, "", interval, std::move(f));
+  App.scheduler.set_interval(this, "", interval, std::move(f));
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
 bool Component::can_proceed() { return true; }
@@ -138,6 +138,20 @@ float Component::get_actual_setup_priority() const {
   return this->setup_priority_override_;
 }
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+
+bool Component::has_overridden_loop() const {
+#ifdef CLANG_TIDY
+  bool loop_overridden = true;
+  bool call_loop_overridden = true;
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
+  bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
+  bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
+#pragma GCC diagnostic pop
+#endif
+  return loop_overridden || call_loop_overridden;
+}
 
 PollingComponent::PollingComponent(uint32_t update_interval) : Component(), update_interval_(update_interval) {}
 

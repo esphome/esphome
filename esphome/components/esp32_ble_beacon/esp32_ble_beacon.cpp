@@ -31,6 +31,11 @@ static esp_ble_adv_params_t ble_adv_params = {
 static esp_ble_ibeacon_head_t ibeacon_common_head = {
     .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = 0x004C, .beacon_type = 0x1502};
 
+void ESP32BLEBeacon::dump_config() {
+  ESP_LOGCONFIG(TAG, "ESP32 BLE Beacon:");
+  ESP_LOGCONFIG(TAG, "  Major: %u, Minor: %u", this->major_, this->minor_);
+}
+
 void ESP32BLEBeacon::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 BLE beacon...");
   global_esp32_ble_beacon = this;
@@ -50,7 +55,7 @@ void ESP32BLEBeacon::ble_core_task(void *params) {
   ble_setup();
 
   while (true) {
-    delay(1000);
+    delay(1000);  // NOLINT
   }
 }
 void ESP32BLEBeacon::ble_setup() {

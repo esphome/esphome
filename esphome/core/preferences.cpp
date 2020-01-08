@@ -54,15 +54,15 @@ bool ESPPreferenceObject::save_() {
 
 #ifdef ARDUINO_ARCH_ESP8266
 
-#define ESP_RTC_USER_MEM_START 0x60001200
+static const uint32_t ESP_RTC_USER_MEM_START = 0x60001200;
 #define ESP_RTC_USER_MEM ((uint32_t *) ESP_RTC_USER_MEM_START)
-#define ESP_RTC_USER_MEM_SIZE_WORDS 128
-#define ESP_RTC_USER_MEM_SIZE_BYTES ESP_RTC_USER_MEM_SIZE_WORDS * 4
+static const uint32_t ESP_RTC_USER_MEM_SIZE_WORDS = 128;
+static const uint32_t ESP_RTC_USER_MEM_SIZE_BYTES = ESP_RTC_USER_MEM_SIZE_WORDS * 4;
 
 #ifdef USE_ESP8266_PREFERENCES_FLASH
-#define ESP8266_FLASH_STORAGE_SIZE 128
+static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 128;
 #else
-#define ESP8266_FLASH_STORAGE_SIZE 64
+static const uint32_t ESP8266_FLASH_STORAGE_SIZE = 64;
 #endif
 
 static inline bool esp_rtc_user_mem_read(uint32_t index, uint32_t *dest) {
@@ -105,16 +105,18 @@ void ESPPreferences::save_esp8266_flash_() {
     return;
 
   ESP_LOGVV(TAG, "Saving preferences to flash...");
-  disable_interrupts();
-  auto erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+  SpiFlashOpResult erase_res, write_res = SPI_FLASH_RESULT_OK;
+  {
+    InterruptLock lock;
+    erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+    if (erase_res == SPI_FLASH_RESULT_OK) {
+      write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
+    }
+  }
   if (erase_res != SPI_FLASH_RESULT_OK) {
-    enable_interrupts();
     ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
     return;
   }
-
-  auto write_res = spi_flash_write(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
-  enable_interrupts();
   if (write_res != SPI_FLASH_RESULT_OK) {
     ESP_LOGV(TAG, "Write ESP8266 flash failed!");
     return;
@@ -173,9 +175,11 @@ ESPPreferences::ESPPreferences()
 void ESPPreferences::begin() {
   this->flash_storage_ = new uint32_t[ESP8266_FLASH_STORAGE_SIZE];
   ESP_LOGVV(TAG, "Loading preferences from flash...");
-  disable_interrupts();
-  spi_flash_read(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
-  enable_interrupts();
+
+  {
+    InterruptLock lock;
+    spi_flash_read(get_esp8266_flash_address(), this->flash_storage_, ESP8266_FLASH_STORAGE_SIZE * 4);
+  }
 }
 
 ESPPreferenceObject ESPPreferences::make_preference(size_t length, uint32_t type, bool in_flash) {

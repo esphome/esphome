@@ -53,6 +53,10 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
 
   return ret;
 }
+bool WiFiComponent::wifi_apply_output_power_(float output_power) {
+  int8_t val = static_cast<int8_t>(output_power * 4);
+  return esp_wifi_set_max_tx_power(val) == ESP_OK;
+}
 bool WiFiComponent::wifi_sta_pre_setup_() {
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -162,10 +166,16 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     conf.sta.channel = *ap.get_channel();
   }
 
-  esp_err_t err = esp_wifi_disconnect();
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
-    return false;
+  wifi_config_t current_conf;
+  esp_err_t err;
+  esp_wifi_get_config(WIFI_IF_STA, &current_conf);
+
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+    err = esp_wifi_disconnect();
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
+      return false;
+    }
   }
 
   err = esp_wifi_set_config(WIFI_IF_STA, &conf);
@@ -319,8 +329,12 @@ void WiFiComponent::wifi_event_callback_(system_event_id_t event, system_event_i
       char buf[33];
       memcpy(buf, it.ssid, it.ssid_len);
       buf[it.ssid_len] = '\0';
-      ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason=%s", buf,
-               format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      if (it.reason == WIFI_REASON_NO_AP_FOUND) {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
+      } else {
+        ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
+                 format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
+      }
       break;
     }
     case SYSTEM_EVENT_STA_AUTHMODE_CHANGE: {

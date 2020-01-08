@@ -2,6 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 namespace esphome {
 namespace uart {
@@ -25,7 +30,10 @@ void UARTComponent::setup() {
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  this->hw_serial_->begin(this->baud_rate_, SERIAL_8N1, rx, tx);
+  uint32_t config = SERIAL_8N1;
+  if (this->stop_bits_ == 2)
+    config = SERIAL_8N2;
+  this->hw_serial_->begin(this->baud_rate_, config, rx, tx);
 }
 
 void UARTComponent::dump_config() {
@@ -37,6 +45,8 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -102,21 +112,27 @@ void UARTComponent::setup() {
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
+  uint32_t mode = UART_NB_BIT_8 | UART_PARITY_NONE;
+  if (this->stop_bits_ == 1)
+    mode |= UART_NB_STOP_BIT_1;
+  else
+    mode |= UART_NB_STOP_BIT_2;
+  SerialConfig config = static_cast<SerialConfig>(mode);
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_);
+    this->hw_serial_->begin(this->baud_rate_, config);
   } else if (this->tx_pin_.value_or(15) == 15 && this->rx_pin_.value_or(13) == 13) {
     this->hw_serial_ = &Serial;
-    this->hw_serial_->begin(this->baud_rate_);
+    this->hw_serial_->begin(this->baud_rate_, config);
     this->hw_serial_->swap();
   } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
     this->hw_serial_ = &Serial1;
-    this->hw_serial_->begin(this->baud_rate_);
+    this->hw_serial_->begin(this->baud_rate_, config);
   } else {
     this->sw_serial_ = new ESP8266SoftwareSerial();
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_);
+    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_);
   }
 }
 
@@ -129,11 +145,13 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -231,7 +249,7 @@ void UARTComponent::flush() {
   }
 }
 
-void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate) {
+void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits) {
   this->bit_time_ = F_CPU / baud_rate;
   if (tx_pin != -1) {
     auto pin = GPIOPin(tx_pin, OUTPUT);
@@ -246,6 +264,7 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
     this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];
     pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
+  this->stop_bits_ = stop_bits;
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
@@ -262,6 +281,8 @@ void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg
   rec |= arg->read_bit_(&wait, start) << 7;
   // Stop bit
   arg->wait_(&wait, start);
+  if (arg->stop_bits_ == 2)
+    arg->wait_(&wait, start);
 
   arg->rx_buffer_[arg->rx_in_pos_] = rec;
   arg->rx_in_pos_ = (arg->rx_in_pos_ + 1) % arg->rx_buffer_size_;
@@ -274,22 +295,25 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     return;
   }
 
-  disable_interrupts();
-  uint32_t wait = this->bit_time_;
-  const uint32_t start = ESP.getCycleCount();
-  // Start bit
-  this->write_bit_(false, &wait, start);
-  this->write_bit_(data & (1 << 0), &wait, start);
-  this->write_bit_(data & (1 << 1), &wait, start);
-  this->write_bit_(data & (1 << 2), &wait, start);
-  this->write_bit_(data & (1 << 3), &wait, start);
-  this->write_bit_(data & (1 << 4), &wait, start);
-  this->write_bit_(data & (1 << 5), &wait, start);
-  this->write_bit_(data & (1 << 6), &wait, start);
-  this->write_bit_(data & (1 << 7), &wait, start);
-  // Stop bit
-  this->write_bit_(true, &wait, start);
-  enable_interrupts();
+  {
+    InterruptLock lock;
+    uint32_t wait = this->bit_time_;
+    const uint32_t start = ESP.getCycleCount();
+    // Start bit
+    this->write_bit_(false, &wait, start);
+    this->write_bit_(data & (1 << 0), &wait, start);
+    this->write_bit_(data & (1 << 1), &wait, start);
+    this->write_bit_(data & (1 << 2), &wait, start);
+    this->write_bit_(data & (1 << 3), &wait, start);
+    this->write_bit_(data & (1 << 4), &wait, start);
+    this->write_bit_(data & (1 << 5), &wait, start);
+    this->write_bit_(data & (1 << 6), &wait, start);
+    this->write_bit_(data & (1 << 7), &wait, start);
+    // Stop bit
+    this->write_bit_(true, &wait, start);
+    if (this->stop_bits_ == 2)
+      this->wait_(&wait, start);
+  }
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
   while (ESP.getCycleCount() - start < *wait)
@@ -300,7 +324,7 @@ bool ICACHE_RAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint
   this->wait_(wait, start);
   return this->rx_pin_->digital_read();
 }
-void ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
+void ICACHE_RAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
   this->tx_pin_->digital_write(bit);
   this->wait_(wait, start);
 }
@@ -316,7 +340,9 @@ uint8_t ESP8266SoftwareSerial::peek_byte() {
     return 0;
   return this->rx_buffer_[this->rx_out_pos_];
 }
-void ESP8266SoftwareSerial::flush() { this->rx_in_pos_ = this->rx_out_pos_ = 0; }
+void ESP8266SoftwareSerial::flush() {
+  // Flush is a NO-OP with software serial, all bytes are written immediately.
+}
 int ESP8266SoftwareSerial::available() {
   int avail = int(this->rx_in_pos_) - int(this->rx_out_pos_);
   if (avail < 0)
@@ -340,6 +366,30 @@ int UARTComponent::peek() {
   if (!this->peek_byte(&data))
     return -1;
   return data;
+}
+
+void UARTComponent::check_logger_conflict_() {
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
+    return;
+  }
+
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
+}
+
+void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
+  if (this->parent_->baud_rate_ != baud_rate) {
+    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
+             this->parent_->baud_rate_);
+  }
+  if (this->parent_->stop_bits_ != stop_bits) {
+    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
+             this->parent_->stop_bits_);
+  }
 }
 
 }  // namespace uart

@@ -7,7 +7,7 @@ import esphome.config_validation as cv
 from esphome import automation, pins
 from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV, \
     CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, \
-    CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
+    CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
@@ -37,22 +37,24 @@ def validate_board(value):
         raise NotImplementedError
 
     if value not in board_pins:
-        raise cv.Invalid(u"Could not find board '{}'. Valid boards are {}".format(
-            value, u', '.join(sorted(board_pins.keys()))))
+        raise cv.Invalid("Could not find board '{}'. Valid boards are {}".format(
+            value, ', '.join(sorted(board_pins.keys()))))
     return value
 
 
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.5.2': 'espressif8266@2.2.0',
+    '2.6.2': 'espressif8266@2.3.1',
+    '2.6.1': 'espressif8266@2.3.0',
+    '2.5.2': 'espressif8266@2.2.3',
     '2.5.1': 'espressif8266@2.1.0',
     '2.5.0': 'espressif8266@2.0.1',
     '2.4.2': 'espressif8266@1.8.0',
     '2.4.1': 'espressif8266@1.7.3',
     '2.4.0': 'espressif8266@1.6.0',
     '2.3.0': 'espressif8266@1.5.0',
-    'RECOMMENDED': 'espressif8266@1.8.0',
+    'RECOMMENDED': 'espressif8266@2.2.3',
     'LATEST': 'espressif8266',
     'DEV': ARDUINO_VERSION_ESP8266_DEV,
 }
@@ -60,8 +62,10 @@ PLATFORMIO_ESP8266_LUT = {
 PLATFORMIO_ESP32_LUT = {
     '1.0.0': 'espressif32@1.4.0',
     '1.0.1': 'espressif32@1.6.0',
-    '1.0.2': 'espressif32@1.8.0',
-    'RECOMMENDED': 'espressif32@1.6.0',
+    '1.0.2': 'espressif32@1.9.0',
+    '1.0.3': 'espressif32@1.10.0',
+    '1.0.4': 'espressif32@1.11.0',
+    'RECOMMENDED': 'espressif32@1.11.0',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
@@ -74,7 +78,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP8266_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif8266@<platformio version>")
+                             "espressif8266@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP8266_LUT:
             return PLATFORMIO_ESP8266_LUT[value_]
         return value
@@ -82,7 +86,7 @@ def validate_arduino_version(value):
         if VERSION_REGEX.match(value) is not None and value_ not in PLATFORMIO_ESP32_LUT:
             raise cv.Invalid("Unfortunately the arduino framework version '{}' is unsupported "
                              "at this time. You can override this by manually using "
-                             "espressif32@<platformio version>")
+                             "espressif32@<platformio version>".format(value))
         if value_ in PLATFORMIO_ESP32_LUT:
             return PLATFORMIO_ESP32_LUT[value_]
         return value
@@ -104,8 +108,8 @@ def valid_include(value):
     value = cv.file_(value)
     _, ext = os.path.splitext(value)
     if ext not in VALID_INCLUDE_EXTS:
-        raise cv.Invalid(u"Include has invalid file extension {} - valid extensions are {}"
-                         u"".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
+        raise cv.Invalid("Include has invalid file extension {} - valid extensions are {}"
+                         "".format(ext, ', '.join(VALID_INCLUDE_EXTS)))
     return value
 
 
@@ -113,6 +117,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.valid_name,
     cv.Required(CONF_PLATFORM): cv.one_of('ESP8266', 'ESP32', upper=True),
     cv.Required(CONF_BOARD): validate_board,
+    cv.Optional(CONF_COMMENT): cv.string,
     cv.Optional(CONF_ARDUINO_VERSION, default='recommended'): validate_arduino_version,
     cv.Optional(CONF_BUILD_PATH, default=default_build_path): cv.string,
     cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema({
@@ -179,7 +184,7 @@ def include_file(path, basename):
     _, ext = os.path.splitext(path)
     if ext in ['.h', '.hpp', '.tcc']:
         # Header, add include statement
-        cg.add_global(cg.RawStatement(u'#include "{}"'.format(basename)))
+        cg.add_global(cg.RawStatement(f'#include "{basename}"'))
 
 
 @coroutine_with_priority(-1000.0)
@@ -233,7 +238,7 @@ def to_code(config):
             ld_script = ld_scripts[1]
 
         if ld_script is not None:
-            cg.add_build_flag('-Wl,-T{}'.format(ld_script))
+            cg.add_build_flag(f'-Wl,-T{ld_script}')
 
     cg.add_build_flag('-fno-exceptions')
 

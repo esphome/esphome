@@ -8,12 +8,11 @@ import os
 import re
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List  # noqa
+from typing import Any, Dict, List, Optional, Set  # noqa
 
-from esphome.const import CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI, \
-    SOURCE_FILE_EXTENSIONS
+from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
+    CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
-from esphome.py_compat import IS_PY2, integer_types, text_type, string_types
 from esphome.util import OrderedDict
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,53 +22,47 @@ class EsphomeError(Exception):
     """General ESPHome exception occurred."""
 
 
-if IS_PY2:
-    base_int = long
-else:
-    base_int = int
-
-
-class HexInt(base_int):
+class HexInt(int):
     def __str__(self):
         if 0 <= self <= 255:
-            return "0x{:02X}".format(self)
-        return "0x{:X}".format(self)
+            return f"0x{self:02X}"
+        return f"0x{self:X}"
 
 
-class IPAddress(object):
+class IPAddress:
     def __init__(self, *args):
         if len(args) != 4:
-            raise ValueError(u"IPAddress must consist up 4 items")
+            raise ValueError("IPAddress must consist up 4 items")
         self.args = args
 
     def __str__(self):
         return '.'.join(str(x) for x in self.args)
 
 
-class MACAddress(object):
+class MACAddress:
     def __init__(self, *parts):
         if len(parts) != 6:
-            raise ValueError(u"MAC Address must consist of 6 items")
+            raise ValueError("MAC Address must consist of 6 items")
         self.parts = parts
 
     def __str__(self):
-        return ':'.join('{:02X}'.format(part) for part in self.parts)
+        return ':'.join(f'{part:02X}' for part in self.parts)
 
     @property
     def as_hex(self):
         from esphome.cpp_generator import RawExpression
 
-        num = ''.join('{:02X}'.format(part) for part in self.parts)
-        return RawExpression('0x{}ULL'.format(num))
+        num = ''.join(f'{part:02X}' for part in self.parts)
+        return RawExpression(f'0x{num}ULL')
 
 
 def is_approximately_integer(value):
-    if isinstance(value, integer_types):
+    if isinstance(value, int):
         return True
     return abs(value - round(value)) < 0.001
 
 
-class TimePeriod(object):
+class TimePeriod:
     def __init__(self, microseconds=None, milliseconds=None, seconds=None,
                  minutes=None, hours=None, days=None):
         if days is not None:
@@ -137,17 +130,17 @@ class TimePeriod(object):
 
     def __str__(self):
         if self.microseconds is not None:
-            return '{}us'.format(self.total_microseconds)
+            return f'{self.total_microseconds}us'
         if self.milliseconds is not None:
-            return '{}ms'.format(self.total_milliseconds)
+            return f'{self.total_milliseconds}ms'
         if self.seconds is not None:
-            return '{}s'.format(self.total_seconds)
+            return f'{self.total_seconds}s'
         if self.minutes is not None:
-            return '{}min'.format(self.total_minutes)
+            return f'{self.total_minutes}min'
         if self.hours is not None:
-            return '{}h'.format(self.total_hours)
+            return f'{self.total_hours}h'
         if self.days is not None:
-            return '{}d'.format(self.total_days)
+            return f'{self.total_days}d'
         return '0s'
 
     @property
@@ -224,7 +217,7 @@ class TimePeriodMinutes(TimePeriod):
 LAMBDA_PROG = re.compile(r'id\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)(\.?)')
 
 
-class Lambda(object):
+class Lambda:
     def __init__(self, value):
         # pylint: disable=protected-access
         if isinstance(value, Lambda):
@@ -260,10 +253,10 @@ class Lambda(object):
         return self.value
 
     def __repr__(self):
-        return u'Lambda<{}>'.format(self.value)
+        return f'Lambda<{self.value}>'
 
 
-class ID(object):
+class ID:
     def __init__(self, id, is_declaration=False, type=None, is_manual=None):
         self.id = id
         if is_manual is None:
@@ -271,7 +264,7 @@ class ID(object):
         else:
             self.is_manual = is_manual
         self.is_declaration = is_declaration
-        self.type = type  # type: Optional[MockObjClass]
+        self.type = type  # type: Optional['MockObjClass']
 
     def resolve(self, registered_ids):
         from esphome.config_validation import RESERVED_IDS
@@ -289,7 +282,7 @@ class ID(object):
         return self.id
 
     def __repr__(self):
-        return u'ID<{} declaration={}, type={}, manual={}>'.format(
+        return 'ID<{} declaration={}, type={}, manual={}>'.format(
             self.id, self.is_declaration, self.type, self.is_manual)
 
     def __eq__(self, other):
@@ -305,10 +298,10 @@ class ID(object):
                   is_manual=self.is_manual)
 
 
-class DocumentLocation(object):
+class DocumentLocation:
     def __init__(self, document, line, column):
-        # type: (basestring, int, int) -> None
-        self.document = document  # type: basestring
+        # type: (str, int, int) -> None
+        self.document = document  # type: str
         self.line = line  # type: int
         self.column = column  # type: int
 
@@ -321,10 +314,10 @@ class DocumentLocation(object):
         )
 
     def __str__(self):
-        return u'{} {}:{}'.format(self.document, self.line, self.column)
+        return f'{self.document} {self.line}:{self.column}'
 
 
-class DocumentRange(object):
+class DocumentRange:
     def __init__(self, start_mark, end_mark):
         # type: (DocumentLocation, DocumentLocation) -> None
         self.start_mark = start_mark  # type: DocumentLocation
@@ -338,10 +331,10 @@ class DocumentRange(object):
         )
 
     def __str__(self):
-        return u'[{} - {}]'.format(self.start_mark, self.end_mark)
+        return f'[{self.start_mark} - {self.end_mark}]'
 
 
-class Define(object):
+class Define:
     def __init__(self, name, value=None):
         self.name = name
         self.value = value
@@ -349,14 +342,14 @@ class Define(object):
     @property
     def as_build_flag(self):
         if self.value is None:
-            return u'-D{}'.format(self.name)
-        return u'-D{}={}'.format(self.name, self.value)
+            return f'-D{self.name}'
+        return f'-D{self.name}={self.value}'
 
     @property
     def as_macro(self):
         if self.value is None:
-            return u'#define {}'.format(self.name)
-        return u'#define {} {}'.format(self.name, self.value)
+            return f'#define {self.name}'
+        return f'#define {self.name} {self.value}'
 
     @property
     def as_tuple(self):
@@ -369,7 +362,7 @@ class Define(object):
         return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
 
 
-class Library(object):
+class Library:
     def __init__(self, name, version):
         self.name = name
         self.version = version
@@ -378,7 +371,7 @@ class Library(object):
     def as_lib_dep(self):
         if self.version is None:
             return self.name
-        return u'{}@{}'.format(self.name, self.version)
+        return f'{self.name}@{self.version}'
 
     @property
     def as_tuple(self):
@@ -461,7 +454,7 @@ def find_source_files(file):
 
 
 # pylint: disable=too-many-instance-attributes,too-many-public-methods
-class EsphomeCore(object):
+class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
         self.dashboard = False
@@ -489,17 +482,17 @@ class EsphomeCore(object):
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables = {}  # type: Dict[str, MockObj]
+        self.variables = {}  # type: Dict[str, 'MockObj']
         # A list of statements that go in the main setup() block
-        self.main_statements = []  # type: List[Statement]
+        self.main_statements = []  # type: List['Statement']
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements = []  # type: List[Statement]
+        self.global_statements = []  # type: List['Statement']
         # A set of platformio libraries to add to the project
         self.libraries = []  # type: List[Library]
         # A set of build flags to set in the platformio project
         self.build_flags = set()  # type: Set[str]
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines = set()  # type: Set[Define]
+        self.defines = set()  # type: Set['Define']
         # A dictionary of started coroutines, used to warn when a coroutine was not
         # awaited.
         self.active_coroutines = {}  # type: Dict[int, Any]
@@ -507,6 +500,8 @@ class EsphomeCore(object):
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
         self.component_ids = set()
+        # Whether ESPHome was started in verbose mode
+        self.verbose = False
 
     def reset(self):
         self.dashboard = False
@@ -536,6 +531,13 @@ class EsphomeCore(object):
 
         if 'ethernet' in self.config:
             return self.config['ethernet'][CONF_USE_ADDRESS]
+
+        return None
+
+    @property
+    def comment(self):  # type: () -> str
+        if CONF_COMMENT in self.config[CONF_ESPHOME]:
+            return self.config[CONF_ESPHOME][CONF_COMMENT]
 
         return None
 
@@ -625,15 +627,15 @@ class EsphomeCore(object):
 
         # Print not-awaited coroutines
         for obj in self.active_coroutines.values():
-            _LOGGER.warning(u"Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
-            _LOGGER.warning(u"Please file a bug report with your configuration.")
+            _LOGGER.warning("Coroutine '%s' %s was never awaited with 'yield'.", obj.__name__, obj)
+            _LOGGER.warning("Please file a bug report with your configuration.")
         if self.active_coroutines:
             raise EsphomeError()
         if self.component_ids:
-            comps = u', '.join(u"'{}'".format(x) for x in self.component_ids)
-            _LOGGER.warning(u"Components %s were never registered. Please create a bug report",
+            comps = ', '.join(f"'{x}'" for x in self.component_ids)
+            _LOGGER.warning("Components %s were never registered. Please create a bug report",
                             comps)
-            _LOGGER.warning(u"with your configuration.")
+            _LOGGER.warning("with your configuration.")
             raise EsphomeError()
         self.active_coroutines.clear()
 
@@ -643,8 +645,8 @@ class EsphomeCore(object):
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError(u"Add '{}' must be expression or statement, not {}"
-                             u"".format(expression, type(expression)))
+            raise ValueError("Add '{}' must be expression or statement, not {}"
+                             "".format(expression, type(expression)))
 
         self.main_statements.append(expression)
         _LOGGER.debug("Adding: %s", expression)
@@ -656,16 +658,16 @@ class EsphomeCore(object):
         if isinstance(expression, Expression):
             expression = statement(expression)
         if not isinstance(expression, Statement):
-            raise ValueError(u"Add '{}' must be expression or statement, not {}"
-                             u"".format(expression, type(expression)))
+            raise ValueError("Add '{}' must be expression or statement, not {}"
+                             "".format(expression, type(expression)))
         self.global_statements.append(expression)
         _LOGGER.debug("Adding global: %s", expression)
         return expression
 
     def add_library(self, library):
         if not isinstance(library, Library):
-            raise ValueError(u"Library {} must be instance of Library, not {}"
-                             u"".format(library, type(library)))
+            raise ValueError("Library {} must be instance of Library, not {}"
+                             "".format(library, type(library)))
         _LOGGER.debug("Adding library: %s", library)
         for other in self.libraries[:]:
             if other.name != library.name:
@@ -680,9 +682,9 @@ class EsphomeCore(object):
             if other.version == library.version:
                 break
 
-            raise ValueError(u"Version pinning failed! Libraries {} and {} "
-                             u"requested with conflicting versions!"
-                             u"".format(library, other))
+            raise ValueError("Version pinning failed! Libraries {} and {} "
+                             "requested with conflicting versions!"
+                             "".format(library, other))
         else:
             self.libraries.append(library)
         return library
@@ -693,20 +695,20 @@ class EsphomeCore(object):
         return build_flag
 
     def add_define(self, define):
-        if isinstance(define, string_types):
+        if isinstance(define, str):
             define = Define(define)
         elif isinstance(define, Define):
             pass
         else:
-            raise ValueError(u"Define {} must be string or Define, not {}"
-                             u"".format(define, type(define)))
+            raise ValueError("Define {} must be string or Define, not {}"
+                             "".format(define, type(define)))
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
 
     def get_variable(self, id):
         if not isinstance(id, ID):
-            raise ValueError("ID {!r} must be of type ID!".format(id))
+            raise ValueError(f"ID {id!r} must be of type ID!")
         while True:
             if id in self.variables:
                 yield self.variables[id]
@@ -726,7 +728,7 @@ class EsphomeCore(object):
 
     def register_variable(self, id, obj):
         if id in self.variables:
-            raise EsphomeError("ID {} is already registered".format(id))
+            raise EsphomeError(f"ID {id} is already registered")
         _LOGGER.debug("Registered variable %s of type %s", id.id, id.type)
         self.variables[id] = obj
 
@@ -739,10 +741,10 @@ class EsphomeCore(object):
 
         main_code = []
         for exp in self.main_statements:
-            text = text_type(statement(exp))
+            text = str(statement(exp))
             text = text.rstrip()
             main_code.append(text)
-        return u'\n'.join(main_code) + u'\n\n'
+        return '\n'.join(main_code) + '\n\n'
 
     @property
     def cpp_global_section(self):
@@ -750,17 +752,17 @@ class EsphomeCore(object):
 
         global_code = []
         for exp in self.global_statements:
-            text = text_type(statement(exp))
+            text = str(statement(exp))
             text = text.rstrip()
             global_code.append(text)
-        return u'\n'.join(global_code) + u'\n'
+        return '\n'.join(global_code) + '\n'
 
 
 class AutoLoad(OrderedDict):
     pass
 
 
-class EnumValue(object):
+class EnumValue:
     """Special type used by ESPHome to mark enum values for cv.enum."""
     @property
     def enum_value(self):

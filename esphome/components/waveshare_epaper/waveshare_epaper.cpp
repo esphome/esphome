@@ -8,13 +8,45 @@ namespace waveshare_epaper {
 
 static const char *TAG = "waveshare_epaper";
 
-static const uint8_t FULL_UPDATE_LUT[30] = {0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22, 0x66, 0x69,
-                                            0x69, 0x59, 0x58, 0x99, 0x99, 0x88, 0x00, 0x00, 0x00, 0x00,
-                                            0xF8, 0xB4, 0x13, 0x51, 0x35, 0x51, 0x51, 0x19, 0x01, 0x00};
+static const uint8_t LUT_SIZE_WAVESHARE = 30;
+static const uint8_t FULL_UPDATE_LUT[LUT_SIZE_WAVESHARE] = {0x02, 0x02, 0x01, 0x11, 0x12, 0x12, 0x22, 0x22, 0x66, 0x69,
+                                                            0x69, 0x59, 0x58, 0x99, 0x99, 0x88, 0x00, 0x00, 0x00, 0x00,
+                                                            0xF8, 0xB4, 0x13, 0x51, 0x35, 0x51, 0x51, 0x19, 0x01, 0x00};
 
-static const uint8_t PARTIAL_UPDATE_LUT[30] = {0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, 0x00, 0x00,
-                                               0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                                               0x13, 0x14, 0x44, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+static const uint8_t PARTIAL_UPDATE_LUT[LUT_SIZE_WAVESHARE] = {
+    0x10, 0x18, 0x18, 0x08, 0x18, 0x18, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x13, 0x14, 0x44, 0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+static const uint8_t LUT_SIZE_TTGO = 70;
+static const uint8_t FULL_UPDATE_LUT_TTGO[LUT_SIZE_TTGO] = {
+    0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00,  // LUT0: BB:     VS 0 ~7
+    0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00,  // LUT1: BW:     VS 0 ~7
+    0x80, 0x60, 0x40, 0x00, 0x00, 0x00, 0x00,  // LUT2: WB:     VS 0 ~7
+    0x10, 0x60, 0x20, 0x00, 0x00, 0x00, 0x00,  // LUT3: WW:     VS 0 ~7
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT4: VCOM:   VS 0 ~7
+    0x03, 0x03, 0x00, 0x00, 0x02,              // TP0 A~D RP0
+    0x09, 0x09, 0x00, 0x00, 0x02,              // TP1 A~D RP1
+    0x03, 0x03, 0x00, 0x00, 0x02,              // TP2 A~D RP2
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP3 A~D RP3
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP4 A~D RP4
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP5 A~D RP5
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP6 A~D RP6
+};
+
+static const uint8_t PARTIAL_UPDATE_LUT_TTGO[LUT_SIZE_TTGO] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT0: BB:     VS 0 ~7
+    0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT1: BW:     VS 0 ~7
+    0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT2: WB:     VS 0 ~7
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT3: WW:     VS 0 ~7
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // LUT4: VCOM:   VS 0 ~7
+    0x0A, 0x00, 0x00, 0x00, 0x00,              // TP0 A~D RP0
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP1 A~D RP1
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP2 A~D RP2
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP3 A~D RP3
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP4 A~D RP4
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP5 A~D RP5
+    0x00, 0x00, 0x00, 0x00, 0x00,              // TP6 A~D RP6
+};
 
 void WaveshareEPaper::setup_pins_() {
   this->init_internal_(this->get_buffer_length_());
@@ -134,6 +166,9 @@ void WaveshareEPaperTypeA::dump_config() {
     case WAVESHARE_EPAPER_2_13_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in");
       break;
+    case TTGO_EPAPER_2_13_IN:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO)");
+      break;
     case WAVESHARE_EPAPER_2_9_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.9in");
       break;
@@ -154,7 +189,11 @@ void HOT WaveshareEPaperTypeA::display() {
     bool prev_full_update = this->at_update_ == 1;
     bool full_update = this->at_update_ == 0;
     if (full_update != prev_full_update) {
-      this->write_lut_(full_update ? FULL_UPDATE_LUT : PARTIAL_UPDATE_LUT);
+      if (this->model_ == TTGO_EPAPER_2_13_IN) {
+        this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO : PARTIAL_UPDATE_LUT_TTGO, LUT_SIZE_TTGO);
+      } else {
+        this->write_lut_(full_update ? FULL_UPDATE_LUT : PARTIAL_UPDATE_LUT, LUT_SIZE_WAVESHARE);
+      }
     }
     this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
   }
@@ -206,6 +245,8 @@ int WaveshareEPaperTypeA::get_width_internal() {
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
       return 128;
+    case TTGO_EPAPER_2_13_IN:
+      return 128;
     case WAVESHARE_EPAPER_2_9_IN:
       return 128;
   }
@@ -217,15 +258,17 @@ int WaveshareEPaperTypeA::get_height_internal() {
       return 200;
     case WAVESHARE_EPAPER_2_13_IN:
       return 250;
+    case TTGO_EPAPER_2_13_IN:
+      return 250;
     case WAVESHARE_EPAPER_2_9_IN:
       return 296;
   }
   return 0;
 }
-void WaveshareEPaperTypeA::write_lut_(const uint8_t *lut) {
+void WaveshareEPaperTypeA::write_lut_(const uint8_t *lut, const uint8_t size) {
   // COMMAND WRITE LUT REGISTER
   this->command(0x32);
-  for (uint8_t i = 0; i < 30; i++)
+  for (uint8_t i = 0; i < size; i++)
     this->data(lut[i]);
 }
 WaveshareEPaperTypeA::WaveshareEPaperTypeA(WaveshareEPaperTypeAModel model) : model_(model) {}
@@ -374,6 +417,85 @@ int WaveshareEPaper2P7In::get_height_internal() { return 264; }
 void WaveshareEPaper2P7In::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.7in");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//               2.90in Type B (LUT from OTP)
+// Datasheet:
+//  - https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf
+//  - https://github.com/soonuse/epd-library-arduino/blob/master/2.9inch_e-paper_b/epd2in9b/epd2in9b.cpp
+// ========================================================
+
+void WaveshareEPaper2P9InB::initialize() {
+  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
+  // EPD hardware init start
+  this->reset_();
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x17);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  // 128x296 resolution:        10
+  // LUT from OTP:              0
+  // B/W mode (doesn't work):   1
+  // scan-up:                   1
+  // shift-right:               1
+  // booster ON:                1
+  // no soft reset:             1
+  this->data(0x9F);
+
+  // COMMAND RESOLUTION SETTING
+  // set to 128x296 by COMMAND PANNEL SETTING
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  // use defaults for white border and ESPHome image polarity
+
+  // EPD hardware init end
+}
+void HOT WaveshareEPaper2P9InB::display() {
+  // COMMAND DATA START TRANSMISSION 1 (B/W data)
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2 (RED data)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (int i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0x00);
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int WaveshareEPaper2P9InB::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InB::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InB::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in (B)");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);

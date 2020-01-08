@@ -1,9 +1,10 @@
 from esphome.const import CONF_INVERTED, CONF_MODE, CONF_NUMBER, CONF_SETUP_PRIORITY, \
     CONF_UPDATE_INTERVAL, CONF_TYPE_ID
-from esphome.core import coroutine, ID, CORE
+# pylint: disable=unused-import
+from esphome.core import coroutine, ID, CORE, ConfigType
 from esphome.cpp_generator import RawExpression, add, get_variable
 from esphome.cpp_types import App, GPIOPin
-from esphome.py_compat import text_type
+from esphome.util import Registry, RegistryEntry
 
 
 @coroutine
@@ -35,11 +36,11 @@ def register_component(var, config):
     :param var: The variable representing the component.
     :param config: The configuration for the component.
     """
-    id_ = text_type(var.base)
+    id_ = str(var.base)
     if id_ not in CORE.component_ids:
-        raise ValueError(u"Component ID {} was not declared to inherit from Component, "
-                         u"or was registered twice. Please create a bug report with your "
-                         u"configuration.".format(id_))
+        raise ValueError("Component ID {} was not declared to inherit from Component, "
+                         "or was registered twice. Please create a bug report with your "
+                         "configuration.".format(id_))
     CORE.component_ids.remove(id_)
     if CONF_SETUP_PRIORITY in config:
         add(var.set_setup_priority(config[CONF_SETUP_PRIORITY]))

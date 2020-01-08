@@ -84,8 +84,8 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
 #define LOG_DISPLAY(prefix, type, obj) \
   if (obj != nullptr) { \
     ESP_LOGCONFIG(TAG, prefix type); \
-    ESP_LOGCONFIG(TAG, prefix "  Rotations: %d °", obj->rotation_); \
-    ESP_LOGCONFIG(TAG, prefix "  Dimensions: %dpx x %dpx", obj->get_width(), obj->get_height()); \
+    ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, obj->rotation_); \
+    ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, obj->get_width(), obj->get_height()); \
   }
 
 class DisplayBuffer {
