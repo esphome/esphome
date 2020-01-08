@@ -14,6 +14,8 @@ from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ['network']
+AUTO_LOAD = ['json']
+
 
 azure_iot_hub_ns = cg.esphome_ns.namespace('azure_iot_hub')
 AzureIoTHub = azure_iot_hub_ns.class_('AzureIoTHub', cg.Component, cg.Controller)
@@ -27,6 +29,7 @@ CONF_DEVICE_KEY = 'device_key'
 # Optional
 # api version. Can normally be omitted by required for IoT Edge connection
 CONF_API_VERSION = 'api_version'
+CONF_INSECURE_SSL = 'insecure_ssl'
 
 # Expiration in seconds of generated token. Will be
 # reduced to SSL certificate expiration if validate_ssl is enabled. Default is -1 which sets it to 10 years or ssl
@@ -55,6 +58,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Required(CONF_DEVICE_ID): cv.string,
     cv.Required(CONF_DEVICE_KEY): cv.string,
     cv.Optional(CONF_API_VERSION, default='2018-06-30'): cv.string,
+    cv.Optional(CONF_INSECURE_SSL, default=False): cv.boolean,
     cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'): cv.Any(cv.int_, cv.one_of("AUTO", upper=True))
 }).extend(cv.COMPONENT_SCHEMA), validate_config)
 
@@ -112,17 +116,20 @@ def to_code(config):
     cg.add(var.set_iot_hub_rest_url(iot_hub_uri))
     cg.add(var.set_iot_hub_device_id(config[CONF_DEVICE_ID]))
 
-    # figure out expiration of SSL certificate
+    # set default expiration to approximately 100 years
     token_expiration = time() + 100 * 365 * 24 * 60 * 60
-    if CORE.is_esp8266:
-        expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
-            f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
-        cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
-        token_expiration = min(token_expiration, mktime(expiration))
-    if CORE.is_esp32:
-        baltimore_root_ca_pem = retrieve_baltimore_root_ca()
-        # can't validate root CA expiration without pem library or open ssl. So just keep it as is
-        cg.add(var.set_baltimore_root_ca_pem(baltimore_root_ca_pem))
+    if not config[CONF_INSECURE_SSL]:
+        if CORE.is_esp8266:
+            # figure out expiration of SSL certificate
+            expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
+                f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
+            cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
+            token_expiration = min(token_expiration, mktime(expiration))
+        if CORE.is_esp32:
+            baltimore_root_ca_pem = retrieve_baltimore_root_ca()
+            # can't validate root CA expiration without pem library or open ssl. So just keep it as is
+            if (baltimore_root_ca_pem): 
+                cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
 
     if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
         token_expiration = min(token_expiration, time() + config[CONF_TOKEN_EXPIRATION_SECONDS])
@@ -136,5 +143,6 @@ def to_code(config):
     # put string representation of expiration for debugging
     dt = datetime.fromtimestamp(token_expiration)
     cg.add(var.set_iot_hub_sas_token_expiration_string(dt.isoformat()))
+
 
 
