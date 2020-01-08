@@ -244,7 +244,7 @@ void AzureIoTHub::on_light_update(light::LightState *light) {
             lightNode[F("colorTemperature")] = values.get_color_temperature();
         
         if (light->supports_effects()) 
-            lightNode[F("colorTemperature")] = light->get_effect_name();
+            lightNode[F("effect")] = light->get_effect_name();
     });
 
     this->post_json_to_iot_hub(payload);
