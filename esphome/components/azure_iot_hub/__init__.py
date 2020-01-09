@@ -123,13 +123,19 @@ def to_code(config):
     if not config[CONF_INSECURE_SSL]:
         if CORE.is_esp8266:
             # figure out expiration of SSL certificate
-            expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
-                f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
-            cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
-            token_expiration = min(token_expiration, mktime(expiration))
+            try:
+                expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
+                    f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
+                cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
+                token_expiration = min(token_expiration, mktime(expiration))
+            except: # pylint: disable=bare-except
+                pass
         if CORE.is_esp32:
-            baltimore_root_ca_pem = retrieve_baltimore_root_ca()
-            # can't validate root CA expiration without pem library or open ssl
+            try:
+                baltimore_root_ca_pem = retrieve_baltimore_root_ca()
+                # can't validate root CA expiration without pem library or open ssl
+            except: # pylint: disable=bare-except
+                baltimore_root_ca_pem = None
             if baltimore_root_ca_pem:
                 cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
 
