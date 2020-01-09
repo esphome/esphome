@@ -23,6 +23,8 @@ MOCK_ESP32_BOARD_ID = "_mock_esp32"
 MOCK_ESP32_PINS = {'Y0': 12, 'Y1': 8, 'Y2': 3, 'LED': 9, "A0": 8}
 MOCK_ESP32_BOARD_ALIAS_ID = "_mock_esp32_alias"
 
+UNKNOWN_PLATFORM = "STM32"
+
 
 @pytest.fixture
 def mock_mcu(monkeypatch):
@@ -105,7 +107,7 @@ class Test_lookup_pin:
             pins._lookup_pin("X42")
 
     def test_unsupported_platform(self, core):
-        core.esp_platform = "avr"
+        core.esp_platform = UNKNOWN_PLATFORM
 
         with pytest.raises(NotImplementedError):
             pins._lookup_pin("TX")
@@ -187,3 +189,138 @@ class Test_validate_gpio_pin:
         assert len(caplog.messages) == 1
         assert caplog.messages[0].endswith("flash interface in QUAD IO flash mode.")
 
+    def test_unknown_device(self, core):
+        core.esp_platform = UNKNOWN_PLATFORM
+
+        with pytest.raises(NotImplementedError):
+            pins.validate_gpio_pin("0")
+
+
+class Test_input_pin:
+    @pytest.mark.parametrize("value, expected", (
+            ("X0", 16),
+    ))
+    def test_valid_esp8266_values(self, core_esp8266, value, expected):
+        actual = pins.input_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value, expected", (
+            ("Y0", 12),
+            (17, 17),
+    ))
+    def test_valid_esp32_values(self, core_esp32, value, expected):
+        actual = pins.input_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value", (17,))
+    def test_invalid_esp8266_values(self, core_esp8266, value):
+        with pytest.raises(Invalid):
+            pins.input_pin(value)
+
+    def test_unknown_platform(self, core):
+        core.esp_platform = UNKNOWN_PLATFORM
+
+        with pytest.raises(NotImplementedError):
+            pins.input_pin(2)
+
+
+class Test_input_pullup_pin:
+    @pytest.mark.parametrize("value, expected", (
+            ("X0", 16),
+    ))
+    def test_valid_esp8266_values(self, core_esp8266, value, expected):
+        actual = pins.input_pullup_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value, expected", (
+            ("Y0", 12),
+            (17, 17),
+    ))
+    def test_valid_esp32_values(self, core_esp32, value, expected):
+        actual = pins.input_pullup_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value", (0,))
+    def test_invalid_esp8266_values(self, core_esp8266, value):
+        with pytest.raises(Invalid):
+            pins.input_pullup_pin(value)
+
+    def test_unknown_platform(self, core):
+        core.esp_platform = UNKNOWN_PLATFORM
+
+        with pytest.raises(NotImplementedError):
+            pins.input_pullup_pin(2)
+
+
+class Test_output_pin:
+    @pytest.mark.parametrize("value, expected", (
+            ("X0", 16),
+    ))
+    def test_valid_esp8266_values(self, core_esp8266, value, expected):
+        actual = pins.output_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value, expected", (
+            ("Y0", 12),
+            (17, 17),
+    ))
+    def test_valid_esp32_values(self, core_esp32, value, expected):
+        actual = pins.output_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value", (17,))
+    def test_invalid_esp8266_values(self, core_esp8266, value):
+        with pytest.raises(Invalid):
+            pins.output_pin(value)
+
+    @pytest.mark.parametrize("value", range(34, 40))
+    def test_invalid_esp32_values(self, core_esp32, value):
+        with pytest.raises(Invalid):
+            pins.output_pin(value)
+
+    def test_unknown_platform(self, core):
+        core.esp_platform = UNKNOWN_PLATFORM
+
+        with pytest.raises(NotImplementedError):
+            pins.output_pin(2)
+
+
+class Test_analog_pin:
+    @pytest.mark.parametrize("value, expected", (
+            (17, 17),
+    ))
+    def test_valid_esp8266_values(self, core_esp8266, value, expected):
+        actual = pins.analog_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value, expected", (
+            (32, 32),
+            (39, 39),
+    ))
+    def test_valid_esp32_values(self, core_esp32, value, expected):
+        actual = pins.analog_pin(value)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("value", ("X0",))
+    def test_invalid_esp8266_values(self, core_esp8266, value):
+        with pytest.raises(Invalid):
+            pins.analog_pin(value)
+
+    @pytest.mark.parametrize("value", ("Y0",))
+    def test_invalid_esp32_values(self, core_esp32, value):
+        with pytest.raises(Invalid):
+            pins.analog_pin(value)
+
+    def test_unknown_platform(self, core):
+        core.esp_platform = UNKNOWN_PLATFORM
+
+        with pytest.raises(NotImplementedError):
+            pins.analog_pin(2)
