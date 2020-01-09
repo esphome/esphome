@@ -325,7 +325,10 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: ''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
+        kwargs = {
+            k: ''.join(x.decode() for x in v)
+            for k, v in self.request.arguments.items()
+        }
         destination = settings.rel_path(kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('./?begin=True')
