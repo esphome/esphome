@@ -129,15 +129,17 @@ def to_code(config):
             token_expiration = min(token_expiration, mktime(expiration))
         if CORE.is_esp32:
             baltimore_root_ca_pem = retrieve_baltimore_root_ca()
-            # can't validate root CA expiration without pem library or open ssl. So just keep it as is
+            # can't validate root CA expiration without pem library or open ssl
             if baltimore_root_ca_pem:
                 cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
 
-    if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
+    if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' \
+            and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
         token_expiration = min(token_expiration, time() + config[CONF_TOKEN_EXPIRATION_SECONDS])
 
     sas_token = generate_iot_hub_sas_token(
-        f'{config[CONF_HUB_NAME].strip()}.azure-devices.net/devices/{config[CONF_DEVICE_ID].strip()}',
+        f'{config[CONF_HUB_NAME].strip()}.azure-devices.net'
+        + f'/devices/{config[CONF_DEVICE_ID].strip()}',
         config[CONF_DEVICE_KEY], token_expiration)
 
     cg.add(var.set_iot_hub_sas_token(sas_token))
