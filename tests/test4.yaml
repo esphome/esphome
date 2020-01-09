@@ -2,27 +2,6 @@ esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s
-  on_boot:
-    priority: 150.0
-    then:
-      - lambda: >-
-          ESP_LOGD("main", "ON BOOT!");
-  on_shutdown:
-    then:
-      - lambda: >-
-          ESP_LOGD("main", "ON SHUTDOWN!");
-  on_loop:
-    then:
-      - lambda: >-
-          ESP_LOGV("main", "ON LOOP!");
-      - light.addressable_set:
-          id: addr1
-          range_from: 0
-          range_to: 100
-          red: 100%
-          green: !lambda 'return 255;'
-          blue: 0%
-          white: 100%
   build_path: build/test1
 
 wifi:
@@ -42,78 +21,6 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: none
-
-mqtt:
-  broker: '192.168.178.84'
-  port: 1883
-  username: 'debug'
-  password: 'debug'
-  client_id: someclient
-  discovery: True
-  discovery_retain: False
-  discovery_prefix: discovery
-  topic_prefix: helloworld
-  log_topic:
-    topic: helloworld/hi
-    level: INFO
-  birth_message:
-  will_message:
-  shutdown_message:
-    topic: topic/to/send/to
-    payload: hi
-    qos: 2
-    retain: True
-  keepalive: 60s
-  reboot_timeout: 60s
-  on_message:
-    - topic: my/custom/topic
-      qos: 0
-      then:
-        - lambda: >-
-            ESP_LOGD("main", "Got message %s", x.c_str());
-    - topic: livingroom/ota_mode
-      then:
-      - deep_sleep.prevent
-    - topic: livingroom/ota_mode
-      then:
-      - deep_sleep.enter:
-  on_json_message:
-    topic: the/topic
-    then:
-    - if:
-        condition:
-          - wifi.connected:
-          - mqtt.connected:
-          - light.is_on: kitchen
-          - light.is_off: kitchen
-        then:
-        - lambda: |-
-            int data = x["my_data"];
-            ESP_LOGD("main", "The data is: %d", data);
-        - light.turn_on:
-            id: living_room_lights
-            brightness: !lambda |-
-              float brightness = 1.0;
-              if (x.containsKey("brightness"))
-                brightness = x["brightness"];
-              return brightness;
-            effect: !lambda |-
-              const char *effect = "None";
-              if (x.containsKey("effect"))
-                effect = x["effect"];
-              return effect;
-        - light.control:
-            id: living_room_lights
-            brightness: !lambda 'return id(living_room_lights).current_values.get_brightness() + 0.5;'
-        - light.dim_relative:
-            id: living_room_lights
-            relative_brightness: 5%
-        - uart.write:
-            id: uart0
-            data: Hello World
-        - uart.write: [0x00, 0x20, 0x30]
-        - uart.write: !lambda |-
-            return {};
 
 i2c:
   sda: 21
@@ -1240,14 +1147,6 @@ switch:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
-    name: Pioneer
-    turn_on_action:
-      - remote_transmitter.transmit_pioneer:
-          rc_code_1: 0xA556
-          rc_code_2: 0xA506
-          repeat:
-            times: 2
-  - platform: template
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
@@ -1426,12 +1325,6 @@ display:
   num_chips: 1
   lambda: |-
     it.print("01234567");
-- platform: tm1637
-  clk_pin: GPIO23
-  dio_pin: GPIO25
-  intensity: 3
-  lambda: |-
-      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
@@ -1599,3 +1492,10 @@ text_sensor:
   bssid:
     name: "BSSID"
 
+azure_iot_hub:
+  hub_name: esphome-fake-hub
+  device_id: test01
+  device_key: ZXNwaG9tZS1kZXZpY2U=
+  api_version: 2018-06-30
+  insecure_ssl: false
+  token_expiration_seconds: 3600

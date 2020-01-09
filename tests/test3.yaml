@@ -684,3 +684,11 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+azure_iot_hub:
+  hub_name: esphome-fake-hub
+  device_id: test01
+  device_key: ZXNwaG9tZS1kZXZpY2U=
+  api_version: 2018-06-30
+  insecure_ssl: false
+  token_expiration_seconds: 3600
