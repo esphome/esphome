@@ -121,6 +121,7 @@ def to_code(config):
     # set default expiration to approximately 100 years
     token_expiration = time() + 100 * 365 * 24 * 60 * 60
     if not config[CONF_INSECURE_SSL]:
+        # pylint: disable=broad-except
         if CORE.is_esp8266:
             # figure out expiration of SSL certificate
             try:
@@ -128,13 +129,13 @@ def to_code(config):
                     f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
                 cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
                 token_expiration = min(token_expiration, mktime(expiration))
-            except: # pylint: disable=bare-except
+            except Exception:
                 pass
         if CORE.is_esp32:
             try:
                 baltimore_root_ca_pem = retrieve_baltimore_root_ca()
                 # can't validate root CA expiration without pem library or open ssl
-            except: # pylint: disable=bare-except
+            except Exception:
                 baltimore_root_ca_pem = None
             if baltimore_root_ca_pem:
                 cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
