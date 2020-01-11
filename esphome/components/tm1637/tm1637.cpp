@@ -5,6 +5,8 @@
 namespace esphome {
 namespace tm1637 {
 
+const uint8_t m_bitDelay = 3;
+
 static const char* TAG = "display.tm1637";
 static const uint8_t TM1637_I2C_COMM1 = 0x40;
 static const uint8_t TM1637_I2C_COMM2 = 0xC0;
@@ -12,6 +14,15 @@ static const uint8_t TM1637_I2C_COMM3 = 0x80;
 static const uint8_t minusSegments = 0b01000000;
 static const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 
+//
+//      A
+//     ---
+//  F |   | B
+//     -G-
+//  E |   | C
+//     ---
+//      D   X
+// XABCDEFG
 const uint8_t TM1637_ASCII_TO_RAW[94] PROGMEM = {
     0b00000000,           // ' ', ord 0x20
     0b10110000,           // '!', ord 0x21
@@ -108,159 +119,184 @@ const uint8_t TM1637_ASCII_TO_RAW[94] PROGMEM = {
     0b00000110,           // '|', ord 0x7C
     0b00000111,           // '}', ord 0x7D
 };
+void TM1637Display::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up TM1637...");
 
-void TM1637Display::setup_pins_() {
-  // this->init_internal_(this->get_buffer_length_());
   this->clk_pin_->setup();               // OUTPUT
   this->clk_pin_->digital_write(false);  // LOW
   this->dio_pin_->setup();               // OUTPUT
   this->dio_pin_->digital_write(false);  // LOW
+
+  this->display();
+}
+void TM1637Display::dump_config() {
+  ESP_LOGCONFIG(TAG, "TM1637:");
+  ESP_LOGCONFIG(TAG, "  INTENSITY: %d", this->intensity_);
+  LOG_PIN("  CLK Pin: ", this->clk_pin_);
+  LOG_PIN("  DIO Pin: ", this->dio_pin_);
+  LOG_UPDATE_INTERVAL(this);
 }
 
-void TM1637Display::set_writer(tm1637_writer_t&& writer) { this->writer_ = writer; }
+void TM1637Display::update() {
+  for (uint8_t i = 0; i < 4; i++)
+    this->buffer_[i] = 0;
+  if (this->writer_.has_value())
+    (*this->writer_)(*this);
+  this->display();
+}
+
 float TM1637Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
-void TM1637Display::setBrightness(uint8_t brightness) { m_brightness = (brightness & 0x7) | 0x08; }
-void TM1637Display::bitDelay() { delayMicroseconds(m_bitDelay); }
-void TM1637Display::start() {
-  this->dio_pin_->digital_write(false);
-  this->bitDelay();
+void TM1637Display::bit_delay_() { delayMicroseconds(100); }
+void TM1637Display::start_() {
+  this->dio_pin_->pin_mode(OUTPUT);
+  this->bit_delay_();
 }
-void TM1637Display::stop() {
-  this->dio_pin_->digital_write(false);
-  this->bitDelay();
-  this->clk_pin_->digital_write(true);
-  this->bitDelay();
-  this->dio_pin_->digital_write(true);
-  this->bitDelay();
+
+void TM1637Display::stop_() {
+  this->dio_pin_->pin_mode(OUTPUT);
+  bit_delay_();
+  this->clk_pin_->pin_mode(INPUT);
+  bit_delay_();
+  this->dio_pin_->pin_mode(INPUT);
+  bit_delay_();
 }
-bool TM1637Display::writeByte(uint8_t b) {
+
+void TM1637Display::display() {
+  ESP_LOGVV(TAG, "Display %02X%02X%02X%02X", buffer_[0], buffer_[1], buffer_[2], buffer_[3]);
+
+  // Write COMM1
+  this->start_();
+  this->send_byte_(TM1637_I2C_COMM1);
+  this->stop_();
+
+  // Write COMM2 + first digit address
+  this->start_();
+  this->send_byte_(TM1637_I2C_COMM2);
+
+  // Write the data bytes
+  for (auto b : this->buffer_) {
+    this->send_byte_(b);
+  }
+
+  this->stop_();
+
+  // Write COMM3 + brightness
+  this->start_();
+  this->send_byte_(TM1637_I2C_COMM3 + ((this->intensity_ & 0x7) | 0x08));
+  this->stop_();
+}
+bool TM1637Display::send_byte_(uint8_t b) {
   uint8_t data = b;
 
   // 8 Data Bits
   for (uint8_t i = 0; i < 8; i++) {
     // CLK low
-    this->clk_pin_->digital_write(false);
-    this->bitDelay();
+    this->clk_pin_->pin_mode(OUTPUT);
+    this->bit_delay_();
 
     // Set data bit
     if (data & 0x01)
-      this->dio_pin_->digital_write(true);
+      this->dio_pin_->pin_mode(INPUT);
     else
-      this->clk_pin_->digital_write(false);
+      this->dio_pin_->pin_mode(OUTPUT);
 
-    this->bitDelay();
+    this->bit_delay_();
 
     // CLK high
-    this->clk_pin_->digital_write(true);
-    this->bitDelay();
+    this->clk_pin_->pin_mode(INPUT);
+    this->bit_delay_();
     data = data >> 1;
   }
 
   // Wait for acknowledge
   // CLK to zero
-  this->clk_pin_->digital_write(false);
-  this->dio_pin_->digital_write(true);
-  this->bitDelay();
+  this->clk_pin_->pin_mode(OUTPUT);
+  this->dio_pin_->pin_mode(INPUT);
+  this->bit_delay_();
 
   // CLK to high
-  this->clk_pin_->digital_write(true);
-  this->bitDelay();
+  this->clk_pin_->pin_mode(INPUT);
+  this->bit_delay_();
   uint8_t ack = this->dio_pin_->digital_read();
   if (ack == 0) {
-    this->dio_pin_->digital_write(false);
+    this->dio_pin_->pin_mode(OUTPUT);
   }
 
-  this->bitDelay();
-  this->clk_pin_->digital_write(false);
-  this->bitDelay();
+  this->bit_delay_();
+  this->clk_pin_->pin_mode(OUTPUT);
+  this->bit_delay_();
 
   return ack;
 }
-void TM1637Display::setSegments(const uint8_t segments[], uint8_t length, uint8_t pos) {
-  // Write COMM1
-  this->start();
-  this->writeByte(TM1637_I2C_COMM1);
-  this->stop();
 
-  // Write COMM2 + first digit address
-  this->start();
-  this->writeByte(TM1637_I2C_COMM2 + (pos & 0x03));
+uint8_t TM1637Display::print(uint8_t start_pos, const char* str) {
+  ESP_LOGV(TAG, "Print at %d: %s", start_pos, str);
+  uint8_t pos = start_pos;
+  for (; *str != '\0'; str++) {
+    uint8_t data = TM1637_UNKNOWN_CHAR;
+    if (*str >= ' ' && *str <= '}')
+      data = pgm_read_byte(&TM1637_ASCII_TO_RAW[*str - ' ']);
 
-  // Write the data bytes
-  for (uint8_t k = 0; k < length; k++) {
-    this->writeByte(segments[k]);
-  }
-
-  this->stop();
-
-  // Write COMM3 + brightness
-  this->start();
-  this->writeByte(TM1637_I2C_COMM3 + (m_brightness & 0x0f));
-  this->stop();
-}
-void TM1637Display::clear() {
-  uint8_t data[] = {0, 0, 0, 0};
-  this->setSegments(data);
-}
-void TM1637Display::showDots(uint8_t dots, uint8_t* digits) {
-  for (int i = 0; i < 4; ++i) {
-    digits[i] |= (dots & 0x80);
-    dots <<= 1;
-  }
-}
-uint8_t TM1637Display::encodeDigit(uint8_t digit) { return TM1637_ASCII_TO_RAW[(digit & 0x0f) + 16]; }
-void TM1637Display::showNumberBaseEx(int8_t base, uint16_t num, uint8_t dots, bool leading_zero, uint8_t length,
-                                     uint8_t pos) {
-  bool negative = false;
-  if (base < 0) {
-    base = -base;
-    negative = true;
-  }
-
-  uint8_t digits[4];
-
-  if (num == 0 && !leading_zero) {
-    // Singular case - take care separately
-    for (uint8_t i = 0; i < (length - 1); i++)
-      digits[i] = 0;
-    digits[length - 1] = this->encodeDigit(0);
-  } else {
-    // uint8_t i = length-1;
-    // if (negative) {
-    //	// Negative number, show the minus sign
-    //    digits[i] = minusSegments;
-    //	i--;
-    //}
-
-    for (int i = length - 1; i >= 0; --i) {
-      uint8_t digit = num % base;
-
-      if (digit == 0 && num == 0 && leading_zero == false)
-        // Leading zero is blank
-        digits[i] = 0;
-      else
-        digits[i] = this->encodeDigit(digit);
-
-      if (digit == 0 && num == 0 && negative) {
-        digits[i] = minusSegments;
-        negative = false;
+    if (data == TM1637_UNKNOWN_CHAR) {
+      ESP_LOGW(TAG, "Encountered character '%c' with no TM1637 representation while translating string!", *str);
+    }
+    // Remap segments, for compatibility with MAX7219 segment definition which is
+    // XABCDEFG, but TM1637 is // XGFEDCBA
+    data = ((data & 0x80) ? 0x80 : 0) |  // no move X
+           ((data & 0x40) ? 0x1 : 0) |   // A
+           ((data & 0x20) ? 0x2 : 0) |   // B
+           ((data & 0x10) ? 0x4 : 0) |   // C
+           ((data & 0x8) ? 0x8 : 0) |    // D
+           ((data & 0x4) ? 0x10 : 0) |   // E
+           ((data & 0x2) ? 0x20 : 0) |   // F
+           ((data & 0x1) ? 0x40 : 0);    // G
+    if (*str == '.') {
+      if (pos != start_pos)
+        pos--;
+      this->buffer_[pos] |= 0b10000000;
+    } else {
+      if (pos >= 4) {
+        ESP_LOGE(TAG, "String is too long for the display!");
+        break;
       }
-
-      num /= base;
+      this->buffer_[pos] = data;
     }
-
-    if (dots != 0) {
-      this->showDots(dots, digits);
-    }
+    pos++;
   }
-  this->setSegments(digits, length, pos);
+  return pos - start_pos;
 }
-void TM1637Display::showNumberDecEx(int num, uint8_t dots, bool leading_zero, uint8_t length, uint8_t pos) {
-  this->showNumberBaseEx(num < 0 ? -10 : 10, num < 0 ? -num : num, dots, leading_zero, length, pos);
+uint8_t TM1637Display::print(const char* str) { return this->print(0, str); }
+uint8_t TM1637Display::printf(uint8_t pos, const char* format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  char buffer[64];
+  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
+  if (ret > 0)
+    return this->print(pos, buffer);
+  return 0;
 }
-void TM1637Display::showNumberDec(int num, bool leading_zero, uint8_t length, uint8_t pos) {
-  this->showNumberDecEx(num, 0, leading_zero, length, pos);
+uint8_t TM1637Display::printf(const char* format, ...) {
+  va_list arg;
+  va_start(arg, format);
+  char buffer[64];
+  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
+  if (ret > 0)
+    return this->print(buffer);
+  return 0;
 }
+
+#ifdef USE_TIME
+uint8_t TM1637Display::strftime(uint8_t pos, const char* format, time::ESPTime time) {
+  char buffer[64];
+  size_t ret = time.strftime(buffer, sizeof(buffer), format);
+  if (ret > 0)
+    return this->print(pos, buffer);
+  return 0;
+}
+uint8_t TM1637Display::strftime(const char* format, time::ESPTime time) { return this->strftime(0, format, time); }
+#endif
 
 }  // namespace tm1637
 }  // namespace esphome
