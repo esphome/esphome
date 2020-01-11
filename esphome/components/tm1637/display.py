@@ -2,9 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
-from esphome.const import CONF_CLK_PIN, CONF_DIO_PIN, CONF_ID, CONF_LAMBDA
-
-CONF_INTENSITY = 'intensity'
+from esphome.const import CONF_CLK_PIN, CONF_DIO_PIN, CONF_ID, CONF_LAMBDA, CONF_INTENSITY
 
 tm1637_ns = cg.esphome_ns.namespace('tm1637')
 TM1637Display = tm1637_ns.class_('TM1637Display', cg.PollingComponent)

@@ -5,14 +5,11 @@
 namespace esphome {
 namespace tm1637 {
 
-const uint8_t m_bitDelay = 3;
-
-static const char* TAG = "display.tm1637";
-static const uint8_t TM1637_I2C_COMM1 = 0x40;
-static const uint8_t TM1637_I2C_COMM2 = 0xC0;
-static const uint8_t TM1637_I2C_COMM3 = 0x80;
-static const uint8_t minusSegments = 0b01000000;
-static const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
+const char* TAG = "display.tm1637";
+const uint8_t TM1637_I2C_COMM1 = 0x40;
+const uint8_t TM1637_I2C_COMM2 = 0xC0;
+const uint8_t TM1637_I2C_COMM3 = 0x80;
+const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 
 //
 //      A
@@ -138,8 +135,8 @@ void TM1637Display::dump_config() {
 }
 
 void TM1637Display::update() {
-  for (uint8_t i = 0; i < 4; i++)
-    this->buffer_[i] = 0;
+  for (uint8_t& i : this->buffer_)
+    i = 0;
   if (this->writer_.has_value())
     (*this->writer_)(*this);
   this->display();
