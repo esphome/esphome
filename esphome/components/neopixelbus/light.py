@@ -116,16 +116,17 @@ ESP32_METHODS = {
     'BIT_BANG': 'NeoEsp32BitBang{}Method',
 }
 
+
 def format_method(config):
     variant = VARIANTS[config[CONF_VARIANT]]
     method = config[CONF_METHOD]
 
-    if config[CONF_INVERT] == True:
+    if config[CONF_INVERT]:
         if method == 'ESP8266_DMA':
             variant = 'Inverted' + variant
         else:
             variant += 'Inverted'
-    
+
     if CORE.is_esp8266:
         return ESP8266_METHODS[method].format(variant)
     if CORE.is_esp32:
@@ -143,6 +144,7 @@ def validate(config):
             raise cv.Invalid("If you give clock_pin, you must also specify data_pin")
         return config
     raise cv.Invalid("Must specify at least one of 'pin' or 'clock_pin'+'data_pin'")
+
 
 CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(NeoPixelBusLightOutputBase),
