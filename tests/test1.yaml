@@ -179,6 +179,8 @@ as3935_spi:
   cs_pin: GPIO12
   irq_pin: GPIO13
 
+wled:
+
 sensor:
   - platform: adc
     pin: A0
@@ -1175,6 +1177,8 @@ light:
             if (initial_run) {
               it[0] = current_color;
             }
+    - wled:
+        port: 11111
     - automation:
         name: Custom Effect
         sequence:
