@@ -1,5 +1,4 @@
-#!/usr/bin/env python
-from __future__ import print_function
+#!/usr/bin/env python3
 
 import codecs
 import collections
@@ -105,7 +104,7 @@ def lint_re_check(regex, **kwargs):
                 err = func(fname, match)
                 if err is None:
                     continue
-                errors.append("{} See line {}.".format(err, lineno))
+                errors.append(f"{err} See line {lineno}.")
             return errors
         return decor(new_func)
     return decorator
@@ -134,7 +133,7 @@ def lint_ino(fname):
     return "This file extension (.ino) is not allowed. Please use either .cpp or .h"
 
 
-@lint_file_check(exclude=['*{}'.format(f) for f in file_types] + [
+@lint_file_check(exclude=[f'*{f}' for f in file_types] + [
     '.clang-*', '.dockerignore', '.editorconfig', '*.gitignore', 'LICENSE', 'pylintrc',
     'MANIFEST.in', 'docker/Dockerfile*', 'docker/rootfs/*', 'script/*',
 ])
@@ -177,7 +176,7 @@ CPP_RE_EOL = r'\s*?(?://.*?)?$'
 
 
 def highlight(s):
-    return '\033[36m{}\033[0m'.format(s)
+    return f'\033[36m{s}\033[0m'
 
 
 @lint_re_check(r'^#define\s+([a-zA-Z0-9_]+)\s+([0-9bx]+)' + CPP_RE_EOL,
@@ -268,7 +267,7 @@ def lint_constants_usage():
 def relative_cpp_search_text(fname, content):
     parts = fname.split('/')
     integration = parts[2]
-    return '#include "esphome/components/{}'.format(integration)
+    return f'#include "esphome/components/{integration}'
 
 
 @lint_content_find_check(relative_cpp_search_text, include=['esphome/components/*.cpp'])
@@ -284,7 +283,7 @@ def lint_relative_cpp_import(fname):
 def relative_py_search_text(fname, content):
     parts = fname.split('/')
     integration = parts[2]
-    return 'esphome.components.{}'.format(integration)
+    return f'esphome.components.{integration}'
 
 
 @lint_content_find_check(relative_py_search_text, include=['esphome/components/*.py'],
@@ -303,7 +302,7 @@ def lint_relative_py_import(fname):
 def lint_namespace(fname, content):
     expected_name = re.match(r'^esphome/components/([^/]+)/.*',
                              fname.replace(os.path.sep, '/')).group(1)
-    search = 'namespace {}'.format(expected_name)
+    search = f'namespace {expected_name}'
     if search in content:
         return None
     return 'Invalid namespace found in C++ file. All integration C++ files should put all ' \
@@ -380,7 +379,7 @@ for fname in files:
 run_checks(LINT_POST_CHECKS, 'POST')
 
 for f, errs in sorted(errors.items()):
-    print("\033[0;32m************* File \033[1;32m{}\033[0m".format(f))
+    print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
     for err in errs:
         print(err)
     print()

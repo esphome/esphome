@@ -64,6 +64,7 @@ void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
+  this->setup_controller();
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {

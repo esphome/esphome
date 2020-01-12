@@ -435,7 +435,7 @@ sensor:
   - platform: hx711
     name: "HX711 Value"
     dout_pin: GPIO23
-    clk_pin: GPIO24
+    clk_pin: GPIO25
     gain: 128
     update_interval: 15s
   - platform: ina219
@@ -542,7 +542,7 @@ sensor:
     name: "Rotary Encoder"
     id: rotary_encoder1
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO25
     pin_reset: GPIO25
     filters:
       - or:
@@ -593,6 +593,36 @@ sensor:
       accuracy_decimals: 1
     address: 0x58
     update_interval: 5s
+  - platform: sps30
+    pm_1_0:
+      name: "Workshop PM <1µm Weight concentration"
+      id: "workshop_PM_1_0"
+    pm_2_5:
+      name: "Workshop PM <2.5µm Weight concentration"
+      id: "workshop_PM_2_5"
+    pm_4_0:
+      name: "Workshop PM <4µm Weight concentration"
+      id: "workshop_PM_4_0"
+    pm_10_0:
+      name: "Workshop PM <10µm Weight concentration"
+      id: "workshop_PM_10_0"
+    pmc_0_5:
+      name: "Workshop PM <0.5µm Number concentration"
+      id: "workshop_PMC_0_5"
+    pmc_1_0:
+      name: "Workshop PM <1µm Number concentration"
+      id: "workshop_PMC_1_0"
+    pmc_2_5:
+      name: "Workshop PM <2.5µm Number concentration"
+      id: "workshop_PMC_2_5"
+    pmc_4_0:
+      name: "Workshop PM <4µm Number concentration"
+      id: "workshop_PMC_4_0"
+    pmc_10_0:
+      name: "Workshop PM <10µm Number concentration"
+      id: "workshop_PMC_10_0"
+    address: 0x69
+    update_interval: 10s
   - platform: shtcx
     temperature:
       name: "Living Room Temperature 10"
@@ -625,7 +655,7 @@ sensor:
     integration_time: 402ms
     gain: 16x
   - platform: ultrasonic
-    trigger_pin: GPIO24
+    trigger_pin: GPIO25
     echo_pin:
       number: GPIO23
       inverted: true
@@ -667,7 +697,7 @@ sensor:
       name: "Windspeed"
     wind_direction_degrees:
       name: "Winddirection Degrees"
-    pin: 
+    pin:
       number: GPIO04
       mode: INPUT
   - platform: zyaura
@@ -965,6 +995,10 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: slow_pwm
+    id: id24
+    pin: GPIO26
+    period: 15s
 
 light:
   - platform: binary
@@ -1082,7 +1116,7 @@ light:
           name: "Test For Custom Lambda Effect"
           lambda: |-
             it[0] = current_color;
-                
+
     - automation:
         name: Custom Effect
         sequence:
@@ -1154,6 +1188,12 @@ climate:
     sensor: my_sensor
   - platform: coolix
     name: Coolix Climate
+  - platform: fujitsu_general
+    name: Fujitsu General Climate
+  - platform: yashima
+    name: Yashima Climate
+  - platform: mitsubishi
+    name: Mitsubishi
 
 switch:
   - platform: gpio
@@ -1351,7 +1391,7 @@ interval:
             static uint16_t btn_left_state = id(btn_left)->get_value();
 
             ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
-            
+
             btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
@@ -1361,11 +1401,11 @@ display:
   dimensions: 18x4
   data_pins:
   - GPIO19
-  - GPIO20
   - GPIO21
   - GPIO22
+  - GPIO23
   enable_pin: GPIO23
-  rs_pin: GPIO24
+  rs_pin: GPIO25
   lambda: |-
     it.print("Hello World!");
 - platform: lcd_pcf8574
@@ -1418,6 +1458,11 @@ display:
   full_update_every: 30
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+
+tm1651:
+  id: tm1651_battery
+  clk_pin: GPIO23
+  dio_pin: GPIO23
 
 remote_receiver:
   pin: GPIO32
@@ -1488,7 +1533,7 @@ stepper:
 - platform: a4988
   id: my_stepper
   step_pin: GPIO23
-  dir_pin: GPIO24
+  dir_pin: GPIO25
   sleep_pin: GPIO25
   max_speed: 250 steps/s
   acceleration: 100 steps/s^2

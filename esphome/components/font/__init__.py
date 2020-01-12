@@ -1,11 +1,11 @@
-# coding=utf-8
+import functools
+
 from esphome import core
 from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphome.core import CORE, HexInt
-from esphome.py_compat import sort_by_cmp
 
 DEPENDENCIES = ['display']
 MULTI_CONF = True
@@ -33,9 +33,9 @@ def validate_glyphs(value):
             return -1
         if len(x_) > len(y_):
             return 1
-        raise cv.Invalid(u"Found duplicate glyph {}".format(x))
+        raise cv.Invalid(f"Found duplicate glyph {x}")
 
-    sort_by_cmp(value, comparator)
+    value.sort(key=functools.cmp_to_key(comparator))
     return value
 
 
@@ -55,15 +55,15 @@ def validate_pillow_installed(value):
 
 def validate_truetype_file(value):
     if value.endswith('.zip'):  # for Google Fonts downloads
-        raise cv.Invalid(u"Please unzip the font archive '{}' first and then use the .ttf files "
-                         u"inside.".format(value))
+        raise cv.Invalid("Please unzip the font archive '{}' first and then use the .ttf files "
+                         "inside.".format(value))
     if not value.endswith('.ttf'):
-        raise cv.Invalid(u"Only truetype (.ttf) files are supported. Please make sure you're "
-                         u"using the correct format or rename the extension to .ttf")
+        raise cv.Invalid("Only truetype (.ttf) files are supported. Please make sure you're "
+                         "using the correct format or rename the extension to .ttf")
     return cv.file_(value)
 
 
-DEFAULT_GLYPHS = u' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
+DEFAULT_GLYPHS = ' !"%()+,-.:0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz°'
 CONF_RAW_DATA_ID = 'raw_data_id'
 
 FONT_SCHEMA = cv.Schema({
@@ -84,7 +84,7 @@ def to_code(config):
     try:
         font = ImageFont.truetype(path, config[CONF_SIZE])
     except Exception as e:
-        raise core.EsphomeError(u"Could not load truetype file {}: {}".format(path, e))
+        raise core.EsphomeError(f"Could not load truetype file {path}: {e}")
 
     ascent, descent = font.getmetrics()
 

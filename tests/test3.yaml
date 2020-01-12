@@ -138,6 +138,21 @@ api:
       then:
         - dfplayer.random
 
+    - service: battery_level
+      variables:
+        level: int
+      then:
+        - tm1651.set_level:
+            id: tm1651_battery
+            level: !lambda 'return level;'
+    - service: battery_brightness
+      variables:
+        brightness: int
+      then:
+        - tm1651.set_brightness:
+            id: tm1651_battery
+            brightness: !lambda 'return brightness;'
+
 wifi:
   ssid: 'MySSID'
   password: 'password1'
@@ -608,7 +623,7 @@ output:
 
 mcp23017:
   id: mcp23017_hub
-  
+
 mcp23008:
   id: mcp23008_hub
 
@@ -651,3 +666,21 @@ dfplayer:
             dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
+tm1651:
+  id: tm1651_battery
+  clk_pin: D6
+  dio_pin: D5
+rf_bridge:
+  on_code_received:
+    - lambda: |-
+        uint32_t test;
+        test = data.sync;
+        test = data.low;
+        test = data.high;
+        test = data.code;
+    - rf_bridge.send_code:
+        sync: 0x1234
+        low: 0x1234
+        high: 0x1234
+        code: 0x123456
+    - rf_bridge.learn

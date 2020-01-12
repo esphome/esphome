@@ -85,6 +85,8 @@ void ESP32Camera::dump_config() {
     case FRAMESIZE_UXGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 1600x1200 (UXGA)");
       break;
+    default:
+      break;
   }
 
   if (this->is_failed()) {

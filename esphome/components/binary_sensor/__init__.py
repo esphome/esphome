@@ -9,7 +9,6 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
     CONF_ON_DOUBLE_CLICK, CONF_ON_MULTI_CLICK, CONF_ON_PRESS, CONF_ON_RELEASE, CONF_ON_STATE, \
     CONF_STATE, CONF_TIMING, CONF_TRIGGER_ID, CONF_FOR, CONF_NAME, CONF_MQTT_ID
 from esphome.core import CORE, coroutine, coroutine_with_priority
-from esphome.py_compat import string_types
 from esphome.util import Registry
 
 DEVICE_CLASSES = [
@@ -94,7 +93,7 @@ MULTI_CLICK_TIMING_SCHEMA = cv.Schema({
 
 
 def parse_multi_click_timing_str(value):
-    if not isinstance(value, string_types):
+    if not isinstance(value, str):
         return value
 
     parts = value.lower().split(' ')
@@ -104,10 +103,10 @@ def parse_multi_click_timing_str(value):
     try:
         state = cv.boolean(parts[0])
     except cv.Invalid:
-        raise cv.Invalid(u"First word must either be ON or OFF, not {}".format(parts[0]))
+        raise cv.Invalid("First word must either be ON or OFF, not {}".format(parts[0]))
 
     if parts[1] != 'for':
-        raise cv.Invalid(u"Second word must be 'for', got {}".format(parts[1]))
+        raise cv.Invalid("Second word must be 'for', got {}".format(parts[1]))
 
     if parts[2] == 'at':
         if parts[3] == 'least':
@@ -115,12 +114,12 @@ def parse_multi_click_timing_str(value):
         elif parts[3] == 'most':
             key = CONF_MAX_LENGTH
         else:
-            raise cv.Invalid(u"Third word after at must either be 'least' or 'most', got {}"
-                             u"".format(parts[3]))
+            raise cv.Invalid("Third word after at must either be 'least' or 'most', got {}"
+                             "".format(parts[3]))
         try:
             length = cv.positive_time_period_milliseconds(parts[4])
         except cv.Invalid as err:
-            raise cv.Invalid(u"Multi Click Grammar Parsing length failed: {}".format(err))
+            raise cv.Invalid(f"Multi Click Grammar Parsing length failed: {err}")
         return {
             CONF_STATE: state,
             key: str(length)
@@ -132,12 +131,12 @@ def parse_multi_click_timing_str(value):
     try:
         min_length = cv.positive_time_period_milliseconds(parts[2])
     except cv.Invalid as err:
-        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
 
     try:
         max_length = cv.positive_time_period_milliseconds(parts[4])
     except cv.Invalid as err:
-        raise cv.Invalid(u"Multi Click Grammar Parsing minimum length failed: {}".format(err))
+        raise cv.Invalid(f"Multi Click Grammar Parsing minimum length failed: {err}")
 
     return {
         CONF_STATE: state,
