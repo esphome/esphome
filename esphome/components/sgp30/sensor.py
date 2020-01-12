@@ -12,6 +12,8 @@ SGP30Component = sgp30_ns.class_('SGP30Component', cg.PollingComponent, i2c.I2CD
 CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
+CONF_ECO2_BASELINE = 'eco2_baseline'
+CONF_TVOC_BASELINE = 'tvoc_baseline'
 CONF_UPTIME = 'uptime'
 CONF_COMPENSATION = 'compensation'
 CONF_HUMIDITY_SOURCE = 'humidity_source'
@@ -22,7 +24,10 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ECO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
                                                  ICON_PERIODIC_TABLE_CO2, 0),
     cv.Required(CONF_TVOC): sensor.sensor_schema(UNIT_PARTS_PER_BILLION, ICON_RADIATOR, 0),
-    cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
+    cv.Optional(CONF_BASELINE): cv.Schema({
+        cv.Required(CONF_ECO2_BASELINE): cv.hex_uint16_t,
+        cv.Required(CONF_TVOC_BASELINE): cv.hex_uint16_t,
+    }),
     cv.Optional(CONF_COMPENSATION): cv.Schema({
         cv.Required(CONF_HUMIDITY_SOURCE): cv.use_id(sensor.Sensor),
         cv.Required(CONF_TEMPERATURE_SOURCE): cv.use_id(sensor.Sensor)
@@ -44,7 +49,9 @@ def to_code(config):
         cg.add(var.set_tvoc_sensor(sens))
 
     if CONF_BASELINE in config:
-        cg.add(var.set_baseline(config[CONF_BASELINE]))
+        baseline_config = config[CONF_BASELINE]
+        cg.add(var.set_eco2_baseline(baseline_config[CONF_ECO2_BASELINE]))
+        cg.add(var.set_tvoc_baseline(baseline_config[CONF_TVOC_BASELINE]))
 
     if CONF_COMPENSATION in config:
         compensation_config = config[CONF_COMPENSATION]
