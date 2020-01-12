@@ -36,7 +36,7 @@ void HDC1080Component::dump_config() {
 }
 void HDC1080Component::update() {
   uint16_t raw_temp;
-  if (!this->read_byte_16(HDC1080_CMD_TEMPERATURE, &raw_temp, 9)) {
+  if (!this->read_byte_16(HDC1080_CMD_TEMPERATURE, &raw_temp, 20)) {
     this->status_set_warning();
     return;
   }
@@ -44,7 +44,7 @@ void HDC1080Component::update() {
   this->temperature_->publish_state(temp);
 
   uint16_t raw_humidity;
-  if (!this->read_byte_16(HDC1080_CMD_HUMIDITY, &raw_humidity, 9)) {
+  if (!this->read_byte_16(HDC1080_CMD_HUMIDITY, &raw_humidity, 20)) {
     this->status_set_warning();
     return;
   }
