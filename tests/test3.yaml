@@ -697,6 +697,8 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
+e131:
+
 light:
   - platform: neopixelbus
     name: Neopixelbus Light
@@ -705,6 +707,9 @@ light:
     variant: SK6812
     method: ESP8266_UART0
     num_leds: 100
+    effects:
+      - e131:
+          universe: 1
 
 servo:
   id: my_servo

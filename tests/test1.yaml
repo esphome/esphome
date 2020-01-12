@@ -1048,6 +1048,8 @@ output:
     pin: GPIO25
     id: dac_output
 
+e131:
+
 light:
   - platform: binary
     name: "Desk Lamp"
@@ -1189,6 +1191,8 @@ light:
               red: 0%
               green: 100%
               blue: 0%
+    - e131:
+        universe: 1
   - platform: fastled_spi
     id: addr2
     chipset: WS2801
