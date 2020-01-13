@@ -14,11 +14,9 @@ void Canbus::setup() {
   }
 }
 
-void Canbus::dump_config() {
-  ESP_LOGCONFIG(TAG, "Canbus: sender_id=%d", this->sender_id_);
-}
+void Canbus::dump_config() { ESP_LOGCONFIG(TAG, "Canbus: sender_id=%d", this->sender_id_); }
 
-void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> data) {
+void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> &data) {
   struct CanFrame can_message;
 
   uint8_t size = static_cast<uint8_t>(data.size());
