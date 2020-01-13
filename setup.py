@@ -50,7 +50,6 @@ CLASSIFIERS = [
     'Intended Audience :: End Users/Desktop',
     'License :: OSI Approved :: MIT License',
     'Programming Language :: C++',
-    'Programming Language :: Python :: 2',
     'Programming Language :: Python :: 3',
     'Topic :: Home Automation',
 ]
