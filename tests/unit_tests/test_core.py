@@ -146,10 +146,67 @@ class TestTimePeriod:
 
         assert actual == expected
 
-    # TODO: Confirm behaviour of comparisons
-    #       - only uses microseconds (and milliseconds)
-    #       - Raises ValueError, if a value can't be compared this should return
-    #         NotImplemented so that Python can check any __ieq__ comparisons.
+    @pytest.mark.parametrize("comparison, other, expected", (
+            ("__eq__", core.TimePeriod(microseconds=900), False),
+            ("__eq__", core.TimePeriod(microseconds=1000), True),
+            ("__eq__", core.TimePeriod(microseconds=1100), False),
+            ("__eq__", 1000, NotImplemented),
+            ("__eq__", "1000", NotImplemented),
+            ("__eq__", True, NotImplemented),
+            ("__eq__", object(), NotImplemented),
+            ("__eq__", None, NotImplemented),
+
+            ("__ne__", core.TimePeriod(microseconds=900), True),
+            ("__ne__", core.TimePeriod(microseconds=1000), False),
+            ("__ne__", core.TimePeriod(microseconds=1100), True),
+            ("__ne__", 1000, NotImplemented),
+            ("__ne__", "1000", NotImplemented),
+            ("__ne__", True, NotImplemented),
+            ("__ne__", object(), NotImplemented),
+            ("__ne__", None, NotImplemented),
+
+            ("__lt__", core.TimePeriod(microseconds=900), True),
+            ("__lt__", core.TimePeriod(microseconds=1000), False),
+            ("__lt__", core.TimePeriod(microseconds=1100), False),
+            ("__lt__", 1000, NotImplemented),
+            ("__lt__", "1000", NotImplemented),
+            ("__lt__", True, NotImplemented),
+            ("__lt__", object(), NotImplemented),
+            ("__lt__", None, NotImplemented),
+
+            ("__gt__", core.TimePeriod(microseconds=900), False),
+            ("__gt__", core.TimePeriod(microseconds=1000), False),
+            ("__gt__", core.TimePeriod(microseconds=1100), True),
+            ("__gt__", 1000, NotImplemented),
+            ("__gt__", "1000", NotImplemented),
+            ("__gt__", True, NotImplemented),
+            ("__gt__", object(), NotImplemented),
+            ("__gt__", None, NotImplemented),
+
+            ("__le__", core.TimePeriod(microseconds=900), True),
+            ("__le__", core.TimePeriod(microseconds=1000), True),
+            ("__le__", core.TimePeriod(microseconds=1100), False),
+            ("__le__", 1000, NotImplemented),
+            ("__le__", "1000", NotImplemented),
+            ("__le__", True, NotImplemented),
+            ("__le__", object(), NotImplemented),
+            ("__le__", None, NotImplemented),
+
+            ("__ge__", core.TimePeriod(microseconds=900), False),
+            ("__ge__", core.TimePeriod(microseconds=1000), True),
+            ("__ge__", core.TimePeriod(microseconds=1100), True),
+            ("__ge__", 1000, NotImplemented),
+            ("__ge__", "1000", NotImplemented),
+            ("__ge__", True, NotImplemented),
+            ("__ge__", object(), NotImplemented),
+            ("__ge__", None, NotImplemented),
+    ))
+    def test_comparison(self, comparison, other, expected):
+        target = core.TimePeriod(microseconds=1000)
+
+        actual = getattr(target, comparison)(other)
+
+        assert actual == expected
 
 
 SAMPLE_LAMBDA = """
@@ -269,6 +326,22 @@ class TestID:
         assert all(getattr(actual, n) == getattr(target, n)
                    for n in ("id", "is_declaration", "type", "is_manual"))
 
+    @pytest.mark.parametrize("comparison, other, expected", (
+            ("__eq__", core.ID(id="foo"), True),
+            ("__eq__", core.ID(id="bar"), False),
+            ("__eq__", 1000, NotImplemented),
+            ("__eq__", "1000", NotImplemented),
+            ("__eq__", True, NotImplemented),
+            ("__eq__", object(), NotImplemented),
+            ("__eq__", None, NotImplemented),
+    ))
+    def test_comparison(self, comparison, other, expected):
+        target = core.ID(id="foo")
+
+        actual = getattr(target, comparison)(other)
+
+        assert actual == expected
+
 
 class TestDocumentLocation:
     @pytest.fixture
@@ -323,6 +396,25 @@ class TestDefine:
 
         assert actual == expected
 
+    @pytest.mark.parametrize("comparison, other, expected", (
+            ("__eq__", core.Define(name="FOO", value=42), True),
+            ("__eq__", core.Define(name="FOO", value=13), False),
+            ("__eq__", core.Define(name="FOO"), False),
+            ("__eq__", core.Define(name="BAR", value=42), False),
+            ("__eq__", core.Define(name="BAR"), False),
+            ("__eq__", 1000, NotImplemented),
+            ("__eq__", "1000", NotImplemented),
+            ("__eq__", True, NotImplemented),
+            ("__eq__", object(), NotImplemented),
+            ("__eq__", None, NotImplemented),
+    ))
+    def test_comparison(self, comparison, other, expected):
+        target = core.Define(name="FOO", value=42)
+
+        actual = getattr(target, comparison)(other)
+
+        assert actual == expected
+
 
 class TestLibrary:
     @pytest.mark.parametrize("name, value, prop, expected", (
@@ -335,5 +427,22 @@ class TestLibrary:
         target = core.Library(name, value)
 
         actual = getattr(target, prop)
+
+        assert actual == expected
+
+    @pytest.mark.parametrize("comparison, other, expected", (
+            ("__eq__", core.Library(name="libfoo", version="1.2.3"), True),
+            ("__eq__", core.Library(name="libfoo", version="1.2.4"), False),
+            ("__eq__", core.Library(name="libbar", version="1.2.3"), False),
+            ("__eq__", 1000, NotImplemented),
+            ("__eq__", "1000", NotImplemented),
+            ("__eq__", True, NotImplemented),
+            ("__eq__", object(), NotImplemented),
+            ("__eq__", None, NotImplemented),
+    ))
+    def test_comparison(self, comparison, other, expected):
+        target = core.Library(name="libfoo", version="1.2.3")
+
+        actual = getattr(target, comparison)(other)
 
         assert actual == expected
