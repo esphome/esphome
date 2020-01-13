@@ -133,16 +133,38 @@ uint16_t encode_uint16(uint8_t msb, uint8_t lsb);
 /// Decode a 16-bit unsigned integer into an array of two values: most significant byte, least significant byte.
 std::array<uint8_t, 2> decode_uint16(uint16_t value);
 
-/** Cross-platform method to disable interrupts.
+/***
+ * An interrupt helper class.
  *
- * Useful when you need to do some timing-dependent communication.
+ * This behaves like std::lock_guard. As long as the value is visible in the current stack, all interrupts
+ * (including flash reads) will be disabled.
  *
- * @see Do not forget to call `enable_interrupts()` again or otherwise things will go very wrong.
+ * Please note all functions called when the interrupt lock must be marked ICACHE_RAM_ATTR (loading code into
+ * instruction cache is done via interrupts; disabling interrupts prevents data not already in cache from being
+ * pulled from flash).
+ *
+ * Example:
+ *
+ * ```cpp
+ * // interrupts are enabled
+ * {
+ *   InterruptLock lock;
+ *   // do something
+ *   // interrupts are disabled
+ * }
+ * // interrupts are enabled
+ * ```
  */
-void disable_interrupts();
+class InterruptLock {
+ public:
+  InterruptLock();
+  ~InterruptLock();
 
-/// Cross-platform method to enable interrupts after they have been disabled.
-void enable_interrupts();
+ protected:
+#ifdef ARDUINO_ARCH_ESP8266
+  uint32_t xt_state_;
+#endif
+};
 
 /// Calculate a crc8 of data with the provided data length.
 uint8_t crc8(uint8_t *data, uint8_t len);
@@ -158,6 +180,7 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 // Encode raw data to a human-readable string (for debugging)
 std::string hexencode(const uint8_t *data, uint32_t len);
+template<typename T> std::string hexencode(const T &data) { return hexencode(data.data(), data.size()); }
 
 // https://stackoverflow.com/questions/7858817/unpacking-a-tuple-to-call-a-matching-function-pointer/7858971#7858971
 template<int...> struct seq {};                                       // NOLINT

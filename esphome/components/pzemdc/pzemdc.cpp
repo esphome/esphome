@@ -47,6 +47,13 @@ void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 void PZEMDC::update() { this->send(PZEM_CMD_READ_IN_REGISTERS, 0, 8); }
+void PZEMDC::dump_config() {
+  ESP_LOGCONFIG(TAG, "PZEMDC:");
+  ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+  LOG_SENSOR("", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("", "Current", this->current_sensor_);
+  LOG_SENSOR("", "Power", this->power_sensor_);
+}
 
 }  // namespace pzemdc
 }  // namespace esphome

@@ -13,13 +13,13 @@ const extern float COVER_CLOSED;
 
 #define LOG_COVER(prefix, type, obj) \
   if (obj != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix type " '%s'", obj->get_name().c_str()); \
+    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, type, obj->get_name().c_str()); \
     auto traits_ = obj->get_traits(); \
     if (traits_.get_is_assumed_state()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Assumed State: YES"); \
+      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
     } \
     if (!obj->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, prefix "  Device Class: '%s'", obj->get_device_class().c_str()); \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str()); \
     } \
   }
 

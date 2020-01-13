@@ -108,6 +108,8 @@ void ESP32TouchComponent::dump_config() {
 }
 
 void ESP32TouchComponent::loop() {
+  const uint32_t now = millis();
+  bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
   for (auto *child : this->children_) {
     uint16_t value;
     if (this->iir_filter_enabled_()) {
@@ -119,14 +121,14 @@ void ESP32TouchComponent::loop() {
     child->value_ = value;
     child->publish_state(value < child->get_threshold());
 
-    if (this->setup_mode_) {
+    if (should_print) {
       ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
     }
   }
 
-  if (this->setup_mode_) {
+  if (should_print) {
     // Avoid spamming logs
-    delay(250);
+    this->setup_mode_last_log_print_ = now;
   }
 }
 

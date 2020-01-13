@@ -2,6 +2,11 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
+#include "esphome/core/defines.h"
+
+#ifdef USE_LOGGER
+#include "esphome/components/logger/logger.h"
+#endif
 
 namespace esphome {
 namespace uart {
@@ -41,6 +46,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -145,6 +151,7 @@ void UARTComponent::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Using software serial");
   }
+  this->check_logger_conflict_();
 }
 
 void UARTComponent::write_byte(uint8_t data) {
@@ -288,24 +295,25 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     return;
   }
 
-  disable_interrupts();
-  uint32_t wait = this->bit_time_;
-  const uint32_t start = ESP.getCycleCount();
-  // Start bit
-  this->write_bit_(false, &wait, start);
-  this->write_bit_(data & (1 << 0), &wait, start);
-  this->write_bit_(data & (1 << 1), &wait, start);
-  this->write_bit_(data & (1 << 2), &wait, start);
-  this->write_bit_(data & (1 << 3), &wait, start);
-  this->write_bit_(data & (1 << 4), &wait, start);
-  this->write_bit_(data & (1 << 5), &wait, start);
-  this->write_bit_(data & (1 << 6), &wait, start);
-  this->write_bit_(data & (1 << 7), &wait, start);
-  // Stop bit
-  this->write_bit_(true, &wait, start);
-  if (this->stop_bits_ == 2)
-    this->wait_(&wait, start);
-  enable_interrupts();
+  {
+    InterruptLock lock;
+    uint32_t wait = this->bit_time_;
+    const uint32_t start = ESP.getCycleCount();
+    // Start bit
+    this->write_bit_(false, &wait, start);
+    this->write_bit_(data & (1 << 0), &wait, start);
+    this->write_bit_(data & (1 << 1), &wait, start);
+    this->write_bit_(data & (1 << 2), &wait, start);
+    this->write_bit_(data & (1 << 3), &wait, start);
+    this->write_bit_(data & (1 << 4), &wait, start);
+    this->write_bit_(data & (1 << 5), &wait, start);
+    this->write_bit_(data & (1 << 6), &wait, start);
+    this->write_bit_(data & (1 << 7), &wait, start);
+    // Stop bit
+    this->write_bit_(true, &wait, start);
+    if (this->stop_bits_ == 2)
+      this->wait_(&wait, start);
+  }
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::wait_(uint32_t *wait, const uint32_t &start) {
   while (ESP.getCycleCount() - start < *wait)
@@ -316,7 +324,7 @@ bool ICACHE_RAM_ATTR ESP8266SoftwareSerial::read_bit_(uint32_t *wait, const uint
   this->wait_(wait, start);
   return this->rx_pin_->digital_read();
 }
-void ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
+void ICACHE_RAM_ATTR ESP8266SoftwareSerial::write_bit_(bool bit, uint32_t *wait, const uint32_t &start) {
   this->tx_pin_->digital_write(bit);
   this->wait_(wait, start);
 }
@@ -358,6 +366,19 @@ int UARTComponent::peek() {
   if (!this->peek_byte(&data))
     return -1;
   return data;
+}
+
+void UARTComponent::check_logger_conflict_() {
+#ifdef USE_LOGGER
+  if (this->hw_serial_ == nullptr || logger::global_logger->get_baud_rate() == 0) {
+    return;
+  }
+
+  if (this->hw_serial_ == logger::global_logger->get_hw_serial()) {
+    ESP_LOGW(TAG, "  You're using the same serial port for logging and the UART component. Please "
+                  "disable logging over the serial port by setting logger->baud_rate to 0.");
+  }
+#endif
 }
 
 void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {

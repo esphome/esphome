@@ -17,6 +17,8 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
 
   void update() override;
 
+  void dump_config() override;
+
  protected:
   sensor::Sensor *voltage_sensor_;
   sensor::Sensor *current_sensor_;

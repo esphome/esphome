@@ -30,7 +30,7 @@ void StatusBinarySensor::loop() {
 
   this->publish_state(status);
 }
-void StatusBinarySensor::setup() { this->publish_state(false); }
+void StatusBinarySensor::setup() { this->publish_initial_state(false); }
 void StatusBinarySensor::dump_config() { LOG_BINARY_SENSOR("", "Status Binary Sensor", this); }
 
 }  // namespace status

@@ -7,13 +7,17 @@ from esphome.util import Registry
 
 
 def maybe_simple_id(*validators):
+    return maybe_conf(CONF_ID, *validators)
+
+
+def maybe_conf(conf, *validators):
     validator = cv.All(*validators)
 
     def validate(value):
         if isinstance(value, dict):
             return validator(value)
-        with cv.remove_prepend_path([CONF_ID]):
-            return validator({CONF_ID: value})
+        with cv.remove_prepend_path([conf]):
+            return validator({conf: value})
 
     return validate
 
@@ -79,9 +83,9 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 try:
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
-                    if u'extra keys not allowed' in str(err2) and len(err2.path) == 2:
+                    if 'extra keys not allowed' in str(err2) and len(err2.path) == 2:
                         raise err
-                    if u'Unable to find action' in str(err):
+                    if 'Unable to find action' in str(err):
                         raise err2
                     raise cv.MultipleInvalid([err, err2])
         elif isinstance(value, dict):

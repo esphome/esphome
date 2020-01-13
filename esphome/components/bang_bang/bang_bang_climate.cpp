@@ -51,12 +51,15 @@ climate::ClimateTraits BangBangClimate::traits() {
 }
 void BangBangClimate::compute_state_() {
   if (this->mode != climate::CLIMATE_MODE_AUTO) {
-    // in non-auto mode
+    // in non-auto mode, switch directly to appropriate action
+    //  - HEAT mode -> HEATING action
+    //  - COOL mode -> COOLING action
+    //  - OFF mode -> OFF action (not IDLE!)
     this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
     return;
   }
   if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
-    // if any control values are nan, go to OFF (idle) mode
+    // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;
   }
@@ -69,18 +72,18 @@ void BangBangClimate::compute_state_() {
     if (this->supports_heat_)
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
-      target_action = climate::CLIMATE_ACTION_OFF;
+      target_action = climate::CLIMATE_ACTION_IDLE;
   } else if (too_hot) {
     // too hot -> enable cooling if possible, else idle
     if (this->supports_cool_)
       target_action = climate::CLIMATE_ACTION_COOLING;
     else
-      target_action = climate::CLIMATE_ACTION_OFF;
+      target_action = climate::CLIMATE_ACTION_IDLE;
   } else {
     // neither too hot nor too cold -> in range
     if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle mode
-      target_action = climate::CLIMATE_ACTION_OFF;
+      // if supports both ends, go to idle action
+      target_action = climate::CLIMATE_ACTION_IDLE;
     } else {
       // else use current mode and don't change (hysteresis)
       target_action = this->action;
@@ -94,6 +97,16 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     // already in target mode
     return;
 
+  if ((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
+      (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) {
+    // switching from OFF to IDLE or vice-versa
+    // these only have visual difference. OFF means user manually disabled,
+    // IDLE means it's in auto mode but value is in target range.
+    this->action = action;
+    this->publish_state();
+    return;
+  }
+
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop();
     this->prev_trigger_ = nullptr;
@@ -101,6 +114,7 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   Trigger<> *trig;
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
+    case climate::CLIMATE_ACTION_IDLE:
       trig = this->idle_trigger_;
       break;
     case climate::CLIMATE_ACTION_COOLING:
@@ -112,13 +126,11 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     default:
       trig = nullptr;
   }
-  if (trig != nullptr) {
-    // trig should never be null, but still check so that we don't crash
-    trig->trigger();
-    this->action = action;
-    this->prev_trigger_ = trig;
-    this->publish_state();
-  }
+  assert(trig != nullptr);
+  trig->trigger();
+  this->action = action;
+  this->prev_trigger_ = trig;
+  this->publish_state();
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
@@ -145,6 +157,14 @@ Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
+void BangBangClimate::dump_config() {
+  LOG_CLIMATE("", "Bang Bang Climate", this);
+  ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
+  ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
+  ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
+  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+}
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_temperature_low,

@@ -19,6 +19,8 @@ class PZEMAC : public PollingComponent, public modbus::ModbusDevice {
 
   void on_modbus_data(const std::vector<uint8_t> &data) override;
 
+  void dump_config() override;
+
  protected:
   sensor::Sensor *voltage_sensor_;
   sensor::Sensor *current_sensor_;

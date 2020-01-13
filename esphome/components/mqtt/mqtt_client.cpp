@@ -201,7 +201,7 @@ void MQTTClientComponent::check_connected() {
   this->status_clear_warning();
   ESP_LOGI(TAG, "MQTT Connected!");
   // MQTT Client needs some time to be fully set up.
-  delay(100);
+  delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
 
