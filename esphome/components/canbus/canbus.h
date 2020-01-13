@@ -36,19 +36,14 @@ enum CanSpeed : uint8_t {
 };
 
 /* special address description flags for the CAN_ID */
-static const uint32_t CAN_EFF_FLAG =
-    0x80000000UL; /* EFF/SFF is set in the MSB */
-static const uint32_t CAN_RTR_FLAG =
-    0x40000000UL; /* remote transmission request */
+static const uint32_t CAN_EFF_FLAG = 0x80000000UL; /* EFF/SFF is set in the MSB */
+static const uint32_t CAN_RTR_FLAG = 0x40000000UL; /* remote transmission request */
 static const uint32_t CAN_ERR_FLAG = 0x20000000UL; /* error message frame */
 
 /* valid bits in CAN ID for frame formats */
-static const uint32_t CAN_SFF_MASK =
-    0x000007FFUL; /* standard frame format (SFF) */
-static const uint32_t CAN_EFF_MASK =
-    0x1FFFFFFFUL; /* extended frame format (EFF) */
-static const uint32_t CAN_ERR_MASK =
-    0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
+static const uint32_t CAN_SFF_MASK = 0x000007FFUL; /* standard frame format (SFF) */
+static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF) */
+static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
 
 class CanbusTrigger;
 
@@ -63,7 +58,7 @@ struct CanFrame {
 };
 
 class Canbus : public Component {
-public:
+ public:
   Canbus(){};
   void setup() override;
   void dump_config() override;
@@ -76,21 +71,19 @@ public:
 
   void add_trigger(CanbusTrigger *trigger);
 
-protected:
+ protected:
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t sender_id_{0};
   CanSpeed bit_rate_{CAN_125KBPS};
 
-  virtual bool setup_internal_();
-  virtual Error send_message_(const struct CanFrame *frame);
-  virtual Error read_message_(struct CanFrame *frame);
+  virtual bool setup_internal();
+  virtual Error send_message(const struct CanFrame *frame);
+  virtual Error read_message(struct CanFrame *frame);
 };
 
-template <typename... Ts>
-class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
-public:
-  void
-  set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
+template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
+ public:
+  void set_data_template(const std::function<std::vector<uint8_t>(Ts...)> func) {
     this->data_func_ = func;
     this->static_ = false;
   }
@@ -110,7 +103,7 @@ public:
     }
   }
 
-protected:
+ protected:
   uint32_t can_id_;
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
@@ -120,15 +113,15 @@ protected:
 class CanbusTrigger : public Trigger<std::vector<uint8_t>>, public Component {
   friend class Canbus;
 
-public:
+ public:
   explicit CanbusTrigger(Canbus *parent, const std::uint32_t can_id)
       : parent_(parent), can_id_(can_id){};
   void setup() override { this->parent_->add_trigger(this); }
 
-protected:
+ protected:
   Canbus *parent_;
   uint32_t can_id_;
 };
 
-} // namespace canbus
-} // namespace esphome
+}  // namespace canbus
+}  // namespace esphome
