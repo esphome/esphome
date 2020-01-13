@@ -100,8 +100,8 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
     cg.add(var.set_can_id(can_id))
     data = config[CONF_DATA]
-    if isinstance(data, binary_type):
-        data = [char_to_byte(x) for x in data]
+    if isinstance(data, bytes):
+        data = [x for x in data]
     if cg.is_template(data):
         templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
