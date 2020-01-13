@@ -126,12 +126,12 @@ canbus::Error MCP2515::set_mode_(const CANCTRL_REQOP_MODE mode) {
   while (millis() < endTime) {
     uint8_t newmode = read_register_(MCP_CANSTAT);
     newmode &= CANSTAT_OPMOD;
-    modeMatch = newmode == mode;
-    if (modeMatch) {
+    mode_match = newmode == mode;
+    if (mode_match) {
       break;
     }
   }
-  return modeMatch ? canbus::ERROR_OK : canbus::ERROR_FAIL;
+  return mode_match ? canbus::ERROR_OK : canbus::ERROR_FAIL;
 }
 
 canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
