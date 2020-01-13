@@ -70,7 +70,7 @@ public:
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
 
-  void send_data(uint32_t can_id, const std::vector<uint8_t> data);
+  void send_data(uint32_t can_id, const std::vector<uint8_t> &data);
   void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 
