@@ -134,7 +134,6 @@ void INA219Component::dump_config() {
 
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with INA219 failed!");
-    this->mark_failed();
     return;
   }
   LOG_UPDATE_INTERVAL(this);

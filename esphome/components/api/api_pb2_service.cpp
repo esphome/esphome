@@ -1,3 +1,5 @@
+// This file was automatically generated with a tool.
+// See scripts/api_protobuf/api_protobuf.py
 #include "api_pb2_service.h"
 #include "esphome/core/log.h"
 

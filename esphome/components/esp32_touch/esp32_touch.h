@@ -50,6 +50,7 @@ class ESP32TouchComponent : public Component {
   touch_volt_atten_t voltage_attenuation_{};
   std::vector<ESP32TouchBinarySensor *> children_;
   bool setup_mode_{false};
+  uint32_t setup_mode_last_log_print_{};
   uint32_t iir_filter_{0};
 };
 

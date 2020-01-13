@@ -36,4 +36,4 @@ def to_code(config):
             continue
         conf = config[key]
         sens = yield sensor.new_sensor(conf)
-        cg.add(getattr(var, 'set_{}_sensor'.format(key))(sens))
+        cg.add(getattr(var, f'set_{key}_sensor')(sens))

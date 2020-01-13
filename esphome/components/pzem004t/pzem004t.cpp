@@ -8,7 +8,7 @@ static const char *TAG = "pzem004t";
 
 void PZEM004T::loop() {
   const uint32_t now = millis();
-  if (now - this->last_read_ > 500 && this->available()) {
+  if (now - this->last_read_ > 500 && this->available() < 7) {
     while (this->available())
       this->read();
     this->last_read_ = now;
@@ -78,7 +78,7 @@ void PZEM004T::loop() {
     this->last_read_ = now;
   }
 }
-void PZEM004T::update() { this->write_state_(SET_ADDRESS); }
+void PZEM004T::update() { this->write_state_(READ_VOLTAGE); }
 void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
   if (state == DONE) {
     this->read_state_ = state;
@@ -97,6 +97,12 @@ void PZEM004T::write_state_(PZEM004T::PZEM004TReadState state) {
 
   this->write_array(data);
   this->read_state_ = state;
+}
+void PZEM004T::dump_config() {
+  ESP_LOGCONFIG(TAG, "PZEM004T:");
+  LOG_SENSOR("", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("", "Current", this->current_sensor_);
+  LOG_SENSOR("", "Power", this->power_sensor_);
 }
 
 }  // namespace pzem004t

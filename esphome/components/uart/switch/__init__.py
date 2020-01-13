@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import switch, uart
 from esphome.const import CONF_DATA, CONF_ID, CONF_INVERTED
 from esphome.core import HexInt
-from esphome.py_compat import binary_type, char_to_byte
 from .. import uart_ns, validate_raw_data
 
 DEPENDENCIES = ['uart']
@@ -25,6 +24,6 @@ def to_code(config):
     yield uart.register_uart_device(var, config)
 
     data = config[CONF_DATA]
-    if isinstance(data, binary_type):
-        data = [HexInt(char_to_byte(x)) for x in data]
+    if isinstance(data, bytes):
+        data = [HexInt(x) for x in data]
     cg.add(var.set_data(data))

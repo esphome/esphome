@@ -76,6 +76,7 @@ class UARTComponent : public Component, public Stream {
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
 
  protected:
+  void check_logger_conflict_();
   bool check_read_timeout_(size_t len = 1);
   friend class UARTDevice;
 

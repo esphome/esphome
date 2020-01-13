@@ -267,11 +267,11 @@ class RemoteReceiverBase : public RemoteComponentBase {
   uint8_t tolerance_{25};
 };
 
-class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensor,
+class RemoteReceiverBinarySensorBase : public binary_sensor::BinarySensorInitiallyOff,
                                        public Component,
                                        public RemoteReceiverListener {
  public:
-  explicit RemoteReceiverBinarySensorBase() : BinarySensor() {}
+  explicit RemoteReceiverBinarySensorBase() : BinarySensorInitiallyOff() {}
   void dump_config() override;
   virtual bool matches(RemoteReceiveData src) = 0;
   bool on_receive(RemoteReceiveData src) override {

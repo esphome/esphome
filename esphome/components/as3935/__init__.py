@@ -1,11 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_PIN, CONF_INDOOR, CONF_WATCHDOG_THRESHOLD, \
+from esphome.const import CONF_INDOOR, CONF_WATCHDOG_THRESHOLD, \
     CONF_NOISE_LEVEL, CONF_SPIKE_REJECTION, CONF_LIGHTNING_THRESHOLD, \
     CONF_MASK_DISTURBER, CONF_DIV_RATIO, CONF_CAPACITANCE
 from esphome.core import coroutine
-
 
 AUTO_LOAD = ['sensor', 'binary_sensor']
 MULTI_CONF = True
@@ -15,10 +14,10 @@ CONF_AS3935_ID = 'as3935_id'
 as3935_ns = cg.esphome_ns.namespace('as3935')
 AS3935 = as3935_ns.class_('AS3935Component', cg.Component)
 
+CONF_IRQ_PIN = 'irq_pin'
 AS3935_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(AS3935),
-    cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema,
-                                  pins.validate_has_interrupt),
+    cv.Required(CONF_IRQ_PIN): pins.gpio_input_pin_schema,
 
     cv.Optional(CONF_INDOOR, default=True): cv.boolean,
     cv.Optional(CONF_NOISE_LEVEL, default=2): cv.int_range(min=1, max=7),
@@ -35,8 +34,8 @@ AS3935_SCHEMA = cv.Schema({
 def setup_as3935(var, config):
     yield cg.register_component(var, config)
 
-    pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
+    irq_pin = yield cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    cg.add(var.set_irq_pin(irq_pin))
     cg.add(var.set_indoor(config[CONF_INDOOR]))
     cg.add(var.set_noise_level(config[CONF_NOISE_LEVEL]))
     cg.add(var.set_watchdog_threshold(config[CONF_WATCHDOG_THRESHOLD]))

@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import json
 import logging
 import os
@@ -7,7 +5,6 @@ import re
 import subprocess
 
 from esphome.core import CORE
-from esphome.py_compat import decode_text
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,6 +57,8 @@ FILTER_PLATFORMIO_LINES = [
     r"Using cache: .*",
     r'Installing dependencies',
     r'.* @ .* is already installed',
+    r'Building in .* mode',
+    r'Advanced Memory Usage is available via .*',
 ]
 
 
@@ -99,14 +98,15 @@ def run_upload(config, verbose, port):
 
 def run_idedata(config):
     args = ['-t', 'idedata']
-    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
-    stdout = decode_text(stdout)
-    match = re.search(r'{.*}', stdout)
+    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True).decode()
+    match = re.search(r'{\s*".*}', stdout)
     if match is None:
+        _LOGGER.debug("Could not match IDEData for %s", stdout)
         return IDEData(None)
     try:
         return IDEData(json.loads(match.group()))
     except ValueError:
+        _LOGGER.debug("Could not load IDEData for %s", stdout, exc_info=1)
         return IDEData(None)
 
 
@@ -165,11 +165,13 @@ ESP8266_EXCEPTION_CODES = {
 def _decode_pc(config, addr):
     idedata = get_idedata(config)
     if not idedata.addr2line_path or not idedata.firmware_elf_path:
+        _LOGGER.debug("decode_pc no addr2line")
         return
     command = [idedata.addr2line_path, '-pfiaC', '-e', idedata.firmware_elf_path, addr]
     try:
-        translation = subprocess.check_output(command).strip()
+        translation = subprocess.check_output(command).decode().strip()
     except Exception:  # pylint: disable=broad-except
+        _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
 
     if "?? ??:0" in translation:
@@ -241,7 +243,7 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-class IDEData(object):
+class IDEData:
     def __init__(self, raw):
         if not isinstance(raw, dict):
             self.raw = {}
