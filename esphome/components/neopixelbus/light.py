@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import light
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_METHOD, CONF_NUM_LEDS, CONF_PIN, \
-    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID
+    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID, CONF_INVERT
 from esphome.core import CORE
 
 neopixelbus_ns = cg.esphome_ns.namespace('neopixelbus')
@@ -120,6 +120,13 @@ ESP32_METHODS = {
 def format_method(config):
     variant = VARIANTS[config[CONF_VARIANT]]
     method = config[CONF_METHOD]
+
+    if config[CONF_INVERT]:
+        if method == 'ESP8266_DMA':
+            variant = 'Inverted' + variant
+        else:
+            variant += 'Inverted'
+
     if CORE.is_esp8266:
         return ESP8266_METHODS[method].format(variant)
     if CORE.is_esp32:
@@ -145,6 +152,7 @@ CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.Optional(CONF_TYPE, default='GRB'): validate_type,
     cv.Optional(CONF_VARIANT, default='800KBPS'): validate_variant,
     cv.Optional(CONF_METHOD, default=None): validate_method,
+    cv.Optional(CONF_INVERT, default='no'): cv.boolean,
     cv.Optional(CONF_PIN): pins.output_pin,
     cv.Optional(CONF_CLOCK_PIN): pins.output_pin,
     cv.Optional(CONF_DATA_PIN): pins.output_pin,
