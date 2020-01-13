@@ -59,6 +59,12 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       result.moisture = data[0];
       return true;
     }
+    case 0x03: {  // motion, 1 byte, 8-bit unsigned integer
+      if (data_length != 1)
+        return false;
+      result.motion = data[0];
+      return true;
+    }
     default:
       return false;
   }
@@ -71,7 +77,7 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
 
   const auto raw = service_data.data;
 
-  if (raw.size() < 14) {
+  if (raw.size() < 9) {
     // ESP_LOGVV(TAG, "Xiaomi service data too short!");
     return false;
   }
@@ -80,22 +86,27 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
   bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
   bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
+  bool is_mue4094rt = (raw[1] & 0x30) == 0x30 && raw[2] == 0xdd && raw[3] == 0x03;
 
-  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1) {
+  if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 && !is_mue4094rt) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return false;
   }
 
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
+  uint8_t raw_offset = 12;
   if (is_lywsdcgq) {
     result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
+    raw_offset = 11;
   } else if (is_lywsd02) {
     result.type = XiaomiParseResult::TYPE_LYWSD02;
   } else if (is_cgg1) {
     result.type = XiaomiParseResult::TYPE_CGG1;
+    raw_offset = 11;
+  } else if (is_mue4094rt) {
+    result.type = XiaomiParseResult::TYPE_MUE4094RT;
+    raw_offset = 5;
   }
-
-  uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
   // Data point specs
   // Byte 0: type
@@ -156,6 +167,8 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     name = "LYWSD02";
   } else if (res->type == XiaomiParseResult::TYPE_CGG1) {
     name = "CGG1";
+  } else if (res->type == XiaomiParseResult::TYPE_MUE4094RT) {
+    name = "MUE4094RT";
   }
 
   ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
@@ -177,6 +190,9 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
   if (res->moisture.has_value()) {
     ESP_LOGD(TAG, "  Moisture: %.0f%%", *res->moisture);
+  }
+  if (res->motion.has_value()) {
+    ESP_LOGD(TAG, "  Motion: %.0f", *res->motion);
   }
 
   return true;
