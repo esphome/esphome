@@ -168,34 +168,34 @@ class TimePeriod:
         return self.days or 0
 
     def __eq__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds == other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds == other.total_microseconds
+        return NotImplemented
 
     def __ne__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds != other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds != other.total_microseconds
+        return NotImplemented
 
     def __lt__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds < other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds < other.total_microseconds
+        return NotImplemented
 
     def __gt__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds > other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds > other.total_microseconds
+        return NotImplemented
 
     def __le__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds <= other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds <= other.total_microseconds
+        return NotImplemented
 
     def __ge__(self, other):
-        if not isinstance(other, TimePeriod):
-            raise ValueError("other must be TimePeriod")
-        return self.total_microseconds >= other.total_microseconds
+        if isinstance(other, TimePeriod):
+            return self.total_microseconds >= other.total_microseconds
+        return NotImplemented
 
 
 class TimePeriodMicroseconds(TimePeriod):
@@ -286,9 +286,9 @@ class ID:
             self.id, self.is_declaration, self.type, self.is_manual)
 
     def __eq__(self, other):
-        if not isinstance(other, ID):
-            raise ValueError("other must be ID {} {}".format(type(other), other))
-        return self.id == other.id
+        if isinstance(other, ID):
+            return self.id == other.id
+        return NotImplemented
 
     def __hash__(self):
         return hash(self.id)
@@ -359,7 +359,9 @@ class Define:
         return hash(self.as_tuple)
 
     def __eq__(self, other):
-        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
+        if isinstance(other, Define):
+            return self.as_tuple == other.as_tuple
+        return NotImplemented
 
 
 class Library:
@@ -381,7 +383,9 @@ class Library:
         return hash(self.as_tuple)
 
     def __eq__(self, other):
-        return isinstance(self, type(other)) and self.as_tuple == other.as_tuple
+        if isinstance(other, Library):
+            return self.as_tuple == other.as_tuple
+        return NotImplemented
 
 
 def coroutine(func):
