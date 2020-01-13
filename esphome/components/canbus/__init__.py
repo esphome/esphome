@@ -16,7 +16,7 @@ CONF_CANBUS_SEND = 'canbus.send'
 
 
 def validate_raw_data(value):
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value.encode('utf-8')
     if isinstance(value, str):
         return value
