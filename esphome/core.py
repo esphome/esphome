@@ -589,13 +589,13 @@ class EsphomeCore:
     @property
     def is_esp8266(self):
         if self.esp_platform is None:
-            raise ValueError
+            raise ValueError("No platform specified")
         return self.esp_platform == 'ESP8266'
 
     @property
     def is_esp32(self):
         if self.esp_platform is None:
-            raise ValueError
+            raise ValueError("No platform specified")
         return self.esp_platform == 'ESP32'
 
     def add_job(self, func, *args, **kwargs):
