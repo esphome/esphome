@@ -1,11 +1,7 @@
-import re
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id
 from esphome.core import CORE, coroutine, coroutine_with_priority
-from esphome.py_compat import text_type, binary_type, char_to_byte
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
@@ -16,7 +12,7 @@ CONF_SENDER_ID = 'sender_id'
 CONF_BIT_RATE = 'bit_rate'
 CONF_ON_FRAME = 'on_frame'
 
-CONF_CANBUS_SEND_ACTION = 'canbus.send'
+CONF_CANBUS_SEND = 'canbus.send'
 
 
 def validate_raw_data(value):
@@ -96,7 +92,7 @@ def register_canbus(var, config):
     yield setup_canbus_core_(var, config)
 
 
-@automation.register_action(CONF_CANBUS_SEND_ACTION, CanbusSendAction, CANBUS_ACTION_SCHEMA)
+@automation.register_action(CONF_CANBUS_SEND, CanbusSendAction, CANBUS_ACTION_SCHEMA)
 def canbus_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_CANBUS_ID])
