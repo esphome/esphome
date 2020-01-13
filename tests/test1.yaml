@@ -1440,6 +1440,12 @@ display:
   num_chips: 1
   lambda: |-
     it.print("01234567");
+- platform: tm1637
+  clk_pin: GPIO23
+  dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
