@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.core import CORE, coroutine, coroutine_with_priority
-from esphome.py_compat import char_to_byte
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
@@ -102,7 +101,7 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     cg.add(var.set_can_id(can_id))
     data = config[CONF_DATA]
     if isinstance(data, bytes):
-        data = [char_to_byte(x) for x in data]
+        data = [int(x) for x in data]
     if cg.is_template(data):
         templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))
         cg.add(var.set_data_template(templ))
