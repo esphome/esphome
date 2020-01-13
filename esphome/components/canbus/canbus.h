@@ -81,7 +81,7 @@ protected:
   uint32_t sender_id_{0};
   CanSpeed bit_rate_{CAN_125KBPS};
 
-  bool setup_internal_() override;
+  virtual bool setup_internal_();
   virtual Error send_message_(const struct CanFrame *frame);
   virtual Error read_message_(struct CanFrame *frame);
 };
