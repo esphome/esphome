@@ -8,7 +8,7 @@ static const char *TAG = "canbus";
 
 void Canbus::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Canbus...");
-  if (!this->setup_internal_()) {
+  if (!this->setup_internal()) {
     ESP_LOGE(TAG, "Canbus setup error!");
     this->mark_failed();
   }
@@ -31,7 +31,7 @@ void Canbus::send_data(uint32_t can_id, const std::vector<uint8_t> &data) {
     ESP_LOGVV(TAG, "data[%d] = %02x", i, can_message.data[i]);
   }
 
-  this->send_message_(&can_message);
+  this->send_message(&can_message);
 }
 
 void Canbus::add_trigger(CanbusTrigger *trigger) {
@@ -42,22 +42,20 @@ void Canbus::add_trigger(CanbusTrigger *trigger) {
 void Canbus::loop() {
   struct CanFrame can_message;
   // readmessage
-  if (this->read_message_(&can_message) == canbus::ERROR_OK) {
-    ESP_LOGD(TAG, "received can message can_id=%d  length=%d",
-             can_message.can_id, can_message.can_dlc);
+  if (this->read_message(&can_message) == canbus::ERROR_OK) {
+    ESP_LOGD(TAG, "received can message can_id=%d  length=%d", can_message.can_id, can_message.can_dlc);
     // show data received
     for (int i = 0; i < can_message.can_dlc; i++)
       ESP_LOGD(TAG, "data[%d]=%02x", i, can_message.data[i]);
     // fire all triggers
     for (auto trigger : this->triggers_) {
       if (trigger->can_id_ == can_message.can_id) {
-        std::vector<uint8_t> data(&can_message.data[0],
-                                  &can_message.data[can_message.can_dlc - 1]);
+        std::vector<uint8_t> data(&can_message.data[0], &can_message.data[can_message.can_dlc - 1]);
         trigger->trigger(data);
       }
     }
   }
 }
 
-} // namespace canbus
-} // namespace esphome
+}  // namespace canbus
+}  // namespace esphome
