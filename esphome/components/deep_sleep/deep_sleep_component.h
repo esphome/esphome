@@ -70,7 +70,7 @@ class DeepSleepComponent : public Component {
  protected:
   optional<uint64_t> sleep_duration_;
 #ifdef ARDUINO_ARCH_ESP32
-  optional<GPIOPin *> wakeup_pin_;
+  GPIOPin * wakeup_pin_;
   WakeupPinMode wakeup_pin_mode_{WAKEUP_PIN_MODE_IGNORE};
   optional<Ext1Wakeup> ext1_wakeup_;
 #endif

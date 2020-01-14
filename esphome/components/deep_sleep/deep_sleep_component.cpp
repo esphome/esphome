@@ -26,9 +26,7 @@ void DeepSleepComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);
   }
 #ifdef ARDUINO_ARCH_ESP32
-  if (this->wakeup_pin_.has_value()) {
-    LOG_PIN("  Wakeup Pin: ", *this->wakeup_pin_);
-  }
+  LOG_PIN("  Wakeup Pin: ", *this->wakeup_pin_);
 #endif
 }
 void DeepSleepComponent::loop() {
@@ -52,8 +50,8 @@ void DeepSleepComponent::begin_sleep(bool manual) {
     return;
   }
 #ifdef ARDUINO_ARCH_ESP32
-  if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE && this->wakeup_pin_.has_value() &&
-      !this->sleep_duration_.has_value() && (*this->wakeup_pin_)->digital_read()) {
+  if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_KEEP_AWAKE && this->wakeup_pin_ != nullptr &&
+      this->wakeup_pin_->digital_read()) {
     // Defer deep sleep until inactive
     if (!this->next_enter_deep_sleep_) {
       this->status_set_warning();
@@ -71,11 +69,11 @@ void DeepSleepComponent::begin_sleep(bool manual) {
 #ifdef ARDUINO_ARCH_ESP32
   if (this->sleep_duration_.has_value())
     esp_sleep_enable_timer_wakeup(*this->sleep_duration_);
-  if (this->wakeup_pin_.has_value()) {
-    bool level = !(*this->wakeup_pin_)->is_inverted();
-    if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && (*this->wakeup_pin_)->digital_read())
+  if (this->wakeup_pin_ != nullptr) {
+    bool level = !this->wakeup_pin_->is_inverted();
+    if (this->wakeup_pin_mode_ == WAKEUP_PIN_MODE_INVERT_WAKEUP && this->wakeup_pin_->digital_read())
       level = !level;
-    esp_sleep_enable_ext0_wakeup(gpio_num_t((*this->wakeup_pin_)->get_pin()), level);
+    esp_sleep_enable_ext0_wakeup(gpio_num_t(this->wakeup_pin_->get_pin()), level);
   }
   if (this->ext1_wakeup_.has_value()) {
     esp_sleep_enable_ext1_wakeup(this->ext1_wakeup_->mask, this->ext1_wakeup_->wakeup_mode);
