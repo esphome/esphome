@@ -1,7 +1,6 @@
 import pytest
 
 from hypothesis import given
-from hypothesis import strategies as st
 from hypothesis.provisional import ip4_addr_strings
 from strategies import mac_addr_strings
 
@@ -148,7 +147,7 @@ class TestTimePeriod:
 
     @pytest.mark.parametrize("comparison, other, expected", (
             ("__eq__", core.TimePeriod(microseconds=900), False),
-            ("__eq__", core.TimePeriod(microseconds=1000), True),
+            ("__eq__", core.TimePeriod(milliseconds=1), True),
             ("__eq__", core.TimePeriod(microseconds=1100), False),
             ("__eq__", 1000, NotImplemented),
             ("__eq__", "1000", NotImplemented),
@@ -157,7 +156,7 @@ class TestTimePeriod:
             ("__eq__", None, NotImplemented),
 
             ("__ne__", core.TimePeriod(microseconds=900), True),
-            ("__ne__", core.TimePeriod(microseconds=1000), False),
+            ("__ne__", core.TimePeriod(milliseconds=1), False),
             ("__ne__", core.TimePeriod(microseconds=1100), True),
             ("__ne__", 1000, NotImplemented),
             ("__ne__", "1000", NotImplemented),
@@ -165,36 +164,36 @@ class TestTimePeriod:
             ("__ne__", object(), NotImplemented),
             ("__ne__", None, NotImplemented),
 
-            ("__lt__", core.TimePeriod(microseconds=900), True),
-            ("__lt__", core.TimePeriod(microseconds=1000), False),
-            ("__lt__", core.TimePeriod(microseconds=1100), False),
+            ("__lt__", core.TimePeriod(microseconds=900), False),
+            ("__lt__", core.TimePeriod(milliseconds=1), False),
+            ("__lt__", core.TimePeriod(microseconds=1100), True),
             ("__lt__", 1000, NotImplemented),
             ("__lt__", "1000", NotImplemented),
             ("__lt__", True, NotImplemented),
             ("__lt__", object(), NotImplemented),
             ("__lt__", None, NotImplemented),
 
-            ("__gt__", core.TimePeriod(microseconds=900), False),
-            ("__gt__", core.TimePeriod(microseconds=1000), False),
-            ("__gt__", core.TimePeriod(microseconds=1100), True),
+            ("__gt__", core.TimePeriod(microseconds=900), True),
+            ("__gt__", core.TimePeriod(milliseconds=1), False),
+            ("__gt__", core.TimePeriod(microseconds=1100), False),
             ("__gt__", 1000, NotImplemented),
             ("__gt__", "1000", NotImplemented),
             ("__gt__", True, NotImplemented),
             ("__gt__", object(), NotImplemented),
             ("__gt__", None, NotImplemented),
 
-            ("__le__", core.TimePeriod(microseconds=900), True),
-            ("__le__", core.TimePeriod(microseconds=1000), True),
-            ("__le__", core.TimePeriod(microseconds=1100), False),
+            ("__le__", core.TimePeriod(microseconds=900), False),
+            ("__le__", core.TimePeriod(milliseconds=1), True),
+            ("__le__", core.TimePeriod(microseconds=1100), True),
             ("__le__", 1000, NotImplemented),
             ("__le__", "1000", NotImplemented),
             ("__le__", True, NotImplemented),
             ("__le__", object(), NotImplemented),
             ("__le__", None, NotImplemented),
 
-            ("__ge__", core.TimePeriod(microseconds=900), False),
-            ("__ge__", core.TimePeriod(microseconds=1000), True),
-            ("__ge__", core.TimePeriod(microseconds=1100), True),
+            ("__ge__", core.TimePeriod(microseconds=900), True),
+            ("__ge__", core.TimePeriod(milliseconds=1), True),
+            ("__ge__", core.TimePeriod(microseconds=1100), False),
             ("__ge__", 1000, NotImplemented),
             ("__ge__", "1000", NotImplemented),
             ("__ge__", True, NotImplemented),
