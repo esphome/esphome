@@ -15,6 +15,12 @@ const uint8_t TCL112_COOL = 3;
 const uint8_t TCL112_FAN = 7;
 const uint8_t TCL112_AUTO = 8;
 
+const uint8_t TCL112_FAN_AUTO = 0;
+const uint8_t TCL112_FAN_LOW = 2;
+const uint8_t TCL112_FAN_MED = 3;
+const uint8_t TCL112_FAN_HIGH = 5;
+
+const uint8_t TCL112_VSWING_MASK = 0x38;
 const uint8_t TCL112_POWER_MASK = 0x04;
 
 const uint8_t TCL112_HALF_DEGREE = 0b00100000;
@@ -53,6 +59,14 @@ void Tcl112Climate::transmit_state() {
       remote_state[6] &= 0xF0;
       remote_state[6] |= TCL112_HEAT;
       break;
+    case climate::CLIMATE_MODE_DRY:
+      remote_state[6] &= 0xF0;
+      remote_state[6] |= TCL112_DRY;
+      break;
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      remote_state[6] &= 0xF0;
+      remote_state[6] |= TCL112_FAN;
+      break;
     case climate::CLIMATE_MODE_OFF:
     default:
       remote_state[5] &= ~TCL112_POWER_MASK;
@@ -71,6 +85,29 @@ void Tcl112Climate::transmit_state() {
     remote_state[12] &= ~TCL112_HALF_DEGREE;  // Clear the half degree.
   remote_state[7] &= 0xF0;                    // Clear temp bits.
   remote_state[7] |= ((uint8_t) TCL112_TEMP_MAX - half_degrees / 2);
+
+  // Set fan
+  uint8_t selected_fan;
+  switch (this->fan_mode) {
+    case climate::CLIMATE_FAN_HIGH:
+      selected_fan = TCL112_FAN_HIGH;
+      break;
+    case climate::CLIMATE_FAN_MEDIUM:
+      selected_fan = TCL112_FAN_MED;
+      break;
+    case climate::CLIMATE_FAN_LOW:
+      selected_fan = TCL112_FAN_LOW;
+      break;
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      selected_fan = TCL112_FAN_AUTO;
+  }
+  remote_state[8] |= selected_fan;
+
+  // Set swing
+  if (this->swing_mode == climate::CLIMATE_SWING_VERTICAL) {
+    remote_state[8] |= TCL112_VSWING_MASK;
+  }
 
   // Calculate & set the checksum for the current internal state of the remote.
   // Stored the checksum value in the last byte.
@@ -107,7 +144,7 @@ void Tcl112Climate::transmit_state() {
 bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   // Validate header
   if (!data.expect_item(TCL112_HEADER_MARK, TCL112_HEADER_SPACE)) {
-    ESP_LOGV(TAG, "Header fail");
+    ESP_LOGVV(TAG, "Header fail");
     return false;
   }
 
@@ -119,14 +156,14 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
       if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE))
         remote_state[i] |= 1 << j;
       else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
-        ESP_LOGV(TAG, "Byte %d bit %d fail", i, j);
+        ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
         return false;
       }
     }
   }
   // Validate footer
   if (!data.expect_mark(TCL112_BIT_MARK)) {
-    ESP_LOGV(TAG, "Footer fail");
+    ESP_LOGVV(TAG, "Footer fail");
     return false;
   }
 
@@ -136,7 +173,7 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   for (uint8_t checksum_byte = 0; checksum_byte < TCL112_STATE_LENGTH - 1; checksum_byte++)
     checksum += remote_state[checksum_byte];
   if (checksum != remote_state[TCL112_STATE_LENGTH - 1]) {
-    ESP_LOGV(TAG, "Checksum fail");
+    ESP_LOGVV(TAG, "Checksum fail");
     return false;
   }
 
@@ -161,7 +198,11 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
         this->mode = climate::CLIMATE_MODE_COOL;
         break;
       case TCL112_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
       case TCL112_FAN:
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
       case TCL112_AUTO:
         this->mode = climate::CLIMATE_MODE_AUTO;
         break;
@@ -171,6 +212,28 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   if (remote_state[12] & TCL112_HALF_DEGREE)
     temp += .5f;
   this->target_temperature = temp;
+  auto fan = remote_state[8] & 0x7;
+  switch (fan) {
+    case TCL112_FAN_HIGH:
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+      break;
+    case TCL112_FAN_MED:
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
+    case TCL112_FAN_LOW:
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+      break;
+    case TCL112_FAN_AUTO:
+    default:
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+  }
+  if ((remote_state[8] & TCL112_VSWING_MASK) == TCL112_VSWING_MASK) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  }
+
   this->publish_state();
   return true;
 }
