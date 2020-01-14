@@ -26,7 +26,7 @@ void DeepSleepComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Run Duration: %u ms", *this->run_duration_);
   }
 #ifdef ARDUINO_ARCH_ESP32
-  LOG_PIN("  Wakeup Pin: ", *this->wakeup_pin_);
+  LOG_PIN("  Wakeup Pin: ", this->wakeup_pin_);
 #endif
 }
 void DeepSleepComponent::loop() {
