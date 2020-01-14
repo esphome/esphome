@@ -4,7 +4,7 @@ from hypothesis import given
 from hypothesis.provisional import ip4_addr_strings
 from strategies import mac_addr_strings
 
-from esphome import core
+from esphome import core, const
 
 
 class TestHexInt:
@@ -445,3 +445,47 @@ class TestLibrary:
         actual = getattr(target, comparison)(other)
 
         assert actual == expected
+
+
+class TestEsphomeCore:
+    @pytest.fixture
+    def target(self, fixture_path):
+        target = core.EsphomeCore()
+        target.build_path = "foo/build"
+        target.config_path = "foo/config"
+        return target
+
+    def test_reset(self, target):
+        """Call reset on target and compare to new instance"""
+        other = core.EsphomeCore()
+
+        target.reset()
+
+        # TODO: raw_config and config differ, should they?
+        assert target.__dict__ == other.__dict__
+
+    def test_address__none(self, target):
+        assert target.address is None
+
+    def test_address__wifi(self, target):
+        target.config[const.CONF_WIFI] = {const.CONF_USE_ADDRESS: "1.2.3.4"}
+        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+
+        assert target.address == "1.2.3.4"
+
+    def test_address__ethernet(self, target):
+        target.config["ethernet"] = {const.CONF_USE_ADDRESS: "4.3.2.1"}
+
+        assert target.address == "4.3.2.1"
+
+    def test_is_esp32(self, target):
+        target.esp_platform = "ESP32"
+
+        assert target.is_esp32 is True
+        assert target.is_esp8266 is False
+
+    def test_is_esp8266(self, target):
+        target.esp_platform = "ESP8266"
+
+        assert target.is_esp32 is False
+        assert target.is_esp8266 is True
