@@ -76,9 +76,9 @@ class Canbus : public Component {
   uint32_t sender_id_{0};
   CanSpeed bit_rate_{CAN_125KBPS};
 
-  virtual bool setup_internal();
-  virtual Error send_message(const struct CanFrame *frame);
-  virtual Error read_message(struct CanFrame *frame);
+  virtual bool setup_internal_();
+  virtual Error send_message_(const struct CanFrame *frame);
+  virtual Error read_message_(struct CanFrame *frame);
 };
 
 template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public Parented<Canbus> {
