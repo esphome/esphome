@@ -1,4 +1,5 @@
 #include "azure_iot_hub.h"
+#include <math.h>
 
 namespace esphome {
 namespace azure_iot_hub {
@@ -19,7 +20,7 @@ void AzureIoTHub::setup() {
 }
 
 std::string AzureIoTHub::get_iot_hub_device_id() const { return this->iot_hub_device_id_; }
-const char* AzureIoTHub::get_iot_hub_rest_url() const { return this->iot_hub_rest_url_.c_str(); }
+const char *AzureIoTHub::get_iot_hub_rest_url() const { return this->iot_hub_rest_url_.c_str(); }
 std::string AzureIoTHub::get_iot_hub_sas_token() const { return this->iot_hub_sas_token_; }
 
 void AzureIoTHub::set_iot_hub_device_id(const std::string &device_id) { this->iot_hub_device_id_ = device_id; }
@@ -32,25 +33,23 @@ void AzureIoTHub::set_iot_hub_sas_token_expiration_string(const std::string &exp
 bool AzureIoTHub::post_json_to_iot_hub_(const std::string json_payload) {
   ESP_LOGD(TAG, "Posting to Azure IoT Hub");
 
-  char lengthBuffer[8]; // 8 characters are more than sufficient, since they allow 9999999 chars
-  itoa(json_payload.length(), lengthBuffer, 10);
-  
-  std::list<esphome::http_request::Header> headers {
-    {.name="Authorization", .value=this->iot_hub_sas_token_.c_str()},
-    {.name="Content-Type", .value="application/json"},
-    {.name="Content-Length", .value=lengthBuffer}
-  };
-  
+  char length_buffer[8];  // 8 characters are more than sufficient, since they allow 9999999 chars
+  itoa(json_payload.length(), length_buffer, 10);
+
+  std::list<esphome::http_request::Header> headers{{.name = "Authorization", .value = this->iot_hub_sas_token_.c_str()},
+                                                   {.name = "Content-Type", .value = "application/json"},
+                                                   {.name = "Content-Length", .value = length_buffer}};
+
   this->http_request_.set_method("post");
   this->http_request_.set_url(this->get_iot_hub_rest_url());
   this->http_request_.set_headers(headers);
   this->http_request_.set_body(json_payload);
-  
+
   this->http_request_.send();
 
-  ESP_LOGD(TAG, "HTTP Request to Azure IoT Hub completed %s", 
-    this->http_request_.status_has_warning() ? "unsuccessfully" : "successfully");
-  
+  ESP_LOGD(TAG, "HTTP Request to Azure IoT Hub completed %s",
+           this->http_request_.status_has_warning() ? "unsuccessfully" : "successfully");
+
   return !this->http_request_.status_has_warning();
 }
 
@@ -126,8 +125,8 @@ void AzureIoTHub::on_fan_update(fan::FanState *fan) {
 
     if (traits.supports_speed())
       fan_node["speed"] = fan->speed == esphome::fan::FanSpeed::FAN_SPEED_LOW
-                                 ? "low"
-                                 : fan->speed == esphome::fan::FanSpeed::FAN_SPEED_MEDIUM ? "medium" : "high";
+                              ? "low"
+                              : fan->speed == esphome::fan::FanSpeed::FAN_SPEED_MEDIUM ? "medium" : "high";
   });
 
   this->post_json_to_iot_hub_(payload);
@@ -191,10 +190,10 @@ void AzureIoTHub::on_sensor_update(sensor::Sensor *sensor, float state) {
     // If sensor reports specific accuracy, truncate state to that many decimals
     int accuracy = sensor->get_accuracy_decimals();
     if (accuracy > 0) {
-      // use static casts rather than math library for speed and size
-      sensor_node["state"] = static_cast<float>(static_cast<int>(state * 10 * accuracy + 0.5)) / 10 * accuracy;  
-    }
-    else {
+      sensor_node["state"] = roundf(state * 10 * accuracy) / 10 * accuracy;
+    } else if (accuracy == 0) {
+      sensor_node["state"] = roundf(state);
+    } else {
       sensor_node["state"] = state;
     }
     sensor_node["missingState"] = !sensor->has_state();

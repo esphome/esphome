@@ -19,7 +19,7 @@ class AzureIoTHub : public Component, public Controller {
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   std::string get_iot_hub_device_id() const;
-  const char* get_iot_hub_rest_url() const;
+  const char *get_iot_hub_rest_url() const;
   std::string get_iot_hub_sas_token() const;
 
   void set_iot_hub_device_id(const std::string &device_id);

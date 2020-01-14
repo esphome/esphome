@@ -1,17 +1,14 @@
 from base64 import b64encode, b64decode
 from datetime import datetime, timedelta
-from hashlib import sha1, sha256
+from hashlib import sha256
 from hmac import HMAC
-from socket import create_connection
-from ssl import create_default_context
-from time import time, strptime, mktime
+from time import time
 from urllib import parse
-from urllib.request import urlopen
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json', 'http_request']
