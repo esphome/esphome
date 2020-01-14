@@ -3,6 +3,7 @@ import importlib
 import logging
 import re
 import os.path
+import pkg_resources
 
 # pylint: disable=unused-import, wrong-import-order
 import sys
@@ -18,7 +19,7 @@ from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union  # noqa
+from typing import List, Optional, Tuple, Union, Sequence  # noqa
 from esphome.core import ConfigType  # noqa
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -121,41 +122,68 @@ def _mount_config_dir():
     CUSTOM_COMPONENTS_PATH = custom_path
 
 
-def _lookup_module(domain, is_platform):
+# Entry point for registering external libraries
+ENTRY_POINT_ID = "esphome.components"
+COMPONENT_LIBRARIES = []
+
+
+def _get_component_libraries() -> Sequence[Tuple[str, str, str]]:
+    """
+    Obtain a sequence of component libraries.
+
+    Each entry consists of a name and namespace containing components.
+
+    """
+    if not COMPONENT_LIBRARIES:
+        COMPONENT_LIBRARIES.extend([
+            ("custom component", "custom_components", CUSTOM_COMPONENTS_PATH),
+            ("ESPHome component", "esphome.components", CORE_COMPONENTS_PATH),
+        ])
+
+        # Lookup entry points for other component libraries
+        for entry_point in pkg_resources.iter_entry_points(ENTRY_POINT_ID):
+            try:
+                module = entry_point.resolve()
+            except ImportError:
+                _LOGGER.error("Unable to import component library: %s", entry_point.name)
+            else:
+                COMPONENT_LIBRARIES.append((
+                    entry_point.name, entry_point.module_name, os.path.dirname(module.__file__)
+                ))
+
+    return COMPONENT_LIBRARIES
+
+
+def _lookup_module(domain: str, is_platform: bool) -> Optional[ComponentManifest]:
+    """
+    Locate a component module from a list of known locations
+    """
     if domain in _COMPONENT_CACHE:
         return _COMPONENT_CACHE[domain]
 
     _mount_config_dir()
-    # First look for custom_components
-    try:
-        module = importlib.import_module(f'custom_components.{domain}')
-    except ImportError as e:
-        # ImportError when no such module
-        if 'No module named' not in str(e):
-            _LOGGER.warning("Unable to import custom component %s:", domain, exc_info=True)
-    except Exception:  # pylint: disable=broad-except
-        # Other error means component has an issue
-        _LOGGER.error("Unable to load custom component %s:", domain, exc_info=True)
-        return None
-    else:
-        # Found in custom components
-        manif = ComponentManifest(module, CUSTOM_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
 
-    try:
-        module = importlib.import_module(f'esphome.components.{domain}')
-    except ImportError as e:
-        if 'No module named' not in str(e):
-            _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
-        return None
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
-        return None
-    else:
-        manif = ComponentManifest(module, CORE_COMPONENTS_PATH, is_platform=is_platform)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
+    # Look through list of component libraries
+    for name, namespace, path in _get_component_libraries():
+        try:
+            module = importlib.import_module(f"{namespace}.{domain}")
+
+        except ImportError as e:
+            if 'No module named' not in str(e):
+                _LOGGER.warning("Unable to import %s %s:", name, domain, exc_info=True)
+
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.error("Unable to load %s %s:", name, domain, exc_info=True)
+            return None
+
+        else:
+            # Found component
+            manifest = ComponentManifest(module, path, is_platform=is_platform)
+            _COMPONENT_CACHE[domain] = manifest
+            return manifest
+
+    _LOGGER.error("Unable to load component: %s", domain)
+    return None
 
 
 def get_component(domain):
