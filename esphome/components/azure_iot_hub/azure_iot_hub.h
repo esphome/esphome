@@ -5,19 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
-
-#ifdef ARDUINO_ARCH_ESP32
-#include <HTTPClient.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESP8266HTTPClient.h>
-#endif
-#include <WiFiClientSecure.h>
-
-#ifndef ESP32_BALTIMORE_ROOT_PEM
-// default for when codegen didn't define proper certificate
-#define ESP32_BALTIMORE_ROOT_PEM nullptr
-#endif
+#include "esphome/components/http_request/http_request.h"
 
 namespace esphome {
 namespace azure_iot_hub {
@@ -28,8 +16,11 @@ class AzureIoTHub : public Component, public Controller {
 
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   std::string get_iot_hub_device_id() const;
+  const char* get_iot_hub_rest_url() const;
+  std::string get_iot_hub_sas_token() const;
 
   void set_iot_hub_device_id(const std::string &device_id);
   void set_iot_hub_sas_token(const std::string &sas_token);
@@ -71,19 +62,8 @@ class AzureIoTHub : public Component, public Controller {
   std::string iot_hub_rest_url_;
   std::string iot_hub_device_id_;
   std::string iot_hub_sas_token_expiration_string_;
-  HTTPClient http_client_{};
   bool post_json_to_iot_hub_(std::string json_payload);
-#ifdef ARDUINO_ARCH_ESP8266
-  uint8_t ssl_sha1_fingerprint_bytes_[20]{0};
-  bool ssl_fingerprint_supplied_{false};
-  BearSSL::WiFiClientSecure *wifi_client_;
-  bool set_fingerprint_bytes_(const char *fingerprint_string);
-#endif
-#ifdef ARDUINO_ARCH_ESP32
-  WiFiClientSecure *wifi_client_;
-  // Marking it const char will make the characters occupy flash space rather than memory
-  const char *baltimore_root_pem_ = ESP32_BALTIMORE_ROOT_PEM;
-#endif
+  http_request::HttpRequestComponent http_request_;
 };
 
 }  // namespace azure_iot_hub

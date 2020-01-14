@@ -1,5 +1,5 @@
 from base64 import b64encode, b64decode
-from datetime import datetime
+from datetime import datetime, timedelta
 from hashlib import sha1, sha256
 from hmac import HMAC
 from socket import create_connection
@@ -14,7 +14,7 @@ from esphome.const import CONF_ID
 from esphome.core import CORE, coroutine_with_priority
 
 DEPENDENCIES = ['network']
-AUTO_LOAD = ['json']
+AUTO_LOAD = ['json', 'http_request']
 
 
 azure_iot_hub_ns = cg.esphome_ns.namespace('azure_iot_hub')
@@ -27,9 +27,8 @@ CONF_DEVICE_ID = 'device_id'
 CONF_DEVICE_KEY = 'device_key'
 
 # Optional
-# api version. Can normally be omitted by required for IoT Edge connection
+# api version. Can normally be omitted but required for IoT Edge connection
 CONF_API_VERSION = 'api_version'
-CONF_INSECURE_SSL = 'insecure_ssl'
 
 # Expiration in seconds of generated token. Will be
 # reduced to SSL certificate expiration if insecure_ssl is disabled.
@@ -59,7 +58,6 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Required(CONF_DEVICE_ID): cv.string,
     cv.Required(CONF_DEVICE_KEY): cv.string,
     cv.Optional(CONF_API_VERSION, default='2018-06-30'): cv.string,
-    cv.Optional(CONF_INSECURE_SSL, default=False): cv.boolean,
     cv.Optional(CONF_TOKEN_EXPIRATION_SECONDS, default='AUTO'):
         cv.Any(cv.int_, cv.one_of("AUTO", upper=True))
 }).extend(cv.COMPONENT_SCHEMA), validate_config)
@@ -80,31 +78,6 @@ def generate_iot_hub_sas_token(uri, key, expiry_seconds):
     return 'SharedAccessSignature ' + parse.urlencode(raw_token)
 
 
-def retrieve_baltimore_root_ca():
-    cert_url = 'https://dl.cacerts.digicert.com/BaltimoreCyberTrustRoot.crt.pem'
-    with urlopen(cert_url) as response:
-        charset = response.info().get_content_charset()
-        charset = charset if charset else 'utf-8'
-        return response.read().decode(charset)
-
-
-# based on example from https://www.solrac.nl/retrieve-thumbprint-ssltls-python/
-def retrieve_ssl_certificate_fingerprint_and_expiration(host_name, port):
-    context = create_default_context()
-    with create_connection((host_name, port)) as sock:
-        sock.settimeout(1)
-        with context.wrap_socket(sock, server_hostname=host_name) as wrappedSocket:
-            # pylint: disable=no-member
-            ssl_date_fmt = r'%b %d %H:%M:%S %Y %Z'
-            der_cert_bin = wrappedSocket.getpeercert(True)
-            expiration = strptime(wrappedSocket.getpeercert()['notAfter'], ssl_date_fmt)
-
-            # Thumbprint
-            thumb_sha1 = sha1(der_cert_bin).hexdigest()
-
-            return expiration, thumb_sha1
-
-
 @coroutine_with_priority(40.0)
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -119,27 +92,7 @@ def to_code(config):
     cg.add(var.set_iot_hub_device_id(config[CONF_DEVICE_ID]))
 
     # set default expiration to approximately 100 years
-    token_expiration = time() + 100 * 365 * 24 * 60 * 60
-    if not config[CONF_INSECURE_SSL]:
-        # pylint: disable=broad-except
-        if CORE.is_esp8266:
-            # figure out expiration of SSL certificate
-            try:
-                expiration, ssl_hash = retrieve_ssl_certificate_fingerprint_and_expiration(
-                    f'{config[CONF_HUB_NAME].strip()}.azure-devices.net', 443)
-                cg.add(var.set_iot_hub_ssl_sha1_fingerprint(ssl_hash))
-                token_expiration = min(token_expiration, mktime(expiration))
-            except Exception:
-                pass
-        if CORE.is_esp32:
-            try:
-                baltimore_root_ca_pem = retrieve_baltimore_root_ca()
-                # can't validate root CA expiration without pem library or open ssl
-            except Exception:
-                baltimore_root_ca_pem = None
-            if baltimore_root_ca_pem:
-                cg.add_define('ESP32_BALTIMORE_ROOT_PEM', baltimore_root_ca_pem)
-
+    token_expiration = (datetime.utcnow() + timedelta(days=100*365)).timestamp()
     if config[CONF_TOKEN_EXPIRATION_SECONDS] != 'AUTO' \
             and config[CONF_TOKEN_EXPIRATION_SECONDS] > 0:
         token_expiration = min(token_expiration, time() + config[CONF_TOKEN_EXPIRATION_SECONDS])
