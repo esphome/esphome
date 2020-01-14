@@ -1240,6 +1240,14 @@ switch:
         address: 0x4004
         command: 0x1000BCD
   - platform: template
+    name: Pioneer
+    turn_on_action:
+      - remote_transmitter.transmit_pioneer:
+          rc_code_1: 0xA556
+          rc_code_2: 0xA506
+          repeat:
+            times: 2
+  - platform: template
     name: RC Switch Raw
     turn_on_action:
       remote_transmitter.transmit_rc_switch_raw:
@@ -1418,6 +1426,12 @@ display:
   num_chips: 1
   lambda: |-
     it.print("01234567");
+- platform: tm1637
+  clk_pin: GPIO23
+  dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
