@@ -11,8 +11,8 @@ namespace esphome {
 namespace xiaomi_mue4094rt {
 
 class XiaomiMUE4094RT : public Component,
-			public binary_sensor::BinarySensorInitiallyOff,
-			public esp32_ble_tracker::ESPBTDeviceListener {
+                        public binary_sensor::BinarySensorInitiallyOff,
+                        public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_addr(uint64_t address) { address_ = address; }
   void set_time(uint16_t timeout) { timeout_ = timeout; }
@@ -25,9 +25,10 @@ class XiaomiMUE4094RT : public Component,
     if (!res.has_value())
       return false;
 
-    if (res->motion.has_value())
+    if (res->motion.has_value()) {
       this->publish_state(true);
       this->set_timeout("motion_timeout", timeout_, [this]() { this->publish_state(false); });
+    }
     return true;
   }
 

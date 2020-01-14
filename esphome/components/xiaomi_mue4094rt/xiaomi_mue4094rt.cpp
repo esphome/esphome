@@ -8,7 +8,10 @@ namespace xiaomi_mue4094rt {
 
 static const char *TAG = "xiaomi_mue4094rt";
 
-void XiaomiMUE4094RT::dump_config() { LOG_BINARY_SENSOR("", "BLE Motion", this); }
+void XiaomiMUE4094RT::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi MUE4094RT");
+  LOG_BINARY_SENSOR("  ", "Motion", this);
+}
 
 }  // namespace xiaomi_mue4094rt
 }  // namespace esphome

@@ -7,13 +7,14 @@ DEPENDENCIES = ['esp32_ble_tracker']
 
 xiaomi_mue4094rt_ns = cg.esphome_ns.namespace('xiaomi_mue4094rt')
 XiaomiMUE4094RT = xiaomi_mue4094rt_ns.class_('XiaomiMUE4094RT', binary_sensor.BinarySensor,
-                                           cg.Component, esp32_ble_tracker.ESPBTDeviceListener)
+                                             cg.Component, esp32_ble_tracker.ESPBTDeviceListener)
 
 CONFIG_SCHEMA = cv.All(binary_sensor.BINARY_SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(XiaomiMUE4094RT),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TIMEOUT, default='5s'): cv.positive_time_period_milliseconds,
 }).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA))
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
