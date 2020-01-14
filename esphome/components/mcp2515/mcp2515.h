@@ -99,9 +99,9 @@ protected:
                             const uint32_t ul_data);
   canbus::Error send_message_(const TXBn txbn,
                               const struct canbus::CanFrame *frame);
-  canbus::Error send_message_(const struct canbus::CanFrame *frame); 
+  canbus::Error send_message_(const struct canbus::CanFrame *frame) override; 
   canbus::Error read_message_(const RXBn rxbn, struct canbus::CanFrame *frame);
-  canbus::Error read_message_(struct canbus::CanFrame *frame);
+  canbus::Error read_message_(struct canbus::CanFrame *frame) override;
   bool check_receive_();
   bool check_error_();
   uint8_t get_error_flags_();
