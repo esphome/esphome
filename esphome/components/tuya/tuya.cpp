@@ -110,6 +110,8 @@ void Tuya::handle_char_(uint8_t c) {
 }
 
 void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buffer, size_t len) {
+  command_waiting_for_response_ = 0;
+
   switch ((TuyaCommandType) command) {
     case TuyaCommandType::HEARTBEAT:
       ESP_LOGV(TAG, "MCU Heartbeat (0x%02X)", buffer[0]);
@@ -256,6 +258,14 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   uint8_t len_hi = len >> 8;
   uint8_t len_lo = len >> 0;
   uint8_t version = 0;
+
+  uint32_t now = millis();
+  if (command_waiting_for_response_ == 0 || now - command_waiting_for_response_ > 50) {
+    command_waiting_for_response_ = millis();
+  } else {
+    delay( 50 - now + command_waiting_for_response_ );
+    command_waiting_for_response_ = millis();
+  }
 
   ESP_LOGV(TAG, "Sending Tuya: CMD=0x%02X VERSION=%u DATA=[%s] INIT_STATE=%u", command, version,  // NOLINT
            hexencode(buffer, len).c_str(), this->init_state_);
