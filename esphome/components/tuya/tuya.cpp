@@ -263,7 +263,7 @@ void Tuya::send_command_(TuyaCommandType command, const uint8_t *buffer, uint16_
   if (command_waiting_for_response_ == 0 || now - command_waiting_for_response_ > 50) {
     command_waiting_for_response_ = millis();
   } else {
-    delay( 50 - now + command_waiting_for_response_ );
+    delay(50 - now + command_waiting_for_response_ );
     command_waiting_for_response_ = millis();
   }
 
