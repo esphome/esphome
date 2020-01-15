@@ -3,7 +3,7 @@ import inspect
 import math
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Callable  # noqa
+from typing import Any, Generator, List, Optional, Tuple, Type, Union
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
@@ -366,8 +366,7 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, '', name, rhs, obj)
 
     def __str__(self):
-        type_ = self.type
-        return f"static const {type_} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
 def progmem_array(id_, rhs):
@@ -485,7 +484,7 @@ def add_define(name: str, value: SafeExpType = None):
 
 
 @coroutine
-def get_variable(id_: ID) -> Generator["MockObj"]:
+def get_variable(id_: ID) -> Generator["MockObj", None, None]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -500,7 +499,7 @@ def get_variable(id_: ID) -> Generator["MockObj"]:
 
 
 @coroutine
-def get_variable_with_full_id(id_: ID) -> Generator[ID, "MockObj"]:
+def get_variable_with_full_id(id_: ID) -> Generator[Tuple[ID, "MockObj"], None, None]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -516,7 +515,7 @@ def get_variable_with_full_id(id_: ID) -> Generator[ID, "MockObj"]:
 
 @coroutine
 def process_lambda(value: Lambda, parameters: List[Tuple[SafeExpType, str]],
-                   capture: str = '=', return_type: SafeExpType = None) -> Generator[LambdaExpression]:
+                   capture: str = '=', return_type: SafeExpType = None) -> Generator[LambdaExpression, None, None]:
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
