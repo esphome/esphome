@@ -339,5 +339,54 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
+struct AddressableGradientEffectColor {
+  uint8_t r, g, b, w;
+};
+
+class AddressableGradientEffect : public AddressableLightEffect {
+ public:
+  explicit AddressableGradientEffect(const std::string &name) : AddressableLightEffect(name) {}
+  void set_colors(const std::vector<AddressableGradientEffectColor> &colors) { this->colors_ = colors; }
+  void set_move_interval(uint32_t move_interval_) { this->move_interval_ = move_interval_; }
+  void set_flip(bool flip_) { this->flip_ = flip_; }
+  void set_reverse(bool reverse) { this->reverse_ = reverse; }
+  void apply(AddressableLight &it, const ESPColor &current_color) override {
+    const uint32_t now = millis();
+    if (now - this->last_add_ < this->move_interval_)
+      return;
+    this->last_add_ = now;
+    if (this->reverse_)
+      it.shift_left(1);
+    else
+      it.shift_right(1);
+    const AddressableGradientEffectColor color = this->colors_[this->at_color_];
+    // FIXME: the white channel on rgbw is handled seperatly, but we should apply the same
+    // brightness as the rgb leds here, not the white value
+    float brightness = this->state_->remote_values.get_brightness();
+    const ESPColor esp_color = ESPColor(color.r, color.g, color.b, color.w * brightness);
+    if (this->reverse_)
+      it[-1] = esp_color;
+    else
+      it[0] = esp_color;
+
+    if (this->flip_ && (this->at_color_ + this->direction_ >= this->colors_.size() ||
+                       (this->at_color_ == 0 && this->direction_ == -1))) {
+      this->direction_ = this->direction_ == 1 ? -1 : 1;
+    }
+    this->at_color_ = (this->at_color_ + this->direction_) % this->colors_.size();
+    //AddressableColorWipeEffectColor &new_color = this->colors_[this->at_color_];
+  }
+
+ protected:
+  std::vector<AddressableGradientEffectColor> colors_;
+  size_t at_color_{0};
+  uint32_t last_add_{0};
+  uint32_t move_interval_{};
+  size_t leds_added_{0};
+  bool reverse_{};
+  bool flip_{};
+  int8_t direction_{1};
+};
+
 }  // namespace light
 }  // namespace esphome

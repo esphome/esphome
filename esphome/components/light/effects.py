@@ -11,7 +11,8 @@ from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
     FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
     AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
     AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect, ESPColor
+    AddressableGradientEffect, AddressableGradientEffectColor, AutomationLightEffect, ESPColor
+from esphome.ggr import GimpGradient
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'
@@ -22,8 +23,12 @@ CONF_PROGRESS_INTERVAL = 'progress_interval'
 CONF_SPARK_PROBABILITY = 'spark_probability'
 CONF_USE_RANDOM_COLOR = 'use_random_color'
 CONF_FADE_OUT_RATE = 'fade_out_rate'
+CONF_FLIP = 'flip'
+CONF_USE_WHITE = 'use_white'
 CONF_STROBE = 'strobe'
 CONF_FLICKER = 'flicker'
+CONF_LENGTH = 'length'
+CONF_GRADIENT = 'gradient'
 CONF_ADDRESSABLE_LAMBDA = 'addressable_lambda'
 CONF_ADDRESSABLE_RAINBOW = 'addressable_rainbow'
 CONF_ADDRESSABLE_COLOR_WIPE = 'addressable_color_wipe'
@@ -32,6 +37,7 @@ CONF_ADDRESSABLE_TWINKLE = 'addressable_twinkle'
 CONF_ADDRESSABLE_RANDOM_TWINKLE = 'addressable_random_twinkle'
 CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
 CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
+CONF_ADDRESSABLE_GRADIENT = 'addressable_gradient'
 CONF_AUTOMATION = 'automation'
 
 BINARY_EFFECTS = []
@@ -271,6 +277,52 @@ def addressable_flicker_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
+    yield var
+
+
+@register_addressable_effect(
+    'addressable_gradient', AddressableGradientEffect, "Gradient", {
+    cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_USE_WHITE, default=False): cv.boolean,
+    cv.Optional(CONF_REVERSE, default=False): cv.boolean,
+    cv.Optional(CONF_FLIP, default=False): cv.boolean,
+    cv.Required(CONF_GRADIENT): cv.string,
+    cv.Required(CONF_LENGTH): cv.positive_int,
+})
+def addressable_gradient_effect_to_code(config, effect_id):
+    gg = GimpGradient(content=config[CONF_GRADIENT])
+    name = config[CONF_NAME]
+    # FIXME: does not work because validator compains first
+    # use the gimp gradient name if available and name is default
+    #if gg.name and  config[CONF_NAME] == "Gradient":
+    #    name = gg.name
+    var = cg.new_Pvariable(effect_id, name)
+    cg.add(var.set_move_interval(config[CONF_MOVE_INTERVAL]))
+    cg.add(var.set_reverse(config[CONF_REVERSE]))
+    cg.add(var.set_flip(config[CONF_FLIP]))
+    colors = []
+    gg = GimpGradient(content=config[CONF_GRADIENT])
+    mp = 1.0/config[CONF_LENGTH]
+    for i in range(config[CONF_LENGTH]):
+        r,g,b = gg.color(i*mp)
+        if config[CONF_USE_WHITE]:
+            w = min(r, g, b)
+            r, g, b = r - w, g - w, b - w
+            colors.append(cg.StructInitializer(
+                AddressableGradientEffectColor,
+                ('r', int(round(r * 255))),
+                ('g', int(round(g * 255))),
+                ('b', int(round(b * 255))),
+                ('w', int(round(w * 255)))
+            ))
+        else:
+            colors.append(cg.StructInitializer(
+                AddressableGradientEffectColor,
+                ('r', int(round(r * 255))),
+                ('g', int(round(g * 255))),
+                ('b', int(round(b * 255)))
+            ))
+    cg.add(var.set_colors(colors))
     yield var
 
 
