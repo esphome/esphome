@@ -198,9 +198,6 @@ esp32_touch:
   setup_mode: True
 
 binary_sensor:
-  - platform: xiaomi_mue4094rt
-    mac_address: EF:98:37:37:8A:6C
-    name: "Xiaomi Philips BLE Nightlight"
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
