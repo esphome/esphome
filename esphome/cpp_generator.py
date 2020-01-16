@@ -210,7 +210,8 @@ class LambdaExpression(Expression):
         return ''.join(str(part) for part in self.parts)
 
 
-class Literal(Expression, abc.ABC):
+# pylint: disable=abstract-method
+class Literal(Expression, metaclass=abc.ABCMeta):
     __slots__ = ()
 
 
@@ -517,8 +518,10 @@ def get_variable_with_full_id(id_: ID) -> Generator[Tuple[ID, "MockObj"], None, 
 
 
 @coroutine
-def process_lambda(value: Lambda, parameters: List[Tuple[SafeExpType, str]],
-                   capture: str = '=', return_type: SafeExpType = None) -> Generator[LambdaExpression, None, None]:
+def process_lambda(
+        value: Lambda, parameters: List[Tuple[SafeExpType, str]],
+        capture: str = '=', return_type: SafeExpType = None
+) -> Generator[LambdaExpression, None, None]:
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
