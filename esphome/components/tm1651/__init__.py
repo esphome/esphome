@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_LEVEL, CONF_BRIGHTNESS
+from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_DIO_PIN, CONF_LEVEL, CONF_BRIGHTNESS
 
 tm1651_ns = cg.esphome_ns.namespace('tm1651')
 TM1651Display = tm1651_ns.class_('TM1651Display', cg.Component)
