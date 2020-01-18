@@ -9,7 +9,6 @@ SetLevelPercentAction = tm1651_ns.class_('SetLevelPercentAction', automation.Act
 SetLevelAction = tm1651_ns.class_('SetLevelAction', automation.Action)
 SetBrightnessAction = tm1651_ns.class_('SetBrightnessAction', automation.Action)
 
-CONF_DIO_PIN = 'dio_pin'
 CONF_LEVEL_PERCENT = 'level_percent'
 
 TM1651_BRIGHTNESS_OPTIONS = {
@@ -39,7 +38,7 @@ def to_code(config):
     cg.add(var.set_dio_pin(dio_pin))
 
     # https://platformio.org/lib/show/6865/TM1651
-    cg.add_library('6865', '1.0.0')
+    cg.add_library('6865', '1.0.1')
 
 
 @automation.register_action(
