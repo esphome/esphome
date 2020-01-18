@@ -159,6 +159,14 @@ api:
         - tm1651.set_brightness:
             id: tm1651_battery
             brightness: !lambda 'return brightness;'
+    - service: battery_turn_on
+      then:
+        - tm1651.turn_on:
+            id: tm1651_battery
+    - service: battery_turn_on
+      then:
+        - tm1651.turn_off:
+            id: tm1651_battery
 
 wifi:
   ssid: 'MySSID'

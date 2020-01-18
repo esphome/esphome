@@ -45,7 +45,21 @@ void TM1651Display::set_brightness(uint8_t new_brightness) {
   this->repaint_();
 }
 
+void TM1651Display::turn_on() {
+  this->is_on = true;
+  this->repaint_();
+}
+
+void TM1651Display::turn_off() {
+  this->is_on = false;
+  battery_display_->displayLevel(0);
+}
+
 void TM1651Display::repaint_() {
+  if (!this->is_on) {
+    return;
+  }
+
   battery_display_->set(this->brightness_);
   battery_display_->displayLevel(this->level_);
 }

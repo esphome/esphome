@@ -1,13 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
+from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_DIO_PIN, CONF_LEVEL, CONF_BRIGHTNESS
 
 tm1651_ns = cg.esphome_ns.namespace('tm1651')
 TM1651Display = tm1651_ns.class_('TM1651Display', cg.Component)
+
 SetLevelPercentAction = tm1651_ns.class_('SetLevelPercentAction', automation.Action)
 SetLevelAction = tm1651_ns.class_('SetLevelAction', automation.Action)
 SetBrightnessAction = tm1651_ns.class_('SetBrightnessAction', automation.Action)
+TurnOnAction = tm1651_ns.class_('SetLevelPercentAction', automation.Action)
+TurnOffAction = tm1651_ns.class_('SetLevelPercentAction', automation.Action)
 
 CONF_LEVEL_PERCENT = 'level_percent'
 
@@ -39,6 +43,25 @@ def to_code(config):
 
     # https://platformio.org/lib/show/6865/TM1651
     cg.add_library('6865', '1.0.1')
+
+
+BINARY_OUTPUT_ACTION_SCHEMA = maybe_simple_id({
+    cv.Required(CONF_ID): cv.use_id(TM1651Display),
+})
+
+
+@automation.register_action('tm1651.turn_on', TurnOnAction, BINARY_OUTPUT_ACTION_SCHEMA)
+def output_turn_on_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
+    yield var
+
+
+@automation.register_action('tm1651.turn_off', TurnOffAction, BINARY_OUTPUT_ACTION_SCHEMA)
+def output_turn_off_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
+    yield var
 
 
 @automation.register_action(
