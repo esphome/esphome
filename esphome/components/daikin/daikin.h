@@ -38,15 +38,12 @@ const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 
 class DaikinClimate : public climate_ir::ClimateIR {
  public:
-  DaikinClimate() : climate_ir::ClimateIR(
-    DAIKIN_TEMP_MIN,
-    DAIKIN_TEMP_MAX,
-    1.0f,
-    true,
-    true,
-    std::vector<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
-    std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}
-  ) {}
+  DaikinClimate()
+      : climate_ir::ClimateIR(
+            DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX, 1.0f, true, true,
+            std::vector<climate::ClimateFanMode>{climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
+                                                 climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+            std::vector<climate::ClimateSwingMode>{climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -54,7 +51,6 @@ class DaikinClimate : public climate_ir::ClimateIR {
   uint8_t operation_mode_();
   uint8_t fan_speed_();
   uint8_t temperature_();
-
 };
 
 }  // namespace daikin

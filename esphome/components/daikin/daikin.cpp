@@ -7,28 +7,26 @@ namespace daikin {
 static const char *TAG = "daikin.climate";
 
 void DaikinClimate::transmit_state() {
-  uint8_t remote_state[35] = {
-    0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7,
-    0x11, 0xDA, 0x27, 0x00, 0x42, 0x49, 0x05, 0xA2,
-    0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00
-  };
+  uint8_t remote_state[35] = {0x11, 0xDA, 0x27, 0x00, 0xC5, 0x00, 0x00, 0xD7, 0x11, 0xDA, 0x27, 0x00,
+                              0x42, 0x49, 0x05, 0xA2, 0x11, 0xDA, 0x27, 0x00, 0x00, 0x00, 0x00, 0x00,
+                              0x00, 0x00, 0x00, 0x06, 0x60, 0x00, 0x00, 0xC0, 0x00, 0x00, 0x00};
 
   remote_state[21] = this->operation_mode_();
   remote_state[24] = this->fan_speed_();
   remote_state[22] = this->temperature_();
 
   // Calculate checksum
-  for (int i=16; i<34; i++) {
+  for (int i = 16; i < 34; i++) {
     remote_state[34] += remote_state[i];
   }
-  
+
   auto transmit = this->transmitter_->transmit();
   auto data = transmit.get_data();
   data->set_carrier_frequency(DAIKIN_IR_FREQUENCY);
-  
+
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
-  for (int i=0; i<8; i++) {
+  for (int i = 0; i < 8; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = remote_state[i] & mask;
@@ -40,7 +38,7 @@ void DaikinClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (int i=8; i<16; i++) {
+  for (int i = 8; i < 16; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = remote_state[i] & mask;
@@ -52,7 +50,7 @@ void DaikinClimate::transmit_state() {
   data->mark(DAIKIN_HEADER_MARK);
   data->space(DAIKIN_HEADER_SPACE);
 
-  for (int i=16; i<35; i++) {
+  for (int i = 16; i < 35; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(DAIKIN_BIT_MARK);
       bool bit = remote_state[i] & mask;
@@ -94,7 +92,7 @@ uint8_t DaikinClimate::operation_mode_() {
 
 uint8_t DaikinClimate::fan_speed_() {
   uint8_t fan_speed;
-  switch(this->fan_mode) {
+  switch (this->fan_mode) {
     case climate::CLIMATE_FAN_LOW:
       fan_speed = DAIKIN_FAN_1;
       break;
@@ -108,7 +106,7 @@ uint8_t DaikinClimate::fan_speed_() {
     default:
       fan_speed = DAIKIN_FAN_AUTO;
   }
-  
+
   // If swing is enabled switch first 4 bits to 1111
   return this->swing_mode == climate::CLIMATE_SWING_VERTICAL ? fan_speed | 0xF : fan_speed;
 }
@@ -121,7 +119,7 @@ uint8_t DaikinClimate::temperature_() {
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
-      uint8_t temperature = this->target_temperature;
+      uint8_t temperature = static_cast<uint8_t>(this->target_temperature);
       return temperature << 1;
   }
 }
