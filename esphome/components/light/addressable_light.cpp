@@ -9,6 +9,95 @@ static const char *TAG = "light.addressable";
 const ESPColor ESPColor::BLACK = ESPColor(0, 0, 0, 0);
 const ESPColor ESPColor::WHITE = ESPColor(255, 255, 255, 255);
 
+ESPHSVColor ESPHSVColor::from_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    ESPHSVColor hsv;
+    uint8_t rgbMin, rgbMax;
+
+    rgbMin = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    rgbMax = r > g ? (r > b ? r : b) : (g > b ? g : b);
+
+    hsv.v = rgbMax;
+    if (hsv.v == 0)
+    {
+        hsv.h = 0;
+        hsv.s = 0;
+        return hsv;
+    }
+
+    hsv.s = 255 * long(rgbMax - rgbMin) / hsv.v;
+    if (hsv.s == 0)
+    {
+        hsv.h = 0;
+        return hsv;
+    }
+
+    if (rgbMax == r)
+        hsv.h = 0 + 43 * (g - b) / (rgbMax - rgbMin);
+    else if (rgbMax == g)
+        hsv.h = 85 + 43 * (b - r) / (rgbMax - rgbMin);
+    else
+        hsv.h = 171 + 43 * (r - g) / (rgbMax - rgbMin);
+
+    return hsv;
+}
+
+
+void ESPHSVColor::rgb2hsv(float r, float g, float b, float &h, float &s, float &v) {
+    //ESPHSVColor         out;
+    float      min, max, delta; //, h, v, s;
+
+    min = r < g ? r : g;
+    min = min  < b ? min  : b;
+
+    max = r > g ? r : g;
+    max = max  > b ? max  : b;
+
+    v = max;
+    delta = max - min;
+    if (delta < 0.00001)
+    {
+        s = 0.0;
+        h = 0.0; // undefined, maybe nan?
+        return;
+    }
+    if( max > 0.0 ) { // NOTE: if Max is == 0, this divide would cause a crash
+        s = (delta / max);                  // s
+    } else {
+        // if max is 0, then r = g = b = 0              
+        // s = 0, h is undefined
+        s = 0.0;
+        //out.h = NaN;                            // its now undefined
+        h = 0.0;
+        return;
+    }
+    if( r >= max )                           // > is bogus, just keeps compilor happy
+        h = ( g - b ) / delta;        // between yellow & magenta
+    else
+    if( g >= max )
+        h = 2.0 + ( b - r ) / delta;  // between cyan & yellow
+    else
+        h = 4.0 + ( r - g ) / delta;  // between magenta & cyan
+
+    h *= 60.0;                              // degrees
+
+    if( h < 0.0 )
+        h += 360.0;
+}
+
+ESPHSVColor ESPHSVColor::from_rgb(float r, float g, float b) {
+    float h, s, v;
+    ESPHSVColor out;
+    ESPHSVColor::rgb2hsv(r, g, b, h, s, v);
+
+    out.h = (uint8_t)(h*(255.0/360.0));
+    out.v = (uint8_t)(v*255.0);
+    out.s = (uint8_t)(s*255.0);
+    ESP_LOGD("custom", "rgb2hsv r:%f g:%f b:%f v:%f s:%f h:%f  v2:%d s2:%d h2:%d",
+        r, g, b, v, s, h, out.v, out.s, out.h);
+    return out;
+}
+
+
 ESPColor ESPHSVColor::to_rgb() const {
   // based on FastLED's hsv rainbow to rgb
   const uint8_t hue = this->hue;

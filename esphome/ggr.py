@@ -38,7 +38,6 @@ class GimpGradient(object):
         self.parse_lines(content)
 
     def parse_lines(self, content=[]):
-        print(content)
         i = 0
         nseq = None
         if content[i].startswith("GIMP Gradient"):
@@ -54,13 +53,15 @@ class GimpGradient(object):
         self.segs = []
         for line in content[i:nseq and nseq + i or None]:
             line = line.strip()
+            if line.startswith("#"):
+                continue
             if not line:
                 continue
             seg = self._segment()
             (seg.l, seg.m, seg.r,
                 seg.rl, seg.gl, seg.bl, _,
                 seg.rr, seg.gr, seg.br, _,
-                seg.fn, seg.space) = map(float, line.split())
+                seg.fn, seg.space, *xtra) = map(float, line.split())
             self.segs.append(seg)
             
     def color(self, x):

@@ -182,6 +182,9 @@ struct ESPHSVColor {
                                                                                      saturation(saturation),
                                                                                      value(value) {}
   ESPColor to_rgb() const;
+  static ESPHSVColor from_rgb(uint8_t ri, uint8_t gi, uint8_t bi);
+  static ESPHSVColor from_rgb(float r, float g, float b);
+  static void rgb2hsv(float r, float g, float b, float &h, float &s, float &v) ;
 };
 
 class ESPColorCorrection {

@@ -1,11 +1,14 @@
 #pragma once
 
+#include <math.h>
 #include "esphome/core/component.h"
 #include "esphome/components/light/light_state.h"
 #include "esphome/components/light/addressable_light.h"
+#include "esphome/components/gradient/gradient.h"
 
 namespace esphome {
 namespace light {
+using esphome::gradient::Gradient;
 
 inline static int16_t sin16_c(uint16_t theta) {
   static const uint16_t BASE[] = {0, 6393, 12539, 18204, 23170, 27245, 30273, 32137};
@@ -339,53 +342,229 @@ class AddressableFlickerEffect : public AddressableLightEffect {
   uint8_t intensity_{13};
 };
 
-struct AddressableGradientEffectColor {
-  uint8_t r, g, b, w;
-};
+
+#define CP(x) ((1.0/255.0)*(x))
 
 class AddressableGradientEffect : public AddressableLightEffect {
  public:
   explicit AddressableGradientEffect(const std::string &name) : AddressableLightEffect(name) {}
-  void set_colors(const std::vector<AddressableGradientEffectColor> &colors) { this->colors_ = colors; }
-  void set_move_interval(uint32_t move_interval_) { this->move_interval_ = move_interval_; }
-  void set_flip(bool flip_) { this->flip_ = flip_; }
+  void set_gradient(const Gradient *gradient) { this->gradient_ = gradient; }
+  void set_move_interval(uint32_t move_interval) { this->move_interval_ = move_interval; }
+  void set_length(uint32_t length) { this->length_ = length; this->step_ = 1.0/length; }
+  void set_flip(bool flip) { this->flip_ = flip; }
+  void set_use_white(bool use_white) { this->use_white_ = use_white; }
   void set_reverse(bool reverse) { this->reverse_ = reverse; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
-    if (now - this->last_add_ < this->move_interval_)
+    if (now - this->last_add_ < this->move_interval_ || this->gradient_ == nullptr)
       return;
+    
     this->last_add_ = now;
     if (this->reverse_)
       it.shift_left(1);
     else
       it.shift_right(1);
-    const AddressableGradientEffectColor color = this->colors_[this->at_color_];
+    //const AddressableGradientEffectColor color = this->colors_[this->at_color_];
+
+    // ESP_LOGD("custom", "gr %p grp %p", this->gradient_, (void *)this->gradient_->get_gradient());
+    ESPColor color = this->gradient_->color(this->pos_);
+    ESP_LOGD("custom", "Color at@%f is: r:%d g:%d b:%d w%d", this->pos_,  color.r, color.g, color.b, color.w);
+
     // FIXME: the white channel on rgbw is handled seperatly, but we should apply the same
     // brightness as the rgb leds here, not the white value
-    float brightness = this->state_->remote_values.get_brightness();
-    const ESPColor esp_color = ESPColor(color.r, color.g, color.b, color.w * brightness);
-    if (this->reverse_)
-      it[-1] = esp_color;
-    else
-      it[0] = esp_color;
-
-    if (this->flip_ && (this->at_color_ + this->direction_ >= this->colors_.size() ||
-                       (this->at_color_ == 0 && this->direction_ == -1))) {
-      this->direction_ = this->direction_ == 1 ? -1 : 1;
+    if (this->use_white_) {
+      float brightness = this->state_->remote_values.get_brightness();
+      uint8_t white = min(color.r, min(color.g, color.b));
+      if (white) {
+        color.w = white * brightness;
+        color.r = color.r - white;
+        color.g = color.g - white;
+        color.b = color.b - white;
+      }
     }
-    this->at_color_ = (this->at_color_ + this->direction_) % this->colors_.size();
+    
+    if (this->reverse_)
+      it[-1] = color;
+    else
+      it[0] = color;
+
+    if (this->flip_) {
+      if (this->forward_ == true && (this->pos_ + this->step_  >= 1.0f)) {
+        this->forward_ = false;
+        this->pos_ = 1.0f;
+      } else if (this->forward_ == false && (this->pos_ - this->step_  <= 0.0f)) {
+        this->forward_ = true;
+        this->pos_ = 0.0f;
+      }
+    }
+    if (this->forward_ == true) {
+      this->pos_ = this->pos_ + this->step_;
+      if(this->pos_ > 1.0) {
+        this->pos_ = 0.0;
+      }
+    } else {
+      this->pos_ = max(this->pos_ - this->step_, 0.0f);
+      if(this->pos_ < 0.0) {
+        this->pos_ = 1.0;
+      }
+    }
     //AddressableColorWipeEffectColor &new_color = this->colors_[this->at_color_];
   }
 
+  // ESPColor color(float x) {
+  //       /* for seg in self.segs:
+  //           if seg.l <= x <= seg.r:
+  //               break
+  //       else:
+  //           # No segment applies! Return black I guess.
+  //           return (0,0,0)
+
+  //       # Normalize the segment geometry.
+  //       mid = (seg.m - seg.l)/(seg.r - seg.l)
+  //       pos = (x - seg.l)/(seg.r - seg.l)
+        
+  //       # Assume linear (most common, and needed by most others).
+  //       if pos <= mid:
+  //           f = pos/mid/2
+  //       else:
+  //           f = (pos - mid)/(1 - mid)/2 + 0.5
+
+  //       # Find the correct interpolation factor.
+  //       if seg.fn == 1:   # Curved
+  //           f = math.pow(pos, math.log(0.5) / math.log(mid));
+  //       elif seg.fn == 2:   # Sinusoidal
+  //           f = (math.sin((-math.pi/2) + math.pi*f) + 1)/2
+  //       elif seg.fn == 3:   # Spherical increasing
+  //           f -= 1
+  //           f = math.sqrt(1 - f*f)
+  //       elif seg.fn == 4:   # Spherical decreasing
+  //           f = 1 - math.sqrt(1 - f*f);
+
+  //       # Interpolate the colors
+  //       if seg.space == 0:
+  //           c = (
+  //               seg.rl + (seg.rr-seg.rl) * f,
+  //               seg.gl + (seg.gr-seg.gl) * f,
+  //               seg.bl + (seg.br-seg.bl) * f
+  //               )
+  //       elif seg.space in (1,2):
+  //           hl, sl, vl = colorsys.rgb_to_hsv(seg.rl, seg.gl, seg.bl)
+  //           hr, sr, vr = colorsys.rgb_to_hsv(seg.rr, seg.gr, seg.br)
+
+  //           if seg.space == 1 and hr < hl:
+  //               hr += 1
+  //           elif seg.space == 2 and hr > hl:
+  //               hr -= 1
+
+  //           c = colorsys.hsv_to_rgb(
+  //               (hl + (hr-hl) * f) % 1.0,
+  //               sl + (sr-sl) * f,
+  //               vl + (vr-vl) * f
+  //               )
+  //       return c
+  //        */
+  //   //ESP_LOGF("x point:", x);
+  //   ESP_LOGD("custom", "Pos x: %f", x);
+  //   AddressableGradientEffectColor seg;
+  //   ESPColor c = ESPColor(0,0,0);
+  //   bool ok = false;
+  //   int i=0;
+  //   for (i=0; i < this->gradient_.size(); i++) {
+  //     seg = this->gradient_[i];
+  //     ESP_LOGD("custom", "Test i: %d l: %lf r: %lf", i, seg.l, seg.r);
+  //     if(seg.l <= x && x <= seg.r) {
+  //       ok = true;
+  //       break;
+  //     }
+  //   }
+  //   // for(auto seg: this->gradient_) {
+  //   //   if(seg.l <= x && x <= seg.r) {
+  //   //     ok = true;
+  //   //     break;
+  //   //   }
+  //   // }
+  //   if(!ok){
+  //     ESP_LOGD("custom", "!ok");
+  //     return ESPColor::BLACK;
+  //   }
+
+  //   float mid = (seg.m - seg.l)/(seg.r - seg.l);
+  //   float pos = (x - seg.l)/(seg.r - seg.l);
+  //   float f;
+
+  //   // Assume linear (most common, and needed by most others).
+  //   if (pos <= mid) {
+  //     f = (pos/mid/2.0);
+  //   } else {
+  //     f = (pos - mid)/(1.0 - mid)/2.0 + 0.5;
+  //   }
+
+  //   if(seg.fn == 1) {   // Curved
+  //     f = pow(pos,(log(0.5) / log(mid)));
+  //   } else if (seg.fn == 2) {  // Sinusoidal
+  //     f = (sin((-M_PI/2.0) + M_PI*f) + 1.0)/2.0;
+  //   } else if (seg.fn == 3) {   // Spherical increasing
+  //     f -= 1.0;
+  //     f = sqrt(1.0 - f*f);
+  //   } else if (seg.fn == 4) {   // Spherical decreasing
+  //     f = 1.0 - sqrt(1.0 - f*f);
+  //   }
+
+  //   uint8_t xf = 255*x;
+  //   ESP_LOGD("custom", "i:%d x: %f xf: %d mid:%f pos:%f f:%f",i, x, xf, mid, pos, f);
+  //   ESP_LOGD("custom", "seg.rl: %f seg.gl: %f seg.bl: %f seg.rr: %f seg.gr: %f seg.br: %f",
+  //           seg.rl, seg.gl, seg.bl, seg.rr, seg.gr, seg.br);
+  //   ESP_LOGD("custom", "seg.l: %f seg.m: %f seg.r: %f seg.fn: %d seg.space: %d",
+  //           seg.l, seg.m, seg.r, seg.fn, seg.space);
+    
+  //   ESP_LOGD("custom", "finish r:%d g:%d b:%d",
+  //       (uint8_t)((seg.rl + (seg.rr-seg.rl) * f)*255),
+  //       (uint8_t)((seg.gl + (seg.gr-seg.gl) * f)*255),
+  //       (uint8_t)((seg.bl + (seg.br-seg.bl) * f)*255));
+
+  //   if (seg.space == 0) {
+  //     c = ESPColor(
+  //       (uint8_t)((seg.rl + (seg.rr-seg.rl) * f)*255),
+  //       (uint8_t)((seg.gl + (seg.gr-seg.gl) * f)*255),
+  //       (uint8_t)((seg.bl + (seg.br-seg.bl) * f)*255)
+  //     );
+      
+  //   } else if (seg.space == 1 || seg.space == 2) {
+  //     float hl, sl, vl, hr, sr, vr;
+  //     ESPHSVColor::rgb2hsv(seg.rl, seg.gl, seg.bl, hl, sl, vl);
+  //     ESPHSVColor::rgb2hsv(seg.rr, seg.gr, seg.br, hr, sr, vr);
+
+  //     if (seg.space == 1 && hr < hl) {
+  //       hr += 1;
+  //     } else if ( seg.space == 2 and hr > hl) {
+  //       hr -= 1;
+  //     }
+  //     //float h = l.h + (r.h-l.h) * f;
+  //     ESP_LOGD("custom", "xx %f %f %d", (hl + (hr-hl) * f), fmod(hl + (hr-hl) * f, 1.0), (uint8_t)(fmod(hl + (hr-hl) * f, 360)*(255.0/360.0)));
+  //     c = ESPHSVColor(
+  //           (uint8_t)(fmod(hl + (hr-hl) * f, 360.0)*(255.0/360.0)),
+  //           (uint8_t)((sl + (sr-sl) * f)*255),
+  //           (uint8_t)((vl + (vr-vl) * f)*255)
+  //           ).to_rgb();
+      
+  //   }
+  //   return c;
+ 
+
  protected:
-  std::vector<AddressableGradientEffectColor> colors_;
-  size_t at_color_{0};
+  //std::vector<AddressableGradientEffectColor> gradient_;
+  const Gradient* gradient_{nullptr};
+  float step_{0};
+  float pos_{0};
   uint32_t last_add_{0};
   uint32_t move_interval_{};
-  size_t leds_added_{0};
+  //size_t leds_added_{0};
   bool reverse_{};
   bool flip_{};
-  int8_t direction_{1};
+  bool use_white_{};
+  bool forward_{true};
+  uint32_t length_{0};
+  float lengthfrac_{0.0};
 };
 
 }  // namespace light
