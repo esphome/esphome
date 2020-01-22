@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_LEVEL, CONF_BRIGHTNESS
+from esphome.const import CONF_ID, CONF_CLK_PIN, CONF_DIO_PIN, CONF_LEVEL, CONF_BRIGHTNESS
 
 tm1651_ns = cg.esphome_ns.namespace('tm1651')
 TM1651Display = tm1651_ns.class_('TM1651Display', cg.Component)
@@ -14,8 +14,6 @@ TM1651_BRIGHTNESS_OPTIONS = {
     2: TM1651Display.TM1651_BRIGHTNESS_MEDIUM,
     3: TM1651Display.TM1651_BRIGHTNESS_HIGH
 }
-
-CONF_DIO_PIN = 'dio_pin'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TM1651Display),
