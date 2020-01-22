@@ -33,9 +33,9 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
 
-  bool read_sensor_value_(uint8_t*);
-  bool validate_checksum_(const uint8_t*);
-  uint16_t get_sensor_value_(const uint8_t*, uint8_t);
+  bool read_sensor_value_(uint8_t *);
+  bool validate_checksum_(const uint8_t *);
+  uint16_t get_sensor_value_(const uint8_t *, uint8_t);
 };
 
 }  // namespace hm3301

@@ -73,7 +73,7 @@ bool HM3301Component::validate_checksum_(const uint8_t *data) {
 }
 
 uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
- return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
+  return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
 }
 
 }  // namespace hm3301
