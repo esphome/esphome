@@ -28,7 +28,7 @@ class TM1651Display : public Component {
   TM1651 *battery_display_;
   GPIOPin *clk_pin_;
   GPIOPin *dio_pin_;
-  bool is_on = true;
+  bool is_on_ = true;
 
   uint8_t brightness_;
   uint8_t level_;
@@ -71,16 +71,12 @@ template<typename... Ts> class SetBrightnessAction : public Action<Ts...>, publi
 
 template<typename... Ts> class TurnOnAction : public Action<Ts...>, public Parented<TM1651Display> {
  public:
-  void play(Ts... x) override {
-    this->parent_->turn_on();
-  }
+  void play(Ts... x) override { this->parent_->turn_on(); }
 };
 
 template<typename... Ts> class TurnOffAction : public Action<Ts...>, public Parented<TM1651Display> {
  public:
-  void play(Ts... x) override {
-    this->parent_->turn_off();
-  }
+  void play(Ts... x) override { this->parent_->turn_off(); }
 };
 
 }  // namespace tm1651
