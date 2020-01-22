@@ -1204,6 +1204,8 @@ climate:
     name: Coolix Climate
   - platform: fujitsu_general
     name: Fujitsu General Climate
+  - platform: daikin
+    name: Daikin Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
