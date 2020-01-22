@@ -3,6 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
+
 #include <Seeed_HM330X.h>
 
 namespace esphome {
@@ -33,9 +34,9 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *pm_10_0_sensor_{nullptr};
 
   bool read_sensor_value_(uint8_t*);
-  bool validate_checksum_(uint8_t*);
-  uint16_t get_sensor_value_(uint8_t*, uint8_t);
+  bool validate_checksum_(const uint8_t*);
+  uint16_t get_sensor_value_(const uint8_t*, uint8_t);
 };
 
-}
-}
+}  // namespace hm3301
+}  // namespace esphome

@@ -61,25 +61,20 @@ void HM3301Component::update() {
   }
 }
 
-bool HM3301Component::read_sensor_value_(uint8_t *data) {
-  return !hm3301_->read_sensor_value(data, 29);
-}
+bool HM3301Component::read_sensor_value_(uint8_t *data) { return !hm3301_->read_sensor_value(data, 29); }
 
-bool HM3301Component::validate_checksum_(uint8_t *data) {
+bool HM3301Component::validate_checksum_(const uint8_t *data) {
   uint8_t sum = 0;
   for (int i = 0; i < 28; i++) {
     sum += data[i];
   }
-  if (sum != data[28]) {
-    return false;
-  }
 
-  return true;
+  return sum == data[28];
 }
 
-uint16_t HM3301Component::get_sensor_value_(uint8_t *data, uint8_t i) {
+uint16_t HM3301Component::get_sensor_value_(const uint8_t *data, uint8_t i) {
  return (uint16_t) data[i * 2] << 8 | data[i * 2 + 1];
 }
 
-}
-}
+}  // namespace hm3301
+}  // namespace esphome
