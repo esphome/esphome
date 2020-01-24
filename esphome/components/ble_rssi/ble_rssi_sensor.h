@@ -40,6 +40,27 @@ class BLERSSISensor : public sensor::Sensor, public esp32_ble_tracker::ESPBTDevi
         return true;
       }
     } else {
+      if (this->uuid_.get_uuid().len == ESP_UUID_LEN_128) {
+        auto ibeacon = device.get_ibeacon();
+        if (ibeacon.has_value()) {
+          auto uuid = ibeacon.value().get_uuid();
+          if (uuid.get_uuid().len == ESP_UUID_LEN_128) {
+            bool found = true;
+            for (int i = 0; i < ESP_UUID_LEN_128; i++) {
+              if (this->uuid_.get_uuid().uuid.uuid128[i] != uuid.get_uuid().uuid.uuid128[i]) {
+                found = false;
+                break;
+              }
+            }
+            if (found) {
+              this->publish_state(device.get_rssi());
+              this->found_ = true;
+              return true;
+            }
+          }
+        }
+      }
+
       for (auto uuid : device.get_service_uuids()) {
         switch (this->uuid_.get_uuid().len) {
           case ESP_UUID_LEN_16:

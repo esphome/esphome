@@ -49,7 +49,12 @@ class ESPBLEiBeacon {
   uint16_t get_major() { return ((this->beacon_data_.major & 0xFF) << 8) | (this->beacon_data_.major >> 8); }
   uint16_t get_minor() { return ((this->beacon_data_.minor & 0xFF) << 8) | (this->beacon_data_.minor >> 8); }
   int8_t get_signal_power() { return this->beacon_data_.signal_power; }
-  ESPBTUUID get_uuid() { return ESPBTUUID::from_raw(this->beacon_data_.proximity_uuid); }
+  ESPBTUUID get_uuid() {
+    const int size = sizeof(this->beacon_data_.proximity_uuid) / sizeof(uint8_t);
+    uint8_t reversed[size];
+    std::reverse_copy(this->beacon_data_.proximity_uuid, this->beacon_data_.proximity_uuid + size, reversed);
+    return ESPBTUUID::from_raw(reversed);
+  }
 
  protected:
   struct {
