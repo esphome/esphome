@@ -27,7 +27,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
     cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
-                                                    cv.int_range(min=0, max=0xFFFF, max_included=False)),
+                                                    cv.int_range(min=0, max=0xFFFF,
+                                                                 max_included=False)),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x61))
 
 
