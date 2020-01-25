@@ -1,3 +1,4 @@
+import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
@@ -13,6 +14,11 @@ SCD30Component = scd30_ns.class_('SCD30Component', cg.PollingComponent, i2c.I2CD
 CONF_AUTOMATIC_SELF_CALIBRATION = 'automatic_self_calibration'
 CONF_ALTITUDE_COMPENSATION = 'altitude_compensation'
 
+
+def remove_altitude_suffix(value):
+    return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", '', value)
+
+
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
     cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION,
@@ -20,7 +26,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_HUMIDITY): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 1),
     cv.Optional(CONF_AUTOMATIC_SELF_CALIBRATION, default=True): cv.boolean,
-    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.int_range(min=0, max=0xFFFF, max_included=False),
+    cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
+                                                    cv.int_range(min=0, max=0xFFFF, max_included=False)),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x61))
 
 
