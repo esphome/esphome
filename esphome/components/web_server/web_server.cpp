@@ -191,12 +191,14 @@ void WebServer::add_origin_header_(AsyncWebServerResponse *response) {
     response->addHeader("Access-Control-Allow-Origin", js_cors_header_);
 }
 
-void WebServer::send_response_(AsyncWebServerRequest *request, int code, const String& content_type, const String& content){
-  AsyncWebServerResponse *response = request->beginResponse(code,content_type, content);
+void WebServer::send_response_(AsyncWebServerRequest *request, int code, const String &content_type,
+                               const String &content) {
+  AsyncWebServerResponse *response = request->beginResponse(code, content_type, content);
   add_origin_header_(response);
   request->send(response);
 }
-void WebServer::send_response_(AsyncWebServerRequest *request, int code){
+
+void WebServer::send_response_(AsyncWebServerRequest *request, int code) {
   AsyncWebServerResponse *response = request->beginResponse(code);
   add_origin_header_(response);
   request->send(response);
