@@ -155,10 +155,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void add_origin_header_(AsyncWebServerResponse *response);
 
   // send response to request with http-code, contentType and content
-  void send_response_(AsyncWebServerRequest *request,int code, const String& content_type, const String& content);
+  void send_response_(AsyncWebServerRequest *request, int code, const String& content_type, const String& content);
 
   // send response to request with http-code
-  void send_response_(AsyncWebServerRequest *request,int code);
+  void send_response_(AsyncWebServerRequest *request, int code);
 
 };
 
