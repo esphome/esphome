@@ -159,7 +159,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   // send response to request with http-code
   void send_response_(AsyncWebServerRequest *request, int code);
-
 };
 
 }  // namespace web_server
