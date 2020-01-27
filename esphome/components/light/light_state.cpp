@@ -392,7 +392,7 @@ LightColorValues LightCall::validate_() {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
     this->color_temperature_.reset();
   }
- 
+
   // sets RGB to 100% if only White specified
   if (this->white_.has_value()) {
     if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
