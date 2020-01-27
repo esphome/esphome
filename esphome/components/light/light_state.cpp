@@ -392,7 +392,7 @@ LightColorValues LightCall::validate_() {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
     this->color_temperature_.reset();
   }
-  
+ 
   // sets RGB to 100% if only White specified
   if (this->white_.has_value()) {
     if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
@@ -400,13 +400,13 @@ LightColorValues LightCall::validate_() {
       this->green_ = optional<float>(1.0f);
       this->blue_ = optional<float>(1.0f);
     }
-  } 
+  }
   // White to 0% if (exclusively) setting any RGB value
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
     if (!this->white_.has_value()) {
       this->white_ = optional<float>(0.0f);
     }
-  } 
+  }
   // if changing Kelvin alone, change to white light
   else if (this->color_temperature_.has_value()) {
     if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
@@ -420,7 +420,7 @@ LightColorValues LightCall::validate_() {
     bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
     if (!this->white_.has_value() && was_color && now_white) {
       this->white_ = optional<float>(1.0f);
-    } 
+    }
   }
 
 #define VALIDATE_RANGE_(name_, upper_name) \
