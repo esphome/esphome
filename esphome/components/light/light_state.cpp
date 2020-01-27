@@ -422,19 +422,6 @@ LightColorValues LightCall::validate_() {
       this->white_ = optional<float>(1.0f);
     } 
   }
-  
-  // on brightness change when white, attempt to change both White and brightness proportionally
-  // when white, brightness does not control brightness of bulb. White value seems to do this
-  // attempt to maintain proportion to maintain color temp as best as possible
-  if (this->brightness_.has_value()) {
-    if (!this->white_.has_value() && *this->brightness_ > 0 && *this->white_ > 0) {
-      float ratio = *this->brightness_/this->parent_->remote_values.get_brightness();
-      this->white_ = optional<float>(this->parent_->remote_values.get_white()*ratio);
-    } else if (!this->white_.has_value() && *this->brightness_ == 0 && *this->white_ > 0) {
-      this->white_ = optional<float>(0.0f);
-    }
-  }
-  
 
 #define VALIDATE_RANGE_(name_, upper_name) \
   if (name_##_.has_value()) { \
