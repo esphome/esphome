@@ -3,7 +3,7 @@ import inspect
 import math
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Type, Union, Dict, Callable  # noqa
+from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
 
 from esphome.core import (  # noqa
     CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
@@ -24,7 +24,7 @@ class Expression(abc.ABC):
 
 
 SafeExpType = Union[Expression, bool, str, str, int, float, TimePeriod,
-                    Type[bool], Type[int], Type[float], List[Any]]
+                    Type[bool], Type[int], Type[float], Sequence[Any]]
 
 
 class RawExpression(Expression):
@@ -68,7 +68,7 @@ class VariableDeclarationExpression(Expression):
 class ExpressionList(Expression):
     __slots__ = ("args", )
 
-    def __init__(self, *args):
+    def __init__(self, *args: Optional[SafeExpType]):
         # Remove every None on end
         args = list(args)
         while args and args[-1] is None:
@@ -117,8 +117,9 @@ class CallExpression(Expression):
 class StructInitializer(Expression):
     __slots__ = ("base", "args")
 
-    def __init__(self, base: Expression, *args: Tuple[str, SafeExpType]):
+    def __init__(self, base: Expression, *args: Tuple[str, Optional[SafeExpType]]):
         self.base = base
+        # TODO: args is always a Tuple, is this check required?
         if not isinstance(args, OrderedDict):
             args = OrderedDict(args)
         self.args = OrderedDict()
@@ -139,8 +140,8 @@ class StructInitializer(Expression):
 class ArrayInitializer(Expression):
     __slots__ = ("multiline", "args")
 
-    def __init__(self, *args: Any, **kwargs: Any):
-        self.multiline = kwargs.get('multiline', False)
+    def __init__(self, *args: Any, multiline: bool = False):
+        self.multiline = multiline
         self.args = []
         for arg in args:
             if arg is None:
@@ -175,7 +176,7 @@ class ParameterExpression(Expression):
 class ParameterListExpression(Expression):
     __slots__ = ("parameters", )
 
-    def __init__(self, *parameters):
+    def __init__(self, *parameters: Union[ParameterExpression, Tuple[SafeExpType, str]]):
         self.parameters = []
         for parameter in parameters:
             if not isinstance(parameter, ParameterExpression):
@@ -189,7 +190,7 @@ class ParameterListExpression(Expression):
 class LambdaExpression(Expression):
     __slots__ = ("parts", "parameters", "capture", "return_type")
 
-    def __init__(self, parts, parameters, capture='=', return_type=None):
+    def __init__(self, parts, parameters, capture: str = '=', return_type=None):
         self.parts = parts
         if not isinstance(parameters, ParameterListExpression):
             parameters = ParameterListExpression(*parameters)
@@ -209,7 +210,8 @@ class LambdaExpression(Expression):
         return ''.join(str(part) for part in self.parts)
 
 
-class Literal(Expression, abc.ABC):
+# pylint: disable=abstract-method
+class Literal(Expression, metaclass=abc.ABCMeta):
     __slots__ = ()
 
 
@@ -272,7 +274,7 @@ class FloatLiteral(Literal):
         return f"{self.f}f"
 
 
-def safe_exp(obj: Union[Expression, bool, str, int, float, TimePeriod, list]) -> Expression:
+def safe_exp(obj: SafeExpType) -> Expression:
     """Try to convert obj to an expression by automatically converting native python types to
     expressions/literals.
     """
@@ -366,11 +368,10 @@ class ProgmemAssignmentExpression(AssignmentExpression):
         super().__init__(type_, '', name, rhs, obj)
 
     def __str__(self):
-        type_ = self.type
-        return f"static const {type_} {self.name}[] PROGMEM = {self.rhs}"
+        return f"static const {self.type} {self.name}[] PROGMEM = {self.rhs}"
 
 
-def progmem_array(id_, rhs):
+def progmem_array(id_, rhs) -> "MockObj":
     rhs = safe_exp(rhs)
     obj = MockObj(id_, '.')
     assignment = ProgmemAssignmentExpression(id_.type, id_, rhs, obj)
@@ -380,6 +381,8 @@ def progmem_array(id_, rhs):
 
 
 def statement(expression: Union[Expression, Statement]) -> Statement:
+    """Convert expression into a statement unless is already a statement.
+    """
     if isinstance(expression, Statement):
         return expression
     return ExpressionStatement(expression)
@@ -485,7 +488,7 @@ def add_define(name: str, value: SafeExpType = None):
 
 
 @coroutine
-def get_variable(id_: ID) -> Generator["MockObj"]:
+def get_variable(id_: ID) -> Generator["MockObj", None, None]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -500,7 +503,7 @@ def get_variable(id_: ID) -> Generator["MockObj"]:
 
 
 @coroutine
-def get_variable_with_full_id(id_: ID) -> Generator[ID, "MockObj"]:
+def get_variable_with_full_id(id_: ID) -> Generator[Tuple[ID, "MockObj"], None, None]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -515,8 +518,10 @@ def get_variable_with_full_id(id_: ID) -> Generator[ID, "MockObj"]:
 
 
 @coroutine
-def process_lambda(value: Lambda, parameters: List[Tuple[SafeExpType, str]],
-                   capture: str = '=', return_type: SafeExpType = None) -> Generator[LambdaExpression]:
+def process_lambda(
+        value: Lambda, parameters: List[Tuple[SafeExpType, str]],
+        capture: str = '=', return_type: SafeExpType = None
+) -> Generator[LambdaExpression, None, None]:
     """Process the given lambda value into a LambdaExpression.
 
     This is a coroutine because lambdas can depend on other IDs,
@@ -647,7 +652,7 @@ class MockObj(Expression):
             return MockObj(f'{self.base} *', '')
         if name == "const":
             return MockObj(f'const {self.base}', '')
-        raise NotImplementedError
+        raise ValueError("Expected one of ref, ptr, const.")
 
     @property
     def using(self) -> "MockObj":
