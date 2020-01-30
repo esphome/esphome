@@ -15,7 +15,7 @@ const struct MCP2515::RxBnRegs MCP2515::RXB[N_RXBUFFERS] = {
     {MCP_RXB0CTRL, MCP_RXB0SIDH, MCP_RXB0DATA, CANINTF_RX0IF},
     {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
 
-bool MCP2515::setup_internal_() {
+bool MCP2515::setup_internal() {
   ESP_LOGD(TAG, "setup_internal_()");
   this->spi_setup();
 
@@ -262,7 +262,7 @@ canbus::Error MCP2515::send_message_(const TXBn txbn,
   return canbus::ERROR_OK;
 }
 
-canbus::Error MCP2515::send_message_(const struct canbus::CanFrame *frame) {
+canbus::Error MCP2515::send_message(const struct canbus::CanFrame *frame) {
   // ESP_LOGD(TAG, "send_message_: frame.id = %d", frame->can_id);
   if (frame->can_dlc > canbus::CAN_MAX_DLEN) {
     return canbus::ERROR_FAILTX;
@@ -319,7 +319,7 @@ canbus::Error MCP2515::read_message_(const RXBn rxbn,
   return canbus::ERROR_OK;
 }
 
-canbus::Error MCP2515::read_message_(struct canbus::CanFrame *frame) {
+canbus::Error MCP2515::read_message(struct canbus::CanFrame *frame) {
   canbus::Error rc;
   uint8_t stat = get_status_();
 

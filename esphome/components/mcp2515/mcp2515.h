@@ -77,7 +77,7 @@ public:
 protected:
   CanClock mcp_clock_{MCP_8MHZ};
   CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
-  bool setup_internal_() override;
+  bool setup_internal() override;
   canbus::Error set_mode_(const CANCTRL_REQOP_MODE mode);
 
   uint8_t read_register_(const REGISTER reg);
@@ -99,9 +99,9 @@ protected:
                             const uint32_t ul_data);
   canbus::Error send_message_(const TXBn txbn,
                               const struct canbus::CanFrame *frame);
-  canbus::Error send_message_(const struct canbus::CanFrame *frame) override; 
+  canbus::Error send_message(const struct canbus::CanFrame *frame) override; 
   canbus::Error read_message_(const RXBn rxbn, struct canbus::CanFrame *frame);
-  canbus::Error read_message_(struct canbus::CanFrame *frame) override;
+  canbus::Error read_message(struct canbus::CanFrame *frame) override;
   bool check_receive_();
   bool check_error_();
   uint8_t get_error_flags_();
