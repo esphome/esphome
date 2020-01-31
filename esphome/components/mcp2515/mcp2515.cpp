@@ -114,7 +114,7 @@ uint8_t MCP2515::get_status_() {
 canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   modify_register_(MCP_CANCTRL, CANCTRL_REQOP, mode);
 
-  unsigned long end_time= millis() + 10;
+  unsigned long end_time = millis() + 10;
   bool mode_match = false;
   while (millis() < end_time) {
     uint8_t new_mode = read_register_(MCP_CANSTAT);
@@ -255,16 +255,16 @@ canbus::Error MCP2515::send_message(struct canbus::CanFrame *frame) {
   if (frame->can_dlc > canbus::CAN_MAX_DLEN) {
     return canbus::ERROR_FAILTX;
   }
-  TXBn txBuffers[N_TXBUFFERS] = {TXB0, TXB1, TXB2};
+  TXBn tx_buffers[N_TXBUFFERS] = {TXB0, TXB1, TXB2};
 
-  for (auto & txBuffer : txBuffers) {
-    const struct TxBnRegs *txbuf = &TXB[txBuffer];
+  for (auto &tx_buffer : tx_buffers) {
+    const struct TxBnRegs *txbuf = &TXB[tx_buffer];
     uint8_t ctrlval = read_register_(txbuf->CTRL);
     if ((ctrlval & TXB_TXREQ) == 0) {
-      return send_message_(txBuffer, frame);
+      return send_message_(tx_buffer, frame);
     }
   }
-      
+
   return canbus::ERROR_FAILTX;
 }
 

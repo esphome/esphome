@@ -88,9 +88,9 @@ class MCP2515 : public canbus::Canbus,
   canbus::Error reset_();
   canbus::Error set_clk_out_(CanClkOut divisor);
   canbus::Error set_bitrate_(canbus::CanSpeed can_speed);
-  canbus::Error set_bitrate_(canbus::CanSpeed can_speed, const CanClock can_clock);
+  canbus::Error set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clock);
   canbus::Error set_filter_mask_(MASK mask, bool ext, uint32_t ul_data);
-  canbus::Error set_filter_(RXF num, bool ext, const uint32_t ul_data);
+  canbus::Error set_filter_(RXF num, bool ext, uint32_t ul_data);
   canbus::Error send_message_(TXBn txbn, struct canbus::CanFrame *frame);
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message_(RXBn rxbn, struct canbus::CanFrame *frame);
