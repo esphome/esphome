@@ -58,7 +58,7 @@ class MCP2515 : public canbus::Canbus,
  public:
   MCP2515(){};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
-  void set_mcp_mode(const CANCTRL_REQOP_MODE mode) { this->mcp_mode_ = mode; }
+  void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
   static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -74,9 +74,9 @@ class MCP2515 : public canbus::Canbus,
 
  protected:
   CanClock mcp_clock_{MCP_8MHZ};
-  CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
+  CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal() override;
-  canbus::Error set_mode_(CANCTRL_REQOP_MODE mode);
+  canbus::Error set_mode_(CanctrlReqopMode mode);
 
   uint8_t read_register_(REGISTER reg);
   void read_registers_(REGISTER reg, uint8_t values[], uint8_t n);
@@ -88,9 +88,9 @@ class MCP2515 : public canbus::Canbus,
   canbus::Error reset_();
   canbus::Error set_clk_out_(CanClkOut divisor);
   canbus::Error set_bitrate_(canbus::CanSpeed can_speed);
-  canbus::Error set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clock);
-  canbus::Error set_filter_mask_(MASK num, bool ext, uint32_t ul_data);
-  canbus::Error set_filter_(RXF num, bool ext, uint32_t ul_data);
+  canbus::Error set_bitrate_(canbus::CanSpeed can_speed, const CanClock can_clock);
+  canbus::Error set_filter_mask_(MASK mask, bool ext, uint32_t ul_data);
+  canbus::Error set_filter_(RXF num, bool ext, const uint32_t ul_data);
   canbus::Error send_message_(TXBn txbn, struct canbus::CanFrame *frame);
   canbus::Error send_message(struct canbus::CanFrame *frame) override;
   canbus::Error read_message_(RXBn rxbn, struct canbus::CanFrame *frame);

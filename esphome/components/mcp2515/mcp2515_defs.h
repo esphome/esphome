@@ -9,7 +9,7 @@ static const uint8_t CANCTRL_OSM = 0x08;
 static const uint8_t CANCTRL_CLKEN = 0x04;
 static const uint8_t CANCTRL_CLKPRE = 0x03;
 
-enum CANCTRL_REQOP_MODE : uint8_t {
+enum CanctrlReqopMode : uint8_t {
   CANCTRL_REQOP_NORMAL = 0x00,
   CANCTRL_REQOP_SLEEP = 0x20,
   CANCTRL_REQOP_LOOPBACK = 0x40,
@@ -18,7 +18,7 @@ enum CANCTRL_REQOP_MODE : uint8_t {
   CANCTRL_REQOP_POWERUP = 0xE0
 };
 
-enum TXB_N_CTRL : uint8_t {
+enum TxbNCtrl : uint8_t {
   TXB_ABTF = 0x40,
   TXB_MLOA = 0x20,
   TXB_TXERR = 0x10,
@@ -187,13 +187,13 @@ static const uint8_t MCP_8MHZ_40KBPS_CFG1 = 0x03;
 static const uint8_t MCP_8MHZ_40KBPS_CFG2 = 0xBF;
 static const uint8_t MCP_8MHZ_40KBPS_CFG3 = 0x87;
 
-static const uint8_t MCP_8MHZ_33k3BPS_CFG1 = 0x47;
-static const uint8_t MCP_8MHZ_33k3BPS_CFG2 = 0xE2;
-static const uint8_t MCP_8MHZ_33k3BPS_CFG3 = 0x85;
+static const uint8_t MCP_8MHZ_33K3BPS_CFG1 = 0x47;
+static const uint8_t MCP_8MHZ_33K3BPS_CFG2 = 0xE2;
+static const uint8_t MCP_8MHZ_33K3BPS_CFG3 = 0x85;
 
-static const uint8_t MCP_8MHZ_31k25BPS_CFG1 = 0x07;
-static const uint8_t MCP_8MHZ_31k25BPS_CFG2 = 0xA4;
-static const uint8_t MCP_8MHZ_31k25BPS_CFG3 = 0x84;
+static const uint8_t MCP_8MHZ_31K25BPS_CFG1 = 0x07;
+static const uint8_t MCP_8MHZ_31K25BPS_CFG2 = 0xA4;
+static const uint8_t MCP_8MHZ_31K25BPS_CFG3 = 0x84;
 
 static const uint8_t MCP_8MHZ_20KBPS_CFG1 = 0x07;
 static const uint8_t MCP_8MHZ_20KBPS_CFG2 = 0xBF;
@@ -238,9 +238,9 @@ static const uint8_t MCP_16MHZ_80KBPS_CFG1 = 0x03;
 static const uint8_t MCP_16MHZ_80KBPS_CFG2 = 0xFF;
 static const uint8_t MCP_16MHZ_80KBPS_CFG3 = 0x87;
 
-static const uint8_t MCP_16MHZ_83k3BPS_CFG1 = 0x03;
-static const uint8_t MCP_16MHZ_83k3BPS_CFG2 = 0xBE;
-static const uint8_t MCP_16MHZ_83k3BPS_CFG3 = 0x07;
+static const uint8_t MCP_16MHZ_83K3BPS_CFG1 = 0x03;
+static const uint8_t MCP_16MHZ_83K3BPS_CFG2 = 0xBE;
+static const uint8_t MCP_16MHZ_83K3BPS_CFG3 = 0x07;
 
 static const uint8_t MCP_16MHZ_50KBPS_CFG1 = 0x07;
 static const uint8_t MCP_16MHZ_50KBPS_CFG2 = 0xFA;
@@ -250,9 +250,9 @@ static const uint8_t MCP_16MHZ_40KBPS_CFG1 = 0x07;
 static const uint8_t MCP_16MHZ_40KBPS_CFG2 = 0xFF;
 static const uint8_t MCP_16MHZ_40KBPS_CFG3 = 0x87;
 
-static const uint8_t MCP_16MHZ_33k3BPS_CFG1 = 0x4E;
-static const uint8_t MCP_16MHZ_33k3BPS_CFG2 = 0xF1;
-static const uint8_t MCP_16MHZ_33k3BPS_CFG3 = 0x85;
+static const uint8_t MCP_16MHZ_33K3BPS_CFG1 = 0x4E;
+static const uint8_t MCP_16MHZ_33K3BPS_CFG2 = 0xF1;
+static const uint8_t MCP_16MHZ_33K3BPS_CFG3 = 0x85;
 
 static const uint8_t MCP_16MHZ_20KBPS_CFG1 = 0x0F;
 static const uint8_t MCP_16MHZ_20KBPS_CFG2 = 0xFF;
@@ -293,9 +293,9 @@ static const uint8_t MCP_20MHZ_100KBPS_CFG1 = 0x04;
 static const uint8_t MCP_20MHZ_100KBPS_CFG2 = 0xFA;
 static const uint8_t MCP_20MHZ_100KBPS_CFG3 = 0x87;
 
-static const uint8_t MCP_20MHZ_83k3BPS_CFG1 = 0x04;
-static const uint8_t MCP_20MHZ_83k3BPS_CFG2 = 0xFE;
-static const uint8_t MCP_20MHZ_83k3BPS_CFG3 = 0x87;
+static const uint8_t MCP_20MHZ_83K3BPS_CFG1 = 0x04;
+static const uint8_t MCP_20MHZ_83K3BPS_CFG2 = 0xFE;
+static const uint8_t MCP_20MHZ_83K3BPS_CFG3 = 0x87;
 
 static const uint8_t MCP_20MHZ_80KBPS_CFG1 = 0x04;
 static const uint8_t MCP_20MHZ_80KBPS_CFG2 = 0xFF;
@@ -309,9 +309,9 @@ static const uint8_t MCP_20MHZ_40KBPS_CFG1 = 0x09;
 static const uint8_t MCP_20MHZ_40KBPS_CFG2 = 0xFF;
 static const uint8_t MCP_20MHZ_40KBPS_CFG3 = 0x87;
 
-static const uint8_t MCP_20MHZ_33k3BPS_CFG1 = 0x0B;
-static const uint8_t MCP_20MHZ_33k3BPS_CFG2 = 0xFF;
-static const uint8_t MCP_20MHZ_33k3BPS_CFG3 = 0x87;
+static const uint8_t MCP_20MHZ_33K3BPS_CFG1 = 0x0B;
+static const uint8_t MCP_20MHZ_33K3BPS_CFG2 = 0xFF;
+static const uint8_t MCP_20MHZ_33K3BPS_CFG3 = 0x87;
 
 } // namespace mcp2515
 } // namespace esphome
