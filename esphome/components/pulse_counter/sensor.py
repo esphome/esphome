@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
     CONF_PIN, CONF_RISING_EDGE, CONF_NUMBER, \
-    ICON_PULSE, UNIT_PULSES_PER_MINUTE
+    ICON_PULSE, UNIT_PULSES_PER_MINUTE, CONF_ABSOLUTE_COUNT_MODE
 from esphome.core import CORE
 
 pulse_counter_ns = cg.esphome_ns.namespace('pulse_counter')
@@ -58,6 +58,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).exte
         cv.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
     }), validate_count_mode),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
+    cv.Optional(CONF_ABSOLUTE_COUNT_MODE, default=False): cv.boolean,
 }).extend(cv.polling_component_schema('60s'))
 
 
@@ -72,3 +73,4 @@ def to_code(config):
     cg.add(var.set_rising_edge_mode(count[CONF_RISING_EDGE]))
     cg.add(var.set_falling_edge_mode(count[CONF_FALLING_EDGE]))
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
+    cg.add(var.set_absolute_count_mode(config[CONF_ABSOLUTE_COUNT_MODE]))

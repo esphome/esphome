@@ -37,9 +37,14 @@ bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
 }
 pulse_counter_t PulseCounterStorage::read_raw_value() {
   pulse_counter_t counter = this->counter;
-  pulse_counter_t ret = counter - this->last_value;
-  this->last_value = counter;
-  return ret;
+  if (this->absolute_count_mode) {
+    this->last_value = counter;
+    return counter;
+  } else {
+    pulse_counter_t ret = counter - this->last_value;
+    this->last_value = counter;
+    return ret;
+  }
 }
 #endif
 
@@ -129,9 +134,14 @@ bool PulseCounterStorage::pulse_counter_setup(GPIOPin *pin) {
 pulse_counter_t PulseCounterStorage::read_raw_value() {
   pulse_counter_t counter;
   pcnt_get_counter_value(this->pcnt_unit, &counter);
-  pulse_counter_t ret = counter - this->last_value;
-  this->last_value = counter;
-  return ret;
+  if (this->absolute_count_mode) {
+    this->last_value = counter;
+    return counter;
+  } else {
+    pulse_counter_t ret = counter - this->last_value;
+    this->last_value = counter;
+    return ret;
+  }
 }
 #endif
 
@@ -154,9 +164,15 @@ void PulseCounterSensor::dump_config() {
 
 void PulseCounterSensor::update() {
   pulse_counter_t raw = this->storage_.read_raw_value();
-  float value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
+  float value;
+  if (this->storage_.absolute_count_mode) {
+    value = (float) raw;
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %g pulses", this->get_name().c_str(), value);
+  } else {
+    value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
+    ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
+  }
 
-  ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
   this->publish_state(value);
 }
 

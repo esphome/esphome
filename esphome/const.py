@@ -27,6 +27,7 @@ SOURCE_FILE_EXTENSIONS = {'.cpp', '.hpp', '.h', '.c', '.tcc', '.ino'}
 HEADER_FILE_EXTENSIONS = {'.h', '.hpp', '.tcc'}
 
 CONF_ABOVE = 'above'
+CONF_ABSOLUTE_COUNT_MODE = 'absolute_count_mode'
 CONF_ACCELERATION = 'acceleration'
 CONF_ACCELERATION_X = 'acceleration_x'
 CONF_ACCELERATION_Y = 'acceleration_y'

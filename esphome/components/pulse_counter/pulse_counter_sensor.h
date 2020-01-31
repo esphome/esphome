@@ -45,6 +45,7 @@ struct PulseCounterStorage {
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
   PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
   uint32_t filter_us{0};
+  bool  absolute_count_mode{false};
   pulse_counter_t last_value{0};
 };
 
@@ -54,6 +55,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
+  void set_absolute_count_mode(bool value) { storage_.absolute_count_mode = value; }
 
   /// Unit of measurement is "pulses/min".
   void setup() override;
