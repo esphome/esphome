@@ -77,7 +77,7 @@ class Canbus : public Component {
   CanSpeed bit_rate_{CAN_125KBPS};
 
   virtual bool setup_internal();
-  virtual Error send_message(const struct CanFrame *frame);
+  virtual Error send_message(struct CanFrame *frame);
   virtual Error read_message(struct CanFrame *frame);
 };
 
