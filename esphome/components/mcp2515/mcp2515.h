@@ -7,7 +7,7 @@
 
 namespace esphome {
 namespace mcp2515 {
-static const uint32_t SPI_CLOCK = 10000000; // 10MHz
+static const uint32_t SPI_CLOCK = 10000000;  // 10MHz
 
 static const int N_TXBUFFERS = 3;
 static const int N_RXBUFFERS = 2;
@@ -50,17 +50,15 @@ enum EFLG : uint8_t {
 enum STAT : uint8_t { STAT_RX0IF = (1 << 0), STAT_RX1IF = (1 << 1) };
 
 static const uint8_t STAT_RXIF_MASK = STAT_RX0IF | STAT_RX1IF;
-static const uint8_t EFLG_ERRORMASK =
-    EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
+static const uint8_t EFLG_ERRORMASK = EFLG_RX1OVR | EFLG_RX0OVR | EFLG_TXBO | EFLG_TXEP | EFLG_RXEP;
 
-class MCP2515
-    : public canbus::Canbus,
-      public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
-                            spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_8MHZ> {
-public:
+class MCP2515 : public canbus::Canbus,
+                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+                                      spi::DATA_RATE_8MHZ> {
+ public:
   MCP2515(){};
   void set_mcp_clock(CanClock clock) { this->mcp_clock_ = clock; };
-  void set_mcp_mode(const CANCTRL_REQOP_MODE mode) { this->mcp_mode_ = mode; }
+  void set_mcp_mode(const CanctrlReqopMode mode) { this->mcp_mode_ = mode; }
   static const struct TxBnRegs {
     REGISTER CTRL;
     REGISTER SIDH;
@@ -74,33 +72,28 @@ public:
     CANINTF CANINTF_RXnIF;
   } RXB[N_RXBUFFERS];
 
-protected:
+ protected:
   CanClock mcp_clock_{MCP_8MHZ};
-  CANCTRL_REQOP_MODE mcp_mode_ = CANCTRL_REQOP_NORMAL;
+  CanctrlReqopMode mcp_mode_ = CANCTRL_REQOP_NORMAL;
   bool setup_internal() override;
-  canbus::Error set_mode_(const CANCTRL_REQOP_MODE mode);
+  canbus::Error set_mode_(CanctrlReqopMode mode);
 
-  uint8_t read_register_(const REGISTER reg);
-  void read_registers_(const REGISTER reg, uint8_t values[], const uint8_t n);
-  void set_register_(const REGISTER reg, const uint8_t value);
-  void set_registers_(const REGISTER reg, uint8_t values[], const uint8_t n);
-  void modify_register_(const REGISTER reg, const uint8_t mask,
-                        const uint8_t data);
+  uint8_t read_register_(REGISTER reg);
+  void read_registers_(REGISTER reg, uint8_t values[], uint8_t n);
+  void set_register_(REGISTER reg, uint8_t value);
+  void set_registers_(REGISTER reg, uint8_t values[], uint8_t n);
+  void modify_register_(REGISTER reg, uint8_t mask, uint8_t data);
 
-  void prepare_id_(uint8_t *buffer, const bool ext, const uint32_t id);
+  void prepare_id_(uint8_t *buffer, bool ext, uint32_t id);
   canbus::Error reset_();
-  canbus::Error set_clk_out_(const CanClkOut divisor);
+  canbus::Error set_clk_out_(CanClkOut divisor);
   canbus::Error set_bitrate_(canbus::CanSpeed can_speed);
-  canbus::Error set_bitrate_(canbus::CanSpeed can_speed,
-                             const CanClock can_clock);
-  canbus::Error set_filter_mask_(const MASK num, const bool ext,
-                                 const uint32_t ul_data);
-  canbus::Error set_filter_(const RXF num, const bool ext,
-                            const uint32_t ul_data);
-  canbus::Error send_message_(const TXBn txbn,
-                              const struct canbus::CanFrame *frame);
-  canbus::Error send_message(const struct canbus::CanFrame *frame) override; 
-  canbus::Error read_message_(const RXBn rxbn, struct canbus::CanFrame *frame);
+  canbus::Error set_bitrate_(canbus::CanSpeed can_speed, CanClock can_clock);
+  canbus::Error set_filter_mask_(MASK mask, bool ext, uint32_t ul_data);
+  canbus::Error set_filter_(RXF num, bool ext, uint32_t ul_data);
+  canbus::Error send_message_(TXBn txbn, struct canbus::CanFrame *frame);
+  canbus::Error send_message(struct canbus::CanFrame *frame) override;
+  canbus::Error read_message_(RXBn rxbn, struct canbus::CanFrame *frame);
   canbus::Error read_message(struct canbus::CanFrame *frame) override;
   bool check_receive_();
   bool check_error_();
@@ -115,5 +108,5 @@ protected:
   void clear_merr_();
   void clear_errif_();
 };
-} // namespace mcp2515
-} // namespace esphome
+}  // namespace mcp2515
+}  // namespace esphome
