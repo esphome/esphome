@@ -93,7 +93,7 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       this->pin_->digital_write(true);
       delayMicroseconds(40);
     } else {
-      delayMicroseconds(800);
+      delayMicroseconds(2000);
     }
     this->pin_->pin_mode(INPUT_PULLUP);
     delayMicroseconds(40);
