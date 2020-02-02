@@ -3,7 +3,6 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
-
 namespace esphome {
 namespace pcd8544 {
 
@@ -31,13 +30,13 @@ void PCD8544::init_reset_() {
 void PCD8544::initialize() {
   this->init_internal_(this->get_buffer_length_());
 
-  this->command(this->PCD8544_FUNCTIONSET | this->PCD8544_EXTENDEDINSTRUCTION );
+  this->command(this->PCD8544_FUNCTIONSET | this->PCD8544_EXTENDEDINSTRUCTION);
   // LCD bias select (4 is optimal?)
   this->command(this->PCD8544_SETBIAS | 0x04);
 
   // contrast
   // TODO: in future version we may add a user a control over contrast
-  this->command(this->PCD8544_SETVOP | 0x7f); // Experimentally determined
+  this->command(this->PCD8544_SETVOP | 0x7f);  // Experimentally determined
 
   // normal mode
   this->command(this->PCD8544_FUNCTIONSET);
@@ -57,10 +56,8 @@ void PCD8544::start_data_() {
 }
 void PCD8544::end_data_() { this->disable(); }
 
-
 int PCD8544::get_width_internal() { return 84; }
 int PCD8544::get_height_internal() { return 48; }
-
 
 size_t PCD8544::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
@@ -69,7 +66,7 @@ size_t PCD8544::get_buffer_length_() {
 void HOT PCD8544::display() {
   uint8_t col, maxcol, p;
 
-  for(p = 0; p < 6; p++) {
+  for (p = 0; p < 6; p++) {
     this->command(this->PCD8544_SETYADDR | p);
 
     // start at the beginning of the row
@@ -79,11 +76,10 @@ void HOT PCD8544::display() {
     this->command(this->PCD8544_SETXADDR | col);
 
     this->start_data_();
-    for(; col <= maxcol; col++) {
-        this->write_byte(this->buffer_[(this->get_width_internal()*p)+col]);
+    for (; col <= maxcol; col++) {
+      this->write_byte(this->buffer_[(this->get_width_internal() * p) + col]);
     }
     this->end_data_();
-
   }
 
   this->command(this->PCD8544_SETYADDR);
