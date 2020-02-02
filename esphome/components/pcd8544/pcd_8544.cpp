@@ -5,7 +5,7 @@
 
 
 namespace esphome {
-namespace pcd_8544 {
+namespace pcd8544 {
 
 static const char *TAG = "pcd_8544";
 
@@ -13,7 +13,6 @@ void PCD8544::setup_pins_() {
   this->spi_setup();
   this->init_reset_();
   this->dc_pin_->setup();
-
 }
 
 void PCD8544::init_reset_() {
@@ -51,9 +50,7 @@ void PCD8544::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
 }
-void PCD8544::end_command_() {
-  this->disable();
-}
+void PCD8544::end_command_() { this->disable(); }
 void PCD8544::start_data_() {
   this->dc_pin_->digital_write(true);
   this->enable();
@@ -130,5 +127,5 @@ void PCD8544::fill(int color) {
     this->buffer_[i] = fill;
 }
 
-}
-}
+}  // namespace pcd8544
+}  // namespace esphome

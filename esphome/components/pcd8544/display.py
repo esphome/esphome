@@ -8,7 +8,7 @@ from esphome.const import (
 
 DEPENDENCIES = ['spi']
 
-pcd8544_ns = cg.esphome_ns.namespace('pcd_8544')
+pcd8544_ns = cg.esphome_ns.namespace('pcd8544')
 PCD8544 = pcd8544_ns.class_('PCD8544', cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice)
 
 

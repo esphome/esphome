@@ -5,7 +5,7 @@
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
-namespace pcd_8544 {
+namespace pcd8544 {
 
 class PCD8544 : public PollingComponent,
                 public display::DisplayBuffer,
@@ -73,5 +73,5 @@ class PCD8544 : public PollingComponent,
   GPIOPin *dc_pin_;
 };
 
-}  // namespace pcd_8544
+}  // namespace pcd8544
 }  // namespace esphome
