@@ -146,7 +146,7 @@ void BME280Component::dump_config() {
       ESP_LOGE(TAG, "Communication with BME280 failed!");
       break;
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "BMP280 has wrong chip ID! Is it a BMP280?");
+      ESP_LOGE(TAG, "BME280 has wrong chip ID! Is it a BME280?");
       break;
     case NONE:
     default:
