@@ -1,7 +1,6 @@
 #pragma once
 
-#include <time.h>
-
+#include <ctime>
 #include <string>
 
 #include "esphome/core/component.h"
