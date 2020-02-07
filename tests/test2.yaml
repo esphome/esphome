@@ -276,6 +276,8 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: ble_scanner
+    name: Scanner
 
 script:
   - id: my_script
