@@ -86,12 +86,14 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
     this->pin_->pin_mode(OUTPUT);
     this->pin_->digital_write(false);
 
-    if (this->model_ == DHT_MODEL_DHT11 || this->model_ == DHT_MODEL_DHT22) {
+    if (this->model_ == DHT_MODEL_DHT11) {
       delayMicroseconds(18000);
     } else if (this->model_ == DHT_MODEL_SI7021) {
       delayMicroseconds(500);
       this->pin_->digital_write(true);
       delayMicroseconds(40);
+    } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
+      delayMicroseconds(2000);
     } else {
       delayMicroseconds(800);
     }
