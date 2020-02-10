@@ -15,11 +15,16 @@ namespace ble_scanner {
 class BLEScanner : public text_sensor::TextSensor, public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-    this->publish_state(
-      "{\"timestamp\":" + to_string(::time(NULL)) + ","
-      "\"address\":\"" + device.address_str() + "\","
-      "\"rssi\":" + to_string(device.get_rssi()) + ","
-      "\"name\":\"" + device.get_name() + "\"}");
+    this->publish_state("{\"timestamp\":" + to_string(::time(NULL)) +
+                        ","
+                        "\"address\":\"" +
+                        device.address_str() +
+                        "\","
+                        "\"rssi\":" +
+                        to_string(device.get_rssi()) +
+                        ","
+                        "\"name\":\"" +
+                        device.get_name() + "\"}");
 
     return true;
   }
