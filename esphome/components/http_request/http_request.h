@@ -41,6 +41,8 @@ class HttpRequestComponent : public Component {
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
   void send();
+  void close();
+  const char *get_string();
 
  protected:
   HTTPClient client_{};
@@ -102,6 +104,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       this->parent_->set_headers(headers);
     }
     this->parent_->send();
+    this->parent_->close();
   }
 
  protected:
