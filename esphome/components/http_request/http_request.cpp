@@ -22,7 +22,7 @@ void HttpRequestComponent::send() {
 #ifndef CLANG_TIDY
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
+  begin_status = this->client_.begin(*this->get_wifi_client_(), this->url_);
 #endif
 #endif
 
@@ -57,6 +57,24 @@ void HttpRequestComponent::send() {
   this->status_clear_warning();
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
 }
+
+#ifdef ARDUINO_ARCH_ESP8266
+WiFiClient *HttpRequestComponent::get_wifi_client_() {
+  if (this->secure_) {
+    if (this->wifi_client_secure_ == nullptr) {
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_->setInsecure();
+      this->wifi_client_secure_->setBufferSizes(512, 512);
+    }
+    return this->wifi_client_secure_;
+  }
+
+  if (this->wifi_client_ == nullptr) {
+    this->wifi_client_ = new WiFiClient();
+  }
+  return this->wifi_client_;
+}
+#endif
 
 void HttpRequestComponent::close() { this->client_.end(); }
 

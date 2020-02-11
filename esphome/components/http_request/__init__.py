@@ -122,6 +122,7 @@ def http_request_action_to_code(config, action_id, template_arg, args):
 
     template_ = yield cg.templatable(config[CONF_URL], args, cg.const_char_ptr)
     cg.add(var.set_url(template_))
+    cg.add(var.set_secure(template_.startswith('https:')))
     cg.add(var.set_method(config[CONF_METHOD]))
     if CONF_BODY in config:
         template_ = yield cg.templatable(config[CONF_BODY], args, cg.std_string)
