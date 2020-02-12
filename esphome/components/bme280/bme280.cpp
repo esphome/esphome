@@ -146,7 +146,7 @@ void BME280Component::dump_config() {
       ESP_LOGE(TAG, "Communication with BME280 failed!");
       break;
     case WRONG_CHIP_ID:
-      ESP_LOGE(TAG, "BMP280 has wrong chip ID! Is it a BMP280?");
+      ESP_LOGE(TAG, "BME280 has wrong chip ID! Is it a BME280?");
       break;
     case NONE:
     default:
@@ -172,7 +172,7 @@ void BME280Component::update() {
   uint8_t meas_register = 0;
   meas_register |= (this->temperature_oversampling_ & 0b111) << 5;
   meas_register |= (this->pressure_oversampling_ & 0b111) << 2;
-  meas_register |= 0b01;  // Forced mode
+  meas_register |= BME280_MODE_FORCED;
   if (!this->write_byte(BME280_REGISTER_CONTROL, meas_register)) {
     this->status_set_warning();
     return;
