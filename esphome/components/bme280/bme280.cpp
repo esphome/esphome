@@ -85,10 +85,12 @@ void BME280Component::setup() {
     this->mark_failed();
     return;
   }
-  if (chip_id != 0x60) {
-    this->error_code_ = WRONG_CHIP_ID;
-    this->mark_failed();
-    return;
+  ESP_LOGCONFIG(TAG, "Got chip id=%0xh", chip_id);
+  if (chip_id != 0x60)
+    if (chip_id != 0x58) {
+      this->error_code_ = WRONG_CHIP_ID;
+      this->mark_failed();
+      return;
   }
 
   // Read calibration
