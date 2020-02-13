@@ -14,6 +14,7 @@ CONF_REACTIVE_POWER = 'reactive_power'
 CONF_LINE_FREQUENCY = 'line_frequency'
 CONF_CHIP_TEMPERATURE = 'chip_temperature'
 CONF_GAIN_PGA = 'gain_pga'
+CONF_CURRENT_PHASES = 'current_phases'
 CONF_GAIN_VOLTAGE = 'gain_voltage'
 CONF_GAIN_CT = 'gain_ct'
 LINE_FREQS = {
