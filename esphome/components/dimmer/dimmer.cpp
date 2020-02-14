@@ -80,7 +80,7 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     this->gate_pin->digital_write(false);
   } else {
     // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
-    this->enable_time_us = ((255 - this->value) * this->cycle_time_us) / 255;
+    this->enable_time_us = ((255 - this->value) * this->cycle_time_us * 3 / 4) / 255;
     this->gate_pin->digital_write(false);
   }
 }
@@ -107,12 +107,16 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::s_timer_intr() { timer_interrupt(); }
 
 void Dimmer::setup() {
   // extend all_dimmers array with our dimmer
+  auto skip_attach_interrupt = false;
   for (auto &all_dimmer : all_dimmers) {
     if (all_dimmer == nullptr) {
       all_dimmer = &this->store_;
       break;
     }
+    if (all_dimmer->zero_cross_pin_number == this->zero_cross_pin_->get_pin())
+      skip_attach_interrupt = true;
   }
+
   this->gate_pin_->setup();
   this->zero_cross_pin_->setup();
 
@@ -120,7 +124,8 @@ void Dimmer::setup() {
   this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
   this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
   // TODO: why FALLING here?
-  this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
+  if (!skip_attach_interrupt)
+    this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
 
 #ifdef ARDUINO_ARCH_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
@@ -143,7 +148,7 @@ void Dimmer::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us);
+  ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
   LOG_FLOAT_OUTPUT(this);
 }
 
