@@ -140,7 +140,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("<style type=\"text/css\">"));
     stream->print(this->css_include_);
     stream->print(F("</style>"));
-  } else {
+  }
+  if (strlen(this->css_url_) > 0) {
     stream->print(F("<link rel=\"stylesheet\" href=\""));
     stream->print(this->css_url_);
     stream->print(F("\">"));
@@ -190,7 +191,8 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("<script type=\"text/javascript\">"));
     stream->print(this->js_include_);
     stream->print(F("</script>"));
-  } else {
+  }
+  if (strlen(this->js_url_) > 0) {
     stream->print(F("<script src=\""));
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
