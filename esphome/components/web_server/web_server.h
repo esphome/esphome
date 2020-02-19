@@ -73,6 +73,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
+#ifdef WEBSERVER_CSS_INCLUDE
+  /// Handle included css request under '/0.css'.
+  void handle_css_request(AsyncWebServerRequest *request);
+#endif
+
   bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
 #ifdef USE_SENSOR

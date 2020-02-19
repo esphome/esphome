@@ -42,6 +42,7 @@ def to_code(config):
         cg.add(var.set_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(var.set_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
+        cg.add_define('WEBSERVER_CSS_INCLUDE')
         with open(config[CONF_CSS_INCLUDE], "r") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:

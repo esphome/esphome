@@ -136,11 +136,9 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
-  if (this->css_include_ != nullptr) {
-    stream->print(F("<style type=\"text/css\">"));
-    stream->print(this->css_include_);
-    stream->print(F("</style>"));
-  }
+#ifdef WEBSERVER_CSS_INCLUDE
+  stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
+#endif
   if (strlen(this->css_url_) > 0) {
     stream->print(F("<link rel=\"stylesheet\" href=\""));
     stream->print(this->css_url_);
@@ -201,6 +199,17 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
   request->send(stream);
 }
+
+#ifdef WEBSERVER_CSS_INCLUDE
+void WebServer::handle_css_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/css");
+  if (this->css_include_ != nullptr) {
+    stream->print(this->css_include_);
+  }
+
+  request->send(stream);
+}
+#endif
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -479,6 +488,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css")
+    return true;
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -523,6 +537,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css") {
+    this->handle_css_request(request);
+    return;
+  }
+#endif
 
   UrlMatch match = match_url(request->url().c_str());
 #ifdef USE_SENSOR
