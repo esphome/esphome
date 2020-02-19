@@ -214,7 +214,7 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 #ifdef WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
-  if (this->css_include_ != nullptr) {
+  if (this->js_include_ != nullptr) {
     stream->print(this->js_include_);
   }
 
