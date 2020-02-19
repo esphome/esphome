@@ -78,6 +78,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
 
+#ifdef WEBSERVER_JS_INCLUDE
+  /// Handle included js request under '/0.js'.
+  void handle_js_request(AsyncWebServerRequest *request);
+#endif
+
   bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
 #ifdef USE_SENSOR

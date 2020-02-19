@@ -185,11 +185,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
                   "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#ifdef WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
-    stream->print(F("<script type=\"text/javascript\">"));
-    stream->print(this->js_include_);
-    stream->print(F("</script>"));
+    stream->print(F("<script src=\"/0.js\"></script>"));
   }
+#endif
   if (strlen(this->js_url_) > 0) {
     stream->print(F("<script src=\""));
     stream->print(this->js_url_);
@@ -205,6 +205,17 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/css");
   if (this->css_include_ != nullptr) {
     stream->print(this->css_include_);
+  }
+
+  request->send(stream);
+}
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+void WebServer::handle_js_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
+  if (this->css_include_ != nullptr) {
+    stream->print(this->js_include_);
   }
 
   request->send(stream);
@@ -493,6 +504,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js")
+    return true;
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -541,6 +557,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css") {
     this->handle_css_request(request);
+    return;
+  }
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js") {
+    this->handle_js_request(request);
     return;
   }
 #endif

@@ -46,5 +46,6 @@ def to_code(config):
         with open(config[CONF_CSS_INCLUDE], "r") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
+        cg.add_define('WEBSERVER_JS_INCLUDE')
         with open(config[CONF_JS_INCLUDE], "r") as myfile:
             cg.add(var.set_js_include(myfile.read()))
