@@ -41,6 +41,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
+
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
@@ -59,6 +65,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param cors_header Content of response header Access-Control-Allow-Origin. Defaults to *
    */
   void set_js_cors_header(const char *cors_header);
+  
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param js_include Local path to web server script.
+   */
+  void set_js_include(const char *js_include);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -72,6 +84,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  /// Handle included css request under '/0.css'.
+  void handle_css_request(AsyncWebServerRequest *request);
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  /// Handle included js request under '/0.js'.
+  void handle_js_request(AsyncWebServerRequest *request);
+#endif
 
   bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
@@ -147,7 +169,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *username_{nullptr};
   const char *password_{nullptr};
   const char *css_url_{nullptr};
+  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+  
   bool js_enable_cors_=false;
   const char *js_cors_header_{nullptr};
 
@@ -160,6 +184,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   // send response to request with http-code
   void sendResponse(AsyncWebServerRequest *request,int code);
 
+  const char *js_include_{nullptr};
 };
 
 }  // namespace web_server
