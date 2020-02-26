@@ -190,7 +190,7 @@ def get_ini_content():
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
         'build_flags': build_flags + ['${common.build_flags}'],
-        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 460800),
+        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
     }
 
     if CORE.is_esp32:
