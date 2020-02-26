@@ -1190,6 +1190,8 @@ climate:
     name: Coolix Climate
   - platform: fujitsu_general
     name: Fujitsu General Climate
+  - platform: daikin
+    name: Daikin Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
@@ -1239,6 +1241,14 @@ switch:
       remote_transmitter.transmit_panasonic:
         address: 0x4004
         command: 0x1000BCD
+  - platform: template
+    name: Pioneer
+    turn_on_action:
+      - remote_transmitter.transmit_pioneer:
+          rc_code_1: 0xA556
+          rc_code_2: 0xA506
+          repeat:
+            times: 2
   - platform: template
     name: RC Switch Raw
     turn_on_action:
@@ -1418,6 +1428,12 @@ display:
   num_chips: 1
   lambda: |-
     it.print("01234567");
+- platform: tm1637
+  clk_pin: GPIO23
+  dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
