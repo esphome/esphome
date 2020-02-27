@@ -14,9 +14,10 @@ struct DimmerDataStore {
   uint8_t zero_cross_pin_number;
   /// Output pin to write to
   ISRInternalGPIOPin *gate_pin;
-  /// Value of the dimmer - 0 to 255.
-  uint8_t value;
-
+  /// Value of the dimmer - 0 to 65535.
+  uint16_t value;
+  /// Minimum power for activation
+  uint16_t min_power;
   /// Time between the last two ZC pulses
   uint32_t cycle_time_us;
   /// Time (in micros()) of last ZC signal
@@ -40,6 +41,7 @@ class Dimmer : public output::FloatOutput, public Component {
   void dump_config() override;
   void set_gate_pin(GPIOPin *gate_pin) { gate_pin_ = gate_pin; }
   void set_zero_cross_pin(GPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
+  void set_min_power(float min_power) { min_power_ = min_power; }
 
  protected:
   void write_state(float state) override;
@@ -47,6 +49,7 @@ class Dimmer : public output::FloatOutput, public Component {
   GPIOPin *gate_pin_;
   GPIOPin *zero_cross_pin_;
   DimmerDataStore store_;
+  float min_power_;
 };
 
 }  // namespace dimmer

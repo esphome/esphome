@@ -72,7 +72,7 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
   this->cycle_time_us = this->crossed_zero_at - prev_crossed;
 
   this->enable_time_us = 0;
-  if (this->value == 255) {
+  if (this->value == 65535) {
     // fully on, enable output immediately
     this->gate_pin->digital_write(true);
   } else if (this->value == 0) {
@@ -80,8 +80,9 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     this->gate_pin->digital_write(false);
   } else {
     // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
-    this->enable_time_us = ((255 - this->value) * this->cycle_time_us * 3 / 4) / 255;
     this->gate_pin->digital_write(false);
+    auto min_us = this->cycle_time_us * this->min_power / 1000;
+    this->enable_time_us = ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535;
   }
 }
 void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
@@ -123,6 +124,7 @@ void Dimmer::setup() {
   this->store_.gate_pin = this->gate_pin_->to_isr();
   this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
   this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
+  this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
   // TODO: why FALLING here?
   if (!skip_attach_interrupt)
     this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
@@ -143,13 +145,13 @@ void Dimmer::setup() {
   timerAlarmEnable(dimmer_timer);
 #endif
 }
-void Dimmer::write_state(float state) { this->store_.value = static_cast<uint8_t>(roundf(state * 255)); }
+void Dimmer::write_state(float state) { this->store_.value = static_cast<uint16_t>(roundf(state * 65535)); }
 void Dimmer::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
+  ESP_LOGCONFIG(TAG, "Dimmer:");
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
-  ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
   LOG_FLOAT_OUTPUT(this);
+  ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 
 }  // namespace dimmer
