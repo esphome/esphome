@@ -9,10 +9,12 @@ Dimmer = dimmer_ns.class_('Dimmer', output.FloatOutput, cg.Component)
 
 CONF_GATE_PIN = 'gate_pin'
 CONF_ZERO_CROSS_PIN = 'zero_cross_pin'
+CONF_INIT_WITH_HALF_CYCLE = 'init_with_half_cycle'
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(Dimmer),
     cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
     cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
+    cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -29,3 +31,4 @@ def to_code(config):
     cg.add(var.set_gate_pin(pin))
     pin = yield cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_pin(pin))
+    cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))

@@ -24,6 +24,8 @@ struct DimmerDataStore {
   uint32_t crossed_zero_at;
   /// Time since last ZC pulse to enable gate pin. 0 means not set.
   uint32_t enable_time_us;
+  /// Set to send the first half ac cycle complete
+  bool init_cycle;
 
   uint32_t timer_intr(uint32_t now);
 
@@ -41,6 +43,7 @@ class Dimmer : public output::FloatOutput, public Component {
   void dump_config() override;
   void set_gate_pin(GPIOPin *gate_pin) { gate_pin_ = gate_pin; }
   void set_zero_cross_pin(GPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
+  void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
 
  protected:
   void write_state(float state) override;
@@ -48,6 +51,7 @@ class Dimmer : public output::FloatOutput, public Component {
   GPIOPin *gate_pin_;
   GPIOPin *zero_cross_pin_;
   DimmerDataStore store_;
+  bool init_with_half_cycle_;
 };
 
 }  // namespace dimmer

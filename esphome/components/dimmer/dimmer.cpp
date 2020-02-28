@@ -75,6 +75,10 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
   if (this->value == 65535) {
     // fully on, enable output immediately
     this->gate_pin->digital_write(true);
+  } else if (this->init_cycle) {
+    // send a full cycle
+    this->init_cycle = false;
+    this->gate_pin->digital_write(true);
   } else if (this->value == 0) {
     // fully off, disable output immediately
     this->gate_pin->digital_write(false);
@@ -125,6 +129,7 @@ void Dimmer::setup() {
   this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
   this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
   this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
+  this->min_power_ = 0;
   // TODO: why FALLING here?
   if (!skip_attach_interrupt)
     this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
@@ -145,11 +150,18 @@ void Dimmer::setup() {
   timerAlarmEnable(dimmer_timer);
 #endif
 }
-void Dimmer::write_state(float state) { this->store_.value = static_cast<uint16_t>(roundf(state * 65535)); }
+void Dimmer::write_state(float state) {
+  auto new_value = static_cast<uint16_t>(roundf(state * 65535));
+  if (new_value != 0 && this->store_.value == 0)
+    this->store_.init_cycle = this->init_with_half_cycle_;
+  this->store_.value = new_value;
+}
 void Dimmer::dump_config() {
   ESP_LOGCONFIG(TAG, "Dimmer:");
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
+  ESP_LOGCONFIG(TAG, "   Min Power: %.1f%%", this->store_.min_power / 10.0f);
+  ESP_LOGCONFIG(TAG, "   Init with half cycle: %s", YESNO(this->init_with_half_cycle_));
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
