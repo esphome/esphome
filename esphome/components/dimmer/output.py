@@ -13,17 +13,19 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(Dimmer),
     cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
     cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
-    cv.Optional(CONF_MIN_POWER, default=0.1): cv.percentage
 }).extend(cv.COMPONENT_SCHEMA)
 
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
+
+    # override default min power to 10%
+    if CONF_MIN_POWER not in config:
+        config[CONF_MIN_POWER] = 0.1
     yield output.register_output(var, config)
 
     pin = yield cg.gpio_pin_expression(config[CONF_GATE_PIN])
     cg.add(var.set_gate_pin(pin))
     pin = yield cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_pin(pin))
-    cg.add(var.set_min_power(config[CONF_MIN_POWER]))

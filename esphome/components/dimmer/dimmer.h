@@ -41,7 +41,6 @@ class Dimmer : public output::FloatOutput, public Component {
   void dump_config() override;
   void set_gate_pin(GPIOPin *gate_pin) { gate_pin_ = gate_pin; }
   void set_zero_cross_pin(GPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
-  void set_min_power(float min_power) { min_power_ = min_power; }
 
  protected:
   void write_state(float state) override;
@@ -49,7 +48,6 @@ class Dimmer : public output::FloatOutput, public Component {
   GPIOPin *gate_pin_;
   GPIOPin *zero_cross_pin_;
   DimmerDataStore store_;
-  float min_power_;
 };
 
 }  // namespace dimmer
