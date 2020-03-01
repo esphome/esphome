@@ -36,7 +36,7 @@ def to_code(config):
 
 SPI_DEVICE_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
 })
 
 
@@ -44,5 +44,6 @@ SPI_DEVICE_SCHEMA = cv.Schema({
 def register_spi_device(var, config):
     parent = yield cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
-    pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
-    cg.add(var.set_cs_pin(pin))
+    if CONF_CS_PIN in config:
+        pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
+        cg.add(var.set_cs_pin(pin))
