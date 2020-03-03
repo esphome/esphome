@@ -582,3 +582,7 @@ UNIT_WATT = 'W'
 
 DEVICE_CLASS_CONNECTIVITY = 'connectivity'
 DEVICE_CLASS_MOVING = 'moving'
+CONF_IMPEDANCE = 'impedance'
+CONF_WEIGHT = 'weight'
+ICON_OMEGA = 'mdi:omega'
+UNIT_KILOGRAM = 'kg'
