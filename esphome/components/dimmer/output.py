@@ -2,10 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_MIN_POWER
+from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
 
 dimmer_ns = cg.esphome_ns.namespace('dimmer')
 Dimmer = dimmer_ns.class_('Dimmer', output.FloatOutput, cg.Component)
+
+DimMethod = dimmer_ns.enum('DimMethod')
+DIM_METHODS = {
+    'TRAILING_PULSE': DimMethod.DIM_METHOD_TRAILING_PULSE,
+    'TRAILING': DimMethod.DIM_METHOD_TRAILING,
+    'LEADING': DimMethod.DIM_METHOD_LEADING,
+}
 
 CONF_GATE_PIN = 'gate_pin'
 CONF_ZERO_CROSS_PIN = 'zero_cross_pin'
@@ -14,7 +21,8 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_ID): cv.declare_id(Dimmer),
     cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
     cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
-    cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean
+    cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
+    cv.Optional(CONF_METHOD, default='trailing pulse'): cv.enum(DIM_METHODS, upper=True, space='_'),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -32,3 +40,4 @@ def to_code(config):
     pin = yield cg.gpio_pin_expression(config[CONF_ZERO_CROSS_PIN])
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
+    cg.add(var.set_method(config[CONF_METHOD]))

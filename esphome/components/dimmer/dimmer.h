@@ -7,6 +7,8 @@
 namespace esphome {
 namespace dimmer {
 
+enum DimMethod { DIM_METHOD_TRAILING_PULSE = 0, DIM_METHOD_TRAILING, DIM_METHOD_LEADING };
+
 struct DimmerDataStore {
   /// Zero-cross pin
   ISRInternalGPIOPin *zero_cross_pin;
@@ -24,8 +26,12 @@ struct DimmerDataStore {
   uint32_t crossed_zero_at;
   /// Time since last ZC pulse to enable gate pin. 0 means not set.
   uint32_t enable_time_us;
+  /// Time since last ZC pulse to disable gate pin. 0 means no disable.
+  uint32_t disable_time_us;
   /// Set to send the first half ac cycle complete
   bool init_cycle;
+  /// Dimmer method
+  DimMethod method;
 
   uint32_t timer_intr(uint32_t now);
 
@@ -44,6 +50,7 @@ class Dimmer : public output::FloatOutput, public Component {
   void set_gate_pin(GPIOPin *gate_pin) { gate_pin_ = gate_pin; }
   void set_zero_cross_pin(GPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
   void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
+  void set_method(DimMethod method) { method_ = method; }
 
  protected:
   void write_state(float state) override;
@@ -52,6 +59,7 @@ class Dimmer : public output::FloatOutput, public Component {
   GPIOPin *zero_cross_pin_;
   DimmerDataStore store_;
   bool init_with_half_cycle_;
+  DimMethod method_;
 };
 
 }  // namespace dimmer
