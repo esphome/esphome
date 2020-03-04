@@ -24,7 +24,8 @@ CONFIG_SCHEMA = cv.All(light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend({
     # The Tuya MCU handles transitions and gamma correction on its own.
     cv.Optional(CONF_GAMMA_CORRECT, default=1.0): cv.positive_float,
     cv.Optional(CONF_DEFAULT_TRANSITION_LENGTH, default='0s'): cv.positive_time_period_milliseconds,
-}).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_DIMMER_DATAPOINT, CONF_SWITCH_DATAPOINT))
+}).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_DIMMER_DATAPOINT,
+                                                        CONF_SWITCH_DATAPOINT))
 
 
 def to_code(config):
