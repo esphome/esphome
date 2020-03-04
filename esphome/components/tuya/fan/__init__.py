@@ -38,4 +38,3 @@ def to_code(config):
     if CONF_OSCILLATION_DATAPOINT in config:
         cg.add(var.set_oscillation_id(config[CONF_OSCILLATION_DATAPOINT]))
 
-
