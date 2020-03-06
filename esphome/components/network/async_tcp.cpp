@@ -9,11 +9,12 @@
 
 #include "async_tcp.h"
 
-
-namespace asynctcp {
+namespace esphome {
+namespace network {
 
 AsyncClient::AsyncClient() {}
 
-AsyncClient::~AsyncClient() {};
+AsyncClient::~AsyncClient(){};
 
-} // namespace asynctcp
+} /* namespace network */
+} /* namespace esphome */

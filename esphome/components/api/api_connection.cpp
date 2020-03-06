@@ -1,6 +1,6 @@
 #include "api_connection.h"
 
-#include "../network/async_tcp.h"
+#include "esphome/components/network/async_tcp.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
@@ -17,13 +17,13 @@ namespace api {
 
 static const char *TAG = "api.connection";
 
-APIConnection::APIConnection(AsyncClient *client, APIServer *parent)
+APIConnection::APIConnection(network::AsyncClient *client, APIServer *parent)
     : client_(client), parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
-  this->client_->onError([](void *s, AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
-  this->client_->onDisconnect([](void *s, AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
-  this->client_->onTimeout([](void *s, AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
+  this->client_->onError([](void *s, network::AsyncClient *c, int8_t error) { ((APIConnection *) s)->on_error_(error); }, this);
+  this->client_->onDisconnect([](void *s, network::AsyncClient *c) { ((APIConnection *) s)->on_disconnect_(); }, this);
+  this->client_->onTimeout([](void *s, network::AsyncClient *c, uint32_t time) { ((APIConnection *) s)->on_timeout_(time); },
                            this);
-  this->client_->onData([](void *s, AsyncClient *c, void *buf,
+  this->client_->onData([](void *s, network::AsyncClient *c, void *buf,
                            size_t len) { ((APIConnection *) s)->on_data_(reinterpret_cast<uint8_t *>(buf), len); },
                         this);
 

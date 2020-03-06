@@ -6,16 +6,17 @@
 #include "api_pb2_service.h"
 #include "api_server.h"
 
-namespace asynctcp {
-	class AsyncClient;
+namespace esphome {
+
+namespace network {
+class AsyncClient;
 }
 
-namespace esphome {
 namespace api {
 
 class APIConnection : public APIServerConnection {
  public:
-  APIConnection(AsyncClient *client, APIServer *parent);
+  APIConnection(network::AsyncClient *client, APIServer *parent);
   virtual ~APIConnection();
 
   void disconnect_client();
@@ -167,7 +168,7 @@ class APIConnection : public APIServerConnection {
   bool service_call_subscription_{false};
   bool current_nodelay_{false};
   bool next_close_{false};
-  AsyncClient *client_;
+  network::AsyncClient *client_;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
   ListEntitiesIterator list_entities_iterator_;

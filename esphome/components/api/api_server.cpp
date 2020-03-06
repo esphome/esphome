@@ -13,14 +13,13 @@
 
 #include <algorithm>
 
-asynctcp::AsyncServer *createAsyncServer(uint16_t port)
-{
-	// Here it would be possible to return any transport implementation.
-	return new esphome::network::AsyncTcpServerImpl(port);
-}
-
 namespace esphome {
 namespace api {
+
+network::AsyncServer *createAsyncServer(uint16_t port) {
+  // Here it would be possible to return any transport implementation.
+  return new esphome::network::AsyncTcpServerImpl(port);
+}
 
 static const char *TAG = "api";
 
@@ -32,7 +31,7 @@ void APIServer::setup() {
   this->server_->setNoDelay(false);
   this->server_->begin();
   this->server_->onClient(
-      [](void *s, asynctcp::AsyncClient *client) {
+      [](void *s, esphome::network::AsyncClient *client) {
         if (client == nullptr)
           return;
 

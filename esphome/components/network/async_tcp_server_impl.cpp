@@ -18,38 +18,26 @@
 namespace esphome {
 namespace network {
 
-AsyncTcpServerImpl::AsyncTcpServerImpl(uint16_t port)
-	:impl_(new ::AsyncServer(port))
-{
+AsyncTcpServerImpl::AsyncTcpServerImpl(uint16_t port) : impl_(new ::AsyncServer(port)) {}
 
+AsyncTcpServerImpl::~AsyncTcpServerImpl() { impl_->end(); }
+
+void AsyncTcpServerImpl::onClient(AcConnectHandler cb, void* arg) {
+  impl_->onClient(
+      [cb](void* arg, ::AsyncClient* connection) {
+        AsyncTcpClientImpl* client_wrapper = new AsyncTcpClientImpl(connection);
+        cb(arg, client_wrapper);
+      },
+      arg);
 }
 
-AsyncTcpServerImpl::~AsyncTcpServerImpl() {
-	impl_->end();
-}
+void AsyncTcpServerImpl::begin() { impl_->begin(); }
 
-void AsyncTcpServerImpl::onClient(asynctcp::AcConnectHandler cb, void* arg) {
-	impl_->onClient([cb](void* arg, ::AsyncClient *connection) {
-		AsyncTcpClientImpl *client_wrapper = new AsyncTcpClientImpl(connection);
-		cb(arg, client_wrapper);
-	}, arg);
-}
+void AsyncTcpServerImpl::end() { impl_->end(); }
 
-void AsyncTcpServerImpl::begin() {
-	impl_->begin();
-}
+void AsyncTcpServerImpl::setNoDelay(bool nodelay) { impl_->setNoDelay(nodelay); }
 
-void AsyncTcpServerImpl::end() {
-	impl_->end();
-}
-
-void AsyncTcpServerImpl::setNoDelay(bool nodelay) {
-	impl_->setNoDelay(nodelay);
-}
-
-bool AsyncTcpServerImpl::getNoDelay() const {
-	return impl_->getNoDelay();
-}
+bool AsyncTcpServerImpl::getNoDelay() const { return impl_->getNoDelay(); }
 
 } /* namespace network */
 } /* namespace esphome */

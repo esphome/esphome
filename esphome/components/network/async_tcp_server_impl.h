@@ -15,20 +15,20 @@ class AsyncServer;
 namespace esphome {
 namespace network {
 
-class AsyncTcpServerImpl: public asynctcp::AsyncServer {
-public:
-	AsyncTcpServerImpl(uint16_t port);
-	virtual ~AsyncTcpServerImpl();
+class AsyncTcpServerImpl : public AsyncServer {
+ public:
+  AsyncTcpServerImpl(uint16_t port);
+  virtual ~AsyncTcpServerImpl();
 
-	virtual void onClient(asynctcp::AcConnectHandler cb, void* arg) override;
-	virtual void begin() override;
-	virtual void end() override;
-	virtual void setNoDelay(bool nodelay) override;
-	virtual bool getNoDelay() const override;
-protected:
-	std::unique_ptr<::AsyncServer> impl_;
+  virtual void onClient(AcConnectHandler cb, void* arg) override;
+  virtual void begin() override;
+  virtual void end() override;
+  virtual void setNoDelay(bool nodelay) override;
+  virtual bool getNoDelay() const override;
+
+ protected:
+  std::unique_ptr<::AsyncServer> impl_;
 };
 
 } /* namespace network */
 } /* namespace esphome */
-
