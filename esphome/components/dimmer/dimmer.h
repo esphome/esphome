@@ -7,7 +7,7 @@
 namespace esphome {
 namespace dimmer {
 
-enum DimMethod { DIM_METHOD_TRAILING_PULSE = 0, DIM_METHOD_TRAILING, DIM_METHOD_LEADING };
+enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
 struct DimmerDataStore {
   /// Zero-cross pin

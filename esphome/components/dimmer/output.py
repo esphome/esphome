@@ -9,9 +9,9 @@ Dimmer = dimmer_ns.class_('Dimmer', output.FloatOutput, cg.Component)
 
 DimMethod = dimmer_ns.enum('DimMethod')
 DIM_METHODS = {
-    'TRAILING_PULSE': DimMethod.DIM_METHOD_TRAILING_PULSE,
-    'TRAILING': DimMethod.DIM_METHOD_TRAILING,
+    'LEADING_PULSE': DimMethod.DIM_METHOD_LEADING_PULSE,
     'LEADING': DimMethod.DIM_METHOD_LEADING,
+    'TRAILING': DimMethod.DIM_METHOD_TRAILING,
 }
 
 CONF_GATE_PIN = 'gate_pin'
@@ -22,7 +22,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend({
     cv.Required(CONF_GATE_PIN): pins.internal_gpio_output_pin_schema,
     cv.Required(CONF_ZERO_CROSS_PIN): pins.internal_gpio_input_pin_schema,
     cv.Optional(CONF_INIT_WITH_HALF_CYCLE, default=True): cv.boolean,
-    cv.Optional(CONF_METHOD, default='trailing pulse'): cv.enum(DIM_METHODS, upper=True, space='_'),
+    cv.Optional(CONF_METHOD, default='leading pulse'): cv.enum(DIM_METHODS, upper=True, space='_'),
 }).extend(cv.COMPONENT_SCHEMA)
 
 

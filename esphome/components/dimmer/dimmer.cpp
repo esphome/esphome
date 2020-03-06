@@ -57,31 +57,6 @@ uint32_t ICACHE_RAM_ATTR HOT DimmerDataStore::timer_intr(uint32_t now) {
   }
 
   return this->cycle_time_us - time_since_zc;
-
-  // if (this->enable_time_us != 0) {
-  //   if (time_since_zc >= this->enable_time_us) {
-  //     this->gate_pin->digital_write(true);
-  //     // Reset enable time
-  //     this->enable_time_us = 0;
-
-  //     // Wait next reschedule
-  //     if (this->method == DIM_METHOD_TRAILING) {
-  //       // No need to turn off, will turn off at ZC
-  //       return 0;
-  //     } else if (this->method == DIM_METHOD_TRAILING_PULSE) {
-  //       // Turn off in gate time
-  //       return GATE_ENABLE_TIME;
-  //     }
-  //   } else {
-  //     // Next event is enable, return time until that event
-  //     return this->enable_time_us - time_since_zc;
-  //   }
-  // }
-  // if (this->disable_time_us != 0) {
-  //   if (time_since_zc >= this->disable_time_us) {
-  //     this->gate_pin->digital_write(false);
-  //   }
-  // }
 }
 
 /// Run timer interrupt code and return in how many µs the next event is expected
@@ -104,8 +79,18 @@ uint32_t ICACHE_RAM_ATTR HOT timer_interrupt() {
 /// GPIO interrupt routine, called when ZC pin triggers
 void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
   uint32_t prev_crossed = this->crossed_zero_at;
+
+  // 50Hz mains frequency should give a half cycle of 10ms a 60Hz will give 8.33ms
+  // in any case  the cycle last at least 5ms
   this->crossed_zero_at = micros();
-  this->cycle_time_us = this->crossed_zero_at - prev_crossed;
+  uint32_t cycle_time = this->crossed_zero_at - prev_crossed;
+  if (cycle_time > 5000) {
+    this->cycle_time_us = cycle_time;
+  } else {
+    // Otherwise we have a noise and this is 2nd (or 3rd...) fall in the same pulse
+    // We should consider this is the right fall edge and accumulate the cycle time instead
+    this->cycle_time_us += cycle_time;
+  }
 
   if (this->value == 65535) {
     // fully on, enable output immediately
@@ -119,14 +104,14 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
     // fully off, disable output immediately
     this->gate_pin->digital_write(false);
   } else {
-    if (this->method == DIM_METHOD_LEADING) {
+    if (this->method == DIM_METHOD_TRAILING) {
       this->enable_time_us = 1;  // cannot be 0
       this->disable_time_us = max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
       auto min_us = this->cycle_time_us * this->min_power / 1000;
       this->enable_time_us = max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
-      if (this->method == DIM_METHOD_TRAILING_PULSE) {
+      if (this->method == DIM_METHOD_LEADING_PULSE) {
         // Minimum pulse time should be enough for the triac to trigger when we are just close to the ZC zone
         // this is for brightness near 99%
         this->disable_time_us = max(this->enable_time_us + GATE_ENABLE_TIME, (uint32_t) cycle_time_us / 10);
@@ -212,12 +197,12 @@ void Dimmer::dump_config() {
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
   ESP_LOGCONFIG(TAG, "   Min Power: %.1f%%", this->store_.min_power / 10.0f);
   ESP_LOGCONFIG(TAG, "   Init with half cycle: %s", YESNO(this->init_with_half_cycle_));
-  if (method_ == DIM_METHOD_TRAILING_PULSE)
-    ESP_LOGCONFIG(TAG, "   Method: trailing pulse");
-  else if (method_ == DIM_METHOD_TRAILING)
-    ESP_LOGCONFIG(TAG, "   Method: trailing");
-  else
+  if (method_ == DIM_METHOD_LEADING_PULSE)
+    ESP_LOGCONFIG(TAG, "   Method: leading pulse");
+  else if (method_ == DIM_METHOD_LEADING)
     ESP_LOGCONFIG(TAG, "   Method: leading");
+  else
+    ESP_LOGCONFIG(TAG, "   Method: trailing");
 
   LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
