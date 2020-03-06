@@ -5,12 +5,19 @@
 #include "esphome/core/util.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/version.h"
+#include "esphome/components/network/async_tcp_server_impl.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 
 #include <algorithm>
+
+asynctcp::AsyncServer *createAsyncServer(uint16_t port)
+{
+	// Here it would be possible to return any transport implementation.
+	return new esphome::network::AsyncTcpServerImpl(port);
+}
 
 namespace esphome {
 namespace api {
@@ -21,11 +28,11 @@ static const char *TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  this->server_ = AsyncServer(this->port_);
-  this->server_.setNoDelay(false);
-  this->server_.begin();
-  this->server_.onClient(
-      [](void *s, AsyncClient *client) {
+  this->server_.reset(createAsyncServer(this->port_));
+  this->server_->setNoDelay(false);
+  this->server_->begin();
+  this->server_->onClient(
+      [](void *s, asynctcp::AsyncClient *client) {
         if (client == nullptr)
           return;
 

@@ -1,4 +1,6 @@
 #include "api_connection.h"
+
+#include "../network/async_tcp.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/version.h"
@@ -79,6 +81,13 @@ void APIConnection::parse_recv_buffer_() {
     this->recv_buffer_.erase(this->recv_buffer_.begin(), this->recv_buffer_.begin() + total);
     this->last_traffic_ = millis();
   }
+}
+
+void APIConnection::set_nodelay(bool nodelay) {
+  if (nodelay == this->current_nodelay_)
+    return;
+  this->client_->setNoDelay(nodelay);
+  this->current_nodelay_ = nodelay;
 }
 
 void APIConnection::disconnect_client() {

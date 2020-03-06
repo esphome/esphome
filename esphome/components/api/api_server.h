@@ -12,15 +12,15 @@
 #include "homeassistant_service.h"
 #include "user_services.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-#include <AsyncTCP.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <ESPAsyncTCP.h>
-#endif
+namespace asynctcp {
+	class AsyncServer;
+	class AsyncClient;
+}
 
 namespace esphome {
 namespace api {
+
+using namespace asynctcp;
 
 class APIServer : public Component, public Controller {
  public:
@@ -79,7 +79,7 @@ class APIServer : public Component, public Controller {
   const std::vector<UserServiceDescriptor *> &get_user_services() const { return this->user_services_; }
 
  protected:
-  AsyncServer server_{0};
+  std::unique_ptr<AsyncServer> server_;
   uint16_t port_{6053};
   uint32_t reboot_timeout_{300000};
   uint32_t last_connected_{0};
