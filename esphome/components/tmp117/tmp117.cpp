@@ -15,7 +15,7 @@ void TMP117Component::update() {
     this->status_set_warning();
     return;
   }
-  if(data != 0x8000){
+  if ((uint16_t) data != 0x8000){
     float temperature = data * 0.0078125f;
 
     ESP_LOGD(TAG, "Got temperature=%.2f°C", temperature);
@@ -49,7 +49,7 @@ void TMP117Component::dump_config() {
 }
 float TMP117Component::get_setup_priority() const { return setup_priority::DATA; }
 bool TMP117Component::read_data_(int16_t *data) {
-  if (!this->read_byte_16(0, (uint16_t*)data)) {
+  if (!this->read_byte_16(0, (uint16_t*) data)) {
     ESP_LOGW(TAG, "Updating TMP117 failed!");
     return false;
   }
@@ -57,7 +57,7 @@ bool TMP117Component::read_data_(int16_t *data) {
 }
 
 bool TMP117Component::read_config_(uint16_t *config) {
-  if (!this->read_byte_16(1, (uint16_t*)config)) {
+  if (!this->read_byte_16(1, (uint16_t*) config)) {
     ESP_LOGW(TAG, "Reading TMP117 config failed!");
     return false;
   }
