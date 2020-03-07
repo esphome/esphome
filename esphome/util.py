@@ -153,7 +153,9 @@ class RedirectText:
         return True
 
 
-def run_external_command(func, *cmd, capture_stdout: bool = False, filter_lines: str = None) -> Union[int, str]:
+def run_external_command(func, *cmd,
+                         capture_stdout: bool = False,
+                         filter_lines: str = None) -> Union[int, str]:
     """
     Run a function from an external package that acts like a main method.
 
