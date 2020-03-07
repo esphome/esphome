@@ -714,6 +714,9 @@ sensor:
       name: "Lightning Energy"
     distance:
       name: "Distance Storm"
+  - platform: tmp117
+    name: "TMP117 Temperature"
+    update_interval: 5s
 
 esp32_touch:
   setup_mode: False
