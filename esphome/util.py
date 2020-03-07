@@ -1,3 +1,5 @@
+from typing import Union
+
 import collections
 import io
 import logging
@@ -151,7 +153,19 @@ class RedirectText:
         return True
 
 
-def run_external_command(func, *cmd, **kwargs):
+def run_external_command(func, *cmd, capture_stdout: bool = False, filter_lines: str = None) -> Union[int, str]:
+    """
+    Run a function from an external package that acts like a main method.
+
+    Temporarily replaces stdin/stderr/stdout, sys.argv and sys.exit handler during the run.
+
+    :param func: Function to execute
+    :param cmd: Command to run as (eg first element of sys.argv)
+    :param capture_stdout: Capture text from stdout and return that.
+    :param filter_lines: Regular expression used to filter captured output.
+    :return: str if `capture_stdout` is set else int exit code.
+
+    """
     def mock_exit(return_code):
         raise SystemExit(return_code)
 
@@ -160,13 +174,11 @@ def run_external_command(func, *cmd, **kwargs):
     full_cmd = ' '.join(shlex_quote(x) for x in cmd)
     _LOGGER.info("Running:  %s", full_cmd)
 
-    filter_lines = kwargs.get('filter_lines')
     orig_stdout = sys.stdout
     sys.stdout = RedirectText(sys.stdout, filter_lines=filter_lines)
     orig_stderr = sys.stderr
     sys.stderr = RedirectText(sys.stderr, filter_lines=filter_lines)
 
-    capture_stdout = kwargs.get('capture_stdout', False)
     if capture_stdout:
         cap_stdout = sys.stdout = io.StringIO()
 
