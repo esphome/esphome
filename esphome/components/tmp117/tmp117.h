@@ -19,7 +19,7 @@ class TMP117Component : public PollingComponent, public i2c::I2CDevice, public s
   bool read_data_(int16_t *data);
   bool read_config_(uint16_t *config);
   bool write_config_(uint16_t config);
-  
+
   uint16_t config_;
 };
 
