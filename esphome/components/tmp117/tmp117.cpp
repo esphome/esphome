@@ -66,7 +66,7 @@ bool TMP117Component::read_config_(uint16_t *config) {
 
 bool TMP117Component::write_config_(uint16_t config) {
   if (!this->write_byte_16(1, config)) {
-    ESP_LOGW(TAG, "Writing TMP117 config failed!");
+    ESP_LOGE(TAG, "Writing TMP117 config failed!");
     return false;
   }
   return true;
