@@ -27,10 +27,12 @@ class HttpRequestComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_url(const char *url) { this->url_ = url; }
+  void set_url(std::string url) {
+    this->url_ = url.c_str();
+    this->secure_ = url.compare(0, 6, "https:") == 0;
+  }
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
-  void set_secure(bool secure) { this->secure_ = secure; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
@@ -57,9 +59,8 @@ class HttpRequestComponent : public Component {
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(const char *, url)
+  TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
-  TEMPLATABLE_VALUE(boolean, secure)
   TEMPLATABLE_VALUE(std::string, body)
   TEMPLATABLE_VALUE(const char *, useragent)
   TEMPLATABLE_VALUE(uint16_t, timeout)
@@ -73,7 +74,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
-    this->parent_->set_secure(this->secure_.value(x...));
     if (this->body_.has_value()) {
       this->parent_->set_body(this->body_.value(x...));
     }
