@@ -420,6 +420,12 @@ void WiFiComponent::check_connecting_finished() {
   wl_status_t status = this->wifi_sta_status_();
 
   if (status == WL_CONNECTED) {
+    if (WiFi.SSID().equals("")) {
+      ESP_LOGW(TAG, "Incomplete connection.");
+      this->retry_connect();
+      return;
+    }
+
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
