@@ -14,14 +14,15 @@ void HttpRequestComponent::dump_config() {
 
 void HttpRequestComponent::send() {
   bool begin_status = false;
+  this->client_.setReuse(true);
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(this->url_);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
+  begin_status = this->client_.begin(*this->get_wifi_client_(), this->url_);
 #endif
 #endif
 
@@ -41,8 +42,6 @@ void HttpRequestComponent::send() {
   }
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
-  this->client_.end();
-
   if (http_code < 0) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_, HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
@@ -58,6 +57,28 @@ void HttpRequestComponent::send() {
   this->status_clear_warning();
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
 }
+
+#ifdef ARDUINO_ARCH_ESP8266
+WiFiClient *HttpRequestComponent::get_wifi_client_() {
+  if (this->secure_) {
+    if (this->wifi_client_secure_ == nullptr) {
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_->setInsecure();
+      this->wifi_client_secure_->setBufferSizes(512, 512);
+    }
+    return this->wifi_client_secure_;
+  }
+
+  if (this->wifi_client_ == nullptr) {
+    this->wifi_client_ = new WiFiClient();
+  }
+  return this->wifi_client_;
+}
+#endif
+
+void HttpRequestComponent::close() { this->client_.end(); }
+
+const char *HttpRequestComponent::get_string() { return this->client_.getString().c_str(); }
 
 }  // namespace http_request
 }  // namespace esphome
