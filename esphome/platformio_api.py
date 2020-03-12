@@ -1,4 +1,6 @@
 import json
+from typing import Union
+
 import logging
 import os
 import re
@@ -62,7 +64,7 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-def run_platformio_cli(*args, **kwargs):
+def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
@@ -80,7 +82,7 @@ def run_platformio_cli(*args, **kwargs):
                                 *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs):
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
     command = ['run', '-d', CORE.build_path]
     if verbose:
         command += ['-v']
