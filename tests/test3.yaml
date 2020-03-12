@@ -335,6 +335,8 @@ sensor:
       name: "PZEMAC Current"
     power:
       name: "PZEMAC Power"
+    energy:
+      name: "PZEMAC Energy"
     frequency:
       name: "PZEMAC Frequency"
     power_factor:
