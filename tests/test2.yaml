@@ -49,10 +49,6 @@ web_server:
     username: admin
     password: admin
 
-deep_sleep:
-  run_duration: 20s
-  sleep_duration: 50s
-
 as3935_i2c:
   irq_pin: GPIO12
 
