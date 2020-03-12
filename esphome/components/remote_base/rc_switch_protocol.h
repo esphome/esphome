@@ -6,6 +6,13 @@
 namespace esphome {
 namespace remote_base {
 
+struct RCSwitchData {
+  uint64_t code;
+  uint8_t protocol;
+
+  bool operator==(const RCSwitchData &rhs) const { return code == rhs.code && protocol == rhs.protocol; }
+};
+
 class RCSwitchBase {
  public:
   RCSwitchBase() = default;
@@ -27,6 +34,8 @@ class RCSwitchBase {
   bool expect_sync(RemoteReceiveData &src) const;
 
   bool decode(RemoteReceiveData &src, uint64_t *out_data, uint8_t *out_nbits) const;
+
+  optional<RCSwitchData> decode(RemoteReceiveData &src) const;
 
   static void simple_code_to_tristate(uint16_t code, uint8_t nbits, uint64_t *out_code);
 
@@ -203,6 +212,8 @@ class RCSwitchDumper : public RemoteReceiverDumperBase {
  public:
   bool dump(RemoteReceiveData src) override;
 };
+
+using RCSwitchTrigger = RemoteReceiverTrigger<RCSwitchBase, RCSwitchData>;
 
 }  // namespace remote_base
 }  // namespace esphome
