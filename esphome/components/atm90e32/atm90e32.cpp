@@ -73,11 +73,11 @@ void ATM90E32Component::setup() {
 
   uint16_t mmode0 = 0x87; // 3P4W 50Hz
   if (line_freq_ == 60) {
-    mmode0 |= 1 << 12; // sets 12th bit to 1, 60Hz
+    mmode0 |= 1 << 12;  // sets 12th bit to 1, 60Hz
   }
   if (current_phases_ == 2) {
-    mmode0 |= 1 << 8; // sets 8th bit to 1, 3P3W
-    mmode0 |= 0 << 1; // sets 1st bit to 0, phase b is not counted into the all-phase sum energy/power (P/Q/S)
+    mmode0 |= 1 << 8;  // sets 8th bit to 1, 3P3W
+    mmode0 |= 0 << 1;  // sets 1st bit to 0, phase b is not counted into the all-phase sum energy/power (P/Q/S)
   }
   
   this->write16_(ATM90E32_REGISTER_SOFTRESET, 0x789A);    // Perform soft reset
@@ -89,14 +89,14 @@ void ATM90E32Component::setup() {
     return;
   }
   
-  this->write16_(ATM90E32_REGISTER_PLCONSTH, 0x0861);                    // PL Constant MSB (default) - Meter Constant = 3200 - PL Constant = 140625000
-  this->write16_(ATM90E32_REGISTER_PLCONSTL, 0xC468);                    // PL Constant LSB (default) - this is 4C68 in the application note, which is incorrect
+  this->write16_(ATM90E32_REGISTER_PLCONSTH, 0x0861);                    // PL Constant MSB (default) = 140625000
+  this->write16_(ATM90E32_REGISTER_PLCONSTL, 0xC468);                    // PL Constant LSB (default)
   this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0xD654);                    // ZX2, ZX1, ZX0 pin config
   this->write16_(ATM90E32_REGISTER_MMODE0, mmode0);                      // Mode Config (frequency set in main program)
   this->write16_(ATM90E32_REGISTER_MMODE1, pga_gain_);                   // PGA Gain Configuration for Current Channels
-  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x1D4C);                    // All Phase Active Startup Power Threshold - 50% of startup current = 0.02A/0.00032 = 7500
-  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x1D4C);                    // All Phase Reactive Startup Power Threshold - 50%
-  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x02EE);                    // Each Phase Active Phase Threshold - 10% of startup current = 0.002A/0.00032 = 750
+  this->write16_(ATM90E32_REGISTER_PSTARTTH, 0x1D4C);                    // All Active Startup Power Threshold - 0.02A/0.00032 = 7500
+  this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x1D4C);                    // All Reactive Startup Power Threshold - 50%
+  this->write16_(ATM90E32_REGISTER_PPHASETH, 0x02EE);                    // Each Phase Active Phase Threshold - 0.002A/0.00032 = 750
   this->write16_(ATM90E32_REGISTER_QPHASETH, 0x02EE);                    // Each phase Reactive Phase Threshold - 10%
   this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);  // A Voltage rms gain
   this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);    // A line current gain
