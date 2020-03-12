@@ -546,7 +546,9 @@ RC_SWITCH_TRANSMITTER = cv.Schema({
 })
 
 rc_switch_protocols = ns.rc_switch_protocols
+RCSwitchData = ns.struct('RCSwitchData')
 RCSwitchBase = ns.class_('RCSwitchBase')
+RCSwitchTrigger = ns.class_('RCSwitchTrigger', RemoteReceiverTrigger)
 RCSwitchDumper = ns.class_('RCSwitchDumper', RemoteTransmitterDumper)
 RCSwitchRawAction = ns.class_('RCSwitchRawAction', RemoteTransmitterActionBase)
 RCSwitchTypeAAction = ns.class_('RCSwitchTypeAAction', RemoteTransmitterActionBase)
@@ -640,6 +642,11 @@ def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.std_string))))
     cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
     cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, bool))))
+
+
+@register_trigger('rc_switch', RCSwitchTrigger, RCSwitchData)
+def rc_switch_trigger(var, config):
+    pass
 
 
 @register_dumper('rc_switch', RCSwitchDumper)
