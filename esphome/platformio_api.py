@@ -98,7 +98,7 @@ def run_upload(config, verbose, port):
 
 def run_idedata(config):
     args = ['-t', 'idedata']
-    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True).decode()
+    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.debug("Could not match IDEData for %s", stdout)
