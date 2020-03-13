@@ -282,3 +282,12 @@ class TestStatements:
 # TODO: This method has side effects in CORE
 # def test_progmem_array():
 #     pass
+
+
+class TestMockObj:
+    def test_getattr(self):
+        target = cg.MockObj("foo")
+        actual = target.eek
+        assert isinstance(actual, cg.MockObj)
+        assert actual.base == "foo.eek"
+        assert actual.op == "."
