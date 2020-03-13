@@ -80,7 +80,7 @@ void ATM90E32Component::setup() {
     mmode0 |= 1 << 8;  // sets 8th bit to 1, 3P3W
     mmode0 |= 0 << 1;  // sets 1st bit to 0, phase b is not counted into the all-phase sum energy/power (P/Q/S)
   }
-  
+
   this->write16_(ATM90E32_REGISTER_SOFTRESET, 0x789A);    // Perform soft reset
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);  // enable register config access
   this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);      // Enable Metering
