@@ -75,6 +75,7 @@ void ATM90E32Component::setup() {
   if (line_freq_ == 60) {
     mmode0 |= 1 << 12;  // sets 12th bit to 1, 60Hz
   }
+
   if (current_phases_ == 2) {
     mmode0 |= 1 << 8;  // sets 8th bit to 1, 3P3W
     mmode0 |= 0 << 1;  // sets 1st bit to 0, phase b is not counted into the all-phase sum energy/power (P/Q/S)
@@ -88,7 +89,6 @@ void ATM90E32Component::setup() {
     this->mark_failed();
     return;
   }
-  
   this->write16_(ATM90E32_REGISTER_PLCONSTH, 0x0861);   // PL Constant MSB (default) = 140625000
   this->write16_(ATM90E32_REGISTER_PLCONSTL, 0xC468);   // PL Constant LSB (default)
   this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0xD654);   // ZX2, ZX1, ZX0 pin config
