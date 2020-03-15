@@ -23,7 +23,7 @@ void TMP102Component::dump_config() {
     ESP_LOGE(TAG, "Communication with TMP102 failed!");
   }
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
+  LOG_SENSOR("  ", "Temperature", this);
 }
 
 void TMP102Component::update() {
@@ -37,8 +37,7 @@ void TMP102Component::update() {
   float temperature = raw_temperature * TMP102_CONVERSION_FACTOR;
   ESP_LOGD(TAG, "Got Temperature=%.1f°C", temperature);
 
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temperature);
+  this->publish_state(temperature);
 }
 
 float TMP102Component::get_setup_priority() const { return setup_priority::DATA; }
