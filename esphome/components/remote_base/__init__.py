@@ -5,7 +5,7 @@ from esphome.components import binary_sensor
 from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
     CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
     CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY
+    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_RC_CODE_1, CONF_RC_CODE_2
 from esphome.core import coroutine
 from esphome.util import Registry, SimpleRegistry
 
@@ -86,7 +86,7 @@ def validate_repeat(value):
     if isinstance(value, dict):
         return cv.Schema({
             cv.Required(CONF_TIMES): cv.templatable(cv.positive_int),
-            cv.Optional(CONF_WAIT_TIME, default='10ms'):
+            cv.Optional(CONF_WAIT_TIME, default='25ms'):
                 cv.templatable(cv.positive_time_period_microseconds),
         })(value)
     return validate_repeat({CONF_TIMES: value})
@@ -286,6 +286,42 @@ def nec_action(var, config, args):
     cg.add(var.set_address(template_))
     template_ = yield cg.templatable(config[CONF_COMMAND], args, cg.uint16)
     cg.add(var.set_command(template_))
+
+
+# Pioneer
+(PioneerData, PioneerBinarySensor, PioneerTrigger, PioneerAction,
+ PioneerDumper) = declare_protocol('Pioneer')
+PIONEER_SCHEMA = cv.Schema({
+    cv.Required(CONF_RC_CODE_1): cv.hex_uint16_t,
+    cv.Optional(CONF_RC_CODE_2, default=0): cv.hex_uint16_t,
+})
+
+
+@register_binary_sensor('pioneer', PioneerBinarySensor, PIONEER_SCHEMA)
+def pioneer_binary_sensor(var, config):
+    cg.add(var.set_data(cg.StructInitializer(
+        PioneerData,
+        ('rc_code_1', config[CONF_RC_CODE_1]),
+        ('rc_code_2', config[CONF_RC_CODE_2]),
+    )))
+
+
+@register_trigger('pioneer', PioneerTrigger, PioneerData)
+def pioneer_trigger(var, config):
+    pass
+
+
+@register_dumper('pioneer', PioneerDumper)
+def pioneer_dumper(var, config):
+    pass
+
+
+@register_action('pioneer', PioneerAction, PIONEER_SCHEMA)
+def pioneer_action(var, config, args):
+    template_ = yield cg.templatable(config[CONF_RC_CODE_1], args, cg.uint16)
+    cg.add(var.set_rc_code_1(template_))
+    template_ = yield cg.templatable(config[CONF_RC_CODE_2], args, cg.uint16)
+    cg.add(var.set_rc_code_2(template_))
 
 
 # Sony
@@ -510,7 +546,9 @@ RC_SWITCH_TRANSMITTER = cv.Schema({
 })
 
 rc_switch_protocols = ns.rc_switch_protocols
+RCSwitchData = ns.struct('RCSwitchData')
 RCSwitchBase = ns.class_('RCSwitchBase')
+RCSwitchTrigger = ns.class_('RCSwitchTrigger', RemoteReceiverTrigger)
 RCSwitchDumper = ns.class_('RCSwitchDumper', RemoteTransmitterDumper)
 RCSwitchRawAction = ns.class_('RCSwitchRawAction', RemoteTransmitterActionBase)
 RCSwitchTypeAAction = ns.class_('RCSwitchTypeAAction', RemoteTransmitterActionBase)
@@ -604,6 +642,11 @@ def rc_switch_type_d_action(var, config, args):
     cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.std_string))))
     cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
     cg.add(var.set_state((yield cg.templatable(config[CONF_STATE], args, bool))))
+
+
+@register_trigger('rc_switch', RCSwitchTrigger, RCSwitchData)
+def rc_switch_trigger(var, config):
+    pass
 
 
 @register_dumper('rc_switch', RCSwitchDumper)
