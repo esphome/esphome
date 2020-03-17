@@ -265,8 +265,8 @@ sensor:
         name: "EMON Reactive Power CT1"
       power_factor:
         name: "EMON Power Factor CT1"
-      gain_voltage: 47660
-      gain_ct: 12577
+      gain_voltage: 7305
+      gain_ct: 27961
     phase_b:
       current:
         name: "EMON CT2 Current"
@@ -276,8 +276,8 @@ sensor:
         name: "EMON Reactive Power CT2"
       power_factor:
         name: "EMON Power Factor CT2"
-      gain_voltage: 47660
-      gain_ct: 12577
+      gain_voltage: 7305
+      gain_ct: 27961
     phase_c:
       current:
         name: "EMON CT3 Current"
@@ -287,13 +287,14 @@ sensor:
         name: "EMON Reactive Power CT3"
       power_factor:
         name: "EMON Power Factor CT3"
-      gain_voltage: 47660
-      gain_ct: 12577
+      gain_voltage: 7305
+      gain_ct: 27961
     frequency:
       name: "EMON Line Frequency"
     chip_temperature:
       name: "EMON Chip Temp A"
-    line_frequency: 50Hz
+    line_frequency: 60Hz
+    current_phases: 3
     gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
@@ -584,6 +585,8 @@ sensor:
       name: "Living Room Humidity 9"
     address: 0x61
     update_interval: 15s
+    automatic_self_calibration: true
+    altitude_compensation: 10m
   - platform: sgp30
     eco2:
       name: "Workshop eCO2"
@@ -714,6 +717,9 @@ sensor:
       name: "Lightning Energy"
     distance:
       name: "Distance Storm"
+  - platform: tmp117
+    name: "TMP117 Temperature"
+    update_interval: 5s
 
 esp32_touch:
   setup_mode: False
@@ -1190,6 +1196,8 @@ climate:
     name: Coolix Climate
   - platform: fujitsu_general
     name: Fujitsu General Climate
+  - platform: daikin
+    name: Daikin Climate
   - platform: yashima
     name: Yashima Climate
   - platform: mitsubishi
