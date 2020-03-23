@@ -36,6 +36,9 @@ const uint32_t DAIKIN_ONE_SPACE = 1370;
 const uint32_t DAIKIN_ZERO_SPACE = 520;
 const uint32_t DAIKIN_MESSAGE_SPACE = 32300;
 
+// State Frame size
+const uint8_t DAIKIN_STATE_FRAME_SIZE = 19;
+
 class DaikinClimate : public climate_ir::ClimateIR {
  public:
   DaikinClimate()
@@ -51,6 +54,9 @@ class DaikinClimate : public climate_ir::ClimateIR {
   uint8_t operation_mode_();
   uint8_t fan_speed_();
   uint8_t temperature_();
+  // Handle received IR Buffer
+  bool on_receive(remote_base::RemoteReceiveData data) override;
+  bool parse_state_frame_(const uint8_t frame[]);
 };
 
 }  // namespace daikin
