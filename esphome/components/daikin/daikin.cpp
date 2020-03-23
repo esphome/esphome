@@ -115,7 +115,8 @@ uint8_t DaikinClimate::temperature_() {
   // Force special temperatures depending on the mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
-      return 25;
+      return 0x32;
+    case climate::CLIMATE_MODE_AUTO:
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
