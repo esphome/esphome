@@ -10,7 +10,7 @@ https://www.sparkfun.com/datasheets/Sensors/Temperature/tmp102.pdf
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER
+from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER, CONF_TEMPERATURE
 
 DEPENDENCIES = ['i2c']
 
