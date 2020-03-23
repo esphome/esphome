@@ -143,6 +143,9 @@ class TimePeriod:
             return f'{self.total_days}d'
         return '0s'
 
+    def __repr__(self):
+        return f"TimePeriod<{self.total_microseconds}>"
+
     @property
     def total_microseconds(self):
         return self.total_milliseconds * 1000 + (self.microseconds or 0)

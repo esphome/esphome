@@ -44,7 +44,7 @@ const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
     0b01001000,            // ':', ord 0x3A
     0b01011000,            // ';', ord 0x3B
     MAX7219_UNKNOWN_CHAR,  // '<', ord 0x3C
-    MAX7219_UNKNOWN_CHAR,  // '=', ord 0x3D
+    0b00001001,            // '=', ord 0x3D
     MAX7219_UNKNOWN_CHAR,  // '>', ord 0x3E
     0b01100101,            // '?', ord 0x3F
     0b01101111,            // '@', ord 0x40
