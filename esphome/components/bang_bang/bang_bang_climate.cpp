@@ -50,14 +50,16 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
+  
+  // dont verify temperature en modo diferent to auto
+  // if (this->mode != climate::CLIMATE_MODE_AUTO) {
     // in non-auto mode, switch directly to appropriate action
     //  - HEAT mode -> HEATING action
     //  - COOL mode -> COOLING action
     //  - OFF mode -> OFF action (not IDLE!)
-    this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
-    return;
-  }
+    // this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
+   //  return;
+ // }
   if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
     // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
@@ -69,13 +71,13 @@ void BangBangClimate::compute_state_() {
   climate::ClimateAction target_action;
   if (too_cold) {
     // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
+    if (this->supports_heat_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
       target_action = climate::CLIMATE_ACTION_IDLE;
   } else if (too_hot) {
     // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
+    if ((this->supports_cool_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_COOL)))
       target_action = climate::CLIMATE_ACTION_COOLING;
     else
       target_action = climate::CLIMATE_ACTION_IDLE;
