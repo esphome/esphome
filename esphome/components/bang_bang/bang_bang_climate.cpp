@@ -71,7 +71,7 @@ void BangBangClimate::compute_state_() {
   climate::ClimateAction target_action;
   if (too_cold) {
     // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
+    if ({this->supports_heat_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
       target_action = climate::CLIMATE_ACTION_IDLE;
