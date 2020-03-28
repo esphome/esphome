@@ -10,7 +10,8 @@ namespace uart {
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
  public:
-  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits);
+  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
+             std::string &parity);
 
   uint8_t read_byte();
   uint8_t peek_byte();
@@ -34,6 +35,8 @@ class ESP8266SoftwareSerial {
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
   uint8_t stop_bits_;
+  uint8_t nr_bits_;
+  std::string parity_;
   ISRInternalGPIOPin *tx_pin_{nullptr};
   ISRInternalGPIOPin *rx_pin_{nullptr};
 };
@@ -42,6 +45,8 @@ class ESP8266SoftwareSerial {
 class UARTComponent : public Component, public Stream {
  public:
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
+
+  uint32_t get_config();
 
   void setup() override;
 
@@ -74,6 +79,8 @@ class UARTComponent : public Component, public Stream {
   void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
+  void set_nr_bits(uint8_t nr_bits) { this->nr_bits_ = nr_bits; }
+  void set_parity(const char *parity) { this->parity_ = std::string(parity); }
 
  protected:
   void check_logger_conflict_();
@@ -88,6 +95,8 @@ class UARTComponent : public Component, public Stream {
   optional<uint8_t> rx_pin_;
   uint32_t baud_rate_;
   uint8_t stop_bits_;
+  uint8_t nr_bits_;
+  std::string parity_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32

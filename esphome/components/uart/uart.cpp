@@ -18,6 +18,65 @@ uint8_t next_uart_num = 1;
 #endif
 
 #ifdef ARDUINO_ARCH_ESP32
+
+#define UART_PARITY_EVEN 0 << 0
+#define UART_PARITY_ODD 1 << 0
+#define UART_PARITY_EN 1 << 1
+#define UART_NB_BIT_5 0 << 2
+#define UART_NB_BIT_6 1 << 2
+#define UART_NB_BIT_7 2 << 2
+#define UART_NB_BIT_8 3 << 2
+#define UART_NB_STOP_BIT_1 1 << 4
+#define UART_NB_STOP_BIT_2 3 << 4
+#define UART_TICK_APB_CLOCK 1 << 27
+
+uint32_t UARTComponent::get_config() {
+  uint32_t config = 0;
+
+  /*
+   * All bits numbers below come from
+   * framework-arduinoespressif32/cores/esp32/esp32-hal-uart.h
+   * And more specifically conf0 union in uart_dev_t.
+   *
+   * Below is bit used from conf0 union.
+   * <name>:<bits position>  <values>
+   * parity:0                0:even 1:odd
+   * parity_en:1             Set this bit to enable uart parity check.
+   * bit_num:2-4             0:5bits 1:6bits 2:7bits 3:8bits
+   * stop_bit_num:4-6        stop bit. 1:1bit  2:1.5bits  3:2bits
+   * tick_ref_always_on:27   select the clock.1：apb clock：ref_tick
+   */
+
+  if (this->parity_ == "even")
+    config |= UART_PARITY_EVEN | UART_PARITY_EN;
+  else if (this->parity_ == "odd")
+    config |= UART_PARITY_ODD | UART_PARITY_EN;
+
+  switch (this->nr_bits_) {
+    case 5:
+      config |= UART_NB_BIT_5;
+      break;
+    case 6:
+      config |= UART_NB_BIT_6;
+      break;
+    case 7:
+      config |= UART_NB_BIT_7;
+      break;
+    case 8:
+      config |= UART_NB_BIT_8;
+      break;
+  }
+
+  if (this->stop_bits_ == 1)
+    config |= UART_NB_STOP_BIT_1;
+  else
+    config |= UART_NB_STOP_BIT_2;
+
+  config |= UART_TICK_APB_CLOCK;
+
+  return config;
+}
+
 void UARTComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up UART...");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
@@ -30,10 +89,7 @@ void UARTComponent::setup() {
   }
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-  uint32_t config = SERIAL_8N1;
-  if (this->stop_bits_ == 2)
-    config = SERIAL_8N2;
-  this->hw_serial_->begin(this->baud_rate_, config, rx, tx);
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx);
 }
 
 void UARTComponent::dump_config() {
@@ -45,6 +101,8 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
+  ESP_LOGCONFIG(TAG, "  Parity: %s", this->parity_.c_str());
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();
 }
@@ -108,17 +166,46 @@ void UARTComponent::flush() {
 #endif  // ESP32
 
 #ifdef ARDUINO_ARCH_ESP8266
+uint32_t UARTComponent::get_config() {
+  uint32_t config = 0;
+
+  if (this->parity_ == "none")
+    config |= UART_PARITY_NONE;
+  else if (this->parity_ == "even")
+    config |= UART_PARITY_EVEN;
+  else if (this->parity_ == "odd")
+    config |= UART_PARITY_ODD;
+
+  switch (this->nr_bits_) {
+    case 5:
+      config |= UART_NB_BIT_5;
+      break;
+    case 6:
+      config |= UART_NB_BIT_6;
+      break;
+    case 7:
+      config |= UART_NB_BIT_7;
+      break;
+    case 8:
+      config |= UART_NB_BIT_8;
+      break;
+  }
+
+  if (this->stop_bits_ == 1)
+    config |= UART_NB_STOP_BIT_1;
+  else
+    config |= UART_NB_STOP_BIT_2;
+
+  return config;
+}
+
 void UARTComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up UART bus...");
   // Use Arduino HardwareSerial UARTs if all used pins match the ones
   // preconfigured by the platform. For example if RX disabled but TX pin
   // is 1 we still want to use Serial.
-  uint32_t mode = UART_NB_BIT_8 | UART_PARITY_NONE;
-  if (this->stop_bits_ == 1)
-    mode |= UART_NB_STOP_BIT_1;
-  else
-    mode |= UART_NB_STOP_BIT_2;
-  SerialConfig config = static_cast<SerialConfig>(mode);
+  SerialConfig config = static_cast<SerialConfig>(get_config());
+
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
@@ -133,7 +220,7 @@ void UARTComponent::setup() {
     this->sw_serial_ = new ESP8266SoftwareSerial();
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_);
+    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_);
   }
 }
 
@@ -146,6 +233,8 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
+  ESP_LOGCONFIG(TAG, "  Parity: %s", this->parity_.c_str());
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
@@ -250,8 +339,12 @@ void UARTComponent::flush() {
   }
 }
 
-void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits) {
+void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
+                                  std::string &parity) {
   this->bit_time_ = F_CPU / baud_rate;
+  this->stop_bits_ = stop_bits;
+  this->nr_bits_ = nr_bits;
+  this->parity_ = parity;
   if (tx_pin != -1) {
     auto pin = GPIOPin(tx_pin, OUTPUT);
     pin.setup();
@@ -265,21 +358,22 @@ void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_ra
     this->rx_buffer_ = new uint8_t[this->rx_buffer_size_];
     pin.attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
   }
-  this->stop_bits_ = stop_bits;
 }
 void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg) {
   uint32_t wait = arg->bit_time_ + arg->bit_time_ / 3 - 500;
   const uint32_t start = ESP.getCycleCount();
   uint8_t rec = 0;
   // Manually unroll the loop
-  rec |= arg->read_bit_(&wait, start) << 0;
-  rec |= arg->read_bit_(&wait, start) << 1;
-  rec |= arg->read_bit_(&wait, start) << 2;
-  rec |= arg->read_bit_(&wait, start) << 3;
-  rec |= arg->read_bit_(&wait, start) << 4;
-  rec |= arg->read_bit_(&wait, start) << 5;
-  rec |= arg->read_bit_(&wait, start) << 6;
-  rec |= arg->read_bit_(&wait, start) << 7;
+  for (int i = 0; i < arg->nr_bits_; i++)
+    rec |= arg->read_bit_(&wait, start) << i;
+
+  /* If parity is enabled, just read it and ignore it. */
+  /* TODO: Should we check parity? Or is it too slow for nothing added..*/
+  if (arg->parity_ == "even")
+    arg->read_bit_(&wait, start);
+  else if (arg->parity_ == "odd")
+    arg->read_bit_(&wait, start);
+
   // Stop bit
   arg->wait_(&wait, start);
   if (arg->stop_bits_ == 2)
@@ -295,6 +389,14 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     ESP_LOGE(TAG, "UART doesn't have TX pins set!");
     return;
   }
+  bool parity_bit = false;
+  bool need_parity_bit = true;
+  if (this->parity_ == "even")
+    parity_bit = true;
+  else if (this->parity_ == "odd")
+    parity_bit = false;
+  else
+    need_parity_bit = false;
 
   {
     InterruptLock lock;
@@ -302,14 +404,14 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     const uint32_t start = ESP.getCycleCount();
     // Start bit
     this->write_bit_(false, &wait, start);
-    this->write_bit_(data & (1 << 0), &wait, start);
-    this->write_bit_(data & (1 << 1), &wait, start);
-    this->write_bit_(data & (1 << 2), &wait, start);
-    this->write_bit_(data & (1 << 3), &wait, start);
-    this->write_bit_(data & (1 << 4), &wait, start);
-    this->write_bit_(data & (1 << 5), &wait, start);
-    this->write_bit_(data & (1 << 6), &wait, start);
-    this->write_bit_(data & (1 << 7), &wait, start);
+    for (int i = 0; i < this->nr_bits_; i++) {
+      bool bit = data & (1 << i);
+      this->write_bit_(bit, &wait, start);
+      if (need_parity_bit)
+        parity_bit ^= bit;
+    }
+    if (need_parity_bit)
+      this->write_bit_(parity_bit, &wait, start);
     // Stop bit
     this->write_bit_(true, &wait, start);
     if (this->stop_bits_ == 2)
