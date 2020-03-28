@@ -5,6 +5,7 @@ namespace esphome {
 namespace bang_bang {
 
 static const char *TAG = "bang_bang.climate";
+bool change_mode;
 
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
@@ -24,10 +25,20 @@ void BangBangClimate::setup() {
     this->mode = climate::CLIMATE_MODE_AUTO;
     this->change_away_(false);
   }
+  change_mode = true;
 }
 void BangBangClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value())
+  uint8_t valor_mode;
+  if (call.get_mode().has_value()){
+    valor_mode = this->mode;
     this->mode = *call.get_mode();
+    if (this->mode != valor_mode){
+      valor_mode = this->mode;     
+      change_mode = true;
+    } else {
+      change_mode = false;
+    }
+  }
   if (call.get_target_temperature_low().has_value())
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
@@ -50,16 +61,8 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
-    // in non-auto mode, switch directly to appropriate action
-    //  - HEAT mode -> HEATING action
-    //  - COOL mode -> COOLING action
-    //  - OFF mode -> OFF action (not IDLE!)
-    this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
-    return;
-  }
   if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
-    // if any control parameters are nan, go to OFF action (not IDLE!)
+    // if any control values are nan, go to OFF (idle) mode
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;
   }
@@ -68,25 +71,68 @@ void BangBangClimate::compute_state_() {
 
   climate::ClimateAction target_action;
   if (too_cold) {
-    // too cold -> enable heating if possible, else idle
-    if (this->supports_heat_)
+    // too cold -> enable heating if possible ( auto or heat), else idle
+    if ((this->supports_heat_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
-      target_action = climate::CLIMATE_ACTION_IDLE;
+      target_action = climate::CLIMATE_ACTION_OFF;
   } else if (too_hot) {
-    // too hot -> enable cooling if possible, else idle
-    if (this->supports_cool_)
+    // too hot -> enable cooling if possible (auto or cool), else idle
+    if ((this->supports_cool_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_COOL)))
       target_action = climate::CLIMATE_ACTION_COOLING;
     else
-      target_action = climate::CLIMATE_ACTION_IDLE;
+      target_action = climate::CLIMATE_ACTION_OFF;
   } else {
-    // neither too hot nor too cold -> in range
-    if (this->supports_cool_ && this->supports_heat_) {
-      // if supports both ends, go to idle action
-      target_action = climate::CLIMATE_ACTION_IDLE;
-    } else {
-      // else use current mode and don't change (hysteresis)
-      target_action = this->action;
+    switch (this->mode) {
+      case climate::CLIMATE_MODE_AUTO: //mode auto
+        if (this->supports_cool_ && this->supports_heat_) {
+          // if supports both ends, go to idle mode
+          target_action = climate::CLIMATE_ACTION_OFF;
+        } else {
+         // else use current mode and not change (hysteresis)
+          target_action = this->action;
+        }
+        break;        
+
+       case climate::CLIMATE_MODE_HEAT: //mode heat
+        if (this->supports_heat_) {
+          if (this->action ==climate::CLIMATE_ACTION_HEATING) {//works until high temperature is reached
+            target_action = this->action;
+            change_mode = false;
+          } else {
+            if (change_mode) { //In manual mode, the operating mode has been changed and starts heating
+              target_action = climate::CLIMATE_ACTION_HEATING; 
+              change_mode = false;
+            } else {// hysteresic
+              target_action = climate::CLIMATE_ACTION_OFF;
+            }
+          }
+        } else { //not support_heat
+          target_action = climate::CLIMATE_ACTION_OFF;
+        }
+        break;
+
+      case climate::CLIMATE_MODE_COOL: //mode cool
+        if (this->supports_cool_) {
+          if (this->action == climate::CLIMATE_ACTION_COOLING) { //works until low temperature is reached
+            target_action = this->action;
+            change_mode = false;
+          } else {
+            if (change_mode) {  //In manual mode, the operating mode has been changed and starts cooling
+              target_action = climate::CLIMATE_ACTION_COOLING; 
+              change_mode = false;
+            } else {//hysteresic
+              target_action = climate::CLIMATE_ACTION_OFF;
+            }
+          } 
+        } else { //not supports_cool
+          target_action = climate::CLIMATE_ACTION_OFF;
+        }
+        break;
+
+      default :
+        // other mode
+        target_action = this->action;       
     }
   }
 
@@ -97,16 +143,6 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     // already in target mode
     return;
 
-  if ((action == climate::CLIMATE_ACTION_OFF && this->action == climate::CLIMATE_ACTION_IDLE) ||
-      (action == climate::CLIMATE_ACTION_IDLE && this->action == climate::CLIMATE_ACTION_OFF)) {
-    // switching from OFF to IDLE or vice-versa
-    // these only have visual difference. OFF means user manually disabled,
-    // IDLE means it's in auto mode but value is in target range.
-    this->action = action;
-    this->publish_state();
-    return;
-  }
-
   if (this->prev_trigger_ != nullptr) {
     this->prev_trigger_->stop();
     this->prev_trigger_ = nullptr;
@@ -114,7 +150,6 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   Trigger<> *trig;
   switch (action) {
     case climate::CLIMATE_ACTION_OFF:
-    case climate::CLIMATE_ACTION_IDLE:
       trig = this->idle_trigger_;
       break;
     case climate::CLIMATE_ACTION_COOLING:
@@ -126,11 +161,13 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
     default:
       trig = nullptr;
   }
-  assert(trig != nullptr);
-  trig->trigger();
-  this->action = action;
-  this->prev_trigger_ = trig;
-  this->publish_state();
+  if (trig != nullptr) {
+    // trig should never be null, but still check so that we don't crash
+    trig->trigger();
+    this->action = action;
+    this->prev_trigger_ = trig;
+    this->publish_state();
+  }
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
