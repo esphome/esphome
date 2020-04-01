@@ -138,6 +138,36 @@ api:
       then:
         - dfplayer.random
 
+    - service: battery_level_percent
+      variables:
+        level_percent: int
+      then:
+        - tm1651.set_level_percent:
+            id: tm1651_battery
+            level_percent: !lambda 'return level_percent;'
+    - service: battery_level
+      variables:
+        level: int
+      then:
+        - tm1651.set_level:
+            id: tm1651_battery
+            level: !lambda 'return level;'
+    - service: battery_brightness
+      variables:
+        brightness: int
+      then:
+        - tm1651.set_brightness:
+            id: tm1651_battery
+            brightness: !lambda 'return brightness;'
+    - service: battery_turn_on
+      then:
+        - tm1651.turn_on:
+            id: tm1651_battery
+    - service: battery_turn_on
+      then:
+        - tm1651.turn_off:
+            id: tm1651_battery
+
 wifi:
   ssid: 'MySSID'
   password: 'password1'
@@ -191,6 +221,11 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
+  - platform: aht10  
+    temperature:
+      name: "Temperature"
+    humidity:
+      name: "Humidity"
   - platform: am2320
     temperature:
       name: "Temperature"
@@ -305,6 +340,8 @@ sensor:
       name: "PZEMAC Current"
     power:
       name: "PZEMAC Power"
+    energy:
+      name: "PZEMAC Energy"
     frequency:
       name: "PZEMAC Frequency"
     power_factor:
@@ -578,6 +615,10 @@ cover:
       - output.set_level:
           id: out
           level: !lambda "return tilt;"
+    position_action:
+      - output.set_level:
+          id: out
+          level: !lambda "return pos;"
 
 
 output:
@@ -604,7 +645,7 @@ output:
 
 mcp23017:
   id: mcp23017_hub
-  
+
 mcp23008:
   id: mcp23008_hub
 
@@ -620,6 +661,7 @@ light:
 servo:
   id: my_servo
   output: out
+  restore: true
 
 ttp229_lsf:
 
@@ -646,3 +688,21 @@ dfplayer:
             dfplayer.is_playing
         then:
           logger.log: 'Playback finished event'
+tm1651:
+  id: tm1651_battery
+  clk_pin: D6
+  dio_pin: D5
+rf_bridge:
+  on_code_received:
+    - lambda: |-
+        uint32_t test;
+        test = data.sync;
+        test = data.low;
+        test = data.high;
+        test = data.code;
+    - rf_bridge.send_code:
+        sync: 0x1234
+        low: 0x1234
+        high: 0x1234
+        code: 0x123456
+    - rf_bridge.learn

@@ -2,7 +2,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
 from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
-from esphome.py_compat import string_types
 from . import ads1115_ns, ADS1115Component
 
 DEPENDENCIES = ['ads1115']
@@ -32,9 +31,9 @@ GAIN = {
 
 def validate_gain(value):
     if isinstance(value, float):
-        value = u'{:0.03f}'.format(value)
-    elif not isinstance(value, string_types):
-        raise cv.Invalid('invalid gain "{}"'.format(value))
+        value = f'{value:0.03f}'
+    elif not isinstance(value, str):
+        raise cv.Invalid(f'invalid gain "{value}"')
 
     return cv.enum(GAIN)(value)
 

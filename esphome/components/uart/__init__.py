@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID, CONF_DATA
 from esphome.core import CORE, coroutine
-from esphome.py_compat import text_type, binary_type, char_to_byte
 
 uart_ns = cg.esphome_ns.namespace('uart')
 UARTComponent = uart_ns.class_('UARTComponent', cg.Component)
@@ -13,7 +12,7 @@ MULTI_CONF = True
 
 
 def validate_raw_data(value):
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value.encode('utf-8')
     if isinstance(value, str):
         return value
@@ -77,8 +76,8 @@ def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
-    if isinstance(data, binary_type):
-        data = [char_to_byte(x) for x in data]
+    if isinstance(data, bytes):
+        data = list(data)
 
     if cg.is_template(data):
         templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))

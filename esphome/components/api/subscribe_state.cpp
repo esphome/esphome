@@ -7,9 +7,6 @@ namespace api {
 
 #ifdef USE_BINARY_SENSOR
 bool InitialStateIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
-  if (!binary_sensor->has_state())
-    return true;
-
   return this->client_->send_binary_sensor_state(binary_sensor, binary_sensor->state);
 }
 #endif
@@ -24,9 +21,6 @@ bool InitialStateIterator::on_light(light::LightState *light) { return this->cli
 #endif
 #ifdef USE_SENSOR
 bool InitialStateIterator::on_sensor(sensor::Sensor *sensor) {
-  if (!sensor->has_state())
-    return true;
-
   return this->client_->send_sensor_state(sensor, sensor->state);
 }
 #endif
@@ -37,9 +31,6 @@ bool InitialStateIterator::on_switch(switch_::Switch *a_switch) {
 #endif
 #ifdef USE_TEXT_SENSOR
 bool InitialStateIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) {
-  if (!text_sensor->has_state())
-    return true;
-
   return this->client_->send_text_sensor_state(text_sensor, text_sensor->state);
 }
 #endif

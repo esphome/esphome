@@ -63,35 +63,29 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return false;
   }
 }
-optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!device.get_service_data_uuid().has_value()) {
-    // ESP_LOGVV(TAG, "Xiaomi no service data");
-    return {};
-  }
-
-  if (!device.get_service_data_uuid()->contains(0x95, 0xFE)) {
+bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracker::ServiceData &service_data) {
+  if (!service_data.uuid.contains(0x95, 0xFE)) {
     // ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
-    return {};
+    return false;
   }
 
-  const auto *raw = reinterpret_cast<const uint8_t *>(device.get_service_data().data());
+  const auto raw = service_data.data;
 
-  if (device.get_service_data().size() < 14) {
+  if (raw.size() < 14) {
     // ESP_LOGVV(TAG, "Xiaomi service data too short!");
-    return {};
+    return false;
   }
 
   bool is_lywsdcgq = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
-  bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
+  bool is_cgg1 = ((raw[1] & 0x30) == 0x30 || (raw[1] & 0x20) == 0x20) && raw[2] == 0x47 && raw[3] == 0x03;
 
   if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1) {
     // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return {};
+    return false;
   }
 
-  XiaomiParseResult result;
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
   if (is_lywsdcgq) {
     result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
@@ -111,7 +105,7 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
 
   const uint8_t *raw_data = &raw[raw_offset];
   uint8_t data_offset = 0;
-  uint8_t data_length = device.get_service_data().size() - raw_offset;
+  uint8_t data_length = raw.size() - raw_offset;
   bool success = false;
 
   while (true) {
@@ -136,6 +130,15 @@ optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &d
     data_offset += 3 + datapoint_length;
   }
 
+  return success;
+}
+optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device) {
+  XiaomiParseResult result;
+  bool success = false;
+  for (auto &service_data : device.get_service_datas()) {
+    if (parse_xiaomi_service_data(result, service_data))
+      success = true;
+  }
   if (!success)
     return {};
   return result;

@@ -7,7 +7,6 @@ import time
 
 from esphome.core import EsphomeError
 from esphome.helpers import is_ip_address, resolve_ip_address
-from esphome.py_compat import IS_PY2, char_to_byte
 
 RESPONSE_OK = 0
 RESPONSE_REQUEST_AUTH = 1
@@ -38,7 +37,7 @@ MAGIC_BYTES = [0x6C, 0x26, 0xF7, 0x5C, 0x45]
 _LOGGER = logging.getLogger(__name__)
 
 
-class ProgressBar(object):
+class ProgressBar:
     def __init__(self):
         self.last_progress = None
 
@@ -72,33 +71,31 @@ def recv_decode(sock, amount, decode=True):
     data = sock.recv(amount)
     if not decode:
         return data
-    return [char_to_byte(x) for x in data]
+    return list(data)
 
 
 def receive_exactly(sock, amount, msg, expect, decode=True):
     if decode:
         data = []
-    elif IS_PY2:
-        data = ''
     else:
         data = b''
 
     try:
         data += recv_decode(sock, 1, decode=decode)
-    except socket.error as err:
-        raise OTAError("Error receiving acknowledge {}: {}".format(msg, err))
+    except OSError as err:
+        raise OTAError(f"Error receiving acknowledge {msg}: {err}")
 
     try:
         check_error(data, expect)
     except OTAError as err:
         sock.close()
-        raise OTAError("Error {}: {}".format(msg, err))
+        raise OTAError(f"Error {msg}: {err}")
 
     while len(data) < amount:
         try:
             data += recv_decode(sock, amount - len(data), decode=decode)
-        except socket.error as err:
-            raise OTAError("Error receiving {}: {}".format(msg, err))
+        except OSError as err:
+            raise OTAError(f"Error receiving {msg}: {err}")
     return data
 
 
@@ -145,22 +142,16 @@ def check_error(data, expect):
 
 def send_check(sock, data, msg):
     try:
-        if IS_PY2:
-            if isinstance(data, (list, tuple)):
-                data = ''.join([chr(x) for x in data])
-            elif isinstance(data, int):
-                data = chr(data)
-        else:
-            if isinstance(data, (list, tuple)):
-                data = bytes(data)
-            elif isinstance(data, int):
-                data = bytes([data])
-            elif isinstance(data, str):
-                data = data.encode('utf8')
+        if isinstance(data, (list, tuple)):
+            data = bytes(data)
+        elif isinstance(data, int):
+            data = bytes([data])
+        elif isinstance(data, str):
+            data = data.encode('utf8')
 
         sock.sendall(data)
-    except socket.error as err:
-        raise OTAError("Error sending {}: {}".format(msg, err))
+    except OSError as err:
+        raise OTAError(f"Error sending {msg}: {err}")
 
 
 def perform_ota(sock, password, file_handle, filename):
@@ -176,7 +167,7 @@ def perform_ota(sock, password, file_handle, filename):
 
     _, version = receive_exactly(sock, 2, 'version', RESPONSE_OK)
     if version != OTA_VERSION_1_0:
-        raise OTAError("Unsupported OTA version {}".format(version))
+        raise OTAError(f"Unsupported OTA version {version}")
 
     # Features
     send_check(sock, 0x00, 'features')
@@ -186,9 +177,7 @@ def perform_ota(sock, password, file_handle, filename):
     if auth == RESPONSE_REQUEST_AUTH:
         if not password:
             raise OTAError("ESP requests password, but no password given!")
-        nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False)
-        if not IS_PY2:
-            nonce = nonce.decode()
+        nonce = receive_exactly(sock, 32, 'authentication nonce', [], decode=False).decode()
         _LOGGER.debug("Auth: Nonce is %s", nonce)
         cnonce = hashlib.md5(str(random.random()).encode()).hexdigest()
         _LOGGER.debug("Auth: CNonce is %s", cnonce)
@@ -235,9 +224,9 @@ def perform_ota(sock, password, file_handle, filename):
 
         try:
             sock.sendall(chunk)
-        except socket.error as err:
+        except OSError as err:
             sys.stderr.write('\n')
-            raise OTAError("Error sending data: {}".format(err))
+            raise OTAError(f"Error sending data: {err}")
 
         progress.update(offset / float(file_size))
     progress.done()
@@ -277,7 +266,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
     sock.settimeout(10.0)
     try:
         sock.connect((ip, remote_port))
-    except socket.error as err:
+    except OSError as err:
         sock.close()
         _LOGGER.error("Connecting to %s:%s failed: %s", remote_host, remote_port, err)
         return 1

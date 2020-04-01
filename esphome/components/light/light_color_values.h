@@ -185,7 +185,7 @@ class LightColorValues {
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
   void as_rgbw(float *red, float *green, float *blue, float *white) const {
     this->as_rgb(red, green, blue);
-    *white = this->state_ * this->white_;
+    *white = this->state_ * this->brightness_ * this->white_;
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
@@ -195,8 +195,8 @@ class LightColorValues {
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
-    *cold_white = this->state_ * this->white_ * cw_fraction;
-    *warm_white = this->state_ * this->white_ * ww_fraction;
+    *cold_white = this->state_ * this->brightness_ * this->white_ * cw_fraction;
+    *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;
     if (!constant_brightness) {
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
       *cold_white /= max_cw_ww;
@@ -210,8 +210,8 @@ class LightColorValues {
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
-    *cold_white = this->state_ * this->white_ * cw_fraction;
-    *warm_white = this->state_ * this->white_ * ww_fraction;
+    *cold_white = this->state_ * this->brightness_ * cw_fraction;
+    *warm_white = this->state_ * this->brightness_ * ww_fraction;
     if (!constant_brightness) {
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
       *cold_white /= max_cw_ww;

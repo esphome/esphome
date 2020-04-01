@@ -1,4 +1,3 @@
-# coding=utf-8
 import logging
 
 from esphome import core
@@ -33,7 +32,7 @@ def to_code(config):
     try:
         image = Image.open(path)
     except Exception as e:
-        raise core.EsphomeError(u"Could not load image file {}: {}".format(path, e))
+        raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
     if CONF_RESIZE in config:
         image.thumbnail(config[CONF_RESIZE])

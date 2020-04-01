@@ -57,13 +57,14 @@ void Application::setup() {
 
   ESP_LOGI(TAG, "setup() finished successfully!");
   this->schedule_dump_config();
+  this->calculate_looping_components_();
 }
 void Application::loop() {
   uint32_t new_app_state = 0;
   const uint32_t start = millis();
 
   this->scheduler.call();
-  for (Component *component : this->components_) {
+  for (Component *component : this->looping_components_) {
     component->call();
     new_app_state |= component->get_component_state();
     this->app_state_ |= new_app_state;
@@ -143,6 +144,13 @@ void Application::safe_reboot() {
   // restart() doesn't always end execution
   while (true) {
     yield();
+  }
+}
+
+void Application::calculate_looping_components_() {
+  for (auto *obj : this->components_) {
+    if (obj->has_overridden_loop())
+      this->looping_components_.push_back(obj);
   }
 }
 

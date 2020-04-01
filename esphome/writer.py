@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import logging
 import os
 import re
@@ -14,19 +12,19 @@ from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
 
-CPP_AUTO_GENERATE_BEGIN = u'// ========== AUTO GENERATED CODE BEGIN ==========='
-CPP_AUTO_GENERATE_END = u'// =========== AUTO GENERATED CODE END ============'
-CPP_INCLUDE_BEGIN = u'// ========== AUTO GENERATED INCLUDE BLOCK BEGIN ==========='
-CPP_INCLUDE_END = u'// ========== AUTO GENERATED INCLUDE BLOCK END ==========='
-INI_AUTO_GENERATE_BEGIN = u'; ========== AUTO GENERATED CODE BEGIN ==========='
-INI_AUTO_GENERATE_END = u'; =========== AUTO GENERATED CODE END ============'
+CPP_AUTO_GENERATE_BEGIN = '// ========== AUTO GENERATED CODE BEGIN ==========='
+CPP_AUTO_GENERATE_END = '// =========== AUTO GENERATED CODE END ============'
+CPP_INCLUDE_BEGIN = '// ========== AUTO GENERATED INCLUDE BLOCK BEGIN ==========='
+CPP_INCLUDE_END = '// ========== AUTO GENERATED INCLUDE BLOCK END ==========='
+INI_AUTO_GENERATE_BEGIN = '; ========== AUTO GENERATED CODE BEGIN ==========='
+INI_AUTO_GENERATE_END = '; =========== AUTO GENERATED CODE END ============'
 
-CPP_BASE_FORMAT = (u"""// Auto generated code by esphome
-""", u""""
+CPP_BASE_FORMAT = ("""// Auto generated code by esphome
+""", """"
 
 void setup() {
   // ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
-  """, u"""
+  """, """
   // ========= YOU CAN EDIT AFTER THIS LINE =========
   App.setup();
 }
@@ -36,7 +34,7 @@ void loop() {
 }
 """)
 
-INI_BASE_FORMAT = (u"""; Auto generated code by esphome
+INI_BASE_FORMAT = ("""; Auto generated code by esphome
 
 [common]
 lib_deps =
@@ -44,7 +42,7 @@ build_flags =
 upload_flags =
 
 ; ===== DO NOT EDIT ANYTHING BELOW THIS LINE =====
-""", u"""
+""", """
 ; ========= YOU CAN EDIT AFTER THIS LINE =========
 
 """)
@@ -62,8 +60,8 @@ def get_flags(key):
 
 
 def get_include_text():
-    include_text = u'#include "esphome.h"\n' \
-                   u'using namespace esphome;\n'
+    include_text = '#include "esphome.h"\n' \
+                   'using namespace esphome;\n'
     for _, component, conf in iter_components(CORE.config):
         if not hasattr(component, 'includes'):
             continue
@@ -106,7 +104,7 @@ def migrate_src_version_0_to_1():
 
     if CPP_INCLUDE_BEGIN not in content:
         content, count = replace_file_content(content, r'#include "esphomelib/application.h"',
-                                              CPP_INCLUDE_BEGIN + u'\n' + CPP_INCLUDE_END)
+                                              CPP_INCLUDE_BEGIN + '\n' + CPP_INCLUDE_END)
         if count == 0:
             _LOGGER.error("Migration failed. ESPHome 1.10.0 needs to have a new auto-generated "
                           "include section in the %s file. Please remove %s and let it be "
@@ -160,14 +158,14 @@ def update_storage_json():
 
 
 def format_ini(data):
-    content = u''
+    content = ''
     for key, value in sorted(data.items()):
         if isinstance(value, (list, set, tuple)):
-            content += u'{} =\n'.format(key)
+            content += f'{key} =\n'
             for x in value:
-                content += u'    {}\n'.format(x)
+                content += f'    {x}\n'
         else:
-            content += u'{} = {}\n'.format(key, value)
+            content += f'{key} = {value}\n'
     return content
 
 
@@ -192,7 +190,7 @@ def get_ini_content():
         'framework': 'arduino',
         'lib_deps': lib_deps + ['${common.lib_deps}'],
         'build_flags': build_flags + ['${common.build_flags}'],
-        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 460800),
+        'upload_speed': UPLOAD_SPEED_OVERRIDE.get(CORE.board, 115200),
     }
 
     if CORE.is_esp32:
@@ -216,7 +214,7 @@ def get_ini_content():
     # data['lib_ldf_mode'] = 'chain'
     data.update(CORE.config[CONF_ESPHOME].get(CONF_PLATFORMIO_OPTIONS, {}))
 
-    content = u'[env:{}]\n'.format(CORE.name)
+    content = f'[env:{CORE.name}]\n'
     content += format_ini(data)
 
     return content
@@ -225,18 +223,18 @@ def get_ini_content():
 def find_begin_end(text, begin_s, end_s):
     begin_index = text.find(begin_s)
     if begin_index == -1:
-        raise EsphomeError(u"Could not find auto generated code begin in file, either "
-                           u"delete the main sketch file or insert the comment again.")
+        raise EsphomeError("Could not find auto generated code begin in file, either "
+                           "delete the main sketch file or insert the comment again.")
     if text.find(begin_s, begin_index + 1) != -1:
-        raise EsphomeError(u"Found multiple auto generate code begins, don't know "
-                           u"which to chose, please remove one of them.")
+        raise EsphomeError("Found multiple auto generate code begins, don't know "
+                           "which to chose, please remove one of them.")
     end_index = text.find(end_s)
     if end_index == -1:
-        raise EsphomeError(u"Could not find auto generated code end in file, either "
-                           u"delete the main sketch file or insert the comment again.")
+        raise EsphomeError("Could not find auto generated code end in file, either "
+                           "delete the main sketch file or insert the comment again.")
     if text.find(end_s, end_index + 1) != -1:
-        raise EsphomeError(u"Found multiple auto generate code endings, don't know "
-                           u"which to chose, please remove one of them.")
+        raise EsphomeError("Found multiple auto generate code endings, don't know "
+                           "which to chose, please remove one of them.")
 
     return text[:begin_index], text[(end_index + len(end_s)):]
 
@@ -263,17 +261,17 @@ def write_platformio_project():
     write_platformio_ini(content)
 
 
-DEFINES_H_FORMAT = ESPHOME_H_FORMAT = u"""\
+DEFINES_H_FORMAT = ESPHOME_H_FORMAT = """\
 #pragma once
 {}
 """
-VERSION_H_FORMAT = u"""\
+VERSION_H_FORMAT = """\
 #pragma once
 #define ESPHOME_VERSION "{}"
 """
 DEFINES_H_TARGET = 'esphome/core/defines.h'
 VERSION_H_TARGET = 'esphome/core/version.h'
-ESPHOME_README_TXT = u"""
+ESPHOME_README_TXT = """
 THIS DIRECTORY IS AUTO-GENERATED, DO NOT MODIFY
 
 ESPHome automatically populates the esphome/ directory, and any
@@ -286,23 +284,21 @@ or use the custom_components folder.
 
 
 def copy_src_tree():
-    import shutil
-
     source_files = {}
     for _, component, _ in iter_components(CORE.config):
         source_files.update(component.source_files)
 
     # Convert to list and sort
-    source_files_l = [it for it in source_files.items()]
+    source_files_l = list(source_files.items())
     source_files_l.sort()
 
     # Build #include list for esphome.h
     include_l = []
     for target, path in source_files_l:
         if os.path.splitext(path)[1] in HEADER_FILE_EXTENSIONS:
-            include_l.append(u'#include "{}"'.format(target))
-    include_l.append(u'')
-    include_s = u'\n'.join(include_l)
+            include_l.append(f'#include "{target}"')
+    include_l.append('')
+    include_s = '\n'.join(include_l)
 
     source_files_copy = source_files.copy()
     source_files_copy.pop(DEFINES_H_TARGET)
@@ -326,8 +322,7 @@ def copy_src_tree():
     # Now copy new files
     for target, src_path in source_files_copy.items():
         dst_path = CORE.relative_src_path(*target.split('/'))
-        mkdir_p(os.path.dirname(dst_path))
-        shutil.copy(src_path, dst_path)
+        copy_file_if_changed(src_path, dst_path)
 
     # Finally copy defines
     write_file_if_changed(CORE.relative_src_path('esphome', 'core', 'defines.h'),
@@ -343,7 +338,7 @@ def copy_src_tree():
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]
     define_content_l.sort()
-    return DEFINES_H_FORMAT.format(u'\n'.join(define_content_l))
+    return DEFINES_H_FORMAT.format('\n'.join(define_content_l))
 
 
 def write_cpp(code_s):
@@ -357,11 +352,11 @@ def write_cpp(code_s):
         code_format = CPP_BASE_FORMAT
 
     copy_src_tree()
-    global_s = u'#include "esphome.h"\n'
+    global_s = '#include "esphome.h"\n'
     global_s += CORE.cpp_global_section
 
-    full_file = code_format[0] + CPP_INCLUDE_BEGIN + u'\n' + global_s + CPP_INCLUDE_END
-    full_file += code_format[1] + CPP_AUTO_GENERATE_BEGIN + u'\n' + code_s + CPP_AUTO_GENERATE_END
+    full_file = code_format[0] + CPP_INCLUDE_BEGIN + '\n' + global_s + CPP_INCLUDE_END
+    full_file += code_format[1] + CPP_AUTO_GENERATE_BEGIN + '\n' + code_s + CPP_AUTO_GENERATE_END
     full_file += code_format[2]
     write_file_if_changed(path, full_file)
 

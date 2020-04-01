@@ -1,18 +1,16 @@
-# coding=utf-8
 from math import log
 
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import UNIT_CELSIUS, ICON_THERMOMETER, CONF_SENSOR, CONF_TEMPERATURE, \
-    CONF_VALUE, CONF_CALIBRATION, CONF_ID
+from esphome.const import CONF_CALIBRATION, CONF_ID, CONF_REFERENCE_RESISTANCE, \
+    CONF_REFERENCE_TEMPERATURE, CONF_SENSOR, CONF_TEMPERATURE, CONF_VALUE, ICON_THERMOMETER, \
+    UNIT_CELSIUS
 
 ntc_ns = cg.esphome_ns.namespace('ntc')
 NTC = ntc_ns.class_('NTC', cg.Component, sensor.Sensor)
 
 CONF_B_CONSTANT = 'b_constant'
-CONF_REFERENCE_TEMPERATURE = 'reference_temperature'
-CONF_REFERENCE_RESISTANCE = 'reference_resistance'
 CONF_A = 'a'
 CONF_B = 'b'
 CONF_C = 'c'
@@ -29,7 +27,7 @@ def validate_calibration_parameter(value):
     value = cv.string(value)
     parts = value.split('->')
     if len(parts) != 2:
-        raise cv.Invalid(u"Calibration parameter must be of form 3000 -> 23°C")
+        raise cv.Invalid("Calibration parameter must be of form 3000 -> 23°C")
     voltage = cv.resistance(parts[0].strip())
     temperature = cv.temperature(parts[1].strip())
     return validate_calibration_parameter({

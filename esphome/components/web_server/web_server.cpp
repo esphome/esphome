@@ -18,6 +18,8 @@ namespace web_server {
 static const char *TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+  if (obj->is_internal())
+    return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
   stream->print("\" id=\"");
@@ -58,10 +60,13 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
+void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
+void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
+  this->setup_controller();
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
@@ -130,59 +135,92 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   std::string title = App.get_name() + " Web Server";
   stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
-  stream->print(F("</title><link rel=\"stylesheet\" href=\""));
-  stream->print(this->css_url_);
-  stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
+  stream->print(F("</title>"));
+#ifdef WEBSERVER_CSS_INCLUDE
+  stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
+#endif
+  if (strlen(this->css_url_) > 0) {
+    stream->print(F("<link rel=\"stylesheet\" href=\""));
+    stream->print(this->css_url_);
+    stream->print(F("\">"));
+  }
+  stream->print(F("</head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "sensor", "");
+    write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    if (!obj->is_internal())
-      write_row(stream, obj, "switch", "<button>Toggle</button>");
+    write_row(stream, obj, "switch", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "binary_sensor", "");
+    write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    if (!obj->is_internal())
-      write_row(stream, obj, "fan", "<button>Toggle</button>");
+    write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    if (!obj->is_internal())
-      write_row(stream, obj, "light", "<button>Toggle</button>");
+    write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "text_sensor", "");
+    write_row(stream, obj, "text_sensor", "");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"
-                  "<script src=\""));
-  stream->print(this->js_url_);
-  stream->print(F("\"></script></article></body></html>"));
+                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#ifdef WEBSERVER_JS_INCLUDE
+  if (this->js_include_ != nullptr) {
+    stream->print(F("<script src=\"/0.js\"></script>"));
+  }
+#endif
+  if (strlen(this->js_url_) > 0) {
+    stream->print(F("<script src=\""));
+    stream->print(this->js_url_);
+    stream->print(F("\"></script>"));
+  }
+  stream->print(F("</article></body></html>"));
 
   request->send(stream);
 }
+
+#ifdef WEBSERVER_CSS_INCLUDE
+void WebServer::handle_css_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/css");
+  if (this->css_include_ != nullptr) {
+    stream->print(this->css_include_);
+  }
+
+  request->send(stream);
+}
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+void WebServer::handle_js_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
+  if (this->js_include_ != nullptr) {
+    stream->print(this->js_include_);
+  }
+
+  request->send(stream);
+}
+#endif
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -461,6 +499,16 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css")
+    return true;
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js")
+    return true;
+#endif
+
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
     return false;
@@ -505,6 +553,20 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css") {
+    this->handle_css_request(request);
+    return;
+  }
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js") {
+    this->handle_js_request(request);
+    return;
+  }
+#endif
 
   UrlMatch match = match_url(request->url().c_str());
 #ifdef USE_SENSOR
