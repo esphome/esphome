@@ -236,8 +236,7 @@ class Lambda:
             s = match.group(0)
             if s.startswith('/'):
                 return " "  # note: a space and not an empty string
-            else:
-                return s
+            return s
         pattern = re.compile(
             r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
             re.DOTALL | re.MULTILINE
