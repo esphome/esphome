@@ -757,6 +757,25 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
+  - platform: teleinfo
+    tags:
+     - name: "HCHC"
+       sensor:
+        name: "hchc"
+        unit_of_measurement: "Wh"
+        icon: mdi:flash
+     - name: "HCHP"
+       sensor:
+        name: "hchp"
+        unit_of_measurement: "Wh"
+        icon: mdi:flash
+     - name: "PAPP"
+       sensor:
+        name: "papp"
+        unit_of_measurement: "VA"
+        icon: mdi:flash
+    update_interval: 60s
+    historical_mode: true
 
 esp32_touch:
   setup_mode: False
