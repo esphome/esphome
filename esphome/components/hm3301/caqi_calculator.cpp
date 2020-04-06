@@ -53,9 +53,6 @@ private:
 
     int aqi = ((aqi_hi - aqi_lo) / (conc_hi - conc_lo)) * (value - conc_lo) + aqi_lo;
 
-    ESP_LOGD("calc", "index %d, aqi_lo %d, aqi_hi %d, conc_lo %d, conc_hi %d", grid_index, aqi_lo, aqi_hi, conc_lo, conc_hi);
-    ESP_LOGD("calc", "aqi %d", aqi);
-
     return aqi;
   }
 
