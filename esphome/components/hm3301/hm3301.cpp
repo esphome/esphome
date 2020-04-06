@@ -59,6 +59,8 @@ void HM3301Component::update() {
     uint16_t value = get_sensor_value_(data_buffer_, PM_10_0_VALUE_INDEX);
     this->pm_10_0_sensor_->publish_state(value);
   }
+
+  this->status_clear_warning();
 }
 
 bool HM3301Component::read_sensor_value_(uint8_t *data) { return !hm3301_->read_sensor_value(data, 29); }
