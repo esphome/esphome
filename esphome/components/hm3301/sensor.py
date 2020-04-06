@@ -8,6 +8,16 @@ DEPENDENCIES = ['i2c']
 
 hm3301_ns = cg.esphome_ns.namespace('hm3301')
 HM3301Component = hm3301_ns.class_('HM3301Component', cg.PollingComponent, i2c.I2CDevice)
+AQICalculatorType = hm3301_ns.enum('AQICalculatorType')
+
+CONF_AQI = 'aqi'
+CONF_CALCULATION_TYPE = 'calculation_type'
+UNIT_INDEX = 'index'
+
+AQI_CALCULATION_TYPE = {
+    'CAQI': AQICalculatorType.CAQI_TYPE,
+    'AQI': AQICalculatorType.AQI_TYPE
+}
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HM3301Component),
@@ -18,7 +28,10 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
     cv.Optional(CONF_PM_10_0):
         sensor.sensor_schema(UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON, 0),
-
+    cv.Optional(CONF_AQI):
+        sensor.sensor_schema(UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0).extend({
+            cv.Required(CONF_CALCULATION_TYPE): cv.enum(AQI_CALCULATION_TYPE, upper=True),
+        })
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40)))
 
 
@@ -38,6 +51,11 @@ def to_code(config):
     if CONF_PM_10_0 in config:
         sens = yield sensor.new_sensor(config[CONF_PM_10_0])
         cg.add(var.set_pm_10_0_sensor(sens))
+
+    if CONF_AQI in config:
+        sens = yield sensor.new_sensor(config[CONF_AQI])
+        cg.add(var.set_aqi_sensor(sens))
+        cg.add(var.set_aqi_calculation_type(config[CONF_AQI][CONF_CALCULATION_TYPE]))
 
     # https://platformio.org/lib/show/6306/Grove%20-%20Laser%20PM2.5%20Sensor%20HM3301
     cg.add_library('6306', '1.0.3')
