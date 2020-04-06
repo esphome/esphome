@@ -5,17 +5,17 @@ namespace hm3301 {
 
 class AQICalculator : public AbstractAQICalculator {
 public:
-  uint8_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) {
+  uint8_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) override {
     int pm2_5_index = calculate_index_(pm2_5_value, pm2_5_calculation_grid_);
     int pm10_0_index = calculate_index_(pm10_0_value, pm10_0_calculation_grid_);
 
     return (pm2_5_index < pm10_0_index) ? pm10_0_index : pm2_5_index;
   }
 
-private:
-  static const int amount_of_levels_ = 6;
+protected:
+  static const int AMOUNT_OF_LEVELS_ = 6;
 
-  int index_grid_[amount_of_levels_][2] = {
+  int index_grid_[AMOUNT_OF_LEVELS_][2] = {
     {0, 51},
     {51, 100},
     {101, 150},
@@ -24,7 +24,7 @@ private:
     {301, 500}
   };
 
-  int pm2_5_calculation_grid_[amount_of_levels_][2] = {
+  int pm2_5_calculation_grid_[AMOUNT_OF_LEVELS_][2] = {
     {0, 12},
     {13, 45},
     {36, 55},
@@ -33,7 +33,7 @@ private:
     {251, 500}
   };
 
-  int pm10_0_calculation_grid_[amount_of_levels_][2] = {
+  int pm10_0_calculation_grid_[AMOUNT_OF_LEVELS_][2] = {
     {0, 54},
     {55, 154},
     {155, 254},
@@ -42,7 +42,7 @@ private:
     {425, 604}
   };
 
-  int calculate_index_(uint16_t value, int array[amount_of_levels_][2]) {
+  int calculate_index_(uint16_t value, int array[AMOUNT_OF_LEVELS_][2]) {
     int grid_index = get_grid_index_(value, array);
     int aqi_lo = index_grid_[grid_index][0];
     int aqi_hi = index_grid_[grid_index][1];
@@ -52,8 +52,8 @@ private:
     return ((aqi_hi - aqi_lo) / (conc_hi - conc_lo)) * (value - conc_lo) + aqi_lo;
   }
 
-  int get_grid_index_(uint16_t value, int array[amount_of_levels_][2]) {
-    for (int i = 0; i < amount_of_levels_ - 1; i++) {
+  int get_grid_index_(uint16_t value, int array[AMOUNT_OF_LEVELS_][2]) {
+    for (int i = 0; i < AMOUNT_OF_LEVELS_ - 1; i++) {
       if (value >= array[i][0] && value <= array[i][1]) {
         return i;
       }

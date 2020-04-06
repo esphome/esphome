@@ -48,17 +48,17 @@ void HM3301Component::update() {
     return;
   }
 
-  uint16_t pm_1_0_value = -1;
+  int16_t pm_1_0_value = -1;
   if (this->pm_1_0_sensor_ != nullptr) {
     pm_1_0_value = get_sensor_value_(data_buffer_, PM_1_0_VALUE_INDEX);
   }
 
-  uint16_t pm_2_5_value = -1;
+  int16_t pm_2_5_value = -1;
   if (this->pm_2_5_sensor_ != nullptr) {
     pm_2_5_value = get_sensor_value_(data_buffer_, PM_2_5_VALUE_INDEX);
   }
 
-  uint16_t pm_10_0_value = -1;
+  int16_t pm_10_0_value = -1;
   if (this->pm_10_0_sensor_ != nullptr) {
     pm_10_0_value = get_sensor_value_(data_buffer_, PM_10_0_VALUE_INDEX);
   }
