@@ -5,11 +5,11 @@
 #include "esphome/components/output/float_output.h"
 
 namespace esphome {
-namespace dimmer {
+namespace ac_dimmer {
 
 enum DimMethod { DIM_METHOD_LEADING_PULSE = 0, DIM_METHOD_LEADING, DIM_METHOD_TRAILING };
 
-struct DimmerDataStore {
+struct AcDimmerDataStore {
   /// Zero-cross pin
   ISRInternalGPIOPin *zero_cross_pin;
   /// Zero-cross pin number - used to share ZC pin across multiple dimmers
@@ -36,13 +36,13 @@ struct DimmerDataStore {
   uint32_t timer_intr(uint32_t now);
 
   void gpio_intr();
-  static void s_gpio_intr(DimmerDataStore *store);
+  static void s_gpio_intr(AcDimmerDataStore *store);
 #ifdef ARDUINO_ARCH_ESP32
   static void s_timer_intr();
 #endif
 };
 
-class Dimmer : public output::FloatOutput, public Component {
+class AcDimmer : public output::FloatOutput, public Component {
  public:
   void setup() override;
 
@@ -57,10 +57,10 @@ class Dimmer : public output::FloatOutput, public Component {
 
   GPIOPin *gate_pin_;
   GPIOPin *zero_cross_pin_;
-  DimmerDataStore store_;
+  AcDimmerDataStore store_;
   bool init_with_half_cycle_;
   DimMethod method_;
 };
 
-}  // namespace dimmer
+}  // namespace ac_dimmer
 }  // namespace esphome

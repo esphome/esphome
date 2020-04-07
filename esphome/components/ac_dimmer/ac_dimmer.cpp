@@ -1,4 +1,4 @@
-#include "dimmer.h"
+#include "ac_dimmer.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
@@ -7,12 +7,12 @@
 #endif
 
 namespace esphome {
-namespace dimmer {
+namespace ac_dimmer {
 
-static const char *TAG = "dimmer";
+static const char *TAG = "ac_dimmer";
 
 // Global array to store dimmer objects
-static DimmerDataStore *all_dimmers[32];
+static AcDimmerDataStore *all_dimmers[32];
 
 /// Time in microseconds the gate should be held high
 /// 10µs should be long enough for most triacs
@@ -22,7 +22,7 @@ static uint32_t GATE_ENABLE_TIME = 10;
 /// Function called from timer interrupt
 /// Input is current time in microseconds (micros())
 /// Returns when next "event" is expected in µs, or 0 if no such event known.
-uint32_t ICACHE_RAM_ATTR HOT DimmerDataStore::timer_intr(uint32_t now) {
+uint32_t ICACHE_RAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
   // If no ZC signal received yet.
   if (this->crossed_zero_at == 0)
     return 0;
@@ -77,7 +77,7 @@ uint32_t ICACHE_RAM_ATTR HOT timer_interrupt() {
 }
 
 /// GPIO interrupt routine, called when ZC pin triggers
-void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
+void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t prev_crossed = this->crossed_zero_at;
 
   // 50Hz mains frequency should give a half cycle of 10ms a 60Hz will give 8.33ms
@@ -123,7 +123,7 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::gpio_intr() {
   }
 }
 
-void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
+void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_gpio_intr(AcDimmerDataStore *store) {
   // Attaching pin interrupts on the same pin will override the previous interupt
   // However, the user expects that multiple dimmers sharing the same ZC pin will work.
   // We solve this in a bit of a hacky way: On each pin interrupt, we check all dimmers
@@ -141,10 +141,10 @@ void ICACHE_RAM_ATTR HOT DimmerDataStore::s_gpio_intr(DimmerDataStore *store) {
 // ESP32 implementation, uses basically the same code but needs to wrap
 // timer_interrupt() function to auto-reschedule
 static hw_timer_t *dimmer_timer = nullptr;
-void ICACHE_RAM_ATTR HOT DimmerDataStore::s_timer_intr() { timer_interrupt(); }
+void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); }
 #endif
 
-void Dimmer::setup() {
+void AcDimmer::setup() {
   // extend all_dimmers array with our dimmer
   auto skip_attach_interrupt = false;
   for (auto &all_dimmer : all_dimmers) {
@@ -167,17 +167,17 @@ void Dimmer::setup() {
   this->store_.method = this->method_;
   // TODO: why FALLING here?
   if (!skip_attach_interrupt)
-    this->zero_cross_pin_->attach_interrupt(&DimmerDataStore::s_gpio_intr, &this->store_, FALLING);
+    this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, FALLING);
 
 #ifdef ARDUINO_ARCH_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
-  // PWM and Dimmer can even run at the same time this way
+  // PWM and AcDimmer can even run at the same time this way
   setTimer1Callback(&timer_interrupt);
 #endif
 #ifdef ARDUINO_ARCH_ESP32
   // 80 Divider -> 1 count=1µs
   dimmer_timer = timerBegin(0, 80, true);
-  timerAttachInterrupt(dimmer_timer, &DimmerDataStore::s_timer_intr, true);
+  timerAttachInterrupt(dimmer_timer, &AcDimmerDataStore::s_timer_intr, true);
   // For ESP32, we can't use dynamic interval calculation because the timerX functions
   // are not callable from ISR (placed in flash storage).
   // Here we just use an interrupt firing every 50 µs.
@@ -185,14 +185,14 @@ void Dimmer::setup() {
   timerAlarmEnable(dimmer_timer);
 #endif
 }
-void Dimmer::write_state(float state) {
+void AcDimmer::write_state(float state) {
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;
   this->store_.value = new_value;
 }
-void Dimmer::dump_config() {
-  ESP_LOGCONFIG(TAG, "Dimmer:");
+void AcDimmer::dump_config() {
+  ESP_LOGCONFIG(TAG, "AcDimmer:");
   LOG_PIN("  Output Pin: ", this->gate_pin_);
   LOG_PIN("  Zero-Cross Pin: ", this->zero_cross_pin_);
   ESP_LOGCONFIG(TAG, "   Min Power: %.1f%%", this->store_.min_power / 10.0f);
@@ -208,5 +208,5 @@ void Dimmer::dump_config() {
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 
-}  // namespace dimmer
+}  // namespace ac_dimmer
 }  // namespace esphome
