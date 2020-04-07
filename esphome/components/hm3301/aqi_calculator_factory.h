@@ -7,15 +7,12 @@
 namespace esphome {
 namespace hm3301 {
 
-enum AQICalculatorType {
-  CAQI_TYPE = 0,
-  AQI_TYPE = 1
-};
+enum AQICalculatorType { CAQI_TYPE = 0, AQI_TYPE = 1 };
 
 class AQICalculatorFactory {
-public:
+ public:
   AbstractAQICalculator *get_calculator(AQICalculatorType type) {
-   if (type == 0) {
+    if (type == 0) {
       return caqi_calculator_;
     } else if (type == 1) {
       return aqi_calculator_;
@@ -24,7 +21,7 @@ public:
     return nullptr;
   }
 
-protected:
+ protected:
   CAQICalculator *caqi_calculator_ = new CAQICalculator();
   AQICalculator *aqi_calculator_ = new AQICalculator();
 };
