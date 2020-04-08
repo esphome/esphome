@@ -1074,6 +1074,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    constant_brightness: true
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
