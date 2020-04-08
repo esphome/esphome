@@ -27,7 +27,7 @@ void BangBangClimate::setup() {
   }
 }
 void BangBangClimate::control(const climate::ClimateCall &call) {
-  if (call.get_mode().has_value()){
+  if (call.get_mode().has_value()) {
     auto valor_mode = this->mode;
     this->mode = *call.get_mode();
     change_mode = (this->mode != valor_mode) ? true : false;
@@ -65,67 +65,73 @@ void BangBangClimate::compute_state_() {
   climate::ClimateAction target_action;
   if (too_cold) {
     // too cold -> enable heating if possible ( auto or heat), else idle
-    if ((this->supports_heat_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
+    if ((this->supports_heat_) &&
+        ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_HEAT)))
       target_action = climate::CLIMATE_ACTION_HEATING;
     else
       target_action = climate::CLIMATE_ACTION_OFF;
   } else if (too_hot) {
     // too hot -> enable cooling if possible (auto or cool), else idle
-    if ((this->supports_cool_) && ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_COOL)))
+    if ((this->supports_cool_) &&
+        ((this->mode == climate::CLIMATE_MODE_AUTO) || (this->mode == climate::CLIMATE_MODE_COOL)))
       target_action = climate::CLIMATE_ACTION_COOLING;
     else
       target_action = climate::CLIMATE_ACTION_OFF;
   } else {
     switch (this->mode) {
-      case climate::CLIMATE_MODE_AUTO: //mode auto
+      case climate::CLIMATE_MODE_AUTO:  // mode auto
         if (this->supports_cool_ && this->supports_heat_) {
           // if supports both ends, go to idle mode
           target_action = climate::CLIMATE_ACTION_OFF;
         } else {
-         // else use current mode and not change (hysteresis)
+          // else use current mode and not change (hysteresis)
           target_action = this->action;
         }
-        break;        
+        break;
 
-       case climate::CLIMATE_MODE_HEAT: //mode heat
+      case climate::CLIMATE_MODE_HEAT:  // mode heat
         if (this->supports_heat_) {
-          if (this->action ==climate::CLIMATE_ACTION_HEATING) {//works until high temperature is reached
+          if (this->action == climate::CLIMATE_ACTION_HEATING) {  // works until high temperature
+                                                                  // is reached
             target_action = this->action;
             change_mode = false;
           } else {
-            if (change_mode) { //In manual mode, the operating mode has been changed and starts heating
-              target_action = climate::CLIMATE_ACTION_HEATING; 
+            if (change_mode) {  // In manual mode, the operating mode has been
+                                // changed and starts heating
+              target_action = climate::CLIMATE_ACTION_HEATING;
               change_mode = false;
-            } else {// hysteresic
+            } else {  // hysteresic
               target_action = climate::CLIMATE_ACTION_OFF;
             }
           }
-        } else { //not support_heat
+        } else {  // not support_heat
           target_action = climate::CLIMATE_ACTION_OFF;
         }
         break;
 
-      case climate::CLIMATE_MODE_COOL: //mode cool
+      case climate::CLIMATE_MODE_COOL:  // mode cool
         if (this->supports_cool_) {
-          if (this->action == climate::CLIMATE_ACTION_COOLING) { //works until low temperature is reached
+          if (this->action == climate::CLIMATE_ACTION_COOLING) {  // works until low temperature is
+                                                                  // reached
             target_action = this->action;
             change_mode = false;
           } else {
-            if (change_mode) {  //In manual mode, the operating mode has been changed and starts cooling
-              target_action = climate::CLIMATE_ACTION_COOLING; 
+            if (change_mode) {  // In manual mode, the operating mode has been
+                                // changed and starts cooling
+              target_action = climate::CLIMATE_ACTION_COOLING;
               change_mode = false;
-            } else {//hysteresic
+            } else {  // hysteresic
               target_action = climate::CLIMATE_ACTION_OFF;
             }
-          } 
-        } else { //not supports_cool
+          }
+        } else {  // not supports_cool
           target_action = climate::CLIMATE_ACTION_OFF;
         }
         break;
 
-      default :
+      default:
         // other mode
-        target_action = this->action;       
+        target_action = this->action;
     }
   }
 
