@@ -718,19 +718,21 @@ void LightState::current_values_as_rgbw(float *red, float *green, float *blue, f
   *blue = gamma_correct(*blue, this->gamma_correct_);
   *white = gamma_correct(*white, this->gamma_correct_);
 }
-void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white) {
+void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
+                                         bool constant_brightness) {
   auto traits = this->get_traits();
   this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white);
+                                warm_white, constant_brightness);
   *red = gamma_correct(*red, this->gamma_correct_);
   *green = gamma_correct(*green, this->gamma_correct_);
   *blue = gamma_correct(*blue, this->gamma_correct_);
   *cold_white = gamma_correct(*cold_white, this->gamma_correct_);
   *warm_white = gamma_correct(*warm_white, this->gamma_correct_);
 }
-void LightState::current_values_as_cwww(float *cold_white, float *warm_white) {
+void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
-  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white);
+  this->current_values.as_cwww(traits.get_min_mireds(), traits.get_max_mireds(), cold_white, warm_white,
+                               constant_brightness);
   *cold_white = gamma_correct(*cold_white, this->gamma_correct_);
   *warm_white = gamma_correct(*warm_white, this->gamma_correct_);
 }
