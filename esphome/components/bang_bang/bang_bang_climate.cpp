@@ -30,7 +30,7 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value()) {
     auto valor_mode = this->mode;
     this->mode = *call.get_mode();
-    change_mode = (this->mode != valor_mode) ? true : false;
+    change_mode = (this->mode != valor_mode);
   }
   if (call.get_target_temperature_low().has_value())
     this->target_temperature_low = *call.get_target_temperature_low();
