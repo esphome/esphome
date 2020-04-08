@@ -230,10 +230,23 @@ class Lambda:
         self._parts = None
         self._requires_ids = None
 
+    # https://stackoverflow.com/a/241506/229052
+    def comment_remover(self, text):
+        def replacer(match):
+            s = match.group(0)
+            if s.startswith('/'):
+                return " "  # note: a space and not an empty string
+            return s
+        pattern = re.compile(
+            r'//.*?$|/\*.*?\*/|\'(?:\\.|[^\\\'])*\'|"(?:\\.|[^\\"])*"',
+            re.DOTALL | re.MULTILINE
+        )
+        return re.sub(pattern, replacer, text)
+
     @property
     def parts(self):
         if self._parts is None:
-            self._parts = re.split(LAMBDA_PROG, self._value)
+            self._parts = re.split(LAMBDA_PROG, self.comment_remover(self._value))
         return self._parts
 
     @property

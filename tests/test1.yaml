@@ -720,6 +720,13 @@ sensor:
   - platform: tmp117
     name: "TMP117 Temperature"
     update_interval: 5s
+  - platform: hm3301
+    pm_1_0:
+      name: "PM1.0"
+    pm_2_5:
+      name: "PM2.5"
+    pm_10_0:
+      name: "PM10.0"
 
 esp32_touch:
   setup_mode: False
@@ -1067,6 +1074,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    constant_brightness: true
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
@@ -1444,6 +1452,12 @@ display:
   lambda: |-
     it.set_component_value("gauge", 50);
     it.set_component_text("textview", "Hello World!");
+- platform: pcd8544
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: ssd1306_i2c
   model: "SSD1306_128X64"
   reset_pin: GPIO23
