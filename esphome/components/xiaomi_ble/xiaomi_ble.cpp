@@ -274,21 +274,21 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ESPBTDevice &device)
 {
-  ESP_LOGCONFIG(TAG, "Parsing XIAOMI");
+  ESP_LOGVV(TAG, "Parsing XIAOMI");
   if (!device.get_service_data_uuid().has_value())
   {
-    ESP_LOGCONFIG(TAG, "Xiaomi no service/uuid data");
+    ESP_LOGVV(TAG, "Xiaomi no service/uuid data");
     return {};
   }
 
   if (!device.get_service_data_uuid()->contains(0x95, 0xFE))
   {
-    ESP_LOGCONFIG(TAG, "No Xiaomi UUID magic bytes");
+    ESP_LOGVV(TAG, "No Xiaomi UUID magic bytes");
     return {};
   }
 
   const auto *raw = reinterpret_cast<const uint8_t *>(device.get_service_data().data());
-  ESP_LOGD(TAG, "payload: %s", hexencode_string(std::string(reinterpret_cast<const char *>(device.get_service_data().data()), device.get_service_data().size())).c_str());
+  ESP_LOGVV(TAG, "payload: %s", hexencode_string(std::string(reinterpret_cast<const char *>(device.get_service_data().data()), device.get_service_data().size())).c_str());
 
   if (device.get_service_data().size() < 4)
     return {}; //Nothing to see here
@@ -323,10 +323,10 @@ The first two bytes describe the capabilities of the sensor and the particular m
     break;
   case 0x05:
     result.type = XiaomiParseResult::TYPE_LYWSD03;
-    ESP_LOGI(TAG, "Xiaomi Received 003");
+    ESP_LOGVV(TAG, "Xiaomi Received 003");
     break;
   default:
-    ESP_LOGI(TAG, "Xiaomi unkown type received %ul", raw[3]);
+    ESP_LOGD(TAG, "Xiaomi unkown type received %ul", raw[3]);
     return {};
     break;
     ;
@@ -365,12 +365,12 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
   strncpy((char *)nonce + 9, (char*)payload_counter, 3);
   strncpy((char *)encrypted_payload, device.get_service_data().data() + 11, enc_length);
 
-  ESP_LOGD(TAG, "Data: %s", hexencode_string(std::string(reinterpret_cast<const char *>(device.get_service_data().data()), result.data_length)).c_str());
-  ESP_LOGD(TAG, "Token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(token), 4)).c_str());
-  ESP_LOGD(TAG, "payload_counter: %s", hexencode_string(std::string(reinterpret_cast<const char *>(payload_counter), 3)).c_str());
-  ESP_LOGD(TAG, "Nonce: %s", hexencode_string(std::string(reinterpret_cast<const char *>(nonce), 12)).c_str());
-  ESP_LOGD(TAG, "encrypted_payload: %s", hexencode_string(std::string(reinterpret_cast<const char *>(encrypted_payload), enc_length)).c_str());
-  ESP_LOGD(TAG, "bindkey: %s", hexencode_string(std::string(reinterpret_cast<const char *>(bindkey), 16)).c_str());
+  ESP_LOGVV(TAG, "Data: %s", hexencode_string(std::string(reinterpret_cast<const char *>(device.get_service_data().data()), result.data_length)).c_str());
+  ESP_LOGVV(TAG, "Token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(token), 4)).c_str());
+  ESP_LOGVV(TAG, "payload_counter: %s", hexencode_string(std::string(reinterpret_cast<const char *>(payload_counter), 3)).c_str());
+  ESP_LOGVV(TAG, "Nonce: %s", hexencode_string(std::string(reinterpret_cast<const char *>(nonce), 12)).c_str());
+  ESP_LOGVV(TAG, "encrypted_payload: %s", hexencode_string(std::string(reinterpret_cast<const char *>(encrypted_payload), enc_length)).c_str());
+  ESP_LOGVV(TAG, "bindkey: %s", hexencode_string(std::string(reinterpret_cast<const char *>(bindkey), 16)).c_str());
 
 
   mbedtls_ccm_context ctx;
@@ -380,9 +380,9 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
   if (ret != 0)
   {
     char error[200];
-    ESP_LOGD(TAG, "setkey failure failure: %lli", ret);
+    ESP_LOGVV(TAG, "setkey failure failure: %lli", ret);
     mbedtls_strerror(ret, error, 199);
-    ESP_LOGD(TAG, "setkey failure: %s", error);
+    ESP_LOGVV(TAG, "setkey failure: %s", error);
   }
   //unsigned char iv[14];
   //memset( iv, 0, sizeof( iv ) );
@@ -397,11 +397,13 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
   if (ret != 0)
   {
     char error[200];
-    ESP_LOGD(TAG, "Decrytp failure failure: %lli", ret);
+    ESP_LOGVV(TAG, "Decrypt failure failure: %lli", ret);
     mbedtls_strerror(ret, error, 199);
-    ESP_LOGD(TAG, "Decrypt failure: %s", error);
+    ESP_LOGVV(TAG, "Decrypt failure: %s", error);
   }
-  ESP_LOGD(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
+  mbedtls_ccm_free(&ctx);
+  ESP_LOGVV(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
+  ESP_LOGVV(TAG, "token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(check_tag), 6)).c_str());
 
   delete (encrypted_payload);
 }

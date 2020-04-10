@@ -37,26 +37,26 @@ class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDevice
 
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-  ESP_LOGW(TAG, "Got device packet");
+  ESP_LOGVV(TAG, "Got device packet");
 
     if (device.address_uint64() != this->address_){
-     ESP_LOGW(TAG, "Address didn't match");
-     ESP_LOGW(TAG, to_string((this->address_)).c_str());
-     ESP_LOGW(TAG, to_string((device.address_uint64())).c_str());
+     ESP_LOGVV(TAG, "Address didn't match");
+     ESP_LOGVV(TAG, to_string((this->address_)).c_str());
+     ESP_LOGVV(TAG, to_string((device.address_uint64())).c_str());
       return false; //Address didn't match, so send false to allow for other listeners
     }
-     ESP_LOGW(TAG, "Address matched matched matched");
+     ESP_LOGVV(TAG, "Address matched matched matched");
 
     /*optional<xiaomi_ble::XiaomiParseResult>*/ 
     auto res = xiaomi_ble::parse_xiaomi_header(device);
 
     if (!res.has_value()){
-     ESP_LOGW(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
+     ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
       return true; //seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
     if ((device.get_service_data().size() < 14) || !res->has_data ) { //Not 100% sure on the sizing here. Might not be necessary any more
-    ESP_LOGW(TAG, "Xiaomi service data too short or missing");
+    ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
     return true; //seems wrong? We have the correct address, therefore we want to stop other processing
   }
     uint8_t* message;
@@ -69,11 +69,11 @@ class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDevice
 
     xiaomi_ble::parse_xiaomi_message(message,*res);
     if (!res.has_value()){
-     ESP_LOGW(TAG, "Couldn't parse XIAOMI parse_xiaomi_message");
+     ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_message");
       return true; //seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
-     ESP_LOGCONFIG(TAG, "parsed parsed parsed parsed parsed parsed parsed");
+     ESP_LOGVV(TAG, "Completed parse of XIAOMI message");
     if (res->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*res->temperature);
     if (res->humidity.has_value() && this->humidity_ != nullptr)
