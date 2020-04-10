@@ -137,21 +137,6 @@ sensor:
       name: "CSE7766 Current"
     power:
       name: "CSE776 Power"
-  - platform: apds9960
-    type: proximity
-    name: APDS9960 Proximity
-  - platform: apds9960
-    type: clear
-    name: APDS9960 Clear
-  - platform: apds9960
-    type: red
-    name: APDS9960 Red
-  - platform: apds9960
-    type: green
-    name: APDS9960 Green
-  - platform: apds9960
-    type: blue
-    name: APDS9960 Blue
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
@@ -271,21 +256,6 @@ script:
   - id: my_script
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
-
-stepper:
-  - platform: uln2003
-    id: my_stepper
-    pin_a: GPIO23
-    pin_b: GPIO27
-    pin_c: GPIO25
-    pin_d: GPIO26
-    sleep_when_done: no
-    step_mode: HALF_STEP
-    max_speed: 250 steps/s
-
-    # Optional:
-    acceleration: inf
-    deceleration: inf
 
 interval:
   interval: 5s
