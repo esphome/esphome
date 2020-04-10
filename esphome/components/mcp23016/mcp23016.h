@@ -9,8 +9,8 @@ namespace mcp23016 {
 
 /// Modes for MCP23016 pins
 enum MCP23016GPIOMode : uint8_t {
-  MCP23016_INPUT = INPUT,                // 0x00
-  MCP23016_OUTPUT = OUTPUT               // 0x01
+  MCP23016_INPUT = INPUT,   // 0x00
+  MCP23016_OUTPUT = OUTPUT  // 0x01
 };
 
 enum MCP23016GPIORegisters {
