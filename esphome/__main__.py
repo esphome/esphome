@@ -534,10 +534,7 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        command_line_substitutions = {}
-        if (args.substitution is not None):
-            command_line_substitutions = {k: v for (k, v) in args.substitution}
-        config = read_config(command_line_substitutions)
+        config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
             return 1
         CORE.config = config
