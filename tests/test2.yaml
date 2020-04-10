@@ -104,39 +104,6 @@ sensor:
       name: "Xiaomi CGG1 Humidity"
     battery_level:
       name: "Xiaomi CGG1 Battery Level"
-  - platform: pmsx003
-    type: PMSX003
-    pm_1_0:
-      name: "PM 1.0 Concentration"
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    pm_10_0:
-      name: "PM 10.0 Concentration"
-  - platform: pmsx003
-    type: PMS5003T
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-  - platform: pmsx003
-    type: PMS5003ST
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-    formaldehyde:
-      name: "PMS Formaldehyde Concentration"
-  - platform: cse7766
-    voltage:
-      name: "CSE7766 Voltage"
-    current:
-      name: "CSE7766 Current"
-    power:
-      name: "CSE776 Power"
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
@@ -145,28 +112,6 @@ sensor:
       name: "Lightning Energy"
     distance:
       name: "Distance Storm"
-  - platform: ruuvitag
-    mac_address: FF:56:D3:2F:7D:E8
-    humidity:
-      name: "RuuviTag Humidity"
-    temperature:
-      name: "RuuviTag Temperature"
-    pressure:
-      name: "RuuviTag Pressure"
-    acceleration_x:
-      name: "RuuviTag Acceleration X"
-    acceleration_y:
-      name: "RuuviTag Acceleration Y"
-    acceleration_z:
-      name: "RuuviTag Acceleration Z"
-    battery_voltage:
-      name: "RuuviTag Battery Voltage"
-    tx_power:
-      name: "RuuviTag TX Power"
-    movement_counter:
-      name: "RuuviTag Movement Counter"
-    measurement_sequence_number:
-      name: "RuuviTag Measurement Sequence Number"
 
 time:
 - platform: homeassistant
