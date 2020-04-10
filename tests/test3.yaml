@@ -531,6 +531,8 @@ stepper:
     sleep_when_done: no
     step_mode: HALF_STEP
     max_speed: 250 steps/s
+
+    # Optional:
     acceleration: inf
     deceleration: inf
   - platform: a4988
@@ -540,19 +542,6 @@ stepper:
     max_speed: 0.1 steps/s
     acceleration: 10 steps/s^2
     deceleration: 10 steps/s^2
-  - platform: uln2003
-    id: my_stepper
-    pin_a: GPIO23
-    pin_b: GPIO27
-    pin_c: GPIO25
-    pin_d: GPIO26
-    sleep_when_done: no
-    step_mode: HALF_STEP
-    max_speed: 250 steps/s
-
-    # Optional:
-    acceleration: inf
-    deceleration: inf
 
 interval:
   interval: 5s
