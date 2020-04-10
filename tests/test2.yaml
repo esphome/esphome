@@ -214,18 +214,6 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
-  - platform: apds9960
-    direction: up
-    name: APDS9960 Up
-  - platform: apds9960
-    direction: down
-    name: APDS9960 Down
-  - platform: apds9960
-    direction: left
-    name: APDS9960 Left
-  - platform: apds9960
-    direction: right
-    name: APDS9960 Right
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
