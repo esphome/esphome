@@ -649,6 +649,10 @@ output:
       return {s};
     outputs:
       - id: custom_float
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO12
 
 mcp23017:
   id: mcp23017_hub
