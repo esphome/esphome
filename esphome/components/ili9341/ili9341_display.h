@@ -14,7 +14,7 @@ enum ILI9341Model {
   TFT_24,
 };
 
-class ili9341 : public PollingComponent,
+class ILI9341Display : public PollingComponent,
                 public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_40MHZ> {
@@ -27,8 +27,8 @@ class ili9341 : public PollingComponent,
 
   void command(uint8_t value);
   void data(uint8_t value);
-  void send_command(uint8_t commandByte, const uint8_t *dataBytes, uint8_t numDataBytes);
-  uint8_t read_command_(uint8_t commandByte, uint8_t index);
+  void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
+  uint8_t read_command(uint8_t command_byte, uint8_t index);
   virtual void initialize() = 0;
 
   void update() override;
@@ -50,9 +50,9 @@ class ili9341 : public PollingComponent,
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(int color);
-  void display();
+  void display_();
   uint16_t convert_to_16bit_color_(uint8_t color_8bit);
-  uint8_t convert_to_8bit_color(uint16_t color_16bit);
+  uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
   ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation
@@ -78,13 +78,13 @@ class ili9341 : public PollingComponent,
 };
 
 //-----------   M5Stack display --------------
-class ili9341_M5Stack : public ili9341 {
+class ILI9341_M5Stack : public ILI9341Display {
  public:
   void initialize() override;
 };
 
 //-----------   ILI9341_24_TFT display --------------
-class ili9341_24_TFT : public ili9341 {
+class ILI9341_24_TFT : public ILI9341Display {
  public:
   void initialize() override;
 };
