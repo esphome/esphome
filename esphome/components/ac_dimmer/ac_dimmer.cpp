@@ -47,7 +47,7 @@ uint32_t ICACHE_RAM_ATTR HOT AcDimmerDataStore::timer_intr(uint32_t now) {
     // Next event is enable, return time until that event
     return this->enable_time_us - time_since_zc;
   else if (time_since_zc < disable_time_us) {
-    // Next event is enable, return time until that event
+    // Next event is disable, return time until that event
     return this->disable_time_us - time_since_zc;
   }
 
@@ -81,14 +81,14 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
   uint32_t prev_crossed = this->crossed_zero_at;
 
   // 50Hz mains frequency should give a half cycle of 10ms a 60Hz will give 8.33ms
-  // in any case  the cycle last at least 5ms
+  // in any case the cycle last at least 5ms
   this->crossed_zero_at = micros();
   uint32_t cycle_time = this->crossed_zero_at - prev_crossed;
   if (cycle_time > 5000) {
     this->cycle_time_us = cycle_time;
   } else {
-    // Otherwise we have a noise and this is 2nd (or 3rd...) fall in the same pulse
-    // We should consider this is the right fall edge and accumulate the cycle time instead
+    // Otherwise this is noise and this is 2nd (or 3rd...) fall in the same pulse
+    // Consider this is the right fall edge and accumulate the cycle time instead
     this->cycle_time_us += cycle_time;
   }
 
@@ -109,10 +109,11 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
       this->disable_time_us = max((uint32_t) 10, this->value * this->cycle_time_us / 65535);
     } else {
       // calculate time until enable in µs: (1.0-value)*cycle_time, but with integer arithmetic
+      // also take into account min_power
       auto min_us = this->cycle_time_us * this->min_power / 1000;
       this->enable_time_us = max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
       if (this->method == DIM_METHOD_LEADING_PULSE) {
-        // Minimum pulse time should be enough for the triac to trigger when we are just close to the ZC zone
+        // Minimum pulse time should be enough for the triac to trigger when it is close to the ZC zone
         // this is for brightness near 99%
         this->disable_time_us = max(this->enable_time_us + GATE_ENABLE_TIME, (uint32_t) cycle_time_us / 10);
       } else {
@@ -146,28 +147,32 @@ void ICACHE_RAM_ATTR HOT AcDimmerDataStore::s_timer_intr() { timer_interrupt(); 
 
 void AcDimmer::setup() {
   // extend all_dimmers array with our dimmer
-  auto skip_attach_interrupt = false;
+
+  // Need to be sure the zero cross pin is setup only once, ESP8266 fails and ESP32 seems to fail silently
+  auto setup_zero_cross_pin = true;
+
   for (auto &all_dimmer : all_dimmers) {
     if (all_dimmer == nullptr) {
       all_dimmer = &this->store_;
       break;
     }
-    if (all_dimmer->zero_cross_pin_number == this->zero_cross_pin_->get_pin())
-      skip_attach_interrupt = true;
+    if (all_dimmer->zero_cross_pin_number == this->zero_cross_pin_->get_pin()) {
+      setup_zero_cross_pin = false;
+    }
   }
 
   this->gate_pin_->setup();
-  this->zero_cross_pin_->setup();
-
   this->store_.gate_pin = this->gate_pin_->to_isr();
-  this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
   this->store_.zero_cross_pin_number = this->zero_cross_pin_->get_pin();
   this->store_.min_power = static_cast<uint16_t>(this->min_power_ * 1000);
   this->min_power_ = 0;
   this->store_.method = this->method_;
-  // TODO: why FALLING here?
-  if (!skip_attach_interrupt)
+
+  if (setup_zero_cross_pin) {
+    this->zero_cross_pin_->setup();
+    this->store_.zero_cross_pin = this->zero_cross_pin_->to_isr();
     this->zero_cross_pin_->attach_interrupt(&AcDimmerDataStore::s_gpio_intr, &this->store_, FALLING);
+  }
 
 #ifdef ARDUINO_ARCH_ESP8266
   // Uses ESP8266 waveform (soft PWM) class
