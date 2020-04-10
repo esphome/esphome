@@ -104,6 +104,28 @@ sensor:
       name: "Xiaomi CGG1 Humidity"
     battery_level:
       name: "Xiaomi CGG1 Battery Level"
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: "RuuviTag Humidity"
+    temperature:
+      name: "RuuviTag Temperature"
+    pressure:
+      name: "RuuviTag Pressure"
+    acceleration_x:
+      name: "RuuviTag Acceleration X"
+    acceleration_y:
+      name: "RuuviTag Acceleration Y"
+    acceleration_z:
+      name: "RuuviTag Acceleration Z"
+    battery_voltage:
+      name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
