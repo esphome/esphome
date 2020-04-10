@@ -428,7 +428,8 @@ def parse_args(argv):
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
-    parser.add_argument('-s', '--substitution', nargs=2, action='append', help='Add a substitution', metavar=('key', 'value'))
+    parser.add_argument('-s', '--substitution', nargs=2, action='append',
+                        help='Add a substitution', metavar=('key', 'value'))
     parser.add_argument('configuration', help='Your YAML configuration file.', nargs='*')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
