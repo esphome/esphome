@@ -1,6 +1,5 @@
 #include "xiaomi_ble.h"
 #include "esphome/core/log.h"
-//#include "mbedtls/aes.h"
 #include "mbedtls/ccm.h"
 #include "mbedtls/error.h"
 
@@ -29,11 +28,15 @@
       (dst)[i] = (src)[i] ^ b[i];                           \
   } while (0)
 
+static void mbedtls_zeroize( void *v, size_t n ) {
+    volatile unsigned char *p = (unsigned char*)v; while( n-- ) *p++ = 0;
+}
+
 static int ccm_auth_crypt(mbedtls_ccm_context *ctx, int mode, size_t length,
                           const unsigned char *iv, size_t iv_len,
                           const unsigned char *add, size_t add_len,
                           const unsigned char *input, unsigned char *output,
-                          unsigned char *tag, size_t tag_len)
+                          unsigned char *tag, size_t tag_len, const unsigned char* aad=NULL, size_t aad_len=0)
 {
   int ret = MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED;
   unsigned char i;
@@ -127,6 +130,11 @@ static int ccm_auth_crypt(mbedtls_ccm_context *ctx, int mode, size_t length,
     }
   }
 
+  if (NULL != aad && aad_len > 0)
+  {
+    mbedtls_cipher_update_ad(&ctx->cipher_ctx, aad, aad_len);
+  }
+
   /*
      * Prepare counter block for encryption:
      * 0        .. 0        flags
@@ -192,7 +200,21 @@ static int ccm_auth_crypt(mbedtls_ccm_context *ctx, int mode, size_t length,
     ctr[15 - i] = 0;
 
   CTR_CRYPT(y, y, 16);
-  memcpy(tag, y, tag_len);
+  int diff = 0;
+  if (mode == CCM_DECRYPT)
+  {
+    /* Check tag in "constant-time" */
+    for (i = 0; i < tag_len; i++)
+    {
+      diff |= tag[i] ^ y[i];
+    }
+  }
+
+  if (diff != 0)
+  {
+    mbedtls_zeroize(output, length);
+    return (MBEDTLS_ERR_CCM_AUTH_FAILED);
+  }
 
   return (0);
 }
@@ -352,7 +374,7 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
   char xiaomi[2]= { 0x95,0xfe };
   long long ret = 0;
   uint8_t aad[8] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
-  size_t aadlen = 0;
+  size_t aadlen = 1;
   int enc_length = result.data_length - 11 - 7; //magic FTW (well actually it is the position of the MAC address plus the length from the start [11], then token and payload from the end [7])
   if (enc_length < 1)
     return;
@@ -376,7 +398,6 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
   mbedtls_ccm_context ctx;
   mbedtls_ccm_init(&ctx);
   ret = mbedtls_ccm_setkey(&ctx,MBEDTLS_CIPHER_ID_AES , bindkey, 16 * 8);
-
   if (ret != 0)
   {
     char error[200];
@@ -391,7 +412,7 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
 
   ret = ccm_auth_crypt(&ctx, CCM_DECRYPT, 5 /* length*/,
                        nonce, 12 /*iv_len*/, aad /*add*/, aadlen /* add_len*/,
-                       encrypted_payload /*input*/, message /* output*/, check_tag, tag_len);
+                       encrypted_payload /*input*/, message /* output*/, token, tag_len);
   
 
   if (ret != 0)
@@ -402,8 +423,8 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
     ESP_LOGVV(TAG, "Decrypt failure: %s", error);
   }
   mbedtls_ccm_free(&ctx);
-  ESP_LOGVV(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
-  ESP_LOGVV(TAG, "token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(check_tag), 6)).c_str());
+//  ESP_LOGCONFIG(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
+//  ESP_LOGCONFIG(TAG, "decrypted token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(check_tag), 6)).c_str());
 
   delete (encrypted_payload);
 }
@@ -494,31 +515,31 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
     name = "HHCCJCY01";
   }
 
-  ESP_LOGD(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
+  ESP_LOGV(TAG, "Got Xiaomi %s (%s):", name, device.address_str().c_str());
 
   if (res->temperature.has_value())
   {
-    ESP_LOGD(TAG, "  Temperature: %.1f°C", *res->temperature);
+    ESP_LOGV(TAG, "  Temperature: %.1f°C", *res->temperature);
   }
   if (res->humidity.has_value())
   {
-    ESP_LOGD(TAG, "  Humidity: %.1f%%", *res->humidity);
+    ESP_LOGV(TAG, "  Humidity: %.1f%%", *res->humidity);
   }
   if (res->battery_level.has_value())
   {
-    ESP_LOGD(TAG, "  Battery Level: %.0f%%", *res->battery_level);
+    ESP_LOGV(TAG, "  Battery Level: %.0f%%", *res->battery_level);
   }
   if (res->conductivity.has_value())
   {
-    ESP_LOGD(TAG, "  Conductivity: %.0fµS/cm", *res->conductivity);
+    ESP_LOGV(TAG, "  Conductivity: %.0fµS/cm", *res->conductivity);
   }
   if (res->illuminance.has_value())
   {
-    ESP_LOGD(TAG, "  Illuminance: %.0flx", *res->illuminance);
+    ESP_LOGV(TAG, "  Illuminance: %.0flx", *res->illuminance);
   }
   if (res->moisture.has_value())
   {
-    ESP_LOGD(TAG, "  Moisture: %.0f%%", *res->moisture);
+    ESP_LOGV(TAG, "  Moisture: %.0f%%", *res->moisture);
   }
 
   return true;
