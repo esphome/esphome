@@ -870,6 +870,13 @@ binary_sensor:
       number: 7
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: "MCP23 binary sensor"
+    pin:
+      mcp23016: mcp23016_hub
+      number: 7
+      mode: INPUT
+      inverted: False
 
   - platform: remote_receiver
     name: "Raw Remote Receiver Test"
@@ -993,6 +1000,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: gpio
+    id: id25
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
   - platform: my9231
     id: my_0
     channel: 0
@@ -1015,6 +1029,10 @@ output:
     id: id24
     pin: GPIO26
     period: 15s
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO26
 
 light:
   - platform: binary
@@ -1077,6 +1095,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    constant_brightness: true
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
@@ -1566,6 +1585,10 @@ mcp23017:
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+
+mcp23016:
+  - id: 'mcp23016_hub'
+    address: 0x23
 
 stepper:
 - platform: a4988
