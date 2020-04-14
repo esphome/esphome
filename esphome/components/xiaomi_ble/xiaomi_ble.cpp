@@ -371,17 +371,19 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
 
   memset(message, 0, sizeof((const unsigned char *)message));
   uint8_t token[4], payload_counter[3], nonce[12];
-  char xiaomi[2]= { 0x95,0xfe };
+//  char xiaomi[2]= { 0x95,0xfe };
   long long ret = 0;
   uint8_t aad[8] = {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11};
   size_t aadlen = 1;
   int enc_length = result.data_length - 11 - 7; //magic FTW (well actually it is the position of the MAC address plus the length from the start [11], then token and payload from the end [7])
+  //unsigned char check_tag[16];
+  size_t tag_len = 4;
   if (enc_length < 1)
     return;
   uint8_t *encrypted_payload = new uint8_t[enc_length];
   strncpy((char *)&token, &(device.get_service_data().data()[result.data_length - 4]), result.data_length);
   strncpy((char *)&payload_counter, &(device.get_service_data().data()[result.data_length - 7]), 3);
-  int pos = device.get_service_data().data() - strstr(device.get_service_data().data(), xiaomi);
+  //int pos = device.get_service_data().data() - strstr(device.get_service_data().data(), xiaomi);
   strncpy((char *)nonce, device.get_service_data().data() + 5, 6);
   strncpy((char *)nonce + 6, device.get_service_data().data() + 2, 3);
   strncpy((char *)nonce + 9, (char*)payload_counter, 3);
@@ -405,10 +407,6 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
     mbedtls_strerror(ret, error, 199);
     ESP_LOGVV(TAG, "setkey failure: %s", error);
   }
-  //unsigned char iv[14];
-  //memset( iv, 0, sizeof( iv ) );
-  unsigned char check_tag[16];
-  size_t tag_len = 4;
 
   ret = ccm_auth_crypt(&ctx, CCM_DECRYPT, 5 /* length*/,
                        nonce, 12 /*iv_len*/, aad /*add*/, aadlen /* add_len*/,
@@ -423,8 +421,8 @@ void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::X
     ESP_LOGVV(TAG, "Decrypt failure: %s", error);
   }
   mbedtls_ccm_free(&ctx);
-//  ESP_LOGCONFIG(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
-//  ESP_LOGCONFIG(TAG, "decrypted token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(check_tag), 6)).c_str());
+  ESP_LOGVV(TAG, "decrypted message: %s", hexencode_string(std::string(reinterpret_cast<const char *>(message), 5)).c_str());
+  ESP_LOGVV(TAG, "decrypted token: %s", hexencode_string(std::string(reinterpret_cast<const char *>(check_tag), 6)).c_str());
 
   delete (encrypted_payload);
 }
