@@ -73,47 +73,60 @@ void WebServer::setup() {
     // Configure reconnect timeout
     client->send("", "ping", millis(), 30000);
 
+    // Turns out the client->send method fills a (short) queue sized SSE_MAX_QUEUED_MESSAGES which is
+    // 8 in ESP8266 and 32 in ESP32
+    // https://github.com/OttoWinter/ESPAsyncWebServer/blob/ae1258fee1f1e9753bc5cc46aa1d2e67184f6a65/src/AsyncEventSource.h#L26
+    // People often hits the 8, see: https://github.com/esphome/issues/issues/877
+
+    std::string all_states = "[";
+
 #ifdef USE_SENSOR
     for (auto *obj : App.get_sensors())
       if (!obj->is_internal())
-        client->send(this->sensor_json(obj, obj->state).c_str(), "state");
+        all_states += this->sensor_json(obj, obj->state) + ',';
 #endif
 
 #ifdef USE_SWITCH
     for (auto *obj : App.get_switches())
       if (!obj->is_internal())
-        client->send(this->switch_json(obj, obj->state).c_str(), "state");
+        all_states += this->switch_json(obj, obj->state) + ',';
 #endif
 
 #ifdef USE_BINARY_SENSOR
     for (auto *obj : App.get_binary_sensors())
       if (!obj->is_internal())
-        client->send(this->binary_sensor_json(obj, obj->state).c_str(), "state");
+        all_states += this->binary_sensor_json(obj, obj->state) + ',';
 #endif
 
 #ifdef USE_FAN
     for (auto *obj : App.get_fans())
       if (!obj->is_internal())
-        client->send(this->fan_json(obj).c_str(), "state");
+        all_states += this->fan_json(obj) + ',';
 #endif
 
 #ifdef USE_LIGHT
     for (auto *obj : App.get_lights())
       if (!obj->is_internal())
-        client->send(this->light_json(obj).c_str(), "state");
+        all_states += this->light_json(obj) + ',';
 #endif
 
 #ifdef USE_TEXT_SENSOR
     for (auto *obj : App.get_text_sensors())
       if (!obj->is_internal())
-        client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
+        all_states += this->text_sensor_json(obj, obj->state) + ',';
 #endif
 
 #ifdef USE_COVER
     for (auto *obj : App.get_covers())
       if (!obj->is_internal())
-        client->send(this->cover_json(obj).c_str(), "state");
+        all_states += this->cover_json(obj) + ',';
 #endif
+
+    // Remove last comma if we added any
+    if (all_states.length() > 1)
+      all_states.pop_back();
+    all_states += ']';
+    client->send(all_states.c_str(), "state");
   });
 
 #ifdef USE_LOGGER
