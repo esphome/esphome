@@ -32,8 +32,8 @@ class XiaomiLYWSDCGQ : public Component, public esp32_ble_tracker::ESPBTDeviceLi
     }
     uint8_t* message;
     if((*res).has_encryption){
-      message=new uint8_t((*res).data_length); //I don't think we have a real length available at this point
-      xiaomi_ble::decrypt_message(device,*res,(const uint8_t*)this->bindkey_,message);
+      ESP_LOGVV(TAG,"Decryption is currently not supported on this device. See xiaomi_lysd003mmc for detail of how to implement bindkey_");
+      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
     }else {
       message=(uint8_t*)reinterpret_cast<const uint8_t *>(device.get_service_data().data());
     }
