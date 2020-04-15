@@ -16,19 +16,20 @@ struct XiaomiParseResult {
   optional<float> conductivity;
   optional<float> illuminance;
   optional<float> moisture;
-  bool has_data=false; //0x40
-  bool has_capability=false; //0x20
-  bool has_encryption=false; //0x08
-  int data_length=0;
+  bool has_data = false;        // 0x40
+  bool has_capability = false;  // 0x20
+  bool has_encryption = false;  // 0x08
+  int data_length = 0;
 };
 
 bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data_length, XiaomiParseResult &result);
 
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ESPBTDevice &device);
 
-void parse_xiaomi_message(const uint8_t *message,xiaomi_ble::XiaomiParseResult &result);
+void parse_xiaomi_message(const uint8_t *message, xiaomi_ble::XiaomiParseResult &result);
 
-void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device,xiaomi_ble::XiaomiParseResult &result,const uint8_t *bindkey,uint8_t *message);
+void decrypt_message(const esp32_ble_tracker::ESPBTDevice &device, xiaomi_ble::XiaomiParseResult &result,
+                     const uint8_t *bindkey, uint8_t *message);
 
 class XiaomiListener : public esp32_ble_tracker::ESPBTDeviceListener {
  public:

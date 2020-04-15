@@ -10,12 +10,10 @@
 #include <string>
 #include <sstream>
 
-template <class T>
-inline std::string to_string (const uint64_t& t)
-{
-	    std::stringstream ss;
-	        ss << t;
-		    return ss.str();
+template<class T> inline std::string to_string(const uint64_t &t) {
+  std::stringstream ss;
+  ss << t;
+  return ss.str();
 }
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -26,54 +24,55 @@ namespace xiaomi_lywsd03mmc {
 
 class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
-  void set_bindkey(const std::string &bindkey) { /*bindkey_ = std::string(bindkey); */  
-  char temp[3];
-  for(int i = 0; i<16; i++){
-    strncpy(temp,&(bindkey.c_str()[i*2]),2);
-        bindkey_[i]=std::strtoul(temp,NULL,16);
-    }}
+  void set_bindkey(const std::string &bindkey) { /*bindkey_ = std::string(bindkey); */
+    char temp[3];
+    for (int i = 0; i < 16; i++) {
+      strncpy(temp, &(bindkey.c_str()[i * 2]), 2);
+      bindkey_[i] = std::strtoul(temp, NULL, 16);
+    }
+  }
 
   void set_address(uint64_t address) { address_ = address; }
 
-
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-  ESP_LOGVV(TAG, "Got device packet");
+    ESP_LOGVV(TAG, "Got device packet");
 
-    if (device.address_uint64() != this->address_){
-     ESP_LOGVV(TAG, "Address didn't match");
-     ESP_LOGVV(TAG, to_string((this->address_)).c_str());
-     ESP_LOGVV(TAG, to_string((device.address_uint64())).c_str());
-      return false; //Address didn't match, so send false to allow for other listeners
+    if (device.address_uint64() != this->address_) {
+      ESP_LOGVV(TAG, "Address didn't match");
+      ESP_LOGVV(TAG, to_string((this->address_)).c_str());
+      ESP_LOGVV(TAG, to_string((device.address_uint64())).c_str());
+      return false;  // Address didn't match, so send false to allow for other listeners
     }
-     ESP_LOGVV(TAG, "Address matched matched matched");
+    ESP_LOGVV(TAG, "Address matched matched matched");
 
-    /*optional<xiaomi_ble::XiaomiParseResult>*/ 
+    /*optional<xiaomi_ble::XiaomiParseResult>*/
     auto res = xiaomi_ble::parse_xiaomi_header(device);
 
-    if (!res.has_value()){
-     ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
-      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+    if (!res.has_value()) {
+      ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
-    if ((device.get_service_data().size() < 14) || !res->has_data ) { //Not 100% sure on the sizing here. Might not be necessary any more
-    ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
-    return true; //seems wrong? We have the correct address, therefore we want to stop other processing
-  }
-    uint8_t* message;
-    if((*res).has_encryption){
-      message=new uint8_t((*res).data_length); //I don't think we have a real length available at this point
-      xiaomi_ble::decrypt_message(device,*res,(const uint8_t*)this->bindkey_,message);
-    }else {
-      message=(uint8_t*)reinterpret_cast<const uint8_t *>(device.get_service_data().data());
+    if ((device.get_service_data().size() < 14) ||
+        !res->has_data) {  // Not 100% sure on the sizing here. Might not be necessary any more
+      ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
+    }
+    uint8_t *message;
+    if ((*res).has_encryption) {
+      message = new uint8_t((*res).data_length);  // I don't think we have a real length available at this point
+      xiaomi_ble::decrypt_message(device, *res, (const uint8_t *) this->bindkey_, message);
+    } else {
+      message = (uint8_t *) reinterpret_cast<const uint8_t *>(device.get_service_data().data());
     }
 
-    xiaomi_ble::parse_xiaomi_message(message,*res);
-    if (!res.has_value()){
-     ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_message");
-      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+    xiaomi_ble::parse_xiaomi_message(message, *res);
+    if (!res.has_value()) {[m
+      ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_message");
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
-     ESP_LOGVV(TAG, "Completed parse of XIAOMI message");
+    ESP_LOGVV(TAG, "Completed parse of XIAOMI message");
     if (res->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*res->temperature);
     if (res->humidity.has_value() && this->humidity_ != nullptr)
