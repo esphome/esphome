@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.core import CORE
 from esphome.components import esp32_ble_tracker
 from esphome.const import CONF_ID
 
@@ -15,8 +16,8 @@ CONFIG_SCHEMA = cv.Schema({
 
 def to_code(config):
     if CORE.is_esp32:
-      cg.add_library('mbedtls', 'cdf462088d')
+        cg.add_library('mbedtls', 'cdf462088d')
     elif CORE.is_esp8266:
-      cg.add_library('mbedtls', 'cdf462088d')
+        cg.add_library('mbedtls', 'cdf462088d')
     var = cg.new_Pvariable(config[CONF_ID])
     yield esp32_ble_tracker.register_ble_device(var, config)

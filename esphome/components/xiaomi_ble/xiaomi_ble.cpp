@@ -1,7 +1,6 @@
 #include "xiaomi_ble.h"
 #include "esphome/core/log.h"
 
-
 #ifdef ARDUINO_ARCH_ESP32
 #include <mbedtls/ccm.h>
 #include <mbedtls/error.h>
@@ -13,9 +12,9 @@
 
 #ifdef ARDUINO_ARCH_ESP32
 
-#define CCM_ENCRYPT 0
-#define CCM_DECRYPT 1
-#define MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED 23334  // something
+static const uint8_t  CCM_ENCRYPT 0
+static const uint8_t  CCM_DECRYPT 1
+static const uint8_t  MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED 23334  // something
 #define UPDATE_CBC_MAC \
   for (i = 0; i < 16; i++) \
     y[i] ^= b[i]; \
@@ -430,7 +429,7 @@ void parse_xiaomi_message(const uint8_t *message, XiaomiParseResult &result) {
   };
 
   //= (result.type == XiaomiParseResult::TYPE_LYWSDCGQ || result.type == XiaomiParseResult::TYPE_CGG1) ? 11 : 12; //Not
-  //sure this is 100% anyway
+  // sure this is 100% anyway
   uint8_t data_length = result.data_length - raw_offset;
   const uint8_t *raw_data = &message[raw_offset];
   uint8_t data_offset = 0;

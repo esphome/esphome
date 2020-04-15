@@ -21,24 +21,26 @@ class XiaomiLYWSD02 : public Component, public esp32_ble_tracker::ESPBTDeviceLis
       return false;
 
     auto res = xiaomi_ble::parse_xiaomi(device);
-    if (!res.has_value()){
+    if (!res.has_value()) {
       ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
-      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
-    if ((device.get_service_data().size() < 14) || !res->has_data ) { //Not 100% sure on the sizing here. Might not be necessary any more
+    if ((device.get_service_data().size() < 14) ||
+        !res->has_data) {  // Not 100% sure on the sizing here. Might not be necessary any more
       ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
-      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
     }
-    uint8_t* message;
-    if((*res).has_encryption){
-      ESP_LOGVV(TAG,"Decryption is currently not supported on this device. See xiaomi_lysd003mmc for detail of how to implement bindkey_");
-      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
-    }else {
-      message=(uint8_t*)reinterpret_cast<const uint8_t *>(device.get_service_data().data());
+    uint8_t *message;
+    if ((*res).has_encryption) {
+      ESP_LOGVV(TAG, "Decryption is currently not supported on this device. See xiaomi_lysd003mmc for detail of how to "
+                     "implement bindkey_");
+      return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
+    } else {
+      message = (uint8_t *) reinterpret_cast<const uint8_t *>(device.get_service_data().data());
     }
 
-    xiaomi_ble::parse_xiaomi_message(message,*res);
+    xiaomi_ble::parse_xiaomi_message(message, *res);
     if (!res.has_value())
       return false;
 
