@@ -4,17 +4,17 @@
   <meta charset="UTF-8">
   <title>ESPHome Dashboard</title>
   <link rel="stylesheet" href="{{ get_static_file_url('fonts/material-icons.css') }}">
-  <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
-  <link rel="stylesheet" href="{{ get_static_file_url('materialize-stepper.min.css') }}">
-  <link rel="stylesheet" href="{{ get_static_file_url('esphome.css') }}">
-  <link rel="shortcut icon" href="{{ get_static_file_url('favicon.ico') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('css/vendor/materialize/materialize.min.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('css/vendor/materialize-stepper/materialize-stepper.min.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('css/esphome.css') }}">
+  <link rel="shortcut icon" href="{{ get_static_file_url('images/favicon.ico') }}">
 
-  <script src="{{ get_static_file_url('jquery.min.js') }}"></script>
-  <script src="{{ get_static_file_url('jquery-ui.min.js') }}"></script>
-  <script src="{{ get_static_file_url('materialize.min.js') }}"></script>
-  <script src="{{ get_static_file_url('jquery.validate.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/jquery/jquery.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/jquery-ui/jquery-ui.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/materialize/materialize.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/jquery-validate/jquery.validate.min.js') }}"></script>
 
-  <script src="{{ get_static_file_url('materialize-stepper.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/materialize-stepper/materialize-stepper.min.js') }}"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
   {% if streamer_mode %}
@@ -515,8 +515,8 @@
   </div>
 </footer>
 
-<script src="{{ get_static_file_url('ace.js') }}" type="text/javascript" charset="utf-8"></script>
-<script src="{{ get_static_file_url('esphome.js') }}" type="text/javascript"></script>
+<script src="{{ get_static_file_url('js/vendor/ace/ace.js') }}" type="text/javascript" charset="utf-8"></script>
+<script src="{{ get_static_file_url('js/esphome.js') }}" type="text/javascript"></script>
 
 {% if len(entries) == 0 %}
 <script>
