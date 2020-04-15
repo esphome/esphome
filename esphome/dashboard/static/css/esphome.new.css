@@ -1,0 +1,116 @@
+/* Base */
+
+:root {
+  /* Colors */
+  --primary-bg-color: #fafafa;
+
+  --alert-standard-color: #666666;
+  --alert-standard-color-bg: #e6e6e6;
+  --alert-info-color: #00539f;
+  --alert-info-color-bg: #E6EEF5;
+  --alert-success-color: #4CAF50;
+  --alert-success-color-bg: #EDF7EE;
+  --alert-warning-color: #FF9800;
+  --alert-warning-color-bg: #FFF5E6;
+  --alert-error-color: #D93025;
+  --alert-error-color-bg: #FAEFEB;
+}
+
+body {
+  background-color: var(--primary-bg-color);
+}
+
+/* Layout */
+.valign-wrapper {
+  position: absolute;
+  width:100vw;
+  height:100vh;
+}
+
+.valign {
+  width: 100%;
+}
+
+/* Alerts & Errors */
+.alert {
+  width: 100%;
+  margin: 10px auto;
+  padding: 10px;
+  border-radius: 2px;
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.alert .title {
+  font-weight: bold;
+}
+
+.alert .title::after {
+  content: "\A";
+  white-space: pre;
+}
+
+.alert.alert-error {
+  color: var(--alert-error-color);
+  border-left-color: var(--alert-error-color);
+  background-color: var(--alert-error-color-bg);
+}
+
+.card.card-error {
+  border-top: 4px solid var(--alert-error-color);
+}
+
+/* Login Page */
+#login-page .row.no-bottom-margin {
+  margin-bottom: 0 !important;
+}
+
+#login-page .logo {
+  display: block;
+  width: auto;
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#login-page .input-field input:focus + label  {
+  color: #000;
+}
+
+#login-page .input-field input:focus {
+  border-bottom: 1px solid #000;
+  box-shadow: 0 1px 0 0 #000;
+}
+
+#login-page .input-field .prefix.active {
+  color: #000;
+}
+
+#login-page .version-number {
+  display: block;
+  text-align: center;
+  margin-bottom: 20px;;
+  color:#808080;
+  font-size: 12px;
+}
+
+#login-page footer {
+  color: #757575;
+  font-size: 12px;
+}
+
+#login-page footer a {
+  color: #424242;
+}
+
+#login-page footer p {
+  -webkit-margin-before: 0px;
+  margin-block-start: 0px;
+  -webkit-margin-after: 5px;
+  margin-block-end: 5px;
+}
+
+#login-page footer p:last-child {
+  -webkit-margin-after: 0px;
+  margin-block-end: 0px;
+}
