@@ -4,11 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
+#include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
 namespace xiaomi_lywsdcgq {
+static const char *TAG = "xiaomi_lywsdcgq";
 
 class XiaomiLYWSDCGQ : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:

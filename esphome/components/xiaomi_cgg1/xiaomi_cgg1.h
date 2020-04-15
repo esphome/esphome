@@ -4,11 +4,13 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
+#include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
 namespace xiaomi_cgg1 {
+static const char *TAG = "xiaomi_cgg1";
 
 class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
@@ -20,12 +22,12 @@ class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListen
 
     auto res = xiaomi_ble::parse_xiaomi_header(device);
     if (!res.has_value()){
-      ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
+      ESP_LOGVV(TAG,"Couldn't parse XIAOMI parse_xiaomi_header");
       return true; //seems wrong? We have the correct address, therefore we want to stop other processing
     }
 
     if ((device.get_service_data().size() < 14) || !res->has_data ) { //Not 100% sure on the sizing here. Might not be necessary any more
-      ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
+      ESP_LOGVV(TAG,"Xiaomi service data too short or missing");
       return true; //seems wrong? We have the correct address, therefore we want to stop other processing
     }
     uint8_t* message;
