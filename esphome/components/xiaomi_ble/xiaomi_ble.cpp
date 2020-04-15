@@ -1,20 +1,12 @@
 #include "xiaomi_ble.h"
 #include "esphome/core/log.h"
 
-#ifdef ARDUINO_ARCH_ESP32
-#include <mbedtls/ccm.h>
-#include <mbedtls/error.h>
-#endif
-#ifdef ARDUINO_ARCH_ESP8266
-#include <mbedtls/ccm.h>
-#include <mbedtls/error.h>
-#endif
 
 #ifdef ARDUINO_ARCH_ESP32
 
-static const uint8_t  CCM_ENCRYPT 0
-static const uint8_t  CCM_DECRYPT 1
-static const uint8_t  MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED 23334  // something
+static const uint8_t  CCM_ENCRYPT=0;
+static const uint8_t  CCM_DECRYPT=1;
+static const uint8_t  MBEDTLS_ERR_ERROR_CORRUPTION_DETECTED=23334; // something
 #define UPDATE_CBC_MAC \
   for (i = 0; i < 16; i++) \
     y[i] ^= b[i]; \

@@ -16,8 +16,8 @@ CONFIG_SCHEMA = cv.Schema({
 
 def to_code(config):
     if CORE.is_esp32:
-        cg.add_library('mbedtls', 'cdf462088d')
+        cg.add_library('mbedtls', None)
     elif CORE.is_esp8266:
-        cg.add_library('mbedtls', 'cdf462088d')
+        cg.add_library('mbedtls', None)
     var = cg.new_Pvariable(config[CONF_ID])
     yield esp32_ble_tracker.register_ble_device(var, config)

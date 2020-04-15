@@ -67,7 +67,7 @@ class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDevice
     }
 
     xiaomi_ble::parse_xiaomi_message(message, *res);
-    if (!res.has_value()) {[m
+    if (!res.has_value()) {
       ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_message");
       return true;  // seems wrong? We have the correct address, therefore we want to stop other processing
     }
