@@ -56,8 +56,20 @@ body {
   background-color: var(--alert-error-color-bg);
 }
 
-.card.card-error {
+.card.card-error, .card.status-offline {
   border-top: 4px solid var(--alert-error-color);
+}
+
+.card.status-online {
+  border-top: 4px solid var(--alert-success-color);
+}
+
+.card.status-not-responding {
+  border-top: 4px solid var(--alert-warning-color);
+}
+
+.card.status-unknown {
+  border-top: 4px solid var(--alert-standard-color);
 }
 
 /* Login Page */
@@ -172,6 +184,48 @@ body {
 
 main .container {
   margin-top: 20px;
+}
+
+#nodes .card-content {
+  height: calc(100% - 47px);
+}
+
+#nodes .card-content, #nodes .card-action  {
+  padding: 12px;
+}
+
+#nodes .grid-1-col {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+#nodes .grid-2-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-column-gap: 1.5rem;
+}
+
+@media only screen and (max-width: 780px) {
+  #nodes .grid-2-col {
+    grid-template-columns: 1fr;
+    grid-column-gap: 0;
+  }
+}
+
+i.node-update-avaliable {
+  color:#3f51b5;
+  cursor: help;
+}
+
+.node-config-path {
+  margin-top: -8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.node-card-comment {
+  color: #444;
+  font-style: italic;
 }
 
 .page-footer {

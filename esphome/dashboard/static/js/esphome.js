@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
   M.AutoInit(document.body);
 });
 const loc = window.location;
-const wsLoc = new URL("./",`${loc.protocol}//${loc.host}${loc.pathname}`);
+const wsLoc = new URL("./", `${loc.protocol}//${loc.host}${loc.pathname}`);
 wsLoc.protocol = 'ws:';
 if (loc.protocol === "https:") {
   wsLoc.protocol = 'wss:';
@@ -187,56 +187,56 @@ const colorReplace = (pre, state, text) => {
 };
 
 // ============================= Online/Offline Status Indicators =============================
-let isFetchingPing = false;
-const fetchPing = () => {
-  if (isFetchingPing)
-      return;
-  isFetchingPing = true;
+// let isFetchingPing = false;
+// const fetchPing = () => {
+//   if (isFetchingPing)
+//       return;
+//   isFetchingPing = true;
 
-  fetch(`./ping`, {credentials: "same-origin"}).then(res => res.json())
-    .then(response => {
-      for (let filename in response) {
-        let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
-        if (node === null)
-          continue;
+//   fetch(`./ping`, {credentials: "same-origin"}).then(res => res.json())
+//     .then(response => {
+//       for (let filename in response) {
+//         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
+//         if (node === null)
+//           continue;
 
-        let status = response[filename];
-        let klass;
-        if (status === null) {
-          klass = 'unknown';
-        } else if (status === true) {
-          klass = 'online';
-          node.setAttribute('data-last-connected', Date.now().toString());
-        } else if (node.hasAttribute('data-last-connected')) {
-          const attr = parseInt(node.getAttribute('data-last-connected'));
-          if (Date.now() - attr <= 5000) {
-            klass = 'not-responding';
-          } else {
-            klass = 'offline';
-          }
-        } else {
-          klass = 'offline';
-        }
+//         let status = response[filename];
+//         let klass;
+//         if (status === null) {
+//           klass = 'unknown';
+//         } else if (status === true) {
+//           klass = 'online';
+//           node.setAttribute('data-last-connected', Date.now().toString());
+//         } else if (node.hasAttribute('data-last-connected')) {
+//           const attr = parseInt(node.getAttribute('data-last-connected'));
+//           if (Date.now() - attr <= 5000) {
+//             klass = 'not-responding';
+//           } else {
+//             klass = 'offline';
+//           }
+//         } else {
+//           klass = 'offline';
+//         }
 
-        if (node.classList.contains(klass))
-          continue;
+//         if (node.classList.contains(klass))
+//           continue;
 
-        node.classList.remove('unknown', 'online', 'offline', 'not-responding');
-        node.classList.add(klass);
-      }
+//         node.classList.remove('unknown', 'online', 'offline', 'not-responding');
+//         node.classList.add(klass);
+//       }
 
-      isFetchingPing = false;
-    });
-};
-setInterval(fetchPing, 2000);
-fetchPing();
+//       isFetchingPing = false;
+//     });
+// };
+// setInterval(fetchPing, 2000);
+// fetchPing();
 
 // ============================= Serial Port Selector =============================
 const portSelect = document.querySelector('.nav-wrapper select');
 let ports = [];
 
-const fetchSerialPorts = (begin=false) => {
-  fetch(`./serial-ports`, {credentials: "same-origin"}).then(res => res.json())
+const fetchSerialPorts = (begin = false) => {
+  fetch(`./serial-ports`, { credentials: "same-origin" }).then(res => res.json())
     .then(response => {
       if (ports.length === response.length) {
         let allEqual = true;
@@ -271,7 +271,7 @@ const fetchSerialPorts = (begin=false) => {
 
       M.FormSelect.init(portSelect, {});
       if (!begin && hasNewPort)
-        M.toast({html: "Discovered new serial port."});
+        M.toast({ html: "Discovered new serial port." });
     });
 };
 
@@ -292,11 +292,11 @@ fetchSerialPorts(true);
 
 class LogModalElem {
   constructor({
-                name,
-                onPrepare = (modalElem, config) => {},
-                onProcessExit = (modalElem, code) => {},
-                onSocketClose = (modalElem) => {},
-                dismissible = true,
+    name,
+    onPrepare = (modalElem, config) => { },
+    onProcessExit = (modalElem, code) => { },
+    onSocketClose = (modalElem) => { },
+    dismissible = true,
   }) {
     this.modalId = `modal-${name}`;
     this.actionClass = `action-${name}`;
@@ -399,14 +399,14 @@ const logsModal = new LogModalElem({
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
-      M.toast({html: "Program exited successfully."});
+      M.toast({ html: "Program exited successfully." });
     } else {
-      M.toast({html: `Program failed with code ${code}`});
+      M.toast({ html: `Program failed with code ${code}` });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
 });
 logsModal.setup();
@@ -425,18 +425,18 @@ const uploadModal = new LogModalElem({
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
-      M.toast({html: "Program exited successfully."});
+      M.toast({ html: "Program exited successfully." });
       // if compilation succeeds but OTA fails, you can still download the binary and upload manually
       downloadAfterUploadButton.classList.remove('disabled');
     } else {
-      M.toast({html: `Program failed with code ${code}`});
+      M.toast({ html: `Program failed with code ${code}` });
       downloadAfterUploadButton.classList.add('disabled');
       retryUploadButton.classList.remove('disabled');
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
   dismissible: false,
 });
@@ -474,7 +474,7 @@ const validateModal = new LogModalElem({
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
 });
 validateModal.setup();
@@ -488,15 +488,15 @@ const compileModal = new LogModalElem({
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
-      M.toast({html: "Program exited successfully."});
+      M.toast({ html: "Program exited successfully." });
       downloadButton.classList.remove('disabled');
     } else {
-      M.toast({html: `Program failed with code ${data.code}`});
+      M.toast({ html: `Program failed with code ${data.code}` });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
   dismissible: false,
 });
@@ -519,7 +519,7 @@ const cleanMqttModal = new LogModalElem({
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
 });
 cleanMqttModal.setup();
@@ -531,14 +531,14 @@ const cleanModal = new LogModalElem({
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
-      M.toast({html: "Program exited successfully."});
+      M.toast({ html: "Program exited successfully." });
     } else {
-      M.toast({html: `Program failed with code ${code}`});
+      M.toast({ html: `Program failed with code ${code}` });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
 });
 cleanModal.setup();
@@ -551,21 +551,21 @@ document.querySelectorAll(".action-delete").forEach((btn) => {
       credentials: "same-origin",
       method: "POST",
     }).then(res => res.text()).then(() => {
-        const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
+      const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
                            <button class="btn-flat toast-action">Undo</button></button>`;
-        const toast = M.toast({html: toastHtml});
-        const undoButton = toast.el.querySelector('.toast-action');
+      const toast = M.toast({ html: toastHtml });
+      const undoButton = toast.el.querySelector('.toast-action');
 
-        document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
+      document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
 
-        undoButton.addEventListener('click', () => {
-          fetch(`./undo-delete?configuration=${configuration}`, {
-            credentials: "same-origin",
-            method: "POST",
-          }).then(res => res.text()).then(() => {
-              window.location.reload(false);
-          });
+      undoButton.addEventListener('click', () => {
+        fetch(`./undo-delete?configuration=${configuration}`, {
+          credentials: "same-origin",
+          method: "POST",
+        }).then(res => res.text()).then(() => {
+          window.location.reload(false);
         });
+      });
     });
   });
 });
@@ -611,7 +611,7 @@ const startAceWebsocket = () => {
 
         editor.session.setAnnotations(arr);
 
-        if(arr.length) {
+        if (arr.length) {
           editorUploadButton.classList.add('disabled');
         } else {
           editorUploadButton.classList.remove('disabled');
@@ -627,7 +627,7 @@ const startAceWebsocket = () => {
     }
   });
   aceWs.addEventListener('open', () => {
-    const msg = JSON.stringify({type: 'spawn'});
+    const msg = JSON.stringify({ type: 'spawn' });
     aceWs.send(msg);
   });
   aceWs.addEventListener('close', () => {
@@ -638,7 +638,7 @@ const startAceWebsocket = () => {
 const sendAceStdin = (data) => {
   let send = JSON.stringify({
     type: 'stdin',
-    data: JSON.stringify(data)+'\n',
+    data: JSON.stringify(data) + '\n',
   });
   aceWs.send(send);
 };
@@ -654,21 +654,21 @@ const saveButton = editModalElem.querySelector(".save-button");
 const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
-      credentials: "same-origin",
-      method: "POST",
-      body: editor.getValue()
-    }).then(res => res.text()).then(() => {
-      M.toast({
-        html: `Saved <code class="inlinecode">${activeEditorConfig}</code>`
-      });
+    credentials: "same-origin",
+    method: "POST",
+    body: editor.getValue()
+  }).then(res => res.text()).then(() => {
+    M.toast({
+      html: `Saved <code class="inlinecode">${activeEditorConfig}</code>`
     });
+  });
 };
 
 const debounce = (func, wait) => {
   let timeout;
-  return function() {
+  return function () {
     let context = this, args = arguments;
-    let later = function() {
+    let later = function () {
       timeout = null;
       func.apply(context, args);
     };
@@ -679,7 +679,7 @@ const debounce = (func, wait) => {
 
 editor.commands.addCommand({
   name: 'saveCommand',
-  bindKey: {win: 'Ctrl-S',  mac: 'Command-S'},
+  bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
   exec: saveEditor,
   readOnly: false
 });
@@ -695,8 +695,8 @@ setInterval(() => {
     return;
 
   sendAceStdin({
-      type: 'validate',
-      file: activeEditorConfig
+    type: 'validate',
+    file: activeEditorConfig
   });
   aceValidationRunning = true;
   aceValidationScheduled = false;
@@ -719,11 +719,11 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
 
     editor.setValue("Loading configuration yaml...");
     editor.setOption('readOnly', true);
-    fetch(`./edit?configuration=${activeEditorConfig}`, {credentials: "same-origin"})
+    fetch(`./edit?configuration=${activeEditorConfig}`, { credentials: "same-origin" })
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
         editor.setOption('readOnly', false);
-    });
+      });
 
     modalInstance.open();
   });
@@ -762,15 +762,15 @@ const updateAllModal = new LogModalElem({
   },
   onProcessExit: (modalElem, code) => {
     if (code === 0) {
-      M.toast({html: "Program exited successfully."});
+      M.toast({ html: "Program exited successfully." });
       downloadButton.classList.remove('disabled');
     } else {
-      M.toast({html: `Program failed with code ${data.code}`});
+      M.toast({ html: `Program failed with code ${data.code}` });
     }
     modalElem.querySelector(".stop-logs").innerHTML = "Close";
   },
   onSocketClose: (modalElem) => {
-    M.toast({html: 'Terminated process.'});
+    M.toast({ html: 'Terminated process.' });
   },
   dismissible: false,
 });
