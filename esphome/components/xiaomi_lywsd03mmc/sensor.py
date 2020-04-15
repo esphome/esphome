@@ -22,6 +22,7 @@ CONFIG_SCHEMA = cv.Schema({
 
 
 def to_code(config):
+    cg.add_library('mbedtls', 'cdf462088d')
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield esp32_ble_tracker.register_ble_device(var, config)

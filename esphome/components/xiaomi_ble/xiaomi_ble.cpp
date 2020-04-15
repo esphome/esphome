@@ -1,7 +1,7 @@
 #include "xiaomi_ble.h"
 #include "esphome/core/log.h"
-#include "mbedtls/ccm.h"
-#include "mbedtls/error.h"
+#include <mbedtls/ccm.h>
+#include <mbedtls/error.h>
 
 #ifdef ARDUINO_ARCH_ESP32
 

@@ -18,7 +18,25 @@ class XiaomiCGG1 : public Component, public esp32_ble_tracker::ESPBTDeviceListen
     if (device.address_uint64() != this->address_)
       return false;
 
-    auto res = xiaomi_ble::parse_xiaomi(device);
+    auto res = xiaomi_ble::parse_xiaomi_header(device);
+    if (!res.has_value()){
+      ESP_LOGVV(TAG, "Couldn't parse XIAOMI parse_xiaomi_header");
+      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+    }
+
+    if ((device.get_service_data().size() < 14) || !res->has_data ) { //Not 100% sure on the sizing here. Might not be necessary any more
+      ESP_LOGVV(TAG, "Xiaomi service data too short or missing");
+      return true; //seems wrong? We have the correct address, therefore we want to stop other processing
+    }
+    uint8_t* message;
+    if((*res).has_encryption){
+      message=new uint8_t((*res).data_length); //I don't think we have a real length available at this point
+      xiaomi_ble::decrypt_message(device,*res,(const uint8_t*)this->bindkey_,message);
+    }else {
+      message=(uint8_t*)reinterpret_cast<const uint8_t *>(device.get_service_data().data());
+    }
+
+    xiaomi_ble::parse_xiaomi_message(message,*res);
     if (!res.has_value())
       return false;
 
