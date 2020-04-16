@@ -2,19 +2,18 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
-from esphome.const import CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN, \
-    CONF_ROTATION
+from esphome.const import CONF_DC_PIN, \
+    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN
 
 DEPENDENCIES = ['spi']
 
 CONF_LED_PIN = 'led_pin'
 
 ili9341_ns = cg.esphome_ns.namespace('ili9341')
-ili9341 = ili9341_ns.class_('ILI9341', cg.PollingComponent, spi.SPIDevice,
+ili9341 = ili9341_ns.class_('ILI9341Display', cg.PollingComponent, spi.SPIDevice,
                             display.DisplayBuffer)
-ILI9341M5Stack = ili9341_ns.class_('ili9341_M5Stack', ili9341)
-ILI9341_24_TFT = ili9341_ns.class_('ili9341_24_TFT', ili9341)
+ILI9341M5Stack = ili9341_ns.class_('ILI9341_M5Stack', ili9341)
+ILI9341_24_TFT = ili9341_ns.class_('ILI9341_24_TFT', ili9341)
 
 ILI9341Model = ili9341_ns.enum('ILI9341Model')
 
@@ -32,7 +31,7 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_LED_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 def to_code(config):

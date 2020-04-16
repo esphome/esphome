@@ -4,7 +4,7 @@ namespace esphome {
 namespace ili9341 {
 
 // clang-format off
-static const uint8_t PROGMEM initcmd_m5stack[] = {
+static const uint8_t PROGMEM INITCMD_M5STACK[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
@@ -34,7 +34,7 @@ static const uint8_t PROGMEM initcmd_m5stack[] = {
   0x00                                   // End of list
 };
 
-static const uint8_t PROGMEM initcmd_tft[] = {
+static const uint8_t PROGMEM INITCMD_TFT[] = {
   0xEF, 3, 0x03, 0x80, 0x02,
   0xCF, 3, 0x00, 0xC1, 0x30,
   0xED, 4, 0x64, 0x03, 0x12, 0x81,
