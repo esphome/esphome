@@ -1,10 +1,16 @@
 #include "pzem004t.h"
 #include "esphome/core/log.h"
+#include <ESP_EEPROM.h>
 
 namespace esphome {
 namespace pzem004t {
 
 static const char *TAG = "pzem004t";
+
+void PZEM004T::setup(){
+  EEPROM.begin(sizeof(Pzem004tEEPROM));
+  EEPROM.get(0, eeprom_data_);
+}
 
 void PZEM004T::loop() {
   const uint32_t now = millis();
@@ -65,9 +71,79 @@ void PZEM004T::loop() {
 
       case 0xA3: {  // Energy Response
         uint32_t energy = (uint32_t(resp[1]) << 16) | (uint32_t(resp[2]) << 8) | (uint32_t(resp[3]));
+
+        auto timestamp = time_->timestamp_now();
+
+        bool time_is_valid = false;
+
+        // compare timestamp with timestamp for 1.1.2010
+        if (timestamp > 1262304000){
+          time_is_valid = true;
+        }
+
+        auto real_time = time_->now();
+
         if (this->energy_sensor_ != nullptr)
           this->energy_sensor_->publish_state(energy);
         ESP_LOGD(TAG, "Got Energy %u Wh", energy);
+
+        bool commitData = false;
+
+        if (this->energy_hour_sensor_ != nullptr && time_is_valid && (last_hour_ == 0 || last_hour_ != real_time.hour)){
+          last_hour_ = real_time.hour;
+          offset_energy_hour_ = energy;
+          
+          uint32_t energy_per_hour = 0;
+          if (energy >= offset_energy_hour_){
+            energy_per_hour = energy - offset_energy_hour_;
+          }
+          else{
+            energy_per_hour = 0xffffff - offset_energy_hour_ + energy;
+          }
+          this->energy_hour_sensor_->publish_state(energy_per_hour);
+          ESP_LOGD(TAG, "Got Energy Per Hour %u Wh", energy_per_hour);
+        }
+
+        if (this->energy_day_sensor_ != nullptr && time_is_valid && (eeprom_data_.last_day == 0 || eeprom_data_.last_day != real_time.day_of_year)){
+          eeprom_data_.last_day = real_time.day_of_year;
+          eeprom_data_.offset_energy_day = energy;
+          
+          commitData = true;
+
+          uint32_t energy_per_day = 0;
+          if (energy >= eeprom_data_.offset_energy_day){
+            energy_per_day = energy - eeprom_data_.offset_energy_day;
+          }
+          else{
+            energy_per_day = 0xffffff - eeprom_data_.offset_energy_day + energy;
+          }
+          this->energy_day_sensor_->publish_state(energy_per_day);
+          ESP_LOGD(TAG, "Got Energy Per Day %u Wh", energy_per_day);
+        }
+
+        if (this->energy_month_sensor_ != nullptr && time_is_valid && (eeprom_data_.last_month == 0 || eeprom_data_.last_month != real_time.month)){
+          eeprom_data_.last_month = real_time.month;
+          eeprom_data_.offset_energy_month = energy;
+          commitData = true;
+
+          uint32_t energy_per_month = 0;
+          if (energy >= eeprom_data_.offset_energy_month){
+            energy_per_month = energy - eeprom_data_.offset_energy_month;
+          }
+          else{
+            energy_per_month = 0xffffff - eeprom_data_.offset_energy_month + energy;
+          }
+
+          this->energy_month_sensor_->publish_state(energy_per_month);
+          ESP_LOGD(TAG, "Got Energy Per Month %u Wh", energy_per_month);
+        }
+
+        if (commitData){
+            EEPROM.put(0, eeprom_data_);
+            bool commitResult = EEPROM.commit();
+            ESP_LOGD(TAG, "Commit data to EEPROM result: %d", commitResult);
+          }
+
         this->write_state_(DONE);
         break;
       }

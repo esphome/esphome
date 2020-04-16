@@ -3,16 +3,31 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
 namespace pzem004t {
+struct Pzem004tEEPROM{
+  uint32_t offset_energy_day = 0; 
+  uint32_t offset_energy_month = 0; 
+  
+  uint16_t last_day = 0;
+  uint16_t last_month = 0;
+};
 
-class PZEM004T : public PollingComponent, public uart::UARTDevice {
+class PZEM004T : public PollingComponent, public uart::UARTDevice{
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
+  void set_energy_hour_sensor(sensor::Sensor *energy_hour_sensor) { energy_hour_sensor_ = energy_hour_sensor; }
+  void set_energy_day_sensor(sensor::Sensor *energy_day_sensor) { energy_day_sensor_ = energy_day_sensor; }
+  void set_energy_month_sensor(sensor::Sensor *energy_month_sensor) { energy_month_sensor_ = energy_month_sensor; }
+  void set_time(time::RealTimeClock *time) { time_ = time; }
+  time::RealTimeClock *get_time() const { return time_; }
+
+  void setup() override;
 
   void loop() override;
 
@@ -25,6 +40,10 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *current_sensor_;
   sensor::Sensor *power_sensor_;
   sensor::Sensor *energy_sensor_;
+  sensor::Sensor *energy_hour_sensor_;
+  sensor::Sensor *energy_day_sensor_;
+  sensor::Sensor *energy_month_sensor_;
+  time::RealTimeClock *time_;
 
   enum PZEM004TReadState {
     SET_ADDRESS = 0xB4,
@@ -38,6 +57,12 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice {
   void write_state_(PZEM004TReadState state);
 
   uint32_t last_read_{0};
+  
+  uint32_t offset_energy_hour_ = 0; 
+  
+  int8_t last_hour_ = 0;
+
+  Pzem004tEEPROM eeprom_data_;
 };
 
 }  // namespace pzem004t
