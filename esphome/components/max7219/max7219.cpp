@@ -213,8 +213,8 @@ uint8_t MAX7219Component::printf(const char *format, ...) {
 }
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) {
-	this->intensity_ = intensity;
-	this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
+  this->intensity_ = intensity;
+  this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
 }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
