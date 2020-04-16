@@ -115,13 +115,112 @@ uint8_t DaikinClimate::temperature_() {
   // Force special temperatures depending on the mode
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
-      return 25;
+      return 0x32;
+    case climate::CLIMATE_MODE_AUTO:
     case climate::CLIMATE_MODE_DRY:
       return 0xc0;
     default:
       uint8_t temperature = (uint8_t) roundf(clamp(this->target_temperature, DAIKIN_TEMP_MIN, DAIKIN_TEMP_MAX));
       return temperature << 1;
   }
+}
+
+bool DaikinClimate::parse_state_frame_(const uint8_t frame[]) {
+  uint8_t checksum = 0;
+  for (int i = 0; i < (DAIKIN_STATE_FRAME_SIZE - 1); i++) {
+    checksum += frame[i];
+  }
+  if (frame[DAIKIN_STATE_FRAME_SIZE - 1] != checksum)
+    return false;
+  uint8_t mode = frame[5];
+  if (mode & DAIKIN_MODE_ON) {
+    switch (mode & 0xF0) {
+      case DAIKIN_MODE_COOL:
+        this->mode = climate::CLIMATE_MODE_COOL;
+        break;
+      case DAIKIN_MODE_DRY:
+        this->mode = climate::CLIMATE_MODE_DRY;
+        break;
+      case DAIKIN_MODE_HEAT:
+        this->mode = climate::CLIMATE_MODE_HEAT;
+        break;
+      case DAIKIN_MODE_AUTO:
+        this->mode = climate::CLIMATE_MODE_AUTO;
+        break;
+      case DAIKIN_MODE_FAN:
+        this->mode = climate::CLIMATE_MODE_FAN_ONLY;
+        break;
+    }
+  } else {
+    this->mode = climate::CLIMATE_MODE_OFF;
+  }
+  uint8_t temperature = frame[6];
+  if (!(temperature & 0xC0)) {
+    this->target_temperature = temperature >> 1;
+  }
+  uint8_t fan_mode = frame[8];
+  if (fan_mode & 0xF)
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  else
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  switch (fan_mode & 0xF0) {
+    case DAIKIN_FAN_1:
+    case DAIKIN_FAN_2:
+      this->fan_mode = climate::CLIMATE_FAN_LOW;
+      break;
+    case DAIKIN_FAN_3:
+      this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+      break;
+    case DAIKIN_FAN_4:
+    case DAIKIN_FAN_5:
+      this->fan_mode = climate::CLIMATE_FAN_HIGH;
+      break;
+    case DAIKIN_FAN_AUTO:
+      this->fan_mode = climate::CLIMATE_FAN_AUTO;
+      break;
+  }
+  this->publish_state();
+  return true;
+}
+
+bool DaikinClimate::on_receive(remote_base::RemoteReceiveData data) {
+  uint8_t state_frame[DAIKIN_STATE_FRAME_SIZE] = {};
+  if (!data.expect_item(DAIKIN_HEADER_MARK, DAIKIN_HEADER_SPACE)) {
+    return false;
+  }
+  for (uint8_t pos = 0; pos < DAIKIN_STATE_FRAME_SIZE; pos++) {
+    uint8_t byte = 0;
+    for (int8_t bit = 0; bit < 8; bit++) {
+      if (data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ONE_SPACE))
+        byte |= 1 << bit;
+      else if (!data.expect_item(DAIKIN_BIT_MARK, DAIKIN_ZERO_SPACE)) {
+        return false;
+      }
+    }
+    state_frame[pos] = byte;
+    if (pos == 0) {
+      // frame header
+      if (byte != 0x11)
+        return false;
+    } else if (pos == 1) {
+      // frame header
+      if (byte != 0xDA)
+        return false;
+    } else if (pos == 2) {
+      // frame header
+      if (byte != 0x27)
+        return false;
+    } else if (pos == 3) {
+      // frame header
+      if (byte != 0x00)
+        return false;
+    } else if (pos == 4) {
+      // frame type
+      if (byte != 0x00)
+        return false;
+    }
+  }
+  return this->parse_state_frame_(state_frame);
 }
 
 }  // namespace daikin
