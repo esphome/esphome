@@ -1,10 +1,10 @@
-// Disclaimer: This file was written in a hurry and by someone
-// who does not know JS at all. This file desperately needs cleanup.
-
-// ============================= Global Vars =============================
-document.addEventListener('DOMContentLoaded', () => {
+// Document Ready
+$(document).ready(function () {
   M.AutoInit(document.body);
+  nodeGrid();
 });
+
+// WebSocket URL Helper
 const loc = window.location;
 const wsLoc = new URL("./", `${loc.protocol}//${loc.host}${loc.pathname}`);
 wsLoc.protocol = 'ws:';
@@ -13,7 +13,80 @@ if (loc.protocol === "https:") {
 }
 const wsUrl = wsLoc.href;
 
-// ============================= Color Log Parsing =============================
+
+/**
+ *  Dashboard Dynamic Grid
+ */
+const nodeGrid = () => {
+  const nodeCount = $('#nodes .card').length
+  const nodeGrid = $('#nodes #grid')
+
+  if (nodeCount >= 6) {
+    $(nodeGrid).addClass("grid-2-col");
+  } else {
+    $(nodeGrid).addClass("grid-1-col");
+  }
+}
+
+/**
+ *  Online/ Offline Status Indication
+ */
+
+let isFetchingPing = false;
+
+const fetchPing = () => {
+  if (isFetchingPing) {
+    return;
+  }
+
+  isFetchingPing = true;
+
+  fetch(`./ping`, { credentials: "same-origin" }).then(res => res.json())
+    .then(response => {
+      for (let filename in response) {
+        let node = document.querySelector(`#nodes .card[data-node="${filename}"]`);
+
+        if (node === null) {
+          continue;
+        }
+
+        let status = response[filename];
+        let className;
+
+        if (status === null) {
+          className = 'status-unknown';
+        } else if (status === true) {
+          className = 'status-online';
+          node.setAttribute('data-last-connected', Date.now().toString());
+        } else if (node.hasAttribute('data-last-connected')) {
+          const attr = parseInt(node.getAttribute('data-last-connected'));
+          if (Date.now() - attr <= 5000) {
+            className = 'status-not-responding';
+          } else {
+            className = 'status-offline';
+          }
+        } else {
+          className = 'status-offline';
+        }
+
+        if (node.classList.contains(className)) {
+          continue;
+        }
+
+        node.classList.remove('status-unknown', 'status-online', 'status-offline', 'status-not-responding');
+        node.classList.add(className);
+      }
+
+      isFetchingPing = false;
+    });
+};
+setInterval(fetchPing, 2000);
+fetchPing();
+
+/**
+ *  Log Color Parsing
+ */
+
 const initializeColorState = () => {
   return {
     bold: false,
@@ -186,52 +259,10 @@ const colorReplace = (pre, state, text) => {
   }
 };
 
-// ============================= Online/Offline Status Indicators =============================
-// let isFetchingPing = false;
-// const fetchPing = () => {
-//   if (isFetchingPing)
-//       return;
-//   isFetchingPing = true;
+/**
+ *  Serial Port Selection
+ */
 
-//   fetch(`./ping`, {credentials: "same-origin"}).then(res => res.json())
-//     .then(response => {
-//       for (let filename in response) {
-//         let node = document.querySelector(`.status-indicator[data-node="${filename}"]`);
-//         if (node === null)
-//           continue;
-
-//         let status = response[filename];
-//         let klass;
-//         if (status === null) {
-//           klass = 'unknown';
-//         } else if (status === true) {
-//           klass = 'online';
-//           node.setAttribute('data-last-connected', Date.now().toString());
-//         } else if (node.hasAttribute('data-last-connected')) {
-//           const attr = parseInt(node.getAttribute('data-last-connected'));
-//           if (Date.now() - attr <= 5000) {
-//             klass = 'not-responding';
-//           } else {
-//             klass = 'offline';
-//           }
-//         } else {
-//           klass = 'offline';
-//         }
-
-//         if (node.classList.contains(klass))
-//           continue;
-
-//         node.classList.remove('unknown', 'online', 'offline', 'not-responding');
-//         node.classList.add(klass);
-//       }
-
-//       isFetchingPing = false;
-//     });
-// };
-// setInterval(fetchPing, 2000);
-// fetchPing();
-
-// ============================= Serial Port Selector =============================
 const portSelect = document.querySelector('.nav-wrapper select');
 let ports = [];
 
@@ -287,9 +318,11 @@ const getUploadPort = () => {
 setInterval(fetchSerialPorts, 5000);
 fetchSerialPorts(true);
 
+/**
+ * Log Elements
+ */
 
-// ============================= Logs Button =============================
-
+// Log Modal Class
 class LogModalElem {
   constructor({
     name,
@@ -392,6 +425,7 @@ class LogModalElem {
   }
 }
 
+// Logs Modal
 const logsModal = new LogModalElem({
   name: "logs",
   onPrepare: (modalElem, config) => {
@@ -411,9 +445,11 @@ const logsModal = new LogModalElem({
 });
 logsModal.setup();
 
+// Upload Modal
 const retryUploadButton = document.querySelector('.retry-upload');
 const editAfterUploadButton = document.querySelector('.edit-after-upload');
 const downloadAfterUploadButton = document.querySelector('.download-after-upload');
+
 const uploadModal = new LogModalElem({
   name: 'upload',
   onPrepare: (modalElem, config) => {
@@ -440,7 +476,9 @@ const uploadModal = new LogModalElem({
   },
   dismissible: false,
 });
+
 uploadModal.setup();
+
 downloadAfterUploadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
@@ -450,6 +488,7 @@ downloadAfterUploadButton.addEventListener('click', () => {
   link.remove();
 });
 
+// Validate Modal
 const validateModal = new LogModalElem({
   name: 'validate',
   onPrepare: (modalElem, config) => {
@@ -477,9 +516,12 @@ const validateModal = new LogModalElem({
     M.toast({ html: 'Terminated process.' });
   },
 });
+
 validateModal.setup();
 
+// Compile Modal
 const downloadButton = document.querySelector('.download-binary');
+
 const compileModal = new LogModalElem({
   name: 'compile',
   onPrepare: (modalElem, config) => {
@@ -500,7 +542,9 @@ const compileModal = new LogModalElem({
   },
   dismissible: false,
 });
+
 compileModal.setup();
+
 downloadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
@@ -510,6 +554,7 @@ downloadButton.addEventListener('click', () => {
   link.remove();
 });
 
+// Clean MQTT Modal
 const cleanMqttModal = new LogModalElem({
   name: 'clean-mqtt',
   onPrepare: (modalElem, config) => {
@@ -522,8 +567,10 @@ const cleanMqttModal = new LogModalElem({
     M.toast({ html: 'Terminated process.' });
   },
 });
+
 cleanMqttModal.setup();
 
+// Clean Build Files Modal
 const cleanModal = new LogModalElem({
   name: 'clean',
   onPrepare: (modalElem, config) => {
@@ -541,43 +588,53 @@ const cleanModal = new LogModalElem({
     M.toast({ html: 'Terminated process.' });
   },
 });
+
 cleanModal.setup();
 
-document.querySelectorAll(".action-delete").forEach((btn) => {
-  btn.addEventListener('click', (e) => {
-    let configuration = e.target.getAttribute('data-node');
-
-    fetch(`./delete?configuration=${configuration}`, {
-      credentials: "same-origin",
-      method: "POST",
-    }).then(res => res.text()).then(() => {
-      const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
-                           <button class="btn-flat toast-action">Undo</button></button>`;
-      const toast = M.toast({ html: toastHtml });
-      const undoButton = toast.el.querySelector('.toast-action');
-
-      document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
-
-      undoButton.addEventListener('click', () => {
-        fetch(`./undo-delete?configuration=${configuration}`, {
-          credentials: "same-origin",
-          method: "POST",
-        }).then(res => res.text()).then(() => {
-          window.location.reload(false);
-        });
-      });
-    });
-  });
+// Update All Modal
+const updateAllModal = new LogModalElem({
+  name: 'update-all',
+  onPrepare: (modalElem, config) => {
+    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
+    downloadButton.classList.add('disabled');
+  },
+  onProcessExit: (modalElem, code) => {
+    if (code === 0) {
+      M.toast({ html: "Program exited successfully." });
+      downloadButton.classList.remove('disabled');
+    } else {
+      M.toast({ html: `Program failed with code ${data.code}` });
+    }
+    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+  },
+  onSocketClose: (modalElem) => {
+    M.toast({ html: 'Terminated process.' });
+  },
+  dismissible: false,
 });
 
+updateAllModal.setup();
+
+const updateAllButton = document.getElementById('update-all-button');
+updateAllButton.addEventListener('click', (e) => {
+  updateAllModal.open(e);
+});
+
+/**
+ *  Node Editing
+ */
+
+// ACE Validation
 const editModalElem = document.getElementById("modal-editor");
 const editorElem = editModalElem.querySelector("#editor");
 const editor = ace.edit(editorElem);
+
 let activeEditorConfig = null;
 let activeEditorSecrets = false;
 let aceWs = null;
 let aceValidationScheduled = false;
 let aceValidationRunning = false;
+
 const startAceWebsocket = () => {
   aceWs = new WebSocket(`${wsUrl}ace`);
   aceWs.addEventListener('message', (event) => {
@@ -626,15 +683,18 @@ const startAceWebsocket = () => {
       }
     }
   });
+
   aceWs.addEventListener('open', () => {
     const msg = JSON.stringify({ type: 'spawn' });
     aceWs.send(msg);
   });
+
   aceWs.addEventListener('close', () => {
     aceWs = null;
     setTimeout(startAceWebsocket, 5000)
   });
 };
+
 const sendAceStdin = (data) => {
   let send = JSON.stringify({
     type: 'stdin',
@@ -642,8 +702,10 @@ const sendAceStdin = (data) => {
   });
   aceWs.send(send);
 };
+
 startAceWebsocket();
 
+// Editor Settings / Commands
 editor.setTheme("ace/theme/dreamweaver");
 editor.session.setMode("ace/mode/yaml");
 editor.session.setOption('useSoftTabs', true);
@@ -652,6 +714,7 @@ editor.session.setOption('useWorker', false);
 
 const saveButton = editModalElem.querySelector(".save-button");
 const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
+
 const saveEditor = () => {
   fetch(`./edit?configuration=${activeEditorConfig}`, {
     credentials: "same-origin",
@@ -702,6 +765,8 @@ setInterval(() => {
   aceValidationScheduled = false;
 }, 100);
 
+
+// Edit Modal
 saveButton.addEventListener('click', saveEditor);
 editorUploadButton.addEventListener('click', saveEditor);
 
@@ -729,8 +794,44 @@ document.querySelectorAll(".action-edit").forEach((btn) => {
   });
 });
 
+// Delete Node
+document.querySelectorAll(".action-delete").forEach((btn) => {
+  btn.addEventListener('click', (e) => {
+    let configuration = e.target.getAttribute('data-node');
+
+    fetch(`./delete?configuration=${configuration}`, {
+      credentials: "same-origin",
+      method: "POST",
+    }).then(res => res.text()).then(() => {
+      const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
+                           <button class="btn-flat toast-action">Undo</button></button>`;
+      const toast = M.toast({ html: toastHtml });
+      const undoButton = toast.el.querySelector('.toast-action');
+
+      document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
+
+      undoButton.addEventListener('click', () => {
+        fetch(`./undo-delete?configuration=${configuration}`, {
+          credentials: "same-origin",
+          method: "POST",
+        }).then(res => res.text()).then(() => {
+          window.location.reload(false);
+        });
+      });
+    });
+  });
+});
+
+//
+
+/**
+ *  Wizard
+ */
+
+
 const modalSetupElem = document.getElementById("modal-wizard");
 const setupWizardStart = document.getElementById('setup-wizard-start');
+
 const startWizard = () => {
   const modalInstance = M.Modal.getInstance(modalSetupElem);
   modalInstance.open();
@@ -754,29 +855,3 @@ jQuery.validator.addMethod("lowercase", (value, element) => {
   return value === value.toLowerCase();
 }, "Name must be lowercase.");
 
-const updateAllModal = new LogModalElem({
-  name: 'update-all',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
-    downloadButton.classList.add('disabled');
-  },
-  onProcessExit: (modalElem, code) => {
-    if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
-      downloadButton.classList.remove('disabled');
-    } else {
-      M.toast({ html: `Program failed with code ${data.code}` });
-    }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
-  },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
-  },
-  dismissible: false,
-});
-updateAllModal.setup();
-
-const updateAllButton = document.getElementById('update-all-button');
-updateAllButton.addEventListener('click', (e) => {
-  updateAllModal.open(e);
-});
