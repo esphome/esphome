@@ -31,6 +31,8 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield uart.register_uart_device(var, config)
+    # https://github.com/jwrw/ESP_EEPROM
+    cg.add_library('ESP_EEPROM', '2.0.0')
     time_ = yield cg.get_variable(config[CONF_TIME_ID])
     cg.add(var.set_time(time_))
     if CONF_VOLTAGE in config:
