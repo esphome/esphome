@@ -60,7 +60,7 @@ class PZEM004T : public PollingComponent, public uart::UARTDevice{
   
   uint32_t offset_energy_hour_ = 0; 
   
-  int8_t last_hour_ = 0;
+  int8_t last_hour_ = -1;
 
   Pzem004tEEPROM eeprom_data_;
 };

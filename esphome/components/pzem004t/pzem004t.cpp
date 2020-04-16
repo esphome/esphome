@@ -89,53 +89,59 @@ void PZEM004T::loop() {
 
         bool commitData = false;
 
-        if (this->energy_hour_sensor_ != nullptr && time_is_valid && (last_hour_ == 0 || last_hour_ != real_time.hour)){
+        if (this->energy_hour_sensor_ != nullptr && time_is_valid && last_hour_ != real_time.hour){
+          if (last_hour_ != -1){
+            uint32_t energy_per_hour = 0;
+            if (energy >= offset_energy_hour_){
+              energy_per_hour = energy - offset_energy_hour_;
+            }
+            else{
+              energy_per_hour = 0xffffff - offset_energy_hour_ + energy;
+            }
+            this->energy_hour_sensor_->publish_state(energy_per_hour);
+            ESP_LOGD(TAG, "Got Energy Per Hour %u Wh", energy_per_hour);
+          }
+          
           last_hour_ = real_time.hour;
           offset_energy_hour_ = energy;
-          
-          uint32_t energy_per_hour = 0;
-          if (energy >= offset_energy_hour_){
-            energy_per_hour = energy - offset_energy_hour_;
-          }
-          else{
-            energy_per_hour = 0xffffff - offset_energy_hour_ + energy;
-          }
-          this->energy_hour_sensor_->publish_state(energy_per_hour);
-          ESP_LOGD(TAG, "Got Energy Per Hour %u Wh", energy_per_hour);
         }
 
-        if (this->energy_day_sensor_ != nullptr && time_is_valid && (eeprom_data_.last_day == 0 || eeprom_data_.last_day != real_time.day_of_year)){
+        if (this->energy_day_sensor_ != nullptr && time_is_valid && eeprom_data_.last_day != real_time.day_of_year){
+          if (eeprom_data_.last_day != 0){
+            uint32_t energy_per_day = 0;
+            if (energy >= eeprom_data_.offset_energy_day){
+              energy_per_day = energy - eeprom_data_.offset_energy_day;
+            }
+            else{
+              energy_per_day = 0xffffff - eeprom_data_.offset_energy_day + energy;
+            }
+            this->energy_day_sensor_->publish_state(energy_per_day);
+            ESP_LOGD(TAG, "Got Energy Per Day %u Wh", energy_per_day);
+          }
+
           eeprom_data_.last_day = real_time.day_of_year;
           eeprom_data_.offset_energy_day = energy;
           
           commitData = true;
-
-          uint32_t energy_per_day = 0;
-          if (energy >= eeprom_data_.offset_energy_day){
-            energy_per_day = energy - eeprom_data_.offset_energy_day;
-          }
-          else{
-            energy_per_day = 0xffffff - eeprom_data_.offset_energy_day + energy;
-          }
-          this->energy_day_sensor_->publish_state(energy_per_day);
-          ESP_LOGD(TAG, "Got Energy Per Day %u Wh", energy_per_day);
         }
 
-        if (this->energy_month_sensor_ != nullptr && time_is_valid && (eeprom_data_.last_month == 0 || eeprom_data_.last_month != real_time.month)){
+        if (this->energy_month_sensor_ != nullptr && time_is_valid && eeprom_data_.last_month != real_time.month){
+          if (eeprom_data_.last_month != 0){
+            uint32_t energy_per_month = 0;
+            if (energy >= eeprom_data_.offset_energy_month){
+              energy_per_month = energy - eeprom_data_.offset_energy_month;
+            }
+            else{
+              energy_per_month = 0xffffff - eeprom_data_.offset_energy_month + energy;
+            }
+
+            this->energy_month_sensor_->publish_state(energy_per_month);
+            ESP_LOGD(TAG, "Got Energy Per Month %u Wh", energy_per_month);
+          }
+
           eeprom_data_.last_month = real_time.month;
           eeprom_data_.offset_energy_month = energy;
           commitData = true;
-
-          uint32_t energy_per_month = 0;
-          if (energy >= eeprom_data_.offset_energy_month){
-            energy_per_month = energy - eeprom_data_.offset_energy_month;
-          }
-          else{
-            energy_per_month = 0xffffff - eeprom_data_.offset_energy_month + energy;
-          }
-
-          this->energy_month_sensor_->publish_state(energy_per_month);
-          ESP_LOGD(TAG, "Got Energy Per Month %u Wh", energy_per_month);
         }
 
         if (commitData){
