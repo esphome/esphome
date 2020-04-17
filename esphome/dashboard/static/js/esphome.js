@@ -692,20 +692,101 @@ updateAllModal.setup();
  *  Node Editing
  */
 
-// ACE Validation
-const editModalElem = document.getElementById("modal-editor");
-const editorElem = editModalElem.querySelector("#editor");
-const editor = ace.edit(editorElem);
+let editorActiveFilename = null;
+let editorActiveSecrets = false;
+let editorActiveWebSocket = null;
+let editorValidationScheduled = false;
+let editorValidationRunning = false;
 
-let activeEditorConfig = null;
-let activeEditorSecrets = false;
-let aceWs = null;
-let aceValidationScheduled = false;
-let aceValidationRunning = false;
+// Setup Editor
+const editorElement = document.querySelector("#js-editor-modal #js-editor-area");
+const editor = ace.edit(editorElement);
 
+editor.setOptions({
+  highlightActiveLine: true,
+  showPrintMargin: true,
+  useSoftTabs: true,
+  tabSize: 2,
+  useWorker: false,
+  theme: 'ace/theme/dreamweaver',
+  mode: 'ace/mode/yaml'
+});
+
+editor.commands.addCommand({
+  name: 'saveCommand',
+  bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
+  exec: function () {
+    console.log("Save")
+    saveFile(editorActiveFilename);
+  },
+  readOnly: false
+});
+
+// Edit Button Listener
+document.querySelectorAll("[data-action='edit']").forEach((button) => {
+  button.addEventListener('click', (event) => {
+
+    editorActiveFilename = event.target.getAttribute("data-filename");
+    const filenameField = document.querySelector("#js-editor-modal #js-node-filename");
+    filenameField.innerHTML = editorActiveFilename;
+
+    const saveButton = document.querySelector("#js-editor-modal [data-action='save']");
+    const uploadButton = document.querySelector("#js-editor-modal [data-action='upload']");
+    const closeButton = document.querySelector("#js-editor-modal [data-action='close']");
+    saveButton.setAttribute('data-filename', editorActiveFilename);
+    uploadButton.setAttribute('data-filename', editorActiveFilename);
+    if (editorActiveFilename === "secrets.yaml") {
+      uploadButton.classList.add("disabled");
+      editorActiveSecrets = true;
+    } else {
+      uploadButton.classList.remove("disabled");
+      editorActiveSecrets = false;
+    }
+    closeButton.setAttribute('data-filename', editorActiveFilename);
+
+    editor.setValue(`Loading ${editorActiveFilename}...`);
+    editor.setOption('readOnly', true);
+    fetch(`./edit?configuration=${editorActiveFilename}`, { credentials: "same-origin" })
+      .then(res => res.text()).then(response => {
+        editor.setValue(response, -1);
+        editor.setOption('readOnly', false);
+      });
+    editor.focus();
+
+    const editModalElement = document.getElementById("js-editor-modal");
+    const editorModal = M.Modal.init(editModalElement, {
+      onOpenStart: function () {
+        editorModalOnOpen()
+      },
+      onCloseStart: function () {
+        editorModalOnClose()
+      },
+      dismissible: false
+    })
+
+    editorModal.open();
+
+  });
+});
+
+// Editor On Open
+const editorModalOnOpen = () => {
+  console.log("Open");
+  startAceWebsocket();
+}
+
+// Editor On Close
+const editorModalOnClose = () => {
+  console.log("Close");
+  editorActiveFilename = null;
+  editorActiveWebSocket.close();
+}
+
+// Editor WebSocket Validation
 const startAceWebsocket = () => {
-  aceWs = new WebSocket(`${wsUrl}ace`);
-  aceWs.addEventListener('message', (event) => {
+  editorActiveWebSocket = new WebSocket(`${wsUrl}ace`);
+
+  editorActiveWebSocket.addEventListener('message', (event) => {
     const raw = JSON.parse(event.data);
     if (raw.event === "line") {
       const msg = JSON.parse(raw.data);
@@ -737,12 +818,12 @@ const startAceWebsocket = () => {
         editor.session.setAnnotations(arr);
 
         if (arr.length) {
-          editorUploadButton.classList.add('disabled');
+          document.querySelector("#js-editor-modal [data-action='upload']").classList.add('disabled');
         } else {
-          editorUploadButton.classList.remove('disabled');
+          document.querySelector("#js-editor-modal [data-action='upload']").classList.remove('disabled');
         }
 
-        aceValidationRunning = false;
+        editorValidationRunning = false;
       } else if (msg.type === "read_file") {
         sendAceStdin({
           type: 'file_response',
@@ -750,16 +831,18 @@ const startAceWebsocket = () => {
         });
       }
     }
-  });
+  })
 
-  aceWs.addEventListener('open', () => {
+  editorActiveWebSocket.addEventListener('open', () => {
     const msg = JSON.stringify({ type: 'spawn' });
-    aceWs.send(msg);
+    editorActiveWebSocket.send(msg);
+    console.log("Socket Open");
   });
 
-  aceWs.addEventListener('close', () => {
-    aceWs = null;
-    setTimeout(startAceWebsocket, 5000)
+  editorActiveWebSocket.addEventListener('close', () => {
+    console.log("Socket Close");
+    // editorActiveWebSocket = null;
+    // setTimeout(startAceWebsocket, 5000)
   });
 };
 
@@ -768,31 +851,7 @@ const sendAceStdin = (data) => {
     type: 'stdin',
     data: JSON.stringify(data) + '\n',
   });
-  aceWs.send(send);
-};
-
-startAceWebsocket();
-
-// Editor Settings / Commands
-editor.setTheme("ace/theme/dreamweaver");
-editor.session.setMode("ace/mode/yaml");
-editor.session.setOption('useSoftTabs', true);
-editor.session.setOption('tabSize', 2);
-editor.session.setOption('useWorker', false);
-
-const saveButton = editModalElem.querySelector(".save-button");
-const editorUploadButton = editModalElem.querySelector(".editor-upload-button");
-
-const saveEditor = () => {
-  fetch(`./edit?configuration=${activeEditorConfig}`, {
-    credentials: "same-origin",
-    method: "POST",
-    body: editor.getValue()
-  }).then(res => res.text()).then(() => {
-    M.toast({
-      html: `Saved <code class="inlinecode">${activeEditorConfig}</code>`
-    });
-  });
+  editorActiveWebSocket.send(send);
 };
 
 const debounce = (func, wait) => {
@@ -808,65 +867,63 @@ const debounce = (func, wait) => {
   };
 };
 
-editor.commands.addCommand({
-  name: 'saveCommand',
-  bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
-  exec: saveEditor,
-  readOnly: false
-});
-
 editor.session.on('change', debounce(() => {
-  aceValidationScheduled = !activeEditorSecrets;
+  editorValidationScheduled = !editorActiveSecrets;
+  console.log("Changed")
 }, 250));
 
 setInterval(() => {
-  if (!aceValidationScheduled || aceValidationRunning)
+  if (!editorValidationScheduled || editorValidationRunning)
     return;
-  if (aceWs == null)
+  if (editorActiveWebSocket == null)
     return;
 
   sendAceStdin({
     type: 'validate',
-    file: activeEditorConfig
+    file: editorActiveFilename
   });
-  aceValidationRunning = true;
-  aceValidationScheduled = false;
+  editorValidationRunning = true;
+  editorValidationScheduled = false;
 }, 100);
 
+// Save File
+const saveFile = (filename) => {
+  const extensionRegex = new RegExp("(?:\.([^.]+))?$");
 
-// Edit Modal
-saveButton.addEventListener('click', saveEditor);
-editorUploadButton.addEventListener('click', saveEditor);
+  if (filename.match(extensionRegex)[0] !== ".yaml") {
+    M.toast({
+      html: `❌ File <code class="inlinecode">${filename}</code> cannot be saved as it is not a YAML file!`,
+      displayLength: 10000
+    });
+    return;
+  }
 
-// HACK: Added temp code for new data-attributes
-document.querySelectorAll(".action-edit, [data-action='edit']").forEach((btn) => {
-  btn.addEventListener('click', (e) => {
-    if (e.target.getAttribute('data-node')) {
-      activeEditorConfig = e.target.getAttribute('data-node');
-    }
-
-    if (e.target.getAttribute('data-filename')) {
-      activeEditorConfig = e.target.getAttribute('data-filename');
-    }
-    // activeEditorConfig = e.target.getAttribute('data-node');
-    activeEditorSecrets = activeEditorConfig === 'secrets.yaml';
-    const modalInstance = M.Modal.getInstance(editModalElem);
-    const filenameField = editModalElem.querySelector('.filename');
-    editorUploadButton.setAttribute('data-node', activeEditorConfig);
-    if (activeEditorSecrets) {
-      editorUploadButton.classList.add('disabled');
-    }
-    filenameField.innerHTML = activeEditorConfig;
-
-    editor.setValue("Loading configuration yaml...");
-    editor.setOption('readOnly', true);
-    fetch(`./edit?configuration=${activeEditorConfig}`, { credentials: "same-origin" })
-      .then(res => res.text()).then(response => {
-        editor.setValue(response, -1);
-        editor.setOption('readOnly', false);
+  fetch(`./edit?configuration=${filename}`, {
+    credentials: "same-origin",
+    method: "POST",
+    body: editor.getValue()
+  })
+    .then((response) => {
+      response.text();
+    })
+    .then(() => {
+      M.toast({
+        html: `✅ Saved <code class="inlinecode">${filename}</code>`,
+        displayLength: 10000
       });
+    })
+    .catch((error) => {
+      M.toast({
+        html: `❌ An error occured saving <code class="inlinecode">${filename}</code>`,
+        displayLength: 10000
+      });
+      console.log(`Error saving ${filename}! - ${error}`)
+    })
+}
 
-    modalInstance.open();
+document.querySelectorAll("[data-action='save']").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    saveFile(editorActiveFilename);
   });
 });
 

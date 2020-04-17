@@ -52,7 +52,7 @@
 
       <ul id="settings-dropdown" class="select-action dropdown-content">
         <li><a data-action="update-all" data-filename="{{ escape(config_dir) }}">Update All</a></li>
-        <li><a id="secrets-button" class="action-edit" data-node="secrets.yaml">Secrets Editor</a></li>
+        <li><a data-action="edit" data-filename="secrets.yaml">Secrets Editor</a></li>
         <li class="divider"></li>
         <li><a href="{{ relative_url }}logout">Logout</a></li>
       </ul>
@@ -107,7 +107,7 @@
 
           </div>
           <div class="card-action">
-            <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
+            <a data-action="edit" data-filename="{{ entry.filename }}">Edit</a>
             <a data-action="validate" data-filename="{{ entry.filename }}">Validate</a>
             <a data-action="upload" data-filename="{{ entry.filename }}">Upload</a>
             <a data-action="logs" data-filename="{{ entry.filename }}">Logs</a>
@@ -124,6 +124,19 @@
 
       </div>
 
+    </div>
+
+    <!-- Config Editor Modal -->
+    <div id="js-editor-modal" class="modal modal-fixed-footer no-autoinit">
+      <div class="modal-content">
+        <h4>Editing: <code id="js-node-filename" class="inlinecode"></code></h4>
+        <div id="js-editor-area" class="editor"></div>
+      </div>
+      <div class="modal-footer">
+        <a class="waves-effect waves-green btn-flat" data-action="save">Save</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="upload">Upload</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="close">Close</a>
+      </div>
     </div>
 
     <!-- Upload Modal -->
@@ -524,22 +537,6 @@
       </div>
       <div class="modal-footer">
         <a class="modal-close waves-effect waves-green btn-flat">Abort</a>
-      </div>
-    </div>
-
-    <!-- Config Editor Modal -->
-    <!-- TODO: Needs Refactoring -->
-    <div id="modal-editor" class="modal modal-fixed-footer">
-      <div class="modal-content">
-        <h4>Edit <code class="inlinecode filename"></code></h4>
-        <div id="editor">
-
-        </div>
-      </div>
-      <div class="modal-footer">
-        <a class="waves-effect waves-green btn-flat save-button">Save</a>
-        <a class="modal-close waves-effect waves-green btn-flat action-upload editor-upload-button">Upload</a>
-        <a class="modal-close waves-effect waves-green btn-flat">Close</a>
       </div>
     </div>
 
