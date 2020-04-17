@@ -79,7 +79,7 @@
       <div id="grid" class="grid">
 
         {% for i, entry in enumerate(entries) %}
-        <div class="card status-unknown" data-node="{{ entry.filename }}">
+        <div class="card status-unknown" data-node="{{ entry.filename }}" data-filename="{{ entry.filename }}">
           <div class="card-content black-text">
             <span class="card-title">
               <span class="node-name">{{ escape(entry.name) }}</span>
@@ -116,7 +116,8 @@
             <li><a data-action="clean-mqtt" data-filename="{{ entry.filename }}">Clean MQTT</a></li>
             <li><a data-action="clean" data-filename="{{ entry.filename }}">Clean Build Files</a></li>
             <li><a data-action="compile" data-filename="{{ entry.filename }}">Compile</a></li>
-            <li><a class="action-delete" data-node="{{ entry.filename }}">Delete</a></li>
+            <li class="divider"></li>
+            <li><a data-action="delete" data-filename="{{ entry.filename }}">Delete</a></li>
           </ul>
         </div>
         {% end %}

@@ -871,34 +871,44 @@ document.querySelectorAll(".action-edit, [data-action='edit']").forEach((btn) =>
 });
 
 // Delete Node
-document.querySelectorAll(".action-delete").forEach((btn) => {
-  btn.addEventListener('click', (e) => {
-    let configuration = e.target.getAttribute('data-node');
+document.querySelectorAll("[data-action='delete']").forEach((btn) => {
+  btn.addEventListener("click", (e) => {
+    const filename = e.target.getAttribute("data-filename");
 
-    fetch(`./delete?configuration=${configuration}`, {
+    fetch(`./delete?configuration=${filename}`, {
       credentials: "same-origin",
       method: "POST",
-    }).then(res => res.text()).then(() => {
-      const toastHtml = `<span>Deleted <code class="inlinecode">${configuration}</code>
-                           <button class="btn-flat toast-action">Undo</button></button>`;
-      const toast = M.toast({ html: toastHtml });
-      const undoButton = toast.el.querySelector('.toast-action');
+    })
+      .then((res) => {
+        res.text()
+      })
+      .then(() => {
+        const toastHtml = `<span>🗑️ Deleted <code class="inlinecode">${filename}</code>
+                           <button class="btn-flat toast-action">Undo</button>`;
+        const toast = M.toast({
+          html: toastHtml,
+          displayLength: 10000
+        });
+        const undoButton = toast.el.querySelector('.toast-action');
 
-      document.querySelector(`.entry-row[data-node="${configuration}"]`).remove();
+        document.querySelector(`.card[data-filename="${filename}"]`).remove();
 
-      undoButton.addEventListener('click', () => {
-        fetch(`./undo-delete?configuration=${configuration}`, {
-          credentials: "same-origin",
-          method: "POST",
-        }).then(res => res.text()).then(() => {
-          window.location.reload(false);
+        undoButton.addEventListener('click', () => {
+          fetch(`./undo-delete?configuration=${filename}`, {
+            credentials: "same-origin",
+            method: "POST",
+          })
+            .then((res) => {
+              res.text()
+            })
+            .then(() => {
+              window.location.reload(false);
+            });
         });
       });
-    });
+
   });
 });
-
-//
 
 /**
  *  Wizard
