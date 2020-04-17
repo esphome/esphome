@@ -1,3 +1,5 @@
+'use strict';
+
 // Document Ready
 $(document).ready(function () {
   M.AutoInit(document.body);
@@ -323,22 +325,23 @@ fetchSerialPorts(true);
  */
 
 // Log Modal Class
-class LogModalElem {
+class LogModal {
   constructor({
     name,
-    onPrepare = (modalElem, config) => { },
-    onProcessExit = (modalElem, code) => { },
-    onSocketClose = (modalElem) => { },
-    dismissible = true,
+    onPrepare = (modalElement, config) => { },
+    onProcessExit = (modalElement, code) => { },
+    onSocketClose = (modalElement) => { },
+    dismissible = true
   }) {
-    this.modalId = `modal-${name}`;
-    this.actionClass = `action-${name}`;
+    this.modalId = `js-${name}-modal`;
+    this.dataAction = `${name}`;
     this.wsUrl = `${wsUrl}${name}`;
     this.dismissible = dismissible;
-    this.activeConfig = null;
+    this.activeFilename = null;
 
-    this.modalElem = document.getElementById(this.modalId);
-    this.logElem = this.modalElem.querySelector('.log');
+    this.modalElement = document.getElementById(this.modalId);
+    this.nodeFilenameElement = document.querySelector(`#${this.modalId} #js-node-filename`);
+    this.logElement = document.querySelector(`#${this.modalId} #js-log-area`);
     this.onPrepare = onPrepare;
     this.onProcessExit = onProcessExit;
     this.onSocketClose = onSocketClose;
@@ -346,19 +349,21 @@ class LogModalElem {
 
   setup() {
     const boundOnPress = this._onPress.bind(this);
-    document.querySelectorAll(`.${this.actionClass}`).forEach((btn) => {
-      btn.addEventListener('click', boundOnPress);
+    document.querySelectorAll(`[data-action="${this.dataAction}"]`).forEach((button) => {
+      button.addEventListener('click', boundOnPress);
     });
   }
 
   _setupModalInstance() {
-    this.modalInstance = M.Modal.getInstance(this.modalElem);
-    this.modalInstance.options.dismissible = this.dismissible;
-    this._boundKeydown = this._onKeydown.bind(this);
-    this.modalInstance.options.onOpenStart = () => {
-      document.addEventListener('keydown', this._boundKeydown);
-    };
-    this.modalInstance.options.onCloseStart = this._onCloseStart.bind(this);
+    this.modalInstance = M.Modal.init(this.modalElement, {
+      onOpenStart: this._onOpenStart.bind(this),
+      onCloseStart: this._onCloseStart.bind(this),
+      dismissible: this.dismissible
+    })
+  }
+
+  _onOpenStart() {
+    document.addEventListener('keydown', this._boundKeydown);
   }
 
   _onCloseStart() {
@@ -371,21 +376,20 @@ class LogModalElem {
   }
 
   _onPress(event) {
-    this.activeConfig = event.target.getAttribute('data-node');
+    this.activeFilename = event.target.getAttribute('data-filename');
+
+    console.log(this.activeFilename);
+
     this._setupModalInstance();
-    // clear log
-    this.logElem.innerHTML = "";
-    const colorlogState = initializeColorState();
-    // prepare modal
-    this.modalElem.querySelectorAll('.filename').forEach((field) => {
-      field.innerHTML = this.activeConfig;
-    });
-    this.onPrepare(this.modalElem, this.activeConfig);
-    document.addEventListener('keydown', this._onKeydown);
+    this.nodeFilenameElement.innerHTML = this.activeFilename;
+
+    this.logElement.innerHTML = "";
+    const colorLogState = initializeColorState();
+
+    this.onPrepare(this.modalElement, this.activeFilename);
 
     let stopped = false;
 
-    // open modal
     this.modalInstance.open();
 
     const socket = new WebSocket(this.wsUrl);
@@ -393,232 +397,296 @@ class LogModalElem {
     socket.addEventListener('message', (event) => {
       const data = JSON.parse(event.data);
       if (data.event === "line") {
-        colorReplace(this.logElem, colorlogState, data.data);
+        colorReplace(this.logElement, colorLogState, data.data);
       } else if (data.event === "exit") {
-        this.onProcessExit(this.modalElem, data.code);
+        this.onProcessExit(this.modalElement, data.code);
         stopped = true;
       }
     });
+
     socket.addEventListener('open', () => {
-      const msg = JSON.stringify(this.encodeSpawnMessage(this.activeConfig));
+      const msg = JSON.stringify(this._encodeSpawnMessage(this.activeFilename));
       socket.send(msg);
     });
+
     socket.addEventListener('close', () => {
       if (!stopped) {
-        this.onSocketClose(this.modalElem);
+        this.onSocketClose(this.modalElement);
       }
     });
   }
 
-  _onKeydown(event) {
+  _onKeyDown(event) {
+    // Close on escape key
     if (event.keyCode === 27) {
       this.modalInstance.close();
     }
   }
 
-  encodeSpawnMessage(config) {
+  _encodeSpawnMessage(filename) {
     return {
       type: 'spawn',
-      configuration: config,
+      configuration: filename,
       port: getUploadPort(),
     };
   }
 }
 
 // Logs Modal
-const logsModal = new LogModalElem({
+const logsModal = new LogModal({
   name: "logs",
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector(".stop-logs").innerHTML = "Stop";
+
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("[data-action='stop-logs']").innerHTML = "Stop";
   },
-  onProcessExit: (modalElem, code) => {
+
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000
+      });
     } else {
-      M.toast({ html: `Program failed with code ${code}` });
+      M.toast({
+        html: `Program failed with code ${code}`,
+        displayLength: 10000
+      });
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElem.querySelector("data-action='stop-logs'").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
-  },
-});
+
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000
+    });
+  }
+})
+
 logsModal.setup();
 
 // Upload Modal
-const retryUploadButton = document.querySelector('.retry-upload');
-const editAfterUploadButton = document.querySelector('.edit-after-upload');
-const downloadAfterUploadButton = document.querySelector('.download-after-upload');
+const uploadModal = new LogModal({
+  name: "upload",
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-upload-modal [data-action='download-binary']").classList.add('disabled');
+    modalElement.querySelector("#js-upload-modal [data-action='upload']").setAttribute('data-filename', activeFilename);
+    modalElement.querySelector("#js-upload-modal [data-action='upload']").classList.add('disabled');
+    modalElement.querySelector("#js-upload-modal [data-action='edit']").setAttribute('data-filename', activeFilename);
+    modalElement.querySelector("#js-upload-modal [data-action='stop-logs']").innerHTML = "Stop";
+  },
 
-const uploadModal = new LogModalElem({
-  name: 'upload',
-  onPrepare: (modalElem, config) => {
-    downloadAfterUploadButton.classList.add('disabled');
-    retryUploadButton.setAttribute('data-node', uploadModal.activeConfig);
-    retryUploadButton.classList.add('disabled');
-    editAfterUploadButton.setAttribute('data-node', uploadModal.activeConfig);
-    modalElem.querySelector(".stop-logs").innerHTML = "Stop";
-  },
-  onProcessExit: (modalElem, code) => {
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
-      // if compilation succeeds but OTA fails, you can still download the binary and upload manually
-      downloadAfterUploadButton.classList.remove('disabled');
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000
+      });
+
+      modalElement.querySelector("#js-upload-modal [data-action='download-binary']").classList.remove('disabled');
     } else {
-      M.toast({ html: `Program failed with code ${code}` });
-      downloadAfterUploadButton.classList.add('disabled');
-      retryUploadButton.classList.remove('disabled');
+      M.toast({
+        html: `Program failed with code ${code}`,
+        displayLength: 10000
+      });
+
+      modalElement.querySelector("#js-upload-modal [data-action='upload']").classList.add('disabled');
+      modalElement.querySelector("#js-upload-modal [data-action='upload']").classList.remove('disabled');
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElement.querySelector("#js-upload-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000
+    });
   },
-  dismissible: false,
-});
+
+  dismissible: false
+})
 
 uploadModal.setup();
 
+const downloadAfterUploadButton = document.querySelector("#js-upload-modal [data-action='download-binary']");
 downloadAfterUploadButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
-  link.href = `./download.bin?configuration=${encodeURIComponent(uploadModal.activeConfig)}`;
+  link.href = `./download.bin?configuration=${encodeURIComponent(uploadModal.activeFilename)}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
 });
 
 // Validate Modal
-const validateModal = new LogModalElem({
+const validateModal = new LogModal({
   name: 'validate',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector(".stop-logs").innerHTML = "Stop";
-    modalElem.querySelector(".action-edit").setAttribute('data-node', validateModal.activeConfig);
-    modalElem.querySelector(".action-upload").setAttribute('data-node', validateModal.activeConfig);
-    modalElem.querySelector(".action-upload").classList.add('disabled');
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-validate-modal [data-action='stop-logs']").innerHTML = "Stop";
+    modalElement.querySelector("#js-validate-modal [data-action='edit']").setAttribute('data-filename', activeFilename);
+    modalElement.querySelector("#js-validate-modal [data-action='upload']").setAttribute('data-filename', activeFilename);
+    modalElement.querySelector("#js-validate-modal [data-action='upload']").classList.add('disabled');
   },
-  onProcessExit: (modalElem, code) => {
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
       M.toast({
-        html: `<code class="inlinecode">${validateModal.activeConfig}</code> is valid 👍`,
-        displayLength: 5000,
+        html: `<code class="inlinecode">${validateModal.activeFilename}</code> is valid 👍`,
+        displayLength: 10000,
       });
-      modalElem.querySelector(".action-upload").classList.remove('disabled');
+      modalElement.querySelector("#js-validate-modal [data-action='upload']").classList.remove('disabled');
     } else {
       M.toast({
-        html: `<code class="inlinecode">${validateModal.activeConfig}</code> is invalid 😕`,
-        displayLength: 5000,
+        html: `<code class="inlinecode">${validateModal.activeFilename}</code> is invalid 😕`,
+        displayLength: 10000,
       });
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElement.querySelector("#js-validate-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000,
+    });
   },
 });
 
 validateModal.setup();
 
 // Compile Modal
-const downloadButton = document.querySelector('.download-binary');
-
-const compileModal = new LogModalElem({
+const compileModal = new LogModal({
   name: 'compile',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
-    downloadButton.classList.add('disabled');
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-compile-modal [data-action='stop-logs']").innerHTML = "Stop";
+    modalElement.querySelector("#js-compile-modal [data-action='download-binary']").classList.add('disabled');
   },
-  onProcessExit: (modalElem, code) => {
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
-      downloadButton.classList.remove('disabled');
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000,
+      });
+      modalElement.querySelector("#js-compile-modal [data-action='download-binary']").classList.remove('disabled');
     } else {
-      M.toast({ html: `Program failed with code ${data.code}` });
+      M.toast({
+        html: `Program failed with code ${data.code}`,
+        displayLength: 10000,
+      });
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElement.querySelector("#js-compile-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000,
+    });
   },
   dismissible: false,
 });
 
 compileModal.setup();
 
-downloadButton.addEventListener('click', () => {
+const downloadAfterCompileButton = document.querySelector("#js-compile-modal [data-action='download-binary']");
+downloadAfterCompileButton.addEventListener('click', () => {
   const link = document.createElement("a");
   link.download = name;
-  link.href = `./download.bin?configuration=${encodeURIComponent(compileModal.activeConfig)}`;
+  link.href = `./download.bin?configuration=${encodeURIComponent(compileModal.activeFilename)}`;
   document.body.appendChild(link);
   link.click();
   link.remove();
 });
 
 // Clean MQTT Modal
-const cleanMqttModal = new LogModalElem({
+const cleanMqttModal = new LogModal({
   name: 'clean-mqtt',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-clean-mqtt-modal [data-action='stop-logs']").innerHTML = "Stop";
   },
-  onProcessExit: (modalElem, code) => {
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+  onProcessExit: (modalElement, code) => {
+    if (code === 0) {
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000,
+      });
+    } else {
+      M.toast({
+        html: `Program failed with code ${code}`,
+        displayLength: 10000,
+      });
+    }
+    modalElement.querySelector("#js-clean-mqtt-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000,
+    });
   },
 });
 
 cleanMqttModal.setup();
 
 // Clean Build Files Modal
-const cleanModal = new LogModalElem({
+const cleanModal = new LogModal({
   name: 'clean',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector(".stop-logs").innerHTML = "Stop";
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-clean-modal [data-action='stop-logs']").innerHTML = "Stop";
   },
-  onProcessExit: (modalElem, code) => {
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000,
+      });
     } else {
-      M.toast({ html: `Program failed with code ${code}` });
+      M.toast({
+        html: `Program failed with code ${code}`,
+        displayLength: 10000,
+      });
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElement.querySelector("#js-clean-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000,
+    });
   },
 });
 
 cleanModal.setup();
 
 // Update All Modal
-const updateAllModal = new LogModalElem({
+const updateAllModal = new LogModal({
   name: 'update-all',
-  onPrepare: (modalElem, config) => {
-    modalElem.querySelector('.stop-logs').innerHTML = "Stop";
-    downloadButton.classList.add('disabled');
+  onPrepare: (modalElement, activeFilename) => {
+    modalElement.querySelector("#js-update-all-modal [data-action='stop-logs']").innerHTML = "Stop";
+    modalElement.querySelector("#js-update-all-modal #js-node-filename").style.visibility = "hidden";
   },
-  onProcessExit: (modalElem, code) => {
+  onProcessExit: (modalElement, code) => {
     if (code === 0) {
-      M.toast({ html: "Program exited successfully." });
+      M.toast({
+        html: "Program exited successfully",
+        displayLength: 10000,
+      });
       downloadButton.classList.remove('disabled');
     } else {
-      M.toast({ html: `Program failed with code ${data.code}` });
+      M.toast({
+        html: `Program failed with code ${data.code}`,
+        displayLength: 10000,
+      });
     }
-    modalElem.querySelector(".stop-logs").innerHTML = "Close";
+    modalElement.querySelector("#js-update-all-modal [data-action='stop-logs']").innerHTML = "Close";
   },
-  onSocketClose: (modalElem) => {
-    M.toast({ html: 'Terminated process.' });
+  onSocketClose: (modalElement) => {
+    M.toast({
+      html: 'Terminated process',
+      displayLength: 10000,
+    });
   },
   dismissible: false,
 });
 
 updateAllModal.setup();
-
-const updateAllButton = document.getElementById('update-all-button');
-updateAllButton.addEventListener('click', (e) => {
-  updateAllModal.open(e);
-});
 
 /**
  *  Node Editing
@@ -770,9 +838,17 @@ setInterval(() => {
 saveButton.addEventListener('click', saveEditor);
 editorUploadButton.addEventListener('click', saveEditor);
 
-document.querySelectorAll(".action-edit").forEach((btn) => {
+// HACK: Added temp code for new data-attributes
+document.querySelectorAll(".action-edit, [data-action='edit']").forEach((btn) => {
   btn.addEventListener('click', (e) => {
-    activeEditorConfig = e.target.getAttribute('data-node');
+    if (e.target.getAttribute('data-node')) {
+      activeEditorConfig = e.target.getAttribute('data-node');
+    }
+
+    if (e.target.getAttribute('data-filename')) {
+      activeEditorConfig = e.target.getAttribute('data-filename');
+    }
+    // activeEditorConfig = e.target.getAttribute('data-node');
     activeEditorSecrets = activeEditorConfig === 'secrets.yaml';
     const modalInstance = M.Modal.getInstance(editModalElem);
     const filenameField = editModalElem.querySelector('.filename');

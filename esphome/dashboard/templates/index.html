@@ -51,7 +51,7 @@
       </div>
 
       <ul id="settings-dropdown" class="select-action dropdown-content">
-        <li><a id="update-all-button" data-node="{{ escape(config_dir) }}">Update All</a></li>
+        <li><a data-action="update-all" data-filename="{{ escape(config_dir) }}">Update All</a></li>
         <li><a id="secrets-button" class="action-edit" data-node="secrets.yaml">Secrets Editor</a></li>
         <li class="divider"></li>
         <li><a href="{{ relative_url }}logout">Logout</a></li>
@@ -108,14 +108,14 @@
           </div>
           <div class="card-action">
             <a class="action-edit" data-node="{{ entry.filename }}">Edit</a>
-            <a class="action-validate" data-node="{{ entry.filename }}">Validate</a>
-            <a class="action-upload" data-node="{{ entry.filename }}">Upload</a>
-            <a class="action-logs" data-node="{{ entry.filename }}">Logs</a>
+            <a data-action="validate" data-filename="{{ entry.filename }}">Validate</a>
+            <a data-action="upload" data-filename="{{ entry.filename }}">Upload</a>
+            <a data-action="logs" data-filename="{{ entry.filename }}">Logs</a>
           </div>
           <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action">
-            <li><a class="action-clean-mqtt" data-node="{{ entry.filename }}">Clean MQTT</a></li>
-            <li><a class="action-clean" data-node="{{ entry.filename }}">Clean Build</a></li>
-            <li><a class="action-compile" data-node="{{ entry.filename }}">Compile</a></li>
+            <li><a data-action="clean-mqtt" data-filename="{{ entry.filename }}">Clean MQTT</a></li>
+            <li><a data-action="clean" data-filename="{{ entry.filename }}">Clean Build Files</a></li>
+            <li><a data-action="compile" data-filename="{{ entry.filename }}">Compile</a></li>
             <li><a class="action-delete" data-node="{{ entry.filename }}">Delete</a></li>
           </ul>
         </div>
@@ -125,65 +125,138 @@
 
     </div>
 
-    <div id="modal-logs" class="modal modal-fixed-footer">
+    <!-- Upload Modal -->
+    <div id="js-upload-modal" class="modal modal-fixed-footer no-autoinit">
       <div class="modal-content">
-        <h4>Show Logs <code class="inlinecode filename"></code></h4>
-        <pre class="log"></pre>
-      </div>
-      <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Close</a>
-      </div>
-    </div>
-
-    <div id="modal-upload" class="modal modal-fixed-footer">
-      <div class="modal-content">
-        <h4>Compile And Upload <code class="inlinecode filename"></code></h4>
-        <pre class="log"></pre>
+        <h4>Compiling & Uploading: <code id="js-node-filename" class="inlinecode"></code></h4>
+        <pre id="js-log-area" class="log"></pre>
       </div>
       <div class="modal-footer">
         <a href="https://esphome.io/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
-          class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
-          <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+          rel="noreferrer">
+          <i class="material-icons">help_outline</i>
         </a>
-        <a class="modal-close waves-effect waves-green btn-flat action-edit edit-after-upload">Edit</a>
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="edit">Edit</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Stop</a>
         <div class="btn-flat"><i class="material-icons dropdown-trigger"
-            data-target="dropdown-upload-actions">more_vert</i></div>
+            data-target="dropdown-upload-actions">more_vert</i>
+        </div>
       </div>
+
       <ul id="dropdown-upload-actions" class="select-action dropdown-content card-dropdown-action">
-        <li><a class="modal-close waves-effect waves-green btn-flat disabled download-after-upload">Download Binary</a>
+        <li>
+          <a class="modal-close waves-effect waves-green btn-flat disabled" data-action="download-binary">
+            Download Binary
+          </a>
         </li>
-        <li><a class="waves-effect waves-green btn-flat disabled action-upload retry-upload">Retry</a></li>
+        <li>
+          <a class="waves-effect waves-green btn-flat disabled action-upload" data-action="upload">Retry Upload</a>
+        </li>
       </ul>
     </div>
 
-    <div id="modal-compile" class="modal modal-fixed-footer">
+    <!-- Update All Modal -->
+    <div id="js-update-all-modal" class="modal modal-fixed-footer no-autoinit">
       <div class="modal-content">
-        <h4>Compile <code class="inlinecode filename"></code></h4>
-        <pre class="log"></pre>
+        <h4>Update All <code id="js-node-filename" class="inlinecode"></code></h4>
+        <pre id="js-log-area" class="log"></pre>
+      </div>
+      <div class="modal-footer">
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Stop</a>
+      </div>
+    </div>
+
+    <!-- Validate Modal -->
+    <div id="js-validate-modal" class="modal modal-fixed-footer no-autoinit">
+      <div class="modal-content">
+        <h4>Validate: <code id="js-node-filename" class="inlinecode"></code></h4>
+        <pre id="js-log-area" class="log"></pre>
+      </div>
+      <div class="modal-footer">
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="edit">Edit</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="upload">Upload</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Stop</a>
+      </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="js-logs-modal" class="modal modal-fixed-footer no-autoinit">
+      <div class="modal-content">
+        <!-- TODO: Change `node-filename` to `node-name` -->
+        <h4>Showing Logs For: <code id="js-node-filename" class="inlinecode"></code></h4>
+        <pre id="js-log-area" class="log"></pre>
+      </div>
+      <div class="modal-footer">
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Close</a>
+      </div>
+    </div>
+
+    <!-- Compile Modal -->
+    <div id="js-compile-modal" class="modal modal-fixed-footer no-autoinit">
+      <div class="modal-content">
+        <h4>Compiling: <code id="js-node-filename" class="inlinecode"></code></h4>
+        <pre id="js-log-area" class="log"></pre>
       </div>
       <div class="modal-footer">
         <a href="https://esphome.io/guides/faq.html#i-can-t-get-flashing-over-usb-to-work" target="_blank"
-          class="tooltipped" data-position="left" data-tooltip="Flash using esphomeflasher" rel="noreferrer">
-          <i class="material-icons flash-using-esphomeflasher">help_outline</i>
+          rel="noreferrer">
+          <i class="material-icons">help_outline</i>
         </a>
-        <a class="modal-close waves-effect waves-green btn-flat disabled download-binary">Download Binary</a>
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+        <a class="modal-close waves-effect waves-green btn-flat disabled" data-action="download-binary">
+          Download Binary
+        </a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Stop</a>
       </div>
     </div>
 
-    <div id="modal-validate" class="modal modal-fixed-footer">
+    <!-- Clean MQTT Modal -->
+    <div id="js-clean-mqtt-modal" class="modal modal-fixed-footer no-autoinit">
       <div class="modal-content">
-        <h4>Validate <code class="inlinecode filename"></code></h4>
-        <pre class="log"></pre>
+        <div>
+          <!-- TODO: Change `node-filename` to `node-name` -->
+          <h4>Clean MQTT Discovery For: <code id="js-node-filename" class="inlinecode"></code></h4>
+          <pre id="js-log-area" class="log"></pre>
+        </div>
       </div>
       <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat action-edit">Edit</a>
-        <a class="modal-close waves-effect waves-green btn-flat action-upload">Upload</a>
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Close</a>
       </div>
     </div>
 
+    <!-- Clean Build Files Modal -->
+    <div id="js-clean-modal" class="modal modal-fixed-footer no-autoinit">
+      <div class="modal-content">
+        <div>
+          <!-- TODO: Change `node-filename` to `node-name` -->
+          <h4>Clean Build Files For: <code id="js-node-filename" class="inlinecode"></code></h4>
+          <pre id="js-log-area" class="log"></pre>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <a class="modal-close waves-effect waves-green btn-flat" data-action="stop-logs">Stop</a>
+      </div>
+    </div>
+
+    <!-- Add New Node / Launch Wizard Button -->
+    <!-- TODO: Needs Refactoring -->
+    <a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
+      <i class="material-icons">add</i>
+    </a>
+
+    {% if len(entries) == 0 %}
+    <div class="tap-target pink lighten-1 setup-wizard" data-target="setup-wizard-start">
+      <div class="tap-target-content">
+        <h5>Set up your first Node</h5>
+        <p>
+          Huh... It seems like you you don't have any ESPHome configuration files yet...
+          Fortunately, there's a setup wizard that will step you through setting up your first node 🎉
+        </p>
+      </div>
+    </div>
+    {% end %}
+
+    <!-- Wizard Modal -->
+    <!-- TODO: Needs Refactoring -->
     <div id="modal-wizard" class="modal">
       <div class="modal-content">
         <form action="./wizard.html" method="POST">
@@ -453,30 +526,8 @@
       </div>
     </div>
 
-    <div id="modal-clean-mqtt" class="modal modal-fixed-footer">
-      <div class="modal-content">
-        <div>
-          <h4>Clean MQTT discovery <code class="inlinecode filename"></code></h4>
-          <pre class="log"></pre>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Close</a>
-      </div>
-    </div>
-
-    <div id="modal-clean" class="modal modal-fixed-footer">
-      <div class="modal-content">
-        <div>
-          <h4>Clean Build Files <code class="inlinecode filename"></code></h4>
-          <pre class="log"></pre>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
-      </div>
-    </div>
-
+    <!-- Config Editor Modal -->
+    <!-- TODO: Needs Refactoring -->
     <div id="modal-editor" class="modal modal-fixed-footer">
       <div class="modal-content">
         <h4>Edit <code class="inlinecode filename"></code></h4>
@@ -490,32 +541,6 @@
         <a class="modal-close waves-effect waves-green btn-flat">Close</a>
       </div>
     </div>
-
-    <div id="modal-update-all" class="modal modal-fixed-footer">
-      <div class="modal-content">
-        <h4>Update All</h4>
-        <pre class="log"></pre>
-      </div>
-      <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat stop-logs">Stop</a>
-      </div>
-    </div>
-
-    <a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
-      <i class="material-icons">add</i>
-    </a>
-
-    {% if len(entries) == 0 %}
-    <div class="tap-target pink lighten-1 setup-wizard" data-target="setup-wizard-start">
-      <div class="tap-target-content">
-        <h5>Set up your first Node</h5>
-        <p>
-          Huh... It seems like you you don't have any ESPHome configuration files yet...
-          Fortunately, there's a setup wizard that will step you through setting up your first node 🎉
-        </p>
-      </div>
-    </div>
-    {% end %}
 
   </main>
 
