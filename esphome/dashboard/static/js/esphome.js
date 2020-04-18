@@ -989,29 +989,11 @@ wizardTriggerElement.addEventListener("click", (event) => {
   }).open();
 })
 
-// const modalSetupElem = document.getElementById("modal-wizard");
-// const setupWizardStart = document.getElementById('setup-wizard-start');
+jQuery.validator.addMethod("nospaces", (value, element) => {
+  return value.indexOf(' ') < 0;
+}, "Name cannot contain any spaces!");
 
-// const startWizard = () => {
-//   const modalInstance = M.Modal.getInstance(modalSetupElem);
-//   modalInstance.open();
-
-//   $('.stepper').activateStepper({
-//     linearStepsNavigation: false,
-//     autoFocusInput: true,
-//     autoFormCreation: true,
-//     showFeedbackLoader: true,
-//     parallel: false
-//   });
-// };
-
-// setupWizardStart.addEventListener('click', startWizard);
-
-// jQuery.validator.addMethod("nospaces", (value, element) => {
-//   return value.indexOf(' ') < 0;
-// }, "Name must not contain spaces.");
-
-// jQuery.validator.addMethod("lowercase", (value, element) => {
-//   return value === value.toLowerCase();
-// }, "Name must be lowercase.");
+jQuery.validator.addMethod("lowercase", (value, element) => {
+  return value === value.toLowerCase();
+}, "Name must be all lower case!");
 
