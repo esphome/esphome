@@ -252,13 +252,14 @@
     </div>
 
     <!-- Add New Node / Launch Wizard Button -->
-    <!-- TODO: Needs Refactoring -->
-    <a class="btn-floating btn-large ribbon-fab waves-effect waves-light pink accent-2" id="setup-wizard-start">
-      <i class="material-icons">add</i>
-    </a>
+    <div class="fixed-action-btn">
+      <a class="btn-floating btn-large waves-effect waves-light green" id="js-wizard">
+        <i class="large material-icons">add</i>
+      </a>
+    </div>
 
     {% if len(entries) == 0 %}
-    <div class="tap-target pink lighten-1 setup-wizard" data-target="setup-wizard-start">
+    <div class="tap-target pink lighten-1 setup-wizard" data-target="js-wizard">
       <div class="tap-target-content">
         <h5>Set up your first Node</h5>
         <p>
@@ -270,19 +271,22 @@
     {% end %}
 
     <!-- Wizard Modal -->
-    <!-- TODO: Needs Refactoring -->
-    <div id="modal-wizard" class="modal">
+    <div id="js-wizard-modal" class="modal modal-fixed-footer">
       <div class="modal-content">
+        <h5>Create New Node</h5>
         <form action="./wizard.html" method="POST">
-          <ul class="stepper linear">
+          <ul class="stepper">
+            {% if len(entries) == 0 %}
+            <!-- Step 0 (First Run - No Nodes) - Welcome -->
             <li class="step active">
-              <div class="step-title waves-effect">Introduction And Name</div>
+              <div class="step-title waves-effect">Welcome</div>
               <div class="step-content">
-                <div class="row">
-                  <p>
-                    Hi there! This is the ESPHome setup wizard. It will guide you through setting up
-                    your first ESP8266 or ESP32-powered device using ESPHome.
-                  </p>
+                <p>
+                  Welcome to the ESPHome node setup wizard! As there are no nodes setup you will be guided through
+                  setting up your first ESP8266 or ESP32-powered device using ESPHome.
+                </p>
+
+                <p>
                   <a href="https://www.espressif.com/en/products/hardware/esp8266ex/overview"
                     target="_blank">ESP8266s</a> and
                   their successors (the <a href="https://www.espressif.com/en/products/hardware/esp32/overview"
@@ -291,213 +295,283 @@
                   They're found in many devices such as the popular Sonoff/iTead, but also exist as development boards
                   such as the <a href="https://esphome.io/devices/nodemcu_esp8266.html" rel="noreferrer"
                     target="_blank">NodeMCU</a>.
-                  <p>
-                  </p>
-                  <a href="https://esphome.io/index.html" rel="noreferrer" target="_blank">ESPHome</a>,
-                  the tool you're using here, creates custom firmwares for these devices using YAML configuration
-                  files (similar to the ones you might be used to with Home Assistant).
-                  <p>
-                  </p>
-                  This wizard will create a basic YAML configuration file for your "node" (the microcontroller).
-                  Later, you will be able to customize this file and add some of ESPHome's many
-                  integrations.
-                  <p>
-                    <p>
-                      First, I need to know what this node should be called. Choose this name wisely, it should be
-                      unique among
-                      all your ESPs.
+                </p>
 
-                      Names must be <strong>lowercase</strong> and <strong>must not contain spaces</strong> (allowed
-                      characters: <code class="inlinecode">a-z</code>,
-                      <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>)
-                    </p>
-                    <div class="input-field col s12">
-                      <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true"
-                        data-rule-lowercase="true" required>
-                      <label for="node_name">Name of node</label>
-                    </div>
-                </div>
+                <p>
+                  ESPHome, the tool you're using here, creates custom firmwares for these devices using YAML
+                  configuration files (similar to the ones you might be used to with <a href="https://home-assistant.io"
+                    target="_blank">Home Assistant</a>).
+                </p>
+
+                <p>
+                  This wizard will create a basic YAML configuration file for your "node" (the microcontroller) and
+                  later, you will be able to customize this file with some of ESPHome's many avaliable integrations.
+                </p>
+
+                <p>
+                  When you are ready click "begin" to move onto the next step!
+                </p>
+
                 <div class="step-actions">
-                  <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
+                  <button class="waves-effect waves-dark green btn next-step">Begin</button>
                 </div>
               </div>
             </li>
+            {% end %}
+
+            <!-- Step 1 - Node Name -->
+            <li class="step active">
+              <div class="step-title waves-effect">Node Name</div>
+              <div class="step-content">
+
+                {% if len(entries) == 0 %}
+                <p>
+                  Firstly, please decide on a name for the node. Choose this name wisely, it should be unique among all
+                  of your ESPHome nodes.
+                </p>
+                {% end %}
+
+
+                {% if len(entries) >= 1 %}
+                <p>
+                  Select a unique name for the node.
+                </p>
+                {% end %}
+
+                <p>
+                  Names must be all <strong>lowercase</strong> and <strong>must not contain any spaces</strong>!
+                  Characters that are allowed are: <code class="inlinecode">a-z</code>,
+                  <code class="inlinecode">0-9</code> and <code class="inlinecode">_</code>.
+                </p>
+
+                <div class="input-field col s12">
+                  <input id="node_name" class="validate" type="text" name="name" data-rule-nospaces="true"
+                    data-rule-lowercase="true" required>
+                  <label for="node_name">Node Name</label>
+                </div>
+
+                <div class="step-actions">
+                  <button class="waves-effect waves-dark green btn next-step">Next</button>
+                </div>
+              </div>
+            </li>
+
+            <!-- Step 2 - Device Type -->
             <li class="step">
               <div class="step-title waves-effect">Device Type</div>
               <div class="step-content">
-                <div class="row">
-                  <p>
-                    Great! Now I need to know what type of microcontroller you're using so that I can compile firmware
-                    for them.
-                    Please choose the board you're using below.
-                  </p>
-                  <p>
-                    <em>If unsure you can also select a similar board or choose the "Generic" option.</em>
-                  </p>
-                  <div class="input-field col s12">
-                    <select id="board" name="board" required>
-                      <optgroup label="ESP8266">
-                        <option value="esp01_1m">Generic ESP8266 (for example Sonoff)</option>
-                        <option value="nodemcuv2">NodeMCU</option>
-                        <option value="d1_mini">Wemos D1 and Wemos D1 mini</option>
-                        <option value="d1_mini_lite">Wemos D1 mini Lite</option>
-                        <option value="d1_mini_pro">Wemos D1 mini Pro</option>
-                        <option value="huzzah">Adafruit HUZZAH ESP8266</option>
-                        <option value="oak">DigiStump Oak</option>
-                        <option value="thing">Sparkfun ESP8266 Thing</option>
-                        <option value="thingdev">Sparkfun ESP8266 Thing - Dev Board</option>
-                      </optgroup>
-                      <optgroup label="ESP32">
-                        <option value="esp-wrover-kit">Generic ESP32 (WROVER Module)</option>
-                        <option value="nodemcu-32s">NodeMCU-32S</option>
-                        <option value="lolin_d32">Wemos Lolin D32</option>
-                        <option value="lolin_d32_pro">Wemos Lolin D32 Pro</option>
-                        <option value="featheresp32">Adafruit ESP32 Feather</option>
-                        <option value="m5stack-core-esp32">M5Stack Core ESP32</option>
-                      </optgroup>
-                      <optgroup label="Other ESP8266s">
-                        <option value="gen4iod">4D Systems gen4 IoD Range</option>
-                        <option value="wifi_slot">Amperka WiFi Slot</option>
-                        <option value="espduino">Doit ESPDuino</option>
-                        <option value="espectro">DycodeX ESPectro Core</option>
-                        <option value="espino">ESPino</option>
-                        <option value="esp_wroom_02">Espressif ESP-WROOM-02 module</option>
-                        <option value="esp12e">Espressif ESP-12E module</option>
-                        <option value="esp01">Espressif ESP-01 512k module</option>
-                        <option value="esp07">Espressif ESP-07 module</option>
-                        <option value="esp8285">Generic ESP8285 module</option>
-                        <option value="espresso_lite_v1">ESPert ESPresso Lite 1.0</option>
-                        <option value="espresso_lite_v2">ESPert ESPresso Lite 2.0</option>
-                        <option value="phoenix_v1">ESPert Phoenix 1.0</option>
-                        <option value="wifinfo">WiFInfo</option>
-                        <option value="heltec_wifi_kit_8">Heltec WiFi kit 8</option>
-                        <option value="nodemcu">NodeMCU 0.9</option>
-                        <option value="modwifi">Olimex MOD-WIFI</option>
-                        <option value="wio_link">SeedStudio Wio Link</option>
-                        <option value="wio_node">SeedStudio Wio Node</option>
-                        <option value="sparkfunBlynk">Sparkfun Blynk Board</option>
-                        <option value="esp210">SweetPea ESP-210</option>
-                        <option value="espinotee">ThaiEasyElec ESPino</option>
-                        <option value="d1">Wemos D1 Revision 1</option>
-                        <option value="wifiduino">WiFiDuino</option>
-                        <option value="xinabox_cw01">XinaBox CW01</option>
-                      </optgroup>
-                      <optgroup label="Other ESP32s">
-                        <option value="lolin32">Wemos Lolin 32</option>
-                        <option value="m5stack-fire">M5Stack FIRE</option>
-                        <option value="wemosbat">Wemos WiFi &amp; Bluetooth Battery</option>
-                        <option value="node32s">Node32s</option>
 
-                        <option value="alksesp32">ALKS ESP32</option>
-                        <option value="bpi-bit">BPI-Bit</option>
-                        <option value="d-duino-32">D-duino-32</option>
-                        <option value="esp32-devkitlipo">OLIMEX ESP32-DevKit-LiPo</option>
-                        <option value="esp32-evb">OLIMEX ESP32-EVB</option>
-                        <option value="esp32-gateway">OLIMEX ESP32-GATEWAY</option>
-                        <option value="esp32-poe-iso">OLIMEX ESP32-PoE-ISO</option>
-                        <option value="esp32-poe">OLIMEX ESP32-PoE</option>
-                        <option value="esp32-pro">OLIMEX ESP32-PRO</option>
-                        <option value="esp320">Electronic SweetPeas ESP320</option>
-                        <option value="esp32cam">AI Thinker ESP32-CAM</option>
-                        <option value="esp32dev">Espressif ESP32 Dev Module</option>
-                        <option value="esp32doit-devkit-v1">DOIT ESP32 DEVKIT V1</option>
-                        <option value="esp32thing">SparkFun ESP32 Thing</option>
-                        <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
-                        <option value="espea32">April Brother ESPea32</option>
-                        <option value="espectro32">ESPectro32</option>
-                        <option value="espino32">ESPino32</option>
-                        <option value="firebeetle32">FireBeetle-ESP32</option>
-                        <option value="fm-devkit">ESP32 FM DevKit</option>
-                        <option value="frogboard">Frog Board ESP32</option>
-                        <option value="heltec_wifi_kit_32">Heltec WiFi Kit 32</option>
-                        <option value="heltec_wifi_lora_32">Heltec WiFi LoRa 32</option>
-                        <option value="heltec_wifi_lora_32_V2">Heltec WiFi LoRa 32 (V2)</option>
-                        <option value="heltec_wireless_stick">Heltec Wireless Stick</option>
-                        <option value="hornbill32dev">Hornbill ESP32 Dev</option>
-                        <option value="hornbill32minima">Hornbill ESP32 Minima</option>
-                        <option value="intorobot">IntoRobot Fig</option>
-                        <option value="iotaap_magnolia">IoTaaP Magnolia</option>
-                        <option value="iotbusio">oddWires IoT-Bus Io</option>
-                        <option value="iotbusproteus">oddWires IoT-Bus Proteus</option>
-                        <option value="lopy">Pycom LoPy</option>
-                        <option value="lopy4">Pycom LoPy4</option>
-                        <option value="m5stack-grey">M5Stack GREY ESP32</option>
-                        <option value="m5stick-c">M5Stick-C</option>
-                        <option value="magicbit">MagicBit</option>
-                        <option value="mhetesp32devkit">MH ET LIVE ESP32DevKIT</option>
-                        <option value="mhetesp32minikit">MH ET LIVE ESP32MiniKit</option>
-                        <option value="microduino-core-esp32">Microduino Core ESP32</option>
-                        <option value="nano32">MakerAsia Nano32</option>
-                        <option value="nina_w10">u-blox NINA-W10 series</option>
-                        <option value="odroid_esp32">ODROID-GO</option>
-                        <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
-                        <option value="oroca_edubot">OROCA EduBot</option>
-                        <option value="pico32">ESP32 Pico Kit</option>
-                        <option value="pocket_32">Dongsen Tech Pocket 32</option>
-                        <option value="pycom_gpy">Pycom GPy</option>
-                        <option value="quantum">Noduino Quantum</option>
-                        <option value="sparkfun_lora_gateway_1-channel">SparkFun LoRa Gateway 1-Channel</option>
-                        <option value="tinypico">TinyPICO</option>
-                        <option value="ttgo-lora32-v1">TTGO LoRa32-OLED V1</option>
-                        <option value="ttgo-t-beam">TTGO T-Beam</option>
-                        <option value="ttgo-t-watch">TTGO T-Watch</option>
-                        <option value="ttgo-t1">TTGO T1</option>
-                        <option value="turta_iot_node">Turta IoT Node</option>
-                        <option value="vintlabs-devkit-v1">VintLabs ESP32 Devkit</option>
-                        <option value="wemos_d1_mini32">WeMos D1 MINI ESP32</option>
-                        <option value="wesp32">Silicognition wESP32</option>
-                        <option value="widora-air">Widora AIR</option>
-                        <option value="xinabox_cw02">XinaBox CW02</option>
-                      </optgroup>
-                    </select>
-                  </div>
-                </div>
-                <div class="step-actions">
-                  <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
-                </div>
-              </div>
-            </li>
-            <li class="step">
-              <div class="step-title waves-effect">WiFi And Over-The-Air Updates</div>
-              <div class="step-content">
-                <div class="row">
-                  <p>
-                    Thanks! Now I need to know what WiFi Access Point I should instruct the node to connect to.
-                    Please enter an SSID (name of the WiFi network) and password (leave empty for no password).
-                  </p>
-                  <div class="input-field col s12">
-                    <input id="wifi_ssid" class="validate" type="text" name="ssid" required>
-                    <label for="wifi_ssid">WiFi SSID</label>
-                  </div>
-                  <div class="input-field col s12">
-                    <input id="wifi_password" name="psk" type="password">
-                    <label for="wifi_password">WiFi Password</label>
-                  </div>
-                  <p>
-                    ESPHome automatically sets up an Over-The-Air update server on the node
-                    so that you only need to flash a firmware via USB once. This password
-                    is also used to connect to the ESP from Home Assistant.
-
-                    Optionally, you can set a password for this upload process here:
-                  </p>
-                  <div class="input-field col s12">
-                    <input id="password" class="validate" name="password" type="password">
-                    <label for="password">Access Password</label>
-                  </div>
-                </div>
-                <div class="step-actions">
-                  <button class="waves-effect waves-dark btn indigo next-step">CONTINUE</button>
-                </div>
-              </div>
-            </li>
-            <li class="step">
-              <div class="step-title waves-effect">Done!</div>
-              <div class="step-content">
+                {% if len(entries) == 0 %}
                 <p>
-                  Hooray! 🎉🎉🎉 You've successfully created your first ESPHome configuration file.
-                  When you click Submit, the wizard will save a configuration file under
-                  <code class="inlinecode">&lt;HASS_CONFIG_FOLDER&gt;/esphome/&lt;NAME_OF_NODE&gt;.yaml</code>.
+                  Now that you have named your node, please select what type of microcontroller you are using so that
+                  the firmware for your node can be compiled correctly.
                 </p>
+                {% end %}
+
+
+                {% if len(entries) >= 1 %}
+                <p>
+                  Select the type of microcontroller that you are using for the node.
+                </p>
+                {% end %}
+
+                <p>
+                  <em>If unsure you can also select a similar board or choose the "Generic" option.</em>
+                </p>
+
+                <div class="input-field col s12">
+                  <select class="browser-default" name="board" required>
+                    <optgroup label="ESP8266">
+                      <option value="esp01_1m">Generic ESP8266 (for example Sonoff)</option>
+                      <option value="nodemcuv2">NodeMCU</option>
+                      <option value="d1_mini">Wemos D1 and Wemos D1 mini</option>
+                      <option value="d1_mini_lite">Wemos D1 mini Lite</option>
+                      <option value="d1_mini_pro">Wemos D1 mini Pro</option>
+                      <option value="huzzah">Adafruit HUZZAH ESP8266</option>
+                      <option value="oak">DigiStump Oak</option>
+                      <option value="thing">Sparkfun ESP8266 Thing</option>
+                      <option value="thingdev">Sparkfun ESP8266 Thing - Dev Board</option>
+                    </optgroup>
+                    <optgroup label="ESP32">
+                      <option value="esp-wrover-kit">Generic ESP32 (WROVER Module)</option>
+                      <option value="nodemcu-32s">NodeMCU-32S</option>
+                      <option value="lolin_d32">Wemos Lolin D32</option>
+                      <option value="lolin_d32_pro">Wemos Lolin D32 Pro</option>
+                      <option value="featheresp32">Adafruit ESP32 Feather</option>
+                      <option value="m5stack-core-esp32">M5Stack Core ESP32</option>
+                    </optgroup>
+                    <optgroup label="Other ESP8266s">
+                      <option value="gen4iod">4D Systems gen4 IoD Range</option>
+                      <option value="wifi_slot">Amperka WiFi Slot</option>
+                      <option value="espduino">Doit ESPDuino</option>
+                      <option value="espectro">DycodeX ESPectro Core</option>
+                      <option value="espino">ESPino</option>
+                      <option value="esp_wroom_02">Espressif ESP-WROOM-02 module</option>
+                      <option value="esp12e">Espressif ESP-12E module</option>
+                      <option value="esp01">Espressif ESP-01 512k module</option>
+                      <option value="esp07">Espressif ESP-07 module</option>
+                      <option value="esp8285">Generic ESP8285 module</option>
+                      <option value="espresso_lite_v1">ESPert ESPresso Lite 1.0</option>
+                      <option value="espresso_lite_v2">ESPert ESPresso Lite 2.0</option>
+                      <option value="phoenix_v1">ESPert Phoenix 1.0</option>
+                      <option value="wifinfo">WiFInfo</option>
+                      <option value="heltec_wifi_kit_8">Heltec WiFi kit 8</option>
+                      <option value="nodemcu">NodeMCU 0.9</option>
+                      <option value="modwifi">Olimex MOD-WIFI</option>
+                      <option value="wio_link">SeedStudio Wio Link</option>
+                      <option value="wio_node">SeedStudio Wio Node</option>
+                      <option value="sparkfunBlynk">Sparkfun Blynk Board</option>
+                      <option value="esp210">SweetPea ESP-210</option>
+                      <option value="espinotee">ThaiEasyElec ESPino</option>
+                      <option value="d1">Wemos D1 Revision 1</option>
+                      <option value="wifiduino">WiFiDuino</option>
+                      <option value="xinabox_cw01">XinaBox CW01</option>
+                    </optgroup>
+                    <optgroup label="Other ESP32s">
+                      <option value="lolin32">Wemos Lolin 32</option>
+                      <option value="m5stack-fire">M5Stack FIRE</option>
+                      <option value="wemosbat">Wemos WiFi &amp; Bluetooth Battery</option>
+                      <option value="node32s">Node32s</option>
+                      <option value="alksesp32">ALKS ESP32</option>
+                      <option value="bpi-bit">BPI-Bit</option>
+                      <option value="d-duino-32">D-duino-32</option>
+                      <option value="esp32-devkitlipo">OLIMEX ESP32-DevKit-LiPo</option>
+                      <option value="esp32-evb">OLIMEX ESP32-EVB</option>
+                      <option value="esp32-gateway">OLIMEX ESP32-GATEWAY</option>
+                      <option value="esp32-poe-iso">OLIMEX ESP32-PoE-ISO</option>
+                      <option value="esp32-poe">OLIMEX ESP32-PoE</option>
+                      <option value="esp32-pro">OLIMEX ESP32-PRO</option>
+                      <option value="esp320">Electronic SweetPeas ESP320</option>
+                      <option value="esp32cam">AI Thinker ESP32-CAM</option>
+                      <option value="esp32dev">Espressif ESP32 Dev Module</option>
+                      <option value="esp32doit-devkit-v1">DOIT ESP32 DEVKIT V1</option>
+                      <option value="esp32thing">SparkFun ESP32 Thing</option>
+                      <option value="esp32vn-iot-uno">ESP32vn IoT Uno</option>
+                      <option value="espea32">April Brother ESPea32</option>
+                      <option value="espectro32">ESPectro32</option>
+                      <option value="espino32">ESPino32</option>
+                      <option value="firebeetle32">FireBeetle-ESP32</option>
+                      <option value="fm-devkit">ESP32 FM DevKit</option>
+                      <option value="frogboard">Frog Board ESP32</option>
+                      <option value="heltec_wifi_kit_32">Heltec WiFi Kit 32</option>
+                      <option value="heltec_wifi_lora_32">Heltec WiFi LoRa 32</option>
+                      <option value="heltec_wifi_lora_32_V2">Heltec WiFi LoRa 32 (V2)</option>
+                      <option value="heltec_wireless_stick">Heltec Wireless Stick</option>
+                      <option value="hornbill32dev">Hornbill ESP32 Dev</option>
+                      <option value="hornbill32minima">Hornbill ESP32 Minima</option>
+                      <option value="intorobot">IntoRobot Fig</option>
+                      <option value="iotaap_magnolia">IoTaaP Magnolia</option>
+                      <option value="iotbusio">oddWires IoT-Bus Io</option>
+                      <option value="iotbusproteus">oddWires IoT-Bus Proteus</option>
+                      <option value="lopy">Pycom LoPy</option>
+                      <option value="lopy4">Pycom LoPy4</option>
+                      <option value="m5stack-grey">M5Stack GREY ESP32</option>
+                      <option value="m5stick-c">M5Stick-C</option>
+                      <option value="magicbit">MagicBit</option>
+                      <option value="mhetesp32devkit">MH ET LIVE ESP32DevKIT</option>
+                      <option value="mhetesp32minikit">MH ET LIVE ESP32MiniKit</option>
+                      <option value="microduino-core-esp32">Microduino Core ESP32</option>
+                      <option value="nano32">MakerAsia Nano32</option>
+                      <option value="nina_w10">u-blox NINA-W10 series</option>
+                      <option value="odroid_esp32">ODROID-GO</option>
+                      <option value="onehorse32dev">Onehorse ESP32 Dev Module</option>
+                      <option value="oroca_edubot">OROCA EduBot</option>
+                      <option value="pico32">ESP32 Pico Kit</option>
+                      <option value="pocket_32">Dongsen Tech Pocket 32</option>
+                      <option value="pycom_gpy">Pycom GPy</option>
+                      <option value="quantum">Noduino Quantum</option>
+                      <option value="sparkfun_lora_gateway_1-channel">SparkFun LoRa Gateway 1-Channel</option>
+                      <option value="tinypico">TinyPICO</option>
+                      <option value="ttgo-lora32-v1">TTGO LoRa32-OLED V1</option>
+                      <option value="ttgo-t-beam">TTGO T-Beam</option>
+                      <option value="ttgo-t-watch">TTGO T-Watch</option>
+                      <option value="ttgo-t1">TTGO T1</option>
+                      <option value="turta_iot_node">Turta IoT Node</option>
+                      <option value="vintlabs-devkit-v1">VintLabs ESP32 Devkit</option>
+                      <option value="wemos_d1_mini32">WeMos D1 MINI ESP32</option>
+                      <option value="wesp32">Silicognition wESP32</option>
+                      <option value="widora-air">Widora AIR</option>
+                      <option value="xinabox_cw02">XinaBox CW02</option>
+                    </optgroup>
+                  </select>
+                </div>
+
+                <div class="step-actions">
+                  <button class="waves-effect waves-dark green btn next-step">Next</button>
+                </div>
+              </div>
+            </li>
+
+            <!-- Step 3 - WiFi & Updates -->
+            <li class="step">
+              <div class="step-title waves-effect">WiFi & Updates</div>
+              <div class="step-content">
+                {% if len(entries) == 0 %}
+                <p>
+                  Finally, please enter the details for the WiFi network you want the node to connect to.
+
+                  Please enter an SSID (name of the WiFi network) and the password needed to connect (if the network has
+                  no password then this can be left blank):
+                </p>
+                {% end %}
+
+
+                {% if len(entries) >= 1 %}
+                <p>
+                  Enter the details for the WiFi network the node can connect to:
+                </p>
+                {% end %}
+
+                <div class="input-field col s12">
+                  <input id="wifi_ssid" class="validate" type="text" name="ssid" required>
+                  <label for="wifi_ssid">WiFi SSID</label>
+                </div>
+
+                <div class="input-field col s12">
+                  <input id="wifi_password" name="psk" type="password">
+                  <label for="wifi_password">WiFi Password</label>
+                </div>
+
+                {% if len(entries) == 0 %}
+                <p>
+                  This wizard will automatically set up an Over-The-Air (OTA) update server on the node so that you only
+                  need
+                  to flash the firmware via USB once.
+
+                  You can optionally password protect this OTA update server by setting up a password here:
+                </p>
+                {% end %}
+
+
+                {% if len(entries) >= 1 %}
+                <p>
+                  Setup an optional password for the Over-The-Air (OTA) update server:
+                </p>
+                {% end %}
+
+                <div class="input-field col s12">
+                  <input id="password" class="validate" name="password" type="password">
+                  <label for="password">OTA Access Password</label>
+                </div>
+
+                <div class="step-actions">
+                  <!-- Here goes your actions buttons -->
+                  <button class="waves-effect waves-dark green btn next-step">Next</button>
+                </div>
+              </div>
+            </li>
+
+            <!-- Step 3 - Finish -->
+            <li class="step">
+              <div class="step-title waves-effect">Finish</div>
+              <div class="step-content">
+                {% if len(entries) == 0 %}
+                <p>
+                  Hooray! 🎉🎉🎉 You have successfully created your first ESPHome configuration file.
+                  When you click Submit, the wizard will save the configuration file as
+                  <code class="inlinecode">{{ escape(config_dir) }}/&lt;NAME_OF_NODE&gt;.yaml</code>.
+                </p>
+
                 <h5>Next steps</h5>
                 <ul class="browser-default">
                   <li>
@@ -515,7 +589,8 @@
                     </a>.
                   </li>
                   <li>
-                    See the <a href="https://esphome.io/index.html" rel="noreferrer" target="_blank">ESPHome index</a>
+                    See the <a href="https://esphome.io/index.html" rel="noreferrer" target="_blank">ESPHome
+                      Documentation</a>
                     for a list of supported sensors/devices.
                   </li>
                   <li>
@@ -527,16 +602,27 @@
                     if you find this software awesome and report issues using the bug trackers there.
                   </li>
                 </ul>
+                {% end %}
+
+
+                {% if len(entries) >= 1 %}
+                <p>Click submit to finish creating the node!</p>
+                {% end %}
+
+
                 <div class="step-actions">
-                  <button class="waves-effect waves-dark btn indigo" type="submit">SUBMIT</button>
+                  <!-- Here goes your actions buttons -->
+                  <button class="waves-effect waves-dark green btn" type="submit">Submit</button>
                 </div>
               </div>
             </li>
+
           </ul>
         </form>
       </div>
       <div class="modal-footer">
-        <a class="modal-close waves-effect waves-green btn-flat">Abort</a>
+        <a class="modal-close waves-effect waves-green btn-flat" onclick="wizardStepperInstace.resetStepper();">Exit
+          Wizard</a>
       </div>
     </div>
 

@@ -971,30 +971,47 @@ document.querySelectorAll("[data-action='delete']").forEach((btn) => {
  *  Wizard
  */
 
+const wizardTriggerElement = document.getElementById("js-wizard");
+const wizardModal = document.getElementById("js-wizard-modal");
+const wizardCloseButton = document.querySelector("[data-action='wizard-close']");
 
-const modalSetupElem = document.getElementById("modal-wizard");
-const setupWizardStart = document.getElementById('setup-wizard-start');
+const wizardStepper = document.querySelector('#js-wizard-modal .stepper');
+const wizardStepperInstace = new MStepper(wizardStepper, {
+  firstActive: 0,
+  stepTitleNavigation: false,
+  autoFocusInput: true,
+  showFeedbackLoader: true,
+})
 
-const startWizard = () => {
-  const modalInstance = M.Modal.getInstance(modalSetupElem);
-  modalInstance.open();
+wizardTriggerElement.addEventListener("click", (event) => {
+  M.Modal.init(wizardModal, {
+    dismissible: false
+  }).open();
+})
 
-  $('.stepper').activateStepper({
-    linearStepsNavigation: false,
-    autoFocusInput: true,
-    autoFormCreation: true,
-    showFeedbackLoader: true,
-    parallel: false
-  });
-};
+// const modalSetupElem = document.getElementById("modal-wizard");
+// const setupWizardStart = document.getElementById('setup-wizard-start');
 
-setupWizardStart.addEventListener('click', startWizard);
+// const startWizard = () => {
+//   const modalInstance = M.Modal.getInstance(modalSetupElem);
+//   modalInstance.open();
 
-jQuery.validator.addMethod("nospaces", (value, element) => {
-  return value.indexOf(' ') < 0;
-}, "Name must not contain spaces.");
+//   $('.stepper').activateStepper({
+//     linearStepsNavigation: false,
+//     autoFocusInput: true,
+//     autoFormCreation: true,
+//     showFeedbackLoader: true,
+//     parallel: false
+//   });
+// };
 
-jQuery.validator.addMethod("lowercase", (value, element) => {
-  return value === value.toLowerCase();
-}, "Name must be lowercase.");
+// setupWizardStart.addEventListener('click', startWizard);
+
+// jQuery.validator.addMethod("nospaces", (value, element) => {
+//   return value.indexOf(' ') < 0;
+// }, "Name must not contain spaces.");
+
+// jQuery.validator.addMethod("lowercase", (value, element) => {
+//   return value === value.toLowerCase();
+// }, "Name must be lowercase.");
 
