@@ -141,7 +141,7 @@ class APIConnection : public APIServerConnection {
   void set_nodelay(bool nodelay) override {
     if (nodelay == this->current_nodelay_)
       return;
-    this->client_->setNoDelay(nodelay);
+    // this->client_->setNoDelay(nodelay);
     this->current_nodelay_ = nodelay;
   }
 
