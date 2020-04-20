@@ -198,6 +198,7 @@ main {
 main .container {
   margin-top: 20px;
   margin-bottom: 20px;
+  width: 90%;
 }
 
 #nodes .card-content {
@@ -219,8 +220,26 @@ main .container {
   grid-column-gap: 1.5rem;
 }
 
-@media only screen and (max-width: 780px) {
+#nodes .grid-3-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-column-gap: 1.5rem;
+}
+
+@media only screen and (max-width: 1100px) {
+  #nodes .grid-3-col {
+    grid-template-columns: 1fr 1fr;
+    grid-column-gap: 1.5rem;
+  }
+}
+
+@media only screen and (max-width: 750px) {
   #nodes .grid-2-col {
+    grid-template-columns: 1fr;
+    grid-column-gap: 0;
+  }
+
+  #nodes .grid-3-col {
     grid-template-columns: 1fr;
     grid-column-gap: 0;
   }

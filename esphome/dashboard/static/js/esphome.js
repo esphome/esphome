@@ -20,13 +20,15 @@ const wsUrl = wsLoc.href;
  *  Dashboard Dynamic Grid
  */
 const nodeGrid = () => {
-  const nodeCount = $('#nodes .card').length
-  const nodeGrid = $('#nodes #grid')
+  const nodeCount = document.querySelectorAll("#nodes .card").length;
+  const nodeGrid = document.querySelector("#nodes #grid");
 
-  if (nodeCount >= 6) {
-    $(nodeGrid).addClass("grid-2-col");
+  if (nodeCount <= 3) {
+    nodeGrid.classList.add("grid-1-col");
+  } else if (nodeCount <= 6) {
+    nodeGrid.classList.add("grid-2-col");
   } else {
-    $(nodeGrid).addClass("grid-1-col");
+    nodeGrid.classList.add("grid-3-col");
   }
 }
 
