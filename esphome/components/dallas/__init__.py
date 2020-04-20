@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.const import CONF_ID, CONF_PIN, \
     CONF_RESOLUTION, CONF_UNIT_OF_MEASUREMENT, UNIT_CELSIUS, \
     CONF_ICON, ICON_THERMOMETER, CONF_ACCURACY_DECIMALS
-    
+
 MULTI_CONF = True
 AUTO_LOAD = ['sensor']
 
