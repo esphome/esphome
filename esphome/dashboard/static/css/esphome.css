@@ -17,6 +17,9 @@
 }
 
 body {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
   background-color: var(--primary-bg-color);
 }
 
@@ -29,6 +32,10 @@ body {
 
 .valign {
   width: 100%;
+}
+
+main {
+  flex: 1 0 auto;
 }
 
 /* Alerts & Errors */
