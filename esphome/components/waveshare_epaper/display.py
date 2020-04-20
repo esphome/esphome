@@ -57,10 +57,10 @@ def to_code(config):
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
         rhs = WaveshareEPaperTypeA.new(model)
-        var = cg.Pvariable(config[CONF_ID], rhs, type=WaveshareEPaperTypeA)
+        var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
     elif model_type == 'b':
         rhs = model.new()
-        var = cg.Pvariable(config[CONF_ID], rhs, type=model)
+        var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
         raise NotImplementedError()
 

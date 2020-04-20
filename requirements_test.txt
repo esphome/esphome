@@ -21,4 +21,5 @@ pexpect
 pytest==5.3.2
 pytest-cov==2.8.1
 pytest-mock==1.13.0
+asyncmock==0.4.2
 hypothesis==4.57.0
