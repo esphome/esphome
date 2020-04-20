@@ -22,7 +22,6 @@ class DallasComponent : public PollingComponent {
 
   void update() override;
 
-
   /// Automatic sensors instantiation
   bool get_auto_setup_sensors() const;
   void set_auto_setup_sensors(bool auto_setup_sensors);
