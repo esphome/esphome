@@ -32,7 +32,7 @@ class DallasComponent : public PollingComponent {
   void set_resolution(uint8_t resolution);
   void set_unit_of_measurement(const std::string &unit_of_measurement);
   void set_icon(const std::string &icon);
-  void set_accuracy_decimals(int8_t accuracy_decimals);  
+  void set_accuracy_decimals(int8_t accuracy_decimals);
 
  protected:
   friend DallasTemperatureSensor;
@@ -60,7 +60,7 @@ class DallasTemperatureSensor : public sensor::Sensor {
   const std::string &get_address_name();
 
   /// Get the 64-bit unsigned address of this sensor.
-  const uint64_t& get_address() const;
+  const uint64_t &get_address() const;
   /// Set the 64-bit unsigned address for this sensor.
   void set_address(uint64_t address);
   /// Get the index of this sensor. (0 if using address.)
