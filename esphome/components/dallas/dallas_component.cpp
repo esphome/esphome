@@ -186,18 +186,12 @@ void DallasComponent::set_auto_setup_sensors(bool auto_setup_sensors) {
 void DallasComponent::set_sensor_name_template(const std::string &sensor_name_template) {
   this->sensor_name_template_ = sensor_name_template;
 }
-void DallasComponent::set_resolution(uint8_t resolution) {
-  this->resolution_ = resolution;
-}
+void DallasComponent::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
 void DallasComponent::set_unit_of_measurement(const std::string &unit_of_measurement) {
   this->unit_of_measurement_ = unit_of_measurement;
 }
-void DallasComponent::set_icon(const std::string &icon) {
-  this->icon_ = icon;
-}
-void DallasComponent::set_accuracy_decimals(int8_t accuracy_decimals) {
-  this->accuracy_decimals_ = accuracy_decimals;
-}
+void DallasComponent::set_icon(const std::string &icon) { this->icon_ = icon; }
+void DallasComponent::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
 
 DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
     : parent_(parent) {
