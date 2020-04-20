@@ -10,7 +10,7 @@ https://www.sparkfun.com/datasheets/Sensors/Temperature/tmp102.pdf
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER, CONF_TEMPERATURE
+from esphome.const import CONF_ID, UNIT_CELSIUS, ICON_THERMOMETER
 
 DEPENDENCIES = ['i2c']
 
@@ -28,7 +28,3 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
     yield sensor.register_sensor(var, config)
-
-    if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
-        cg.add(var.set_temperature(sens))
