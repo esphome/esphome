@@ -642,21 +642,6 @@
   <script src="{{ get_static_file_url('js/vendor/ace/ace.js') }}" type="text/javascript" charset="utf-8"></script>
   <script src="{{ get_static_file_url('js/esphome.js') }}" type="text/javascript"></script>
 
-  {% if len(entries) == 0 %}
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const tapTargetElem = document.querySelector('.tap-target.setup-wizard');
-      const tapTargetInstance = M.TapTarget.getInstance(tapTargetElem);
-      tapTargetInstance.options.onOpen = () => {
-        $('.tap-target-origin').on('click', () => {
-          startWizard();
-        });
-      };
-      tapTargetInstance.open();
-    });
-  </script>
-  {% end %}
-
   {% if begin %}
   <script>
     window.history.replaceState({}, document.title, "/");
