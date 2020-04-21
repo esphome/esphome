@@ -91,9 +91,7 @@ void WhirlpoolClimate::transmit_state() {
     case climate::CLIMATE_FAN_LOW:
       remote_state[2] |= WHIRLPOOL_FAN_LOW;
       break;
-    case climate::CLIMATE_FAN_ON:
-    case climate::CLIMATE_FAN_OFF:
-    case climate::CLIMATE_FAN_AUTO:
+    default:
       break;
   }
 
@@ -247,10 +245,10 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Set received temp
-  auto temp = remote_state[3] & 0xF0;
+  int temp = remote_state[3] & 0xF0;
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
   temp = (uint8_t) temp >> 4;
-  temp += this->temperature_min_();
+  temp += static_cast<int>(this->temperature_min_());
   ESP_LOGVV(TAG, "Temperature Climate: %u", temp);
   this->target_temperature = temp;
 
