@@ -169,7 +169,7 @@ def to_code(config):
     else:
         out_type = NeoPixelRGBLightOutput.template(template)
     rhs = out_type.new()
-    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, type=out_type)
+    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
     yield light.register_light(var, config)
     yield cg.register_component(var, config)
 

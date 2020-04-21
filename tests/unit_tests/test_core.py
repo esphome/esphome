@@ -459,13 +459,13 @@ class TestEsphomeCore:
         target.config_path = "foo/config"
         return target
 
+    @pytest.mark.xfail(reason="raw_config and config differ, should they?")
     def test_reset(self, target):
         """Call reset on target and compare to new instance"""
         other = core.EsphomeCore()
 
         target.reset()
 
-        # TODO: raw_config and config differ, should they?
         assert target.__dict__ == other.__dict__
 
     def test_address__none(self, target):

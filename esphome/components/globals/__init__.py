@@ -30,7 +30,7 @@ def to_code(config):
         initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])
 
     rhs = GlobalsComponent.new(template_args, initial_value)
-    glob = cg.Pvariable(config[CONF_ID], rhs, type=res_type)
+    glob = cg.Pvariable(config[CONF_ID], rhs, res_type)
     yield cg.register_component(glob, config)
 
     if config[CONF_RESTORE_VALUE]:
