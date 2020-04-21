@@ -78,7 +78,7 @@
       <div id="grid" class="grid">
 
         {% for i, entry in enumerate(entries) %}
-        <div class="card status-unknown" data-node="{{ entry.filename }}" data-filename="{{ entry.filename }}">
+        <div class="card status-unknown" data-node-name="{{ entry.name }}" data-filename="{{ entry.filename }}">
           <div class="card-content black-text">
             <span class="card-title">
               <span class="node-name">{{ escape(entry.name) }}</span>

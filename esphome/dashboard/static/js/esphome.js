@@ -48,7 +48,7 @@ const fetchPing = () => {
   fetch(`./ping`, { credentials: "same-origin" }).then(res => res.json())
     .then(response => {
       for (let filename in response) {
-        let node = document.querySelector(`#nodes .card[data-node="${filename}"]`);
+        let node = document.querySelector(`#nodes .card[data-filename="${filename}"]`);
 
         if (node === null) {
           continue;
