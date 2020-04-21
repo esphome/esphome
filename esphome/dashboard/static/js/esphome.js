@@ -746,12 +746,19 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
     }
     closeButton.setAttribute('data-filename', editorActiveFilename);
 
-    editor.setValue(`Loading ${editorActiveFilename}...`);
+    const loadingIndicator = document.querySelector("#js-editor-modal #js-loading-indicator");
+    const editorArea = document.querySelector("#js-editor-modal #js-editor-area");
+
+    loadingIndicator.style.display = "block";
+    editorArea.style.display = "none";
+    
     editor.setOption('readOnly', true);
     fetch(`./edit?configuration=${editorActiveFilename}`, { credentials: "same-origin" })
       .then(res => res.text()).then(response => {
         editor.setValue(response, -1);
         editor.setOption('readOnly', false);
+        loadingIndicator.style.display = "none";
+        editorArea.style.display = "block";
       });
     editor.focus();
 

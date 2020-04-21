@@ -265,6 +265,13 @@ i.node-update-avaliable {
   cursor: pointer;
 }
 
+#js-loading-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .editor {
   margin-top: 0;
   margin-bottom: 0;

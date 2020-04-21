@@ -129,6 +129,21 @@
     <div id="js-editor-modal" class="modal modal-fixed-footer no-autoinit">
       <div class="modal-content">
         <h4>Editing: <code id="js-node-filename" class="inlinecode"></code></h4>
+        
+        <div id="js-loading-indicator">
+          <div class="preloader-wrapper big active">
+            <div class="spinner-layer spinner-blue-only">
+              <div class="circle-clipper left">
+                <div class="circle"></div>
+              </div><div class="gap-patch">
+                <div class="circle"></div>
+              </div><div class="circle-clipper right">
+                <div class="circle"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div id="js-editor-area" class="editor"></div>
       </div>
       <div class="modal-footer">
