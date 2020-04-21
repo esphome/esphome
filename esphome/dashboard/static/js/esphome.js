@@ -851,8 +851,8 @@ const startAceWebsocket = () => {
 
   editorActiveWebSocket.addEventListener('close', () => {
     console.log("Socket Close");
-    // editorActiveWebSocket = null;
-    // setTimeout(startAceWebsocket, 5000)
+    editorActiveWebSocket = null;
+    setTimeout(startAceWebsocket, 5000);
   });
 };
 
