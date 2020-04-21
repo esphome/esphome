@@ -191,14 +191,15 @@ main {
   color: black;
 }
 
-#settings-dropdown li a {
-  color: black
+#nav-dropdown li a,  .node-dropdown li a {
+  color: black;
 }
 
 main .container {
   margin-top: 20px;
   margin-bottom: 20px;
   width: 90%;
+  max-width: 1920px;
 }
 
 #nodes .card-content {

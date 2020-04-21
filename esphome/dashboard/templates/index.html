@@ -39,8 +39,7 @@
 
         <ul class="nav-icons right">
           <li>
-            <a class="dropdown-trigger" href="#!" data-target="settings-dropdown"><i
-                class="material-icons">more_vert</i></a>
+            <a class="dropdown-trigger" href="#!" data-target="nav-dropdown"><i class="material-icons">more_vert</i></a>
           </li>
         </ul>
 
@@ -49,7 +48,7 @@
         </div>
       </div>
 
-      <ul id="settings-dropdown" class="select-action dropdown-content">
+      <ul id="nav-dropdown" class="select-action dropdown-content">
         <li><a data-action="update-all" data-filename="{{ escape(config_dir) }}">Update All</a></li>
         <li><a data-action="edit" data-filename="secrets.yaml">Secrets Editor</a></li>
         <li class="divider"></li>
@@ -111,7 +110,7 @@
             <a data-action="upload" data-filename="{{ entry.filename }}">Upload</a>
             <a data-action="logs" data-filename="{{ entry.filename }}">Logs</a>
           </div>
-          <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action">
+          <ul id="dropdown-{{ i }}" class="select-action dropdown-content card-dropdown-action node-dropdown">
             <li><a data-action="clean-mqtt" data-filename="{{ entry.filename }}">Clean MQTT</a></li>
             <li><a data-action="clean" data-filename="{{ entry.filename }}">Clean Build Files</a></li>
             <li><a data-action="compile" data-filename="{{ entry.filename }}">Compile</a></li>
@@ -129,15 +128,17 @@
     <div id="js-editor-modal" class="modal modal-fixed-footer no-autoinit">
       <div class="modal-content">
         <h4>Editing: <code id="js-node-filename" class="inlinecode"></code></h4>
-        
+
         <div id="js-loading-indicator">
           <div class="preloader-wrapper big active">
             <div class="spinner-layer spinner-blue-only">
               <div class="circle-clipper left">
                 <div class="circle"></div>
-              </div><div class="gap-patch">
+              </div>
+              <div class="gap-patch">
                 <div class="circle"></div>
-              </div><div class="circle-clipper right">
+              </div>
+              <div class="circle-clipper right">
                 <div class="circle"></div>
               </div>
             </div>
