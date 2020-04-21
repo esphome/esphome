@@ -91,6 +91,10 @@ void WhirlpoolClimate::transmit_state() {
     case climate::CLIMATE_FAN_LOW:
       remote_state[2] |= WHIRLPOOL_FAN_LOW;
       break;
+    case climate::CLIMATE_FAN_ON:
+    case climate::CLIMATE_FAN_OFF:
+    case climate::CLIMATE_FAN_AUTO:
+      break;
   }
 
   // Swing

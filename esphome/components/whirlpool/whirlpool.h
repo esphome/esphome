@@ -51,10 +51,10 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   bool send_swing_cmd_{false};
   Model model_;
 
-  uint8_t temperature_min_() {
+  float temperature_min_() {
     return (model_ == MODEL_DG11J1_3A) ? WHIRLPOOL_DG11J1_3A_TEMP_MIN : WHIRLPOOL_DG11J1_91_TEMP_MIN;
   }
-  uint8_t temperature_max_() {
+  float temperature_max_() {
     return (model_ == MODEL_DG11J1_3A) ? WHIRLPOOL_DG11J1_3A_TEMP_MAX : WHIRLPOOL_DG11J1_91_TEMP_MAX;
   }
 };
