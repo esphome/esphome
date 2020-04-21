@@ -4,6 +4,7 @@
 $(document).ready(function () {
   M.AutoInit(document.body);
   nodeGrid();
+  startAceWebsocket();
 });
 
 // WebSocket URL Helper
@@ -781,14 +782,14 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
 // Editor On Open
 const editorModalOnOpen = () => {
   console.log("Open");
-  startAceWebsocket();
+  // startAceWebsocket();
 }
 
 // Editor On Close
 const editorModalOnClose = () => {
   console.log("Close");
   editorActiveFilename = null;
-  editorActiveWebSocket.close();
+  // editorActiveWebSocket.close();
 }
 
 // Editor WebSocket Validation
