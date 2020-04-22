@@ -1194,6 +1194,8 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
 
 switch:
   - platform: gpio
