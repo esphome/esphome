@@ -81,7 +81,12 @@
               {% end %}
             </span>
 
-            <div class="node-config-path">Full Path: <code class="inlinecode">{{ escape(entry.path) }}</code></div>
+            <div class="node-config-path">
+              Filename: 
+              <code class="inlinecode tooltipped" data-position="bottom" data-tooltip="Full Path: <code class=&quot;inlinecode&quot;>{{ escape(entry.path) }}</code>">
+                {{ escape(entry.filename) }}
+              </code>
+            </div>
 
             {% if entry.comment %}
             <div class="node-card-comment">
