@@ -248,7 +248,10 @@ main .container {
 
 i.node-update-avaliable {
   color:#3f51b5;
-  cursor: help;
+}
+
+i.node-webserver {
+  color:#039be5;
 }
 
 .node-config-path {
@@ -264,6 +267,10 @@ i.node-update-avaliable {
 
 .card-action a, .card-dropdown-action a {
   cursor: pointer;
+}
+
+.tooltipped {
+  cursor: help;
 }
 
 #js-loading-indicator {

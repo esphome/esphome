@@ -71,8 +71,9 @@
               <i class="material-icons right dropdown-trigger" data-target="dropdown-{{ i }}">more_vert</i>
 
               {% if 'web_server' in entry.loaded_integrations %}
-              <a href="http://{{ escape(entry.address) }}" target="_blank"><i class="material-icons right tooltipped"
-                  data-position="left" data-tooltip="Open Node Web Server Interface">launch</i></a>
+              <a href="http://{{ escape(entry.address) }}" target="_blank"><i
+                  class="material-icons node-webserver right tooltipped" data-position="left"
+                  data-tooltip="Open Node Web Server Interface">launch</i></a>
               {% end %}
 
               {% if entry.update_available %}
@@ -82,8 +83,9 @@
             </span>
 
             <div class="node-config-path">
-              Filename: 
-              <code class="inlinecode tooltipped" data-position="bottom" data-tooltip="Full Path: <code class=&quot;inlinecode&quot;>{{ escape(entry.path) }}</code>">
+              Filename:
+              <code class="inlinecode tooltipped" data-position="bottom"
+                data-tooltip="Full Path: <code class=&quot;inlinecode&quot;>{{ escape(entry.path) }}</code>">
                 {{ escape(entry.filename) }}
               </code>
             </div>
@@ -331,10 +333,10 @@
             <!-- Step 1 - Node Name -->
             {% if len(entries) == 0 %}
             <li class="step">
-            {% end %}
-            {% if len(entries) >= 1 %}
+              {% end %}
+              {% if len(entries) >= 1 %}
             <li class="step active">
-            {% end %}
+              {% end %}
               <div class="step-title waves-effect">Node Name</div>
               <div class="step-content">
 
