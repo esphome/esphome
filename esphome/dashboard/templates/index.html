@@ -659,6 +659,18 @@
   <script src="{{ get_static_file_url('js/vendor/ace/ace.js') }}" type="text/javascript" charset="utf-8"></script>
   <script src="{{ get_static_file_url('js/esphome.js') }}" type="text/javascript"></script>
 
+  {% if begin and len(entries) == 1 %}
+  <script>
+    window.history.replaceState({}, document.title, "/");
+    document.addEventListener('DOMContentLoaded', () => {
+      M.toast({
+        html: '🎉 Congratulations on adding your first Node!',
+        displayLength: 10000
+      })
+    });
+  </script>
+  {% end %}
+
 </body>
 
 </html>
