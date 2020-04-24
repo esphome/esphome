@@ -60,5 +60,12 @@ class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
   wifi::bssid_t last_bssid_;
 };
 
+class MacAddressWifiInfo : public Component, public text_sensor::TextSensor {
+ public:
+  void setup() override { this->publish_state(get_mac_address_pretty()); }
+  std::string unique_id() override { return get_mac_address() + "-wifiinfo-macadr"; }
+  void dump_config() override;
+};
+
 }  // namespace wifi_info
 }  // namespace esphome
