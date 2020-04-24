@@ -381,8 +381,6 @@ class LogModal {
   _onPress(event) {
     this.activeFilename = event.target.getAttribute('data-filename');
 
-    console.log(this.activeFilename);
-
     this._setupModalInstance();
     this.nodeFilenameElement.innerHTML = this.activeFilename;
 
@@ -719,7 +717,6 @@ editor.commands.addCommand({
   name: 'saveCommand',
   bindKey: { win: 'Ctrl-S', mac: 'Command-S' },
   exec: function () {
-    console.log("Save")
     saveFile(editorActiveFilename);
   },
   readOnly: false
@@ -752,7 +749,7 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
 
     loadingIndicator.style.display = "block";
     editorArea.style.display = "none";
-    
+
     editor.setOption('readOnly', true);
     fetch(`./edit?configuration=${editorActiveFilename}`, { credentials: "same-origin" })
       .then(res => res.text()).then(response => {
@@ -781,15 +778,12 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
 
 // Editor On Open
 const editorModalOnOpen = () => {
-  console.log("Open");
-  // startAceWebsocket();
+  return
 }
 
 // Editor On Close
 const editorModalOnClose = () => {
-  console.log("Close");
   editorActiveFilename = null;
-  // editorActiveWebSocket.close();
 }
 
 // Editor WebSocket Validation
@@ -846,11 +840,9 @@ const startAceWebsocket = () => {
   editorActiveWebSocket.addEventListener('open', () => {
     const msg = JSON.stringify({ type: 'spawn' });
     editorActiveWebSocket.send(msg);
-    console.log("Socket Open");
   });
 
   editorActiveWebSocket.addEventListener('close', () => {
-    console.log("Socket Close");
     editorActiveWebSocket = null;
     setTimeout(startAceWebsocket, 5000);
   });
@@ -879,7 +871,6 @@ const debounce = (func, wait) => {
 
 editor.session.on('change', debounce(() => {
   editorValidationScheduled = !editorActiveSecrets;
-  console.log("Changed")
 }, 250));
 
 setInterval(() => {
@@ -927,7 +918,6 @@ const saveFile = (filename) => {
         html: `❌ An error occured saving <code class="inlinecode">${filename}</code>`,
         displayLength: 10000
       });
-      console.log(`Error saving ${filename}! - ${error}`)
     })
 }
 
