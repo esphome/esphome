@@ -981,7 +981,7 @@ document.querySelectorAll("[data-action='delete']").forEach((btn) => {
  *  Wizard
  */
 
-const wizardTriggerElement = document.getElementById("js-wizard");
+const wizardTriggerElement = document.querySelector("[data-action='wizard']");
 const wizardModal = document.getElementById("js-wizard-modal");
 const wizardCloseButton = document.querySelector("[data-action='wizard-close']");
 
@@ -993,11 +993,17 @@ const wizardStepperInstace = new MStepper(wizardStepper, {
   showFeedbackLoader: true,
 })
 
-wizardTriggerElement.addEventListener("click", (event) => {
+const startWizard = () => {
   M.Modal.init(wizardModal, {
     dismissible: false
   }).open();
-})
+}
+
+document.querySelectorAll("[data-action='wizard']").forEach((btn) => {
+  btn.addEventListener("click", (event) => {
+    startWizard();
+  })
+});
 
 jQuery.validator.addMethod("nospaces", (value, element) => {
   return value.indexOf(' ') < 0;

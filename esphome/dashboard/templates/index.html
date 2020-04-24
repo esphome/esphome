@@ -54,20 +54,6 @@
         <li class="divider"></li>
         <li><a href="{{ relative_url }}logout">Logout</a></li>
       </ul>
-
-      {% if begin %}
-      <div class="tap-target pink lighten-1 select-port" data-target="js-serial-port-select">
-        <div class="tap-target-content">
-          <h5>Select Upload Port</h5>
-          <p>
-            Here you can select where ESPHome will attempt to show logs and upload firmwares to.
-            For newly plugged in serial devices to be detected, restart the add-on.
-            (Also see <a href="https://esphome.io/guides/faq#i-can-t-get-flashing-over-usb-to-work" target="_blank">
-              esphomeflasher</a>)
-          </p>
-        </div>
-      </div>
-      {% end %}
     </nav>
   </div>
 
@@ -123,6 +109,21 @@
       </div>
 
     </div>
+
+    {% if len(entries) == 0 %}
+    <div class="center">
+      <h5>Welcome to ESPHome</h5>
+      <p>It looks like you don't yet have any Nodes configured.</p>
+      <p>Click on the pulsating button at the bottom right of the page to add a Node.</p>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', () => {
+        const addNodeButton = document.querySelector("#js-wizard");
+        addNodeButton.classList.add("pulse");
+      });
+    </script>
+    {% end %}
 
     <!-- Config Editor Modal -->
     <div id="js-editor-modal" class="modal modal-fixed-footer no-autoinit">
@@ -268,22 +269,10 @@
 
     <!-- Add New Node / Launch Wizard Button -->
     <div class="fixed-action-btn">
-      <a class="btn-floating btn-large waves-effect waves-light green" id="js-wizard">
+      <a class="btn-floating btn-large waves-effect waves-light green js-wizard" id="js-wizard" data-action="wizard">
         <i class="large material-icons">add</i>
       </a>
     </div>
-
-    {% if len(entries) == 0 %}
-    <div class="tap-target pink lighten-1 setup-wizard" data-target="js-wizard">
-      <div class="tap-target-content">
-        <h5>Set up your first Node</h5>
-        <p>
-          Huh... It seems like you you don't have any ESPHome configuration files yet...
-          Fortunately, there's a setup wizard that will step you through setting up your first node 🎉
-        </p>
-      </div>
-    </div>
-    {% end %}
 
     <!-- Wizard Modal -->
     <div id="js-wizard-modal" class="modal modal-fixed-footer">
@@ -335,7 +324,12 @@
             {% end %}
 
             <!-- Step 1 - Node Name -->
+            {% if len(entries) == 0 %}
+            <li class="step">
+            {% end %}
+            {% if len(entries) >= 1 %}
             <li class="step active">
+            {% end %}
               <div class="step-title waves-effect">Node Name</div>
               <div class="step-content">
 
@@ -657,24 +651,6 @@
 
   <script src="{{ get_static_file_url('js/vendor/ace/ace.js') }}" type="text/javascript" charset="utf-8"></script>
   <script src="{{ get_static_file_url('js/esphome.js') }}" type="text/javascript"></script>
-
-  {% if begin %}
-  <script>
-    window.history.replaceState({}, document.title, "/");
-    document.addEventListener('DOMContentLoaded', () => {
-      const tapTargetElem = document.querySelector('.tap-target.select-port');
-      const tapTargetInstance = M.TapTarget.getInstance(tapTargetElem);
-      tapTargetInstance.open();
-
-      tapTargetInstance.contentEl.style["top"] = "300px";
-      tapTargetInstance.contentEl.style["padding"] = "250px";
-      tapTargetInstance.waveEl.style["top"] = "250px";
-      tapTargetInstance.waveEl.style["left"] = "250px";
-      tapTargetInstance.waveEl.style["width"] = "300px";
-      tapTargetInstance.waveEl.style["height"] = "300px";
-    });
-  </script>
-  {% end %}
 
 </body>
 
