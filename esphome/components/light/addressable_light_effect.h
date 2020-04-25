@@ -50,12 +50,11 @@ class AddressableLightEffect : public LightEffect {
 
 class AddressableLambdaLightEffect : public AddressableLightEffect {
  public:
-  AddressableLambdaLightEffect(const std::string &name, const std::function<void(AddressableLight &, ESPColor, bool initial_run)> &f,
+  AddressableLambdaLightEffect(const std::string &name,
+                               const std::function<void(AddressableLight &, ESPColor, bool initial_run)> &f,
                                uint32_t update_interval)
       : AddressableLightEffect(name), f_(f), update_interval_(update_interval) {}
-  void start() override {
-    this->initial_run_ = true;
-  }
+  void start() override { this->initial_run_ = true; }
   void apply(AddressableLight &it, const ESPColor &current_color) override {
     const uint32_t now = millis();
     if (now - this->last_run_ >= this->update_interval_) {
