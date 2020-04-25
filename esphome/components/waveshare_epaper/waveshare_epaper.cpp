@@ -425,12 +425,12 @@ void WaveshareEPaper2P7In::initialize() {
     this->data(i);
 }
 void HOT WaveshareEPaper2P7In::display() {
-  uint32_t bufLen = this->get_buffer_length_();
+  uint32_t buf_len = this->get_buffer_length_();
 
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
   delay(2);
-  for (uint32_t i = 0; i < bufLen; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     this->data(this->buffer_[i]);
   }
   delay(2);
@@ -438,7 +438,7 @@ void HOT WaveshareEPaper2P7In::display() {
   // COMMAND DATA START TRANSMISSION 2
   this->command(0x13);
   delay(2);
-  for (uint32_t i = 0; i < bufLen; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     this->data(this->buffer_[i]);
   }
 
