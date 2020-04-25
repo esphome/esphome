@@ -142,10 +142,6 @@ time:
       then:
         - logger.log: It's 16:00
 
-apds9960:
-  address: 0x20
-  update_interval: 60s
-
 esp32_touch:
   setup_mode: True
 
