@@ -98,6 +98,40 @@ template<typename... Ts> class LightIsOffCondition : public Condition<Ts...> {
   LightState *state_;
 };
 
+class LightTurnOnTrigger : public Trigger<> {
+ public:
+  LightTurnOnTrigger(LightState *a_light) {
+    a_light->add_new_remote_values_callback([this, a_light]() {
+      auto is_on = a_light->current_values.is_on();
+      if (is_on && !last_on_) {
+        this->trigger();
+      }
+      last_on_ = is_on;
+    });
+    last_on_ = a_light->current_values.is_on();
+  }
+
+ protected:
+  bool last_on_;
+};
+
+class LightTurnOffTrigger : public Trigger<> {
+ public:
+  LightTurnOffTrigger(LightState *a_light) {
+    a_light->add_new_remote_values_callback([this, a_light]() {
+      auto is_on = a_light->current_values.is_on();
+      if (!is_on && last_on_) {
+        this->trigger();
+      }
+      last_on_ = is_on;
+    });
+    last_on_ = a_light->current_values.is_on();
+  }
+
+ protected:
+  bool last_on_;
+};
+
 template<typename... Ts> class AddressableSet : public Action<Ts...> {
  public:
   explicit AddressableSet(LightState *parent) : parent_(parent) {}
