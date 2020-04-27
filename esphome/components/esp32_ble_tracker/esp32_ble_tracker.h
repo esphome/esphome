@@ -23,7 +23,11 @@ class ESPBTUUID {
 
   static ESPBTUUID from_raw(const uint8_t *data);
 
+  ESPBTUUID as_128bit() const;
+
   bool contains(uint8_t data1, uint8_t data2) const;
+
+  bool operator==(const ESPBTUUID &uuid) const;
 
   esp_bt_uuid_t get_uuid();
 
