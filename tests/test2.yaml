@@ -49,10 +49,6 @@ web_server:
     username: admin
     password: admin
 
-deep_sleep:
-  run_duration: 20s
-  sleep_duration: 50s
-
 as3935_i2c:
   irq_pin: GPIO12
 
@@ -233,6 +229,25 @@ binary_sensor:
     name: "Storm Alert"
 
 esp32_ble_tracker:
+  on_ble_advertise:
+    - mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+    - then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of service data is %i", x.size());
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
+
 
 #esp32_ble_beacon:
 #  type: iBeacon
