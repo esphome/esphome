@@ -96,6 +96,7 @@ bool UARTComponent::check_read_timeout_(size_t len) {
       ESP_LOGE(TAG, "Reading from UART timed out at byte %u!", this->available());
       return false;
     }
+    yield();
   }
   return true;
 }
