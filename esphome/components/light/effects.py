@@ -162,7 +162,7 @@ def flicker_effect_to_code(config, effect_id):
     }
 )
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color')]
+    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color'), (bool, 'initial_run')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
