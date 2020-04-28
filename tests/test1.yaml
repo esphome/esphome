@@ -1155,7 +1155,9 @@ light:
     - addressable_lambda:
           name: "Test For Custom Lambda Effect"
           lambda: |-
-            it[0] = current_color;
+            if (initial_run) {
+              it[0] = current_color;
+            }
 
     - automation:
         name: Custom Effect
