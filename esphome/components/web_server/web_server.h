@@ -48,6 +48,18 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_url(const char *js_url);
 
+  /** Enable CORS - 
+   *
+   * @param enable_cors enable cors - Send Access-Control-Allow-Origin in http-response.
+   */
+  void set_js_enable_cors(const bool enable_cors);
+
+  /** Set Access-Control-Allow-Origin in http-response 
+   *
+   * @param cors_header Content of response header Access-Control-Allow-Origin. Defaults to *
+   */
+  void set_js_cors_header(const char *cors_header);
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
@@ -136,6 +148,18 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *password_{nullptr};
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
+  bool js_enable_cors_=false;
+  const char *js_cors_header_{nullptr};
+
+  // adds Access-Control-Allow-Origin to response - if configured
+  void addOriginHeader(AsyncWebServerResponse *response);
+
+  // send response to request with http-code, contentType and content
+  void sendResponse(AsyncWebServerRequest *request,int code, const String& contentType, const String& content);
+
+  // send response to request with http-code
+  void sendResponse(AsyncWebServerRequest *request,int code);
+
 };
 
 }  // namespace web_server

@@ -4,7 +4,7 @@ from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import (
     CONF_CSS_URL, CONF_ID, CONF_JS_URL, CONF_PORT,
-    CONF_AUTH, CONF_USERNAME, CONF_PASSWORD)
+    CONF_AUTH, CONF_ENABLE_CORS, CONF_CORS_HEADER, CONF_USERNAME, CONF_PASSWORD)
 from esphome.core import coroutine_with_priority
 
 AUTO_LOAD = ['json', 'web_server_base']
@@ -21,7 +21,8 @@ CONFIG_SCHEMA = cv.Schema({
         cv.Required(CONF_USERNAME): cv.string_strict,
         cv.Required(CONF_PASSWORD): cv.string_strict,
     }),
-
+    cv.Optional(CONF_ENABLE_CORS, default=False): cv.boolean,
+    cv.Optional(CONF_CORS_HEADER, default="*"): cv.string,
     cv.GenerateID(CONF_WEB_SERVER_BASE_ID): cv.use_id(web_server_base.WebServerBase),
 }).extend(cv.COMPONENT_SCHEMA)
 
@@ -36,6 +37,8 @@ def to_code(config):
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
+    cg.add(var.set_js_enable_cors(config[CONF_ENABLE_CORS]))
+    cg.add(var.set_js_cors_header(config[CONF_CORS_HEADER]))
     if CONF_AUTH in config:
         cg.add(var.set_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(var.set_password(config[CONF_AUTH][CONF_PASSWORD]))
