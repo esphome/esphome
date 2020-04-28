@@ -60,9 +60,7 @@ class AddressableLambdaLightEffect : public AddressableLightEffect {
     if (now - this->last_run_ >= this->update_interval_) {
       this->last_run_ = now;
       this->f_(it, current_color, this->initial_run_);
-      if (this->initial_run_) {
-        this->initial_run_ = false;
-      }
+      this->initial_run_ = false;
     }
   }
 
