@@ -157,7 +157,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
   // All content is controlled and created by user - so allowing all origins is fine here.
-  addOriginHeader(stream);
+  add_origin_header_(stream);
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
@@ -236,6 +236,46 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 }
 #endif
 
+void WebServer::add_origin_header_(AsyncWebServerResponse *response) {
+  if (js_enable_cors_)
+    response->addHeader("Access-Control-Allow-Origin", js_cors_header_);
+}
+
+void WebServer::send_response_(AsyncWebServerRequest *request, int code, const String &content_type,
+                               const String &content) {
+  AsyncWebServerResponse *response = request->beginResponse(code, content_type, content);
+  add_origin_header_(response);
+  request->send(response);
+}
+
+void WebServer::send_response_(AsyncWebServerRequest *request, int code) {
+  AsyncWebServerResponse *response = request->beginResponse(code);
+  add_origin_header_(response);
+  request->send(response);
+}
+
+#ifdef WEBSERVER_CSS_INCLUDE
+void WebServer::handle_css_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/css");
+  if (this->css_include_ != nullptr) {
+    stream->print(this->css_include_);
+  }
+
+  request->send(stream);
+}
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+void WebServer::handle_js_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
+  if (this->js_include_ != nullptr) {
+    stream->print(this->js_include_);
+  }
+
+  request->send(stream);
+}
+#endif
+
 void WebServer::addOriginHeader(AsyncWebServerResponse *response) {
   if (js_enable_cors_)
     response->addHeader("Access-Control-Allow-Origin", js_cors_header_);
@@ -263,10 +303,10 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, UrlMatch m
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state);
-    sendResponse(request,200, "text/json", data.c_str());
+    send_response_(request, 200, "text/json", data.c_str());
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value) {
   return json::build_json([obj, value](JsonObject &root) {
@@ -291,10 +331,10 @@ void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, UrlMa
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state);
-    sendResponse(request,200, "text/json", data.c_str());
+    send_response_(request, 200, "text/json", data.c_str());
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std::string &value) {
   return json::build_json([obj, value](JsonObject &root) {
@@ -325,22 +365,22 @@ void WebServer::handle_switch_request(AsyncWebServerRequest *request, UrlMatch m
 
     if (request->method() == HTTP_GET) {
       std::string data = this->switch_json(obj, obj->state);
-      sendResponse(request,200, "text/json", data.c_str());
+      send_response_(request, 200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_on") {
       this->defer([obj]() { obj->turn_on(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else {
-      sendResponse(request,404);
+      send_response_(request, 404);
     }
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 #endif
 
@@ -364,10 +404,10 @@ void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, Url
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state);
-    sendResponse(request,200, "text/json", data.c_str());
+    send_response_(request, 200, "text/json", data.c_str());
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 #endif
 
@@ -408,10 +448,10 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch matc
 
     if (request->method() == HTTP_GET) {
       std::string data = this->fan_json(obj);
-      sendResponse(request,200, "text/json", data.c_str());
+      send_response_(request, 200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_on") {
       auto call = obj->turn_on();
       if (request->hasParam("speed")) {
@@ -432,21 +472,21 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, UrlMatch matc
             call.set_oscillating(!obj->oscillating);
             break;
           case PARSE_NONE:
-            sendResponse(request,404);
+            send_response_(request, 404);
             return;
         }
       }
       this->defer([call]() { call.perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_off") {
       this->defer([obj]() { obj->turn_off().perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else {
-      sendResponse(request,404);
+      send_response_(request, 404);
     }
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 #endif
 
@@ -465,10 +505,10 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch ma
 
     if (request->method() == HTTP_GET) {
       std::string data = this->light_json(obj);
-      sendResponse(request,200, "text/json", data.c_str());
+      send_response_(request, 200, "text/json", data.c_str());
     } else if (match.method == "toggle") {
       this->defer([obj]() { obj->toggle().perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_on") {
       auto call = obj->turn_on();
       if (request->hasParam("brightness"))
@@ -500,7 +540,7 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch ma
       }
 
       this->defer([call]() mutable { call.perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else if (match.method == "turn_off") {
       auto call = obj->turn_off();
       if (request->hasParam("transition")) {
@@ -508,13 +548,13 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, UrlMatch ma
         call.set_transition_length(length);
       }
       this->defer([call]() mutable { call.perform(); });
-      sendResponse(request,200);
+      send_response_(request, 200);
     } else {
-      sendResponse(request,404);
+      send_response_(request, 404);
     }
     return;
   }
-  sendResponse(request,404);
+  send_response_(request, 404);
 }
 std::string WebServer::light_json(light::LightState *obj) {
   return json::build_json([obj](JsonObject &root) {
