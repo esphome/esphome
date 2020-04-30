@@ -191,7 +191,16 @@ class LightColorValues {
   /// Convert these light color values to an RGBWW representation with the given parameters.
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white, bool constant_brightness = false) const {
-    this->as_rgb(red, green, blue);
+
+    if(this->red_ == 1.0f && this->green_ == 1.0f && this->blue_ == 1.0f  ){
+      *red = 0f;
+      *green = 0f;
+      *blue = 0f;
+    }else{
+      this->as_rgb(red, green, blue);
+    }             
+
+    
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
