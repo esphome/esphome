@@ -15,15 +15,15 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool begin_status = false;
   this->client_.setReuse(true);
-  static const String url = this->url_.c_str();
+  static const String URL = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
-  begin_status = this->client_.begin(url);
+  begin_status = this->client_.begin(URL);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
+  begin_status = this->client_.begin(*this->get_wifi_client_(), URL);
 #endif
 #endif
 
@@ -44,7 +44,8 @@ void HttpRequestComponent::send() {
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
   if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(), HTTPClient::errorToString(http_code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
+             HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
     return;
   }
@@ -80,8 +81,8 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
 void HttpRequestComponent::close() { this->client_.end(); }
 
 const char *HttpRequestComponent::get_string() {
-  static const String str = this->client_.getString();
-  return str.c_str();
+  static const String STR = this->client_.getString();
+  return STR.c_str();
 }
 
 }  // namespace http_request
