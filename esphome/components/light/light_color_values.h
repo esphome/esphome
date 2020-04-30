@@ -193,9 +193,9 @@ class LightColorValues {
                 float *cold_white, float *warm_white, bool constant_brightness = false) const {
 
     if(this->red_ == 1.0f && this->green_ == 1.0f && this->blue_ == 1.0f  ){
-      *red = 0f;
-      *green = 0f;
-      *blue = 0f;
+      *red = 0.0f;
+      *green = 0.0f;
+      *blue = 0.0f;
     }else{
       this->as_rgb(red, green, blue);
     }             
