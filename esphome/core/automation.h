@@ -77,17 +77,24 @@ template<typename... Ts> class Action {
  public:
   virtual void play(Ts... x) = 0;
   virtual void play_complex(Ts... x) {
+    this->num_running_++;
     this->play(x...);
     this->play_next(x...);
   }
   void play_next(Ts... x) {
-    if (this->next_ != nullptr) {
-      this->next_->play_complex(x...);
+    if (this->num_running_ > 0) {
+      this->num_running_--;
+      if (this->next_ != nullptr) {
+        this->next_->play_complex(x...);
+      }
     }
   }
   virtual void stop() {}
   virtual void stop_complex() {
-    this->stop();
+    if (num_running_) {
+      this->stop();
+      this->num_running_ = 0;
+    }
     this->stop_next();
   }
   void stop_next() {
@@ -95,7 +102,7 @@ template<typename... Ts> class Action {
       this->next_->stop_complex();
     }
   }
-  virtual bool is_running() { return this->is_running_next(); }
+  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next(); }
   bool is_running_next() {
     if (this->next_ == nullptr)
       return false;
@@ -114,6 +121,8 @@ template<typename... Ts> class Action {
   }
 
   Action<Ts...> *next_ = nullptr;
+
+  int num_running_{0};
 };
 
 template<typename... Ts> class ActionList {
