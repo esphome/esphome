@@ -401,6 +401,13 @@ LightColorValues LightCall::validate_() {
       this->green_ = optional<float>(1.0f);
       this->blue_ = optional<float>(1.0f);
     }
+    // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
+    if (*this->white_ > 0.0f){
+      this->white_ = optional<float>(1.0f);
+    }
+    else{
+      this->white_ = optional<float>(0.0f);
+    }
   }
   // White to 0% if (exclusively) setting any RGB value
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
@@ -410,17 +417,21 @@ LightColorValues LightCall::validate_() {
   }
   // if changing Kelvin alone, change to white light
   else if (this->color_temperature_.has_value()) {
-    if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
-      this->red_ = optional<float>(1.0f);
-      this->green_ = optional<float>(1.0f);
-      this->blue_ = optional<float>(1.0f);
-    }
     // if setting Kelvin from color (i.e. switching to white light), set White to 100%
     auto cv = this->parent_->remote_values;
     bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
     bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
-    if (!this->white_.has_value() && was_color && now_white) {
-      this->white_ = optional<float>(1.0f);
+    if ( was_color && now_white ){
+
+      if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+        this->red_ = optional<float>(1.0f);
+        this->green_ = optional<float>(1.0f);
+        this->blue_ = optional<float>(1.0f);
+      }
+
+      if (!this->white_.has_value() ) {
+        this->white_ = optional<float>(1.0f);
+      }
     }
   }
 
