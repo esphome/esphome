@@ -428,10 +428,7 @@ LightColorValues LightCall::validate_() {
         this->green_ = optional<float>(1.0f);
         this->blue_ = optional<float>(1.0f);
       }
-
-      if (!this->white_.has_value() ) {
-        this->white_ = optional<float>(1.0f);
-      }
+      this->white_ = optional<float>(1.0f);
     }
   }
 
