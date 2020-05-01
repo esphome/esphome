@@ -25,9 +25,20 @@ struct RemoteReceiverComponentStore {
 };
 #endif
 
-class RemoteReceiverComponent : public remote_base::RemoteReceiverBase, public Component {
+class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
+                                public Component
+#ifdef ARDUINO_ARCH_ESP32
+    ,
+                                public remote_base::RemoteRMTChannel
+#endif
+{
  public:
+#ifdef ARDUINO_ARCH_ESP32
+  RemoteReceiverComponent(GPIOPin *pin, uint8_t mem_block_num = 1)
+      : RemoteReceiverBase(pin), remote_base::RemoteRMTChannel(mem_block_num) {}
+#else
   RemoteReceiverComponent(GPIOPin *pin) : RemoteReceiverBase(pin) {}
+#endif
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -40,11 +51,10 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase, public C
  protected:
 #ifdef ARDUINO_ARCH_ESP32
   void decode_rmt_(rmt_item32_t *item, size_t len);
+  RingbufHandle_t ringbuf_;
+  esp_err_t error_code_{ESP_OK};
 #endif
 
-#ifdef ARDUINO_ARCH_ESP32
-  RingbufHandle_t ringbuf_;
-#endif
 #ifdef ARDUINO_ARCH_ESP8266
   RemoteReceiverComponentStore store_;
   HighFrequencyLoopRequester high_freq_;
