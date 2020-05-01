@@ -387,6 +387,7 @@ LightColorValues LightCall::validate_() {
     this->white_.reset();
   }
 
+
   // Color temperature exists check
   if (this->color_temperature_.has_value() && !traits.get_supports_color_temperature()) {
     ESP_LOGW(TAG, "'%s' - This light does not support setting color temperature!", name);
@@ -403,7 +404,7 @@ LightColorValues LightCall::validate_() {
   }
   // White to 0% if (exclusively) setting any RGB value
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (!this->white_.has_value()) {
+    if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
       this->white_ = optional<float>(0.0f);
     }
   }

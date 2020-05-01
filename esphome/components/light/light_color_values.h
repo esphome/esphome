@@ -177,9 +177,9 @@ class LightColorValues {
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue) const {
-    *red = this->state_ * this->brightness_ * this->red_;
-    *green = this->state_ * this->brightness_ * this->green_;
-    *blue = this->state_ * this->brightness_ * this->blue_;
+    *red = this->state_ * this->brightness_ * (1.0f - this->white_) * this->red_;
+    *green = this->state_ * this->brightness_ * (1.0f - this->white_) * this->green_;
+    *blue = this->state_ * this->brightness_ * (1.0f - this->white_) * this->blue_;
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
@@ -192,27 +192,21 @@ class LightColorValues {
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white, bool constant_brightness = false) const {
 
-    if(this->red_ == 1.0f && this->green_ == 1.0f && this->blue_ == 1.0f  ){
-      *red = 0.0f;
-      *green = 0.0f;
-      *blue = 0.0f;
-    }else{
-      this->as_rgb(red, green, blue);
-    }             
-
+          
+    this->as_rgb(red, green, blue);              
     
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
     *cold_white = this->state_ * this->brightness_ * this->white_ * cw_fraction;
-    *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;
-
+    *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;     
 
     if (!constant_brightness) {
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
       *cold_white /= max_cw_ww;
       *warm_white /= max_cw_ww;
     }
+
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
