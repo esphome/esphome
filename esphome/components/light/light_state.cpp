@@ -419,11 +419,11 @@ LightColorValues LightCall::validate_() {
     auto cv = this->parent_->remote_values;
     bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
     // bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
-    if(cv.get_white() < 1.0f) {
+    if (cv.get_white() < 1.0f) {
       this->white_ = optional<float>(1.0f);
     }
 
-    if ( was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
+    if (was_color && !this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
       this->red_ = optional<float>(1.0f);
       this->green_ = optional<float>(1.0f);
       this->blue_ = optional<float>(1.0f);
