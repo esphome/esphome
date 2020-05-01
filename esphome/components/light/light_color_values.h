@@ -196,7 +196,7 @@ class LightColorValues {
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
     *cold_white = this->state_ * this->brightness_ * this->white_ * cw_fraction;
-    *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;     
+    *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;
 
     if (!constant_brightness) {
       const float max_cw_ww = std::max(ww_fraction, cw_fraction);
