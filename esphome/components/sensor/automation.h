@@ -25,9 +25,9 @@ template<typename... Ts> class SensorPublishAction : public Action<Ts...> {
  public:
   SensorPublishAction(Sensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(float, state)
-  void play(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
 
  protected:
+  void play_(Ts... x) override { this->sensor_->publish_state(this->state_.value(x...)); }
   Sensor *sensor_;
 };
 

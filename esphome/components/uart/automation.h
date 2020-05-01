@@ -17,7 +17,8 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
     this->static_ = true;
   }
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     if (this->static_) {
       this->parent_->write_array(this->data_static_);
     } else {
@@ -25,8 +26,6 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
       this->parent_->write_array(val);
     }
   }
-
- protected:
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};

@@ -68,7 +68,8 @@ template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint16_t, high)
   TEMPLATABLE_VALUE(uint32_t, code)
 
-  void play(Ts... x) {
+ protected:
+  void play_(Ts... x) {
     RFBridgeData data{};
     data.sync = this->sync_.value(x...);
     data.low = this->low_.value(x...);
@@ -77,7 +78,6 @@ template<typename... Ts> class RFBridgeSendCodeAction : public Action<Ts...> {
     this->parent_->send_code(data);
   }
 
- protected:
   RFBridgeComponent *parent_;
 };
 
@@ -85,9 +85,9 @@ template<typename... Ts> class RFBridgeLearnAction : public Action<Ts...> {
  public:
   RFBridgeLearnAction(RFBridgeComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) { this->parent_->learn(); }
-
  protected:
+  void play_(Ts... x) { this->parent_->learn(); }
+
   RFBridgeComponent *parent_;
 };
 

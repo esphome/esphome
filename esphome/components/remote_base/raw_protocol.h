@@ -46,7 +46,8 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
   }
   TEMPLATABLE_VALUE(uint32_t, carrier_frequency);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     if (this->code_static_ != nullptr) {
       for (size_t i = 0; i < this->code_static_len_; i++) {
         auto val = this->code_static_[i];
@@ -61,7 +62,6 @@ template<typename... Ts> class RawAction : public RemoteTransmitterActionBase<Ts
     dst->set_carrier_frequency(this->carrier_frequency_.value(x...));
   }
 
- protected:
   std::function<std::vector<int32_t>(Ts...)> code_func_{};
   const int32_t *code_static_{nullptr};
   int32_t code_static_len_{0};

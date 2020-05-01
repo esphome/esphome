@@ -75,13 +75,25 @@ template<typename... Ts> class ActionList;
 
 template<typename... Ts> class Action {
  public:
-  virtual void play(Ts... x) = 0;
   virtual void play_complex(Ts... x) {
     this->num_running_++;
-    this->play(x...);
-    this->play_next(x...);
+    this->play_(x...);
+    this->play_next_(x...);
   }
-  void play_next(Ts... x) {
+  virtual void stop_complex() {
+    if (num_running_) {
+      this->stop_();
+      this->num_running_ = 0;
+    }
+    this->stop_next_();
+  }
+  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next_(); }
+
+ protected:
+  friend ActionList<Ts...>;
+
+  virtual void play_(Ts... x) = 0;
+  void play_next_(Ts... x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
       if (this->next_ != nullptr) {
@@ -89,35 +101,24 @@ template<typename... Ts> class Action {
       }
     }
   }
-  virtual void stop() {}
-  virtual void stop_complex() {
-    if (num_running_) {
-      this->stop();
-      this->num_running_ = 0;
-    }
-    this->stop_next();
+  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
+    this->play_next_(std::get<S>(tuple)...);
   }
-  void stop_next() {
+  void play_next_tuple_(const std::tuple<Ts...> &tuple) {
+    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
+  }
+
+  virtual void stop_() {}
+  void stop_next_() {
     if (this->next_ != nullptr) {
       this->next_->stop_complex();
     }
   }
-  virtual bool is_running() { return this->num_running_ > 0 || this->is_running_next(); }
-  bool is_running_next() {
+
+  bool is_running_next_() {
     if (this->next_ == nullptr)
       return false;
     return this->next_->is_running();
-  }
-
-  void play_next_tuple(const std::tuple<Ts...> &tuple) {
-    this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
-  }
-
- protected:
-  friend ActionList<Ts...>;
-
-  template<int... S> void play_next_tuple_(const std::tuple<Ts...> &tuple, seq<S...>) {
-    this->play_next(std::get<S>(tuple)...);
   }
 
   Action<Ts...> *next_ = nullptr;

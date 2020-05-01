@@ -64,18 +64,18 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
   TEMPLATABLE_VALUE(float, value)
-  void play(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
 
  protected:
+  void play_(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
   Servo *servo_;
 };
 
 template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
-  void play(Ts... x) override { this->servo_->detach(); }
 
  protected:
+  void play_(Ts... x) override { this->servo_->detach(); }
   Servo *servo_;
 };
 

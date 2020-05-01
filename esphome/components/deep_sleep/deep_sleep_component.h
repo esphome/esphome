@@ -85,9 +85,9 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
  public:
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
 
-  void play(Ts... x) override { this->deep_sleep_->begin_sleep(true); }
-
  protected:
+  void play_(Ts... x) override { this->deep_sleep_->begin_sleep(true); }
+
   DeepSleepComponent *deep_sleep_;
 };
 
@@ -95,9 +95,9 @@ template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...> {
  public:
   PreventDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
 
-  void play(Ts... x) override { this->deep_sleep_->prevent_deep_sleep(); }
-
  protected:
+  void play_(Ts... x) override { this->deep_sleep_->prevent_deep_sleep(); }
+
   DeepSleepComponent *deep_sleep_;
 };
 

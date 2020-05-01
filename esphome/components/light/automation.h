@@ -13,13 +13,13 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(uint32_t, transition_length)
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     auto call = this->state_->toggle();
     call.set_transition_length(this->transition_length_.optional_value(x...));
     call.perform();
   }
 
- protected:
   LightState *state_;
 };
 
@@ -38,7 +38,8 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, color_temperature)
   TEMPLATABLE_VALUE(std::string, effect)
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     auto call = this->parent_->make_call();
     call.set_state(this->state_.optional_value(x...));
     call.set_brightness(this->brightness_.optional_value(x...));
@@ -53,7 +54,6 @@ template<typename... Ts> class LightControlAction : public Action<Ts...> {
     call.perform();
   }
 
- protected:
   LightState *parent_;
 };
 
@@ -64,7 +64,8 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(float, relative_brightness)
   TEMPLATABLE_VALUE(uint32_t, transition_length)
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     auto call = this->parent_->make_call();
     float rel = this->relative_brightness_.value(x...);
     float cur;
@@ -77,7 +78,6 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     call.perform();
   }
 
- protected:
   LightState *parent_;
 };
 
@@ -143,7 +143,8 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, blue)
   TEMPLATABLE_VALUE(uint8_t, white)
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     auto *out = (AddressableLight *) this->parent_->get_output();
     int32_t range_from = this->range_from_.value_or(x..., 0);
     int32_t range_to = this->range_to_.value_or(x..., out->size() - 1) + 1;
@@ -159,7 +160,6 @@ template<typename... Ts> class AddressableSet : public Action<Ts...> {
     out->schedule_show();
   }
 
- protected:
   LightState *parent_;
 };
 

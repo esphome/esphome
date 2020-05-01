@@ -25,7 +25,9 @@ template<typename... Ts> class PioneerAction : public RemoteTransmitterActionBas
  public:
   TEMPLATABLE_VALUE(uint16_t, rc_code_1)
   TEMPLATABLE_VALUE(uint16_t, rc_code_2)
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     PioneerData data{};
     data.rc_code_1 = this->rc_code_1_.value(x...);
     data.rc_code_2 = this->rc_code_2_.value(x...);

@@ -18,7 +18,8 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(ClimateFanMode, fan_mode)
   TEMPLATABLE_VALUE(ClimateSwingMode, swing_mode)
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     auto call = this->climate_->make_call();
     call.set_mode(this->mode_.optional_value(x...));
     call.set_target_temperature(this->target_temperature_.optional_value(x...));
@@ -30,7 +31,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.perform();
   }
 
- protected:
   Climate *climate_;
 };
 

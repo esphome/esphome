@@ -137,12 +137,13 @@ template<typename... Ts> class BinarySensorPublishAction : public Action<Ts...> 
  public:
   explicit BinarySensorPublishAction(BinarySensor *sensor) : sensor_(sensor) {}
   TEMPLATABLE_VALUE(bool, state)
-  void play(Ts... x) override {
+
+ protected:
+  void play_(Ts... x) override {
     auto val = this->state_.value(x...);
     this->sensor_->publish_state(val);
   }
 
- protected:
   BinarySensor *sensor_;
 };
 

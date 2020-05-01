@@ -108,27 +108,29 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
-  void stop() override {
-    this->cancel_timeout("");
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
-    auto f = std::bind(&Action<Ts...>::play_next, this, x...);
+    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
     this->set_timeout(this->delay_.value(x...), f);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+ protected:
+  void play_(Ts... x) override { /* ignore - see play_complex */
+  }
+
+  void stop_() override {
+    this->cancel_timeout("");
+  }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
-  void play(Ts... x) override { this->f_(x...); }
 
  protected:
+  void play_(Ts... x) override { this->f_(x...); }
+
   std::function<void(Ts...)> f_;
 };
 
@@ -138,15 +140,12 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
 
   void add_then(const std::vector<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next(x...); }));
+    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
 
   void add_else(const std::vector<Action<Ts...> *> &actions) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next(x...); }));
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
+    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
 
   void play_complex(Ts... x) override {
@@ -154,25 +153,28 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     bool res = this->condition_->check(x...);
     if (res) {
       if (this->then_.empty()) {
-        this->play_next(x...);
+        this->play_next_(x...);
       } else if (this->num_running_ > 0) {
         this->then_.play(x...);
       }
     } else {
       if (this->else_.empty()) {
-        this->play_next(x...);
+        this->play_next_(x...);
       } else if (this->num_running_ > 0) {
         this->else_.play(x...);
       }
     }
   }
 
-  void stop() override {
+ protected:
+  void play_(Ts... x) override { /* ignore - see play_complex */
+  }
+
+  void stop_() override {
     this->then_.stop();
     this->else_.stop();
   }
 
- protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
   ActionList<Ts...> else_;
@@ -192,12 +194,9 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
         }
       } else {
         // condition false, play next
-        this->play_next_tuple(this->var_);
+        this->play_next_tuple_(this->var_);
       }
     }));
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
   void play_complex(Ts... x) override {
@@ -208,7 +207,7 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     if (!this->condition_->check_tuple(this->var_)) {
       // If new condition check failed, stop loop if running
       this->then_.stop();
-      this->play_next_tuple(this->var_);
+      this->play_next_tuple_(this->var_);
       return;
     }
 
@@ -217,9 +216,12 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     }
   }
 
-  void stop() override { this->then_.stop(); }
-
  protected:
+  void play_(Ts... x) override { /* ignore - see play_complex */
+  }
+
+  void stop_() override { this->then_.stop(); }
+
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
   std::tuple<Ts...> var_{};
@@ -229,15 +231,12 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
     this->num_running_++;
     // Check if we can continue immediately.
     if (this->condition_->check(x...)) {
       if (this->num_running_ > 0) {
-        this->play_next(x...);
+        this->play_next_(x...);
       }
       return;
     }
@@ -253,12 +252,15 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
       return;
     }
 
-    this->play_next_tuple(this->var_);
+    this->play_next_tuple_(this->var_);
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
  protected:
+  void play_(Ts... x) override { /* ignore - see play_complex */
+  }
+
   Condition<Ts...> *condition_;
   std::tuple<Ts...> var_{};
 };
@@ -266,9 +268,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
-  void play(Ts... x) override { this->component_->update(); }
 
  protected:
+  void play_(Ts... x) override { this->component_->update(); }
+
   PollingComponent *component_;
 };
 

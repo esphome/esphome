@@ -71,7 +71,8 @@ template<typename... Ts> class RCSwitchRawAction : public RemoteTransmitterActio
   TEMPLATABLE_VALUE(RCSwitchBase, protocol);
   TEMPLATABLE_VALUE(std::string, code);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     auto code = this->code_.value(x...);
     uint64_t the_code = decode_binary_string(code);
     uint8_t nbits = code.size();
@@ -88,7 +89,8 @@ template<typename... Ts> class RCSwitchTypeAAction : public RemoteTransmitterAct
   TEMPLATABLE_VALUE(std::string, device);
   TEMPLATABLE_VALUE(bool, state);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     auto group = this->group_.value(x...);
     auto device = this->device_.value(x...);
     auto state = this->state_.value(x...);
@@ -111,7 +113,8 @@ template<typename... Ts> class RCSwitchTypeBAction : public RemoteTransmitterAct
   TEMPLATABLE_VALUE(uint8_t, channel);
   TEMPLATABLE_VALUE(bool, state);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     auto address = this->address_.value(x...);
     auto channel = this->channel_.value(x...);
     auto state = this->state_.value(x...);
@@ -133,7 +136,8 @@ template<typename... Ts> class RCSwitchTypeCAction : public RemoteTransmitterAct
   TEMPLATABLE_VALUE(uint8_t, device);
   TEMPLATABLE_VALUE(bool, state);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     auto family = this->family_.value(x...);
     auto group = this->group_.value(x...);
     auto device = this->device_.value(x...);
@@ -156,7 +160,8 @@ template<typename... Ts> class RCSwitchTypeDAction : public RemoteTransmitterAct
   TEMPLATABLE_VALUE(uint8_t, device);
   TEMPLATABLE_VALUE(bool, state);
 
-  void encode(RemoteTransmitData *dst, Ts... x) override {
+ protected:
+  void encode_(RemoteTransmitData *dst, Ts... x) override {
     auto group = this->group_.value(x...);
     auto device = this->device_.value(x...);
     auto state = this->state_.value(x...);

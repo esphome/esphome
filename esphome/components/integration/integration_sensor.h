@@ -76,9 +76,9 @@ template<typename... Ts> class ResetAction : public Action<Ts...> {
  public:
   explicit ResetAction(IntegrationSensor *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->reset(); }
-
  protected:
+  void play_(Ts... x) override { this->parent_->reset(); }
+
   IntegrationSensor *parent_;
 };
 

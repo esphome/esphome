@@ -71,7 +71,8 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
 
   void set_json(std::function<void(Ts..., JsonObject &)> json_func) { this->json_func_ = json_func; }
 
-  void play(Ts... x) override {
+ protected:
+  void play_(Ts... x) override {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->set_method(this->method_.value(x...));
     if (this->body_.has_value()) {
@@ -106,7 +107,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
     this->parent_->close();
   }
 
- protected:
   void encode_json_(Ts... x, JsonObject &root) {
     for (const auto &item : this->json_) {
       auto val = item.second;
