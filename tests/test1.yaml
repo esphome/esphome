@@ -867,6 +867,13 @@ binary_sensor:
       number: 7
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: "MCP23 binary sensor"
+    pin:
+      mcp23016: mcp23016_hub
+      number: 7
+      mode: INPUT
+      inverted: False
 
   - platform: remote_receiver
     name: "Raw Remote Receiver Test"
@@ -990,6 +997,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: gpio
+    id: id25
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
   - platform: my9231
     id: my_0
     channel: 0
@@ -1030,6 +1044,14 @@ light:
               duration: 250ms
             - state: False
               duration: 250ms
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+    on_turn_off:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: monochromatic
     name: "Kitchen Lights"
     id: kitchen
@@ -1133,7 +1155,9 @@ light:
     - addressable_lambda:
           name: "Test For Custom Lambda Effect"
           lambda: |-
-            it[0] = current_color;
+            if (initial_run) {
+              it[0] = current_color;
+            }
 
     - automation:
         name: Custom Effect
@@ -1214,6 +1238,8 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
 
 switch:
   - platform: gpio
@@ -1569,6 +1595,10 @@ mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
 
+mcp23016:
+  - id: 'mcp23016_hub'
+    address: 0x23
+
 stepper:
 - platform: a4988
   id: my_stepper
@@ -1624,3 +1654,5 @@ text_sensor:
     name: "SSID"
   bssid:
     name: "BSSID"
+  mac_address:
+    name: "Mac Address"
