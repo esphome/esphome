@@ -66,8 +66,8 @@ PLATFORMIO_ESP32_LUT = {
     '1.0.1': 'espressif32@1.6.0',
     '1.0.2': 'espressif32@1.9.0',
     '1.0.3': 'espressif32@1.10.0',
-    '1.0.4': 'espressif32@1.11.2',
-    'RECOMMENDED': 'espressif32@1.11.2',
+    '1.0.4': 'espressif32@1.12.1',
+    'RECOMMENDED': 'espressif32@1.12.1',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
