@@ -45,35 +45,38 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
 
   if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
     field_bit = 1;
-  } else if (src.expect_space(2*BIT_TIME_US)) {
+  } else if (src.expect_space(2 * BIT_TIME_US)) {
     field_bit = 0;
   } else {
     return {};
   }
 
-  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2*BIT_TIME_US)) ||
-  (src.expect_mark(BIT_TIME_US) || src.peek_mark(2*BIT_TIME_US))) &&
-  (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2*BIT_TIME_US)) &&
-  (src.expect_space(BIT_TIME_US) || src.peek_space(2*BIT_TIME_US))) ||
-  ((src.expect_space(BIT_TIME_US) || src.expect_space(2*BIT_TIME_US)) &&
-  (src.expect_mark(BIT_TIME_US) || src.peek_mark(2*BIT_TIME_US)))))) {
+  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
+         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
+        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
+         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
     return {};
   }
 
   uint64_t out_data = 0;
   for (int bit = NBITS - 4; bit >= 1; bit--) {
-    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2*BIT_TIME_US)) && (src.expect_mark(BIT_TIME_US) || src.peek_mark(2*BIT_TIME_US))) {
+    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
-    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2*BIT_TIME_US)) && (src.expect_space(BIT_TIME_US) || src.peek_space(2*BIT_TIME_US))) {
+    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
     } else {
       return {};
     }
   }
-  if (src.expect_space(BIT_TIME_US) || src.expect_space(2*BIT_TIME_US))
+  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
     out_data |= 0;
-  if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2*BIT_TIME_US))
+  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
     out_data |= 1;
+  }
 
   out.command = (out_data & 0x3F) + (1 - field_bit) * 64;
   out.address = (out_data >> 6) & 0x1F;
