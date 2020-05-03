@@ -45,7 +45,7 @@ def validate_board(value):
 validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.6.3': 'espressif8266@2.3.2',
+    '2.6.3': 'espressif8266@2.4.0',
     '2.6.2': 'espressif8266@2.3.1',
     '2.6.1': 'espressif8266@2.3.0',
     '2.5.2': 'espressif8266@2.2.3',
@@ -65,8 +65,8 @@ PLATFORMIO_ESP32_LUT = {
     '1.0.1': 'espressif32@1.6.0',
     '1.0.2': 'espressif32@1.9.0',
     '1.0.3': 'espressif32@1.10.0',
-    '1.0.4': 'espressif32@1.11.0',
-    'RECOMMENDED': 'espressif32@1.11.0',
+    '1.0.4': 'espressif32@1.11.2',
+    'RECOMMENDED': 'espressif32@1.11.2',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
