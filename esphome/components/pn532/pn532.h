@@ -55,6 +55,8 @@ class PN532 : public PollingComponent,
 
   bool read_ack_();
 
+  void turnOffRF();
+
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<PN532Trigger *> triggers_;

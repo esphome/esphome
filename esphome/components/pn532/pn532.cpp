@@ -86,6 +86,8 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
+
+  this->turnOffRF();
 }
 
 void PN532::update() {
@@ -114,13 +116,16 @@ void PN532::loop() {
 
   if (read.size() <= 2 || read[0] != 0x4B) {
     // Something failed
+    this->turnOffRF();
     return;
   }
 
   uint8_t num_targets = read[1];
-  if (num_targets != 1)
+  if (num_targets != 1) {
     // no tags found or too many
+    this->turnOffRF();
     return;
+  }
 
   // const uint8_t target_number = read[2];
   // const uint16_t sens_res = uint16_t(read[3] << 8) | read[4];
@@ -150,6 +155,13 @@ void PN532::loop() {
     format_uid(buf, nfcid, nfcid_length);
     ESP_LOGD(TAG, "Found new tag '%s'", buf);
   }
+
+  this->turnOffRF();
+}
+
+void PN532::turnOffRF() {
+  ESP_LOGVV(TAG, "Turning RF field OFF");
+  this->pn532_write_command_check_ack_({0x32, 0x1, 0x0});
 }
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }
