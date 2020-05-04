@@ -36,7 +36,11 @@ def to_code(config):
 
 SPI_DEVICE_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-    cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
+    # The CS_PIN should be declared as cv.Optional or cv.Required in
+    # CONFIG_SCHEMA for each device that uses SPI:
+    # cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
+    # or
+    # cv.Required (CONF_CS_PIN): pins.gpio_output_pin_schema,
 })
 
 

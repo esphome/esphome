@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi, ssd1325_base
-from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_CS_PIN
 
 AUTO_LOAD = ['ssd1325_base']
 DEPENDENCIES = ['spi']
@@ -13,6 +13,7 @@ SPISSD1325 = ssd1325_spi.class_('SPISSD1325', ssd1325_base.SSD1325, spi.SPIDevic
 CONFIG_SCHEMA = cv.All(ssd1325_base.SSD1325_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SPISSD1325),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
                        cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
