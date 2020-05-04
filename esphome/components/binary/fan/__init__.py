@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fan, output
-from esphome.const import CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_OUTPUT_ID
+from esphome.const import CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_OUTPUT_ID, CONF_DIRECTION_OUTPUT
 from .. import binary_ns
 
 BinaryFan = binary_ns.class_('BinaryFan', cg.Component)
@@ -10,6 +10,7 @@ CONFIG_SCHEMA = fan.FAN_SCHEMA.extend({
     cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(BinaryFan),
     cv.Required(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
     cv.Optional(CONF_OSCILLATION_OUTPUT): cv.use_id(output.BinaryOutput),
+    cv.Optional(CONF_DIRECTION_OUTPUT): cv.use_id(output.BinaryOutput),
 }).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -25,3 +26,7 @@ def to_code(config):
     if CONF_OSCILLATION_OUTPUT in config:
         oscillation_output = yield cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
         cg.add(var.set_oscillating(oscillation_output))
+
+    if CONF_DIRECTION_OUTPUT in config:
+        direction_output = yield cg.get_variable(config[CONF_DIRECTION_OUTPUT])
+        cg.add(var.set_direction(direction_output))
