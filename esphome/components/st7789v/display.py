@@ -2,17 +2,16 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
-from esphome.const import CONF_ID, CONF_LAMBDA
-from esphome.const import CONF_DC_PIN, CONF_CS_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
-from esphome.const import CONF_EXTERNAL_VCC, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN, \
-    CONF_BRIGHTNESS
+from esphome.const import CONF_DC_PIN, CONF_CS_PIN, CONF_ID, CONF_LAMBDA
+from esphome.const import CONF_RESET_PIN, CONF_BRIGHTNESS
 from . import st7789v_ns
 
 DEPENDENCIES = ['spi']
 
-CONF_BACKLIGHT_PIN = 'bl_pin'
+CONF_BACKLIGHT_PIN = 'backlight_pin'
 
-ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice)
+ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice,
+                            display.DisplayBuffer)
 ST7789VRef = ST7789V.operator('ref')
 
 CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
@@ -37,7 +36,7 @@ def to_code(config):
     cg.add(var.set_reset_pin(reset))
 
     bl = yield cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-    cg.add(var.set_bl_pin(bl))
+    cg.add(var.set_backlight_pin(bl))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(

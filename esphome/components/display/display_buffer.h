@@ -388,7 +388,7 @@ class Image {
  protected:
   int width_;
   int height_;
-  int type_=0;
+  int type_ = 0;
   const uint8_t *data_start_;
 };
 

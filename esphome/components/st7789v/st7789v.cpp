@@ -12,273 +12,153 @@ void ST7789V::setup() {
   this->dc_pin_->setup();  // OUTPUT
 
   this->init_reset_();
-  
-  this->writecommand(ST7789_SLPOUT);   // Sleep out
-  delay(120);
 
-  this->writecommand(ST7789_NORON);    // Normal display mode on
+  this->write_command_(ST7789_SLPOUT);  // Sleep out
+  delay(120);                           // NOLINT
 
-  //------------------------------display and color format setting--------------------------------//
-  this->writecommand(ST7789_MADCTL);
-  //writedata(0x00);
-  this->writedata(TFT_MAD_COLOR_ORDER);
+  this->write_command_(ST7789_NORON);  // Normal display mode on
+
+  // *** display and color format setting ***
+  this->write_command_(ST7789_MADCTL);
+  this->write_data_(ST7789_MADCTL_COLOR_ORDER);
 
   // JLX240 display datasheet
-  this->writecommand(0xB6);
-  this->writedata(0x0A);
-  this->writedata(0x82);
+  this->write_command_(0xB6);
+  this->write_data_(0x0A);
+  this->write_data_(0x82);
 
-  this->writecommand(ST7789_COLMOD);
-  this->writedata(0x55);
+  this->write_command_(ST7789_COLMOD);
+  this->write_data_(0x55);
   delay(10);
 
-  //--------------------------------ST7789V Frame rate setting----------------------------------//
-  this->writecommand(ST7789_PORCTRL);
-  this->writedata(0x0c);
-  this->writedata(0x0c);
-  this->writedata(0x00);
-  this->writedata(0x33);
-  this->writedata(0x33);
+  // *** ST7789V Frame rate setting ***
+  this->write_command_(ST7789_PORCTRL);
+  this->write_data_(0x0c);
+  this->write_data_(0x0c);
+  this->write_data_(0x00);
+  this->write_data_(0x33);
+  this->write_data_(0x33);
 
-  this->writecommand(ST7789_GCTRL);      // Voltages: VGH / VGL
-  this->writedata(0x35);
+  this->write_command_(ST7789_GCTRL);  // Voltages: VGH / VGL
+  this->write_data_(0x35);
 
-  //---------------------------------ST7789V Power setting--------------------------------------//
-  this->writecommand(ST7789_VCOMS);
-  this->writedata(0x28);		// JLX240 display datasheet
+  // *** ST7789V Power setting ***
+  this->write_command_(ST7789_VCOMS);
+  this->write_data_(0x28);  // JLX240 display datasheet
 
-  this->writecommand(ST7789_LCMCTRL);
-  this->writedata(0x0C);
+  this->write_command_(ST7789_LCMCTRL);
+  this->write_data_(0x0C);
 
-  this->writecommand(ST7789_VDVVRHEN);
-  this->writedata(0x01);
-  this->writedata(0xFF);
+  this->write_command_(ST7789_VDVVRHEN);
+  this->write_data_(0x01);
+  this->write_data_(0xFF);
 
-  this->writecommand(ST7789_VRHS);       // voltage VRHS
-  this->writedata(0x10);
+  this->write_command_(ST7789_VRHS);  // voltage VRHS
+  this->write_data_(0x10);
 
-  this->writecommand(ST7789_VDVSET);
-  this->writedata(0x20);
+  this->write_command_(ST7789_VDVS);
+  this->write_data_(0x20);
 
-  this->writecommand(ST7789_FRCTR2);
-  this->writedata(0x0f);
+  this->write_command_(ST7789_FRCTRL2);
+  this->write_data_(0x0f);
 
-  this->writecommand(ST7789_PWCTRL1);
-  this->writedata(0xa4);
-  this->writedata(0xa1);
+  this->write_command_(ST7789_PWCTRL1);
+  this->write_data_(0xa4);
+  this->write_data_(0xa1);
 
-  //--------------------------------ST7789V gamma setting---------------------------------------//
-  this->writecommand(ST7789_PVGAMCTRL);
-  this->writedata(0xd0);
-  this->writedata(0x00);
-  this->writedata(0x02);
-  this->writedata(0x07);
-  this->writedata(0x0a);
-  this->writedata(0x28);
-  this->writedata(0x32);
-  this->writedata(0x44);
-  this->writedata(0x42);
-  this->writedata(0x06);
-  this->writedata(0x0e);
-  this->writedata(0x12);
-  this->writedata(0x14);
-  this->writedata(0x17);
+  // *** ST7789V gamma setting ***
+  this->write_command_(ST7789_PVGAMCTRL);
+  this->write_data_(0xd0);
+  this->write_data_(0x00);
+  this->write_data_(0x02);
+  this->write_data_(0x07);
+  this->write_data_(0x0a);
+  this->write_data_(0x28);
+  this->write_data_(0x32);
+  this->write_data_(0x44);
+  this->write_data_(0x42);
+  this->write_data_(0x06);
+  this->write_data_(0x0e);
+  this->write_data_(0x12);
+  this->write_data_(0x14);
+  this->write_data_(0x17);
 
-  this->writecommand(ST7789_NVGAMCTRL);
-  this->writedata(0xd0);
-  this->writedata(0x00);
-  this->writedata(0x02);
-  this->writedata(0x07);
-  this->writedata(0x0a);
-  this->writedata(0x28);
-  this->writedata(0x31);
-  this->writedata(0x54);
-  this->writedata(0x47);
-  this->writedata(0x0e);
-  this->writedata(0x1c);
-  this->writedata(0x17);
-  this->writedata(0x1b);
-  this->writedata(0x1e);
+  this->write_command_(ST7789_NVGAMCTRL);
+  this->write_data_(0xd0);
+  this->write_data_(0x00);
+  this->write_data_(0x02);
+  this->write_data_(0x07);
+  this->write_data_(0x0a);
+  this->write_data_(0x28);
+  this->write_data_(0x31);
+  this->write_data_(0x54);
+  this->write_data_(0x47);
+  this->write_data_(0x0e);
+  this->write_data_(0x1c);
+  this->write_data_(0x17);
+  this->write_data_(0x1b);
+  this->write_data_(0x1e);
 
-  this->writecommand(ST7789_INVON);
+  this->write_command_(ST7789_INVON);
 
-  this->writecommand(ST7789_CASET);    // Column address set
-  this->writedata(0x00);
-  this->writedata(0x00);
-  this->writedata(0x00);
-  this->writedata(0xE5);    // 239
+  // Clear display - ensures we do not see garbage at power-on
+  this->draw_filled_rect_(0, 0, 239, 319, 0x0000);
 
-  this->writecommand(ST7789_RASET);    // Row address set
-  this->writedata(0x00);
-  this->writedata(0x00);
-  this->writedata(0x01);
-  this->writedata(0x3F);    // 319
+  delay(120);  // NOLINT
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  //this->disable();
-  delay(120);
-  //this->enable();
+  this->write_command_(ST7789_DISPON);  // Display on
+  delay(120);                           // NOLINT
 
-  this->writecommand(ST7789_DISPON);    //Display on
-  delay(120);
-  
-  backlight(true);
-  
+  backlight_(true);
+
   this->init_internal_(this->get_buffer_length_());
   memset(this->buffer_, 0x00, this->get_buffer_length_());
-  
-  //this->lcdDrawFillRect(1,1,186,279, 0xF800);
-  //this->lcdDrawFillRect(1,1,186,279, 0x0000);
-  //delay(10);
-  //this->lcdDrawFillRect(0,39,186,40, 0x0FFF);
-  //this->lcdDrawFillRect(0,39,52,279, 0x0FF0);
 }
-
-void ST7789V::write_display_data() {
-	uint16_t x1 = 52;// +dev->_offsetx;
-	uint16_t x2 = 186;// + dev->_offsetx;
-	uint16_t y1 = 40;// + dev->_offsety;
-	uint16_t y2 = 279;// + dev->_offsety;
-	
-	this->enable();
-
-	// set column(x) address
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2A);
-	this->dc_pin_->digital_write(true);
-	this->spi_master_write_addr(x1, x2);
-	
-	// set Page(y) address
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2B);
-	this->dc_pin_->digital_write(true);
-	this->spi_master_write_addr(y1, y2);
-
-	//  Memory Write
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2C);
-	this->dc_pin_->digital_write(true);
-
-	this->write_array(this->buffer_, this->get_buffer_length_());
-
-	this->disable();
-}
-
-// Draw rectangle of filling
-// x1:Start X coordinate
-// y1:Start Y coordinate
-// x2:End X coordinate
-// y2:End Y coordinate
-// color:color
-void ST7789V::lcdDrawFillRect(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
-	//if (x1 >= dev->_width) return;
-	//if (x2 >= dev->_width) x2=dev->_width-1;
-	//if (y1 >= dev->_height) return;
-	//if (y2 >= dev->_height) y2=dev->_height-1;
-
-	//ESP_LOGD(TAG,"offset(x)=%d offset(y)=%d",dev->_offsetx,dev->_offsety);
-	uint16_t _x1 = x1;// +dev->_offsetx;
-	uint16_t _x2 = x2;// + dev->_offsetx;
-	uint16_t _y1 = y1;// + dev->_offsety;
-	uint16_t _y2 = y2;// + dev->_offsety;
-
-	this->enable();
-	//this->writecommand(0x2A);	// set column(x) address
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2A);
-	this->dc_pin_->digital_write(true);
-	//spi_master_write_data_word(dev, _x1);
-	//spi_master_write_data_word(dev, _x2);
-	this->spi_master_write_addr(_x1, _x2);
-	
-	//this->writecommand(0x2B);	// set Page(y) address
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2B);
-	this->dc_pin_->digital_write(true);
-	//spi_master_write_data_word(dev, _y1);
-	//spi_master_write_data_word(dev, _y2);
-	this->spi_master_write_addr(_y1, _y2);
-	//this->writecommand(0x2C);	//  Memory Write
-	this->dc_pin_->digital_write(false);
-	this->write_byte(0x2C);
-	this->dc_pin_->digital_write(true);
-	for(int i=_x1;i<=_x2;i++){
-		uint16_t size = _y2-_y1+1;
-		this->spi_master_write_color(color, size);
-	}
-	this->disable();
-}
-
-void ST7789V::spi_master_write_addr(uint16_t addr1, uint16_t addr2)
-{
-	static uint8_t Byte[4];
-	Byte[0] = (addr1 >> 8) & 0xFF;
-	Byte[1] = addr1 & 0xFF;
-	Byte[2] = (addr2 >> 8) & 0xFF;
-	Byte[3] = addr2 & 0xFF;
-
-	
-	this->dc_pin_->digital_write(true);
-	this->write_array(Byte, 4);
-	
-}
-
-void ST7789V::spi_master_write_color(uint16_t color, uint16_t size)
-{
-	static uint8_t Byte[1024];
-	int index = 0;
-	for(int i=0;i<size;i++) {
-		Byte[index++] = (color >> 8) & 0xFF;
-		Byte[index++] = color & 0xFF;
-	}
-
-	this->dc_pin_->digital_write(true);
-	return write_array(Byte, size*2);
-
-}
-
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  B/L Pin: ", this->bl_pin_);
+  LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
-float ST7789V::get_setup_priority() const { 
-	return setup_priority::PROCESSOR; 
-}
+float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void ST7789V::update() {
   this->do_update_();
   this->write_display_data();
 }
 
-void ST7789V::loop() {
+void ST7789V::loop() {}
 
-}
+void ST7789V::write_display_data() {
+  uint16_t x1 = 52;   // _offsetx
+  uint16_t x2 = 186;  // _offsetx
+  uint16_t y1 = 40;   // _offsety
+  uint16_t y2 = 279;  // _offsety
 
-int ST7789V::get_width_internal() {
-	return 135;//240;
-}
+  this->enable();
 
-int ST7789V::get_height_internal() {
-	return 240;//320;
-}
+  // set column(x) address
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_CASET);
+  this->dc_pin_->digital_write(true);
+  this->write_addr_(x1, x2);
+  // set page(y) address
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_RASET);
+  this->dc_pin_->digital_write(true);
+  this->write_addr_(y1, y2);
+  // write display memory
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_RAMWR);
+  this->dc_pin_->digital_write(true);
 
-size_t ST7789V::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
-}
+  this->write_array(this->buffer_, this->get_buffer_length_());
 
-void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, int color) {
-	if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
-		return;
-
-	uint16_t pos = (x + y * this->get_width_internal())*2;
-	this->buffer_[pos++] |= (color>>8) & 0xff;
-	this->buffer_[pos] |= color & 0xff;
+  this->disable();
 }
 
 void ST7789V::init_reset_() {
@@ -294,15 +174,14 @@ void ST7789V::init_reset_() {
   }
 }
 
-void ST7789V::backlight(bool onoff){
-  if (this->bl_pin_ != nullptr) {
-    this->bl_pin_->setup();
-
-    this->bl_pin_->digital_write(onoff);
+void ST7789V::backlight_(bool onoff) {
+  if (this->backlight_pin_ != nullptr) {
+    this->backlight_pin_->setup();
+    this->backlight_pin_->digital_write(onoff);
   }
 }
 
-void ST7789V::writecommand(uint8_t value) {
+void ST7789V::write_command_(uint8_t value) {
   this->enable();
   this->dc_pin_->digital_write(false);
   this->write_byte(value);
@@ -310,11 +189,83 @@ void ST7789V::writecommand(uint8_t value) {
   this->disable();
 }
 
-void ST7789V::writedata(uint8_t value) {
+void ST7789V::write_data_(uint8_t value) {
   this->dc_pin_->digital_write(true);
   this->enable();
   this->write_byte(value);
   this->disable();
+}
+
+void ST7789V::write_addr_(uint16_t addr1, uint16_t addr2) {
+  static uint8_t BYTE[4];
+  BYTE[0] = (addr1 >> 8) & 0xFF;
+  BYTE[1] = addr1 & 0xFF;
+  BYTE[2] = (addr2 >> 8) & 0xFF;
+  BYTE[3] = addr2 & 0xFF;
+
+  this->dc_pin_->digital_write(true);
+  this->write_array(BYTE, 4);
+}
+
+void ST7789V::write_color_(uint16_t color, uint16_t size) {
+  static uint8_t BYTE[1024];
+  int index = 0;
+  for (int i = 0; i < size; i++) {
+    BYTE[index++] = (color >> 8) & 0xFF;
+    BYTE[index++] = color & 0xFF;
+  }
+
+  this->dc_pin_->digital_write(true);
+  return write_array(BYTE, size * 2);
+}
+
+int ST7789V::get_height_internal() {
+  return 240;  // 320;
+}
+
+int ST7789V::get_width_internal() {
+  return 135;  // 240;
+}
+
+size_t ST7789V::get_buffer_length_() {
+  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
+}
+
+// Draw a filled rectangle
+// x1: Start X coordinate
+// y1: Start Y coordinate
+// x2: End X coordinate
+// y2: End Y coordinate
+// color: color
+void ST7789V::draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
+  // ESP_LOGD(TAG,"offset(x)=%d offset(y)=%d",dev->_offsetx,dev->_offsety);
+  this->enable();
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_CASET);  // set column(x) address
+  this->dc_pin_->digital_write(true);
+  this->write_addr_(x1, x2);
+
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_RASET);  // set Page(y) address
+  this->dc_pin_->digital_write(true);
+  this->write_addr_(y1, y2);
+  this->dc_pin_->digital_write(false);
+  this->write_byte(ST7789_RAMWR);  // begin a write to memory
+  this->dc_pin_->digital_write(true);
+  for (int i = x1; i <= x2; i++) {
+    uint16_t size = y2 - y1 + 1;
+    this->write_color_(color, size);
+  }
+  this->disable();
+}
+
+void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, int color) {
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
+    return;
+
+  uint16_t pos = (x + y * this->get_width_internal()) * 2;
+  this->buffer_[pos++] = (color >> 8) & 0xff;
+  this->buffer_[pos] = color & 0xff;
 }
 
 }  // namespace st7789v
