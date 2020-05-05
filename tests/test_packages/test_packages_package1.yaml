@@ -1,0 +1,20 @@
+esphome:
+  board: nodemcu-32s
+  platform: ESP32
+  build_path: build/test1
+
+i2c:
+  sda: 21
+  scl: 22
+  scan: True
+  frequency: 100kHz
+  setup_priority: -100
+
+sensor:
+  - platform: adc
+    pin: A0
+    name: "$zone_name Brightness"
+    attenuation: 2.5db
+    unit_of_measurement: "°C"
+  - platform: esp32_hall
+    name: ESP32 Hall Sensor

@@ -1,0 +1,23 @@
+substitutions:
+  zone_name: Living room
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  heating_base: !include test_packages/test_packages_package1.yaml
+
+esphome:
+  name: test1
+
+uart:
+  rx_pin: GPIO12
+  tx_pin: GPIO13
+  baud_rate: 9600
+
+sensor:
+  - platform: mhz19
+    co2:
+      name: "MH-Z19 CO2 Value"
+    temperature:
+      name: "MH-Z19 Temperature"
+    update_interval: 60s
+    automatic_baseline_calibration: false

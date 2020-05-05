@@ -1,0 +1,8 @@
+wifi:
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+  - ssid: 'MySSID2'
+    password: ''
+    channel: 14
+    bssid: 'A1:63:95:47:D3:1D'
