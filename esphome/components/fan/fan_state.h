@@ -16,10 +16,7 @@ enum FanSpeed {
 };
 
 /// Simple enum to represent the direction of a fan
-enum FanDirection {
-  FAN_DIRECTION_FORWARD = 0,
-  FAN_DIRECTION_REVERSE = 1
-};
+enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
 
 class FanState;
 

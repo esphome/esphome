@@ -7,7 +7,7 @@ namespace tuya {
 static const char *TAG = "tuya.fan";
 
 void TuyaFan::setup() {
-  auto traits = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value());
+  auto traits = fan::FanTraits(this->oscillation_id_.has_value(), this->speed_id_.has_value(), false);
   this->fan_->set_traits(traits);
 
   if (this->speed_id_.has_value()) {

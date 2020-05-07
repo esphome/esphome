@@ -6,7 +6,8 @@ namespace fan {
 class FanTraits {
  public:
   FanTraits() = default;
-  FanTraits(bool oscillation, bool speed, bool direction) : oscillation_(oscillation), speed_(speed), direction_(direction) {}
+  FanTraits(bool oscillation, bool speed, bool direction)
+      : oscillation_(oscillation), speed_(speed), direction_(direction) {}
 
   /// Return if this fan supports oscillation.
   bool supports_oscillation() const { return this->oscillation_; }
