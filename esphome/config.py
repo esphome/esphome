@@ -399,6 +399,7 @@ def validate_config(config):
         try:
             do_packages_pass(config)
         except vol.Invalid as err:
+            result.update(config)
             result.add_error(err)
             return result
 

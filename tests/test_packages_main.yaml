@@ -16,8 +16,8 @@ uart:
 sensor:
   - platform: mhz19
     co2:
-      name: "MH-Z19 CO2 Value"
+      name: "CO2"
     temperature:
-      name: "MH-Z19 Temperature"
+      name: "Temperature"
     update_interval: 60s
     automatic_baseline_calibration: false
