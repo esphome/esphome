@@ -388,8 +388,6 @@ def recursive_check_replaceme(value):
     return value
 
 
-
-
 def validate_config(config):
     result = Config()
 
