@@ -34,7 +34,7 @@ def to_code(config):
         cg.add(var.set_mosi(mosi))
 
 
-def spi_device_schema (CS_PIN_required = False):
+def spi_device_schema(CS_PIN_required=False):
     """Create a schema for an SPI device.
     :param CS_PIN_required: If true, make the CS_PIN required in the config.
     :return: The SPI device schema, `extend` this in your config schema.

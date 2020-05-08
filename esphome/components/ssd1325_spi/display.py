@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import spi, ssd1325_base
-from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_CS_PIN
+from esphome.const import CONF_DC_PIN, CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 AUTO_LOAD = ['ssd1325_base']
 DEPENDENCIES = ['spi']
