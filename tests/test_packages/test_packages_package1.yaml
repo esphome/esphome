@@ -8,6 +8,10 @@ i2c:
   scl: 22
   scan: True
 
+api:
+  password: mypassowrd
+  reboot_timeout: 1h
+
 sensor:
   - platform: adc
     pin: A0
@@ -17,3 +21,5 @@ sensor:
 
   - platform: esp32_hall
     name: ESP32 Hall Sensor
+
+  - <<: !include ./test_uptime_sensor.yaml

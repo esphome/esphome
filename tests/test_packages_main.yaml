@@ -1,12 +1,19 @@
 substitutions:
-  zone_name: Living room
+  device_name: living_room
+  friendly_device_name: Living room
 
 packages:
   wifi: !include test_packages/test_packages_package_wifi.yaml
   heating_base: !include test_packages/test_packages_package1.yaml
 
 esphome:
-  name: test1
+  name: ${device_name}
+
+api:
+  services:
+    - service: start_laundry
+      then:
+        - delay: 3h
 
 uart:
   rx_pin: GPIO12

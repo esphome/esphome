@@ -1,0 +1,5 @@
+# Uptime sensor.
+platform: uptime
+id: ${device_name}_uptime
+name: ${friendly_device_name} Uptime
+update_interval: 5min
