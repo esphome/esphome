@@ -20,7 +20,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 2).extend({
     cv.Required(CONF_RTD_NOMINAL_RESISTANCE): cv.All(cv.resistance, cv.Range(min=100, max=1000)),
     cv.Optional(CONF_MAINS_FILTER, default='60HZ'): cv.enum(FILTER, upper=True, space=''),
     cv.Optional(CONF_RTD_WIRES, default=4): cv.int_range(min=2, max=4),
-}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):

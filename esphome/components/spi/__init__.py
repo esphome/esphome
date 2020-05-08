@@ -34,14 +34,19 @@ def to_code(config):
         cg.add(var.set_mosi(mosi))
 
 
-SPI_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-    # The CS_PIN should be declared as cv.Optional or cv.Required in
-    # CONFIG_SCHEMA for each device that uses SPI:
-    # cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
-    # or
-    # cv.Required (CONF_CS_PIN): pins.gpio_output_pin_schema,
-})
+def spi_device_schema (CS_PIN_required = False):
+    """Create a schema for an SPI device.
+    :param CS_PIN_required: If true, make the CS_PIN required in the config.
+    :return: The SPI device schema, `extend` this in your config schema.
+    """
+    schema = {
+        cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+    }
+    if CS_PIN_required:
+        schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+    else:
+        schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+    return cv.Schema(schema)
 
 
 @coroutine

@@ -12,8 +12,7 @@ SPIAS3935 = as3935_spi_ns.class_('SPIAS3935Component', as3935.AS3935, spi.SPIDev
 
 CONFIG_SCHEMA = cv.All(as3935.AS3935_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SPIAS3935),
-    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-}).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA))
+}).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema(CS_PIN_required=True)))
 
 
 def to_code(config):
