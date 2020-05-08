@@ -144,7 +144,7 @@ void MAX7219Component::turn_on_off(bool on_off){
 }
 
 void MAX7219Component::scroll_left (uint8_t stepsize){
-  uint8 NumSteps = stepsize + this -> stepsleft;
+  uint8_t NumSteps = stepsize + this -> stepsleft;
   //uint8 n = this->get_buffer_length_();
   //if (NumSteps==this->get_buffer_length_()) 
   if (this->max_x < this->num_chips_*8) this->max_x = this->num_chips_*8;
