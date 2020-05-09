@@ -25,7 +25,7 @@ float MAX7219Component::get_setup_priority() const { return setup_priority::PROC
 void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219_DIGITS...");
   this->spi_setup();
-  this->stepsleft=0;
+  this->stepsleft_=0;
   this->init_internal_(this->get_buffer_length_());
   for (uint8_t i = 0; i < this->get_buffer_length_(); i++){  // Clear buffer for startup
     this->buffer_[i] = 0;
@@ -49,7 +49,7 @@ void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
-  ESP_LOGCONFIG(TAG, "  Offset: %u", this->offset_chips);
+  ESP_LOGCONFIG(TAG, "  Offset: %u", this->offset_chips_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }
@@ -71,22 +71,22 @@ int MAX7219Component::get_height_internal(){
 }
 
 int MAX7219Component::get_width_internal(){
-  return (this->num_chips_+this->offset_chips)*8;                              
+  return (this->num_chips_+this->offset_chips_)*8;                              
 }
 
 size_t MAX7219Component::get_buffer_length_(){
-  return (this->num_chips_+this->offset_chips)*8;                              
+  return (this->num_chips_+this->offset_chips_)*8;                              
 }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)    //If pixel is outside display then dont draw
     return;
-  if (x > this->max_x) this->max_x = x;
-  //ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x);                   // Set MAX X to be used in further function
+  if (x > this->max_x_) this->max_x_ = x;
+  //ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);                   // Set MAX X to be used in further function
   uint16_t pos = x;                                       // X is starting at 0 top left
   uint8_t subpos = y;                                     // Y is starting at 0 top left
   if (color) {
-    if (this->invert){
+    if (this->invert_){
       this->buffer_[pos] ^= (1 << subpos);
     } else {
       this->buffer_[pos] |= (1 << subpos);
@@ -108,9 +108,9 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
 }
 void MAX7219Component::update() {
   ESP_LOGD(TAG,"UPDATE CALLED"); 
-  max_x=0;                                                  //Debug feedback for testing update is triggered by polling component
+  this->max_x_=0;                                                  //Debug feedback for testing update is triggered by polling component
   for (uint8_t i = 0; i < this->get_buffer_length_(); i++)  //run this loop for chips*8 (all display positions)
-    if (this->invert) {
+    if (this->invert_) {
       this->buffer_[i] = 0xFF;
     }
     else
@@ -124,14 +124,14 @@ void MAX7219Component::update() {
 }
 
 void MAX7219Component::invert_on_off(bool on_off){
-  this->invert = on_off;
+  this->invert_ = on_off;
 }
 
 void MAX7219Component::invert_on_off(){
-  if (this->invert){
-    this->invert = false;
+  if (this->invert_){
+    this->invert_ = false;
   } else {
-    this->invert = true;
+    this->invert_ = true;
   }
 }
 
@@ -144,15 +144,15 @@ void MAX7219Component::turn_on_off(bool on_off){
 }
 
 void MAX7219Component::scroll_left (uint8_t stepsize){
-  uint8_t NumSteps = stepsize + this -> stepsleft;
+  uint8_t NumSteps = stepsize + this -> stepsleft_;
   //uint8 n = this->get_buffer_length_();
   //if (NumSteps==this->get_buffer_length_()) 
-  if (this->max_x < this->num_chips_*8) this->max_x = this->num_chips_*8;
-  uint8_t n = this->max_x+3;
+  if (this->max_x_ < this->num_chips_*8) this->max_x_ = this->num_chips_*8;
+  uint8_t n = this->max_x_+3;
   ESP_LOGD(TAG,"n: %i",n);
-  if (NumSteps >= this->max_x+3) 
+  if (NumSteps >= this->max_x_+3) 
     NumSteps = 0;
-  this->stepsleft = NumSteps;
+  this->stepsleft_ = NumSteps;
   ESP_LOGD(TAG,"NumSteps: %i",NumSteps);
   for(uint8_t j=1;j<NumSteps+1;j++){
     byte temp = this->buffer_[0]; //remember first element
@@ -164,21 +164,21 @@ void MAX7219Component::scroll_left (uint8_t stepsize){
   }
 }
 
-void MAX7219Component::sendChar (const byte chip, const byte data)
+void MAX7219Component::send_char (byte chip, byte data)
   {
   // get this character from PROGMEM
   //byte pixels [8];
   //for (byte i = 0; i < this->offset_char; i++)
   //   pixels[i]=0;
   for (byte i = 0; i < 8; i++)
-     this->buffer_[chip*8+i] = pgm_read_byte (&MAX7219_Dot_Matrix_font [data] [i]);
-     //pixels [i+this->offset_char] = pgm_read_byte (&MAX7219_Dot_Matrix_font [data] [i]);
+     this->buffer_[chip*8+i] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
+     //pixels [i+this->offset_char] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
   //this->send64pixels (chip, pixels);
-  }  // end of sendChar
+  }  // end of send_char
 
 // send one character (data) to position (chip)
 
-void MAX7219Component::send64pixels (const byte chip, const byte pixels [8])
+void MAX7219Component::send64pixels (byte chip, byte pixels [8])
   {
   for (byte col = 0; col < 8; col++)    //RUN THIS LOOP 8 times until column is 7
     {
@@ -201,10 +201,10 @@ uint8_t MAX7219Component::printdigit(uint8_t start_pos, const char *s)
 {
   byte chip;
   for (chip = start_pos; chip < this->num_chips_ && *s; chip++)
-      sendChar (chip, *s++);
+      send_char (chip, *s++);
  // space out rest
   while (chip < (this->num_chips_))
-    sendChar (chip++, ' ');
+    send_char (chip++, ' ');
 return 0;
 }  // end of sendString
 
@@ -231,7 +231,7 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-void MAX7219Component::set_offset(uint8_t offset) { this->offset_chips = offset; }
+void MAX7219Component::set_offset(uint8_t offset) { this->offset_chips_ = offset; }
 
 #ifdef USE_TIME
 uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::ESPTime time) {
@@ -244,5 +244,5 @@ uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::E
 uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) { return this->strftimedigit(0, format, time); }
 #endif
 
-}  // namespace max7219
+}  // namespace max7219digit
 }  // namespace esphome
