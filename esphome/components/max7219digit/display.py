@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_INTENSITY, CONF_LAMBDA, CONF_NUM_CHIPS, 
 DEPENDENCIES = ['spi']
 
 max7219_ns = cg.esphome_ns.namespace('max7219digit')
-MAX7219Component = max7219_ns.class_('MAX7219Component', cg.PollingComponent, spi.SPIDevice, 
+MAX7219Component = max7219_ns.class_('MAX7219Component', cg.PollingComponent, spi.SPIDevice,
                                      display.DisplayBuffer)
 MAX7219ComponentRef = MAX7219Component.operator('ref')
 
@@ -29,5 +29,6 @@ def to_code(config):
     cg.add(var.set_offset(config[CONF_OFFSET]))
 
     if CONF_LAMBDA in config:
-        lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')], return_type=cg.void)
+        lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
+                                          return_type=cg.void)
         cg.add(var.set_writer(lambda_))
