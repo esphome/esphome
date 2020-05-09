@@ -75,12 +75,12 @@ int MAX7219Component::get_width_internal() { return (this->num_chips_ + this->of
 size_t MAX7219Component::get_buffer_length_() { return (this->num_chips_ + this->offset_chips_) * 8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || 
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() ||
       y < 0)  // If pixel is outside display then dont draw
     return;
   if (x > this->max_x_)
     this->max_x_ = x;  // Set MAX X to be used in further function
-  // ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);                   
+  // ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
   if (color) {
@@ -105,7 +105,7 @@ void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
   this->disable();                                // Disable SPI
 }
 void MAX7219Component::update() {
-  ESP_LOGD(TAG, "UPDATE CALLED"); 
+  ESP_LOGD(TAG, "UPDATE CALLED");
   this->max_x_ = 0;  // Debug feedback for testing update is triggered by polling component
   for (uint8_t i = 0; i < this->get_buffer_length_(); i++)  // run this loop for chips*8 (all display positions)
     if (this->invert_) {
@@ -115,7 +115,7 @@ void MAX7219Component::update() {
     }
   // clear buffer on every position
   if (this->writer_.has_value())  // insert Labda function if available
-    (*this->writer_)(*this);                         
+    (*this->writer_)(*this);
   this->display();  // call display to write buffer
 }
 
@@ -175,12 +175,12 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
   for (byte col = 0; col < 8; col++) { // RUN THIS LOOP 8 times until column is 7
     this->enable();                  // start sending by enabling SPI 
     for (byte i = 0; i < chip; i++)  // send extra NOPs to push the pixels out to extra displays
-      this->send_byte_ (MAX7219_REGISTER_NOOP, 
+      this->send_byte_ (MAX7219_REGISTER_NOOP,
                         MAX7219_REGISTER_NOOP);            // run this loop unit the matching chip is reached
     byte b = 0;                                            // rotate pixels 90 degrees -- set byte to 0
     for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
-      b |= bitRead (pixels [i], col) << (7 - i);           // change the column bits into row bits
-    this->send_byte_(col + 1 , b);                         // send this byte to dispay at selected chip
+      b |= bitRead (pixels[i], col) << (7 - i);            // change the column bits into row bits
+    this->send_byte_(col + 1, b);                          // send this byte to dispay at selected chip
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
     this->disable();  // all done disable SPI
@@ -233,7 +233,7 @@ uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::E
   return 0;
 }
 uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) { 
-  return this->strftimedigit(0, format, time); 
+  return this->strftimedigit(0, format, time);
 }
 #endif
 
