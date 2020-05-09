@@ -1,3 +1,8 @@
+#pragma once
+
+namespace esphome {
+namespace max7219digit {
+
 // bit patterns for the CP437 font
 
 const byte MAX7219_DOT_MATRIX_FONT[256][8] PROGMEM = {
@@ -258,3 +263,6 @@ const byte MAX7219_DOT_MATRIX_FONT[256][8] PROGMEM = {
     {0x00, 0x00, 0x3C, 0x3C, 0x3C, 0x3C, 0x00, 0x00},  // 0xFE
     {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},  // 0xFF
 };  // end of MAX7219_Dot_Matrix_font
+
+}  // namespace max7219digit
+}  // namespace esphome
