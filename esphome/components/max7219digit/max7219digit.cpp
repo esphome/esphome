@@ -59,7 +59,7 @@ void MAX7219Component::display() {
   for (uint8_t i = 0; i < this->num_chips_; i++) {  // Run this loop for every MAX CHIP (GRID OF 64 leds)
     for (uint8_t j = 0; j < 8; j++) {        // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
       pixels[j] = this->buffer_[i * 8 + j];  // Fill the pixel parameter with diplay data
-    }                                                      
+    }                                               
     this->send64pixels(i, pixels);  // Send the data to the chip
   }
   ESP_LOGD(TAG, "Display Called");  // TEMP DEBUG INFO TO BE DELETED
@@ -140,12 +140,12 @@ void MAX7219Component::turn_on_off(bool on_off) {
 void MAX7219Component::scroll_left(uint8_t stepsize) {
   uint8_t numsteps = stepsize + this->stepsleft_;
   // uint8 n = this->get_buffer_length_();
-  // if (numsteps == this->get_buffer_length_()) 
-  if (this->max_x_ < this->num_chips_ * 8) 
+  // if (numsteps == this->get_buffer_length_())
+  if (this->max_x_ < this->num_chips_ * 8)
     this->max_x_ = this->num_chips_ * 8;
   uint8_t n = this->max_x_ + 3;
   ESP_LOGD(TAG, "n: %i", n);
-  if (numsteps >= this->max_x_ + 3) 
+  if (numsteps >= this->max_x_ + 3)
     numsteps = 0;
   this->stepsleft_ = numsteps;
   ESP_LOGD(TAG, "numsteps: %i", numsteps);
@@ -167,19 +167,19 @@ void MAX7219Component::send_char(byte chip, byte data) {
     this->buffer_[chip * 8 + i] = pgm_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
   // pixels [i+this->offset_char] = pgm_read_byte(&MAX7219_DOT_MATRIX_FONT[data][i]);
   // this->send64pixels (chip, pixels);
-  }  // end of send_char
+}  // end of send_char
 
 // send one character (data) to position (chip)
 
 void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
   for (byte col = 0; col < 8; col++) { // RUN THIS LOOP 8 times until column is 7
-    this->enable();                  // start sending by enabling SPI 
-    for (byte i = 0; i < chip; i++)  // send extra NOPs to push the pixels out to extra displays
-      this->send_byte_ (MAX7219_REGISTER_NOOP,
-                        MAX7219_REGISTER_NOOP);            // run this loop unit the matching chip is reached
+    this->enable();                    // start sending by enabling SPI 
+    for (byte i = 0; i < chip; i++)    // send extra NOPs to push the pixels out to extra displays
+      this->send_byte_(MAX7219_REGISTER_NOOP,
+                       MAX7219_REGISTER_NOOP);             // run this loop unit the matching chip is reached
     byte b = 0;                                            // rotate pixels 90 degrees -- set byte to 0
     for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
-      b |= bitRead (pixels[i], col) << (7 - i);            // change the column bits into row bits
+      b |= bitRead(pixels[i], col) << (7 - i);             // change the column bits into row bits
     this->send_byte_(col + 1, b);                          // send this byte to dispay at selected chip
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
@@ -232,7 +232,7 @@ uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::E
     return this->printdigit(pos, buffer);
   return 0;
 }
-uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) { 
+uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) {
   return this->strftimedigit(0, format, time);
 }
 #endif
