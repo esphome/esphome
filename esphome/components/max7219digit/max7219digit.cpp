@@ -19,7 +19,6 @@ constexpr uint8_t MAX7219_SHUTDOWN = 0x01;
 constexpr uint8_t MAX7219_NO_DISPLAY_TEST = 0x00;
 constexpr uint8_t MAX7219_DISPLAY_TEST = 0x01;
 
-
 float MAX7219Component::get_setup_priority() const { return setup_priority::PROCESSOR; }
 
 void MAX7219Component::setup() {
@@ -30,7 +29,6 @@ void MAX7219Component::setup() {
   for (uint8_t i = 0; i < this->get_buffer_length_(); i++) {  // Clear buffer for startup
     this->buffer_[i] = 0;
   }
-
   // let's assume the user has all 8 digits connected, only important in daisy chained setups anyway
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
@@ -45,6 +43,7 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
   ESP_LOGD(TAG, "MAX7219 DIGIT SETUP STARTED");
 }
+
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
@@ -59,7 +58,7 @@ void MAX7219Component::display() {
   for (uint8_t i = 0; i < this->num_chips_; i++) {  // Run this loop for every MAX CHIP (GRID OF 64 leds)
     for (uint8_t j = 0; j < 8; j++) {        // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
       pixels[j] = this->buffer_[i * 8 + j];  // Fill the pixel parameter with diplay data
-    }                                               
+    }
     this->send64pixels(i, pixels);  // Send the data to the chip
   }
   ESP_LOGD(TAG, "Display Called");  // TEMP DEBUG INFO TO BE DELETED
@@ -172,9 +171,9 @@ void MAX7219Component::send_char(byte chip, byte data) {
 // send one character (data) to position (chip)
 
 void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
-  for (byte col = 0; col < 8; col++) { // RUN THIS LOOP 8 times until column is 7
-    this->enable();                    // start sending by enabling SPI 
-    for (byte i = 0; i < chip; i++)    // send extra NOPs to push the pixels out to extra displays
+  for (byte col = 0; col < 8; col++) {  // RUN THIS LOOP 8 times until column is 7
+    this->enable();                     // start sending by enabling SPI 
+    for (byte i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);             // run this loop unit the matching chip is reached
     byte b = 0;                                            // rotate pixels 90 degrees -- set byte to 0
