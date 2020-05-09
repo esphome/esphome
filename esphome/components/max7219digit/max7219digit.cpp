@@ -25,9 +25,9 @@ float MAX7219Component::get_setup_priority() const { return setup_priority::PROC
 void MAX7219Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MAX7219_DIGITS...");
   this->spi_setup();
-  this->stepsleft_=0;
+  this->stepsleft_ = 0;
   this->init_internal_(this->get_buffer_length_());
-  for (uint8_t i = 0; i < this->get_buffer_length_(); i++){  // Clear buffer for startup
+  for (uint8_t i = 0; i < this->get_buffer_length_(); i++) {  // Clear buffer for startup
     this->buffer_[i] = 0;
   }
 
@@ -35,15 +35,15 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
   this->send_to_all_(MAX7219_REGISTER_DECODE_MODE, 0);
-  // No display test with all the pixels on  
+  // No display test with all the pixels on
   this->send_to_all_(MAX7219_REGISTER_DISPLAY_TEST, MAX7219_NO_DISPLAY_TEST);
   // SET Intsity of display
   this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
-  //this->send_to_all_(MAX7219_REGISTER_INTENSITY, 1);
+  // this->send_to_all_(MAX7219_REGISTER_INTENSITY, 1);
   this->display();
   // power up
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
-  ESP_LOGD(TAG,"MAX7219 DIGIT SETUP STARTED");
+  ESP_LOGD(TAG, "MAX7219 DIGIT SETUP STARTED");
 }
 void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
@@ -55,77 +55,70 @@ void MAX7219Component::dump_config() {
 }
 
 void MAX7219Component::display() {
-byte pixels [8];
-  for (uint8_t i = 0; i < this->num_chips_; i++) {        //Run this loop for every MAX CHIP (GRID OF 64 leds)
-    for (uint8_t j = 0; j < 8; j++) {                     //Run this routine for the rows of every chip 8x row 0 top to 7 bottom
-      pixels[j]=this->buffer_[i * 8 + j];                 //Fill the pixel parameter with diplay data
+  byte pixels [8];
+  for (uint8_t i = 0; i < this->num_chips_; i++) {  // Run this loop for every MAX CHIP (GRID OF 64 leds)
+    for (uint8_t j = 0; j < 8; j++) {      // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
+      pixels[j]=this->buffer_[i * 8 + j];  // Fill the pixel parameter with diplay data
     }                                                      
-    this->send64pixels(i,pixels);                         //Send the data to the chip
+    this->send64pixels(i,pixels);  // Send the data to the chip
   }
-  ESP_LOGD(TAG,"Display Called");                         //TEMP DEBUG INFO TO BE DELETED
+  ESP_LOGD(TAG, "Display Called");  // TEMP DEBUG INFO TO BE DELETED
 }
 
-int MAX7219Component::get_height_internal(){
-  return 8;                                               //TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHE
-                                                          //TO BE DONE -> CREATE Virtual size of screen and scroll
+int MAX7219Component::get_height_internal() {
+  return 8;  // TO BE DONE -> STACK TWO DISPLAYS ON TOP OF EACH OTHE
+             // TO BE DONE -> CREATE Virtual size of screen and scroll
 }
 
-int MAX7219Component::get_width_internal(){
-  return (this->num_chips_+this->offset_chips_)*8;                              
-}
+int MAX7219Component::get_width_internal() { return (this->num_chips_+this->offset_chips_)*8; }
 
-size_t MAX7219Component::get_buffer_length_(){
-  return (this->num_chips_+this->offset_chips_)*8;                              
-}
+size_t MAX7219Component::get_buffer_length_(){ return (this->num_chips_+this->offset_chips_)*8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)    //If pixel is outside display then dont draw
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)  // If pixel is outside display then dont draw
     return;
-  if (x > this->max_x_) this->max_x_ = x;
-  //ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);                   // Set MAX X to be used in further function
-  uint16_t pos = x;                                       // X is starting at 0 top left
-  uint8_t subpos = y;                                     // Y is starting at 0 top left
+  if (x > this->max_x_)
+    this->max_x_ = x;  // Set MAX X to be used in further function
+  // ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);                   
+  uint16_t pos = x;    // X is starting at 0 top left
+  uint8_t subpos = y;  // Y is starting at 0 top left
   if (color) {
-    if (this->invert_){
+    if (this->invert_) {
       this->buffer_[pos] ^= (1 << subpos);
     } else {
       this->buffer_[pos] |= (1 << subpos);
     }
   } else {
-    this->buffer_[pos] &= ~(1 << subpos);                 // shift a bit to the correct position within the buffer data
+    this->buffer_[pos] &= ~(1 << subpos);  // shift a bit to the correct position within the buffer data
   }
 }
 
 void MAX7219Component::send_byte_(uint8_t a_register, uint8_t data) {
-  this->write_byte(a_register);                           // Write register value to MAX
-  this->write_byte(data);                                 // Followed by actual data
+  this->write_byte(a_register);  // Write register value to MAX
+  this->write_byte(data);        // Followed by actual data
 }
 void MAX7219Component::send_to_all_(uint8_t a_register, uint8_t data) {
-  this->enable();                                         // Enable SPI
-  for (uint8_t i = 0; i < this->num_chips_; i++)          // Run the loop for every MAX chip in the stack
-    this->send_byte_(a_register, data);                   // Send the data to the chips
-  this->disable();                                        // Disable SPI
+  this->enable();                                 // Enable SPI
+  for (uint8_t i = 0; i < this->num_chips_; i++)  // Run the loop for every MAX chip in the stack
+    this->send_byte_(a_register, data);           // Send the data to the chips
+  this->disable();                                // Disable SPI
 }
 void MAX7219Component::update() {
   ESP_LOGD(TAG,"UPDATE CALLED"); 
-  this->max_x_=0;                                                  //Debug feedback for testing update is triggered by polling component
-  for (uint8_t i = 0; i < this->get_buffer_length_(); i++)  //run this loop for chips*8 (all display positions)
+  this->max_x_=0;  // Debug feedback for testing update is triggered by polling component
+  for (uint8_t i = 0; i < this->get_buffer_length_(); i++)  // run this loop for chips*8 (all display positions)
     if (this->invert_) {
       this->buffer_[i] = 0xFF;
-    }
-    else
-    {
+    } else {
       this->buffer_[i] = 0;
     }
-                                 //clear buffer on every position
-  if (this->writer_.has_value())                      //inser Labda function if available
+  // clear buffer on every position
+  if (this->writer_.has_value())  // insert Labda function if available
     (*this->writer_)(*this);                         
-  this->display();                                  //call display to write buffer
+  this->display();  // call display to write buffer
 }
 
-void MAX7219Component::invert_on_off(bool on_off){
-  this->invert_ = on_off;
-}
+void MAX7219Component::invert_on_off(bool on_off){ this->invert_ = on_off; }
 
 void MAX7219Component::invert_on_off(){
   if (this->invert_){
@@ -144,65 +137,63 @@ void MAX7219Component::turn_on_off(bool on_off){
 }
 
 void MAX7219Component::scroll_left (uint8_t stepsize){
-  uint8_t NumSteps = stepsize + this -> stepsleft_;
-  //uint8 n = this->get_buffer_length_();
-  //if (NumSteps==this->get_buffer_length_()) 
-  if (this->max_x_ < this->num_chips_*8) this->max_x_ = this->num_chips_*8;
-  uint8_t n = this->max_x_+3;
-  ESP_LOGD(TAG,"n: %i",n);
-  if (NumSteps >= this->max_x_+3) 
-    NumSteps = 0;
-  this->stepsleft_ = NumSteps;
-  ESP_LOGD(TAG,"NumSteps: %i",NumSteps);
-  for(uint8_t j=1;j<NumSteps+1;j++){
-    byte temp = this->buffer_[0]; //remember first element
-    for(uint8_t i=0;i<n-1;i++)
+  uint8_t numsteps = stepsize + this -> stepsleft_;
+  // uint8 n = this->get_buffer_length_();
+  // if (numsteps==this->get_buffer_length_()) 
+  if (this->max_x_ < this->num_chips_ * 8) 
+    this->max_x_ = this->num_chips_ * 8;
+  uint8_t n = this->max_x_ + 3;
+  ESP_LOGD(TAG,"n: %i", n);
+  if (numsteps >= this->max_x_ + 3) 
+    numsteps = 0;
+  this->stepsleft_ = numsteps;
+  ESP_LOGD(TAG, "numsteps: %i", numsteps);
+  for(uint8_t j = 1; j < numsteps + 1; j++) {
+    byte temp = this->buffer_[0];  // remember first element
+    for(uint8_t i = 0; i < n - 1; i++)
     {
-      this->buffer_[i] = this->buffer_[i+1]; //move all element to the left except first one
+      this->buffer_[i] = this->buffer_[i + 1];  // move all element to the left except first one
     }
-    this->buffer_[n-1] = temp; //assign remembered value to last element
+    this->buffer_[n - 1] = temp;  // assign remembered value to last element
   }
 }
 
-void MAX7219Component::send_char (byte chip, byte data)
-  {
+void MAX7219Component::send_char (byte chip, byte data) {
   // get this character from PROGMEM
-  //byte pixels [8];
-  //for (byte i = 0; i < this->offset_char; i++)
-  //   pixels[i]=0;
+  // byte pixels [8];
+  // for (byte i = 0; i < this->offset_char; i++)
+  // pixels[i]=0;
   for (byte i = 0; i < 8; i++)
-     this->buffer_[chip*8+i] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
-     //pixels [i+this->offset_char] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
-  //this->send64pixels (chip, pixels);
+     this->buffer_[chip * 8 + i] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
+     // pixels [i+this->offset_char] = pgm_read_byte (&MAX7219_DOT_MATRIX_FONT [data] [i]);
+     // this->send64pixels (chip, pixels);
   }  // end of send_char
 
 // send one character (data) to position (chip)
 
-void MAX7219Component::send64pixels (byte chip, byte pixels [8])
-  {
-  for (byte col = 0; col < 8; col++)    //RUN THIS LOOP 8 times until column is 7
+void MAX7219Component::send64pixels (byte chip, byte pixels [8]) {
+  for (byte col = 0; col < 8; col++)  // RUN THIS LOOP 8 times until column is 7
     {
-    this->enable();                     // start sending by enabling SPI 
-    for (byte i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
-      this->send_byte_ (MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);  //run this loop unit the matching chip is reached
-    byte b = 0;                         // rotate pixels 90 degrees -- set byte to 0
-    for (byte i = 0; i < 8; i++)        //  run this loop 8 times for all the pixels[8] received
+    this->enable();                  // start sending by enabling SPI 
+    for (byte i = 0; i < chip; i++)  // send extra NOPs to push the pixels out to extra displays
+      this->send_byte_ (MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
+    byte b = 0;                                   // rotate pixels 90 degrees -- set byte to 0
+    for (byte i = 0; i < 8; i++)                  // run this loop 8 times for all the pixels[8] received
       b |= bitRead (pixels [i], col) << (7 - i);  // change the column bits into row bits
-    this->send_byte_(col + 1 , b);       // send this byte to dispay at selected chip
-    for (int i = 0; i < this->num_chips_ - chip - 1; i++) // end with enough NOPs so later chips don't update
+    this->send_byte_(col + 1 , b);                // send this byte to dispay at selected chip
+    for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_ (MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
-    this->disable();                    // all done disable SPI
-    }   // end of for each column
+    this->disable();  // all done disable SPI
+    }                 // end of for each column
   }  // end of send64pixels
 
 uint8_t MAX7219Component::printdigit(const char *str) { return this->printdigit(0, str); }
 
-uint8_t MAX7219Component::printdigit(uint8_t start_pos, const char *s)
-{
+uint8_t MAX7219Component::printdigit(uint8_t start_pos, const char *s) {
   byte chip;
   for (chip = start_pos; chip < this->num_chips_ && *s; chip++)
-      send_char (chip, *s++);
- // space out rest
+    send_char (chip, *s++);
+  // space out rest
   while (chip < (this->num_chips_))
     send_char (chip++, ' ');
 return 0;
@@ -241,7 +232,9 @@ uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::E
     return this->printdigit(pos, buffer);
   return 0;
 }
-uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) { return this->strftimedigit(0, format, time); }
+uint8_t MAX7219Component::strftimedigit(const char *format, time::ESPTime time) { 
+  return this->strftimedigit(0, format, time); 
+}
 #endif
 
 }  // namespace max7219digit
