@@ -47,7 +47,7 @@ class MAX7219Component : public PollingComponent,
   void set_offset(uint8_t offset);
 
   void send_char(byte chip, byte data);
-  void send64pixels(byte chip, byte pixels [8]);
+  void send64pixels(byte chip, const byte pixels[8]);
 
   void scroll_left(uint8_t stepsize);
 
@@ -76,9 +76,9 @@ class MAX7219Component : public PollingComponent,
   uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
   uint8_t num_chips_{1};
   //uint8_t offset_char=0;
-  uint8_t max_x_= 0;
-  uint8_t offset_chips_= 0;
-  bool invert_= false;
+  uint8_t max_x_ = 0;
+  uint8_t offset_chips_ = 0;
+  bool invert_ = false;
   // uint8_t *buffer_;
   // uint8_t *bufferold_{nullptr};
   uint8_t stepsleft_;
