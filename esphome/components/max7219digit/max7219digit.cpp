@@ -172,7 +172,7 @@ void MAX7219Component::send_char(byte chip, byte data) {
 
 void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
   for (byte col = 0; col < 8; col++) {  // RUN THIS LOOP 8 times until column is 7
-    this->enable();                     // start sending by enabling SPI 
+    this->enable();                     // start sending by enabling SPI
     for (byte i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);             // run this loop unit the matching chip is reached
