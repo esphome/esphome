@@ -14,7 +14,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
 
     cv.Optional(CONF_NUM_CHIPS, default=4): cv.int_range(min=1, max=255),
     cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
-    cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=0, max=10),
+    cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=0, max=100),
 }).extend(cv.polling_component_schema('500ms')).extend(spi.SPI_DEVICE_SCHEMA)
 
 

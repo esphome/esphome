@@ -1,0 +1,90 @@
+esphome:
+  name: nextion
+  platform: ESP32
+  board: nodemcu-32s
+
+wifi:
+  ssid: !secret wifi_not_ssid
+  password: !secret wifi_not_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Nextion Fallback Hotspot"
+    password: !secret esphome_ap_password
+
+captive_portal:
+
+# Enable logging
+logger:
+  baud_rate: 115200
+  level: DEBUG
+# Enable Home Assistant API
+api:
+  password: !secret esphome_api_password
+
+# Enable over-the-air updates
+ota:
+  password: !secret esphome_ota_password
+
+# Example configuration entry
+
+spi:
+  clk_pin: GPIO14
+#D5
+
+  mosi_pin: GPIO13 
+#D7
+
+font:
+  - file: "pixelmix.ttf"
+    id: digit_font
+    size: 8
+  - file: "pixelmix_bold.ttf"
+    id: digitbolt_font
+    size: 8
+  - file: "pixelmix_ss.ttf"
+    id: digitss_font
+    size: 8
+
+
+
+
+time:
+  - platform: homeassistant
+    id: hass_time
+
+globals:
+  - id: my_global_bool
+    type: bool
+    restore_value: no
+    initial_value: 'true'
+
+display:
+  - platform: max7219digit
+    cs_pin: GPIO15
+    id: my_matrix
+    num_chips: 4
+    offset: 15
+    lambda: |-
+      if (id(my_global_bool)) {
+        it.strftime(0, 0, id(digitss_font),"%H:%M %A", id(hass_time).now());
+      }
+      else {
+        it.printf(0, 4, id(digitss_font),"LEAF %2.0f%%", 10.3);
+      }
+      it.scroll_left(3);
+      it.invert_on_off(0);
+
+# For example cycle through pages on a timer
+interval:
+  - interval: 5s
+    then:
+      - lambda: |-
+          if (id(my_global_bool)) {
+            id(my_global_bool) = false;
+          }
+          else {
+            id(my_global_bool) = true;
+          }
+
+
