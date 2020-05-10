@@ -1,0 +1,36 @@
+esphome:
+  name: nextion
+  platform: ESP8266
+  board: d1_mini
+
+wifi:
+  ssid: !secret wifi_not_ssid
+  password: !secret wifi_not_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Nextion Fallback Hotspot"
+    password: !secret esphome_ap_password
+
+captive_portal:
+
+# Enable logging
+logger:
+  baud_rate: 0
+  level: DEBUG
+# Enable Home Assistant API
+api:
+  password: !secret esphome_api_password
+
+# Enable over-the-air updates
+ota:
+  password: !secret esphome_ota_password
+
+# Example configuration entry
+
+# Example configuration entry
+sensor:
+  - platform: vl53l0x
+    name: "VL53L0x Distance"
+    address: 0x29
+    update_interval: 60s
