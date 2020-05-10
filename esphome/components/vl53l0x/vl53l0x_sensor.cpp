@@ -33,7 +33,7 @@ void VL53L0XSensor::setup() {
   reg(0xFF) = 0x00;
   reg(0x80) = 0x00;
   reg(0x60) |= 0x12;
-  if (this->longrange_) 
+  if (this->longrange_)
     this->signal_rate_limit_ = 0.1;
   auto rate_value = static_cast<uint16_t>(signal_rate_limit_ * 128);
   write_byte_16(0x44, rate_value);
