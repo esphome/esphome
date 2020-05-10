@@ -113,8 +113,8 @@ void MAX7219Component::update() {
       this->buffer_[i] = 0;
     }
   // clear buffer on every position
-  if (this->writer_.has_value())  // insert Labda function if available
-    (*this->writer_)(*this);
+  if (this->writer_local_.has_value())  // insert Labda function if available
+    (*this->writer_local_)(*this);
   this->display();  // call display to write buffer
 }
 
@@ -218,10 +218,17 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
     return this->printdigit(buffer);
   return 0;
 }
-// void MAX7219Component::set_writer(display_writer_t &&writer) { this->writer_ = writer; }
+void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-void MAX7219Component::set_offset(uint8_t offset) { this->offset_chips_ = offset; }
+void MAX7219Component::set_offset(uint8_t offset) { 
+  if (offset + this->num_chips_> 31) {
+    this->offset_chips_ = 31 - this->num_chips_;  // Prevent overflow of buffer!
+    ESP_LOGD(TAG, "Offset is reduced to: %i to prevent buffer overflow", this->offset_chips_);
+  } else {
+    this->offset_chips_ = offset;
+  } 
+}
 
 #ifdef USE_TIME
 uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::ESPTime time) {

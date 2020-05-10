@@ -83,7 +83,7 @@ class MAX7219Component : public PollingComponent,
   // uint8_t *bufferold_{nullptr};
   uint8_t stepsleft_;
   size_t get_buffer_length_();
-  // optional<max7219_writer_t> writer_{};
+  optional<max7219_writer_t> writer_local_{};
 };
 
 }  // namespace max7219digit

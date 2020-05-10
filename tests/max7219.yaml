@@ -62,6 +62,3 @@ time:
   - platform: homeassistant
     id: hass_time
 
-image:
-  - file: "smile.png"
-    id: my_image
