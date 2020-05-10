@@ -221,13 +221,13 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-void MAX7219Component::set_offset(uint8_t offset) { 
-  if (offset + this->num_chips_> 31) {
+void MAX7219Component::set_offset(uint8_t offset) {
+  if (offset + this->num_chips_ > 31) {
     this->offset_chips_ = 31 - this->num_chips_;  // Prevent overflow of buffer!
     ESP_LOGD(TAG, "Offset is reduced to: %i to prevent buffer overflow", this->offset_chips_);
   } else {
     this->offset_chips_ = offset;
-  } 
+  }
 }
 
 #ifdef USE_TIME
