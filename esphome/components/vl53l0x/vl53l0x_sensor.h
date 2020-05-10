@@ -33,7 +33,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
 
  protected:
   bool longrange_ = false;
-  
+
   uint32_t get_measurement_timing_budget_() {
     SequenceStepEnables enables{};
     SequenceStepTimeouts timeouts{};

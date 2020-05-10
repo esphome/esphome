@@ -4,13 +4,13 @@ esphome:
   board: d1_mini
 
 wifi:
-  ssid: !secret wifi_not_ssid
-  password: !secret wifi_not_password
+  ssid: wifi_not_ssid
+  password: wifi_not_password
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Nextion Fallback Hotspot"
-    password: !secret esphome_ap_password
+    password: esphome_ap_password
 
 captive_portal:
 
@@ -20,11 +20,11 @@ logger:
   level: DEBUG
 # Enable Home Assistant API
 api:
-  password: !secret esphome_api_password
+  password: esphome_api_password
 
 # Enable over-the-air updates
 ota:
-  password: !secret esphome_ota_password
+  password: esphome_ota_password
 
 # Example configuration entry
 
