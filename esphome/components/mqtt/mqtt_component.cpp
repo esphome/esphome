@@ -62,7 +62,7 @@ bool MQTTComponent::send_discovery_() {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
-        config.retain_command_topic = this->retain_commands_;
+        config.retain_command_topic = this->get_retain_commands();
 
         // In addition to the subclasses adding their discovery info to the root config, we also 
         // give the subclasses the opportunity to override the SendDiscoveryConfig.

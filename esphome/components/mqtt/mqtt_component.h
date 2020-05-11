@@ -50,6 +50,13 @@ struct SendDiscoveryConfig {
  * In order to best separate the front- and back-end of ESPHome, all sub-classes should
  * only parse/send MQTT messages and interact with back-end components via callbacks to ensure
  * a clean separation.
+ * 
+ * Note that using retain_comand: True is only recommended if a MQTT command is the only way to
+ * control this component. When this is the case, it's very valuable to be able to retain state from
+ * the MQTT server rather than deal with storing states in flash (especially esp8266 due to limited
+ * writes). However when there are other methods of controlling this component, it can be dangerous
+ * to use retain_command. For example: if there is a physical switch that can also modify the state,
+ * an undefined behaviour will result when the switch and the MQTT command specify different values.
  */
 class MQTTComponent : public Component {
  public:
@@ -77,7 +84,8 @@ class MQTTComponent : public Component {
   bool is_discovery_enabled() const;
 
   void set_retain_commands(bool retain_commands);
-  bool get_retain_commands() const;
+  /// Ovveride this method if the component shouldn't tell discovery to retain commands.
+  virtual bool get_retain_commands() const;
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
