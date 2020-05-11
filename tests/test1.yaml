@@ -26,9 +26,6 @@ api:
 ota:
   password: esphome_ota_password
 
-# Example configuration entry
-
-# Example configuration entry
 sensor:
   - platform: vl53l0x
     name: "VL53L0x Distance"
