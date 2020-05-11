@@ -50,7 +50,7 @@ struct SendDiscoveryConfig {
  * In order to best separate the front- and back-end of ESPHome, all sub-classes should
  * only parse/send MQTT messages and interact with back-end components via callbacks to ensure
  * a clean separation.
- * 
+ *
  * Note that using retain_comand: True is only recommended if a MQTT command is the only way to
  * control this component. When this is the case, it's very valuable to be able to retain state from
  * the MQTT server rather than deal with storing states in flash (especially esp8266 due to limited
