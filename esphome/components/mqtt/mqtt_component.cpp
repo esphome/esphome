@@ -75,7 +75,7 @@ bool MQTTComponent::send_discovery_() {
         if (config.command_topic)
           root["command_topic"] = this->get_command_topic_();
         if (config.retain_command_topic)
-          root["retain"] = "true";
+          root["retain"] = true;
 
         if (this->availability_ == nullptr) {
           if (!global_mqtt_client->get_availability().topic.empty()) {
