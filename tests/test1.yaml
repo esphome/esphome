@@ -1248,6 +1248,7 @@ switch:
     icon: "mdi:restart"
     inverted: True
     command_topic: custom_command_topic
+    retain_commands: True
     restore_mode: ALWAYS_OFF
   - platform: template
     name: JVC Off
