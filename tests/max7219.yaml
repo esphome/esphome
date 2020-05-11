@@ -39,11 +39,12 @@ display:
   - platform: max7219digit
     cs_pin: GPIO15
     num_chips: 4
-    offset: 10
+    offset: 1
     intensity: 15
+    update_interval: 100ms
     lambda: |-      
-      it.printf(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "123 5" );
-      it.scroll_left(3);
+      it.printf(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "123 5 a very long string" );
+      it.scroll_left_new(1);
 font:
   - file: "pixelmix.ttf"
     id: digit_font

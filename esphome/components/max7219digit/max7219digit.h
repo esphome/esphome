@@ -50,6 +50,7 @@ class MAX7219Component : public PollingComponent,
   void send64pixels(byte chip, const byte pixels[8]);
 
   void scroll_left(uint8_t stepsize);
+  void scroll_left_new(uint8_t stepsize);
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printdigitf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
@@ -81,7 +82,7 @@ class MAX7219Component : public PollingComponent,
   bool invert_ = false;
   // uint8_t *buffer_;
   // uint8_t *bufferold_{nullptr};
-  uint8_t stepsleft_;
+  uint16_t stepsleft_;
   size_t get_buffer_length_();
   optional<max7219_writer_t> writer_local_{};
 };

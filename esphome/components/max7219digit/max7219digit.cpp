@@ -74,12 +74,13 @@ int MAX7219Component::get_width_internal() { return (this->num_chips_ + this->of
 size_t MAX7219Component::get_buffer_length_() { return (this->num_chips_ + this->offset_chips_) * 8; }
 
 void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() ||
-      y < 0)  // If pixel is outside display then dont draw
-    return;
   if (x > this->max_x_)
     this->max_x_ = x;  // Set MAX X to be used in further function
   // ESP_LOGD(TAG,"x %i and max x %i",x,this->max_x_);
+  x = x - this->stepsleft_;
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() ||
+      y < 0)  // If pixel is outside display then dont draw
+    return;  
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
   if (color) {
@@ -134,6 +135,12 @@ void MAX7219Component::turn_on_off(bool on_off) {
   } else {
     this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 0);
   }
+}
+
+void MAX7219Component::scroll_left_new(uint8_t stepsize) {
+  this->stepsleft_ = this->stepsleft_ + stepsize;
+  if (this->stepsleft_  >= this->max_x_ - this->num_chips_ * 8 + 8) this->stepsleft_ = 0;
+    ESP_LOGD(TAG, "Steps left: %i max_x: %i", this->stepsleft_, this->max_x_);
 }
 
 void MAX7219Component::scroll_left(uint8_t stepsize) {
