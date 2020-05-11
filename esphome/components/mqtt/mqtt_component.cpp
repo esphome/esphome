@@ -62,7 +62,10 @@ bool MQTTComponent::send_discovery_() {
         SendDiscoveryConfig config;
         config.state_topic = true;
         config.command_topic = true;
+        config.retain_command_topic = this->retain_commands_;
 
+        // In addition to the subclasses adding their discovery info to the root config, we also 
+        // give the subclasses the opportunity to override the SendDiscoveryConfig.
         this->send_discovery(root, config);
 
         std::string name = this->friendly_name();
@@ -71,6 +74,8 @@ bool MQTTComponent::send_discovery_() {
           root["state_topic"] = this->get_state_topic_();
         if (config.command_topic)
           root["command_topic"] = this->get_command_topic_();
+        if (config.retain_command_topic)
+          root["retain"] = "true";
 
         if (this->availability_ == nullptr) {
           if (!global_mqtt_client->get_availability().topic.empty()) {
@@ -114,6 +119,14 @@ bool MQTTComponent::get_retain() const { return this->retain_; }
 
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
+}
+
+void MQTTComponent::set_retain_commands(bool retain_commands) {
+  this->retain_commands_ = retain_commands;
+}
+
+bool MQTTComponent::get_retain_commands() const {
+  return this->retain_commands_;
 }
 
 std::string MQTTComponent::get_default_object_id_() const {

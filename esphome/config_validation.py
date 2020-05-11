@@ -1259,6 +1259,7 @@ MQTT_COMPONENT_SCHEMA.add_extra(_nameable_validator)
 
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend({
     Optional(CONF_COMMAND_TOPIC): All(requires_component('mqtt'), subscribe_topic),
+    Optional(CONF_RETAIN_COMMANDS): All(requires_component('mqtt'), boolean),
 })
 
 COMPONENT_SCHEMA = Schema({

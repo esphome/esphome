@@ -10,6 +10,7 @@ namespace mqtt {
 struct SendDiscoveryConfig {
   bool state_topic{true};    ///< If the state topic should be included. Defaults to true.
   bool command_topic{true};  ///< If the command topic should be included. Default to true.
+  bool retain_command_topic{false}; ///< If the command topic should be retained. Default to false.
 };
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) \
@@ -74,6 +75,9 @@ class MQTTComponent : public Component {
   /// Disable discovery. Sets friendly name to "".
   void disable_discovery();
   bool is_discovery_enabled() const;
+
+  void set_retain_commands(bool retain_commands);
+  bool get_retain_commands() const;
 
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
@@ -170,6 +174,7 @@ class MQTTComponent : public Component {
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
   bool retain_{true};
+  bool retain_commands_{false};
   bool discovery_enabled_{true};
   Availability *availability_{nullptr};
   bool resend_state_{false};

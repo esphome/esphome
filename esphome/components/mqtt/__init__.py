@@ -9,7 +9,7 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_DISCOVERY_PREFIX, CONF_DISCOVERY_RETAIN, \
     CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, \
     CONF_PASSWORD, CONF_PAYLOAD, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PORT, \
-    CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
+    CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_RETAIN_COMMANDS, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
     CONF_STATE_TOPIC, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
     CONF_WILL_MESSAGE
 from esphome.core import coroutine_with_priority, coroutine, CORE
@@ -306,6 +306,8 @@ def register_mqtt_component(var, config):
             cg.add(var.set_availability(availability[CONF_TOPIC],
                                         availability[CONF_PAYLOAD_AVAILABLE],
                                         availability[CONF_PAYLOAD_NOT_AVAILABLE]))
+    if CONF_RETAIN_COMMANDS in config:
+        cg.add(var.set_retain_commands(config[CONF_RETAIN_COMMANDS]))
 
 
 @automation.register_condition('mqtt.connected', MQTTConnectedCondition, cv.Schema({
