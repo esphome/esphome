@@ -8,8 +8,8 @@ namespace mqtt {
 
 /// Simple Helper struct used for Home Assistant MQTT send_discovery().
 struct SendDiscoveryConfig {
-  bool state_topic{true};    ///< If the state topic should be included. Defaults to true.
-  bool command_topic{true};  ///< If the command topic should be included. Default to true.
+  bool state_topic{true};           ///< If the state topic should be included. Defaults to true.
+  bool command_topic{true};         ///< If the command topic should be included. Default to true.
   bool retain_command_topic{false}; ///< If the command topic should be retained. Default to false.
 };
 
