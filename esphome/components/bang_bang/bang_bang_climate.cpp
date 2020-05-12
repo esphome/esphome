@@ -9,9 +9,10 @@ static const char *TAG = "bang_bang.climate";
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
-    // required action may have changed, recompute, refresh
-    this->switch_to_action_(compute_action_());
-    // current temperature and possibly action changed, so publish the new state
+    // control may have changed, recompute
+    this->compute_state_();
+    this->switch_to_fan_mode_(this->fan_mode);
+    // current temperature changed, publish state
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
@@ -34,41 +35,15 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->mode = *call.get_mode();
   if (call.get_fan_mode().has_value())
     this->fan_mode = *call.get_fan_mode();
-  if (call.get_swing_mode().has_value())
-    this->swing_mode = *call.get_swing_mode();
-  if (call.get_target_temperature().has_value())
-    this->target_temperature = *call.get_target_temperature();
   if (call.get_target_temperature_low().has_value())
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
     this->target_temperature_high = *call.get_target_temperature_high();
-  if (call.get_away().has_value()) {
-    // setup_complete_ blocks modifying/resetting the temps immediately after boot
-    if (this->setup_complete_) {
-      this->change_away_(*call.get_away());
-    } else {
-      this->away = *call.get_away();
-    }
-  }
-  // set point validation
-  if (this->supports_two_points_) {
-    if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
-      this->target_temperature_low = this->get_traits().get_visual_min_temperature();
-    if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
-      this->target_temperature_high = this->get_traits().get_visual_max_temperature();
-    if (this->target_temperature_high < this->target_temperature_low)
-      this->target_temperature_high = this->target_temperature_low;
-  } else {
-    if (this->target_temperature < this->get_traits().get_visual_min_temperature())
-      this->target_temperature = this->get_traits().get_visual_min_temperature();
-    if (this->target_temperature > this->get_traits().get_visual_max_temperature())
-      this->target_temperature = this->get_traits().get_visual_max_temperature();
-  }
-  // make any changes happen
-  this->switch_to_mode_(this->mode);
-  this->switch_to_action_(compute_action_());
+  if (call.get_away().has_value())
+    this->change_away_(*call.get_away());
+
+  this->compute_state_();
   this->switch_to_fan_mode_(this->fan_mode);
-  this->switch_to_swing_mode_(this->swing_mode);
   this->publish_state();
 }
 climate::ClimateTraits BangBangClimate::traits() {
@@ -88,11 +63,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_fan_mode_middle(this->supports_fan_mode_middle_);
   traits.set_supports_fan_mode_focus(this->supports_fan_mode_focus_);
   traits.set_supports_fan_mode_diffuse(this->supports_fan_mode_diffuse_);
-  traits.set_supports_swing_mode_both(this->supports_swing_mode_both_);
-  traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
-  traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
-  traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
-  traits.set_supports_two_point_target_temperature(this->supports_two_points_);
+  traits.set_supports_two_point_target_temperature(true);
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
@@ -250,10 +221,10 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   trig->trigger();
   this->action = action;
   this->prev_action_trigger_ = trig;
+  this->publish_state();
 }
 void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
-  // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
+  if (fan_mode == this->prev_fan_mode_)
     // already in target mode
     return;
 
@@ -261,7 +232,7 @@ void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
     this->prev_fan_mode_trigger_->stop();
     this->prev_fan_mode_trigger_ = nullptr;
   }
-  Trigger<> *trig = this->fan_mode_auto_trigger_;
+  Trigger<> *trig;
   switch (fan_mode) {
     case climate::CLIMATE_FAN_ON:
       trig = this->fan_mode_on_trigger_;
@@ -270,7 +241,7 @@ void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
       trig = this->fan_mode_off_trigger_;
       break;
     case climate::CLIMATE_FAN_AUTO:
-      // trig = this->fan_mode_auto_trigger_;
+      trig = this->fan_mode_auto_trigger_;
       break;
     case climate::CLIMATE_FAN_LOW:
       trig = this->fan_mode_low_trigger_;
@@ -291,94 +262,14 @@ void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
       trig = this->fan_mode_diffuse_trigger_;
       break;
     default:
-      // we cannot report an invalid mode back to HA (even if it asked for one)
-      //  and must assume some valid value
-      fan_mode = climate::CLIMATE_FAN_AUTO;
-      // trig = this->fan_mode_auto_trigger_;
+      trig = nullptr;
   }
   assert(trig != nullptr);
   trig->trigger();
-  this->fan_mode = fan_mode;
+  // this->fan_mode = fan_mode;   // assigned earlier/above
   this->prev_fan_mode_ = fan_mode;
   this->prev_fan_mode_trigger_ = trig;
-}
-void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
-  // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((mode == this->prev_mode_) && this->setup_complete_)
-    // already in target mode
-    return;
-
-  if (this->prev_mode_trigger_ != nullptr) {
-    this->prev_mode_trigger_->stop();
-    this->prev_mode_trigger_ = nullptr;
-  }
-  Trigger<> *trig = this->auto_mode_trigger_;
-  switch (mode) {
-    case climate::CLIMATE_MODE_OFF:
-      trig = this->off_mode_trigger_;
-      break;
-    case climate::CLIMATE_MODE_AUTO:
-      // trig = this->auto_mode_trigger_;
-      break;
-    case climate::CLIMATE_MODE_COOL:
-      trig = this->cool_mode_trigger_;
-      break;
-    case climate::CLIMATE_MODE_HEAT:
-      trig = this->heat_mode_trigger_;
-      break;
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      trig = this->fan_only_mode_trigger_;
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      trig = this->dry_mode_trigger_;
-      break;
-    default:
-      // we cannot report an invalid mode back to HA (even if it asked for one)
-      //  and must assume some valid value
-      mode = climate::CLIMATE_MODE_AUTO;
-      // trig = this->auto_mode_trigger_;
-  }
-  assert(trig != nullptr);
-  trig->trigger();
-  this->mode = mode;
-  this->prev_mode_ = mode;
-  this->prev_mode_trigger_ = trig;
-}
-void BangBangClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode) {
-  // setup_complete_ helps us ensure an action is called immediately after boot
-  if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
-    // already in target mode
-    return;
-
-  if (this->prev_swing_mode_trigger_ != nullptr) {
-    this->prev_swing_mode_trigger_->stop();
-    this->prev_swing_mode_trigger_ = nullptr;
-  }
-  Trigger<> *trig = this->swing_mode_off_trigger_;
-  switch (swing_mode) {
-    case climate::CLIMATE_SWING_BOTH:
-      trig = this->swing_mode_both_trigger_;
-      break;
-    case climate::CLIMATE_SWING_HORIZONTAL:
-      trig = this->swing_mode_horizontal_trigger_;
-      break;
-    case climate::CLIMATE_SWING_OFF:
-      // trig = this->swing_mode_off_trigger_;
-      break;
-    case climate::CLIMATE_SWING_VERTICAL:
-      trig = this->swing_mode_vertical_trigger_;
-      break;
-    default:
-      // we cannot report an invalid mode back to HA (even if it asked for one)
-      //  and must assume some valid value
-      swing_mode = climate::CLIMATE_SWING_OFF;
-      // trig = this->swing_mode_off_trigger_;
-  }
-  assert(trig != nullptr);
-  trig->trigger();
-  this->swing_mode = swing_mode;
-  this->prev_swing_mode_ = swing_mode;
-  this->prev_swing_mode_trigger_ = trig;
+  this->publish_state();
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
@@ -404,17 +295,9 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->away_config_ = away_config;
 }
 BangBangClimate::BangBangClimate()
-    : cool_action_trigger_(new Trigger<>()),
-      cool_mode_trigger_(new Trigger<>()),
-      dry_action_trigger_(new Trigger<>()),
-      dry_mode_trigger_(new Trigger<>()),
-      heat_action_trigger_(new Trigger<>()),
-      heat_mode_trigger_(new Trigger<>()),
-      auto_mode_trigger_(new Trigger<>()),
-      idle_action_trigger_(new Trigger<>()),
-      off_mode_trigger_(new Trigger<>()),
-      fan_only_action_trigger_(new Trigger<>()),
-      fan_only_mode_trigger_(new Trigger<>()),
+    : idle_trigger_(new Trigger<>()),
+      cool_trigger_(new Trigger<>()),
+      heat_trigger_(new Trigger<>()),
       fan_mode_on_trigger_(new Trigger<>()),
       fan_mode_off_trigger_(new Trigger<>()),
       fan_mode_auto_trigger_(new Trigger<>()),
@@ -423,71 +306,22 @@ BangBangClimate::BangBangClimate()
       fan_mode_high_trigger_(new Trigger<>()),
       fan_mode_middle_trigger_(new Trigger<>()),
       fan_mode_focus_trigger_(new Trigger<>()),
-      fan_mode_diffuse_trigger_(new Trigger<>()),
-      swing_mode_both_trigger_(new Trigger<>()),
-      swing_mode_off_trigger_(new Trigger<>()),
-      swing_mode_horizontal_trigger_(new Trigger<>()),
-      swing_mode_vertical_trigger_(new Trigger<>()) {}
-void BangBangClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
+      fan_mode_diffuse_trigger_(new Trigger<>()) {}
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
-void BangBangClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
-void BangBangClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
-void BangBangClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
 void BangBangClimate::set_supports_heat(bool supports_heat) { this->supports_heat_ = supports_heat; }
-void BangBangClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) {
-  this->supports_fan_mode_on_ = supports_fan_mode_on;
-}
-void BangBangClimate::set_supports_fan_mode_off(bool supports_fan_mode_off) {
-  this->supports_fan_mode_off_ = supports_fan_mode_off;
-}
-void BangBangClimate::set_supports_fan_mode_auto(bool supports_fan_mode_auto) {
-  this->supports_fan_mode_auto_ = supports_fan_mode_auto;
-}
-void BangBangClimate::set_supports_fan_mode_low(bool supports_fan_mode_low) {
-  this->supports_fan_mode_low_ = supports_fan_mode_low;
-}
-void BangBangClimate::set_supports_fan_mode_medium(bool supports_fan_mode_medium) {
-  this->supports_fan_mode_medium_ = supports_fan_mode_medium;
-}
-void BangBangClimate::set_supports_fan_mode_high(bool supports_fan_mode_high) {
-  this->supports_fan_mode_high_ = supports_fan_mode_high;
-}
-void BangBangClimate::set_supports_fan_mode_middle(bool supports_fan_mode_middle) {
-  this->supports_fan_mode_middle_ = supports_fan_mode_middle;
-}
-void BangBangClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus) {
-  this->supports_fan_mode_focus_ = supports_fan_mode_focus;
-}
-void BangBangClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
-  this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
-}
-void BangBangClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
-  this->supports_swing_mode_both_ = supports_swing_mode_both;
-}
-void BangBangClimate::set_supports_swing_mode_off(bool supports_swing_mode_off) {
-  this->supports_swing_mode_off_ = supports_swing_mode_off;
-}
-void BangBangClimate::set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal) {
-  this->supports_swing_mode_horizontal_ = supports_swing_mode_horizontal;
-}
-void BangBangClimate::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
-  this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
-}
-void BangBangClimate::set_supports_two_points(bool supports_two_points) {
-  this->supports_two_points_ = supports_two_points;
-}
-Trigger<> *BangBangClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
-Trigger<> *BangBangClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
-Trigger<> *BangBangClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
-Trigger<> *BangBangClimate::get_heat_action_trigger() const { return this->heat_action_trigger_; }
-Trigger<> *BangBangClimate::get_idle_action_trigger() const { return this->idle_action_trigger_; }
-Trigger<> *BangBangClimate::get_auto_mode_trigger() const { return this->auto_mode_trigger_; }
-Trigger<> *BangBangClimate::get_cool_mode_trigger() const { return this->cool_mode_trigger_; }
-Trigger<> *BangBangClimate::get_dry_mode_trigger() const { return this->dry_mode_trigger_; }
-Trigger<> *BangBangClimate::get_fan_only_mode_trigger() const { return this->fan_only_mode_trigger_; }
-Trigger<> *BangBangClimate::get_heat_mode_trigger() const { return this->heat_mode_trigger_; }
-Trigger<> *BangBangClimate::get_off_mode_trigger() const { return this->off_mode_trigger_; }
+void BangBangClimate::set_supports_fan_mode_on(bool supports_fan_mode_on) { this->supports_fan_mode_on_ = supports_fan_mode_on; }
+void BangBangClimate::set_supports_fan_mode_off(bool supports_fan_mode_off) { this->supports_fan_mode_off_ = supports_fan_mode_off; }
+void BangBangClimate::set_supports_fan_mode_auto(bool supports_fan_mode_auto) { this->supports_fan_mode_auto_ = supports_fan_mode_auto; }
+void BangBangClimate::set_supports_fan_mode_low(bool supports_fan_mode_low) { this->supports_fan_mode_low_ = supports_fan_mode_low; }
+void BangBangClimate::set_supports_fan_mode_medium(bool supports_fan_mode_medium) { this->supports_fan_mode_medium_ = supports_fan_mode_medium; }
+void BangBangClimate::set_supports_fan_mode_high(bool supports_fan_mode_high) { this->supports_fan_mode_high_ = supports_fan_mode_high; }
+void BangBangClimate::set_supports_fan_mode_middle(bool supports_fan_mode_middle) { this->supports_fan_mode_middle_ = supports_fan_mode_middle; }
+void BangBangClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus) { this->supports_fan_mode_focus_ = supports_fan_mode_focus; }
+void BangBangClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) { this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse; }
+Trigger<> *BangBangClimate::get_idle_trigger() const { return this->idle_trigger_; }
+Trigger<> *BangBangClimate::get_cool_trigger() const { return this->cool_trigger_; }
+Trigger<> *BangBangClimate::get_heat_trigger() const { return this->heat_trigger_; }
 Trigger<> *BangBangClimate::get_fan_mode_on_trigger() const { return this->fan_mode_on_trigger_; }
 Trigger<> *BangBangClimate::get_fan_mode_off_trigger() const { return this->fan_mode_off_trigger_; }
 Trigger<> *BangBangClimate::get_fan_mode_auto_trigger() const { return this->fan_mode_auto_trigger_; }
@@ -497,21 +331,9 @@ Trigger<> *BangBangClimate::get_fan_mode_high_trigger() const { return this->fan
 Trigger<> *BangBangClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
 Trigger<> *BangBangClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
 Trigger<> *BangBangClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
-Trigger<> *BangBangClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
-Trigger<> *BangBangClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
-Trigger<> *BangBangClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
-Trigger<> *BangBangClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
-  if (this->supports_heat_)
-    ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-  if ((this->supports_cool_) || (this->supports_fan_only_))
-    ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
-  ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
-  ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
-  ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
-  ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));
@@ -522,11 +344,6 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE MIDDLE: %s", YESNO(this->supports_fan_mode_middle_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE FOCUS: %s", YESNO(this->supports_fan_mode_focus_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE DIFFUSE: %s", YESNO(this->supports_fan_mode_diffuse_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE BOTH: %s", YESNO(this->supports_swing_mode_both_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE OFF: %s", YESNO(this->supports_swing_mode_off_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));
-  ESP_LOGCONFIG(TAG, "  Supports SWING MODE VERTICAL: %s", YESNO(this->supports_swing_mode_vertical_));
-  ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   if (this->supports_away_) {
     if (this->supports_heat_)
