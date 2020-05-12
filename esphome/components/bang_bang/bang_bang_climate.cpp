@@ -63,21 +63,21 @@ climate::ClimateTraits BangBangClimate::traits() {
   return traits;
 }
 void BangBangClimate::compute_state_() {
-  if (this->mode != climate::CLIMATE_MODE_AUTO) {
+  // if (this->mode != climate::CLIMATE_MODE_AUTO) {
     // in non-auto mode, switch directly to appropriate action
     //  - HEAT mode -> HEATING action
     //  - COOL mode -> COOLING action
     //  - OFF mode -> OFF action (not IDLE!)
-    this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
-    return;
-  }
+  //   this->switch_to_action_(static_cast<climate::ClimateAction>(this->mode));
+  //   return;
+  // }
   if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high)) {
     // if any control parameters are nan, go to OFF action (not IDLE!)
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;
   }
-  const bool too_cold = this->current_temperature < this->target_temperature_low;
-  const bool too_hot = this->current_temperature > this->target_temperature_high;
+  const bool too_cold = (this->current_temperature < this->target_temperature_low) && (this->mode != climate::CLIMATE_MODE_COOL);
+  const bool too_hot = (this->current_temperature > this->target_temperature_high) && (this->mode != climate::CLIMATE_MODE_HEAT);
 
   climate::ClimateAction target_action;
   if (too_cold) {
