@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import spi, sensor
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED
+from esphome.const import CONF_ID
 
 DEPENDENCIES = ['spi']
 AUTO_LOAD = ['sensor']
