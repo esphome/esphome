@@ -17,7 +17,7 @@ class MCP3008 : public Component,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  float readData(uint8_t pin);
+  float read_data(uint8_t pin);
 
  protected:
 };
@@ -31,7 +31,7 @@ class MCP3008Sensor : public PollingComponent, public sensor::Sensor {
 
  protected:
   MCP3008 *parent_;
-  uint8_t _pin;
+  uint8_t pin_;
 };
 
 }  // namespace mcp3008

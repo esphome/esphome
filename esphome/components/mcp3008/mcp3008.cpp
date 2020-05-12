@@ -16,7 +16,7 @@ void MCP3008::setup() {
 
 void MCP3008::dump_config() { LOG_PIN("  CS Pin: ", this->cs_); }
 
-float MCP3008::readData(uint8_t pin) {
+float MCP3008::read_data(uint8_t pin) {
   byte b0, b1, b2;
 
   byte command = ((0x01 << 7) |          // start bit
@@ -37,12 +37,12 @@ float MCP3008::readData(uint8_t pin) {
 }
 
 MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, std::string name, uint8_t pin)
-    : PollingComponent(1000), parent_(parent), _pin(pin) {
+    : PollingComponent(1000), parent_(parent), pin_(pin) {
   this->set_name(name);
 }
 void MCP3008Sensor::setup() { ESP_LOGCONFIG(TAG, "Setting up MCP3008 Sensor '%s'...", this->get_name().c_str()); }
 void MCP3008Sensor::update() {
-  float value_v = this->parent_->readData(_pin);
+  float value_v = this->parent_->read_data(_pin);
   this->publish_state(value_v);
 }
 
