@@ -1478,6 +1478,16 @@ display:
   intensity: 3
   lambda: |-
       it.print("1234");
+- platform: tm1637
+  clk_pin:
+    mcp23017: mcp23017_hub
+    number: 1
+  dio_pin:
+    mcp23017: mcp23017_hub
+    number: 2
+  intensity: 3
+  lambda: |-
+      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
