@@ -42,7 +42,7 @@ MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, std::string name, uint8_t pin)
 }
 void MCP3008Sensor::setup() { ESP_LOGCONFIG(TAG, "Setting up MCP3008 Sensor '%s'...", this->get_name().c_str()); }
 void MCP3008Sensor::update() {
-  float value_v = this->parent_->read_data(_pin);
+  float value_v = this->parent_->read_data(pin_);
   this->publish_state(value_v);
 }
 
