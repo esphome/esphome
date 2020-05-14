@@ -184,9 +184,12 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);             // run this loop unit the matching chip is reached
     byte b = 0;                                            // rotate pixels 90 degrees -- set byte to 0
-    //for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
-    //  b |= bitRead(pixels[i], col) << (7 - i);             // change the column bits into row bits
-    b = pixels[col];
+    if (this->rotate90_) {
+      b = pixels[col];
+    } else {
+      for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
+      b |= bitRead(pixels[i], col) << (7 - i);             // change the column bits into row bits
+    }
     this->send_byte_(col + 1, b);                          // send this byte to dispay at selected chip
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
@@ -229,6 +232,7 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
+void MAX7219Component::set_rotate90(bool rotate) {this->rotate90_ = rotate; }
 void MAX7219Component::set_offset(uint8_t offset) {
   if (offset + this->num_chips_ > 31) {
     this->offset_chips_ = 31 - this->num_chips_;  // Prevent overflow of buffer!
