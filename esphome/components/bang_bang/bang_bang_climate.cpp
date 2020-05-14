@@ -93,7 +93,13 @@ climate::ClimateAction BangBangClimate::compute_action_() {
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_FAN_ONLY:
-      target_action = climate::CLIMATE_ACTION_FAN;
+      if (this->supports_fan_only_) {
+        if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
+          target_action = climate::CLIMATE_ACTION_FAN;
+        else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
+          if (this->action == climate::CLIMATE_ACTION_FAN)
+            target_action = climate::CLIMATE_ACTION_IDLE;
+      }
       break;
     case climate::CLIMATE_MODE_DRY:
       target_action = climate::CLIMATE_ACTION_DRYING;
