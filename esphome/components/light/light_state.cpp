@@ -401,10 +401,13 @@ LightColorValues LightCall::validate_() {
       this->blue_ = optional<float>(1.0f);
     }
   }
-  // White to 0% if (exclusively) setting any RGB value
+  // White to 0% if (exclusively) setting any RGB value besides white (in which case set white to 100%)
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (!this->white_.has_value()) {
+    bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
+    if (!this->white_.has_value() && !now_white) {
       this->white_ = optional<float>(0.0f);
+    } else if (now_white) {
+      this->white_ = optional<float>(1.0f);
     }
   }
   // if changing Kelvin alone, change to white light
