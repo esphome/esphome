@@ -96,9 +96,9 @@ class BangBangClimate : public climate::Climate, public Component {
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
-  /** Whether the controller supports cooling.
+  /** Whether the controller supports cooling/drying/fanning/heating.
    *
-   * A false value for this attribute means that the controller has no cooling action
+   * A false value for any given attribute means that the controller has no such action
    * (for example a thermostat, where only heating and not-heating is possible).
    */
   bool supports_cool_{false};
@@ -118,7 +118,7 @@ class BangBangClimate : public climate::Climate, public Component {
    * (for example a thermostat, where independent control of the fan is not possible).
    */
   bool supports_fan_mode_auto_{false};
-  /** Whether the controller supports various fan speed(s)/position(s).
+  /** Whether the controller supports various fan speeds and/or positions.
    *
    * A false value for any given attribute means that the controller has no such fan action.
    */
@@ -170,13 +170,13 @@ class BangBangClimate : public climate::Climate, public Component {
    * to idle when the temperature is within the thresholds/set points.
    */
   Trigger<> *auto_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to idle/off action/mode.
+  /** The trigger to call when the controller should switch to idle action/off mode.
    *
    * In these actions/modes, the controller is assumed to have both heating and cooling disabled.
    */
   Trigger<> *idle_action_trigger_{nullptr};
   Trigger<> *off_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to fan-only mode.
+  /** The trigger to call when the controller should switch to fan-only action/mode.
    *
    * In fan-only mode, the controller is assumed to have both heating and cooling disabled.
    * The system should activate the fan only.
