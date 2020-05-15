@@ -8,11 +8,9 @@ static const char *TAG = "output.switch";
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() {
-  auto restored = this->get_initial_state();
-  if (!restored.has_value())
-    return;
+  bool restored = this->get_initial_state();
 
-  if (*restored) {
+  if (restored) {
     this->turn_on();
   } else {
     this->turn_off();

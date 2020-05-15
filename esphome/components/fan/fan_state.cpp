@@ -25,6 +25,7 @@ struct FanStateRTCState {
 };
 
 void FanState::setup() {
+  // TODO: add restore_mode
   this->rtc_ = global_preferences.make_preference<FanStateRTCState>(this->get_object_id_hash());
   FanStateRTCState recovered{};
   if (!this->rtc_.load(&recovered))

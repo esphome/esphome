@@ -10,7 +10,7 @@ CONF_COVERS = 'covers'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CustomCoverConstructor),
     cv.Required(CONF_LAMBDA): cv.returning_lambda,
-    cv.Required(CONF_COVERS): cv.ensure_list(cover.COVER_SCHEMA),
+    cv.Required(CONF_COVERS): cv.ensure_list(cover.cover_schema()),
 })
 
 

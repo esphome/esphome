@@ -33,6 +33,7 @@ class Servo : public Component {
   void setup() override {
     float v;
     if (this->restore_) {
+      // TODO: add restore_mode
       this->rtc_ = global_preferences.make_preference<float>(global_servo_id);
       global_servo_id++;
       if (this->rtc_.load(&v)) {

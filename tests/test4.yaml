@@ -1,0 +1,135 @@
+esphome:
+  name: test4
+  # platform: ESP32
+  # board: nodemcu-32s
+  platform: ESP8266
+  board: nodemcuv2
+
+wifi:
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+  manual_ip:
+    static_ip: 192.168.178.230
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+    dns2: 1.2.2.1
+  domain: .local
+  reboot_timeout: 120s
+  power_save_mode: none
+
+mqtt:
+  broker: '192.168.178.84'
+  port: 1883
+  username: 'debug'
+  password: 'debug'
+  client_id: someclient
+  discovery: True
+  discovery_retain: False
+  discovery_prefix: discovery
+  topic_prefix: helloworld
+
+switch:
+  - platform: gpio
+    pin: GPIO1
+    name: "Living Room Dehumidifier"
+    initial_value: Off
+    restore_mode: ALWAYS_INITIAL_VALUE
+    id: switch_1
+  - platform: gpio
+    pin: GPIO2
+    name: "my switch 2"
+    restore_mode: RESTORE_DEFAULT_OFF
+    id: switch_2
+  - platform: template
+    name: ${deviceName} Deep Sleep Enabled
+    retain_commands: True
+    lambda: |-
+      return (id(deep_sleep_enabled));
+    turn_on_action:
+      - lambda: |-
+          id(deep_sleep_enabled) = true;
+    turn_off_action:
+      - lambda: |-
+          id(deep_sleep_enabled) = false;
+
+globals:
+  - id: deep_sleep_enabled
+    type: bool
+    restore_value: False
+    initial_value: 'false'
+  - id: my_global_2
+    type: float
+    restore_value: True
+    initial_value: '5.5'
+  - id: my_global_3
+    type: int
+    initial_value: '10'
+    restore_mode: FROM_FLASH
+  - id: my_global_4
+    type: int
+    restore_value: True
+
+dallas:
+  - pin: GPIO6
+    update_interval: 5s
+
+sensor:
+  - platform: dallas
+    address: 0xE40316C25399FFFF
+    name: "fridge temp"
+    id: fridge_temperature
+
+output:
+  - platform: gpio
+    pin: GPIO12
+    id: relay_top
+  - platform: gpio
+    pin: GPIO4
+    id: gpio_switch1
+
+light:
+  - platform: binary
+    name: "Garage Main"
+    output: relay_top
+    id: light_top
+    initial_value: On
+
+cover:
+  - platform: template
+    name: "Template Cover"
+    id: template_cover
+    lambda: |-
+      if (id(relay_top)) {
+        return COVER_OPEN;
+      } else {
+        return {};
+      }
+    optimistic: true
+    open_action:
+      - cover.template.publish:
+          id: template_cover
+          state: CLOSED
+    assumed_state: no
+    initial_value: OPEN
+    restore_mode: RESTORE_AND_CALL
+
+climate:
+  - platform: bang_bang
+    name: Bang Bang Climate
+    sensor: fridge_temperature
+    default_target_temperature_low: 18°C
+    default_target_temperature_high: 24°C
+    idle_action:
+      - switch.turn_on: switch_1
+    cool_action:
+      - switch.turn_on: switch_2
+    heat_action:
+      - switch.turn_on: switch_1
+    away_config:
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
+    initial_value:
+      mode: "off"
+      target_temperature: 65

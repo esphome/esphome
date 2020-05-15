@@ -416,6 +416,13 @@ def validate_config(config):
                              "your configuration has an 'esphome:' line in it.", [])
         return result
 
+    # TODO: better
+    if 'restore:' in config:
+        _LOGGER.warning("restore has been renamed to restore_state")
+
+    if 'restore_value:' in config:
+        _LOGGER.warning("restore_value has been renamed to restore_state")
+
     # 2. Load partial core config
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)

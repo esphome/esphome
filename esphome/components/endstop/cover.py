@@ -9,7 +9,7 @@ from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, \
 endstop_ns = cg.esphome_ns.namespace('endstop')
 EndstopCover = endstop_ns.class_('EndstopCover', cover.Cover, cg.Component)
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cover.cover_schema().extend({
     cv.GenerateID(): cv.declare_id(EndstopCover),
     cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
 

@@ -3,12 +3,12 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import switch
 from esphome.const import CONF_ASSUMED_STATE, CONF_ID, CONF_LAMBDA, CONF_OPTIMISTIC, \
-    CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION
+    CONF_RESTORE_STATE, CONF_STATE, CONF_TURN_OFF_ACTION, CONF_TURN_ON_ACTION, CONF_RESTORE_MODE
 from .. import template_ns
 
 TemplateSwitch = template_ns.class_('TemplateSwitch', switch.Switch, cg.Component)
 
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(TemplateSwitch),
     cv.Optional(CONF_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -16,7 +16,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.Optional(CONF_TURN_OFF_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_TURN_ON_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_RESTORE_STATE, default=False): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA), cv.has_at_most_one_key(CONF_RESTORE_MODE, CONF_RESTORE_STATE))
 
 
 def to_code(config):
@@ -36,7 +36,6 @@ def to_code(config):
                                           config[CONF_TURN_ON_ACTION])
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_state(config[CONF_RESTORE_STATE]))
 
 
 @automation.register_action('switch.template.publish', switch.SwitchPublishAction, cv.Schema({

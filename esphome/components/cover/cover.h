@@ -71,6 +71,8 @@ struct CoverRestoreState {
   void apply(Cover *cover);
 } __attribute__((packed));
 
+bool operator!=(const CoverRestoreState& lhs, const CoverRestoreState& rhs);
+
 /// Enum encoding the current operation of a cover.
 enum CoverOperation : uint8_t {
   /// The cover is currently idle (not moving)
@@ -147,9 +149,8 @@ class Cover : public Nameable {
    * First set the .position, .tilt, etc values and then call this method
    * to publish the state of the cover.
    *
-   * @param save Whether to save the updated values in RTC area.
    */
-  void publish_state(bool save = true);
+  void publish_state();
 
   virtual CoverTraits get_traits() = 0;
   void set_device_class(const std::string &device_class);
@@ -159,6 +160,8 @@ class Cover : public Nameable {
   bool is_fully_open() const;
   /// Helper method to check if the cover is fully closed. Equivalent to comparing .position against 0.0
   bool is_fully_closed() const;
+
+  void set_preference(TypedESPPreferenceObject<CoverRestoreState>&& preference) { this->rtc_ = preference; }
 
  protected:
   friend CoverCall;
@@ -172,7 +175,7 @@ class Cover : public Nameable {
   CallbackManager<void()> state_callback_{};
   optional<std::string> device_class_override_{};
 
-  ESPPreferenceObject rtc_;
+  TypedESPPreferenceObject<CoverRestoreState> rtc_;
 };
 
 }  // namespace cover

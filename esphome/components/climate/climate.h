@@ -118,6 +118,15 @@ struct ClimateDeviceRestoreState {
   ClimateCall to_call(Climate *climate);
   /// Apply these settings to the climate device.
   void apply(Climate *climate);
+
+  bool operator!=(const ClimateDeviceRestoreState& rhs) const {
+    return ((this->mode != rhs.mode) ||
+      (this->away != rhs.away) ||
+      (this->target_temperature != rhs.target_temperature) ||
+      (this->target_temperature_low != rhs.target_temperature_low) ||
+      (this->target_temperature_high != rhs.target_temperature_high));
+  }
+
 } __attribute__((packed));
 
 /**
@@ -203,6 +212,7 @@ class Climate : public Nameable {
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
   void set_visual_temperature_step_override(float visual_temperature_step_override);
+  void set_preference(TypedESPPreferenceObject<ClimateDeviceRestoreState>&& preference) { this->rtc_ = preference; }
 
  protected:
   friend ClimateCall;
@@ -234,7 +244,7 @@ class Climate : public Nameable {
   uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
-  ESPPreferenceObject rtc_;
+  TypedESPPreferenceObject<ClimateDeviceRestoreState> rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
   optional<float> visual_temperature_step_override_{};

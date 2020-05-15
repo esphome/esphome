@@ -4,7 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id, Condition
 from esphome.components import mqtt
 from esphome.const import CONF_ID, CONF_INTERNAL, CONF_DEVICE_CLASS, CONF_STATE, \
-    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME
+    CONF_POSITION, CONF_TILT, CONF_STOP, CONF_MQTT_ID, CONF_NAME, CONF_INITIAL_VALUE
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -44,12 +44,15 @@ CoverPublishAction = cover_ns.class_('CoverPublishAction', automation.Action)
 CoverIsOpenCondition = cover_ns.class_('CoverIsOpenCondition', Condition)
 CoverIsClosedCondition = cover_ns.class_('CoverIsClosedCondition', Condition)
 
-COVER_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(Cover),
-    cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTCoverComponent),
-    cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
-    # TODO: MQTT topic options
-})
+CoverRestoreState = cover_ns.struct('CoverRestoreState')
+
+def cover_schema(additional_restore_validator=False):
+    return cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
+        cv.GenerateID(): cv.declare_id(Cover),
+        cv.OnlyWith(CONF_MQTT_ID, 'mqtt'): cv.declare_id(mqtt.MQTTCoverComponent),
+        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+        # TODO: MQTT topic options
+    }).extend(cv.stateful_component_schema(validate_cover_state, additional_restore_validator))
 
 
 @coroutine
@@ -63,6 +66,15 @@ def setup_cover_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         yield mqtt.register_mqtt_component(mqtt_, config)
+
+    def get_initial_value(config):
+        if CONF_INITIAL_VALUE in config:
+            initial_value = 1.0 if (config[CONF_INITIAL_VALUE] == 'OPEN') else 0.0
+            return cg.StructInitializer(CoverRestoreState, ('position', initial_value))
+
+        return cg.RawExpression("{}")
+
+    cv.stateful_component_to_code(var, config, CoverRestoreState, get_initial_value)
 
 
 @coroutine

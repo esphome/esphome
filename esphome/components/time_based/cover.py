@@ -10,7 +10,7 @@ TimeBasedCover = time_based_ns.class_('TimeBasedCover', cover.Cover, cg.Componen
 
 CONF_HAS_BUILT_IN_ENDSTOP = 'has_built_in_endstop'
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cover.cover_schema().extend({
     cv.GenerateID(): cv.declare_id(TimeBasedCover),
     cv.Required(CONF_STOP_ACTION): automation.validate_automation(single=True),
 

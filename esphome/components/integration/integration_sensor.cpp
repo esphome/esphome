@@ -9,6 +9,7 @@ static const char *TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {
+    // TODO: add restore_mode
     this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
     this->rtc_.load(&this->result_);
   }

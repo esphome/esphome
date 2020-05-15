@@ -29,12 +29,8 @@ void Switch::toggle() {
   ESP_LOGD(TAG, "'%s' Toggling %s.", this->get_name().c_str(), this->state ? "OFF" : "ON");
   this->write_state(this->inverted_ == this->state);
 }
-optional<bool> Switch::get_initial_state() {
-  this->rtc_ = global_preferences.make_preference<bool>(this->get_object_id_hash());
-  bool initial_state;
-  if (!this->rtc_.load(&initial_state))
-    return {};
-  return initial_state;
+bool Switch::get_initial_state() {
+  return (rtc_.load());
 }
 void Switch::publish_state(bool state) {
   if (!this->publish_dedup_.next(state))
@@ -53,6 +49,10 @@ void Switch::add_on_state_callback(std::function<void(bool)> &&callback) {
 void Switch::set_inverted(bool inverted) { this->inverted_ = inverted; }
 uint32_t Switch::hash_base() { return 3129890955UL; }
 bool Switch::is_inverted() const { return this->inverted_; }
+
+void Switch::set_preference(TypedESPPreferenceObject<bool>&& preference) {
+  this->rtc_ = preference;
+}
 
 }  // namespace switch_
 }  // namespace esphome

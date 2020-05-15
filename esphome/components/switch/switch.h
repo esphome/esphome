@@ -82,7 +82,7 @@ class Switch : public Nameable {
    */
   void add_on_state_callback(std::function<void(bool)> &&callback);
 
-  optional<bool> get_initial_state();
+  bool get_initial_state();
 
   /** Return whether this switch uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
    * Assistant because the real state is unknown.
@@ -92,6 +92,8 @@ class Switch : public Nameable {
   virtual bool assumed_state();
 
   bool is_inverted() const;
+
+  virtual void set_preference(TypedESPPreferenceObject<bool>&& preference);
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -119,7 +121,7 @@ class Switch : public Nameable {
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
-  ESPPreferenceObject rtc_;
+  TypedESPPreferenceObject<bool> rtc_;
 };
 
 }  // namespace switch_

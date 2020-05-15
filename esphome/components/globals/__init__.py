@@ -2,8 +2,10 @@ import hashlib
 
 from esphome import config_validation as cv, automation
 from esphome import codegen as cg
-from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE, CONF_VALUE
+from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE, CONF_VALUE, \
+    CONF_RESTORE_MODE
 from esphome.core import coroutine_with_priority
+from esphome.py_compat import IS_PY3
 
 globals_ns = cg.esphome_ns.namespace('globals')
 GlobalsComponent = globals_ns.class_('GlobalsComponent', cg.Component)
@@ -14,9 +16,8 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(GlobalsComponent),
     cv.Required(CONF_TYPE): cv.string_strict,
     cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
-    cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
-}).extend(cv.COMPONENT_SCHEMA)
-
+    cv.Optional(CONF_RESTORE_VALUE): cv.boolean, # don't set default in case they use RESTORE_MODE
+}).extend(cv.COMPONENT_SCHEMA).extend(cv.stateful_component_schema(cv.string_strict))
 
 # Run with low priority so that namespaces are registered first
 @coroutine_with_priority(-100.0)
@@ -25,21 +26,20 @@ def to_code(config):
     template_args = cg.TemplateArguments(type_)
     res_type = GlobalsComponent.template(template_args)
 
-    initial_value = None
-    if CONF_INITIAL_VALUE in config:
-        initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])
-
-    rhs = GlobalsComponent.new(template_args, initial_value)
+    rhs = GlobalsComponent.new(template_args)
     glob = cg.Pvariable(config[CONF_ID], rhs, res_type)
     yield cg.register_component(glob, config)
 
-    if config[CONF_RESTORE_VALUE]:
-        value = config[CONF_ID].id
-        if isinstance(value, str):
-            value = value.encode()
-        hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
-        cg.add(glob.set_restore_value(hash_))
+    def get_initial_value(config):
+        initial_value = cg.RawExpression("{}")
+        if CONF_INITIAL_VALUE in config:
+            initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])
+        return initial_value
 
+    cv.stateful_component_to_code(glob,
+                                  config,
+                                  type_,
+                                  get_initial_value=get_initial_value)
 
 @automation.register_action('globals.set', GlobalVarSetAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(GlobalsComponent),

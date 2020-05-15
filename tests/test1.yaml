@@ -1262,17 +1262,20 @@ switch:
       remote_transmitter.transmit_nec:
         address: 0x4242
         command: 0x8484
+    restore_mode: ALWAYS_ON
   - platform: template
     name: LG
     turn_on_action:
       remote_transmitter.transmit_lg:
         data: 4294967295
         nbits: 28
+    restore_mode: RESTORE_DEFAULT_ON
   - platform: template
     name: Samsung
     turn_on_action:
       remote_transmitter.transmit_samsung:
         data: 0xABCDEF
+    restore_mode: RESTORE_DEFAULT_OFF
   - platform: template
     name: Sony
     turn_on_action:
@@ -1372,6 +1375,7 @@ switch:
   - platform: output
     name: "Generic Output"
     output: pca_6
+    restore_mode: RESTORE_DEFAULT_ON
   - platform: template
     name: "Template Switch"
     id: my_switch

@@ -7,6 +7,17 @@ namespace light {
 
 static const char *TAG = "light";
 
+bool operator!=(const LightState::LightStateRTCState& lhs, const LightState::LightStateRTCState& rhs) {
+  return ((lhs.state != rhs.state) ||
+    (lhs.brightness != rhs.brightness) ||
+    (lhs.red != rhs.red) ||
+    (lhs.green != rhs.green) ||
+    (lhs.blue != rhs.blue) ||
+    (lhs.white != rhs.white) ||
+    (lhs.color_temp != rhs.color_temp) ||
+    (lhs.effect != rhs.effect));
+}
+
 void LightState::start_transition_(const LightColorValues &target, uint32_t length) {
   this->transformer_ = make_unique<LightTransitionTransformer>(millis(), length, this->current_values, target);
   this->remote_values = this->transformer_->get_remote_values();
@@ -82,17 +93,6 @@ void LightState::dump_json(JsonObject &root) {
 }
 #endif
 
-struct LightStateRTCState {
-  bool state{false};
-  float brightness{1.0f};
-  float red{1.0f};
-  float green{1.0f};
-  float blue{1.0f};
-  float white{1.0f};
-  float color_temp{1.0f};
-  uint32_t effect{0};
-};
-
 void LightState::setup() {
   ESP_LOGCONFIG(TAG, "Setting up light '%s'...", this->get_name().c_str());
 
@@ -101,25 +101,9 @@ void LightState::setup() {
     effect->init_internal(this);
   }
 
-  auto call = this->make_call();
-  LightStateRTCState recovered{};
-  switch (this->restore_mode_) {
-    case LIGHT_RESTORE_DEFAULT_OFF:
-    case LIGHT_RESTORE_DEFAULT_ON:
-      this->rtc_ = global_preferences.make_preference<LightStateRTCState>(this->get_object_id_hash());
-      // Attempt to load from preferences, else fall back to default values from struct
-      if (!this->rtc_.load(&recovered)) {
-        recovered.state = this->restore_mode_ == LIGHT_RESTORE_DEFAULT_ON;
-      }
-      break;
-    case LIGHT_ALWAYS_OFF:
-      recovered.state = false;
-      break;
-    case LIGHT_ALWAYS_ON:
-      recovered.state = true;
-      break;
-  }
+  LightState::LightStateRTCState recovered = this->rtc_.load();
 
+  auto call = this->make_call();
   call.set_state(recovered.state);
   call.set_brightness_if_supported(recovered.brightness);
   call.set_red_if_supported(recovered.red);
@@ -341,7 +325,7 @@ void LightCall::perform() {
   }
 
   if (this->save_) {
-    LightStateRTCState saved;
+    LightState::LightStateRTCState saved;
     saved.state = v.is_on();
     saved.brightness = v.get_brightness();
     saved.red = v.get_red();
@@ -350,7 +334,7 @@ void LightCall::perform() {
     saved.white = v.get_white();
     saved.color_temp = v.get_color_temperature();
     saved.effect = this->parent_->active_effect_index_;
-    this->parent_->rtc_.save(&saved);
+    this->parent_->rtc_.save(saved);
   }
 }
 

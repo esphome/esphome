@@ -19,7 +19,7 @@ RESTORE_MODES = {
 
 CONF_HAS_POSITION = 'has_position'
 
-CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
+CONFIG_SCHEMA = cv.All(cover.cover_schema(cv.enum(RESTORE_MODES, upper=True, space='_')).extend({
     cv.GenerateID(): cv.declare_id(TemplateCover),
     cv.Optional(CONF_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
@@ -31,8 +31,7 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend({
     cv.Optional(CONF_TILT_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_TILT_LAMBDA): cv.returning_lambda,
     cv.Optional(CONF_POSITION_ACTION): automation.validate_automation(single=True),
-    cv.Optional(CONF_RESTORE_MODE, default='RESTORE'): cv.enum(RESTORE_MODES, upper=True),
-}).extend(cv.COMPONENT_SCHEMA)
+}), cv.has_at_most_one_key(CONF_RESTORE_MODE, RESTORE_MODES))
 
 
 def to_code(config):
@@ -65,8 +64,19 @@ def to_code(config):
         cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
     cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
     cg.add(var.set_assumed_state(config[CONF_ASSUMED_STATE]))
-    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
+    # Restore mode is now handled in stateful_component_to_code, but this template cover also has
+    # some special logic for the legacy modes, so we add that here.
+    if CONF_RESTORE_MODE in config:
+        if ((config[CONF_RESTORE_MODE] == 'NO_RESTORE') or
+                (config[CONF_RESTORE_MODE] == 'RESTORE') or
+                (config[CONF_RESTORE_MODE] == 'RESTORE_AND_CALL')):
+            cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
+
+        else:
+            cg.add(var.set_restore_mode(TemplateCoverRestoreMode.COVER_RESTORE))
+
+    cg.add(var.set_has_position(config[CONF_HAS_POSITION]))
 
 @automation.register_action('cover.template.publish', cover.CoverPublishAction, cv.Schema({
     cv.Required(CONF_ID): cv.use_id(cover.Cover),

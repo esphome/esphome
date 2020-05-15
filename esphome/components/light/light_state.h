@@ -172,6 +172,19 @@ enum LightRestoreMode {
  */
 class LightState : public Nameable, public Component {
  public:
+  struct LightStateRTCState {
+    LightStateRTCState() {}
+    LightStateRTCState(bool state) : state(state) {}
+    bool state{false};
+    float brightness{1.0f};
+    float red{1.0f};
+    float green{1.0f};
+    float blue{1.0f};
+    float white{1.0f};
+    float color_temp{1.0f};
+    uint32_t effect{0};
+  };
+
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
 
@@ -256,7 +269,6 @@ class LightState : public Nameable, public Component {
   /// Set the gamma correction factor
   void set_gamma_correct(float gamma_correct);
   float get_gamma_correct() const { return this->gamma_correct_; }
-  void set_restore_mode(LightRestoreMode restore_mode) { restore_mode_ = restore_mode; }
 
   const std::vector<LightEffect *> &get_effects() const;
 
@@ -274,6 +286,8 @@ class LightState : public Nameable, public Component {
                                bool constant_brightness = false);
 
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
+
+  void set_preference(TypedESPPreferenceObject<LightStateRTCState>&& preference) { rtc_ = preference; }
 
  protected:
   friend LightOutput;
@@ -301,9 +315,8 @@ class LightState : public Nameable, public Component {
   LightEffect *get_active_effect_();
 
   /// Object used to store the persisted values of the light.
-  ESPPreferenceObject rtc_;
+  TypedESPPreferenceObject<LightStateRTCState> rtc_;
   /// Restore mode of the light.
-  LightRestoreMode restore_mode_;
   /// Default transition length for all transitions in ms.
   uint32_t default_transition_length_{};
   /// Value for storing the index of the currently active effect. 0 if no effect is active
@@ -326,6 +339,8 @@ class LightState : public Nameable, public Component {
   /// List of effects for this light.
   std::vector<LightEffect *> effects_;
 };
+
+bool operator!=(const LightState::LightStateRTCState& lhs, const LightState::LightStateRTCState& rhs);
 
 }  // namespace light
 }  // namespace esphome
