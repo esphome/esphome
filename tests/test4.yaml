@@ -44,7 +44,6 @@ switch:
     id: switch_2
   - platform: template
     name: ${deviceName} Deep Sleep Enabled
-    retain_commands: True
     lambda: |-
       return (id(deep_sleep_enabled));
     turn_on_action:
@@ -72,7 +71,7 @@ globals:
     restore_value: True
 
 dallas:
-  - pin: GPIO6
+  - pin: GPIO5
     update_interval: 5s
 
 sensor:

@@ -5,7 +5,6 @@ from esphome import codegen as cg
 from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE, CONF_VALUE, \
     CONF_RESTORE_MODE
 from esphome.core import coroutine_with_priority
-from esphome.py_compat import IS_PY3
 
 globals_ns = cg.esphome_ns.namespace('globals')
 GlobalsComponent = globals_ns.class_('GlobalsComponent', cg.Component)
