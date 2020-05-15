@@ -33,7 +33,7 @@ def get_serial_ports():
 def choose_prompt(options):
     if not options:
         raise EsphomeError("Found no valid options for upload/logging, please make sure relevant "
-                           "sections (ota, mqtt, ...) are in your configuration and/or the device "
+                           "sections (ota, api, mqtt, ...) are in your configuration and/or the device "
                            "is plugged in.")
 
     if len(options) == 1:
