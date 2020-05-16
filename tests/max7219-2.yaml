@@ -65,7 +65,7 @@ display:
     id: my_matrix
     num_chips: 4
     offset: 15
-    rotate90: True
+    rotate_chip: 3
     lambda: |-
       it.strftime(0, 0, id(digitss_font),"%H:%M %A", id(hass_time).now());
       it.invert_on_off(0);
