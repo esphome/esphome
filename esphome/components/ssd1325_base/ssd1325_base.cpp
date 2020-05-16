@@ -8,7 +8,10 @@ namespace ssd1325_base {
 static const char *TAG = "ssd1325";
 
 static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 1;
+static const uint8_t WHITE = 15;
+static const uint8_t SSD1325_COLORMASK = 0x0f;
+static const uint8_t SSD1325_COLORSHIFT = 4;
+static const uint8_t SSD1325_PIXELSPERBYTE = 2;
 
 static const uint8_t SSD1325_SETCOLADDR = 0x15;
 static const uint8_t SSD1325_SETROWADDR = 0x75;
@@ -61,11 +64,11 @@ void SSD1325::setup() {
   this->command(0x00);                 /* ------ */
   this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
   this->command(0x02);
-  this->command(SSD1325_SETREMAP); /* set segment remap------ */
+  this->command(SSD1325_SETREMAP);     /* set segment remaping */
   if (this->model_ == SSD1327_MODEL_128_128)
     this->command(0x55);  // 0x56 is flipped horizontally: enable column swap, disable nibble remap
   else
-    this->command(0x56);
+    this->command(0x50);                 /* ...just like so... */
   this->command(SSD1325_SETCURRENT + 0x2); /* Set Full Current Range */
   this->command(SSD1325_SETGRAYTABLE);
   this->command(0x01);
@@ -141,23 +144,25 @@ int SSD1325::get_width_internal() {
   }
 }
 size_t SSD1325::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
+  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 2u;
 }
-
 void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-
-  uint16_t pos = x + (y / 8) * this->get_width_internal();
-  uint8_t subpos = y % 8;
-  if (color.is_on()) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  uint32_t color4 = color.to_grayscale4();
+  // where should the bits go in the big buffer array? math...
+  uint16_t pos = (x / SSD1325_PIXELSPERBYTE) + (y * this->get_width_internal() / SSD1325_PIXELSPERBYTE);
+  uint8_t shift = (x % SSD1325_PIXELSPERBYTE) * SSD1325_COLORSHIFT;
+  // ensure 'color4' is valid (only 4 bits aka 1 nibble) and shift the bits left when necessary
+  color4 = (color4 & SSD1325_COLORMASK) << shift;
+  // first mask off the nibble we must change...
+  this->buffer_[pos] &= (~SSD1325_COLORMASK >> shift);
+  // ...then lay the new nibble back on top. done!
+  this->buffer_[pos] |= color4;
 }
 void SSD1325::fill(Color color) {
-  uint8_t fill = color.is_on() ? 0xFF : 0x00;
+  const uint32_t color4 = color.to_grayscale4();
+  uint8_t fill = (color4 & SSD1325_COLORMASK) | ((color4 & SSD1325_COLORMASK) << SSD1325_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }

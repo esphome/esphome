@@ -48,19 +48,9 @@ void HOT SPISSD1325::write_display_data() {
     this->cs_->digital_write(false);
   delay(1);
   this->enable();
-  for (uint16_t x = 0; x < this->get_width_internal(); x += 2) {
-    for (uint16_t y = 0; y < this->get_height_internal(); y += 8) {  // we write 8 pixels at once
-      uint8_t left8 = this->buffer_[y * 16 + x];
-      uint8_t right8 = this->buffer_[y * 16 + x + 1];
-      for (uint8_t p = 0; p < 8; p++) {
-        uint8_t d = 0;
-        if (left8 & (1 << p))
-          d |= 0xF0;
-        if (right8 & (1 << p))
-          d |= 0x0F;
-        this->write_byte(d);
-      }
-    }
+  for (uint32_t b = 0; b < this->get_buffer_length_(); b++)
+  {
+    this->write_byte(this->buffer_[b]);
   }
   if (this->cs_)
     this->cs_->digital_write(true);
