@@ -11,8 +11,7 @@ void SPISSD1325::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI SSD1325...");
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
-  if (this->cs_)
-    this->cs_->setup();  // OUTPUT
+  this->cs_->setup();      // OUTPUT
 
   this->init_reset_();
   delay(500);  // NOLINT
@@ -28,30 +27,22 @@ void SPISSD1325::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void SPISSD1325::command(uint8_t value) {
-  if (this->cs_)
-    this->cs_->digital_write(true);
+  this->cs_->digital_write(true);
   this->dc_pin_->digital_write(false);
   delay(1);
   this->enable();
-  if (this->cs_)
-    this->cs_->digital_write(false);
+  this->cs_->digital_write(false);
   this->write_byte(value);
-  if (this->cs_)
-    this->cs_->digital_write(true);
+  this->cs_->digital_write(true);
   this->disable();
 }
 void HOT SPISSD1325::write_display_data() {
-  if (this->cs_)
-    this->cs_->digital_write(true);
+  this->cs_->digital_write(true);
   this->dc_pin_->digital_write(true);
-  if (this->cs_)
-    this->cs_->digital_write(false);
+  this->cs_->digital_write(false);
   delay(1);
   this->enable();
-  for (uint32_t b = 0; b < this->get_buffer_length_(); b++)
-  {
-    this->write_byte(this->buffer_[b]);
-  }
+  this->write_array(this->buffer_, this->get_buffer_length_());
   if (this->cs_)
     this->cs_->digital_write(true);
   this->disable();
