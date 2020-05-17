@@ -26,7 +26,6 @@ def to_code(config):
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
-    cg.add(var.set_offset(config[CONF_OFFSET]))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],

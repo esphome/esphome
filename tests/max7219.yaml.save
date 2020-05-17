@@ -41,13 +41,9 @@ display:
     num_chips: 4
     offset: 1
     intensity: 15
-    update_interval: 1000ms
+    update_interval: 100ms
     lambda: |-      
-      it.invert_on_off(false);
-      it.scroll(true,0,100,5000,1500);
-      it.printdigit("hello");
-#      it.print(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "ABCD" );
-   
+      it.printf(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "123 5 a very long string" );
 font:
   - file: "pixelmix.ttf"
     id: digit_font
