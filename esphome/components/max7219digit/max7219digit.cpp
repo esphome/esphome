@@ -64,20 +64,21 @@ void MAX7219Component::loop() {
     this->display();
     this->old_buffer_size_ = this->max_displaybuffer_.size();
   }
-   // ESP_LOGD(TAG, "Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
+   //ESP_LOGD(TAG, "1. Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
   if (this->stepsleft_ > this->max_displaybuffer_.size())
     this->stepsleft_ = 0;  // Reset the counter back to 0 when full string has been displayed.
-  
-  if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ * 8))
+   //ESP_LOGD(TAG, "2. Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
+  if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ * 8)) {
     this->display();
-    return;  // Return if there is no need to scroll or scroll is off
-  
+    return;
+  }  // Return if there is no need to scroll or scroll is off
+   //ESP_LOGD(TAG, "3. Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
   if ((this->stepsleft_ == 0) && (now - this->last_scroll_ < this->scroll_delay_))
-    { // ESP_LOGD(TAG, "SCROLL DELAY CALLED");
+    {  // ESP_LOGD(TAG, "SCROLL DELAY CALLED");
     this->display();
     return;}
-  
-  // ESP_LOGD(TAG, "Stepsleft %i size left %i", this->stepsleft_, this->max_displaybuffer_.size() - this->num_chips_ * 8 + 1);
+   //ESP_LOGD(TAG, "4. Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
+  //ESP_LOGD(TAG, "Stepsleft %i size left %i", this->stepsleft_, this->max_displaybuffer_.size() - this->num_chips_ * 8 + 1);
   if (this->scroll_mode_ == 1) {
     if (this->stepsleft_ >= this->max_displaybuffer_.size() - this->num_chips_ * 8 + 1) {
       if (now - this->last_scroll_ >= this->scroll_dwell_) {
@@ -89,6 +90,7 @@ void MAX7219Component::loop() {
     return;
     } 
   }  
+  //ESP_LOGD(TAG, "5. Stepsleft %i buffersize %i", this->stepsleft_, this->max_displaybuffer_.size());
   if (now - this->last_scroll_ >= this->scroll_speed_) {
     this->last_scroll_ = now;
     this->scroll_left();

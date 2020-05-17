@@ -45,8 +45,7 @@ display:
     lambda: |-      
       it.invert_on_off(false);
       it.scroll(true,0,100,5000,1500);
-      it.printdigit("hello");
-#      it.print(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "ABCD" );
+      it.print(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "ABCDEFGH" );
    
 font:
   - file: "pixelmix.ttf"

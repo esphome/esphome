@@ -66,18 +66,18 @@ display:
     num_chips: 4
     offset: 15
     lambda: |-
+      it.scroll(true,0,100,200,200);
       if (id(my_global_bool)) {
         it.strftime(0, 0, id(digitss_font),"%H:%M %A", id(hass_time).now());
       }
       else {
         it.printf(0, 4, id(digitss_font),"LEAF %2.0f%%", 10.3);
       }
-      it.scroll_left(3);
       it.invert_on_off(0);
 
 # For example cycle through pages on a timer
 interval:
-  - interval: 5s
+  - interval: 10s
     then:
       - lambda: |-
           if (id(my_global_bool)) {
