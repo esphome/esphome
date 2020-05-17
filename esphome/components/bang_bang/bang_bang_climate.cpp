@@ -342,6 +342,10 @@ void BangBangClimate::set_away_config(const BangBangClimateTargetTempConfig &awa
   this->supports_away_ = true;
   this->away_config_ = away_config;
 }
+climate::ClimateAction BangBangClimate::get_action() const { return this->action; }
+climate::ClimateFanMode BangBangClimate::get_fan_mode() const { return this->fan_mode; }
+climate::ClimateMode BangBangClimate::get_mode() const { return this->mode; }
+climate::ClimateSwingMode BangBangClimate::get_swing_mode() const { return this->swing_mode; }
 BangBangClimate::BangBangClimate()
     : cool_action_trigger_(new Trigger<>()),
       cool_mode_trigger_(new Trigger<>()),
