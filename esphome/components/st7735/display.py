@@ -9,11 +9,11 @@ from . import st7735_ns
 
 DEPENDENCIES = ['spi']
 
-CONF_WIDTH = 'devicewidth'
-CONF_HEIGHT = 'deviceheight'
+CONF_DEVICEWIDTH = 'devicewidth'
+CONF_DEVICEHEIGHT = 'deviceheight'
 CONF_ROWSTART = 'rowstart'
 CONF_COLSTART = 'colstart'
-CONF_EIGHTBIT = 'eightbitcolor'
+CONF_EIGHTBITCOLOR = 'eightbitcolor'
 
 SPIST7735 = st7735_ns.class_('ST7735', cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice)
 ST7735Model = st7735_ns.enum('ST7735Model')
