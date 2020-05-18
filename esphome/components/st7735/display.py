@@ -43,7 +43,7 @@ CONFIG_SCHEMA = cv.All(ST7735_SCHEMA.extend({
     cv.Required(CONF_ROWSTART):  cv.int_,
     cv.Optional(CONF_EIGHTBITCOLOR, default=False):  cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
-    cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
+                       cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
 
 @coroutine
@@ -61,8 +61,13 @@ def setup_st7735(var, config):
 
 
 def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL], config[CONF_DEVICEWIDTH],
-     config[CONF_DEVICEHEIGHT], config[CONF_COLSTART], config[CONF_ROWSTART], config[CONF_EIGHTBITCOLOR])
+    var = cg.new_Pvariable(config[CONF_ID],
+                           config[CONF_MODEL],
+                           config[CONF_DEVICEWIDTH],
+                           config[CONF_DEVICEHEIGHT],
+                           config[CONF_COLSTART],
+                           config[CONF_ROWSTART],
+                           config[CONF_EIGHTBITCOLOR])
     yield setup_st7735(var, config)
     yield spi.register_spi_device(var, config)
 
