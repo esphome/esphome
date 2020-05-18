@@ -38,19 +38,19 @@ static const uint8_t ST77XX_BLACK = 0x0000;
 // some flags for initR() :(
 static const uint8_t INITR_GREENTAB = 0x00;
 static const uint8_t INITR_REDTAB = 0x01;
-static const uint8_t ST77XX_BLACK = 0x0000;
-static const uint8_t INITR_GREENTAB = 0x00;
-static const uint8_t INITR_REDTAB = 0x01;
 static const uint8_t INITR_BLACKTAB = 0x02;
 static const uint8_t INITR_144GREENTAB = 0x01;
-static const uint8_t INITR_MINI160x80 = 0x04;
+static const uint8_t INITR_MIN_I160X80 = 0x04;
 static const uint8_t INITR_HALLOWING = 0x05;
+static const uint8_t INITR_18GREENTAB=INITR_GREENTAB;
+static const uint8_t INITR_18REDTAB=INITR_REDTAB;
+static const uint8_t INITR_18BLACKTAB=INITR_BLACKTAB;
 
 enum ST7735Model {
   ST7735_INITR_GREENTAB = INITR_GREENTAB,
   ST7735_INITR_REDTAB = INITR_REDTAB,
   ST7735_INITR_BLACKTAB = INITR_BLACKTAB,
-  S_T7735_INITR_MIN_I160X80 = INITR_MINI160x80,
+  ST7735_INITR_MIN_I160X80 = INITR_MIN_I160X80,
   ST7735_INITR_18BLACKTAB = INITR_18BLACKTAB,
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
@@ -73,7 +73,7 @@ class ST7735 : public PollingComponent,
 
   void set_reset_pin(GPIOPin *value) { this->reset_pin_ = value; }
   void set_dc_pin(GPIOPin *value) { dc_pin_ = value; }
-  size_t get_buffer_length_();
+  size_t get_buffer_length();
 
  protected:
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
