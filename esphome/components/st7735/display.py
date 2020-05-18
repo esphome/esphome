@@ -37,11 +37,11 @@ ST7735_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
 CONFIG_SCHEMA = cv.All(ST7735_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(SPIST7735),
     cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-    cv.Required(CONF_WIDTH): cv.int_,
-    cv.Required(CONF_HEIGHT):  cv.int_,
+    cv.Required(CONF_DEVICEWIDTH): cv.int_,
+    cv.Required(CONF_DEVICEHEIGHT):  cv.int_,
     cv.Required(CONF_COLSTART):  cv.int_,
     cv.Required(CONF_ROWSTART):  cv.int_,
-    cv.Optional(CONF_EIGHTBIT, default=False):  cv.boolean,
+    cv.Optional(CONF_EIGHTBITCOLOR, default=False):  cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(spi.SPI_DEVICE_SCHEMA),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
