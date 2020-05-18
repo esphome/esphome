@@ -20,7 +20,7 @@ const uint8_t TM1637_UNKNOWN_CHAR = 0b11111111;
 //     ---
 //      D   X
 // XABCDEFG
-const uint8_t TM1637_ASCII_TO_RAW[94] PROGMEM = {
+const uint8_t TM1637_ASCII_TO_RAW[] PROGMEM = {
     0b00000000,           // ' ', ord 0x20
     0b10110000,           // '!', ord 0x21
     0b00100010,           // '"', ord 0x22
