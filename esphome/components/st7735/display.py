@@ -62,7 +62,7 @@ def setup_st7735(var, config):
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_MODEL], config[CONF_DEVICEWIDTH],
-                           config[CONF_DEVICEHEIGHT], config[CONF_COLSTART], config[CONF_ROWSTART], config[CONF_EIGHTBITCOLOR])
+     config[CONF_DEVICEHEIGHT], config[CONF_COLSTART], config[CONF_ROWSTART], config[CONF_EIGHTBITCOLOR])
     yield setup_st7735(var, config)
     yield spi.register_spi_device(var, config)
 
