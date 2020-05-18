@@ -8,10 +8,10 @@
 namespace esphome {
 namespace st7735 {
 
-static const uint8_t ST7735_TFTWIDTH_128 = 128;  // for 1.44 and mini
-static const uint8_t ST7735_TFTWIDTH_80 = 80;   // for mini
-static const uint8_t ST7735_TFTHEIGHT_128 = 128; // for 1.44" display
-static const uint8_t ST7735_TFTHEIGHT_160 = 160; // for 1.8" and mini display
+static const uint8_t ST7735_TFTWIDTH_128 = 128;   // for 1.44 and mini^M
+static const uint8_t ST7735_TFTWIDTH_80 = 80;     // for mini^M
+static const uint8_t ST7735_TFTHEIGHT_128 = 128;  // for 1.44" display^M
+static const uint8_t ST7735_TFTHEIGHT_160 = 160;  // for 1.8" and mini display^M
 
 // Some ready-made 16-bit ('565') color settings:
 static const uint8_t ST77XX_BLACK = 0x0000;
@@ -42,9 +42,9 @@ static const uint8_t INITR_BLACKTAB = 0x02;
 static const uint8_t INITR_144GREENTAB = 0x01;
 static const uint8_t INITR_MIN_I160X80 = 0x04;
 static const uint8_t INITR_HALLOWING = 0x05;
-static const uint8_t INITR_18GREENTAB=INITR_GREENTAB;
-static const uint8_t INITR_18REDTAB=INITR_REDTAB;
-static const uint8_t INITR_18BLACKTAB=INITR_BLACKTAB;
+static const uint8_t INITR_18GREENTAB = INITR_GREENTAB;
+static const uint8_t INITR_18REDTAB = INITR_REDTAB;
+static const uint8_t INITR_18BLACKTAB = INITR_BLACKTAB;
 
 enum ST7735Model {
   ST7735_INITR_GREENTAB = INITR_GREENTAB,
