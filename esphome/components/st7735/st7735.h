@@ -8,13 +8,13 @@
 namespace esphome {
 namespace st7735 {
 
-static const uint8_t ST7735_TFTWIDTH_128 = 128;   // for 1.44 and mini^M
-static const uint8_t ST7735_TFTWIDTH_80 = 80;     // for mini^M
-static const uint8_t ST7735_TFTHEIGHT_128 = 128;  // for 1.44" display^M
-static const uint8_t ST7735_TFTHEIGHT_160 = 160;  // for 1.8" and mini display^M
+#define ST7735_TFTWIDTH_128 128   // for 1.44 and mini
+#define ST7735_TFTWIDTH_80 80     // for mini
+#define ST7735_TFTHEIGHT_128 128  // for 1.44" display
+#define ST7735_TFTHEIGHT_160 160  // for 1.8" and mini display
 
 // Some ready-made 16-bit ('565') color settings:
-static const uint8_t ST77XX_BLACK = 0x0000;
+#define ST77XX_BLACK 0x0000
 #define ST77XX_WHITE 0xFFFF
 #define ST77XX_RED 0xF800
 #define ST77XX_GREEN 0x07E0
@@ -36,21 +36,21 @@ static const uint8_t ST77XX_BLACK = 0x0000;
 #define ST7735_ORANGE ST77XX_ORANGE
 
 // some flags for initR() :(
-static const uint8_t INITR_GREENTAB = 0x00;
-static const uint8_t INITR_REDTAB = 0x01;
-static const uint8_t INITR_BLACKTAB = 0x02;
-static const uint8_t INITR_144GREENTAB = 0x01;
-static const uint8_t INITR_MIN_I160X80 = 0x04;
-static const uint8_t INITR_HALLOWING = 0x05;
-static const uint8_t INITR_18GREENTAB = INITR_GREENTAB;
-static const uint8_t INITR_18REDTAB = INITR_REDTAB;
-static const uint8_t INITR_18BLACKTAB = INITR_BLACKTAB;
+#define INITR_GREENTAB 0x00
+#define INITR_REDTAB 0x01
+#define INITR_BLACKTAB 0x02
+#define INITR_18GREENTAB INITR_GREENTAB
+#define INITR_18REDTAB INITR_REDTAB
+#define INITR_18BLACKTAB INITR_BLACKTAB
+#define INITR_144GREENTAB 0x01
+#define INITR_MINI160x80 0x04
+#define INITR_HALLOWING 0x05
 
 enum ST7735Model {
   ST7735_INITR_GREENTAB = INITR_GREENTAB,
   ST7735_INITR_REDTAB = INITR_REDTAB,
   ST7735_INITR_BLACKTAB = INITR_BLACKTAB,
-  ST7735_INITR_MIN_I160X80 = INITR_MIN_I160X80,
+  S_T7735_INITR_MIN_I160X80 = INITR_MINI160x80,
   ST7735_INITR_18BLACKTAB = INITR_18BLACKTAB,
   ST7735_INITR_18REDTAB = INITR_18REDTAB
 };
@@ -73,7 +73,7 @@ class ST7735 : public PollingComponent,
 
   void set_reset_pin(GPIOPin *value) { this->reset_pin_ = value; }
   void set_dc_pin(GPIOPin *value) { dc_pin_ = value; }
-  size_t get_buffer_length();
+  size_t get_buffer_length_();
 
  protected:
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
@@ -93,7 +93,7 @@ class ST7735 : public PollingComponent,
 
   int get_width_internal() override;
   int get_height_internal() override;
-
+  
   const char *model_str_();
 
   ST7735Model model_{ST7735_INITR_18BLACKTAB};
