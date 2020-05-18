@@ -223,7 +223,7 @@ void MAX7219Component::scroll_left() {
   // uint8_t temp = 0;
   if (this->update_){
     this->max_displaybuffer_.push_back(this->bckgrnd_);
-    for (uint8_t i = 0; i < this->stepsleft_; i++){
+    for (uint16_t i = 0; i < this->stepsleft_; i++){
       this->max_displaybuffer_.push_back(this->max_displaybuffer_.front()); 
       this->max_displaybuffer_.erase(this->max_displaybuffer_.begin());
     // ESP_LOGW(TAG, "DATA IN VECTOR BEGIN %i", this->string_buffer_.front());
