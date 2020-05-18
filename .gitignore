@@ -113,7 +113,6 @@ CTestTestfile.cmake
 .clang_complete
 .gcc-flags.json
 
-config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
