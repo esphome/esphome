@@ -89,8 +89,8 @@ class MAX7219Component : public PollingComponent,
   // uint8_t offset_char = 0;
   // uint8_t max_x_ = 0;
   uint8_t offset_chips_ = 0;
-  bool scroll_ {false};
-  bool update_ {false};
+  bool scroll_{false};
+  bool update_{false};
   uint16_t scroll_speed_ = 250;
   uint16_t scroll_delay_ = 1000;
   uint16_t scroll_dwell_ = 1000;
@@ -105,8 +105,6 @@ class MAX7219Component : public PollingComponent,
   std::vector<uint8_t> max_displaybuffer_;
   unsigned long last_scroll_ = 0;
 
-  // uint8_t *buffer_;
-  // uint8_t *bufferold_{nullptr};
   uint16_t stepsleft_;
   size_t get_buffer_length_();
   optional<max7219_writer_t> writer_local_{};
