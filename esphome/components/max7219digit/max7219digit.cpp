@@ -27,7 +27,7 @@ void MAX7219Component::setup() {
   this->stepsleft_ = 0;
   this->max_displaybuffer_.reserve(500);  // Create base space to write buffer
   // Initialize buffer with 0 for display so all non written pixels are blank
-  this->max_displaybuffer_.resize(this->num_chips_*8, 0);
+  this->max_displaybuffer_.resize(this->num_chips_ * 8, 0);
   // let's assume the user has all 8 digits connected, only important in daisy chained setups anyway
   this->send_to_all_(MAX7219_REGISTER_SCAN_LIMIT, 7);
   // let's use our own ASCII -> led pattern encoding
@@ -57,7 +57,7 @@ void MAX7219Component::loop() {
   // check if the buffer has shrunk past the current position since last update
   if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||
       (this->max_displaybuffer_.size() <= this->old_buffer_size_ - 3)) {
-    ESP_LOGD(TAG, "RESET CALLED displaybuffer %i old diplay buffer %i", this->max_displaybuffer_.size(),
+    ESP_LOGD(TAG, "RESET CALLED displaybuffer %zu old diplay buffer %i", this->max_displaybuffer_.size(),
              this->old_buffer_size_);
     this->stepsleft_ = 0;
     this->display();
@@ -66,16 +66,15 @@ void MAX7219Component::loop() {
   
   // Reset the counter back to 0 when full string has been displayed.
   if (this->stepsleft_ > this->max_displaybuffer_.size())
-    this->stepsleft_ = 0;  
+    this->stepsleft_ = 0;
   
   // Return if there is no need to scroll or scroll is off
   if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ * 8)) {
     this->display();
     return;
-  }  
+  }
   
-  if ((this->stepsleft_ == 0) && 
-      (now - this->last_scroll_ < this->scroll_delay_)) {
+  if ((this->stepsleft_ == 0) && (now - this->last_scroll_ < this->scroll_delay_)) {
     this->display();
     return;
   }
@@ -202,7 +201,7 @@ void MAX7219Component::scroll_left() {
   if (this->update_) {
     this->max_displaybuffer_.push_back(this->bckgrnd_);
     for (uint16_t i = 0; i < this->stepsleft_; i++) {
-      this->max_displaybuffer_.push_back(this->max_displaybuffer_.front()); 
+      this->max_displaybuffer_.push_back(this->max_displaybuffer_.front());
       this->max_displaybuffer_.erase(this->max_displaybuffer_.begin());
       this->update_ = false;
     }
@@ -229,8 +228,8 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
                        MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
     byte b = 0;                                 // rotate pixels 90 degrees -- set byte to 0
     if (this->orientation_ == 0) {
-      for (byte i = 0; i < 8; i++)             // run this loop 8 times for all the pixels[8] received
-      b |= bitRead(pixels[i], col) << (7 - i); // change the column bits into row bits
+      for (byte i = 0; i < 8; i++)               // run this loop 8 times for all the pixels[8] received
+        b |= bitRead(pixels[i], col) << (7 - i); // change the column bits into row bits
     } else if (this->orientation_ == 1) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
