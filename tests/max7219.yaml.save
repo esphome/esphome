@@ -35,6 +35,15 @@ spi:
   mosi_pin: GPIO13 
 #D7
 
+display:
+  - platform: max7219digit
+    cs_pin: GPIO15
+    num_chips: 4
+    offset: 1
+    intensity: 15
+    update_interval: 100ms
+    lambda: |-      
+      it.printf(0, 0, id(digit_font_ss),TextAlign::TOP_LEFT, "123 5 a very long string" );
 font:
   - file: "pixelmix.ttf"
     id: digit_font
@@ -43,7 +52,7 @@ font:
     id: digitbolt_font
     size: 8
   - file: "pixelmix_ss.ttf"
-    id: digitss_font
+    id: digit_font_ss
     size: 8
 
 
@@ -52,44 +61,4 @@ font:
 time:
   - platform: homeassistant
     id: hass_time
-
-globals:
-  - id: my_global_bool
-    type: bool
-    restore_value: no
-    initial_value: 'true'
-
-display:
-  - platform: max7219digit
-    cs_pin: GPIO15
-    id: my_matrix
-    num_chips: 4
-    offset: 15
-    rotate_chip: 3
-    lambda: |-
-
- 
-
-      it.scroll(true,1,400,500,500);
-      if (id(my_global_bool)) {
-        it.strftime(0, 0, id(digitss_font),"%H:%M %A", id(hass_time).now());
-      }
-      else {
-        it.printf(0, 4, id(digitss_font),"LEAF %2.0f%%", 10.3);
-      }
-
-      it.invert_on_off(0);
-
-# For example cycle through pages on a timer
-interval:
-  - interval: 10s
-    then:
-      - lambda: |-
-          if (id(my_global_bool)) {
-            id(my_global_bool) = false;
-          }
-          else {
-            id(my_global_bool) = true;
-          }
-
 
