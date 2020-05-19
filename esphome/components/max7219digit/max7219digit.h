@@ -46,6 +46,8 @@ class MAX7219Component : public PollingComponent,
 
   void set_intensity(uint8_t intensity);
   void set_num_chips(uint8_t num_chips);
+
+  void set_chip_orientation(uint8_t rotate);
   void set_scroll_speed(uint16_t speed);
   void set_scroll_dwell(uint16_t dwell);
   void set_scroll_delay(uint16_t delay);
@@ -96,10 +98,13 @@ class MAX7219Component : public PollingComponent,
   uint8_t scroll_mode_ = 0;
 
   bool invert_ = false;
+
+  uint8_t orientation_ = 0;
   uint8_t bckgrnd_ = 0x0;
   
   std::vector<uint8_t> max_displaybuffer_;
   unsigned long last_scroll_ = 0;
+
   // uint8_t *buffer_;
   // uint8_t *bufferold_{nullptr};
   uint16_t stepsleft_;

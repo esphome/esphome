@@ -258,8 +258,17 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);             // run this loop unit the matching chip is reached
     byte b = 0;                                            // rotate pixels 90 degrees -- set byte to 0
-    for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
+    if (this->orientation_ == 0) {
+      for (byte i = 0; i < 8; i++)                           // run this loop 8 times for all the pixels[8] received
       b |= bitRead(pixels[i], col) << (7 - i);             // change the column bits into row bits
+    } else if (this->orientation_ == 1) {
+      b = pixels[col];
+    } else if (this->orientation_ == 2) {
+      for (byte i = 0; i < 8; i++)
+      b |= bitRead(pixels[i], 7 - col) << (7 - i); 
+    } else {
+      b = pixels[7 - col];
+    }
     this->send_byte_(col + 1, b);                          // send this byte to dispay at selected chip
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
@@ -302,6 +311,7 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; }
 void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
+void MAX7219Component::set_chip_orientation(uint8_t rotate) {this->orientation_ = rotate; }
 void MAX7219Component::set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; }
 void MAX7219Component::set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; }
 void MAX7219Component::set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; }
