@@ -46,6 +46,10 @@ void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
   ESP_LOGCONFIG(TAG, "  Intensity: %u", this->intensity_);
+  ESP_LOGCONFIG(TAG, "  Scroll Mode: %u", this->scroll_mode_);
+  ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
+  ESP_LOGCONFIG(TAG, "  Scroll Dwell: %u", this->scroll_dwell_);
+  ESP_LOGCONFIG(TAG, "  Scroll Delay: %u", this->scroll_delay_);
   // ESP_LOGCONFIG(TAG, "  Offset: %u", this->offset_chips_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
@@ -63,22 +67,22 @@ void MAX7219Component::loop() {
     this->display();
     this->old_buffer_size_ = this->max_displaybuffer_.size();
   }
-  
+
   // Reset the counter back to 0 when full string has been displayed.
   if (this->stepsleft_ > this->max_displaybuffer_.size())
     this->stepsleft_ = 0;
-  
+
   // Return if there is no need to scroll or scroll is off
   if (!this->scroll_ || (this->max_displaybuffer_.size() <= this->num_chips_ * 8)) {
     this->display();
     return;
   }
-  
+
   if ((this->stepsleft_ == 0) && (now - this->last_scroll_ < this->scroll_delay_)) {
     this->display();
     return;
   }
-  
+
   // Dwell time at end of string in case of stop at end
   if (this->scroll_mode_ == 1) {
     if (this->stepsleft_ >= this->max_displaybuffer_.size() - this->num_chips_ * 8 + 1) {
@@ -90,7 +94,7 @@ void MAX7219Component::loop() {
       return;
     }
   }
-  
+
   // Actual call to scroll left action
   if (now - this->last_scroll_ >= this->scroll_speed_) {
     this->last_scroll_ = now;
@@ -228,8 +232,8 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
                        MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
     byte b = 0;                                 // rotate pixels 90 degrees -- set byte to 0
     if (this->orientation_ == 0) {
-      for (byte i = 0; i < 8; i++)               // run this loop 8 times for all the pixels[8] received
-        b |= bitRead(pixels[i], col) << (7 - i); // change the column bits into row bits
+      for (byte i = 0; i < 8; i++)                // run this loop 8 times for all the pixels[8] received
+        b |= bitRead(pixels[i], col) << (7 - i);  // change the column bits into row bits
     } else if (this->orientation_ == 1) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
