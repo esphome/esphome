@@ -16,7 +16,6 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(MAX7219Component),
     cv.Optional(CONF_NUM_CHIPS, default=4): cv.int_range(min=1, max=255),
     cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
-    cv.Optional(CONF_OFFSET, default=0): cv.int_range(min=0, max=27),
     cv.Optional(CONF_ROTATE_CHIP, default=0): cv.int_range(min=0, max=4),
 }).extend(cv.polling_component_schema('500ms')).extend(spi.SPI_DEVICE_SCHEMA)
 
@@ -29,7 +28,6 @@ def to_code(config):
 
     cg.add(var.set_num_chips(config[CONF_NUM_CHIPS]))
     cg.add(var.set_intensity(config[CONF_INTENSITY]))
-    cg.add(var.set_offset(config[CONF_OFFSET]))
     cg.add(var.set_chip_orientation(config[CONF_ROTATE_CHIP]))
 
     if CONF_LAMBDA in config:

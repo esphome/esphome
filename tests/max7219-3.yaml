@@ -61,7 +61,7 @@ display:
    - platform: max7219digit
      cs_pin: GPIO15
      num_chips: 4
-#    offset: 27
+     rotate_chip: 1
      intensity: 10
 #    update_interval: 75ms
      id: my_matrix
