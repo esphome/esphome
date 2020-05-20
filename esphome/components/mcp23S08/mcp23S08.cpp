@@ -6,9 +6,9 @@ namespace mcp23S08 {
 
 static const char *TAG = "mcp23S08";
 
-void MCP23S08::set_device_address(uint8_t device_addr) {
-  if (device_addr != 0) {
-    this->device_opcode_ |= ((device_addr & 0x03) << 1);
+void MCP23S08::set_device_address(uint8_t deviceAddr) {
+  if (deviceAddr != 0) {
+    this->deviceOpcode |= ((deviceAddr & 0x03) << 1);
   }
 }
 
@@ -28,12 +28,12 @@ void MCP23S08::setup() {
 float MCP23S08::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 bool MCP23S08::digital_read(uint8_t pin) {
-  if (pin > 7) {
+   if (pin > 7) {
     return false;
   }
   uint8_t bit = pin % 8;
   uint8_t reg_addr = MCP23S08_GPIO;
-  uint8_t value = 0;
+ uint8_t value = 0;
   this->read_reg_(reg_addr, &value);
   return value & (1 << bit);
 }
@@ -88,7 +88,7 @@ void MCP23S08::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
 
 bool MCP23S08::write_reg_(uint8_t reg, uint8_t value) {
   this->enable();
-  this->transfer_byte(this->device_opcode_);
+  this->transfer_byte(this->deviceOpcode);
   this->transfer_byte(reg);
   this->transfer_byte(value);
   this->disable();
@@ -98,7 +98,7 @@ bool MCP23S08::write_reg_(uint8_t reg, uint8_t value) {
 bool MCP23S08::read_reg_(uint8_t reg, uint8_t *value) {
   uint8_t data;
   this->enable();
-  this->transfer_byte(this->device_opcode_ | 1);
+  this->transfer_byte(this->deviceOpcode | 1);
   this->transfer_byte(reg);
   *value = this->transfer_byte(0);
   this->disable();
