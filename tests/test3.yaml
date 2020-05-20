@@ -221,7 +221,7 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
-  - platform: aht10  
+  - platform: aht10
     temperature:
       name: "Temperature"
     humidity:
@@ -360,6 +360,39 @@ sensor:
       name: "PM2.5"
     pm_10_0:
       name: "PM10.0"
+  - platform: pmsx003
+    type: PMSX003
+    pm_1_0:
+      name: "PM 1.0 Concentration"
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+  - platform: pmsx003
+    type: PMS5003T
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+  - platform: pmsx003
+    type: PMS5003ST
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+    formaldehyde:
+      name: "PMS Formaldehyde Concentration"
+  - platform: cse7766
+    voltage:
+      name: "CSE7766 Voltage"
+    current:
+      name: "CSE7766 Current"
+    power:
+      name: "CSE776 Power"
 
 time:
 - platform: homeassistant
