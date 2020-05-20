@@ -32,24 +32,22 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
 
-
-CONF_MCP23S08 = 'mcp23S08'
 mcp23S08_OUTPUT_PIN_SCHEMA = cv.Schema({
-    cv.Required(CONF_MCP23S08): cv.use_id(mcp23S08),
+    cv.Required('mcp23S08'): cv.use_id(mcp23S08),
     cv.Required(CONF_NUMBER): cv.int_,
     cv.Optional(CONF_MODE, default="OUTPUT"): cv.enum(mcp23S08_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 mcp23S08_INPUT_PIN_SCHEMA = cv.Schema({
-    cv.Required(CONF_MCP23S08): cv.use_id(mcp23S08),
+    cv.Required('mcp23S08'): cv.use_id(mcp23S08),
     cv.Required(CONF_NUMBER): cv.int_range(0, 7),
     cv.Optional(CONF_MODE, default="INPUT"): cv.enum(mcp23S08_GPIO_MODES, upper=True),
     cv.Optional(CONF_INVERTED, default=False): cv.boolean,
 })
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_MCP23S08,
+@pins.PIN_SCHEMA_REGISTRY.register('mcp23S08',
                                    (mcp23S08_OUTPUT_PIN_SCHEMA, mcp23S08_INPUT_PIN_SCHEMA))
 def mcp23S08_pin_to_code(config):
-    parent = yield cg.get_variable(config[CONF_MCP23S08])
+    parent = yield cg.get_variable(config['mcp23S08'])
     yield mcp23S08GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_MODE], config[CONF_INVERTED])
