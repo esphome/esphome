@@ -6,9 +6,9 @@ namespace mcp23S17 {
 
 static const char *TAG = "mcp23S17";
 
-void MCP23S17::set_device_address(uint8_t deviceAddr) {
-  if (deviceAddr != 0) {
-    this->deviceOpcode |= ((deviceAddr & 0b111) << 1);
+void MCP23S17::set_device_address(uint8_t device_addr) {
+  if (device_addr != 0) {
+    this->device_opcode_ |= ((device_addr & 0b111) << 1);
   }
 }
 
@@ -21,7 +21,7 @@ void MCP23S17::setup() {
   this->transfer_byte(cmd);
   this->transfer_byte(0x18);
   this->transfer_byte(0x0A);
-  this->transfer_byte(this->deviceOpcode);
+  this->transfer_byte(this->device_opcode_);
   this->transfer_byte(0);
   this->transfer_byte(0xFF);
   this->transfer_byte(0xFF);
@@ -92,7 +92,7 @@ void MCP23S17::update_reg_(uint8_t pin, bool pin_value, uint8_t reg_addr) {
 
 bool MCP23S17::read_reg_(uint8_t reg, uint8_t *value) {
   this->enable();
-  this->transfer_byte(this->deviceOpcode | 1);
+  this->transfer_byte(this->device_opcode_ | 1);
   this->transfer_byte(reg);
   *value = this->transfer_byte(0xFF);
   this->disable();
@@ -101,7 +101,7 @@ bool MCP23S17::read_reg_(uint8_t reg, uint8_t *value) {
 
 bool MCP23S17::write_reg_(uint8_t reg, uint8_t value) {
   this->enable();
-  this->transfer_byte(this->deviceOpcode);
+  this->transfer_byte(this->device_opcode_);
   this->transfer_byte(reg);
   this->transfer_byte(value);
 
