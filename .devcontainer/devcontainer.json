@@ -22,6 +22,7 @@
     "terminal.integrated.shell.linux": "/bin/bash",
     "yaml.customTags": [
       "!secret scalar",
+      "!lambda scalar",
       "!include_dir_named scalar",
       "!include_dir_list scalar",
       "!include_dir_merge_list scalar",
