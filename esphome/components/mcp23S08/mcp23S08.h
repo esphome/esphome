@@ -41,7 +41,7 @@ class MCP23S08 : public Component,
   void digital_write(uint8_t pin, bool value);
   void pin_mode(uint8_t pin, uint8_t mode);
 
-  void set_device_address(uint8_t deviceAddr);
+  void set_device_address(uint8_t device_addr);
 
   float get_setup_priority() const override;
 
@@ -52,7 +52,7 @@ class MCP23S08 : public Component,
   bool write_reg_(uint8_t reg, uint8_t value);
   // update registers with given pin value.
   void update_reg_(uint8_t pin, bool pin_value, uint8_t reg_a);
-  uint8_t deviceOpcode = 0x40;
+  uint8_t device_opcode_ = 0x40;
   uint8_t olat_{0x00};
 };
 
