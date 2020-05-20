@@ -11,10 +11,12 @@ float MCP3008::get_setup_priority() const { return setup_priority::HARDWARE; }
 void MCP3008::setup() {
   ESP_LOGCONFIG(TAG, "Setting up mcp3008");
   this->spi_setup();
-  ESP_LOGI(TAG, "SPI setup finished!");
 }
 
-void MCP3008::dump_config() { LOG_PIN("  CS Pin: ", this->cs_); }
+void MCP3008::dump_config() {
+  ESP_LOGCONFIG(TAG, "MCP3008:");
+  LOG_PIN("  CS Pin: ", this->cs_);
+}
 
 float MCP3008::read_data(uint8_t pin) {
   byte b0, b1, b2;
@@ -40,7 +42,7 @@ MCP3008Sensor::MCP3008Sensor(MCP3008 *parent, std::string name, uint8_t pin)
     : PollingComponent(1000), parent_(parent), pin_(pin) {
   this->set_name(name);
 }
-void MCP3008Sensor::setup() { ESP_LOGCONFIG(TAG, "Setting up MCP3008 Sensor '%s'...", this->get_name().c_str()); }
+void MCP3008Sensor::setup() { LOG_SENSOR("", "Setting up MCP3008 Sensor '%s'...", this); }
 void MCP3008Sensor::update() {
   float value_v = this->parent_->read_data(pin_);
   this->publish_state(value_v);
