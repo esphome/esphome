@@ -100,62 +100,6 @@ sensor:
       name: "Xiaomi CGG1 Humidity"
     battery_level:
       name: "Xiaomi CGG1 Battery Level"
-  - platform: pmsx003
-    type: PMSX003
-    pm_1_0:
-      name: "PM 1.0 Concentration"
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    pm_10_0:
-      name: "PM 10.0 Concentration"
-  - platform: pmsx003
-    type: PMS5003T
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-  - platform: pmsx003
-    type: PMS5003ST
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-    formaldehyde:
-      name: "PMS Formaldehyde Concentration"
-  - platform: cse7766
-    voltage:
-      name: "CSE7766 Voltage"
-    current:
-      name: "CSE7766 Current"
-    power:
-      name: "CSE776 Power"
-  - platform: apds9960
-    type: proximity
-    name: APDS9960 Proximity
-  - platform: apds9960
-    type: clear
-    name: APDS9960 Clear
-  - platform: apds9960
-    type: red
-    name: APDS9960 Red
-  - platform: apds9960
-    type: green
-    name: APDS9960 Green
-  - platform: apds9960
-    type: blue
-    name: APDS9960 Blue
-  - platform: homeassistant
-    entity_id: sensor.hello_world
-    id: ha_hello_world
-  - platform: as3935
-    lightning_energy:
-      name: "Lightning Energy"
-    distance:
-      name: "Distance Storm"
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
@@ -178,6 +122,14 @@ sensor:
       name: "RuuviTag Movement Counter"
     measurement_sequence_number:
       name: "RuuviTag Measurement Sequence Number"
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 time:
 - platform: homeassistant
@@ -185,10 +137,6 @@ time:
     - at: '16:00:00'
       then:
         - logger.log: It's 16:00
-
-apds9960:
-  address: 0x20
-  update_interval: 60s
 
 esp32_touch:
   setup_mode: True
@@ -210,18 +158,6 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
-  - platform: apds9960
-    direction: up
-    name: APDS9960 Up
-  - platform: apds9960
-    direction: down
-    name: APDS9960 Down
-  - platform: apds9960
-    direction: left
-    name: APDS9960 Left
-  - platform: apds9960
-    direction: right
-    name: APDS9960 Right
   - platform: homeassistant
     entity_id: binary_sensor.hello_world
     id: ha_hello_world_binary
@@ -291,6 +227,8 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: ble_scanner
+    name: Scanner
 
 script:
   - id: my_script
