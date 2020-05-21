@@ -48,11 +48,6 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
 
-  climate::ClimateAction get_action() const;
-  climate::ClimateFanMode get_fan_mode() const;
-  climate::ClimateMode get_mode() const;
-  climate::ClimateSwingMode get_swing_mode() const;
-
   Trigger<> *get_cool_action_trigger() const;
   Trigger<> *get_dry_action_trigger() const;
   Trigger<> *get_fan_only_action_trigger() const;
