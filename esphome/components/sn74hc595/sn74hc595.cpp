@@ -10,7 +10,7 @@ void SN74HC595::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SN74HC595...");
   this->spi_setup();
   this->enable();
-  this->transfer_byte(0); // All off
+  this->transfer_byte(0);  // All off
   this->disable();
 }
 
