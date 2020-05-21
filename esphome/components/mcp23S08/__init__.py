@@ -32,6 +32,7 @@ def to_code(config):
     yield cg.register_component(var, config)
     yield spi.register_spi_device(var, config)
 
+
 mcp23S08_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required('mcp23S08'): cv.use_id(mcp23S08),
     cv.Required(CONF_NUMBER): cv.int_,
