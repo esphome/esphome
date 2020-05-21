@@ -25,7 +25,7 @@ void MCP23S17::setup() {
   this->transfer_byte(0);
   this->transfer_byte(0xFF);
   this->transfer_byte(0xFF);
-  
+
   for (uint8_t i = 0; i < 20; i++) {
     this->transfer_byte(0);
   }
