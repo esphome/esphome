@@ -73,7 +73,8 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
   traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
   traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
-  traits.set_supports_two_point_target_temperature(this->supports_heat_ && (this->supports_cool_ || this->supports_fan_only_));
+  traits.set_supports_two_point_target_temperature(this->supports_heat_ &&
+                                                   (this->supports_cool_ || this->supports_fan_only_));
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
