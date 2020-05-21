@@ -9,7 +9,7 @@ CONF_ROTATE_CHIP = 'rotate_chip'
 CONF_SCROLL_SPEED = 'scroll_speed'
 CONF_SCROLL_DWELL = 'scroll_dwell'
 CONF_SCROLL_DELAY = 'scroll_delay'
-bool CONF_SCROLL_ONOFF = 'scroll_enable'
+CONF_SCROLL_ENABLE = 'scroll_enable'
 CONF_SCROLL_MODE = 'scroll_mode'
 
 max7219_ns = cg.esphome_ns.namespace('max7219digit')
@@ -23,7 +23,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_INTENSITY, default=15): cv.int_range(min=0, max=15),
     cv.Optional(CONF_ROTATE_CHIP, default=0): cv.int_range(min=0, max=4),
     cv.Optional(CONF_SCROLL_MODE, default=0): cv.int_range(min=0, max=1),
-    cv.Optional(CONF_SCROLL_ONOFF, default=True): cv.boolean,
+    cv.Optional(CONF_SCROLL_ENABLE, default=True): cv.boolean,
     cv.Optional(CONF_SCROLL_SPEED, default=250): cv.int_range(min=0),
     cv.Optional(CONF_SCROLL_DELAY, default=1000): cv.int_range(min=0),
     cv.Optional(CONF_SCROLL_DWELL, default=1000): cv.int_range(min=0),
@@ -42,7 +42,7 @@ def to_code(config):
     cg.add(var.set_scroll_speed(config[CONF_SCROLL_SPEED]))
     cg.add(var.set_scroll_dwell(config[CONF_SCROLL_DWELL]))
     cg.add(var.set_scroll_delay(config[CONF_SCROLL_DELAY]))
-    cg.add(var.set_scroll(config[CONF_SCROLL_ONOFF]))
+    cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
 
     if CONF_LAMBDA in config:
