@@ -55,7 +55,7 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_auto_mode(true);
+  traits.set_supports_auto_mode(this->supports_heat_ && (this->supports_cool_ || this->supports_fan_only_));
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_dry_mode(this->supports_dry_);
   traits.set_supports_fan_only_mode(this->supports_fan_only_);
@@ -73,7 +73,7 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
   traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
   traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
-  traits.set_supports_two_point_target_temperature(true);
+  traits.set_supports_two_point_target_temperature(this->supports_heat_ && (this->supports_cool_ || this->supports_fan_only_));
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
