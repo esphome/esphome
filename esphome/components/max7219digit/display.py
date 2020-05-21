@@ -49,3 +49,4 @@ def to_code(config):
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
                                           return_type=cg.void)
         cg.add(var.set_writer(lambda_))
+        
