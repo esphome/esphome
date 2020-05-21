@@ -9,7 +9,7 @@ CONF_ROTATE_CHIP = 'rotate_chip'
 CONF_SCROLL_SPEED = 'scroll_speed'
 CONF_SCROLL_DWELL = 'scroll_dwell'
 CONF_SCROLL_DELAY = 'scroll_delay'
-CONF_SCROLL_ONOFF = 'scroll_on'
+bool CONF_SCROLL_ONOFF = 'scroll_enable'
 CONF_SCROLL_MODE = 'scroll_mode'
 
 max7219_ns = cg.esphome_ns.namespace('max7219digit')
