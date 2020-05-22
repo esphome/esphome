@@ -9,7 +9,7 @@ namespace sn74hc595 {
 
 class SN74HC595 : public Component,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                        spi::DATA_RATE_8MHZ> {
+                                        spi::DATA_RATE_4MHZ> {
  public:
   SN74HC595() = default;
   void setup() override;

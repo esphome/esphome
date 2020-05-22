@@ -9,8 +9,8 @@ MULTI_CONF = True
 
 sn74hc595_ns = cg.esphome_ns.namespace('sn74hc595')
 
-sn74hc595 = sn74hc595_ns.class_('sn74hc595', cg.Component, spi.SPIDevice)
-sn74hc595GPIOPin = sn74hc595_ns.class_('sn74hc595GPIOPin', cg.GPIOPin)
+sn74hc595 = sn74hc595_ns.class_('SN74HC595', cg.Component, spi.SPIDevice)
+sn74hc595GPIOPin = sn74hc595_ns.class_('SN74HC595GpioPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(sn74hc595),
