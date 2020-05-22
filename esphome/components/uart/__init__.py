@@ -28,6 +28,13 @@ def validate_rx_pin(value):
     return value
 
 
+UARTParityOptions = uart_ns.enum('UARTParityOptions')
+UART_PARITY_OPTIONS = {
+    'NONE': UARTParityOptions.UART_CONFIG_PARITY_NONE,
+    'EVEN': UARTParityOptions.UART_CONFIG_PARITY_EVEN,
+    'ODD': UARTParityOptions.UART_CONFIG_PARITY_ODD,
+}
+
 CONF_STOP_BITS = 'stop_bits'
 CONF_DATA_BITS_NUMBER = 'data_bits_number'
 CONF_PARITY = 'parity'
@@ -39,7 +46,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_RX_PIN): validate_rx_pin,
     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
     cv.Optional(CONF_DATA_BITS_NUMBER, default=8): cv.int_range(min=5, max=8),
-    cv.Optional(CONF_PARITY, default="none"): cv.one_of("none", "even", "odd", lower=True),
+    cv.Optional(CONF_PARITY, default="NONE"): cv.enum(UART_PARITY_OPTIONS, upper=True)
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))
 
 

@@ -13,6 +13,19 @@ namespace uart {
 
 static const char *TAG = "uart";
 
+static const char *parity_to_str(UARTParityOptions parity) {
+  switch (parity) {
+    case UART_CONFIG_PARITY_NONE:
+      return "NONE";
+    case UART_CONFIG_PARITY_EVEN:
+      return "EVEN";
+    case UART_CONFIG_PARITY_ODD:
+      return "ODD";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 #ifdef ARDUINO_ARCH_ESP32
 uint8_t next_uart_num = 1;
 #endif
@@ -47,9 +60,9 @@ uint32_t UARTComponent::get_config() {
    * tick_ref_always_on:27   select the clock.1：apb clock：ref_tick
    */
 
-  if (this->parity_ == "even")
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
     config |= UART_PARITY_EVEN | UART_PARITY_EN;
-  else if (this->parity_ == "odd")
+  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     config |= UART_PARITY_ODD | UART_PARITY_EN;
 
   switch (this->nr_bits_) {
@@ -102,7 +115,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", this->parity_.c_str());
+  ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();
 }
@@ -171,11 +184,11 @@ void UARTComponent::flush() {
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
 
-  if (this->parity_ == "none")
+  if (this->parity_ == UART_CONFIG_PARITY_NONE)
     config |= UART_PARITY_NONE;
-  else if (this->parity_ == "even")
+  else if (this->parity_ == UART_CONFIG_PARITY_EVEN)
     config |= UART_PARITY_EVEN;
-  else if (this->parity_ == "odd")
+  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     config |= UART_PARITY_ODD;
 
   switch (this->nr_bits_) {
@@ -236,7 +249,7 @@ void UARTComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
-  ESP_LOGCONFIG(TAG, "  Parity: %s", this->parity_.c_str());
+  ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Using hardware serial interface.");
@@ -369,7 +382,7 @@ void ESP8266SoftwareSerial::begin() {
   // this->gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
 }
 void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
-                                  std::string &parity) {
+                                  UARTParityOptions parity) {
   this->bit_time_ = F_CPU / baud_rate;
   this->stop_bits_ = stop_bits;
   this->nr_bits_ = nr_bits;
@@ -400,9 +413,9 @@ void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg
 
   /* If parity is enabled, just read it and ignore it. */
   /* TODO: Should we check parity? Or is it too slow for nothing added..*/
-  if (arg->parity_ == "even")
+  if (arg->parity_ == UART_CONFIG_PARITY_EVEN)
     arg->read_bit_(&wait, start);
-  else if (arg->parity_ == "odd")
+  else if (arg->parity_ == UART_CONFIG_PARITY_ODD)
     arg->read_bit_(&wait, start);
 
   // Stop bit
@@ -422,9 +435,9 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
   }
   bool parity_bit = false;
   bool need_parity_bit = true;
-  if (this->parity_ == "even")
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
     parity_bit = true;
-  else if (this->parity_ == "odd")
+  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     parity_bit = false;
   else
     need_parity_bit = false;
