@@ -19,16 +19,16 @@ uint8_t next_uart_num = 1;
 
 #ifdef ARDUINO_ARCH_ESP32
 
-#define UART_PARITY_EVEN 0 << 0
-#define UART_PARITY_ODD 1 << 0
-#define UART_PARITY_EN 1 << 1
-#define UART_NB_BIT_5 0 << 2
-#define UART_NB_BIT_6 1 << 2
-#define UART_NB_BIT_7 2 << 2
-#define UART_NB_BIT_8 3 << 2
-#define UART_NB_STOP_BIT_1 1 << 4
-#define UART_NB_STOP_BIT_2 3 << 4
-#define UART_TICK_APB_CLOCK 1 << 27
+static const uint32_t UART_PARITY_EVEN = 0 << 0;
+static const uint32_t UART_PARITY_ODD = 1 << 0;
+static const uint32_t UART_PARITY_EN = 1 << 1;
+static const uint32_t UART_NB_BIT_5 = 0 << 2;
+static const uint32_t UART_NB_BIT_6 = 1 << 2;
+static const uint32_t UART_NB_BIT_7 = 2 << 2;
+static const uint32_t UART_NB_BIT_8 = 3 << 2;
+static const uint32_t UART_NB_STOP_BIT_1 = 1 << 4;
+static const uint32_t UART_NB_STOP_BIT_2 = 3 << 4;
+static const uint32_t UART_TICK_APB_CLOCK = 1 << 27;
 
 uint32_t UARTComponent::get_config() {
   uint32_t config = 0;
