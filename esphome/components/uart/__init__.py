@@ -29,7 +29,7 @@ def validate_rx_pin(value):
 
 
 CONF_STOP_BITS = 'stop_bits'
-CONF_NR_BITS = 'nr_bits'
+CONF_DATA_BITS_NUMBER = 'data_bits_number'
 CONF_PARITY = 'parity'
 
 CONFIG_SCHEMA = cv.All(cv.Schema({
@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_TX_PIN): pins.output_pin,
     cv.Optional(CONF_RX_PIN): validate_rx_pin,
     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
-    cv.Optional(CONF_NR_BITS, default=8): cv.int_range(min=5, max=8),
+    cv.Optional(CONF_DATA_BITS_NUMBER, default=8): cv.int_range(min=5, max=8),
     cv.Optional(CONF_PARITY, default="none"): cv.one_of("none", "even", "odd", lower=True),
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))
 
@@ -55,7 +55,7 @@ def to_code(config):
     if CONF_RX_PIN in config:
         cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
-    cg.add(var.set_nr_bits(config[CONF_NR_BITS]))
+    cg.add(var.set_data_bits_number(config[CONF_DATA_BITS_NUMBER]))
     cg.add(var.set_parity(config[CONF_PARITY]))
 
 

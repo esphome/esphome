@@ -86,7 +86,7 @@ class UARTComponent : public Component, public Stream {
   void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
-  void set_nr_bits(uint8_t nr_bits) { this->nr_bits_ = nr_bits; }
+  void set_data_bits_number(uint8_t nr_bits) { this->nr_bits_ = nr_bits; }
   void set_parity(const char *parity) { this->parity_ = std::string(parity); }
 
  protected:
