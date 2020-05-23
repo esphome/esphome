@@ -158,7 +158,8 @@ class UARTDevice : public Stream {
   void begin() { this->parent_->begin(); }
 
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
-  void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1);
+  void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
+                           UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t nr_bits = 8);
 
  protected:
   UARTComponent *parent_{nullptr};
