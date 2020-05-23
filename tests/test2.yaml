@@ -47,7 +47,6 @@ logger:
 as3935_i2c:
   irq_pin: GPIO12
 
-
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -168,6 +167,51 @@ sensor:
     battery_level:
       name: "JQJCY01YM Battery Level"
 
+
+climate:
+  - platform: bang_bang
+    name: Bang Bang Climate
+    sensor: ha_hello_world
+    single_target_temperature:
+      default_target_temperature: 22°C
+      idle_action:
+        - switch.turn_on: gpio_switch1
+      cool_action:
+        - switch.turn_on: gpio_switch2
+      off_mode:
+        - switch.turn_on: gpio_switch1
+      cool_mode:
+        - switch.turn_on: gpio_switch1
+      fan_mode_auto_action:
+        - switch.turn_on: gpio_switch2
+      fan_mode_on_action:
+        - switch.turn_on: gpio_switch1
+      fan_mode_off_action:
+        - switch.turn_on: gpio_switch2
+      fan_mode_low_action:
+        - switch.turn_on: gpio_switch1
+      fan_mode_medium_action:
+        - switch.turn_on: gpio_switch2
+      fan_mode_high_action:
+        - switch.turn_on: gpio_switch1
+      fan_mode_middle_action:
+        - switch.turn_on: gpio_switch2
+      fan_mode_focus_action:
+        - switch.turn_on: gpio_switch1
+      fan_mode_diffuse_action:
+        - switch.turn_on: gpio_switch2
+      swing_off_action:
+        - switch.turn_on: gpio_switch1
+      swing_horizontal_action:
+        - switch.turn_on: gpio_switch2
+      swing_vertical_action:
+        - switch.turn_on: gpio_switch1
+      swing_both_action:
+        - switch.turn_on: gpio_switch2
+      hysteresis: 0.2
+      away_config:
+        default_target_temperature: 23°C
+        hysteresis: 0.3
 
 time:
 - platform: homeassistant
