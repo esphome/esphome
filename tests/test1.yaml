@@ -1047,6 +1047,14 @@ light:
               duration: 250ms
             - state: False
               duration: 250ms
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+    on_turn_off:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: monochromatic
     name: "Kitchen Lights"
     id: kitchen
@@ -1150,7 +1158,9 @@ light:
     - addressable_lambda:
           name: "Test For Custom Lambda Effect"
           lambda: |-
-            it[0] = current_color;
+            if (initial_run) {
+              it[0] = current_color;
+            }
 
     - automation:
         name: Custom Effect
@@ -1231,6 +1241,8 @@ climate:
     name: Yashima Climate
   - platform: mitsubishi
     name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
 
 switch:
   - platform: gpio
@@ -1645,3 +1657,5 @@ text_sensor:
     name: "SSID"
   bssid:
     name: "BSSID"
+  mac_address:
+    name: "Mac Address"
