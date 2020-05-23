@@ -168,6 +168,14 @@ sensor:
       name: "JQJCY01YM Battery Level"
 
 
+switch:
+  - platform: gpio
+    id: gpio_switch1
+    pin: GPIO2
+  - platform: gpio
+    id: gpio_switch2
+    pin: GPIO3
+
 climate:
   - platform: bang_bang
     name: Bang Bang Climate
