@@ -92,11 +92,13 @@ void SSD1325::setup() {
   this->command(SSD1325_SETPRECHARGECOMPENABLE);
   this->command(0x28);
   this->command(SSD1325_SETVCOMLEVEL);  // Set High Voltage Level of COM Pin
-  this->command(0x1C);                  //?
+  this->command(0x1C);                  // ?
   this->command(SSD1325_SETVSL);        // set Low Voltage Level of SEG Pin
   this->command(0x0D | 0x02);
-  this->command(SSD1325_NORMALDISPLAY); /* set display mode */
-  this->command(SSD1325_DISPLAYON);     /* display ON */
+  this->command(SSD1325_NORMALDISPLAY);  // set display mode
+  this->fill(BLACK);                     // clear display - ensures we do not see garbage at power-on
+  this->display();                       // ...write buffer, which actually clears the display's memory
+  this->command(SSD1325_DISPLAYON);      // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR); /* set column address */
@@ -146,7 +148,7 @@ int SSD1325::get_width_internal() {
   }
 }
 size_t SSD1325::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 2u;
+  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / SSD1325_PIXELSPERBYTE;
 }
 void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
