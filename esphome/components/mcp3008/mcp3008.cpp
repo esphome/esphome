@@ -19,21 +19,21 @@ void MCP3008::dump_config() {
 }
 
 float MCP3008::read_data(uint8_t pin) {
-  byte b0, b1, b2;
+  byte data_msb = 0;
+  byte data_lsb = 0;
 
   byte command = ((0x01 << 7) |          // start bit
-                  (0 << 6) |             // single or differential
-                  ((pin & 0x07) << 3));  // channel number
+                  ((pin & 0x07) << 4));  // channel number
 
   this->enable();
 
-  b0 = this->transfer_byte(command);
-  b1 = this->transfer_byte(0x00);
-  b2 = this->transfer_byte(0x00);
+  this->transfer_byte(0x01);
+  data_msb = this->transfer_byte(command) & 0x03;
+  data_lsb = this->transfer_byte(0x00);
 
   this->disable();
 
-  int data = 0x3FF & ((b0 & 0x01) << 9 | (b1 & 0xFF) << 1 | (b2 & 0x80) >> 7);
+  int data = data_msb << 8 | data_lsb;
 
   return data / 1024.0f;
 }
