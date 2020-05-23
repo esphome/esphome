@@ -127,11 +127,6 @@ climate::ClimateAction BangBangClimate::compute_action_() {
             if (this->action == climate::CLIMATE_ACTION_HEATING)
               target_action = climate::CLIMATE_ACTION_IDLE;
         }
-        // do not switch to an action that isn't enabled per the active climate mode
-        if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
-          target_action = climate::CLIMATE_ACTION_IDLE;
-        if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
-          target_action = climate::CLIMATE_ACTION_IDLE;
         break;
       default:
         break;
@@ -178,16 +173,17 @@ climate::ClimateAction BangBangClimate::compute_action_() {
             if (this->action == climate::CLIMATE_ACTION_HEATING)
               target_action = climate::CLIMATE_ACTION_IDLE;
         }
-        // do not switch to an action that isn't enabled per the active climate mode
-        if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
-          target_action = climate::CLIMATE_ACTION_IDLE;
-        if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
-          target_action = climate::CLIMATE_ACTION_IDLE;
         break;
       default:
         break;
     }
   }
+  // do not switch to an action that isn't enabled per the active climate mode
+  if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
+    target_action = climate::CLIMATE_ACTION_IDLE;
+  if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
+    target_action = climate::CLIMATE_ACTION_IDLE;
+
   return target_action;
 }
 void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
