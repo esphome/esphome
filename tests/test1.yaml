@@ -132,6 +132,9 @@ uart:
   rx_pin: GPIO23
   baud_rate: 115200
   id: uart0
+  parity: NONE
+  data_bits: 8
+  stop_bits: 1
 
 ota:
   safe_mode: True
