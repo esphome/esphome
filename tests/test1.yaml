@@ -1030,6 +1030,9 @@ output:
     id: dimmer1
     gate_pin: GPIO5
     zero_cross_pin: GPIO26
+  - platform: esp32_dac
+    pin: GPIO25
+    id: dac_output
 
 light:
   - platform: binary
@@ -1357,6 +1360,12 @@ switch:
         level: 50%
     - output.set_level:
         id: gpio_19
+        level: !lambda 'return 0.5;'
+    - output.set_level:
+        id: dac_output
+        level: 50%
+    - output.set_level:
+        id: dac_output
         level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
