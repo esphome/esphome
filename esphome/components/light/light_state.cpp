@@ -411,8 +411,7 @@ LightColorValues LightCall::validate_() {
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
     if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f && traits.get_supports_rgb_white_value()) {
       this->white_ = optional<float>(1.0f);
-    }
-    else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
+    } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
       this->white_ = optional<float>(0.0f);
     }
   }
