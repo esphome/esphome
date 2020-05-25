@@ -25,8 +25,7 @@ template<typename... Ts> class SamsungAction : public RemoteTransmitterActionBas
  public:
   TEMPLATABLE_VALUE(uint32_t, data)
 
- protected:
-  void encode_(RemoteTransmitData *dst, Ts... x) override {
+  void encode(RemoteTransmitData *dst, Ts... x) override {
     SamsungData data{};
     data.data = this->data_.value(x...);
     SamsungProtocol().encode(dst, data);

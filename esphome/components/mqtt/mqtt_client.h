@@ -299,12 +299,12 @@ template<typename... Ts> class MQTTPublishAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(uint8_t, qos)
   TEMPLATABLE_VALUE(bool, retain)
 
- protected:
-  void play_(Ts... x) override {
+  void play(Ts... x) override {
     this->parent_->publish(this->topic_.value(x...), this->payload_.value(x...), this->qos_.value(x...),
                            this->retain_.value(x...));
   }
 
+ protected:
   MQTTClientComponent *parent_;
 };
 
@@ -317,14 +317,15 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
 
   void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
 
- protected:
-  void play_(Ts... x) override {
+  void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);
     auto qos = this->qos_.value(x...);
     auto retain = this->retain_.value(x...);
     this->parent_->publish_json(topic, f, qos, retain);
   }
+
+ protected:
   void encode_(Ts... x, JsonObject &root) { this->payload_(x..., root); }
   std::function<void(Ts..., JsonObject &)> payload_;
   MQTTClientComponent *parent_;

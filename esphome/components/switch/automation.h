@@ -11,9 +11,9 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   explicit TurnOnAction(Switch *a_switch) : switch_(a_switch) {}
 
- protected:
-  void play_(Ts... x) override { this->switch_->turn_on(); }
+  void play(Ts... x) override { this->switch_->turn_on(); }
 
+ protected:
   Switch *switch_;
 };
 
@@ -21,9 +21,9 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   explicit TurnOffAction(Switch *a_switch) : switch_(a_switch) {}
 
- protected:
-  void play_(Ts... x) override { this->switch_->turn_off(); }
+  void play(Ts... x) override { this->switch_->turn_off(); }
 
+ protected:
   Switch *switch_;
 };
 
@@ -31,9 +31,9 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
  public:
   explicit ToggleAction(Switch *a_switch) : switch_(a_switch) {}
 
- protected:
-  void play_(Ts... x) override { this->switch_->toggle(); }
+  void play(Ts... x) override { this->switch_->toggle(); }
 
+ protected:
   Switch *switch_;
 };
 
@@ -74,8 +74,9 @@ template<typename... Ts> class SwitchPublishAction : public Action<Ts...> {
   SwitchPublishAction(Switch *a_switch) : switch_(a_switch) {}
   TEMPLATABLE_VALUE(bool, state)
 
+  void play(Ts... x) override { this->switch_->publish_state(this->state_.value(x...)); }
+
  protected:
-  void play_(Ts... x) override { this->switch_->publish_state(this->state_.value(x...)); }
   Switch *switch_;
 };
 

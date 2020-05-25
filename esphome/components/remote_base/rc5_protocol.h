@@ -27,8 +27,7 @@ template<typename... Ts> class RC5Action : public RemoteTransmitterActionBase<Ts
   TEMPLATABLE_VALUE(uint8_t, address)
   TEMPLATABLE_VALUE(uint8_t, command)
 
- protected:
-  void encode_(RemoteTransmitData *dst, Ts... x) override {
+  void encode(RemoteTransmitData *dst, Ts... x) override {
     RC5Data data{};
     data.address = this->address_.value(x...);
     data.command = this->command_.value(x...);

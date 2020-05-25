@@ -27,8 +27,7 @@ template<typename... Ts> class PanasonicAction : public RemoteTransmitterActionB
   TEMPLATABLE_VALUE(uint16_t, address)
   TEMPLATABLE_VALUE(uint32_t, command)
 
- protected:
-  void encode_(RemoteTransmitData *dst, Ts... x) override {
+  void encode(RemoteTransmitData *dst, Ts... x) override {
     PanasonicData data{};
     data.address = this->address_.value(x...);
     data.command = this->command_.value(x...);

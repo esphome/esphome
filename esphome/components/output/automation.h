@@ -12,9 +12,9 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
  public:
   TurnOffAction(BinaryOutput *output) : output_(output) {}
 
- protected:
-  void play_(Ts... x) override { this->output_->turn_off(); }
+  void play(Ts... x) override { this->output_->turn_off(); }
 
+ protected:
   BinaryOutput *output_;
 };
 
@@ -22,9 +22,9 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
  public:
   TurnOnAction(BinaryOutput *output) : output_(output) {}
 
- protected:
-  void play_(Ts... x) override { this->output_->turn_on(); }
+  void play(Ts... x) override { this->output_->turn_on(); }
 
+ protected:
   BinaryOutput *output_;
 };
 
@@ -34,9 +34,9 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, level)
 
- protected:
-  void play_(Ts... x) override { this->output_->set_level(this->level_.value(x...)); }
+  void play(Ts... x) override { this->output_->set_level(this->level_.value(x...)); }
 
+ protected:
   FloatOutput *output_;
 };
 

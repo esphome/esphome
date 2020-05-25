@@ -30,8 +30,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->variables_.push_back(TemplatableKeyValuePair<Ts...>(key, value));
   }
 
- protected:
-  void play_(Ts... x) override {
+  void play(Ts... x) override {
     HomeassistantServiceResponse resp;
     resp.service = this->service_.value(x...);
     resp.is_event = this->is_event_;
@@ -56,6 +55,7 @@ template<typename... Ts> class HomeAssistantServiceCallAction : public Action<Ts
     this->parent_->send_homeassistant_service_call(resp);
   }
 
+ protected:
   APIServer *parent_;
   bool is_event_;
   std::vector<TemplatableKeyValuePair<Ts...>> data_;

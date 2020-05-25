@@ -75,8 +75,9 @@ template<typename... Ts> class RotaryEncoderSetValueAction : public Action<Ts...
   RotaryEncoderSetValueAction(RotaryEncoderSensor *encoder) : encoder_(encoder) {}
   TEMPLATABLE_VALUE(int, value)
 
+  void play(Ts... x) override { this->encoder_->set_value(this->value_.value(x...)); }
+
  protected:
-  void play_(Ts... x) override { this->encoder_->set_value(this->value_.value(x...)); }
   RotaryEncoderSensor *encoder_;
 };
 

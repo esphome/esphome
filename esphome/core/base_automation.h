@@ -115,22 +115,19 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
- protected:
-  void play_(Ts... x) override { /* ignore - see play_complex */
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop_() override {
-    this->cancel_timeout("");
-  }
+  void stop() override { this->cancel_timeout(""); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
 
- protected:
-  void play_(Ts... x) override { this->f_(x...); }
+  void play(Ts... x) override { this->f_(x...); }
 
+ protected:
   std::function<void(Ts...)> f_;
 };
 
@@ -166,15 +163,15 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
     }
   }
 
- protected:
-  void play_(Ts... x) override { /* ignore - see play_complex */
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop_() override {
+  void stop() override {
     this->then_.stop();
     this->else_.stop();
   }
 
+ protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
   ActionList<Ts...> else_;
@@ -216,12 +213,12 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
     }
   }
 
- protected:
-  void play_(Ts... x) override { /* ignore - see play_complex */
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
-  void stop_() override { this->then_.stop(); }
+  void stop() override { this->then_.stop(); }
 
+ protected:
   Condition<Ts...> *condition_;
   ActionList<Ts...> then_;
   std::tuple<Ts...> var_{};
@@ -257,10 +254,10 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
- protected:
-  void play_(Ts... x) override { /* ignore - see play_complex */
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
+ protected:
   Condition<Ts...> *condition_;
   std::tuple<Ts...> var_{};
 };
@@ -269,9 +266,9 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
- protected:
-  void play_(Ts... x) override { this->component_->update(); }
+  void play(Ts... x) override { this->component_->update(); }
 
+ protected:
   PollingComponent *component_;
 };
 

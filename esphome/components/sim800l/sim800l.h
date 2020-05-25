@@ -78,13 +78,13 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, recipient)
   TEMPLATABLE_VALUE(std::string, message)
 
- protected:
-  void play_(Ts... x) {
+  void play(Ts... x) {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
   }
 
+ protected:
   Sim800LComponent *parent_;
 };
 

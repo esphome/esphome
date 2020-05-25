@@ -38,8 +38,7 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   SetFrequencyAction(ESP8266PWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);
 
- protected:
-  void play_(Ts... x) {
+  void play(Ts... x) {
     float freq = this->frequency_.value(x...);
     this->parent_->update_frequency(freq);
   }

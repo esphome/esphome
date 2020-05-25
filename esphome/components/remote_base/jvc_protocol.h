@@ -24,8 +24,7 @@ template<typename... Ts> class JVCAction : public RemoteTransmitterActionBase<Ts
  public:
   TEMPLATABLE_VALUE(uint32_t, data)
 
- protected:
-  void encode_(RemoteTransmitData *dst, Ts... x) override {
+  void encode(RemoteTransmitData *dst, Ts... x) override {
     JVCData data{};
     data.data = this->data_.value(x...);
     JVCProtocol().encode(dst, data);

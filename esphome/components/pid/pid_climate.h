@@ -75,8 +75,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   void set_positive_output(float positive_output) { positive_output_ = positive_output; }
   void set_negative_output(float negative_output) { negative_output_ = negative_output; }
 
- protected:
-  void play_(Ts... x) {
+  void play(Ts... x) {
     auto tuner = make_unique<PIDAutotuner>();
     tuner->set_noiseband(this->noiseband_);
     tuner->set_output_negative(this->negative_output_);
@@ -84,6 +83,7 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
     this->parent_->start_autotune(std::move(tuner));
   }
 
+ protected:
   float noiseband_;
   float positive_output_;
   float negative_output_;

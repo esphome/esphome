@@ -38,9 +38,9 @@ template<typename... Ts> class MHZ19CalibrateZeroAction : public Action<Ts...> {
  public:
   MHZ19CalibrateZeroAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
 
- protected:
-  void play_(Ts... x) override { this->mhz19_->calibrate_zero(); }
+  void play(Ts... x) override { this->mhz19_->calibrate_zero(); }
 
+ protected:
   MHZ19Component *mhz19_;
 };
 
@@ -48,9 +48,9 @@ template<typename... Ts> class MHZ19ABCEnableAction : public Action<Ts...> {
  public:
   MHZ19ABCEnableAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
 
- protected:
-  void play_(Ts... x) override { this->mhz19_->abc_enable(); }
+  void play(Ts... x) override { this->mhz19_->abc_enable(); }
 
+ protected:
   MHZ19Component *mhz19_;
 };
 
@@ -58,9 +58,9 @@ template<typename... Ts> class MHZ19ABCDisableAction : public Action<Ts...> {
  public:
   MHZ19ABCDisableAction(MHZ19Component *mhz19) : mhz19_(mhz19) {}
 
- protected:
-  void play_(Ts... x) override { this->mhz19_->abc_disable(); }
+  void play(Ts... x) override { this->mhz19_->abc_disable(); }
 
+ protected:
   MHZ19Component *mhz19_;
 };
 

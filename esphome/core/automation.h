@@ -77,12 +77,12 @@ template<typename... Ts> class Action {
  public:
   virtual void play_complex(Ts... x) {
     this->num_running_++;
-    this->play_(x...);
+    this->play(x...);
     this->play_next_(x...);
   }
   virtual void stop_complex() {
     if (num_running_) {
-      this->stop_();
+      this->stop();
       this->num_running_ = 0;
     }
     this->stop_next_();
@@ -92,7 +92,7 @@ template<typename... Ts> class Action {
  protected:
   friend ActionList<Ts...>;
 
-  virtual void play_(Ts... x) = 0;
+  virtual void play(Ts... x) = 0;
   void play_next_(Ts... x) {
     if (this->num_running_ > 0) {
       this->num_running_--;
@@ -108,7 +108,7 @@ template<typename... Ts> class Action {
     this->play_next_tuple_(tuple, typename gens<sizeof...(Ts)>::type());
   }
 
-  virtual void stop_() {}
+  virtual void stop() {}
   void stop_next_() {
     if (this->next_ != nullptr) {
       this->next_->stop_complex();
