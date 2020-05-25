@@ -2,11 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import climate, sensor, output
-from esphome.const import CONF_DEFAULT_TARGET_TEMPERATURE, CONF_ID, CONF_SENSOR
+from esphome.const import CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace('pid')
 PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
 PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
+
+CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 
 CONF_KP = 'kp'
 CONF_KI = 'ki'
