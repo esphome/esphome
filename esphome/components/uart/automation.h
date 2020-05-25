@@ -25,6 +25,7 @@ template<typename... Ts> class UARTWriteAction : public Action<Ts...>, public Pa
       this->parent_->write_array(val);
     }
   }
+
  protected:
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
