@@ -15,11 +15,60 @@ bang_bang_ns = cg.esphome_ns.namespace('bang_bang')
 BangBangClimate = bang_bang_ns.class_('BangBangClimate', climate.Climate, cg.Component)
 BangBangClimateTargetTempConfig = bang_bang_ns.struct('BangBangClimateTargetTempConfig')
 
+
+def validate_bangbang(config):
+    # verify corresponding climate action action exists for any defined climate mode action
+    if CONF_COOL_MODE in config and CONF_COOL_ACTION not in config:
+        raise cv.Invalid("{} must be defined to use {}".format(CONF_COOL_ACTION, CONF_COOL_MODE))
+    if CONF_DRY_MODE in config and CONF_DRY_ACTION not in config:
+        raise cv.Invalid("{} must be defined to use {}".format(CONF_DRY_ACTION, CONF_DRY_MODE))
+    if CONF_FAN_ONLY_MODE in config and CONF_FAN_ONLY_ACTION not in config:
+        raise cv.Invalid("{} must be defined to use {}".format(CONF_FAN_ONLY_ACTION,
+                                                               CONF_FAN_ONLY_MODE))
+    if CONF_HEAT_MODE in config and CONF_HEAT_ACTION not in config:
+        raise cv.Invalid("{} must be defined to use {}".format(CONF_HEAT_ACTION, CONF_HEAT_MODE))
+    # verify corresponding default target temperature exists when a given climate action exists
+    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in config and (CONF_COOL_ACTION in config
+                                                               or CONF_FAN_ONLY_ACTION in config):
+        raise cv.Invalid("{} must be defined when using {} or {}".format(
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION, CONF_FAN_ONLY_ACTION))
+    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in config and CONF_HEAT_ACTION in config:
+        raise cv.Invalid("{} must be defined when using {}".format(
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION))
+    # if a given climate action is NOT defined, it should not have a default target temperature
+    if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config and (CONF_COOL_ACTION not in config
+                                                           and CONF_FAN_ONLY_ACTION not in config):
+        raise cv.Invalid("{} is defined with no {}".format(
+            CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION))
+    if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config and CONF_HEAT_ACTION not in config:
+        raise cv.Invalid("{} is defined with no {}".format(
+            CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION))
+
+    if CONF_AWAY_CONFIG in config:
+        away = config[CONF_AWAY_CONFIG]
+        # verify corresponding default target temperature exists when a given climate action exists
+        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH not in away and (CONF_COOL_ACTION in config or
+                                                                 CONF_FAN_ONLY_ACTION in config):
+            raise cv.Invalid("{} must be defined in away configuration when using {} or {}".format(
+                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION, CONF_FAN_ONLY_ACTION))
+        if CONF_DEFAULT_TARGET_TEMPERATURE_LOW not in away and CONF_HEAT_ACTION in config:
+            raise cv.Invalid("{} must be defined in away configuration when using {}".format(
+                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION))
+        # if a given climate action is NOT defined, it should not have a default target temperature
+        if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away and (CONF_COOL_ACTION not in config and
+                                                             CONF_FAN_ONLY_ACTION not in config):
+            raise cv.Invalid("{} is defined in away configuration with no {} or {}".format(
+                CONF_DEFAULT_TARGET_TEMPERATURE_HIGH, CONF_COOL_ACTION, CONF_FAN_ONLY_ACTION))
+        if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away and CONF_HEAT_ACTION not in config:
+            raise cv.Invalid("{} is defined in away configuration with no {}".format(
+                CONF_DEFAULT_TARGET_TEMPERATURE_LOW, CONF_HEAT_ACTION))
+
+    return config
+
+
 CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(BangBangClimate),
     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-    cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-    cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
     cv.Required(CONF_IDLE_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_COOL_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_DRY_ACTION): automation.validate_automation(single=True),
@@ -44,13 +93,16 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_SWING_HORIZONTAL_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_SWING_OFF_ACTION): automation.validate_automation(single=True),
     cv.Optional(CONF_SWING_VERTICAL_ACTION): automation.validate_automation(single=True),
+    cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
+    cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
     cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
     cv.Optional(CONF_AWAY_CONFIG): cv.Schema({
-        cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
-        cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
-        cv.Optional(CONF_HYSTERESIS, default=0.5): cv.temperature,
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_HIGH): cv.temperature,
+        cv.Optional(CONF_DEFAULT_TARGET_TEMPERATURE_LOW): cv.temperature,
     }),
-}).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_COOL_ACTION, CONF_HEAT_ACTION))
+}).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_COOL_ACTION, CONF_DRY_ACTION,
+                                                        CONF_FAN_ONLY_ACTION, CONF_HEAT_ACTION),
+                       validate_bangbang)
 
 
 def to_code(config):
@@ -61,14 +113,32 @@ def to_code(config):
     sens = yield cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))
 
-    normal_config = BangBangClimateTargetTempConfig(
-        config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-        config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
-        config[CONF_HYSTERESIS]
-    )
+    auto_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
+
+    if auto_mode_available is True:
+        normal_config = BangBangClimateTargetTempConfig(
+            config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
+            config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+        )
+    elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
+        normal_config = BangBangClimateTargetTempConfig(
+            config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+        )
+    elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
+        normal_config = BangBangClimateTargetTempConfig(
+            config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+        )
     cg.add(var.set_normal_config(normal_config))
 
-    yield automation.build_automation(var.get_idle_action_trigger(), [], config[CONF_IDLE_ACTION])
+    yield automation.build_automation(var.get_idle_action_trigger(), [],
+                                      config[CONF_IDLE_ACTION])
+
+    cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
+
+    if auto_mode_available is True:
+        cg.add(var.set_supports_auto(True))
+    else:
+        cg.add(var.set_supports_auto(False))
 
     if CONF_COOL_ACTION in config:
         yield automation.build_automation(var.get_cool_action_trigger(), [],
@@ -163,9 +233,18 @@ def to_code(config):
 
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
-        away_config = BangBangClimateTargetTempConfig(
-            away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
-            away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH],
-            away[CONF_HYSTERESIS]
-        )
+
+        if auto_mode_available is True:
+            away_config = BangBangClimateTargetTempConfig(
+                away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
+                away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+            )
+        elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in away:
+            away_config = BangBangClimateTargetTempConfig(
+                away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
+            )
+        elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in away:
+            away_config = BangBangClimateTargetTempConfig(
+                away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
+            )
         cg.add(var.set_away_config(away_config))
