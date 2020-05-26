@@ -9,11 +9,8 @@ static const char *TAG = "bang_bang.climate";
 void BangBangClimate::setup() {
   this->sensor_->add_on_state_callback([this](float state) {
     this->current_temperature = state;
-    // control may have changed, recompute, refresh
-    this->switch_to_mode_(this->mode);
+    // required action may have changed, recompute, refresh
     this->switch_to_action_(compute_action_());
-    this->switch_to_fan_mode_(this->fan_mode);
-    this->switch_to_swing_mode_(this->swing_mode);
     // current temperature changed, publish state
     this->publish_state();
   });
@@ -22,10 +19,6 @@ void BangBangClimate::setup() {
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->to_call(this).perform();
-    if (!this->away)
-      this->hysteresis_ = this->normal_config_.hysteresis;
-    else
-      this->hysteresis_ = this->away_config_.hysteresis;
   } else {
     // restore from defaults, change_away handles temps for us
     this->mode = climate::CLIMATE_MODE_AUTO;
@@ -33,8 +26,6 @@ void BangBangClimate::setup() {
   }
   // refresh the climate action based on the restored settings
   this->switch_to_action_(compute_action_());
-  this->setup_complete_ = true;
-  this->publish_state();
 }
 void BangBangClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
@@ -43,6 +34,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->fan_mode = *call.get_fan_mode();
   if (call.get_swing_mode().has_value())
     this->swing_mode = *call.get_swing_mode();
+  if (call.get_target_temperature().has_value())
+    this->target_temperature = *call.get_target_temperature();
   if (call.get_target_temperature_low().has_value())
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
@@ -59,7 +52,7 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();
   traits.set_supports_current_temperature(true);
-  traits.set_supports_auto_mode(this->supports_heat_ && (this->supports_cool_ || this->supports_fan_only_));
+  traits.set_supports_auto_mode(this->supports_auto_);
   traits.set_supports_cool_mode(this->supports_cool_);
   traits.set_supports_dry_mode(this->supports_dry_);
   traits.set_supports_fan_only_mode(this->supports_fan_only_);
@@ -77,67 +70,115 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
   traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
   traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
-  traits.set_supports_two_point_target_temperature(this->supports_heat_ &&
-                                                   (this->supports_cool_ || this->supports_fan_only_));
+  traits.set_supports_two_point_target_temperature(this->supports_auto_);
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
 }
 climate::ClimateAction BangBangClimate::compute_action_() {
-  if (isnan(this->current_temperature) || isnan(this->target_temperature_low) || isnan(this->target_temperature_high) ||
-      isnan(this->hysteresis_))
-    // if any control parameters are nan, go to OFF action (not IDLE!)
-    return climate::CLIMATE_ACTION_OFF;
-
   climate::ClimateAction target_action = this->action;
+  // we can use 'supports_auto_' to determine if we are single-point or dual-point
+  if (this->supports_auto_) {
+    if (isnan(this->current_temperature) || isnan(this->target_temperature_low) ||
+        isnan(this->target_temperature_high) || isnan(this->hysteresis_))
+      // if any control parameters are nan, go to OFF action (not IDLE!)
+      return climate::CLIMATE_ACTION_OFF;
 
-  if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
-      ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
+    if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
+        ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
+      target_action = climate::CLIMATE_ACTION_IDLE;
+    }
+
+    switch (this->mode) {
+      case climate::CLIMATE_MODE_FAN_ONLY:
+        if (this->supports_fan_only_) {
+          if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_FAN;
+          else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_FAN)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+        break;
+      case climate::CLIMATE_MODE_DRY:
+        target_action = climate::CLIMATE_ACTION_DRYING;
+        break;
+      case climate::CLIMATE_MODE_OFF:
+        target_action = climate::CLIMATE_ACTION_OFF;
+        break;
+      case climate::CLIMATE_MODE_AUTO:
+      case climate::CLIMATE_MODE_COOL:
+      case climate::CLIMATE_MODE_HEAT:
+        if (this->supports_cool_) {
+          if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_COOLING;
+          else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_COOLING)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+        if (this->supports_heat_) {
+          if (this->current_temperature < this->target_temperature_low - this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_HEATING;
+          else if (this->current_temperature > this->target_temperature_low + this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_HEATING)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+        break;
+      default:
+        break;
+    }
+  } else {
+    if (isnan(this->current_temperature) || isnan(this->target_temperature) || isnan(this->hysteresis_))
+      // if any control parameters are nan, go to OFF action (not IDLE!)
+      return climate::CLIMATE_ACTION_OFF;
+
+    if (((this->action == climate::CLIMATE_ACTION_FAN) && (this->mode != climate::CLIMATE_MODE_FAN_ONLY)) ||
+        ((this->action == climate::CLIMATE_ACTION_DRYING) && (this->mode != climate::CLIMATE_MODE_DRY))) {
+      target_action = climate::CLIMATE_ACTION_IDLE;
+    }
+
+    switch (this->mode) {
+      case climate::CLIMATE_MODE_FAN_ONLY:
+        if (this->supports_fan_only_) {
+          if (this->current_temperature > this->target_temperature + this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_FAN;
+          else if (this->current_temperature < this->target_temperature - this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_FAN)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+        break;
+      case climate::CLIMATE_MODE_DRY:
+        target_action = climate::CLIMATE_ACTION_DRYING;
+        break;
+      case climate::CLIMATE_MODE_OFF:
+        target_action = climate::CLIMATE_ACTION_OFF;
+        break;
+      case climate::CLIMATE_MODE_COOL:
+        if (this->supports_cool_) {
+          if (this->current_temperature > this->target_temperature + this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_COOLING;
+          else if (this->current_temperature < this->target_temperature - this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_COOLING)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+      case climate::CLIMATE_MODE_HEAT:
+        if (this->supports_heat_) {
+          if (this->current_temperature < this->target_temperature - this->hysteresis_)
+            target_action = climate::CLIMATE_ACTION_HEATING;
+          else if (this->current_temperature > this->target_temperature + this->hysteresis_)
+            if (this->action == climate::CLIMATE_ACTION_HEATING)
+              target_action = climate::CLIMATE_ACTION_IDLE;
+        }
+        break;
+      default:
+        break;
+    }
+  }
+  // do not switch to an action that isn't enabled per the active climate mode
+  if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
     target_action = climate::CLIMATE_ACTION_IDLE;
-  }
+  if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
+    target_action = climate::CLIMATE_ACTION_IDLE;
 
-  switch (this->mode) {
-    case climate::CLIMATE_MODE_FAN_ONLY:
-      if (this->supports_fan_only_) {
-        if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
-          target_action = climate::CLIMATE_ACTION_FAN;
-        else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
-          if (this->action == climate::CLIMATE_ACTION_FAN)
-            target_action = climate::CLIMATE_ACTION_IDLE;
-      }
-      break;
-    case climate::CLIMATE_MODE_DRY:
-      target_action = climate::CLIMATE_ACTION_DRYING;
-      break;
-    case climate::CLIMATE_MODE_OFF:
-      target_action = climate::CLIMATE_ACTION_OFF;
-      break;
-    case climate::CLIMATE_MODE_AUTO:
-    case climate::CLIMATE_MODE_COOL:
-    case climate::CLIMATE_MODE_HEAT:
-      if (this->supports_cool_) {
-        if (this->current_temperature > this->target_temperature_high + this->hysteresis_)
-          target_action = climate::CLIMATE_ACTION_COOLING;
-        else if (this->current_temperature < this->target_temperature_high - this->hysteresis_)
-          if (this->action == climate::CLIMATE_ACTION_COOLING)
-            target_action = climate::CLIMATE_ACTION_IDLE;
-      }
-      if (this->supports_heat_) {
-        if (this->current_temperature < this->target_temperature_low - this->hysteresis_)
-          target_action = climate::CLIMATE_ACTION_HEATING;
-        else if (this->current_temperature > this->target_temperature_low + this->hysteresis_)
-          if (this->action == climate::CLIMATE_ACTION_HEATING)
-            target_action = climate::CLIMATE_ACTION_IDLE;
-      }
-      // do not switch to an action that isn't enabled per the active climate mode
-      if ((this->mode == climate::CLIMATE_MODE_COOL) && (target_action == climate::CLIMATE_ACTION_HEATING))
-        target_action = climate::CLIMATE_ACTION_IDLE;
-      if ((this->mode == climate::CLIMATE_MODE_HEAT) && (target_action == climate::CLIMATE_ACTION_COOLING))
-        target_action = climate::CLIMATE_ACTION_IDLE;
-      break;
-    default:
-      break;
-  }
   return target_action;
 }
 void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
@@ -321,13 +362,17 @@ void BangBangClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
-    this->target_temperature_low = this->normal_config_.default_temperature_low;
-    this->target_temperature_high = this->normal_config_.default_temperature_high;
-    this->hysteresis_ = this->normal_config_.hysteresis;
+    if (this->supports_auto_) {
+      this->target_temperature_low = this->normal_config_.default_temperature_low;
+      this->target_temperature_high = this->normal_config_.default_temperature_high;
+    } else
+      this->target_temperature = this->normal_config_.default_temperature;
   } else {
-    this->target_temperature_low = this->away_config_.default_temperature_low;
-    this->target_temperature_high = this->away_config_.default_temperature_high;
-    this->hysteresis_ = this->away_config_.hysteresis;
+    if (this->supports_auto_) {
+      this->target_temperature_low = this->away_config_.default_temperature_low;
+      this->target_temperature_high = this->away_config_.default_temperature_high;
+    } else
+      this->target_temperature = this->away_config_.default_temperature;
   }
   this->away = away;
 }
@@ -363,7 +408,9 @@ BangBangClimate::BangBangClimate()
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
       swing_mode_vertical_trigger_(new Trigger<>()) {}
+void BangBangClimate::set_hysteresis(float hysteresis) { this->hysteresis_ = hysteresis; }
 void BangBangClimate::set_sensor(sensor::Sensor *sensor) { this->sensor_ = sensor; }
+void BangBangClimate::set_supports_auto(bool supports_auto) { this->supports_auto_ = supports_auto; }
 void BangBangClimate::set_supports_cool(bool supports_cool) { this->supports_cool_ = supports_cool; }
 void BangBangClimate::set_supports_dry(bool supports_dry) { this->supports_dry_ = supports_dry; }
 void BangBangClimate::set_supports_fan_only(bool supports_fan_only) { this->supports_fan_only_ = supports_fan_only; }
@@ -433,6 +480,7 @@ Trigger<> *BangBangClimate::get_swing_mode_horizontal_trigger() const { return t
 Trigger<> *BangBangClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
+  ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY: %s", YESNO(this->supports_fan_only_));
@@ -453,15 +501,15 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
   ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
-  ESP_LOGCONFIG(TAG, "  Default Hysteresis: %.1f°C", this->normal_config_.hysteresis);
+  ESP_LOGCONFIG(TAG, "  Default Hysteresis: %.1f°C", this->hysteresis_);
 }
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;
+BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_temperature)
+    : default_temperature(default_temperature) {}
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig(float default_temperature_low,
-                                                                 float default_temperature_high, float hysteresis)
-    : default_temperature_low(default_temperature_low),
-      default_temperature_high(default_temperature_high),
-      hysteresis(hysteresis) {}
+                                                                 float default_temperature_high)
+    : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
 }  // namespace bang_bang
 }  // namespace esphome

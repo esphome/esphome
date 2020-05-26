@@ -11,8 +11,10 @@ namespace bang_bang {
 struct BangBangClimateTargetTempConfig {
  public:
   BangBangClimateTargetTempConfig();
-  BangBangClimateTargetTempConfig(float default_temperature_low, float default_temperature_high, float hysteresis);
+  BangBangClimateTargetTempConfig(float default_temperature);
+  BangBangClimateTargetTempConfig(float default_temperature_low, float default_temperature_high);
 
+  float default_temperature{NAN};
   float default_temperature_low{NAN};
   float default_temperature_high{NAN};
   float hysteresis{NAN};
@@ -26,6 +28,7 @@ class BangBangClimate : public climate::Climate, public Component {
 
   void set_hysteresis(float hysteresis);
   void set_sensor(sensor::Sensor *sensor);
+  void set_supports_auto(bool supports_auto);
   void set_supports_cool(bool supports_cool);
   void set_supports_dry(bool supports_dry);
   void set_supports_fan_only(bool supports_fan_only);
@@ -99,11 +102,12 @@ class BangBangClimate : public climate::Climate, public Component {
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
-  /** Whether the controller supports cooling/drying/fanning/heating.
+  /** Whether the controller supports auto/cooling/drying/fanning/heating.
    *
    * A false value for any given attribute means that the controller has no such action
    * (for example a thermostat, where only heating and not-heating is possible).
    */
+  bool supports_auto_{false};
   bool supports_cool_{false};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
@@ -242,7 +246,7 @@ class BangBangClimate : public climate::Climate, public Component {
   BangBangClimateTargetTempConfig normal_config_{};
   BangBangClimateTargetTempConfig away_config_{};
 
-  float hysteresis_;
+  float hysteresis_{0};
 };
 
 }  // namespace bang_bang
