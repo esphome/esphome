@@ -653,7 +653,6 @@ climate:
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C
-      hysteresis: 0.2
 
 cover:
   - platform: endstop
