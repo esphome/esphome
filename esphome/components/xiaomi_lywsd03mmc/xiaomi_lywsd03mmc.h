@@ -8,14 +8,14 @@
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_lywsdcgq {
+namespace xiaomi_lywsd03mmc {
 
-class XiaomiLYWSDCGQ : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiLYWSD03MMC : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
-  void set_address(uint64_t address) { address_ = address; }
+  void set_address(uint64_t address) { address_ = address; };
+  void set_bindkey(const std::string &bindkey);
 
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
@@ -24,12 +24,13 @@ class XiaomiLYWSDCGQ : public Component, public esp32_ble_tracker::ESPBTDeviceLi
 
  protected:
   uint64_t address_;
+  uint8_t bindkey_[16];
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 };
 
-}  // namespace xiaomi_lywsdcgq
+}  // namespace xiaomi_lywsd03mmc
 }  // namespace esphome
 
 #endif
