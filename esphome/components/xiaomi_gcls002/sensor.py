@@ -9,12 +9,12 @@ from esphome.const import CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
 DEPENDENCIES = ['esp32_ble_tracker']
 AUTO_LOAD = ['xiaomi_ble']
 
-xiaomi_hhccjcy01_ns = cg.esphome_ns.namespace('xiaomi_hhccjcy01')
-XiaomiHHCCJCY01 = xiaomi_hhccjcy01_ns.class_('XiaomiHHCCJCY01',
-                                             esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
+xiaomi_gcls002_ns = cg.esphome_ns.namespace('xiaomi_gcls002')
+XiaomiGCLS002 = xiaomi_gcls002_ns.class_('XiaomiGCLS002',
+                                         esp32_ble_tracker.ESPBTDeviceListener, cg.Component)
 
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(XiaomiHHCCJCY01),
+    cv.GenerateID(): cv.declare_id(XiaomiGCLS002),
     cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
     cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Optional(CONF_MOISTURE): sensor.sensor_schema(UNIT_PERCENT, ICON_WATER_PERCENT, 0),

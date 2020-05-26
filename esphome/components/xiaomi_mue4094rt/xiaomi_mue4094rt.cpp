@@ -1,21 +1,19 @@
-#include "xiaomi_lywsdcgq.h"
+#include "xiaomi_mue4094rt.h"
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_lywsdcgq {
+namespace xiaomi_mue4094rt {
 
-static const char *TAG = "xiaomi_lywsdcgq";
+static const char *TAG = "xiaomi_mue4094rt";
 
-void XiaomiLYWSDCGQ::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi LYWSDCGQ");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+void XiaomiMUE4094RT::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi MUE4094RT");
+  LOG_BINARY_SENSOR("  ", "Motion", this);
 }
 
-bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiMUE4094RT::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -41,12 +39,10 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
       continue;
     }
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*res->humidity);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
+    if (res->has_motion.has_value()) {
+      this->publish_state(*res->has_motion);
+      this->set_timeout("motion_timeout", timeout_, [this]() { this->publish_state(false); });
+    }
     success = true;
   }
 
@@ -57,7 +53,7 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-}  // namespace xiaomi_lywsdcgq
+}  // namespace xiaomi_mue4094rt
 }  // namespace esphome
 
 #endif

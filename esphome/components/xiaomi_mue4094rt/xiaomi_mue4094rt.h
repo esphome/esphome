@@ -1,16 +1,18 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/xiaomi_ble/xiaomi_ble.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_lywsd02 {
+namespace xiaomi_mue4094rt {
 
-class XiaomiLYWSD02 : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
+class XiaomiMUE4094RT : public Component,
+                        public binary_sensor::BinarySensorInitiallyOff,
+                        public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; }
 
@@ -18,16 +20,14 @@ class XiaomiLYWSD02 : public Component, public esp32_ble_tracker::ESPBTDeviceLis
 
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
-  void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
+  void set_time(uint16_t timeout) { timeout_ = timeout; }
 
  protected:
   uint64_t address_;
-  sensor::Sensor *temperature_{nullptr};
-  sensor::Sensor *humidity_{nullptr};
+  uint16_t timeout_;
 };
 
-}  // namespace xiaomi_lywsd02
+}  // namespace xiaomi_mue4094rt
 }  // namespace esphome
 
 #endif

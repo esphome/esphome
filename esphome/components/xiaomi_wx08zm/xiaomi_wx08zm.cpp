@@ -1,21 +1,21 @@
-#include "xiaomi_lywsdcgq.h"
+#include "xiaomi_wx08zm.h"
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_lywsdcgq {
+namespace xiaomi_wx08zm {
 
-static const char *TAG = "xiaomi_lywsdcgq";
+static const char *TAG = "xiaomi_wx08zm";
 
-void XiaomiLYWSDCGQ::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi LYWSDCGQ");
-  LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
+void XiaomiWX08ZM::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi WX08ZM");
+  LOG_BINARY_SENSOR("  ", "Mosquito Repellent", this);
+  LOG_SENSOR("  ", "Tablet Resource", this->tablet_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
-bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiWX08ZM::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -41,10 +41,11 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     if (!(xiaomi_ble::report_xiaomi_results(res, device.address_str()))) {
       continue;
     }
-    if (res->temperature.has_value() && this->temperature_ != nullptr)
-      this->temperature_->publish_state(*res->temperature);
-    if (res->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*res->humidity);
+    if (res->is_active.has_value()) {
+      this->publish_state(*res->is_active);
+    }
+    if (res->tablet.has_value() && this->tablet_ != nullptr)
+      this->tablet_->publish_state(*res->tablet);
     if (res->battery_level.has_value() && this->battery_level_ != nullptr)
       this->battery_level_->publish_state(*res->battery_level);
     success = true;
@@ -57,7 +58,7 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-}  // namespace xiaomi_lywsdcgq
+}  // namespace xiaomi_wx08zm
 }  // namespace esphome
 
 #endif

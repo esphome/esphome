@@ -1,21 +1,22 @@
-#include "xiaomi_lywsdcgq.h"
+#include "xiaomi_gcls002.h"
 #include "esphome/core/log.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 namespace esphome {
-namespace xiaomi_lywsdcgq {
+namespace xiaomi_gcls002 {
 
-static const char *TAG = "xiaomi_lywsdcgq";
+static const char *TAG = "xiaomi_gcls002";
 
-void XiaomiLYWSDCGQ::dump_config() {
-  ESP_LOGCONFIG(TAG, "Xiaomi LYWSDCGQ");
+void XiaomiGCLS002::dump_config() {
+  ESP_LOGCONFIG(TAG, "Xiaomi GCLS002");
   LOG_SENSOR("  ", "Temperature", this->temperature_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_);
-  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Moisture", this->moisture_);
+  LOG_SENSOR("  ", "Conductivity", this->conductivity_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_);
 }
 
-bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+bool XiaomiGCLS002::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_) {
     ESP_LOGVV(TAG, "parse_device(): unknown MAC address.");
     return false;
@@ -43,10 +44,12 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     }
     if (res->temperature.has_value() && this->temperature_ != nullptr)
       this->temperature_->publish_state(*res->temperature);
-    if (res->humidity.has_value() && this->humidity_ != nullptr)
-      this->humidity_->publish_state(*res->humidity);
-    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
-      this->battery_level_->publish_state(*res->battery_level);
+    if (res->moisture.has_value() && this->moisture_ != nullptr)
+      this->moisture_->publish_state(*res->moisture);
+    if (res->conductivity.has_value() && this->conductivity_ != nullptr)
+      this->conductivity_->publish_state(*res->conductivity);
+    if (res->illuminance.has_value() && this->illuminance_ != nullptr)
+      this->illuminance_->publish_state(*res->illuminance);
     success = true;
   }
 
@@ -57,7 +60,7 @@ bool XiaomiLYWSDCGQ::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-}  // namespace xiaomi_lywsdcgq
+}  // namespace xiaomi_gcls002
 }  // namespace esphome
 
 #endif
