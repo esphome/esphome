@@ -10,7 +10,7 @@ void TuyaClimate::setup() {
 
   if (this->switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
-      if(datapoint.value_bool) {
+      if (datapoint.value_bool) {
         this->mode = climate::CLIMATE_MODE_HEAT;
       } else {
         this->mode = climate::CLIMATE_MODE_OFF;
@@ -67,7 +67,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->target_temperature_id_;
     datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int = this->target_temperature;
+    datapoint.value_int = (int) this->target_temperature;
     this->parent_->set_datapoint_value(datapoint);
     ESP_LOGD(TAG, "Setting target temperature: %d", datapoint.value_int);
   }
@@ -141,7 +141,6 @@ void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
   // For now this just sets the current action but could include triggers later
   this->action = action;
 }
-
 
 }  // namespace tuya
 }  // namespace esphome

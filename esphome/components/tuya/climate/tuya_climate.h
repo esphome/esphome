@@ -12,8 +12,12 @@ class TuyaClimate : public climate::Climate, public Component {
   void setup() override;
   void dump_config() override;
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
-  void set_target_temperature_id(uint8_t target_temperature_id) { this->target_temperature_id_ = target_temperature_id; }
-  void set_current_temperature_id(uint8_t current_temperature_id) { this->current_temperature_id_ = current_temperature_id; }
+  void set_target_temperature_id(uint8_t target_temperature_id) {
+    this->target_temperature_id_ = target_temperature_id;
+  }
+  void set_current_temperature_id(uint8_t current_temperature_id) {
+    this->current_temperature_id_ = current_temperature_id;
+  }
   // void set_eco_mode_id(uint8_t eco_mode_id) { this->eco_mode_id_ = eco_mode_id; }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
