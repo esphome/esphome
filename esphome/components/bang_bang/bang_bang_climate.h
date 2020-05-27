@@ -46,6 +46,7 @@ class BangBangClimate : public climate::Climate, public Component {
   void set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal);
   void set_supports_swing_mode_off(bool supports_swing_mode_off);
   void set_supports_swing_mode_vertical(bool supports_swing_mode_vertical);
+  void set_supports_two_points(bool supports_two_points);
 
   void set_normal_config(const BangBangClimateTargetTempConfig &normal_config);
   void set_away_config(const BangBangClimateTargetTempConfig &away_config);
@@ -78,8 +79,10 @@ class BangBangClimate : public climate::Climate, public Component {
  protected:
   /// Override control to change settings of the climate device.
   void control(const climate::ClimateCall &call) override;
+
   /// Change the away setting, will reset target temperatures to defaults.
   void change_away_(bool away);
+
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
 
@@ -141,6 +144,11 @@ class BangBangClimate : public climate::Climate, public Component {
   bool supports_swing_mode_off_{false};
   bool supports_swing_mode_horizontal_{false};
   bool supports_swing_mode_vertical_{false};
+
+  /// Whether the controller supports two set points
+  ///
+  /// A false value means that the controller has no such support.
+  bool supports_two_points_{false};
 
   /// Whether the controller supports an "away" mode
   ///
@@ -244,14 +252,14 @@ class BangBangClimate : public climate::Climate, public Component {
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
 
-  // Temperature data for normal/home and away modes
+  /// Temperature data for normal/home and away modes
   BangBangClimateTargetTempConfig normal_config_{};
   BangBangClimateTargetTempConfig away_config_{};
 
-  // Hysteresis value used for computing climate actions
+  /// Hysteresis value used for computing climate actions
   float hysteresis_{0};
 
-  // setup_complete_ blocks modifying/resetting the temps immediately after boot
+  /// setup_complete_ blocks modifying/resetting the temps immediately after boot
   bool setup_complete_{false};
 };
 
