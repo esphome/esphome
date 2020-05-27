@@ -118,9 +118,7 @@ def to_code(config):
     cg.add(var.set_sensor(sens))
     cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
-    auto_mode_available = CONF_HEAT_ACTION in config and CONF_COOL_ACTION in config
-
-    if auto_mode_available is True:
+    if two_points_available is True:
         normal_config = BangBangClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
             config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
@@ -137,8 +135,6 @@ def to_code(config):
 
     yield automation.build_automation(var.get_idle_action_trigger(), [],
                                       config[CONF_IDLE_ACTION])
-
-    cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
     if auto_mode_available is True:
         cg.add(var.set_supports_auto(True))
@@ -239,7 +235,7 @@ def to_code(config):
     if CONF_AWAY_CONFIG in config:
         away = config[CONF_AWAY_CONFIG]
 
-        if auto_mode_available is True:
+        if two_points_available is True:
             away_config = BangBangClimateTargetTempConfig(
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
                 away[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]

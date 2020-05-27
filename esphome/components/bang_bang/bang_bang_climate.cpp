@@ -26,6 +26,7 @@ void BangBangClimate::setup() {
   }
   // refresh the climate action based on the restored settings
   this->switch_to_action_(compute_action_());
+  this->setup_complete_ = true;
 }
 void BangBangClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
@@ -40,7 +41,8 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
     this->target_temperature_low = *call.get_target_temperature_low();
   if (call.get_target_temperature_high().has_value())
     this->target_temperature_high = *call.get_target_temperature_high();
-  if (call.get_away().has_value())
+  // setup_complete_ blocks modifying/resetting the temps immediately after boot
+  if (call.get_away().has_value() && this->setup_complete_)
     this->change_away_(*call.get_away());
 
   this->switch_to_mode_(this->mode);

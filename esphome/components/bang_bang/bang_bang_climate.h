@@ -102,151 +102,159 @@ class BangBangClimate : public climate::Climate, public Component {
 
   /// The sensor used for getting the current temperature
   sensor::Sensor *sensor_{nullptr};
-  /** Whether the controller supports auto/cooling/drying/fanning/heating.
-   *
-   * A false value for any given attribute means that the controller has no such action
-   * (for example a thermostat, where only heating and not-heating is possible).
-   */
+
+  /// Whether the controller supports auto/cooling/drying/fanning/heating.
+  ///
+  /// A false value for any given attribute means that the controller has no such action
+  /// (for example a thermostat, where only heating and not-heating is possible).
   bool supports_auto_{false};
   bool supports_cool_{false};
   bool supports_dry_{false};
   bool supports_fan_only_{false};
   bool supports_heat_{false};
-  /** Whether the controller supports turning on or off just the fan.
-   *
-   * A false value for either attribute means that the controller has no fan on/off action
-   * (for example a thermostat, where independent control of the fan is not possible).
-   */
+
+  /// Whether the controller supports turning on or off just the fan.
+  ///
+  /// A false value for either attribute means that the controller has no fan on/off action
+  /// (for example a thermostat, where independent control of the fan is not possible).
   bool supports_fan_mode_on_{false};
   bool supports_fan_mode_off_{false};
-  /** Whether the controller supports fan auto mode.
-   *
-   * A false value for this attribute means that the controller has no fan-auto action
-   * (for example a thermostat, where independent control of the fan is not possible).
-   */
+
+  /// Whether the controller supports fan auto mode.
+  ///
+  /// A false value for this attribute means that the controller has no fan-auto action
+  /// (for example a thermostat, where independent control of the fan is not possible).
   bool supports_fan_mode_auto_{false};
-  /** Whether the controller supports various fan speeds and/or positions.
-   *
-   * A false value for any given attribute means that the controller has no such fan action.
-   */
+
+  /// Whether the controller supports various fan speeds and/or positions.
+  ///
+  /// A false value for any given attribute means that the controller has no such fan action.
   bool supports_fan_mode_low_{false};
   bool supports_fan_mode_medium_{false};
   bool supports_fan_mode_high_{false};
   bool supports_fan_mode_middle_{false};
   bool supports_fan_mode_focus_{false};
   bool supports_fan_mode_diffuse_{false};
-  /** Whether the controller supports various swing modes.
-   *
-   * A false value for any given attribute means that the controller has no such swing mode.
-   */
+
+  /// Whether the controller supports various swing modes.
+  ///
+  /// A false value for any given attribute means that the controller has no such swing mode.
   bool supports_swing_mode_both_{false};
   bool supports_swing_mode_off_{false};
   bool supports_swing_mode_horizontal_{false};
   bool supports_swing_mode_vertical_{false};
-  /** Whether the controller supports an "away" mode
-   *
-   * A false value means that the controller has no such mode.
-   */
+
+  /// Whether the controller supports an "away" mode
+  ///
+  /// A false value means that the controller has no such mode.
   bool supports_away_{false};
-  /** The trigger to call when the controller should switch to cooling action/mode.
-   *
-   * A null value for this attribute means that the controller has no cooling action
-   * For example electric heat, where only heating (power on) and not-heating
-   * (power off) is possible.
-   */
+
+  /// The trigger to call when the controller should switch to cooling action/mode.
+  ///
+  /// A null value for this attribute means that the controller has no cooling action
+  /// For example electric heat, where only heating (power on) and not-heating
+  /// (power off) is possible.
   Trigger<> *cool_action_trigger_{nullptr};
   Trigger<> *cool_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to dry (dehumidification) mode.
-   *
-   * In dry mode, the controller is assumed to have both heating and cooling disabled,
-   * although the system may use its cooling mechanism to achieve drying.
-   */
+
+  /// The trigger to call when the controller should switch to dry (dehumidification) mode.
+  ///
+  /// In dry mode, the controller is assumed to have both heating and cooling disabled,
+  /// although the system may use its cooling mechanism to achieve drying.
   Trigger<> *dry_action_trigger_{nullptr};
   Trigger<> *dry_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to heating action/mode.
-   *
-   * A null value for this attribute means that the controller has no heating action
-   * For example window blinds, where only cooling (blinds closed) and not-cooling
-   * (blinds open) is possible.
-   */
+
+  /// The trigger to call when the controller should switch to heating action/mode.
+  ///
+  /// A null value for this attribute means that the controller has no heating action
+  /// For example window blinds, where only cooling (blinds closed) and not-cooling
+  /// (blinds open) is possible.
   Trigger<> *heat_action_trigger_{nullptr};
   Trigger<> *heat_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to auto mode.
-   *
-   * In auto mode, the controller will enable heating/cooling as necessary and switch
-   * to idle when the temperature is within the thresholds/set points.
-   */
+
+  /// The trigger to call when the controller should switch to auto mode.
+  ///
+  /// In auto mode, the controller will enable heating/cooling as necessary and switch
+  /// to idle when the temperature is within the thresholds/set points.
   Trigger<> *auto_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to idle action/off mode.
-   *
-   * In these actions/modes, the controller is assumed to have both heating and cooling disabled.
-   */
+
+  /// The trigger to call when the controller should switch to idle action/off mode.
+  ///
+  /// In these actions/modes, the controller is assumed to have both heating and cooling disabled.
   Trigger<> *idle_action_trigger_{nullptr};
   Trigger<> *off_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch to fan-only action/mode.
-   *
-   * In fan-only mode, the controller is assumed to have both heating and cooling disabled.
-   * The system should activate the fan only.
-   */
+
+  /// The trigger to call when the controller should switch to fan-only action/mode.
+  ///
+  /// In fan-only mode, the controller is assumed to have both heating and cooling disabled.
+  /// The system should activate the fan only.
   Trigger<> *fan_only_action_trigger_{nullptr};
   Trigger<> *fan_only_mode_trigger_{nullptr};
-  /** The trigger to call when the controller should switch on the fan.
-   */
+
+  /// The trigger to call when the controller should switch on the fan.
   Trigger<> *fan_mode_on_trigger_{nullptr};
-  /** The trigger to call when the controller should switch off the fan.
-   */
+
+  /// The trigger to call when the controller should switch off the fan.
   Trigger<> *fan_mode_off_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "auto" mode.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "auto" mode.
   Trigger<> *fan_mode_auto_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "low" speed.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "low" speed.
   Trigger<> *fan_mode_low_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "medium" speed.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "medium" speed.
   Trigger<> *fan_mode_medium_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "high" speed.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "high" speed.
   Trigger<> *fan_mode_high_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "middle" position.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "middle" position.
   Trigger<> *fan_mode_middle_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "focus" position.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "focus" position.
   Trigger<> *fan_mode_focus_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the fan to "diffuse" position.
-   */
+
+  /// The trigger to call when the controller should switch the fan to "diffuse" position.
   Trigger<> *fan_mode_diffuse_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the swing mode to "both".
-   */
+
+  /// The trigger to call when the controller should switch the swing mode to "both".
   Trigger<> *swing_mode_both_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the swing mode to "off".
-   */
+
+  /// The trigger to call when the controller should switch the swing mode to "off".
   Trigger<> *swing_mode_off_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the swing mode to "horizontal".
-   */
+
+  /// The trigger to call when the controller should switch the swing mode to "horizontal".
   Trigger<> *swing_mode_horizontal_trigger_{nullptr};
-  /** The trigger to call when the controller should switch the swing mode to "vertical".
-   */
+
+  /// The trigger to call when the controller should switch the swing mode to "vertical".
   Trigger<> *swing_mode_vertical_trigger_{nullptr};
-  /** A reference to the trigger that was previously active.
-   *
-   * This is so that the previous trigger can be stopped before enabling a new one
-   * for each climate category (mode, action, fan_mode, swing_mode).
-   */
+
+  /// A reference to the trigger that was previously active.
+  ///
+  /// This is so that the previous trigger can be stopped before enabling a new one
+  /// for each climate category (mode, action, fan_mode, swing_mode).
   Trigger<> *prev_action_trigger_{nullptr};
   Trigger<> *prev_fan_mode_trigger_{nullptr};
   Trigger<> *prev_mode_trigger_{nullptr};
   Trigger<> *prev_swing_mode_trigger_{nullptr};
 
+  /// Store previously-known states
+  ///
+  /// These are used to determine when a trigger/action needs to be called
   climate::ClimateFanMode prev_fan_mode_{climate::CLIMATE_FAN_ON};
   climate::ClimateMode prev_mode_{climate::CLIMATE_MODE_OFF};
   climate::ClimateSwingMode prev_swing_mode_{climate::CLIMATE_SWING_OFF};
 
+  // Temperature data for normal/home and away modes
   BangBangClimateTargetTempConfig normal_config_{};
   BangBangClimateTargetTempConfig away_config_{};
 
+  // Hysteresis value used for computing climate actions
   float hysteresis_{0};
+
+  // setup_complete_ blocks modifying/resetting the temps immediately after boot
+  bool setup_complete_{false};
 };
 
 }  // namespace bang_bang
