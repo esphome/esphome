@@ -49,6 +49,9 @@ web_server:
     username: admin
     password: admin
 
+
+tuya:
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
