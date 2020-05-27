@@ -49,6 +49,21 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
       this->away = *call.get_away();
     }
   }
+  // set point validation
+  if (this->supports_two_points_) {
+    if (this->target_temperature_low < this->get_traits().get_visual_min_temperature())
+      this->target_temperature_low = this->get_traits().get_visual_min_temperature();
+    if (this->target_temperature_high > this->get_traits().get_visual_max_temperature())
+      this->target_temperature_high = this->get_traits().get_visual_max_temperature();
+    if (this->target_temperature_high < this->target_temperature_low)
+      this->target_temperature_high = this->target_temperature_low;
+  } else {
+    if (this->target_temperature < this->get_traits().get_visual_min_temperature())
+      this->target_temperature = this->get_traits().get_visual_min_temperature();
+    if (this->target_temperature > this->get_traits().get_visual_max_temperature())
+      this->target_temperature = this->get_traits().get_visual_max_temperature();
+  }
+  // make any changes happen
   this->switch_to_mode_(this->mode);
   this->switch_to_action_(compute_action_());
   this->switch_to_fan_mode_(this->fan_mode);
