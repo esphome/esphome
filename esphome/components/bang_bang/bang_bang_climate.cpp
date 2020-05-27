@@ -72,15 +72,14 @@ climate::ClimateTraits BangBangClimate::traits() {
   traits.set_supports_swing_mode_horizontal(this->supports_swing_mode_horizontal_);
   traits.set_supports_swing_mode_off(this->supports_swing_mode_off_);
   traits.set_supports_swing_mode_vertical(this->supports_swing_mode_vertical_);
-  traits.set_supports_two_point_target_temperature(this->supports_auto_);
+  traits.set_supports_two_point_target_temperature(this->supports_two_points_);
   traits.set_supports_away(this->supports_away_);
   traits.set_supports_action(true);
   return traits;
 }
 climate::ClimateAction BangBangClimate::compute_action_() {
   climate::ClimateAction target_action = this->action;
-  // we can use 'supports_auto_' to determine if we are single-point or dual-point
-  if (this->supports_auto_) {
+  if (this->supports_two_points_) {
     if (isnan(this->current_temperature) || isnan(this->target_temperature_low) ||
         isnan(this->target_temperature_high) || isnan(this->hysteresis_))
       // if any control parameters are nan, go to OFF action (not IDLE!)
@@ -364,13 +363,13 @@ void BangBangClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
-    if (this->supports_auto_) {
+    if (this->supports_two_points_) {
       this->target_temperature_low = this->normal_config_.default_temperature_low;
       this->target_temperature_high = this->normal_config_.default_temperature_high;
     } else
       this->target_temperature = this->normal_config_.default_temperature;
   } else {
-    if (this->supports_auto_) {
+    if (this->supports_two_points_) {
       this->target_temperature_low = this->away_config_.default_temperature_low;
       this->target_temperature_high = this->away_config_.default_temperature_high;
     } else
@@ -456,6 +455,9 @@ void BangBangClimate::set_supports_swing_mode_horizontal(bool supports_swing_mod
 void BangBangClimate::set_supports_swing_mode_vertical(bool supports_swing_mode_vertical) {
   this->supports_swing_mode_vertical_ = supports_swing_mode_vertical;
 }
+void BangBangClimate::set_supports_two_points(bool supports_two_points) {
+  this->supports_two_points_ = supports_two_points;
+}
 Trigger<> *BangBangClimate::get_cool_action_trigger() const { return this->cool_action_trigger_; }
 Trigger<> *BangBangClimate::get_dry_action_trigger() const { return this->dry_action_trigger_; }
 Trigger<> *BangBangClimate::get_fan_only_action_trigger() const { return this->fan_only_action_trigger_; }
@@ -482,6 +484,11 @@ Trigger<> *BangBangClimate::get_swing_mode_horizontal_trigger() const { return t
 Trigger<> *BangBangClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 void BangBangClimate::dump_config() {
   LOG_CLIMATE("", "Bang Bang Climate", this);
+  if (this->supports_heat_)
+    ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
+  if ((this->supports_cool_) || (this->supports_fan_only_))
+    ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+  ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
   ESP_LOGCONFIG(TAG, "  Supports DRY: %s", YESNO(this->supports_dry_));
@@ -500,10 +507,15 @@ void BangBangClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE OFF: %s", YESNO(this->supports_swing_mode_off_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE VERTICAL: %s", YESNO(this->supports_swing_mode_vertical_));
+  ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-  ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
-  ESP_LOGCONFIG(TAG, "  Default Hysteresis: %.1f°C", this->hysteresis_);
+  if (this->supports_away_) {
+    if (this->supports_heat_)
+      ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C", this->away_config_.default_temperature_low);
+    if ((this->supports_cool_) || (this->supports_fan_only_))
+      ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C",
+                    this->away_config_.default_temperature_high);
+  }
 }
 
 BangBangClimateTargetTempConfig::BangBangClimateTargetTempConfig() = default;

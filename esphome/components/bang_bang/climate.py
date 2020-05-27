@@ -119,15 +119,18 @@ def to_code(config):
     cg.add(var.set_hysteresis(config[CONF_HYSTERESIS]))
 
     if two_points_available is True:
+        cg.add(var.set_supports_two_points(True))
         normal_config = BangBangClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW],
             config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
         )
     elif CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
+        cg.add(var.set_supports_two_points(False))
         normal_config = BangBangClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]
         )
     elif CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
+        cg.add(var.set_supports_two_points(False))
         normal_config = BangBangClimateTargetTempConfig(
             config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]
         )
