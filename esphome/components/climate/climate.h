@@ -64,6 +64,8 @@ class ClimateCall {
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
   ClimateCall &set_away(bool away);
   ClimateCall &set_away(optional<bool> away);
+  ClimateCall &set_eco_mode(bool eco_mode);
+  ClimateCall &set_eco_mode(optional<bool> eco_mode);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -84,6 +86,7 @@ class ClimateCall {
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
   const optional<bool> &get_away() const;
+  const optional<bool> &get_eco_mode() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
 
@@ -96,6 +99,7 @@ class ClimateCall {
   optional<float> target_temperature_low_;
   optional<float> target_temperature_high_;
   optional<bool> away_;
+  optional<bool> eco_mode_;
   optional<ClimateFanMode> fan_mode_;
   optional<ClimateSwingMode> swing_mode_;
 };
@@ -104,6 +108,7 @@ class ClimateCall {
 struct ClimateDeviceRestoreState {
   ClimateMode mode;
   bool away;
+  bool eco_mode;
   ClimateFanMode fan_mode;
   ClimateSwingMode swing_mode;
   union {
@@ -166,6 +171,13 @@ class Climate : public Nameable {
    * one for normal mode and one for away mode.
    */
   bool away{false};
+
+  /** Whether the climate device is in eco mode.
+   *
+   * Eco allows climate devices to output using less energy.
+   */
+  bool eco_mode{false};
+
 
   /// The active fan mode of the climate device.
   ClimateFanMode fan_mode;

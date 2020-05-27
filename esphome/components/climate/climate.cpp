@@ -33,6 +33,9 @@ void ClimateCall::perform() {
   if (this->away_.has_value()) {
     ESP_LOGD(TAG, "  Away Mode: %s", ONOFF(*this->away_));
   }
+  if (this->eco_mode_.has_value()) {
+    ESP_LOGD(TAG, "  Eco Mode: %s", ONOFF(*this->eco_mode_));
+  }
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -97,6 +100,12 @@ void ClimateCall::validate_() {
     if (!traits.get_supports_away()) {
       ESP_LOGW(TAG, "  Cannot set away mode for this device!");
       this->away_.reset();
+    }
+  }
+  if (this->eco_mode_.has_value()) {
+    if (!traits.get_supports_eco_mode()) {
+      ESP_LOGW(TAG, "  Cannot set eco mode for this device!");
+      this->eco_mode_.reset();
     }
   }
 }
@@ -187,6 +196,7 @@ const optional<float> &ClimateCall::get_target_temperature() const { return this
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
 const optional<bool> &ClimateCall::get_away() const { return this->away_; }
+const optional<bool> &ClimateCall::get_eco_mode() const { return this->eco_mode_; }
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
 ClimateCall &ClimateCall::set_away(bool away) {
@@ -195,6 +205,14 @@ ClimateCall &ClimateCall::set_away(bool away) {
 }
 ClimateCall &ClimateCall::set_away(optional<bool> away) {
   this->away_ = away;
+  return *this;
+}
+ClimateCall &ClimateCall::set_eco_mode(bool eco_mode) {
+  this->eco_mode_ = eco_mode;
+  return *this;
+}
+ClimateCall &ClimateCall::set_eco_mode(optional<bool> eco_mode) {
+  this->eco_mode_ = eco_mode;
   return *this;
 }
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
@@ -249,6 +267,9 @@ void Climate::save_state_() {
   if (traits.get_supports_away()) {
     state.away = this->away;
   }
+  if (traits.get_supports_eco_mode()) {
+    state.eco_mode = this->eco_mode;
+  }
   if (traits.get_supports_fan_modes()) {
     state.fan_mode = this->fan_mode;
   }
@@ -283,6 +304,9 @@ void Climate::publish_state() {
   }
   if (traits.get_supports_away()) {
     ESP_LOGD(TAG, "  Away: %s", ONOFF(this->away));
+  }
+  if (traits.get_supports_eco_mode()) {
+    ESP_LOGD(TAG, "  Eco Mode: %s", ONOFF(this->eco_mode));
   }
 
   // Send state to frontend
@@ -332,6 +356,9 @@ ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
   if (traits.get_supports_away()) {
     call.set_away(this->away);
   }
+  if (traits.get_supports_eco_mode()) {
+    call.set_eco_mode(this->eco_mode);
+  }
   if (traits.get_supports_fan_modes()) {
     call.set_fan_mode(this->fan_mode);
   }
@@ -351,6 +378,9 @@ void ClimateDeviceRestoreState::apply(Climate *climate) {
   }
   if (traits.get_supports_away()) {
     climate->away = this->away;
+  }
+  if (traits.get_supports_eco_mode()) {
+    climate->eco_mode = this->eco_mode;
   }
   if (traits.get_supports_fan_modes()) {
     climate->fan_mode = this->fan_mode;
