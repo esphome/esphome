@@ -178,7 +178,6 @@ class Climate : public Nameable {
    */
   bool eco_mode{false};
 
-
   /// The active fan mode of the climate device.
   ClimateFanMode fan_mode;
 
