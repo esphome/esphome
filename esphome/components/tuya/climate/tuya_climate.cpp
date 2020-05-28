@@ -112,6 +112,12 @@ void TuyaClimate::compute_state_() {
     this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
     return;
   }
+
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
+    this->switch_to_action_(climate::CLIMATE_ACTION_OFF);
+    return;
+  }
+
   const bool too_cold = this->current_temperature < this->target_temperature - 1;
   const bool too_hot = this->current_temperature > this->target_temperature + 1;
   const bool on_target = this->current_temperature == this->target_temperature;
@@ -131,7 +137,7 @@ void TuyaClimate::compute_state_() {
     } else {
       target_action = climate::CLIMATE_ACTION_IDLE;
     }
-  } else if(on_target) {
+  } else if (on_target) {
     target_action = climate::CLIMATE_ACTION_IDLE;
   } else {
     target_action = this->action;
