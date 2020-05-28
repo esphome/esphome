@@ -7,7 +7,6 @@ namespace tuya {
 static const char *TAG = "tuya.climate";
 
 void TuyaClimate::setup() {
-
   if (this->switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
       if (datapoint.value_bool) {
