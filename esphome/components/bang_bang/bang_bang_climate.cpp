@@ -11,7 +11,7 @@ void BangBangClimate::setup() {
     this->current_temperature = state;
     // required action may have changed, recompute, refresh
     this->switch_to_action_(compute_action_());
-    // current temperature changed, publish state
+    // current temperature and possibly action changed, so publish the new state
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
@@ -27,6 +27,7 @@ void BangBangClimate::setup() {
   // refresh the climate action based on the restored settings
   this->switch_to_action_(compute_action_());
   this->setup_complete_ = true;
+  this->publish_state();
 }
 void BangBangClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
@@ -249,10 +250,10 @@ void BangBangClimate::switch_to_action_(climate::ClimateAction action) {
   trig->trigger();
   this->action = action;
   this->prev_action_trigger_ = trig;
-  this->publish_state();
 }
 void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
-  if (fan_mode == this->prev_fan_mode_)
+  // setup_complete_ helps us ensure an action is called immediately after boot
+  if ((fan_mode == this->prev_fan_mode_) && this->setup_complete_)
     // already in target mode
     return;
 
@@ -300,10 +301,10 @@ void BangBangClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
   this->fan_mode = fan_mode;
   this->prev_fan_mode_ = fan_mode;
   this->prev_fan_mode_trigger_ = trig;
-  this->publish_state();
 }
 void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
-  if (mode == this->prev_mode_)
+  // setup_complete_ helps us ensure an action is called immediately after boot
+  if ((mode == this->prev_mode_) && this->setup_complete_)
     // already in target mode
     return;
 
@@ -342,10 +343,10 @@ void BangBangClimate::switch_to_mode_(climate::ClimateMode mode) {
   this->mode = mode;
   this->prev_mode_ = mode;
   this->prev_mode_trigger_ = trig;
-  this->publish_state();
 }
 void BangBangClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode) {
-  if (swing_mode == this->prev_swing_mode_)
+  // setup_complete_ helps us ensure an action is called immediately after boot
+  if ((swing_mode == this->prev_swing_mode_) && this->setup_complete_)
     // already in target mode
     return;
 
@@ -378,7 +379,6 @@ void BangBangClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mode
   this->swing_mode = swing_mode;
   this->prev_swing_mode_ = swing_mode;
   this->prev_swing_mode_trigger_ = trig;
-  this->publish_state();
 }
 void BangBangClimate::change_away_(bool away) {
   if (!away) {
