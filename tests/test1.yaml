@@ -308,6 +308,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
+    measurement_time: 31
   - platform: bme280
     temperature:
       name: "Outside Temperature"
@@ -1169,7 +1170,6 @@ light:
             if (initial_run) {
               it[0] = current_color;
             }
-
     - automation:
         name: Custom Effect
         sequence:
