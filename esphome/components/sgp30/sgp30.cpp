@@ -162,11 +162,11 @@ void SGP30Component::send_env_data_() {
 void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_baseline) {
   uint8_t data[7];
   data[0] = SGP30_CMD_SET_IAQ_BASELINE & 0xFF;
-  data[1] = eco2_baseline >> 8;
-  data[2] = eco2_baseline & 0xFF;
+  data[1] = tvoc_baseline >> 8;
+  data[2] = tvoc_baseline & 0xFF;
   data[3] = sht_crc_(data[1], data[2]);
-  data[4] = tvoc_baseline >> 8;
-  data[5] = tvoc_baseline & 0xFF;
+  data[4] = eco2_baseline >> 8;
+  data[5] = eco2_baseline & 0xFF;
   data[6] = sht_crc_(data[4], data[5]);
   if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 7)) {
     ESP_LOGE(TAG, "Error applying eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline, tvoc_baseline);
