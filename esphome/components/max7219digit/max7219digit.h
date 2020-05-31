@@ -21,7 +21,7 @@ class MAX7219Component : public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_1MHZ> {
  public:
-  void set_writer(max7219_writer_t &&writer);
+  void set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; };
 
   void setup() override;
 
@@ -44,15 +44,14 @@ class MAX7219Component : public PollingComponent,
   int get_height_internal() override;
   int get_width_internal() override;
 
-  void set_intensity(uint8_t intensity);
-  void set_num_chips(uint8_t num_chips);
-
-  void set_chip_orientation(uint8_t rotate);
-  void set_scroll_speed(uint16_t speed);
-  void set_scroll_dwell(uint16_t dwell);
-  void set_scroll_delay(uint16_t delay);
-  void set_scroll(bool on_off);
-  void set_scroll_mode(uint8_t mode);
+  void set_intensity(uint8_t intensity) { this->intensity_ = intensity; };
+  void set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; };
+  void set_chip_orientation(uint8_t rotate) { this->orientation_ = rotate; };
+  void set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; };
+  void set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; };
+  void set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; };
+  void set_scroll(bool on_off) { this->scroll_ = on_off; };
+  void set_scroll_mode(uint8_t mode) { this->scroll_mode_ = mode; };
 
   void send_char(byte chip, byte data);
   void send64pixels(byte chip, const byte pixels[8]);
@@ -84,17 +83,17 @@ class MAX7219Component : public PollingComponent,
   void send_byte_(uint8_t a_register, uint8_t data);
   void send_to_all_(uint8_t a_register, uint8_t data);
 
-  uint8_t intensity_{15};  /// Intensity of the display from 0 to 15 (most)
-  uint8_t num_chips_{1};
-  bool scroll_{false};
+  uint8_t intensity_;  /// Intensity of the display from 0 to 15 (most)
+  uint8_t num_chips_;
+  bool scroll_;
   bool update_{false};
-  uint16_t scroll_speed_ = 250;
-  uint16_t scroll_delay_ = 1000;
-  uint16_t scroll_dwell_ = 1000;
+  uint16_t scroll_speed_;
+  uint16_t scroll_delay_;
+  uint16_t scroll_dwell_;
   uint16_t old_buffer_size_ = 0;
-  uint8_t scroll_mode_ = 0;
+  uint8_t scroll_mode_;
   bool invert_ = false;
-  uint8_t orientation_ = 0;
+  uint8_t orientation_;
   uint8_t bckgrnd_ = 0x0;
   std::vector<uint8_t> max_displaybuffer_;
   unsigned long last_scroll_ = 0;

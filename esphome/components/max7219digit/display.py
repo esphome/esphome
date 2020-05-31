@@ -24,9 +24,9 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_ROTATE_CHIP, default=0): cv.int_range(min=0, max=4),
     cv.Optional(CONF_SCROLL_MODE, default=0): cv.int_range(min=0, max=1),
     cv.Optional(CONF_SCROLL_ENABLE, default=True): cv.boolean,
-    cv.Optional(CONF_SCROLL_SPEED, default=250): cv.int_range(min=0),
-    cv.Optional(CONF_SCROLL_DELAY, default=1000): cv.int_range(min=0),
-    cv.Optional(CONF_SCROLL_DWELL, default=1000): cv.int_range(min=0),
+    cv.Optional(CONF_SCROLL_SPEED, default='250ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_SCROLL_DELAY, default='1000ms'): cv.positive_time_period_milliseconds,
+    cv.Optional(CONF_SCROLL_DWELL, default='1000ms'): cv.positive_time_period_milliseconds,
 }).extend(cv.polling_component_schema('500ms')).extend(spi.SPI_DEVICE_SCHEMA)
 
 
