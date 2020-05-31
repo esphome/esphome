@@ -281,15 +281,6 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
     return this->printdigit(buffer);
   return 0;
 }
-// void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_local_ = writer; }
-// void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
-// void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
-// void MAX7219Component::set_chip_orientation(uint8_t rotate) { this->orientation_ = rotate; }
-// void MAX7219Component::set_scroll_speed(uint16_t speed) { this->scroll_speed_ = speed; }
-// void MAX7219Component::set_scroll_dwell(uint16_t dwell) { this->scroll_dwell_ = dwell; }
-// void MAX7219Component::set_scroll_delay(uint16_t delay) { this->scroll_delay_ = delay; }
-// void MAX7219Component::set_scroll(bool on_off) { this->scroll_ = on_off; }
-// void MAX7219Component::set_scroll_mode(uint8_t mode) { this->scroll_mode_ = mode; }
 
 #ifdef USE_TIME
 uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, time::ESPTime time) {
