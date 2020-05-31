@@ -884,14 +884,15 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->data(0x22);
 }
 void HOT WaveshareEPaper7P5InV2::display() {
-  // COMMAND DATA START TRANSMISSION 1
-  this->command(0x13);
-  for (unsigned long j = 0; j < this->get_height_internal(); j++) {
-      for (unsigned long i = 0; i < this->get_width_internal(); i++) {
-      this->data(buffer_[i + j * get_width_internal() ]);
-    }
-  }
+  uint32_t buf_len = this->get_buffer_length_();
 
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(this->buffer_[i]);
+  }
+  
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
   delay(100);
