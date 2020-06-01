@@ -20,7 +20,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2).extend({
 })
 
 
-def to_code(config):    
+def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield sensor.register_sensor(var, config)
 
