@@ -129,9 +129,11 @@ bool Nextion::read_until_ack_() {
     // this variable keeps track of ohow many of those have
     // been received
     uint8_t end_length = 0;
+    ESP_LOGD(TAG,"Received byte %x from Nextion", event);
     while (this->available() && end_length < 3 && data_length < sizeof(data)) {
       uint8_t byte;
       this->read_byte(&byte);
+      ESP_LOGD(TAG,"Received byte %x from Nextion", byte);
       if (byte == 0xFF) {
         end_length++;
       } else {
@@ -211,7 +213,7 @@ bool Nextion::read_until_ack_() {
         }
         break;
       }
-      case 0x67:
+      case 0x67: 
       case 0x68: {  // touch coordinate data
         if (data_length != 5) {
           invalid_data_length = true;
@@ -230,6 +232,36 @@ bool Nextion::read_until_ack_() {
       case 0x87:  // device automatically wakes up
       case 0x88:  // system successful start up
       case 0x89:  // start SD card upgrade
+      case 0x90: { // Response number made to read state from Nextion
+        if (data_length != 3) {
+          invalid_data_length = true;
+          break;
+        }
+        uint8_t page_id = data[0];
+        uint8_t component_id = data[1];
+        uint8_t touch_event = data[2];  // 0 -> release, 1 -> press
+        ESP_LOGD(TAG, "Got special state 0x90 page=%u component=%u type=%s", page_id, component_id,
+                 touch_event ? "PRESS" : "RELEASE");
+        for (auto *touch : this->switchtype_) {
+          touch->process(page_id, component_id, touch_event);
+        }
+        break;
+      }
+      case 0x91: {
+        if (data_length != 3) {
+          invalid_data_length = true;
+          break;
+        }
+        uint8_t page_id = data[0];
+        uint8_t component_id = data[1];
+        uint8_t touch_event = data[2];  // 0 -> release, 1 -> press
+        ESP_LOGD(TAG, "Got special state 0x91 page=%u component=%u type=%u", page_id, component_id, 
+                 touch_event );
+        for (auto *touch : this->sensortype_) {
+          touch->process(page_id, component_id, touch_event);
+        }
+        break;
+      }
       case 0xFD:  // data transparent transmit finished
       case 0xFE:  // data transparent transmit ready
         break;
@@ -262,7 +294,6 @@ void Nextion::set_nextion_rtc_time(time::ESPTime time) {
 
 void Nextion::set_backlight_brightness(uint8_t brightness) { this->send_command_printf("dim=%u", brightness); }
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) { this->send_command_printf("thsp=%u", timeout); }
-
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
 void Nextion::set_component_text_printf(const char *component, const char *format, ...) {
   va_list arg;
@@ -278,6 +309,53 @@ void Nextion::set_wait_for_ack(bool wait_for_ack) { this->wait_for_ack_ = wait_f
 void NextionTouchComponent::process(uint8_t page_id, uint8_t component_id, bool on) {
   if (this->page_id_ == page_id && this->component_id_ == component_id) {
     this->publish_state(on);
+  }
+}
+
+void NextionSwitch::process(uint8_t page_id, uint8_t component_id, bool on) {
+  if (this->page_id_ == page_id && this->component_id_ == component_id) {
+    this->publish_state(on);
+    ESP_LOGW(TAG, "Switch state published");
+  }
+}
+
+void NextionSwitch::write_state(bool state) {
+  this->publish_state(state);
+  this->send_command_printf("%s.val=%d", this->device_id_.c_str(),state);
+}
+
+bool NextionSwitch::send_command_printf(const char *format, ...) {
+  char buffer[256];
+  va_list arg;
+  va_start(arg, format);
+  int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
+  va_end(arg);
+  if (ret <= 0) {
+    ESP_LOGW(TAG, "Building command for format '%s' failed!", format);
+    return false;
+  }
+  this->send_command_no_ack(buffer);
+  //if (!this->ack_()) {
+  //  ESP_LOGW(TAG, "Sending command '%s' failed because no ACK was received", buffer);
+  //  return false;
+  //}
+
+  return true;
+}
+
+void NextionSwitch::send_command_no_ack(const char *command) {
+  // Flush RX...
+  //this->loop();
+  
+  this->write_str(command);
+  const uint8_t data[3] = {0xFF, 0xFF, 0xFF};
+  this->write_array(data, sizeof(data));
+}
+
+void NextionSensor::process(uint8_t page_id, uint8_t component_id, float state) {
+  if (this->page_id_ == page_id && this->component_id_ == component_id) {
+    this->publish_state(state);
+    ESP_LOGW(TAG, "Sensor state published");
   }
 }
 
