@@ -19,10 +19,10 @@ CONFIG_SCHEMA = sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 2).extend({
     cv.Required(CONF_COMPONENT_ID): cv.uint8_t,
 })
 
-def to_code(config):
+
+def to_code(config):    
     var = cg.new_Pvariable(config[CONF_ID])
     yield sensor.register_sensor(var, config)
-
 
     hub = yield cg.get_variable(config[CONF_NEXTION_ID])
     cg.add(hub.register_sensor_component(var))
