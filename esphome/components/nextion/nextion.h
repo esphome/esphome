@@ -370,7 +370,6 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
   void register_touch_component(NextionTouchComponent *obj) { this->touch_.push_back(obj); }
   void register_switch_component(NextionSwitch *obj) { this->switchtype_.push_back(obj); }
   void register_sensor_component(NextionSensor *obj) { this->sensortype_.push_back(obj); }
-  
   void setup() override;
   float get_setup_priority() const override;
   void update() override;
@@ -416,11 +415,10 @@ class NextionTouchComponent : public binary_sensor::BinarySensorInitiallyOff {
 };
 
 class NextionSwitch : public switch_::Switch, public Component, public uart::UARTDevice {
-
  public:
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   void set_component_id(uint8_t component_id) { component_id_ = component_id; }
-  void set_device_id(std::string device_id) {device_id_ = device_id; }
+  void set_device_id(std::string device_id) { device_id_ = device_id; }
   void process(uint8_t page_id, uint8_t component_id, bool on);
   void send_command_no_ack(const char *command);
   bool send_command_printf(const char *format, ...);
@@ -433,7 +431,6 @@ class NextionSwitch : public switch_::Switch, public Component, public uart::UAR
 };
 
 class NextionSensor : public sensor::Sensor, public uart::UARTDevice {
-
  public:
   void set_page_id(uint8_t page_id) { page_id_ = page_id; }
   void set_component_id(uint8_t component_id) { component_id_ = component_id; }
@@ -442,9 +439,7 @@ class NextionSensor : public sensor::Sensor, public uart::UARTDevice {
  protected:
   uint8_t page_id_;
   uint8_t component_id_;
-
 };
-
 
 }  // namespace nextion
 }  // namespace esphome

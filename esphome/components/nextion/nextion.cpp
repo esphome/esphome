@@ -129,11 +129,11 @@ bool Nextion::read_until_ack_() {
     // this variable keeps track of ohow many of those have
     // been received
     uint8_t end_length = 0;
-    ESP_LOGD(TAG,"Received byte %x from Nextion", event);
+    ESP_LOGD(TAG, "Received byte %x from Nextion", event);
     while (this->available() && end_length < 3 && data_length < sizeof(data)) {
       uint8_t byte;
       this->read_byte(&byte);
-      ESP_LOGD(TAG,"Received byte %x from Nextion", byte);
+      ESP_LOGD(TAG, "Received byte %x from Nextion", byte);
       if (byte == 0xFF) {
         end_length++;
       } else {
@@ -213,7 +213,7 @@ bool Nextion::read_until_ack_() {
         }
         break;
       }
-      case 0x67: 
+      case 0x67:
       case 0x68: {  // touch coordinate data
         if (data_length != 5) {
           invalid_data_length = true;
@@ -225,13 +225,13 @@ bool Nextion::read_until_ack_() {
         ESP_LOGD(TAG, "Got touch at x=%u y=%u type=%s", x, y, touch_event ? "PRESS" : "RELEASE");
         break;
       }
-      case 0x66:  // sendme page id
-      case 0x70:  // string variable data return
-      case 0x71:  // numeric variable data return
-      case 0x86:  // device automatically enters into sleep mode
-      case 0x87:  // device automatically wakes up
-      case 0x88:  // system successful start up
-      case 0x89:  // start SD card upgrade
+      case 0x66:   // sendme page id
+      case 0x70:   // string variable data return
+      case 0x71:   // numeric variable data return
+      case 0x86:   // device automatically enters into sleep mode
+      case 0x87:   // device automatically wakes up
+      case 0x88:   // system successful start up
+      case 0x89:   // start SD card upgrade
       case 0x90: { // Response number made to read state from Nextion
         if (data_length != 3) {
           invalid_data_length = true;
@@ -255,8 +255,7 @@ bool Nextion::read_until_ack_() {
         uint8_t page_id = data[0];
         uint8_t component_id = data[1];
         uint8_t touch_event = data[2];  // 0 -> release, 1 -> press
-        ESP_LOGD(TAG, "Got special state 0x91 page=%u component=%u type=%u", page_id, component_id, 
-                 touch_event );
+        ESP_LOGD(TAG, "Got special state 0x91 page=%u component=%u type=%u", page_id, component_id, touch_event );
         for (auto *touch : this->sensortype_) {
           touch->process(page_id, component_id, touch_event);
         }
@@ -321,7 +320,7 @@ void NextionSwitch::process(uint8_t page_id, uint8_t component_id, bool on) {
 
 void NextionSwitch::write_state(bool state) {
   this->publish_state(state);
-  this->send_command_printf("%s.val=%d", this->device_id_.c_str(),state);
+  this->send_command_printf("%s.val=%d", this->device_id_.c_str(), state);
 }
 
 bool NextionSwitch::send_command_printf(const char *format, ...) {
@@ -335,18 +334,18 @@ bool NextionSwitch::send_command_printf(const char *format, ...) {
     return false;
   }
   this->send_command_no_ack(buffer);
-  //if (!this->ack_()) {
-  //  ESP_LOGW(TAG, "Sending command '%s' failed because no ACK was received", buffer);
-  //  return false;
-  //}
+  // if (!this->ack_()) {
+  // ESP_LOGW(TAG, "Sending command '%s' failed because no ACK was received", buffer);
+  // return false;
+  // }
 
   return true;
 }
 
 void NextionSwitch::send_command_no_ack(const char *command) {
   // Flush RX...
-  //this->loop();
-  
+  // this->loop();
+
   this->write_str(command);
   const uint8_t data[3] = {0xFF, 0xFF, 0xFF};
   this->write_array(data, sizeof(data));
