@@ -26,7 +26,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
   // Byte 1: Action
   if (at == 1)
-    return byte >= RF_CODE_ACK && byte <= RF_CODE_RFOUT;
+    return byte >= RF_CODE_ACK && byte <= RF_CODE_RFOUT_BUCKET;
   uint8_t action = raw[1];
 
   switch (action) {
@@ -37,8 +37,8 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       ESP_LOGD(TAG, "Learning timeout");
       break;
     case RF_CODE_LEARN_OK:
-    case RF_CODE_RFIN:
-      if (at < RF_MESSAGE_SIZE + 2)
+    case RF_CODE_RFIN: {
+      if (byte != RF_CODE_STOP || at < RF_MESSAGE_SIZE + 2)
         return true;
 
       RFBridgeData data;
@@ -52,8 +52,29 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       ESP_LOGD(TAG, "Received RFBridge Code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
                data.high, data.code);
-      this->callback_.call(data);
+      this->dataCallback_.call(data);
       break;
+    }
+    case RF_CODE_LEARN_OK_NEW:
+    case RF_CODE_ADVANCED_RFIN: {
+      if (byte != RF_CODE_STOP || at > RF_MESSAGE_SIZE + 2)
+        return true;
+
+      RFBridgeAdvancedData data{};
+
+      data.length = raw[2];
+      data.protocol = raw[3];
+      char next_byte[2];
+      for(uint8_t i = 0; i < data.length - 1; i++) {
+        sprintf(next_byte, "%02X", raw[4 + i]);
+        data.code += next_byte;
+      }
+
+      ESP_LOGD(TAG, "Received RFBridge Advanced Code: length=%d protocol=%d code=%s",
+               data.length, data.protocol, data.code.c_str());
+      this->advancedDataCallback_.call(data);
+      break;
+    }
     default:
       ESP_LOGW(TAG, "Unknown action: 0x%02X", action);
       break;
@@ -105,6 +126,19 @@ void RFBridgeComponent::send_code(RFBridgeData data) {
   this->flush();
 }
 
+void RFBridgeComponent::send_advanced_code(RFBridgeAdvancedData data) {
+  ESP_LOGD(TAG, "Sending advanced code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol, data.code.c_str());
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_RFOUT_NEW);
+  this->write((data.length >> 8) & 0xFF);
+  this->write(data.length & 0xFF);
+  this->write((data.protocol >> 8) & 0xFF);
+  this->write(data.protocol & 0xFF);
+  this->write_str(data.code.c_str());
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
 void RFBridgeComponent::learn() {
   ESP_LOGD(TAG, "Learning mode");
   this->write(RF_CODE_START);
@@ -116,6 +150,28 @@ void RFBridgeComponent::learn() {
 void RFBridgeComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "RF_Bridge:");
   this->check_uart_settings(19200);
+}
+
+void RFBridgeComponent::start_advanced_sniffing() {
+  ESP_LOGD(TAG, "Advanced Sniffing on");
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_SNIFFING_ON);
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
+void RFBridgeComponent::stop_advanced_sniffing() {
+  ESP_LOGD(TAG, "Advanced Sniffing off");
+  this->write(RF_CODE_START);
+  this->write(RF_CODE_SNIFFING_OFF);
+  this->write(RF_CODE_STOP);
+  this->flush();
+}
+
+void RFBridgeComponent::send_raw(std::string raw_code) {
+  ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
+  this->write_str(raw_code.c_str());
+  this->flush();
 }
 
 }  // namespace rf_bridge
