@@ -61,10 +61,10 @@ struct EAPAuth {
   std::string identity; // required for all auth types
   std::string username;
   std::string password;
-  std::string ca_cert; // optionally verify authentication server
+  char *ca_cert; // optionally verify authentication server
   // used for EAP-TLS
-  std::string client_cert;
-  std::string client_key;
+  char *client_cert;
+  char *client_key;
 };
 
 using bssid_t = std::array<uint8_t, 6>;

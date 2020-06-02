@@ -9,9 +9,9 @@ from datetime import datetime
 from string import ascii_letters, digits
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 import voluptuous as vol
-from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
@@ -721,17 +721,19 @@ def domain_name(value):
 
 
 def load_certificate(value):
-    return x509.load_pem_x509_certificate(value, default_backend())
+    return x509.load_pem_x509_certificate(value.encode('UTF-8'), default_backend())
 
 
 def load_key(value, password):
-    return load_pem_private_key(value, password, default_backend())
+    if password:
+        password = password.encode("UTF-8")
+    return load_pem_private_key(value.encode('UTF-8'), password, default_backend())
 
 
 def certificate(value):
     value = string_strict(value)
     try:
-        load_certificate(value) # raises ValueError
+        load_certificate(value)  # raises ValueError
         return value
     except ValueError:
         return Invalid(f"Invalid certificate")

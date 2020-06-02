@@ -70,16 +70,16 @@ def validate_eap(value):
         except TypeError as e:
             raise cv.Invalid("There was an error with the EAP 'key:' provided :%s" % e)
 
-        if isinstance(rsa.RSAPrivateKey, key):
+        if isinstance(key, rsa.RSAPrivateKey):
+            if key.public_key().public_numbers() != cert.public_key().public_numbers():
+                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
+        elif isinstance(key, ec.EllipticCurvePrivateKey):
             if key.public_key().public_numbers() != cert.public_numbers():
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(ec.EllipticCurvePrivateKey, key):
-            if key.public_key().public_numbers() != cert.public_numbers():
-                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(ed448.Ed448PrivateKey, key):
+        elif isinstance(key, ed448.Ed448PrivateKey):
             if key.public_key() != cert:
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(ed25519.Ed25519PrivateKey, key):
+        elif isinstance(key, ed25519.Ed25519PrivateKey):
             if key.public_key() != cert:
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
         else:
