@@ -7,11 +7,12 @@ from contextlib import contextmanager
 import uuid as uuid_
 from datetime import datetime
 from string import ascii_letters, digits
+
+import voluptuous as vol
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.serialization import load_pem_private_key
-
-import voluptuous as vol
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \

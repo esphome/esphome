@@ -55,8 +55,8 @@ def validate_eap(value):
         if CONF_CERTIFICATE not in value and CONF_KEY not in value:
             raise cv.Invalid("You have provided an EAP 'certificate:' or 'key:' without providing "
                              "the other. Please check you have provided both.")
-        # Check the key is valid and for this certificate, just to idiot check the user hasn't pasted the wrong
-        # thing. I write this after I spent a while debugging that exact issue.
+        # Check the key is valid and for this certificate, just to idiot check the user hasn't pasted
+        # the wrong thing. I write this after I spent a while debugging that exact issue.
         # This may require a password to decrypt to key, so we should verify that at the same time.
         certPw = None
         if CONF_PASSWORD in value:
@@ -66,7 +66,9 @@ def validate_eap(value):
         try:
             key = cv.load_key(value[CONF_KEY], certPw)
         except ValueError as e:
-            raise cv.Invalid("There was an error with the EAP 'password:' provided for 'key:' :%s" % e)
+            raise cv.Invalid(
+                "There was an error with the EAP 'password:' provided for 'key:' :%s" % e
+            )
         except TypeError as e:
             raise cv.Invalid("There was an error with the EAP 'key:' provided :%s" % e)
 
@@ -83,8 +85,10 @@ def validate_eap(value):
             if key.public_key() != cert:
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
         else:
-            _LOGGER.warning("Unrecognised EAP 'certificate:' 'key:' pair format: %s. Proceed with caution!",
-                            type(key))
+            _LOGGER.warning(
+                "Unrecognised EAP 'certificate:' 'key:' pair format: %s. Proceed with caution!",
+                type(key)
+            )
     return value
 
 
