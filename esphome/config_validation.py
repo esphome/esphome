@@ -7,8 +7,11 @@ from contextlib import contextmanager
 import uuid as uuid_
 from datetime import datetime
 from string import ascii_letters, digits
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 
 import voluptuous as vol
+from cryptography.hazmat.primitives.serialization import load_pem_private_key
 
 from esphome import core
 from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
@@ -715,6 +718,23 @@ def domain_name(value):
         if not (c.isalnum() or c in '._-'):
             raise Invalid("Domain name can only have alphanumeric characters and _ or -")
     return value
+
+
+def load_certificate(value):
+    return x509.load_pem_x509_certificate(value, default_backend())
+
+
+def load_key(value, password):
+    return load_pem_private_key(value, password, default_backend())
+
+
+def certificate(value):
+    value = string_strict(value)
+    try:
+        load_certificate(value) # raises ValueError
+        return value
+    except ValueError:
+        return Invalid(f"Invalid certificate")
 
 
 def ssid(value):
