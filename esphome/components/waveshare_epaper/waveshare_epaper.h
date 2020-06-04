@@ -236,7 +236,7 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
 
   int get_height_internal() override;
 };
-  
+
 class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
  public:
   void initialize() override;
