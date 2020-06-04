@@ -2,13 +2,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
-from esphome.const import CONF_DC_PIN, CONF_CS_PIN, CONF_ID, CONF_LAMBDA
-from esphome.const import CONF_RESET_PIN, CONF_BRIGHTNESS
+from esphome.const import CONF_BACKLIGHT_PIN, CONF_BRIGHTNESS, CONF_CS_PIN, CONF_DC_PIN, CONF_ID, \
+                          CONF_LAMBDA, CONF_RESET_PIN
 from . import st7789v_ns
 
 DEPENDENCIES = ['spi']
-
-CONF_BACKLIGHT_PIN = 'backlight_pin'
 
 ST7789V = st7789v_ns.class_('ST7789V', cg.PollingComponent, spi.SPIDevice,
                             display.DisplayBuffer)
