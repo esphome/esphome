@@ -147,11 +147,13 @@ struct ESPColor {
   ESPColor darken(uint8_t delta) { return *this - delta; }
 
   uint32_t to_rgb_565() const {
-    uint32_t color565 = (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
+    uint32_t color565 =
+        (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
     return color565;
   }
   uint32_t to_bgr_565() const {
-    uint32_t color565 = (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
+    uint32_t color565 =
+        (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
     return color565;
   }
   // color list from https://www.rapidtables.com/web/color/RGB_Color.html
