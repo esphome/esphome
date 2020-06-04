@@ -840,13 +840,13 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->data(0x3f);
   this->command(0x04);
   
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
   this->wait_until_idle_();
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0x1F);
   
-  // COMMAND RESOLUTION SETTING  
+  // COMMAND RESOLUTION SETTING
   this->command(0x61);
   this->data(0x03);
   this->data(0x20);
@@ -874,9 +874,10 @@ void HOT WaveshareEPaper7P5InV2::display() {
   
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
-  delay(100); // NOLINT
+  delay(100);  // NOLINT
   this->wait_until_idle_();
 }
+
 int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
 void WaveshareEPaper7P5InV2::dump_config() {
