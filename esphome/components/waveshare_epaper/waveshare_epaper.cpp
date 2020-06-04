@@ -839,11 +839,13 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->data(0x3f);
   this->data(0x3f);
   this->command(0x04);
+  
   delay(100); // NOLINT
   this->wait_until_idle_();
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0x1F);
+  
   // COMMAND RESOLUTION SETTING  
   this->command(0x61);
   this->data(0x03);
@@ -869,6 +871,7 @@ void HOT WaveshareEPaper7P5InV2::display() {
   for (uint32_t i = 0; i < buf_len; i++) {
     this->data(~(this->buffer_[i]));
   }
+  
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
   delay(100); // NOLINT
