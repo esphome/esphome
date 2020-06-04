@@ -1,4 +1,5 @@
 import logging
+from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed448, ed25519
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -10,8 +11,6 @@ from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS
     CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY, CONF_IDENTITY, CONF_CERTIFICATE_AUTHORITY, \
     CONF_CERTIFICATE, CONF_KEY, CONF_USERNAME, CONF_EAP
 from esphome.core import CORE, HexInt, coroutine_with_priority
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed448, ed25519
-
 _LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ['network']
@@ -55,7 +54,7 @@ def validate_eap(value):
         if CONF_CERTIFICATE not in value and CONF_KEY not in value:
             raise cv.Invalid("You have provided an EAP 'certificate:' or 'key:' without providing "
                              "the other. Please check you have provided both.")
-        # Check the key is valid and for this certificate, just to idiot check the user hasn't pasted
+        # Check the key is valid and for this certificate, just to check the user hasn't pasted
         # the wrong thing. I write this after I spent a while debugging that exact issue.
         # This may require a password to decrypt to key, so we should verify that at the same time.
         certPw = None
@@ -76,7 +75,7 @@ def validate_eap(value):
             if key.public_key().public_numbers() != cert.public_key().public_numbers():
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
         elif isinstance(key, ec.EllipticCurvePrivateKey):
-            if key.public_key().public_numbers() != cert.public_numbers():
+            if key.public_key().public_numbers() != cert.public_key().public_numbers():
                 raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
         elif isinstance(key, ed448.Ed448PrivateKey):
             if key.public_key() != cert:

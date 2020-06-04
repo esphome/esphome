@@ -200,7 +200,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     int client_cert_len = strlen(eap.client_cert);
     int client_key_len = strlen(eap.client_key);
     if (ca_cert_len) {
-      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len+1);
+      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
       }
@@ -209,8 +209,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     // validation is not required as the config tool has already validated it
     if (client_cert_len && client_key_len) {
       // if we have certs, this must be EAP-TLS
-      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len+1,
-                                               (uint8_t *) eap.client_key, client_key_len+1,
+      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                               (uint8_t *) eap.client_key, client_key_len + 1,
                                                (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
