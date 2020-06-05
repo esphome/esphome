@@ -47,29 +47,29 @@ static const uint8_t SSD1325_COPY = 0x25;
 void SSD1325::setup() {
   this->init_internal_(this->get_buffer_length_());
 
-  this->command(SSD1325_DISPLAYOFF);   /* display off */
-  this->command(SSD1325_SETCLOCK);     /* set osc division */
-  this->command(0xF1);                 /* 145 */
-  this->command(SSD1325_SETMULTIPLEX); /* multiplex ratio */
+  this->command(SSD1325_DISPLAYOFF);    // display off
+  this->command(SSD1325_SETCLOCK);      // set osc division
+  this->command(0xF1);                  // 145
+  this->command(SSD1325_SETMULTIPLEX);  // multiplex ratio
   if (this->model_ == SSD1327_MODEL_128_128)
     this->command(0x7f);  // duty = height - 1
   else
-    this->command(0x3f);            // duty = 1/64
-  this->command(SSD1325_SETOFFSET); /* set display offset --- */
+    this->command(0x3f);             // duty = 1/64
+  this->command(SSD1325_SETOFFSET);  // set display offset
   if (this->model_ == SSD1327_MODEL_128_128)
     this->command(0x00);  // 0
   else
-    this->command(0x4C);               // 76
-  this->command(SSD1325_SETSTARTLINE); /*set start line */
-  this->command(0x00);                 /* ------ */
-  this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
+    this->command(0x4C);                // 76
+  this->command(SSD1325_SETSTARTLINE);  // set start line
+  this->command(0x00);                  // ...
+  this->command(SSD1325_MASTERCONFIG);  // Set Master Config DC/DC Converter
   this->command(0x02);
-  this->command(SSD1325_SETREMAP);         /* set segment remapping */
+  this->command(SSD1325_SETREMAP);  // set segment remapping
   if (this->model_ == SSD1327_MODEL_128_128)
-    this->command(0x51);  // 0x56 is flipped horizontally: enable column swap, disable nibble remap
+    this->command(0x51);  //  COM bottom-up, split odd/even, enable column swap
   else
-    this->command(0x50);                 /* ...just like so... */
-  this->command(SSD1325_SETCURRENT + 0x2); /* Set Full Current Range */
+    this->command(0x50);                    // COM bottom-up, split odd/even
+  this->command(SSD1325_SETCURRENT + 0x2);  // Set Full Current Range
   this->command(SSD1325_SETGRAYTABLE);
   this->command(0x01);
   this->command(0x11);
@@ -79,8 +79,8 @@ void SSD1325::setup() {
   this->command(0x54);
   this->command(0x65);
   this->command(0x76);
-  this->command(SSD1325_SETCONTRAST); /* set contrast current */
-  this->command(0x7F);                // max!
+  this->command(SSD1325_SETCONTRAST);  // set contrast current
+  this->command(0x7F);                 // max!
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
