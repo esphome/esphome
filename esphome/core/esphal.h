@@ -94,11 +94,13 @@ class GPIOPin {
   bool is_inverted() const;
 
   template<typename T> void attach_interrupt(void (*func)(T *), T *arg, int mode) const;
+  void detach_interrupt() const;
 
   ISRInternalGPIOPin *to_isr() const;
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, int mode) const;
+  void detach_interrupt_() const;
 
   const uint8_t pin_;
   const uint8_t mode_;
@@ -114,5 +116,4 @@ class GPIOPin {
 template<typename T> void GPIOPin::attach_interrupt(void (*func)(T *), T *arg, int mode) const {
   this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, mode);
 }
-
 }  // namespace esphome

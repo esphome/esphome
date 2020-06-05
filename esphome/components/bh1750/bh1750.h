@@ -28,6 +28,7 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
    * @param resolution The new resolution of the sensor.
    */
   void set_resolution(BH1750Resolution resolution);
+  void set_measurement_time(uint8_t measurement_time) { measurement_time_ = measurement_time; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -40,6 +41,7 @@ class BH1750Sensor : public sensor::Sensor, public PollingComponent, public i2c:
   void read_data_();
 
   BH1750Resolution resolution_{BH1750_RESOLUTION_0P5_LX};
+  uint8_t measurement_time_;
 };
 
 }  // namespace bh1750
