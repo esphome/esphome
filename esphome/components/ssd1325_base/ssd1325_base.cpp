@@ -64,13 +64,11 @@ void SSD1325::setup() {
   this->command(0x00);                 /* ------ */
   this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
   this->command(0x02);
-<<<<<<< HEAD
   this->command(SSD1325_SETREMAP);         /* set segment remapping */
   if (this->model_ == SSD1327_MODEL_128_128)
-    this->command(0x55);  // 0x56 is flipped horizontally: enable column swap, disable nibble remap
+    this->command(0x51);  // 0x56 is flipped horizontally: enable column swap, disable nibble remap
   else
     this->command(0x50);                 /* ...just like so... */
->>>>>>> Linted
   this->command(SSD1325_SETCURRENT + 0x2); /* Set Full Current Range */
   this->command(SSD1325_SETGRAYTABLE);
   this->command(0x01);
