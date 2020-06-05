@@ -737,7 +737,7 @@ def certificate(value):
         load_certificate(value)  # raises ValueError
         return value
     except ValueError:
-        return Invalid(f"Invalid certificate")
+        return Invalid("Invalid certificate")
 
 
 def ssid(value):
