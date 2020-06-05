@@ -261,10 +261,10 @@ sensor:
         name: "EMON CT1 Current"
       power:
         name: "EMON Active Power CT1"
-      reactive_power:
-        name: "EMON Reactive Power CT1"
-      power_factor:
-        name: "EMON Power Factor CT1"
+      # reactive_power:
+      #   name: "EMON Reactive Power CT1"
+      # power_factor:
+      #   name: "EMON Power Factor CT1"
       gain_voltage: 47660
       gain_ct: 12577
     phase_b:
