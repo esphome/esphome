@@ -42,8 +42,8 @@ bool SN74HC595Component::write_gpio_() {
   }
 
   // pulse latch to activate new values
-  digitalWrite(this->latch_pin_->get_pin(), HIGH); 
-  digitalWrite(this->latch_pin_->get_pin(), LOW); 
+  digitalWrite(this->latch_pin_->get_pin(), HIGH);
+  digitalWrite(this->latch_pin_->get_pin(), LOW);
 
   // enable output if configured
   if (this->have_oe_pin_) {
