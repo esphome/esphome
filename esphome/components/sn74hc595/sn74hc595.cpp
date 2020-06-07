@@ -37,7 +37,7 @@ void SN74HC595Component::digital_write_(uint8_t pin, bool value) {
 
 bool SN74HC595Component::write_gpio_() {
   for (int i = this->sr_count_ - 1; i >= 0; i--) {
-    uint8_t data = (uint8_t)(this->output_bits_ >> (8*i) & 0xff);
+    uint8_t data = (uint8_t)(this->output_bits_ >> (8 * i) & 0xff);
     shiftOut(this->data_pin_->get_pin(), this->clock_pin_->get_pin(), MSBFIRST, data);
   }
 
@@ -59,7 +59,9 @@ void SN74HC595GPIOPin::setup() {}
 
 bool SN74HC595GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
-void SN74HC595GPIOPin::digital_write(bool value) { this->parent_->digital_write_(this->pin_, value != this->inverted_); }
+void SN74HC595GPIOPin::digital_write(bool value) {
+  this->parent_->digital_write_(this->pin_, value != this->inverted_); 
+}
 
 SN74HC595GPIOPin::SN74HC595GPIOPin(SN74HC595Component *parent, uint8_t pin, bool inverted)
     : GPIOPin(pin, OUTPUT, inverted), parent_(parent) {}

@@ -19,7 +19,7 @@ class SN74HC595Component : public Component {
   void set_latch_pin(GPIOPin *pin) { latch_pin_ = pin; }
   void set_oe_pin(GPIOPin *pin) { 
     oe_pin_ = pin; 
-    have_oe_pin_=true; 
+    have_oe_pin_ = true; 
   }
   void set_sr_count(uint8_t count) { sr_count_ = count; }
 

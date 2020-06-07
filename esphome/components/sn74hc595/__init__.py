@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_INVERTED
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_INVERTED, CONF_DATA_PIN, CONF_CLOCK_PIN
 
 DEPENDENCIES = []
 MULTI_CONF = True
@@ -12,8 +12,6 @@ SN74HC595Component = sn74hc595_ns.class_('SN74HC595Component', cg.Component)
 SN74HC595GPIOPin = sn74hc595_ns.class_('SN74HC595GPIOPin', cg.GPIOPin)
 
 CONF_SN74HC595 = 'sn74hc595'
-CONF_DATA_PIN = 'data_pin'
-CONF_CLOCK_PIN = 'clock_pin'
 CONF_LATCH_PIN = 'latch_pin'
 CONF_OE_PIN = 'oe_pin'
 CONF_SR_COUNT = 'sr_count'
