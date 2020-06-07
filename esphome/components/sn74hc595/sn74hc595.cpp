@@ -60,7 +60,7 @@ void SN74HC595GPIOPin::setup() {}
 bool SN74HC595GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
 void SN74HC595GPIOPin::digital_write(bool value) {
-  this->parent_->digital_write_(this->pin_, value != this->inverted_); 
+  this->parent_->digital_write_(this->pin_, value != this->inverted_);
 }
 
 SN74HC595GPIOPin::SN74HC595GPIOPin(SN74HC595Component *parent, uint8_t pin, bool inverted)
