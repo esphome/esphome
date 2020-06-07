@@ -49,7 +49,7 @@ bool SN74HC595Component::write_gpio_() {
   if (this->have_oe_pin_) {
     digitalWrite(this->oe_pin_->get_pin(), LOW);
   }
-  
+
   return true;
 }
 
