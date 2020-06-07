@@ -40,6 +40,7 @@ def to_code(config):
     cg.add(var.set_oe_pin(oe_pin))
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 
+
 SN74HC595_OUTPUT_PIN_SCHEMA = cv.Schema({
     cv.Required(CONF_SN74HC595): cv.use_id(SN74HC595Component),
     cv.Required(CONF_NUMBER): cv.int_,
@@ -48,7 +49,8 @@ SN74HC595_OUTPUT_PIN_SCHEMA = cv.Schema({
 SN74HC595_INPUT_PIN_SCHEMA = cv.Schema({})
 
 
-@pins.PIN_SCHEMA_REGISTRY.register('sn74hc595', (SN74HC595_OUTPUT_PIN_SCHEMA, SN74HC595_INPUT_PIN_SCHEMA))
+@pins.PIN_SCHEMA_REGISTRY.register(CONF_SN74HC595,
+                                   (SN74HC595_OUTPUT_PIN_SCHEMA, SN74HC595_INPUT_PIN_SCHEMA))
 def sn74hc595_pin_to_code(config):
     parent = yield cg.get_variable(config[CONF_SN74HC595])
     yield SN74HC595GPIOPin.new(parent, config[CONF_NUMBER], config[CONF_INVERTED])

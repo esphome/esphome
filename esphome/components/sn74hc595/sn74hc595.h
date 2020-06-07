@@ -17,13 +17,16 @@ class SN74HC595Component : public Component {
   void set_data_pin(GPIOPin *pin) { data_pin_ = pin; }
   void set_clock_pin(GPIOPin *pin) { clock_pin_ = pin; }
   void set_latch_pin(GPIOPin *pin) { latch_pin_ = pin; }
-  void set_oe_pin(GPIOPin *pin) { oe_pin_ = pin; have_oe_pin_=true; }
+  void set_oe_pin(GPIOPin *pin) { 
+    oe_pin_ = pin; 
+    have_oe_pin_=true; 
+  }
   void set_sr_count(uint8_t count) { sr_count_ = count; }
 
  protected:
   friend class SN74HC595GPIOPin;
-  bool digital_read(uint8_t pin);
-  void digital_write(uint8_t pin, bool value);
+  bool digital_read_(uint8_t pin);
+  void digital_write_(uint8_t pin, bool value);
   bool write_gpio_();
 
   GPIOPin *data_pin_;
