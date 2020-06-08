@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import spi
-from esphome import pins
-from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID, CONF_CS_PIN
+from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
 DEPENDENCIES = ['spi']
 AUTO_LOAD = ['binary_sensor']
@@ -15,7 +14,6 @@ PN532Trigger = pn532_ns.class_('PN532Trigger', automation.Trigger.template(cg.st
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(PN532),
-    cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
     }),
