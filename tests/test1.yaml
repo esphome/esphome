@@ -1683,3 +1683,6 @@ text_sensor:
     name: "BSSID"
   mac_address:
     name: "Mac Address"
+- platform: version
+  name: "ESPHome Version No Timestamp"
+  hide_timestamp: True
