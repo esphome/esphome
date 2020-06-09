@@ -25,7 +25,7 @@ void TuyaSwitch::write_state(bool state) {
 }
 
 void TuyaSwitch::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Switch:");
+  LOG_SWITCH("", "Tuya Switch", this);
   ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", this->switch_id_);
 }
 
