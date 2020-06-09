@@ -95,7 +95,7 @@ climate::ClimateTraits TuyaClimate::traits() {
 }
 
 void TuyaClimate::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Climate:");
+  LOG_CLIMATE("", "Tuya Climate", this);
   if (this->switch_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
   if (this->target_temperature_id_.has_value())
