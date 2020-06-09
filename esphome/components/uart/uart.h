@@ -44,7 +44,7 @@ class ESP8266SoftwareSerial {
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_{512};
+  size_t rx_buffer_size_;
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
   uint8_t stop_bits_;
