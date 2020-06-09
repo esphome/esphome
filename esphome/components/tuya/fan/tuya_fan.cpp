@@ -45,7 +45,7 @@ void TuyaFan::setup() {
 }
 
 void TuyaFan::dump_config() {
-  ESP_LOGCONFIG(TAG, "Tuya Fan:");
+  LOG_FAN("", "Tuya Fan", this);
   if (this->speed_id_.has_value())
     ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *this->speed_id_);
   if (this->switch_id_.has_value())
