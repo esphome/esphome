@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_RX_BUFFER_SIZE, CONF_TX_PIN, CONF_UART_ID, CONF_DATA
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID, \
+    CONF_DATA, CONF_RX_BUFFER_SIZE
 from esphome.core import CORE, coroutine
 
 uart_ns = cg.esphome_ns.namespace('uart')

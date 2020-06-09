@@ -109,7 +109,7 @@ class UARTComponent : public Component, public Stream {
 #endif
   optional<uint8_t> tx_pin_;
   optional<uint8_t> rx_pin_;
-  rx_buffer_size_;
+  size_t rx_buffer_size_;
   uint32_t baud_rate_;
   uint8_t stop_bits_;
   uint8_t nr_bits_;

@@ -66,7 +66,8 @@ void UARTComponent::setup() {
     this->sw_serial_ = new ESP8266SoftwareSerial();
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_, this->rx_buffer_size_);
+    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_,
+                            this->rx_buffer_size_);
   }
 }
 
@@ -77,7 +78,7 @@ void UARTComponent::dump_config() {
   }
   if (this->rx_pin_.has_value()) {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
-    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
+    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
