@@ -56,6 +56,7 @@ sensor:
     entity_id: sensor.hello_world
     id: ha_hello_world
   - platform: tuya
+    id: tuya_sensor
     sensor_datapoint: 1
 #
 # platform sensor.apds9960 requires component apds9960
