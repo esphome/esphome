@@ -12,6 +12,7 @@ static const uint8_t MAX7219_REGISTER_DECODE_MODE = 0x09;
 static const uint8_t MAX7219_REGISTER_INTENSITY = 0x0A;
 static const uint8_t MAX7219_REGISTER_SCAN_LIMIT = 0x0B;
 static const uint8_t MAX7219_REGISTER_SHUTDOWN = 0x0C;
+static const uint8_t MAX7219_REGISTER_TEST = 0x0F;
 static const uint8_t MAX7219_UNKNOWN_CHAR = 0b11111111;
 
 const uint8_t MAX7219_ASCII_TO_RAW[95] PROGMEM = {
@@ -127,6 +128,7 @@ void MAX7219Component::setup() {
   this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
   this->display();
   // power up
+  this->send_to_all_(MAX7219_REGISTER_TEST, 0);
   this->send_to_all_(MAX7219_REGISTER_SHUTDOWN, 1);
 }
 void MAX7219Component::dump_config() {
@@ -210,7 +212,10 @@ uint8_t MAX7219Component::printf(const char *format, ...) {
   return 0;
 }
 void MAX7219Component::set_writer(max7219_writer_t &&writer) { this->writer_ = writer; }
-void MAX7219Component::set_intensity(uint8_t intensity) { this->intensity_ = intensity; }
+void MAX7219Component::set_intensity(uint8_t intensity) {
+  this->intensity_ = intensity;
+  this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
+}
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
 #ifdef USE_TIME

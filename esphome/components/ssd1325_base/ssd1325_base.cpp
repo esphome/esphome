@@ -48,15 +48,24 @@ void SSD1325::setup() {
   this->command(SSD1325_SETCLOCK);     /* set osc division */
   this->command(0xF1);                 /* 145 */
   this->command(SSD1325_SETMULTIPLEX); /* multiplex ratio */
-  this->command(0x3f);                 /* duty = 1/64 */
-  this->command(SSD1325_SETOFFSET);    /* set display offset --- */
-  this->command(0x4C);                 /* 76 */
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x7f);  // duty = height - 1
+  else
+    this->command(0x3f);            // duty = 1/64
+  this->command(SSD1325_SETOFFSET); /* set display offset --- */
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x00);  // 0
+  else
+    this->command(0x4C);               // 76
   this->command(SSD1325_SETSTARTLINE); /*set start line */
   this->command(0x00);                 /* ------ */
   this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
   this->command(0x02);
   this->command(SSD1325_SETREMAP); /* set segment remap------ */
-  this->command(0x56);
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x55);  // 0x56 is flipped horizontally: enable column swap, disable nibble remap
+  else
+    this->command(0x56);
   this->command(SSD1325_SETCURRENT + 0x2); /* Set Full Current Range */
   this->command(SSD1325_SETGRAYTABLE);
   this->command(0x01);
@@ -90,7 +99,10 @@ void SSD1325::display() {
   this->command(0x3F);               /* set column end address */
   this->command(SSD1325_SETROWADDR); /* set row address */
   this->command(0x00);               /* set row start address */
-  this->command(0x3F);               /* set row end address */
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x7F);  // 127 is last row
+  else
+    this->command(0x3F);  // 63 is last row
 
   this->write_display_data();
 }
@@ -108,6 +120,8 @@ int SSD1325::get_height_internal() {
       return 16;
     case SSD1325_MODEL_64_48:
       return 48;
+    case SSD1327_MODEL_128_128:
+      return 128;
     default:
       return 0;
   }
@@ -116,6 +130,7 @@ int SSD1325::get_width_internal() {
   switch (this->model_) {
     case SSD1325_MODEL_128_32:
     case SSD1325_MODEL_128_64:
+    case SSD1327_MODEL_128_128:
       return 128;
     case SSD1325_MODEL_96_16:
       return 96;
@@ -168,6 +183,8 @@ const char *SSD1325::model_str_() {
       return "SSD1325 96x16";
     case SSD1325_MODEL_64_48:
       return "SSD1325 64x48";
+    case SSD1327_MODEL_128_128:
+      return "SSD1327 128x128";
     default:
       return "Unknown";
   }
