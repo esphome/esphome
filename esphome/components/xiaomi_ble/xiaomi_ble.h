@@ -11,8 +11,6 @@ namespace xiaomi_ble {
 struct XiaomiParseResult {
 
   enum {
-    TYPE_LYWSDCGQ,
-    TYPE_LYWSD02,
     TYPE_XMTZC0XHM,
     TYPE_HHCCJCY01,
     TYPE_GCLS002,
