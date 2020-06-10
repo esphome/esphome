@@ -14,7 +14,7 @@ CCS811Component = ccs811_ns.class_('CCS811Component', cg.PollingComponent, i2c.I
 CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
-CONF_WAKEPIN = 'wakeuppin'
+CONF_WAKE_PIN = 'wakeup_pin'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CCS811Component),
@@ -25,7 +25,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_BASELINE): cv.hex_uint16_t,
     cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
     cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
-    cv.Optional(CONF_WAKEPIN): pins.gpio_output_pin_schema,
+    cv.Optional(CONF_WAKE_PIN): pins.gpio_output_pin_schema,
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x5A))
 
 
@@ -49,6 +49,6 @@ def to_code(config):
         sens = yield cg.get_variable(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
 
-    if CONF_WAKEPIN in config:
-        wakepin = yield cg.gpio_pin_expression(config[CONF_WAKEPIN])
+    if CONF_WAKE_PIN in config:
+        wakepin = yield cg.gpio_pin_expression(config[CONF_WAKE_PIN])
         cg.add(var.set_wakepin(wakepin))
