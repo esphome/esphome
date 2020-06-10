@@ -12,6 +12,7 @@ WaveshareEPaper = waveshare_epaper_ns.class_('WaveshareEPaper', cg.PollingCompon
                                              display.DisplayBuffer)
 WaveshareEPaperTypeA = waveshare_epaper_ns.class_('WaveshareEPaperTypeA', WaveshareEPaper)
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_('WaveshareEPaper2P7In', WaveshareEPaper)
+WaveshareEPaper2P9InB = waveshare_epaper_ns.class_('WaveshareEPaper2P9InB', WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_('WaveshareEPaper4P2In', WaveshareEPaper)
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_('WaveshareEPaper7P5In', WaveshareEPaper)
 
@@ -22,8 +23,10 @@ MODELS = {
     '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
     '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
     '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
+    '2.13in-ttgo-b73': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     '2.70in': ('b', WaveshareEPaper2P7In),
+    '2.90in-b': ('b', WaveshareEPaper2P9InB),
     '4.20in': ('b', WaveshareEPaper4P2In),
     '7.50in': ('b', WaveshareEPaper7P5In),
 }
@@ -54,10 +57,10 @@ def to_code(config):
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
         rhs = WaveshareEPaperTypeA.new(model)
-        var = cg.Pvariable(config[CONF_ID], rhs, type=WaveshareEPaperTypeA)
+        var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
     elif model_type == 'b':
         rhs = model.new()
-        var = cg.Pvariable(config[CONF_ID], rhs, type=model)
+        var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
         raise NotImplementedError()
 

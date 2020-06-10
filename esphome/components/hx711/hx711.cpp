@@ -42,23 +42,24 @@ bool HX711Sensor::read_sensor_(uint32_t *result) {
   this->status_clear_warning();
   uint32_t data = 0;
 
-  disable_interrupts();
-  for (uint8_t i = 0; i < 24; i++) {
-    this->sck_pin_->digital_write(true);
-    delayMicroseconds(1);
-    data |= uint32_t(this->dout_pin_->digital_read()) << (23 - i);
-    this->sck_pin_->digital_write(false);
-    delayMicroseconds(1);
-  }
+  {
+    InterruptLock lock;
+    for (uint8_t i = 0; i < 24; i++) {
+      this->sck_pin_->digital_write(true);
+      delayMicroseconds(1);
+      data |= uint32_t(this->dout_pin_->digital_read()) << (23 - i);
+      this->sck_pin_->digital_write(false);
+      delayMicroseconds(1);
+    }
 
-  // Cycle clock pin for gain setting
-  for (uint8_t i = 0; i < this->gain_; i++) {
-    this->sck_pin_->digital_write(true);
-    delayMicroseconds(1);
-    this->sck_pin_->digital_write(false);
-    delayMicroseconds(1);
+    // Cycle clock pin for gain setting
+    for (uint8_t i = 0; i < this->gain_; i++) {
+      this->sck_pin_->digital_write(true);
+      delayMicroseconds(1);
+      this->sck_pin_->digital_write(false);
+      delayMicroseconds(1);
+    }
   }
-  enable_interrupts();
 
   if (data & 0x800000ULL) {
     data |= 0xFF000000ULL;

@@ -36,6 +36,9 @@ void WiFiComponent::setup() {
 
   if (this->has_sta()) {
     this->wifi_sta_pre_setup_();
+    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+      ESP_LOGV(TAG, "Setting Output Power Option failed!");
+    }
 
     if (!this->wifi_apply_power_save_()) {
       ESP_LOGV(TAG, "Setting Power Save Option failed!");
@@ -49,6 +52,9 @@ void WiFiComponent::setup() {
     }
   } else if (this->has_ap()) {
     this->setup_ap_config_();
+    if (this->output_power_.has_value() && !this->wifi_apply_output_power_(*this->output_power_)) {
+      ESP_LOGV(TAG, "Setting Output Power Option failed!");
+    }
 #ifdef USE_CAPTIVE_PORTAL
     if (captive_portal::global_captive_portal != nullptr)
       captive_portal::global_captive_portal->start();
@@ -414,6 +420,12 @@ void WiFiComponent::check_connecting_finished() {
   wl_status_t status = this->wifi_sta_status_();
 
   if (status == WL_CONNECTED) {
+    if (WiFi.SSID().equals("")) {
+      ESP_LOGW(TAG, "Incomplete connection.");
+      this->retry_connect();
+      return;
+    }
+
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
@@ -481,7 +493,7 @@ void WiFiComponent::retry_connect() {
     // If retry failed for more than 5 times, let's restart STA
     ESP_LOGW(TAG, "Restarting WiFi adapter...");
     this->wifi_mode_(false, {});
-    delay(100);
+    delay(100);  // NOLINT
     this->num_retried_ = 0;
   } else {
     this->num_retried_++;

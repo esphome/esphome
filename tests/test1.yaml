@@ -172,7 +172,7 @@ dallas:
 
 as3935_spi:
   cs_pin: GPIO12
-  pin: GPIO13
+  irq_pin: GPIO13
 
 sensor:
   - platform: adc
@@ -185,6 +185,7 @@ sensor:
     accuracy_decimals: 5
     expire_after: 120s
     setup_priority: -100
+    force_update: true
     filters:
       - offset: 2.0
       - multiply: 1.2
@@ -260,25 +261,40 @@ sensor:
         name: "EMON CT1 Current"
       power:
         name: "EMON Active Power CT1"
-      gain_voltage: 47660
-      gain_ct: 12577
+      reactive_power:
+        name: "EMON Reactive Power CT1"
+      power_factor:
+        name: "EMON Power Factor CT1"
+      gain_voltage: 7305
+      gain_ct: 27961
     phase_b:
       current:
         name: "EMON CT2 Current"
       power:
         name: "EMON Active Power CT2"
-      gain_voltage: 47660
-      gain_ct: 12577
+      reactive_power:
+        name: "EMON Reactive Power CT2"
+      power_factor:
+        name: "EMON Power Factor CT2"
+      gain_voltage: 7305
+      gain_ct: 27961
     phase_c:
       current:
         name: "EMON CT3 Current"
       power:
         name: "EMON Active Power CT3"
-      gain_voltage: 47660
-      gain_ct: 12577
+      reactive_power:
+        name: "EMON Reactive Power CT3"
+      power_factor:
+        name: "EMON Power Factor CT3"
+      gain_voltage: 7305
+      gain_ct: 27961
     frequency:
       name: "EMON Line Frequency"
-    line_frequency: 50Hz
+    chip_temperature:
+      name: "EMON Chip Temp A"
+    line_frequency: 60Hz
+    current_phases: 3
     gain_pga: 2X
   - platform: bh1750
     name: "Living Room Brightness 3"
@@ -402,11 +418,25 @@ sensor:
     heading:
       name: "HMC5883L Heading"
     range: 130uT
+    oversampling: 8x
+    update_interval: 15s
+  - platform: qmc5883l
+    address: 0x0D
+    field_strength_x:
+      name: "QMC5883L Field Strength X"
+    field_strength_y:
+      name: "QMC5883L Field Strength Y"
+    field_strength_z:
+      name: "QMC5883L Field Strength Z"
+    heading:
+      name: "QMC5883L Heading"
+    range: 800uT
+    oversampling: 256x
     update_interval: 15s
   - platform: hx711
     name: "HX711 Value"
     dout_pin: GPIO23
-    clk_pin: GPIO24
+    clk_pin: GPIO25
     gain: 128
     update_interval: 15s
   - platform: ina219
@@ -421,6 +451,19 @@ sensor:
     shunt_voltage:
       name: "INA219 Shunt Voltage"
     max_voltage: 32.0V
+    max_current: 3.2A
+    update_interval: 15s
+  - platform: ina226
+    address: 0x40
+    shunt_resistance: 0.1 ohm
+    current:
+      name: "INA226 Current"
+    power:
+      name: "INA226 Power"
+    bus_voltage:
+      name: "INA226 Bus Voltage"
+    shunt_voltage:
+      name: "INA226 Shunt Voltage"
     max_current: 3.2A
     update_interval: 15s
   - platform: ina3221
@@ -450,6 +493,14 @@ sensor:
     name: "Den Temperature"
     cs_pin: GPIO23
     update_interval: 15s
+    reference_temperature:
+      name: "MAX31855 Internal Temperature"
+  - platform: max31865
+    name: "Water Tank Temperature"
+    cs_pin: GPIO23
+    update_interval: 15s
+    reference_resistance: "430 Ω"
+    rtd_nominal_resistance: "100 Ω"
   - platform: mhz19
     co2:
       name: "MH-Z19 CO2 Value"
@@ -492,7 +543,7 @@ sensor:
     name: "Rotary Encoder"
     id: rotary_encoder1
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO25
     pin_reset: GPIO25
     filters:
       - or:
@@ -522,6 +573,9 @@ sensor:
       name: "Living Room Humidity 8"
     address: 0x44
     update_interval: 15s
+  - platform: sts3x
+    name: "Living Room Temperature 9"
+    address: 0x4A
   - platform: scd30
     co2:
       name: "Living Room CO2 9"
@@ -530,6 +584,54 @@ sensor:
     humidity:
       name: "Living Room Humidity 9"
     address: 0x61
+    update_interval: 15s
+    automatic_self_calibration: true
+    altitude_compensation: 10m
+  - platform: sgp30
+    eco2:
+      name: "Workshop eCO2"
+      accuracy_decimals: 1
+    tvoc:
+      name: "Workshop TVOC"
+      accuracy_decimals: 1
+    address: 0x58
+    update_interval: 5s
+  - platform: sps30
+    pm_1_0:
+      name: "Workshop PM <1µm Weight concentration"
+      id: "workshop_PM_1_0"
+    pm_2_5:
+      name: "Workshop PM <2.5µm Weight concentration"
+      id: "workshop_PM_2_5"
+    pm_4_0:
+      name: "Workshop PM <4µm Weight concentration"
+      id: "workshop_PM_4_0"
+    pm_10_0:
+      name: "Workshop PM <10µm Weight concentration"
+      id: "workshop_PM_10_0"
+    pmc_0_5:
+      name: "Workshop PM <0.5µm Number concentration"
+      id: "workshop_PMC_0_5"
+    pmc_1_0:
+      name: "Workshop PM <1µm Number concentration"
+      id: "workshop_PMC_1_0"
+    pmc_2_5:
+      name: "Workshop PM <2.5µm Number concentration"
+      id: "workshop_PMC_2_5"
+    pmc_4_0:
+      name: "Workshop PM <4µm Number concentration"
+      id: "workshop_PMC_4_0"
+    pmc_10_0:
+      name: "Workshop PM <10µm Number concentration"
+      id: "workshop_PMC_10_0"
+    address: 0x69
+    update_interval: 10s
+  - platform: shtcx
+    temperature:
+      name: "Living Room Temperature 10"
+    humidity:
+      name: "Living Room Humidity 10"
+    address: 0x70
     update_interval: 15s
   - platform: template
     name: "Template Sensor"
@@ -556,7 +658,7 @@ sensor:
     integration_time: 402ms
     gain: 16x
   - platform: ultrasonic
-    trigger_pin: GPIO24
+    trigger_pin: GPIO25
     echo_pin:
       number: GPIO23
       inverted: true
@@ -598,7 +700,7 @@ sensor:
       name: "Windspeed"
     wind_direction_degrees:
       name: "Winddirection Degrees"
-    pin: 
+    pin:
       number: GPIO04
       mode: INPUT
   - platform: zyaura
@@ -615,6 +717,16 @@ sensor:
       name: "Lightning Energy"
     distance:
       name: "Distance Storm"
+  - platform: tmp117
+    name: "TMP117 Temperature"
+    update_interval: 5s
+  - platform: hm3301
+    pm_1_0:
+      name: "PM1.0"
+    pm_2_5:
+      name: "PM2.5"
+    pm_10_0:
+      name: "PM10.0"
 
 esp32_touch:
   setup_mode: False
@@ -755,6 +867,13 @@ binary_sensor:
       number: 7
       mode: INPUT_PULLUP
       inverted: False
+  - platform: gpio
+    name: "MCP23 binary sensor"
+    pin:
+      mcp23016: mcp23016_hub
+      number: 7
+      mode: INPUT
+      inverted: False
 
   - platform: remote_receiver
     name: "Raw Remote Receiver Test"
@@ -878,6 +997,13 @@ output:
       number: 0
       mode: OUTPUT
       inverted: False
+  - platform: gpio
+    id: id25
+    pin:
+      mcp23016: mcp23016_hub
+      number: 0
+      mode: OUTPUT
+      inverted: False
   - platform: my9231
     id: my_0
     channel: 0
@@ -896,6 +1022,14 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: slow_pwm
+    id: id24
+    pin: GPIO26
+    period: 15s
+  - platform: ac_dimmer
+    id: dimmer1
+    gate_pin: GPIO5
+    zero_cross_pin: GPIO26
 
 light:
   - platform: binary
@@ -910,6 +1044,14 @@ light:
               duration: 250ms
             - state: False
               duration: 250ms
+    on_turn_on:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
+    on_turn_off:
+      - switch.template.publish:
+          id: livingroom_lights
+          state: yes
   - platform: monochromatic
     name: "Kitchen Lights"
     id: kitchen
@@ -958,6 +1100,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    constant_brightness: true
   - platform: fastled_clockless
     id: addr1
     chipset: WS2811
@@ -1012,8 +1155,10 @@ light:
     - addressable_lambda:
           name: "Test For Custom Lambda Effect"
           lambda: |-
-            it[0] = current_color;
-                
+            if (initial_run) {
+              it[0] = current_color;
+            }
+
     - automation:
         name: Custom Effect
         sequence:
@@ -1085,6 +1230,16 @@ climate:
     sensor: my_sensor
   - platform: coolix
     name: Coolix Climate
+  - platform: fujitsu_general
+    name: Fujitsu General Climate
+  - platform: daikin
+    name: Daikin Climate
+  - platform: yashima
+    name: Yashima Climate
+  - platform: mitsubishi
+    name: Mitsubishi
+  - platform: whirlpool
+    name: Whirlpool Climate
 
 switch:
   - platform: gpio
@@ -1130,6 +1285,14 @@ switch:
       remote_transmitter.transmit_panasonic:
         address: 0x4004
         command: 0x1000BCD
+  - platform: template
+    name: Pioneer
+    turn_on_action:
+      - remote_transmitter.transmit_pioneer:
+          rc_code_1: 0xA556
+          rc_code_2: 0xA506
+          repeat:
+            times: 2
   - platform: template
     name: RC Switch Raw
     turn_on_action:
@@ -1282,7 +1445,7 @@ interval:
             static uint16_t btn_left_state = id(btn_left)->get_value();
 
             ESP_LOGD("adaptive touch", "___  Touch Pad '%s' (T%u): val: %u state: %u tres:%u", id(btn_left)->get_name().c_str(), id(btn_left)->get_touch_pad(), id(btn_left)->get_value(), btn_left_state, id(btn_left)->get_threshold());
-            
+
             btn_left_state = ((uint32_t) id(btn_left)->get_value()  +  63 * (uint32_t)btn_left_state) >> 6;
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
@@ -1292,11 +1455,11 @@ display:
   dimensions: 18x4
   data_pins:
   - GPIO19
-  - GPIO20
   - GPIO21
   - GPIO22
+  - GPIO23
   enable_pin: GPIO23
-  rs_pin: GPIO24
+  rs_pin: GPIO25
   lambda: |-
     it.print("Hello World!");
 - platform: lcd_pcf8574
@@ -1309,10 +1472,22 @@ display:
   num_chips: 1
   lambda: |-
     it.print("01234567");
+- platform: tm1637
+  clk_pin: GPIO23
+  dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
 - platform: nextion
   lambda: |-
     it.set_component_value("gauge", 50);
     it.set_component_text("textview", "Hello World!");
+- platform: pcd8544
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: ssd1306_i2c
   model: "SSD1306_128X64"
   reset_pin: GPIO23
@@ -1333,6 +1508,13 @@ display:
   reset_pin: GPIO23
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: ssd1325_spi
+  model: "SSD1325 128x64"
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: waveshare_epaper
   cs_pin: GPIO23
   dc_pin: GPIO23
@@ -1342,6 +1524,11 @@ display:
   full_update_every: 30
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
+
+tm1651:
+  id: tm1651_battery
+  clk_pin: GPIO23
+  dio_pin: GPIO23
 
 remote_receiver:
   pin: GPIO32
@@ -1408,11 +1595,15 @@ mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
 
+mcp23016:
+  - id: 'mcp23016_hub'
+    address: 0x23
+
 stepper:
 - platform: a4988
   id: my_stepper
   step_pin: GPIO23
-  dir_pin: GPIO24
+  dir_pin: GPIO25
   sleep_pin: GPIO25
   max_speed: 250 steps/s
   acceleration: 100 steps/s^2
@@ -1463,3 +1654,5 @@ text_sensor:
     name: "SSID"
   bssid:
     name: "BSSID"
+  mac_address:
+    name: "Mac Address"

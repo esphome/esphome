@@ -10,7 +10,7 @@ substitutions:
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
-  mdio_pin: GPIO24
+  mdio_pin: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
@@ -49,18 +49,23 @@ web_server:
     username: admin
     password: admin
 
-deep_sleep:
-  run_duration: 20s
-  sleep_duration: 50s
-
 as3935_i2c:
-  pin: GPIO12
+  irq_pin: GPIO12
 
 
 sensor:
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
+  - platform: ble_rssi
+    service_uuid: '11aa'
+    name: "BLE Test Service 16"
+  - platform: ble_rssi
+    service_uuid: '11223344'
+    name: "BLE Test Service 32"
+  - platform: ble_rssi
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128"
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
@@ -86,7 +91,7 @@ sensor:
     temperature:
       name: "Xiaomi LYWSD02 Temperature"
     humidity:
-      name: "Xiaomi LYWSD02 Humidity"    
+      name: "Xiaomi LYWSD02 Humidity"
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -151,6 +156,28 @@ sensor:
       name: "Lightning Energy"
     distance:
       name: "Distance Storm"
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: "RuuviTag Humidity"
+    temperature:
+      name: "RuuviTag Temperature"
+    pressure:
+      name: "RuuviTag Pressure"
+    acceleration_x:
+      name: "RuuviTag Acceleration X"
+    acceleration_y:
+      name: "RuuviTag Acceleration Y"
+    acceleration_z:
+      name: "RuuviTag Acceleration Z"
+    battery_voltage:
+      name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
 
 time:
 - platform: homeassistant
@@ -170,6 +197,15 @@ binary_sensor:
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
+  - platform: ble_presence
+    service_uuid: '11aa'
+    name: "BLE Test Service 16 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344'
+    name: "BLE Test Service 32 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128 Presence"
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
@@ -192,11 +228,26 @@ binary_sensor:
   - platform: as3935
     name: "Storm Alert"
 
-remote_receiver:
-  pin: GPIO32
-  dump: []
-
 esp32_ble_tracker:
+  on_ble_advertise:
+    - mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+    - then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of service data is %i", x.size());
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
+
 
 #esp32_ble_beacon:
 #  type: iBeacon
@@ -250,7 +301,7 @@ stepper:
   - platform: uln2003
     id: my_stepper
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO27
     pin_c: GPIO25
     pin_d: GPIO26
     sleep_when_done: no

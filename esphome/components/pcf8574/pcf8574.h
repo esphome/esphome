@@ -10,7 +10,6 @@ namespace pcf8574 {
 /// Modes for PCF8574 pins
 enum PCF8574GPIOMode : uint8_t {
   PCF8574_INPUT = INPUT,
-  PCF8574_INPUT_PULLUP = INPUT_PULLUP,
   PCF8574_OUTPUT = OUTPUT,
 };
 
@@ -38,9 +37,12 @@ class PCF8574Component : public Component, public i2c::I2CDevice {
 
   bool write_gpio_();
 
-  uint16_t ddr_mask_{0x00};
+  /// Mask for the pin mode - 1 means output, 0 means input
+  uint16_t mode_mask_{0x00};
+  /// The mask to write as output state - 1 means HIGH, 0 means LOW
+  uint16_t output_mask_{0x00};
+  /// The state read in read_gpio_ - 1 means HIGH, 0 means LOW
   uint16_t input_mask_{0x00};
-  uint16_t port_mask_{0x00};
   bool pcf8575_;  ///< TRUE->16-channel PCF8575, FALSE->8-channel PCF8574
 };
 

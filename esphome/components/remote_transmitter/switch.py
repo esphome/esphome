@@ -19,12 +19,12 @@ def show_new(value):
     if 'name' in value:
         args.append(('name', value['name']))
     args.append(('turn_on_action', {
-        'remote_transmitter.transmit_{}'.format(key): val
+        f'remote_transmitter.transmit_{key}': val
     }))
 
     text = yaml_util.dump([OrderedDict(args)])
-    raise cv.Invalid(u"This platform has been removed in 1.13, please change to:\n\n{}\n\n."
-                     u"".format(text))
+    raise cv.Invalid("This platform has been removed in 1.13, please change to:\n\n{}\n\n."
+                     "".format(text))
 
 
 CONFIG_SCHEMA = show_new

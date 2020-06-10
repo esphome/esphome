@@ -42,8 +42,8 @@ float ledc_min_frequency_for_bit_depth(uint8_t bit_depth) {
 }
 optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
   for (int i = 20; i >= 1; i--) {
-    const float min_frequency = ledc_min_frequency_for_bit_depth(frequency);
-    const float max_frequency = ledc_max_frequency_for_bit_depth(frequency);
+    const float min_frequency = ledc_min_frequency_for_bit_depth(i);
+    const float max_frequency = ledc_max_frequency_for_bit_depth(i);
     if (min_frequency <= frequency && frequency <= max_frequency)
       return i;
   }
@@ -56,7 +56,7 @@ void LEDCOutput::apply_frequency(float frequency) {
     ESP_LOGW(TAG, "Frequency %f can't be achieved with any bit depth", frequency);
     this->status_set_warning();
   }
-  this->bit_depth_ = *bit_depth_opt;
+  this->bit_depth_ = bit_depth_opt.value_or(8);
   this->frequency_ = frequency;
   ledcSetup(this->channel_, frequency, this->bit_depth_);
   // re-apply duty

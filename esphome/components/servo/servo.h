@@ -36,17 +36,18 @@ class Servo : public Component {
       this->rtc_ = global_preferences.make_preference<float>(global_servo_id);
       global_servo_id++;
       if (this->rtc_.load(&v)) {
-        this->write(v);
+        this->output_->set_level(v);
         return;
       }
     }
-    this->write(0.0f);
+    this->detach();
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_min_level(float min_level) { min_level_ = min_level; }
   void set_idle_level(float idle_level) { idle_level_ = idle_level; }
   void set_max_level(float max_level) { max_level_ = max_level; }
+  void set_restore(bool restore) { restore_ = restore; }
 
  protected:
   void save_level_(float v) { this->rtc_.save(&v); }

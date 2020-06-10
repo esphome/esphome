@@ -97,7 +97,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_CREGWAIT: {
       // Response: "+CREG: 0,1" -- the one there means registered ok
       //           "+CREG: -,-" means not registered ok
-      bool registered = message.compare(0, 6, "+CREG:") == 0 && message[9] == '1';
+      bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
         if (!this->registered_)
           ESP_LOGD(TAG, "Registered OK");
@@ -254,6 +254,10 @@ void Sim800LComponent::send_sms(std::string recipient, std::string message) {
   this->outgoing_message_ = message;
   this->send_pending_ = true;
   this->update();
+}
+void Sim800LComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "SIM800L:");
+  ESP_LOGCONFIG(TAG, "  RSSI: %d dB", this->rssi_);
 }
 
 }  // namespace sim800l

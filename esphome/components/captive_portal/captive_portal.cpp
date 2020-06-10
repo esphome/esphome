@@ -166,6 +166,7 @@ float CaptivePortal::get_setup_priority() const {
   // Before WiFi
   return setup_priority::WIFI + 1.0f;
 }
+void CaptivePortal::dump_config() { ESP_LOGCONFIG(TAG, "Captive Portal:"); }
 
 CaptivePortal *global_captive_portal = nullptr;
 

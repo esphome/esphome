@@ -79,9 +79,10 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
             const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
             const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
             result.impedance = impedance;
-            if (data[0] == 0x02)
+
+            if (data[0] == 0x02) 
               result.weight = weight * 0.01f / 2.0f;
-            else if (data[0] == 0x03)
+            else if (data[0] == 0x03) 
               result.weight = weight * 0.01f * 0.453592;
             else
               return false;
@@ -95,69 +96,101 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return false;
   }
 }
-optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!device.get_service_data_uuid().has_value()) {
-    // ESP_LOGVV(TAG, "Xiaomi no service data");
-    return {};
+
+bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracker::ServiceData &service_data) {
+  if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1D, 0x18)) {
+    ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
+    return false;
   }
 
-  if (!device.get_service_data_uuid()->contains(0x95, 0xFE) && !device.get_service_data_uuid()->contains(0x1D, 0x18) &&
-      !device.get_service_data_uuid()->contains(0x1B, 0x18)) {
-    // ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
-    return {};
-  }
+  const auto raw = service_data.data;
 
-  const auto *raw = reinterpret_cast<const uint8_t *>(device.get_service_data().data());
 
-  if (device.get_service_data().size() < 9) {
-    // ESP_LOGVV(TAG, "Xiaomi service data too short!");
-    return {};
+  if (raw.size() < 13 ) {
+    ESP_LOGVV(TAG, "Xiaomi service data too short!");
+    return false;
   }
 
   bool is_lywsdcgq = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
-  bool is_cgg1 = (raw[1] & 0x30) == 0x30 && raw[2] == 0x47 && raw[3] == 0x03;
-  bool is_xmtzc0xhm = device.get_service_data_uuid()->contains(0x1D, 0x18);
-  bool is_mibfs = device.get_service_data_uuid()->contains(0x1B, 0x18);
+
+  bool is_cgg1 = ((raw[1] & 0x30) == 0x30 || (raw[1] & 0x20) == 0x20) && raw[2] == 0x47 && raw[3] == 0x03;
+  bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
+  bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
 
   if (!is_lywsdcgq && !is_hhccjcy01 && !is_lywsd02 && !is_cgg1 && !is_xmtzc0xhm && !is_mibfs && !is_lywsd02) {
-    // ESP_LOGVV(TAG, "Xiaomi no magic bytes");
-    return {};
+    ESP_LOGVV(TAG, "Xiaomi no magic bytes");
+    return false;
   }
   bool success;
   XiaomiParseResult result;
 
-  if (is_mijia || is_miflora || is_lywsd02 || is_cgg1) {
-    uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
 
-    const uint8_t raw_type = raw[raw_offset];
-    const uint8_t data_length = raw[raw_offset + 2];
-    const uint8_t *data = &raw[raw_offset + 3];
-    const uint8_t expected_length = data_length + raw_offset + 3;
-    const uint8_t actual_length = device.get_service_data().size();
-    if (expected_length != actual_length) {
-      // ESP_LOGV(TAG, "Xiaomi %s data length mismatch (%u != %d)", type, expected_length, actual_length);
-      return {};
-    }
-    XiaomiParseResult result;
-    result.type = XiaomiParseResult::TYPE_HHCCJCY01;
-    if (is_lywsdcgq) {
-      result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
-    } else if (is_lywsd02) {
-      result.type = XiaomiParseResult::TYPE_LYWSD02;
-    } else if (is_cgg1) {
-      result.type = XiaomiParseResult::TYPE_CGG1;
-    }
-    success = parse_xiaomi_data_byte(raw_type, data, data_length, result);
-  } else {
-    const uint8_t data_length = device.get_service_data().size();
-    const uint8_t raw_type = 0x16;
-
+  result.type = XiaomiParseResult::TYPE_HHCCJCY01;
+  if (is_lywsdcgq) {
+    result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
+  } else if (is_lywsd02) {
+    result.type = XiaomiParseResult::TYPE_LYWSD02;
+  } else if (is_cgg1) {
+    result.type = XiaomiParseResult::TYPE_CGG1;
+  } else if (is_xmtzc0xhm) {
     result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
-    success = parse_xiaomi_data_byte(raw_type, raw, data_length, result);
+  } else if (is_mibfs) {
+    result.type = XiaomiParseResult::TYPE_XMTZC0XHM;
   }
 
+  uint8_t raw_offset = is_lywsdcgq || is_cgg1 ? 11 : 12;
+
+  // Data point specs
+  // Byte 0: type
+  // Byte 1: fixed 0x10
+  // Byte 2: length
+  // Byte 3..3+len-1: data point value
+
+  const uint8_t *raw_data = &raw[raw_offset];
+  uint8_t data_offset = 0;
+  uint8_t data_length = raw.size() - raw_offset;
+  bool success = false;
+
+  while (true) {
+    if (data_length < 4)
+      // at least 4 bytes required
+      // type, fixed 0x10, length, 1 byte value
+      break;
+
+    const uint8_t datapoint_type = raw_data[data_offset + 0];
+    const uint8_t datapoint_length = raw_data[data_offset + 2];
+
+    if (data_length < 3 + datapoint_length)
+      // 3 fixed bytes plus value length
+      break;
+
+    const uint8_t *datapoint_data = &raw_data[data_offset + 3];
+
+    if (parse_xiaomi_data_byte(datapoint_type, datapoint_data, datapoint_length, result))
+      success = true;
+
+    data_length -= data_offset + 3 + datapoint_length;
+    data_offset += 3 + datapoint_length;
+  }
+//Hack for MiScale
+  if(is_xmtzc0xhm || is_mibfs)
+  {
+    const uint8_t *datapoint_data = &raw[0]; //raw data
+    if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
+      success = true;
+  }
+
+  return success;
+}
+optional<XiaomiParseResult> parse_xiaomi(const esp32_ble_tracker::ESPBTDevice &device) {
+  XiaomiParseResult result;
+  bool success = false;
+  for (auto &service_data : device.get_service_datas()) {
+    if (parse_xiaomi_service_data(result, service_data))
+      success = true;
+  }
   if (!success)
     return {};
   return result;

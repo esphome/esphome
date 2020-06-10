@@ -19,6 +19,10 @@ static const char *TAG = "ccs811";
 #define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICAITON_FAILED)
 
 void CCS811Component::setup() {
+  if(this->wakepin_){
+    this->wakepin_->setup();
+  } 
+  this->wakeup(true);
   // page 9 programming guide - hwid is always 0x81
   uint8_t hw_id;
   CHECKED_IO(this->read_byte(0x20, &hw_id))
@@ -51,8 +55,11 @@ void CCS811Component::setup() {
     // baseline available, write to sensor
     this->write_bytes(0x11, decode_uint16(*this->baseline_));
   }
+  this->wakeup(false);
 }
 void CCS811Component::update() {
+  // enable ccs8811
+  this->wakeup(true);
   if (!this->status_has_data_())
     this->status_set_warning();
 
@@ -84,6 +91,8 @@ void CCS811Component::update() {
   this->status_clear_warning();
 
   this->send_env_data_();
+  // disable ccs8811
+  this->wakeup(false);
 }
 void CCS811Component::send_env_data_() {
   if (this->humidity_ == nullptr && this->temperature_ == nullptr)
@@ -111,6 +120,11 @@ void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this)
+  if (this->wakepin_){
+    ESP_LOGCONFIG(TAG, "  WAKEUP Pin: GPIO%u", this->wakepin_->get_pin());
+  } else {
+    ESP_LOGCONFIG(TAG, "  WAKEUP Pin: NOT SET");
+  }
   LOG_SENSOR("  ", "CO2 Sensor", this->co2_)
   LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_)
   if (this->baseline_) {
@@ -142,6 +156,11 @@ void CCS811Component::dump_config() {
     }
   }
 }
+void CCS811Component::wakeup(boolean set_on){
+  if(this->wakepin_!=nullptr){
+    this->wakepin_->digital_write(!set_on);
+  }
+} 
 
 }  // namespace ccs811
 }  // namespace esphome

@@ -24,4 +24,4 @@ def to_code(config):
 
     if CONF_OSCILLATION_OUTPUT in config:
         oscillation_output = yield cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
-        cg.add(var.set_oscillation(oscillation_output))
+        cg.add(var.set_oscillating(oscillation_output))

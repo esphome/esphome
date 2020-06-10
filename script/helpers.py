@@ -12,11 +12,11 @@ temp_header_file = os.path.join(root_path, '.temp-clang-tidy.cpp')
 
 def shlex_quote(s):
     if not s:
-        return u"''"
+        return "''"
     if re.search(r'[^\w@%+=:,./-]', s) is None:
         return s
 
-    return u"'" + s.replace(u"'", u"'\"'\"'") + u"'"
+    return "'" + s.replace("'", "'\"'\"'") + "'"
 
 
 def build_all_include():
@@ -29,7 +29,7 @@ def build_all_include():
         if ext in filetypes:
             path = os.path.relpath(path, root_path)
             include_p = path.replace(os.path.sep, '/')
-            headers.append('#include "{}"'.format(include_p))
+            headers.append(f'#include "{include_p}"')
     headers.sort()
     headers.append('')
     content = '\n'.join(headers)
@@ -47,7 +47,7 @@ def build_compile_commands():
         gcc_flags = json.load(f)
     exec_path = gcc_flags['execPath']
     include_paths = gcc_flags['gccIncludePaths'].split(',')
-    includes = ['-I{}'.format(p) for p in include_paths]
+    includes = [f'-I{p}' for p in include_paths]
     cpp_flags = gcc_flags['gccDefaultCppFlags'].split(' ')
     defines = [flag for flag in cpp_flags if flag.startswith('-D')]
     command = [exec_path]
@@ -102,7 +102,7 @@ def splitlines_no_ends(string):
 
 def changed_files():
     for remote in ('upstream', 'origin'):
-        command = ['git', 'merge-base', '{}/dev'.format(remote), 'HEAD']
+        command = ['git', 'merge-base', f'{remote}/dev', 'HEAD']
         try:
             merge_base = splitlines_no_ends(get_output(*command))[0]
             break
@@ -124,7 +124,7 @@ def filter_changed(files):
     if not files:
         print("    No changed files!")
     for c in files:
-        print("    {}".format(c))
+        print(f"    {c}")
     return files
 
 

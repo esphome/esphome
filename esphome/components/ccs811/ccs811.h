@@ -8,8 +8,11 @@
 namespace esphome {
 namespace ccs811 {
 
-class CCS811Component : public PollingComponent, public i2c::I2CDevice {
+class CCS811Component : public PollingComponent, public i2c::I2CDevice{
+ private:
+  void wakeup(boolean set_on); 
  public:
+  void set_wakepin(GPIOPin *wakepin) { wakepin_ = wakepin; }
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
   void set_baseline(uint16_t baseline) { baseline_ = baseline; }
@@ -48,6 +51,7 @@ class CCS811Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *humidity_{nullptr};
   /// Input sensor for temperature reading.
   sensor::Sensor *temperature_{nullptr};
+  GPIOPin *wakepin_{nullptr};
 };
 
 }  // namespace ccs811

@@ -3,7 +3,6 @@ import re
 
 import esphome.config_validation as cv
 from esphome import core
-from esphome.py_compat import string_types
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -24,8 +23,8 @@ def validate_substitution_key(value):
     for char in value:
         if char not in VALID_SUBSTITUTIONS_CHARACTERS:
             raise cv.Invalid(
-                u"Substitution must only consist of upper/lowercase characters, the underscore "
-                u"and numbers. The character '{}' cannot be used".format(char))
+                "Substitution must only consist of upper/lowercase characters, the underscore "
+                "and numbers. The character '{}' cannot be used".format(char))
     return value
 
 
@@ -42,7 +41,7 @@ VARIABLE_PROG = re.compile('\\$([{0}]+|\\{{[{0}]*\\}})'.format(VALID_SUBSTITUTIO
 
 
 def _expand_substitutions(substitutions, value, path):
-    if u'$' not in value:
+    if '$' not in value:
         return value
 
     orig_value = value
@@ -56,11 +55,11 @@ def _expand_substitutions(substitutions, value, path):
 
         i, j = m.span(0)
         name = m.group(1)
-        if name.startswith(u'{') and name.endswith(u'}'):
+        if name.startswith('{') and name.endswith('}'):
             name = name[1:-1]
         if name not in substitutions:
-            _LOGGER.warning(u"Found '%s' (see %s) which looks like a substitution, but '%s' was "
-                            u"not declared", orig_value, u'->'.join(str(x) for x in path), name)
+            _LOGGER.warning("Found '%s' (see %s) which looks like a substitution, but '%s' was "
+                            "not declared", orig_value, '->'.join(str(x) for x in path), name)
             i = j
             continue
 
@@ -91,7 +90,7 @@ def _substitute_item(substitutions, item, path):
         for old, new in replace_keys:
             item[new] = item[old]
             del item[old]
-    elif isinstance(item, string_types):
+    elif isinstance(item, str):
         sub = _expand_substitutions(substitutions, item, path)
         if sub != item:
             return sub
@@ -109,8 +108,8 @@ def do_substitution_pass(config):
     substitutions = config[CONF_SUBSTITUTIONS]
     with cv.prepend_path('substitutions'):
         if not isinstance(substitutions, dict):
-            raise cv.Invalid(u"Substitutions must be a key to value mapping, got {}"
-                             u"".format(type(substitutions)))
+            raise cv.Invalid("Substitutions must be a key to value mapping, got {}"
+                             "".format(type(substitutions)))
 
         replace_keys = []
         for key, value in substitutions.items():
