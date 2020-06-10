@@ -26,7 +26,7 @@ void SenseAirComponent::update() {
     while (this->available()) {
       unsigned char b;
       if (this->read_byte(&b)) {
-        ESP_LOGW(TAG, "    ... %02x", b);
+        ESP_LOGD(TAG, "    ... %02x", b);
       } else {
         ESP_LOGD(TAG, "    ... nothing read");
       }
