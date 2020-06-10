@@ -454,7 +454,4 @@ bool XiaomiListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return false;  // with true it's not showing device scans
 }
 
-}  // namespace xiaomi_ble
-}  // namespace esphome
-
 #endif
