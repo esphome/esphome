@@ -22,7 +22,7 @@ void CCS811Component::setup() {
   if(this->wakepin_) {
     this->wakepin_->setup();
   } 
-  this->wakeup(true);
+  this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(true);
   // page 9 programming guide - hwid is always 0x81
   uint8_t hw_id;
   CHECKED_IO(this->read_byte(0x20, &hw_id))
@@ -55,11 +55,11 @@ void CCS811Component::setup() {
     // baseline available, write to sensor
     this->write_bytes(0x11, decode_uint16(*this->baseline_));
   }
-  this->wakeup(false);
+  this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(false);
 }
 void CCS811Component::update() {
   // enable ccs8811
-  this->wakeup(true);
+  this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(true);
   if (!this->status_has_data_())
     this->status_set_warning();
 
@@ -92,7 +92,7 @@ void CCS811Component::update() {
 
   this->send_env_data_();
   // disable ccs8811
-  this->wakeup(false);
+  this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(false);
 }
 void CCS811Component::send_env_data_() {
   if (this->humidity_ == nullptr && this->temperature_ == nullptr)
