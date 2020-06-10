@@ -79,6 +79,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
             const uint16_t weight = uint16_t(data[11]) | (uint16_t(data[12]) << 8);
             const uint16_t impedance = uint16_t(data[9]) | (uint16_t(data[10]) << 8);
             result.impedance = impedance;
+
             if (data[0] == 0x02) 
               result.weight = weight * 0.01f / 2.0f;
             else if (data[0] == 0x03) 
@@ -95,6 +96,7 @@ bool parse_xiaomi_data_byte(uint8_t data_type, const uint8_t *data, uint8_t data
       return false;
   }
 }
+
 bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracker::ServiceData &service_data) {
   if (!service_data.uuid.contains(0x95, 0xFE) && !service_data.uuid.contains(0x1D, 0x18)) {
     ESP_LOGVV(TAG, "Xiaomi no service data UUID magic bytes");
@@ -102,6 +104,7 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
   }
 
   const auto raw = service_data.data;
+
 
   if (raw.size() < 13 ) {
     ESP_LOGVV(TAG, "Xiaomi service data too short!");
@@ -111,6 +114,7 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
   bool is_lywsdcgq = (raw[1] & 0x20) == 0x20 && raw[2] == 0xAA && raw[3] == 0x01;
   bool is_hhccjcy01 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x98 && raw[3] == 0x00;
   bool is_lywsd02 = (raw[1] & 0x20) == 0x20 && raw[2] == 0x5b && raw[3] == 0x04;
+
   bool is_cgg1 = ((raw[1] & 0x30) == 0x30 || (raw[1] & 0x20) == 0x20) && raw[2] == 0x47 && raw[3] == 0x03;
   bool is_xmtzc0xhm = service_data.uuid.contains(0x1D, 0x18);
   bool is_mibfs = service_data.uuid.contains(0x1B, 0x18);
@@ -119,6 +123,9 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return false;
   }
+  bool success;
+  XiaomiParseResult result;
+
 
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
   if (is_lywsdcgq) {
