@@ -123,8 +123,8 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
     ESP_LOGVV(TAG, "Xiaomi no magic bytes");
     return false;
   }
-  # bool success;
-  # XiaomiParseResult result;
+  // bool success;
+  // XiaomiParseResult result;
 
 
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
