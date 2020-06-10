@@ -19,7 +19,7 @@ static const char *TAG = "ccs811";
 #define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICAITON_FAILED)
 
 void CCS811Component::setup() {
-  if(this->wakepin_) {
+  if (this->wakepin_) {
     this->wakepin_->setup();
   } 
   this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(true);
@@ -157,7 +157,7 @@ void CCS811Component::dump_config() {
   }
 }
 void CCS811Component::NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on) {
-  if(this->wakepin_!=nullptr) {
+  if (this->wakepin_!=nullptr) {
     this->wakepin_->digital_write(!set_on);
   }
 } 
