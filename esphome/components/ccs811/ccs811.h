@@ -10,7 +10,7 @@ namespace ccs811 {
 
 class CCS811Component : public PollingComponent, public i2c::I2CDevice {
  private:
-  void NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on); 
+  void NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on);
  public:
   void set_wakepin(GPIOPin *wakepin) { wakepin_ = wakepin; }
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
