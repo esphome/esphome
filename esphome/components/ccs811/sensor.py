@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome import pins
-from esphome.components import output
+#from esphome.components import output
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_RADIATOR, UNIT_PARTS_PER_MILLION, \
@@ -48,7 +48,7 @@ def to_code(config):
     if CONF_HUMIDITY in config:
         sens = yield cg.get_variable(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
-    
+
     if CONF_WAKEPIN in config:
         wakepin = yield cg.gpio_pin_expression(config[CONF_WAKEPIN])
         cg.add(var.set_wakepin(wakepin))
