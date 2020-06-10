@@ -124,7 +124,7 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
     return false;
   }
   # bool success;
-  XiaomiParseResult result;
+  # XiaomiParseResult result;
 
 
   result.type = XiaomiParseResult::TYPE_HHCCJCY01;
