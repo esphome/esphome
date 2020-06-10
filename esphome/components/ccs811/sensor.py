@@ -4,7 +4,8 @@ from esphome import pins
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_RADIATOR, UNIT_PARTS_PER_MILLION, \
-    UNIT_PARTS_PER_BILLION, CONF_TEMPERATURE, CONF_HUMIDITY, ICON_PERIODIC_TABLE_CO2
+    UNIT_PARTS_PER_BILLION, CONF_TEMPERATURE, CONF_HUMIDITY, ICON_PERIODIC_TABLE_CO2, \
+    CONF_WAKEUP_PIN
 
 DEPENDENCIES = ['i2c']
 
@@ -14,7 +15,6 @@ CCS811Component = ccs811_ns.class_('CCS811Component', cg.PollingComponent, i2c.I
 CONF_ECO2 = 'eco2'
 CONF_TVOC = 'tvoc'
 CONF_BASELINE = 'baseline'
-CONF_WAKEUP_PIN = 'wakeup_pin'
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CCS811Component),
