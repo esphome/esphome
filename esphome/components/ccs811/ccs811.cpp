@@ -156,7 +156,7 @@ void CCS811Component::dump_config() {
     }
   }
 }
-void CCS811Component::wakeup(boolean set_on) {
+void CCS811Component::NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on) {
   if(this->wakepin_!=nullptr) {
     this->wakepin_->digital_write(!set_on);
   }
