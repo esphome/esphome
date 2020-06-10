@@ -161,7 +161,11 @@ void PN532::loop() {
 
 void PN532::turn_off_rf_() {
   ESP_LOGVV(TAG, "Turning RF field OFF");
-  this->pn532_write_command_check_ack_({0x32, 0x1, 0x0});
+  this->pn532_write_command_check_ack_({
+      0x32,  // RFConfiguration
+      0x1,   // RF Field
+      0x0    // Off
+  });
 }
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }
