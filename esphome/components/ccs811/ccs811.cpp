@@ -19,7 +19,7 @@ static const char *TAG = "ccs811";
 #define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICAITON_FAILED)
 
 void CCS811Component::setup() {
-  if(this->wakepin_){
+  if(this->wakepin_) {
     this->wakepin_->setup();
   } 
   this->wakeup(true);
@@ -120,7 +120,7 @@ void CCS811Component::dump_config() {
   ESP_LOGCONFIG(TAG, "CCS811");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this)
-  if (this->wakepin_){
+  if (this->wakepin_) {
     ESP_LOGCONFIG(TAG, "  WAKEUP Pin: GPIO%u", this->wakepin_->get_pin());
   } else {
     ESP_LOGCONFIG(TAG, "  WAKEUP Pin: NOT SET");
@@ -156,8 +156,8 @@ void CCS811Component::dump_config() {
     }
   }
 }
-void CCS811Component::wakeup(boolean set_on){
-  if(this->wakepin_!=nullptr){
+void CCS811Component::wakeup(boolean set_on) {
+  if(this->wakepin_!=nullptr) {
     this->wakepin_->digital_write(!set_on);
   }
 } 
