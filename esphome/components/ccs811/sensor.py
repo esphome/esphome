@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 from esphome import pins
-#from esphome.components import output
+# from esphome.components import output
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_RADIATOR, UNIT_PARTS_PER_MILLION, \
