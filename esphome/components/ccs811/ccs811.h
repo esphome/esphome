@@ -8,7 +8,7 @@
 namespace esphome {
 namespace ccs811 {
 
-class CCS811Component : public PollingComponent, public i2c::I2CDevice{
+class CCS811Component : public PollingComponent, public i2c::I2CDevice {
  private:
   void NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on); 
  public:
