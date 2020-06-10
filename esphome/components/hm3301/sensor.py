@@ -19,6 +19,15 @@ AQI_CALCULATION_TYPE = {
     'AQI': AQICalculatorType.AQI_TYPE
 }
 
+
+def validate(config):
+    if CONF_AQI in config and CONF_PM_2_5 not in config:
+        raise cv.Invalid("AQI sensor requires PM 2.5")
+    if CONF_AQI in config and CONF_PM_10_0 not in config:
+        raise cv.Invalid("AQI sensor requires PM 10 sensors")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(HM3301Component),
 
@@ -32,7 +41,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
         sensor.sensor_schema(UNIT_INDEX, ICON_CHEMICAL_WEAPON, 0).extend({
             cv.Required(CONF_CALCULATION_TYPE): cv.enum(AQI_CALCULATION_TYPE, upper=True),
         })
-}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40)))
+}).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x40)), validate)
 
 
 def to_code(config):
