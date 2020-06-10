@@ -9,7 +9,6 @@ namespace esphome {
 namespace xiaomi_ble {
 
 struct XiaomiParseResult {
-
   enum {
     TYPE_XMTZC0XHM,
     TYPE_HHCCJCY01,
