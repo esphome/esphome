@@ -66,7 +66,7 @@ void SSD1325::setup() {
   this->command(0x02);
   this->command(SSD1325_SETREMAP);  // set segment remapping
   if (this->model_ == SSD1327_MODEL_128_128)
-    this->command(0x51);  //  COM bottom-up, split odd/even, enable column swap
+    this->command(0x53);  //  COM bottom-up, split odd/even, enable column and nibble remapping
   else
     this->command(0x50);                    // COM bottom-up, split odd/even
   this->command(SSD1325_SETCURRENT + 0x2);  // Set Full Current Range
