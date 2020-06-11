@@ -29,7 +29,8 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_model(SSD1306Model model) { this->model_ = model; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
-  void set_brightness(float brightness) { this->brightness_ = brightness; }
+  void init_brightness(float brightness) { this->brightness_ = brightness; }
+  void set_brightness(float brightness);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;

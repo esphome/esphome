@@ -5,7 +5,10 @@
 namespace esphome {
 namespace ssd1306_base {
 
-static const char *TAG = "sd1306";
+static const char *TAG = "ssd1306";
+
+static const uint8_t BLACK = 0;
+static const uint8_t WHITE = 1;
 
 static const uint8_t SSD1306_COMMAND_DISPLAY_OFF = 0xAE;
 static const uint8_t SSD1306_COMMAND_DISPLAY_ON = 0xAF;
@@ -69,26 +72,7 @@ void SSD1306::setup() {
       break;
   }
 
-  this->command(SSD1306_COMMAND_SET_CONTRAST);
-  switch (this->model_) {
-    case SSD1306_MODEL_128_32:
-    case SH1106_MODEL_128_32:
-      this->command(0x8F);
-      break;
-    case SSD1306_MODEL_128_64:
-    case SH1106_MODEL_128_64:
-    case SSD1306_MODEL_64_48:
-    case SH1106_MODEL_64_48:
-      this->command(int(255 * (this->brightness_)));
-      break;
-    case SSD1306_MODEL_96_16:
-    case SH1106_MODEL_96_16:
-      if (this->external_vcc_)
-        this->command(0x10);
-      else
-        this->command(0xAF);
-      break;
-  }
+  set_brightness(this->brightness_);
 
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
   if (this->external_vcc_)
@@ -103,6 +87,9 @@ void SSD1306::setup() {
   this->command(SSD1306_NORMAL_DISPLAY);
 
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
+
+  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();    // ...write buffer, which actually clears the display's memory
 
   this->command(SSD1306_COMMAND_DISPLAY_ON);
 }
@@ -139,6 +126,18 @@ bool SSD1306::is_sh1106_() const {
 void SSD1306::update() {
   this->do_update_();
   this->display();
+}
+void SSD1306::set_brightness(float brightness) {
+  // validation
+  if (brightness > 1)
+    this->brightness_ = 1.0;
+  else if (brightness < 0)
+    this->brightness_ = 0;
+  else
+    this->brightness_ = brightness;
+  // now write the new brightness level to the display
+  this->command(SSD1306_COMMAND_SET_CONTRAST);
+  this->command(int(255 * (this->brightness_)));
 }
 int SSD1306::get_height_internal() {
   switch (this->model_) {
@@ -178,7 +177,6 @@ int SSD1306::get_width_internal() {
 size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
-
 void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
