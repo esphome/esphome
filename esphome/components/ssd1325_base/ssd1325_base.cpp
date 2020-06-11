@@ -79,8 +79,7 @@ void SSD1325::setup() {
   this->command(0x54);
   this->command(0x65);
   this->command(0x76);
-  this->command(SSD1325_SETCONTRAST);  // set contrast current
-  this->command(0x7F);                 // max!
+  set_brightness(this->brightness_);
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
@@ -90,8 +89,8 @@ void SSD1325::setup() {
   this->command(SSD1325_SETPRECHARGECOMPENABLE);
   this->command(0x28);
   this->command(SSD1325_SETVCOMLEVEL);  // Set High Voltage Level of COM Pin
-  this->command(0x1C);                  // ?
-  this->command(SSD1325_SETVSL);        // set Low Voltage Level of SEG Pin
+  this->command(0x1C);
+  this->command(SSD1325_SETVSL);  // set Low Voltage Level of SEG Pin
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
   this->fill(BLACK);                     // clear display - ensures we do not see garbage at power-on
@@ -99,21 +98,33 @@ void SSD1325::setup() {
   this->command(SSD1325_DISPLAYON);      // display ON
 }
 void SSD1325::display() {
-  this->command(SSD1325_SETCOLADDR); /* set column address */
-  this->command(0x00);               /* set column start address */
-  this->command(0x3F);               /* set column end address */
-  this->command(SSD1325_SETROWADDR); /* set row address */
-  this->command(0x00);               /* set row start address */
+  this->command(SSD1325_SETCOLADDR);  // set column address
+  this->command(0x00);                // set column start address
+  this->command(0x3F);                // set column end address
+  this->command(SSD1325_SETROWADDR);  // set row address
+  this->command(0x00);                // set row start address
   if (this->model_ == SSD1327_MODEL_128_128)
-    this->command(0x7F);  // 127 is last row
+    this->command(127);  // set last row
   else
-    this->command(0x3F);  // 63 is last row
+    this->command(63);  // set last row
 
   this->write_display_data();
 }
 void SSD1325::update() {
   this->do_update_();
   this->display();
+}
+void SSD1325::set_brightness(float brightness) {
+  // validation
+  if (brightness > 1)
+    this->brightness_ = 1.0;
+  else if (brightness < 0)
+    this->brightness_ = 0;
+  else
+    this->brightness_ = brightness;
+  // now write the new brightness level to the display
+  this->command(SSD1325_SETCONTRAST);
+  this->command(int(127 * (this->brightness_)));
 }
 int SSD1325::get_height_internal() {
   switch (this->model_) {

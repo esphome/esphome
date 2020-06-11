@@ -26,6 +26,8 @@ class SSD1325 : public PollingComponent, public display::DisplayBuffer {
   void set_model(SSD1325Model model) { this->model_ = model; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
+  void init_brightness(float brightness) { this->brightness_ = brightness; }
+  void set_brightness(float brightness);
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;
@@ -45,6 +47,7 @@ class SSD1325 : public PollingComponent, public display::DisplayBuffer {
   SSD1325Model model_{SSD1325_MODEL_128_64};
   GPIOPin *reset_pin_{nullptr};
   bool external_vcc_{false};
+  float brightness_{1.0};
 };
 
 }  // namespace ssd1325_base
