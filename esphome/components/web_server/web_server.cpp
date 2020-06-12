@@ -139,7 +139,7 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
 #ifdef WEBSERVER_CSS_INCLUDE
@@ -572,6 +572,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
+#ifdef WEBSERVER_PROMETHEUS
+  if (request->url() == "/metrics")
+    return true;
+#endif
+
 #ifdef WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
     return true;
@@ -631,6 +636,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
+
+#ifdef WEBSERVER_PROMETHEUS
+  if (request->url() == "/metrics") {
+    this->prometheus.handle_request(request);
+    return;
+  }
+#endif
 
 #ifdef WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css") {
