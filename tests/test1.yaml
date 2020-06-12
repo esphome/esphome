@@ -738,6 +738,9 @@ sensor:
       name: "PM2.5"
     pm_10_0:
       name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "CAQI"
 
 esp32_touch:
   setup_mode: False
