@@ -183,9 +183,13 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 115200
+  - tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 115200
+
+  - id: adalight_uart
+    rx_pin: GPIO3
+    baud_rate: 115200
 
 ota:
   safe_mode: True
@@ -204,6 +208,8 @@ deep_sleep:
   sleep_duration: 50s
 
 wled:
+
+adalight:
 
 sensor:
   - platform: apds9960
@@ -699,6 +705,8 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
+e131:
+
 light:
   - platform: neopixelbus
     name: Neopixelbus Light
@@ -709,6 +717,10 @@ light:
     num_leds: 100
     effects:
       - wled:
+      - adalight:
+          uart_id: adalight_uart
+      - e131:
+          universe: 1
 
 servo:
   id: my_servo
