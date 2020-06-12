@@ -735,14 +735,14 @@ void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
   *green = gamma_correct(*green, this->gamma_correct_);
   *blue = gamma_correct(*blue, this->gamma_correct_);
 }
-void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white) {
-  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_);
+void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
+  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, color_interlock_);
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                                         bool constant_brightnes) {
+                                         bool constant_brightness, bool color_interlock) {
   auto traits = this->get_traits();
   this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white, this->gamma_correct_, constant_brightness);
+                                warm_white, this->gamma_correct_, constant_brightness, color_interlock);
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
