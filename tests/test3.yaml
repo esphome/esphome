@@ -207,6 +207,8 @@ deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
 
+wled:
+
 adalight:
 
 sensor:
@@ -714,6 +716,7 @@ light:
     method: ESP8266_UART0
     num_leds: 100
     effects:
+      - wled:
       - adalight:
           uart_id: adalight_uart
       - e131:
