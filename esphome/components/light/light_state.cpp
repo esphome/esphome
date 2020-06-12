@@ -730,7 +730,7 @@ void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness);
   *brightness = gamma_correct(*brightness, this->gamma_correct_);
 }
-void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
+void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
   this->current_values.as_rgb(red, green, blue);
   *red = gamma_correct(*red, this->gamma_correct_);
   *green = gamma_correct(*green, this->gamma_correct_);
