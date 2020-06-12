@@ -730,19 +730,21 @@ void LightState::current_values_as_brightness(float *brightness) {
   this->current_values.as_brightness(brightness, this->gamma_correct_);
 }
 void LightState::current_values_as_rgb(float *red, float *green, float *blue) {
-  this->current_values.as_rgb(red, green, blue);
+  auto traits = this->get_traits();
+  this->current_values.as_rgb(red, green, blue, traits.get_supports_color_interlock());
   *red = gamma_correct(*red, this->gamma_correct_);
   *green = gamma_correct(*green, this->gamma_correct_);
   *blue = gamma_correct(*blue, this->gamma_correct_);
 }
-void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
-  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, color_interlock_);
+void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white) {
+  auto traits = this->get_traits();
+  this->current_values.as_rgbw(red, green, blue, white, this->gamma_correct_, traits.get_supports_color_interlock());
 }
 void LightState::current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                                         bool constant_brightness, bool color_interlock) {
+                                         bool constant_brightness) {
   auto traits = this->get_traits();
   this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white, this->gamma_correct_, constant_brightness, color_interlock);
+                                warm_white, this->gamma_correct_, constant_brightness, traits.get_supports_color_interlock());
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
   auto traits = this->get_traits();
