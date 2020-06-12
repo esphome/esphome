@@ -401,7 +401,7 @@ LightColorValues LightCall::validate_() {
       this->blue_ = optional<float>(1.0f);
     }
     // make white values binary aka 0.0f or 1.0f...this allows brightness to do its job
-    if (this->parent_->color_interlock_) {
+    if (this->color_interlock_) {
       if (*this->white_ > 0.0f) {
         this->white_ = optional<float>(1.0f);
       } else {
@@ -411,7 +411,7 @@ LightColorValues LightCall::validate_() {
   }
   // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f && traits.get_supports_rgb_white_value() && this->parent_->color_interlock_) {
+    if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f && traits.get_supports_rgb_white_value() && this->color_interlock_) {
       this->white_ = optional<float>(1.0f);
     } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
       this->white_ = optional<float>(0.0f);
@@ -419,7 +419,7 @@ LightColorValues LightCall::validate_() {
   }
   // if changing Kelvin alone, change to white light
   else if (this->color_temperature_.has_value()) {
-    if (!this->parent_->color_interlock_) {
+    if (!this->color_interlock_) {
       if (!this->red_.has_value() && !this->green_.has_value() && !this->blue_.has_value()) {
         this->red_ = optional<float>(1.0f);
         this->green_ = optional<float>(1.0f);
@@ -430,7 +430,7 @@ LightColorValues LightCall::validate_() {
     auto cv = this->parent_->remote_values;
     bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
     bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
-    if (this->parent_->color_interlock_) {
+    if (this->color_interlock_) {
 
       if (cv.get_white() < 1.0f) {
         this->white_ = optional<float>(1.0f);
