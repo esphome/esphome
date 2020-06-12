@@ -183,9 +183,13 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 115200
+  - tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 115200
+
+  - id: adalight_uart
+    rx_pin: GPIO3
+    baud_rate: 115200
 
 ota:
   safe_mode: True
@@ -202,6 +206,8 @@ web_server:
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
+
+adalight:
 
 sensor:
   - platform: apds9960
@@ -708,6 +714,8 @@ light:
     method: ESP8266_UART0
     num_leds: 100
     effects:
+      - adalight:
+          uart_id: adalight_uart
       - e131:
           universe: 1
 
