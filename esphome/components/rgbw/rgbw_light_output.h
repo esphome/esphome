@@ -13,6 +13,7 @@ class RGBWLightOutput : public light::LightOutput {
   void set_green(output::FloatOutput *green) { green_ = green; }
   void set_blue(output::FloatOutput *blue) { blue_ = blue; }
   void set_white(output::FloatOutput *white) { white_ = white; }
+  void set_color_interlock(bool color_interlock) { color_interlock_ = color_interlock; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
@@ -34,6 +35,7 @@ class RGBWLightOutput : public light::LightOutput {
   output::FloatOutput *green_;
   output::FloatOutput *blue_;
   output::FloatOutput *white_;
+  bool color_interlock_;
 };
 
 }  // namespace rgbw

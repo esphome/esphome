@@ -176,25 +176,32 @@ class LightColorValues {
   void as_brightness(float *brightness) const { *brightness = this->state_ * this->brightness_; }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
-  void as_rgb(float *red, float *green, float *blue) const {
-    *red = this->state_ * this->brightness_ * (1.0f - this->white_) * this->red_;
-    *green = this->state_ * this->brightness_ * (1.0f - this->white_) * this->green_;
-    *blue = this->state_ * this->brightness_ * (1.0f - this->white_) * this->blue_;
+  void as_rgb(float *red, float *green, float *blue, bool color_interlock = false) const {
+    if (color_interlock) {
+      *red = this->state_ * this->brightness_ * (1.0f - this->white_) * this->red_;
+      *green = this->state_ * this->brightness_ * (1.0f - this->white_) * this->green_;
+      *blue = this->state_ * this->brightness_ * (1.0f - this->white_) * this->blue_;
+    } else {
+      *red = this->state_ * this->brightness_ * this->red_;
+      *green = this->state_ * this->brightness_ * this->green_;
+      *blue = this->state_ * this->brightness_ * this->blue_;
+    }
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
   void as_rgbw(float *red, float *green, float *blue, float *white) const {
-    this->as_rgb(red, green, blue);
+    this->as_rgb(red, green, blue, this->color_interlock_);
     *white = this->state_ * this->brightness_ * this->white_;
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
                 float *cold_white, float *warm_white, bool constant_brightness = false) const {
-    this->as_rgb(red, green, blue);
+    this->as_rgb(red, green, blue, this->color_interlock_);
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
+
     *cold_white = this->state_ * this->brightness_ * this->white_ * cw_fraction;
     *warm_white = this->state_ * this->brightness_ * this->white_ * ww_fraction;
 

@@ -11,7 +11,8 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
     cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
     cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
     cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_WHITE): cv.use_id(output.FloatOutput),
+    cv.Required(CONF_WHITE): cv.use_id(output.FloatOutput),    
+    cv.Optional(CONF_COLORINTERLOCK, default=False): cv.boolean,
 })
 
 
@@ -27,3 +28,4 @@ def to_code(config):
     cg.add(var.set_blue(blue))
     white = yield cg.get_variable(config[CONF_WHITE])
     cg.add(var.set_white(white))
+    cg.add(var.set_color_interlock(config[CONF_COLORINTERLOCK]))
