@@ -137,7 +137,6 @@ void APIConnection::loop() {
       // bool done = 3;
       bool done = this->image_reader_.available() == to_send;
       buffer.encode_bool(3, done);
-      this->set_nodelay(false);
       bool success = this->send_buffer(buffer, 44);
 
       if (success) {
@@ -557,8 +556,6 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
-
-  this->set_nodelay(false);
 
   // Send raw so that we don't copy too much
   auto buffer = this->create_buffer();

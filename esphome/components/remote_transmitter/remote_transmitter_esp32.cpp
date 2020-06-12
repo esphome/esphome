@@ -14,6 +14,7 @@ void RemoteTransmitterComponent::setup() {}
 void RemoteTransmitterComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Remote Transmitter...");
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
+  ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
   LOG_PIN("  Pin: ", this->pin_);
 
@@ -29,11 +30,9 @@ void RemoteTransmitterComponent::dump_config() {
 void RemoteTransmitterComponent::configure_rmt() {
   rmt_config_t c{};
 
+  this->config_rmt(c);
   c.rmt_mode = RMT_MODE_TX;
-  c.channel = this->channel_;
-  c.clk_div = this->clock_divider_;
   c.gpio_num = gpio_num_t(this->pin_->get_pin());
-  c.mem_block_num = 1;
   c.tx_config.loop_en = false;
 
   if (this->current_carrier_frequency_ == 0 || this->carrier_duty_percent_ == 100) {
