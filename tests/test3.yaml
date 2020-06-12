@@ -703,6 +703,8 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
+e131:
+
 light:
   - platform: neopixelbus
     name: Neopixelbus Light
@@ -714,6 +716,8 @@ light:
     effects:
       - adalight:
           uart_id: adalight_uart
+      - e131:
+          universe: 1
 
 servo:
   id: my_servo
