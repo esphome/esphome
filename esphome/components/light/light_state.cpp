@@ -731,10 +731,7 @@ void LightState::current_values_as_brightness(float *brightness) {
 }
 void LightState::current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock) {
   auto traits = this->get_traits();
-  this->current_values.as_rgb(red, green, blue, traits.get_supports_color_interlock());
-  *red = gamma_correct(*red, this->gamma_correct_);
-  *green = gamma_correct(*green, this->gamma_correct_);
-  *blue = gamma_correct(*blue, this->gamma_correct_);
+  this->current_values.as_rgb(red, green, blue, this->gamma_correct_, traits.get_supports_color_interlock());
 }
 void LightState::current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock) {
   auto traits = this->get_traits();
