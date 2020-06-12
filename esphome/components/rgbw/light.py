@@ -12,7 +12,7 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
     cv.Required(CONF_RED): cv.use_id(output.FloatOutput),
     cv.Required(CONF_GREEN): cv.use_id(output.FloatOutput),
     cv.Required(CONF_BLUE): cv.use_id(output.FloatOutput),
-    cv.Required(CONF_WHITE): cv.use_id(output.FloatOutput),    
+    cv.Required(CONF_WHITE): cv.use_id(output.FloatOutput),
     cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
 })
 
