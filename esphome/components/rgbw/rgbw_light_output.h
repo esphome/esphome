@@ -17,6 +17,7 @@ class RGBWLightOutput : public light::LightOutput {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     traits.set_supports_brightness(true);
+    traits.set_supports_color_interlock(this->color_interlock_);
     traits.set_supports_rgb(true);
     traits.set_supports_rgb_white_value(true);
     return traits;
