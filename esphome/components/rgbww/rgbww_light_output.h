@@ -48,7 +48,7 @@ class RGBWWLightOutput : public light::LightOutput {
   float cold_white_temperature_;
   float warm_white_temperature_;
   bool constant_brightness_;
-  bool color_interlock_;
+  bool color_interlock_{false};
 };
 
 }  // namespace rgbww

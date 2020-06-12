@@ -36,7 +36,7 @@ class RGBWLightOutput : public light::LightOutput {
   output::FloatOutput *green_;
   output::FloatOutput *blue_;
   output::FloatOutput *white_;
-  bool color_interlock_;
+  bool color_interlock_{false};
 };
 
 }  // namespace rgbw
