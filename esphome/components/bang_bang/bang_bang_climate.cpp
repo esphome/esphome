@@ -29,6 +29,13 @@ void BangBangClimate::setup() {
   this->setup_complete_ = true;
   this->publish_state();
 }
+void BangBangClimate::refresh() {
+  this->switch_to_mode_(this->mode);
+  this->switch_to_action_(compute_action_());
+  this->switch_to_fan_mode_(this->fan_mode);
+  this->switch_to_swing_mode_(this->swing_mode);
+  this->publish_state();
+}
 void BangBangClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value())
     this->mode = *call.get_mode();
@@ -65,11 +72,7 @@ void BangBangClimate::control(const climate::ClimateCall &call) {
       this->target_temperature = this->get_traits().get_visual_max_temperature();
   }
   // make any changes happen
-  this->switch_to_mode_(this->mode);
-  this->switch_to_action_(compute_action_());
-  this->switch_to_fan_mode_(this->fan_mode);
-  this->switch_to_swing_mode_(this->swing_mode);
-  this->publish_state();
+  refresh();
 }
 climate::ClimateTraits BangBangClimate::traits() {
   auto traits = climate::ClimateTraits();

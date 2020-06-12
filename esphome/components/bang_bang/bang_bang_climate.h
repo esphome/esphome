@@ -75,6 +75,8 @@ class BangBangClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
+  /// Call triggers based on updated climate states (modes/actions)
+  void refresh();
 
  protected:
   /// Override control to change settings of the climate device.
