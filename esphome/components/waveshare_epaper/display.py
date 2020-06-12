@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
+}).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema()),
                        validate_full_update_every_only_type_a,
                        cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 

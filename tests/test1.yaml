@@ -132,6 +132,10 @@ uart:
   rx_pin: GPIO23
   baud_rate: 115200
   id: uart0
+  parity: NONE
+  data_bits: 8
+  stop_bits: 1
+  rx_buffer_size: 512
 
 ota:
   safe_mode: True
@@ -149,6 +153,7 @@ web_server:
   port: 8080
   css_url: https://esphome.io/_static/webserver-v1.min.css
   js_url: https://esphome.io/_static/webserver-v1.min.js
+  prometheus: true
 
 power_supply:
   id: 'atx_power_supply'
@@ -305,6 +310,7 @@ sensor:
     retain: False
     availability:
     state_topic: livingroom/custom_state_topic
+    measurement_time: 31
   - platform: bme280
     temperature:
       name: "Outside Temperature"
@@ -495,6 +501,11 @@ sensor:
     update_interval: 15s
     reference_temperature:
       name: "MAX31855 Internal Temperature"
+  - platform: max31856
+    name: "BBQ Temperature"
+    cs_pin: GPIO17
+    update_interval: 15s
+    mains_filter: 50Hz
   - platform: max31865
     name: "Water Tank Temperature"
     cs_pin: GPIO23
@@ -727,6 +738,9 @@ sensor:
       name: "PM2.5"
     pm_10_0:
       name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "CAQI"
 
 esp32_touch:
   setup_mode: False
@@ -1030,6 +1044,9 @@ output:
     id: dimmer1
     gate_pin: GPIO5
     zero_cross_pin: GPIO26
+  - platform: esp32_dac
+    pin: GPIO25
+    id: dac_output
 
 light:
   - platform: binary
@@ -1158,7 +1175,6 @@ light:
             if (initial_run) {
               it[0] = current_color;
             }
-
     - automation:
         name: Custom Effect
         sequence:
@@ -1358,6 +1374,12 @@ switch:
     - output.set_level:
         id: gpio_19
         level: !lambda 'return 0.5;'
+    - output.set_level:
+        id: dac_output
+        level: 50%
+    - output.set_level:
+        id: dac_output
+        level: !lambda 'return 0.5;'
     turn_off_action:
     - switch.turn_on: living_room_lights_off
     restore_state: False
@@ -1475,6 +1497,16 @@ display:
 - platform: tm1637
   clk_pin: GPIO23
   dio_pin: GPIO25
+  intensity: 3
+  lambda: |-
+      it.print("1234");
+- platform: tm1637
+  clk_pin:
+    mcp23017: mcp23017_hub
+    number: 1
+  dio_pin:
+    mcp23017: mcp23017_hub
+    number: 2
   intensity: 3
   lambda: |-
       it.print("1234");

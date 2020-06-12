@@ -11,7 +11,8 @@ from esphome.const import ARDUINO_VERSION_ESP32_DEV, ARDUINO_VERSION_ESP8266_DEV
     CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
     CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
     CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266_2_3_0, \
-    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2
+    ARDUINO_VERSION_ESP8266_2_5_0, ARDUINO_VERSION_ESP8266_2_5_1, ARDUINO_VERSION_ESP8266_2_5_2, \
+    ESP_PLATFORMS
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
@@ -42,10 +43,10 @@ def validate_board(value):
     return value
 
 
-validate_platform = cv.one_of('ESP32', 'ESP8266', upper=True)
+validate_platform = cv.one_of(*ESP_PLATFORMS, upper=True)
 
 PLATFORMIO_ESP8266_LUT = {
-    '2.6.3': 'espressif8266@2.3.2',
+    '2.6.3': 'espressif8266@2.4.0',
     '2.6.2': 'espressif8266@2.3.1',
     '2.6.1': 'espressif8266@2.3.0',
     '2.5.2': 'espressif8266@2.2.3',
@@ -65,8 +66,8 @@ PLATFORMIO_ESP32_LUT = {
     '1.0.1': 'espressif32@1.6.0',
     '1.0.2': 'espressif32@1.9.0',
     '1.0.3': 'espressif32@1.10.0',
-    '1.0.4': 'espressif32@1.11.0',
-    'RECOMMENDED': 'espressif32@1.11.0',
+    '1.0.4': 'espressif32@1.12.1',
+    'RECOMMENDED': 'espressif32@1.12.1',
     'LATEST': 'espressif32',
     'DEV': ARDUINO_VERSION_ESP32_DEV,
 }
