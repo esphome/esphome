@@ -31,7 +31,8 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
-
+  void turn_on();
+  void turn_off();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;
 

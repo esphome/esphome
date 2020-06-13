@@ -9,6 +9,7 @@ static const char *TAG = "ssd1306";
 
 static const uint8_t BLACK = 0;
 static const uint8_t WHITE = 1;
+static const uint8_t SSD1306_MAX_CONTRAST = 255;
 
 static const uint8_t SSD1306_COMMAND_DISPLAY_OFF = 0xAE;
 static const uint8_t SSD1306_COMMAND_DISPLAY_ON = 0xAF;
@@ -137,8 +138,10 @@ void SSD1306::set_brightness(float brightness) {
     this->brightness_ = brightness;
   // now write the new brightness level to the display
   this->command(SSD1306_COMMAND_SET_CONTRAST);
-  this->command(int(255 * (this->brightness_)));
+  this->command(int(SSD1306_MAX_CONTRAST * (this->brightness_)));
 }
+void SSD1306::turn_on() { this->command(SSD1306_COMMAND_DISPLAY_ON); }
+void SSD1306::turn_off() { this->command(SSD1306_COMMAND_DISPLAY_OFF); }
 int SSD1306::get_height_internal() {
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
