@@ -9,6 +9,7 @@ static const char *TAG = "ssd1325";
 
 static const uint8_t BLACK = 0;
 static const uint8_t WHITE = 15;
+static const uint8_t SSD1325_MAX_CONTRAST = 127;
 static const uint8_t SSD1325_COLORMASK = 0x0f;
 static const uint8_t SSD1325_COLORSHIFT = 4;
 static const uint8_t SSD1325_PIXELSPERBYTE = 2;
@@ -124,8 +125,10 @@ void SSD1325::set_brightness(float brightness) {
     this->brightness_ = brightness;
   // now write the new brightness level to the display
   this->command(SSD1325_SETCONTRAST);
-  this->command(int(127 * (this->brightness_)));
+  this->command(int(SSD1325_MAX_CONTRAST * (this->brightness_)));
 }
+void SSD1325::turn_on() { this->command(SSD1325_DISPLAYON); }
+void SSD1325::turn_off() { this->command(SSD1325_DISPLAYOFF); }
 int SSD1325::get_height_internal() {
   switch (this->model_) {
     case SSD1325_MODEL_128_32:
