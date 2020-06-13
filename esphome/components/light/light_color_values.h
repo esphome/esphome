@@ -192,15 +192,16 @@ class LightColorValues {
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
-  void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0, 
-              bool color_interlock = false) const {
+  void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
+               bool color_interlock = false) const {
     this->as_rgb(red, green, blue, gamma, color_interlock);
     *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-               float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false, bool color_interlock = false) const {
+                float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false,
+                bool color_interlock = false) const {
     this->as_rgb(red, green, blue, gamma, color_interlock);
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);

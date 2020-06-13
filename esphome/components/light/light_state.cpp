@@ -411,7 +411,7 @@ LightColorValues LightCall::validate_() {
   }
   // White to 0% if (exclusively) setting any RGB value that isn't 255,255,255
   else if (this->red_.has_value() || this->green_.has_value() || this->blue_.has_value()) {
-    if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f && traits.get_supports_rgb_white_value() && 
+    if (*this->red_ == 1.0f && *this->green_ == 1.0f && *this->blue_ == 1.0f && traits.get_supports_rgb_white_value() &&
         traits.get_supports_color_interlock()) {
       this->white_ = optional<float>(1.0f);
     } else if (!this->white_.has_value() || !traits.get_supports_rgb_white_value()) {
@@ -432,7 +432,6 @@ LightColorValues LightCall::validate_() {
     bool was_color = cv.get_red() != 1.0f || cv.get_blue() != 1.0f || cv.get_green() != 1.0f;
     bool now_white = *this->red_ == 1.0f && *this->blue_ == 1.0f && *this->green_ == 1.0f;
     if (traits.get_supports_color_interlock()) {
-
       if (cv.get_white() < 1.0f) {
         this->white_ = optional<float>(1.0f);
       }
@@ -742,7 +741,7 @@ void LightState::current_values_as_rgbww(float *red, float *green, float *blue, 
                                          bool constant_brightness, bool color_interlock) {
   auto traits = this->get_traits();
   this->current_values.as_rgbww(traits.get_min_mireds(), traits.get_max_mireds(), red, green, blue, cold_white,
-                                warm_white, this->gamma_correct_, constant_brightness, 
+                                warm_white, this->gamma_correct_, constant_brightness,
                                 traits.get_supports_color_interlock());
 }
 void LightState::current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness) {
