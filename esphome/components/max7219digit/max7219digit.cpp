@@ -50,7 +50,6 @@ void MAX7219Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scroll Speed: %u", this->scroll_speed_);
   ESP_LOGCONFIG(TAG, "  Scroll Dwell: %u", this->scroll_dwell_);
   ESP_LOGCONFIG(TAG, "  Scroll Delay: %u", this->scroll_delay_);
-  // ESP_LOGCONFIG(TAG, "  Offset: %u", this->offset_chips_);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_UPDATE_INTERVAL(this);
 }

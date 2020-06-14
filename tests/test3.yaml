@@ -717,3 +717,14 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+display:
+   - platform: max7219digit
+     cs_pin: GPIO15
+     num_chips: 4
+     rotate_chip: 0
+     intensity: 10
+     scroll_mode: 'STOP'
+     id: my_matrix
+     lambda: |-
+       it.printdigit("hello");
