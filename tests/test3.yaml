@@ -703,6 +703,7 @@ tm1651:
   id: tm1651_battery
   clk_pin: D6
   dio_pin: D5
+
 rf_bridge:
   on_code_received:
     - lambda: |-
@@ -718,13 +719,17 @@ rf_bridge:
         code: 0x123456
     - rf_bridge.learn
 
+spi:
+  clk_pin: GPIO14
+  mosi_pin: GPIO13 
+
 display:
   - platform: max7219digit
-      cs_pin: GPIO15
-      num_chips: 4
-      rotate_chip: 0
-      intensity: 10
-      scroll_mode: 'STOP'
-      id: my_matrix
-      lambda: |-
-        it.printdigit("hello");
+    cs_pin: GPIO15
+    num_chips: 4
+    rotate_chip: 0
+    intensity: 10
+    scroll_mode: 'STOP'
+    id: my_matrix
+    lambda: |-
+      it.printdigit("hello");
