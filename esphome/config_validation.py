@@ -838,14 +838,16 @@ def percentage(value):
 
 
 def possibly_negative_percentage(value):
+    has_percent_sign = False
     if isinstance(value, str):
-      try:
-        if value.endswith('%'):
-          value = float(value[:-1].rstrip()) / 100.0
-        else:
-          value = float(value)
-      except ValueError:
-        raise Invalid("invalid number")
+        try:
+            if value.endswith('%'):
+                has_percent_sign = False
+                value = float(value[:-1].rstrip()) / 100.0
+            else:
+                value = float(value)
+        except ValueError:
+            raise Invalid("invalid number")
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:

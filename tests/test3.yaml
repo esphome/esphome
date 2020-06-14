@@ -14,8 +14,8 @@ esphome:
 substitutions:
   devicename: test3
   devicecomment: test3 device
-  min_sub: 0.03
-  max_sub: 12.0%
+  min_sub: "0.03"
+  max_sub: "12.0%"
 
 api:
   port: 8000
