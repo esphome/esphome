@@ -1467,9 +1467,13 @@ fan:
   - platform: binary
     output: gpio_26
     name: "Living Room Fan 1"
+    oscillation_output: gpio_19
+    direction_output: gpio_26
   - platform: speed
     output: pca_6
     name: "Living Room Fan 2"
+    oscillation_output: gpio_19
+    direction_output: gpio_26
     speed:
       low: 0.45
       medium: 0.75

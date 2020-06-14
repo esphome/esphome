@@ -15,6 +15,9 @@ enum FanSpeed {
   FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
 };
 
+/// Simple enum to represent the direction of a fan
+enum FanDirection { FAN_DIRECTION_FORWARD = 0, FAN_DIRECTION_REVERSE = 1 };
+
 class FanState;
 
 class FanStateCall {
@@ -46,6 +49,14 @@ class FanStateCall {
     return *this;
   }
   FanStateCall &set_speed(const char *speed);
+  FanStateCall &set_direction(FanDirection direction) {
+    this->direction_ = direction;
+    return *this;
+  }
+  FanStateCall &set_direction(optional<FanDirection> direction) {
+    this->direction_ = direction;
+    return *this;
+  }
 
   void perform() const;
 
@@ -54,6 +65,7 @@ class FanStateCall {
   optional<bool> binary_state_;
   optional<bool> oscillating_{};
   optional<FanSpeed> speed_{};
+  optional<FanDirection> direction_{};
 };
 
 class FanState : public Nameable, public Component {
@@ -76,6 +88,8 @@ class FanState : public Nameable, public Component {
   bool oscillating{false};
   /// The current fan speed.
   FanSpeed speed{FAN_SPEED_HIGH};
+  /// The current direction of the fan
+  FanDirection direction{FAN_DIRECTION_FORWARD};
 
   FanStateCall turn_on();
   FanStateCall turn_off();
