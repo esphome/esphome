@@ -728,3 +728,4 @@ display:
      id: my_matrix
      lambda: |-
        it.printdigit("hello");
+       
