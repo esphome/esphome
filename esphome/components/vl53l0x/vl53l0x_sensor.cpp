@@ -33,7 +33,7 @@ void VL53L0XSensor::setup() {
   reg(0xFF) = 0x00;
   reg(0x80) = 0x00;
   reg(0x60) |= 0x12;
-  if (this->longrange_)
+  if (this->long_range_)
     this->signal_rate_limit_ = 0.1;
   auto rate_value = static_cast<uint16_t>(signal_rate_limit_ * 128);
   write_byte_16(0x44, rate_value);
@@ -105,7 +105,7 @@ void VL53L0XSensor::setup() {
   reg(0x48) = 0x00;
   reg(0x30) = 0x20;
   reg(0xFF) = 0x00;
-  if (this->longrange_) {
+  if (this->long_range_) {
     reg(0x30) = 0x07;  // WAS 0x09
   } else {
     reg(0x30) = 0x09;
@@ -121,7 +121,7 @@ void VL53L0XSensor::setup() {
   reg(0x51) = 0x00;
   reg(0x52) = 0x96;
   reg(0x56) = 0x08;
-  if (this->longrange_) {
+  if (this->long_range_) {
     reg(0x57) = 0x50;  // was 0x30
   } else {
     reg(0x57) = 0x30;
@@ -162,7 +162,7 @@ void VL53L0XSensor::setup() {
   reg(0x44) = 0x00;
   reg(0x45) = 0x20;
   reg(0x47) = 0x08;
-  if (this->longrange_) {
+  if (this->long_range_) {
     reg(0x48) = 0x48;  // was 0x28
   } else {
     reg(0x48) = 0x28;

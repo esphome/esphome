@@ -29,11 +29,9 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   void loop() override;
 
   void set_signal_rate_limit(float signal_rate_limit) { signal_rate_limit_ = signal_rate_limit; }
-  void set_lr(bool longrange) { longrange_ = longrange; }
+  void set_long_range(bool long_range) { long_range_ = long_range; }
 
  protected:
-  bool longrange_ = false;
-
   uint32_t get_measurement_timing_budget_() {
     SequenceStepEnables enables{};
     SequenceStepTimeouts timeouts{};
@@ -250,6 +248,7 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   }
 
   float signal_rate_limit_;
+  bool long_range_;
   uint32_t measurement_timing_budget_us_;
   bool initiated_read_{false};
   bool waiting_for_interrupt_{false};
