@@ -7,6 +7,8 @@ namespace bh1750 {
 static const char *TAG = "bh1750.sensor";
 
 static const uint8_t BH1750_COMMAND_POWER_ON = 0b00000001;
+static const uint8_t BH1750_COMMAND_MT_REG_HI = 0b01000000;  // last 3 bits
+static const uint8_t BH1750_COMMAND_MT_REG_LO = 0b01100000;  // last 5 bits
 
 void BH1750Sensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BH1750 '%s'...", this->name_.c_str());
@@ -14,7 +16,13 @@ void BH1750Sensor::setup() {
     this->mark_failed();
     return;
   }
+
+  uint8_t mtreg_hi = (this->measurement_time_ >> 5) & 0b111;
+  uint8_t mtreg_lo = (this->measurement_time_ >> 0) & 0b11111;
+  this->write_bytes(BH1750_COMMAND_MT_REG_HI | mtreg_hi, nullptr, 0);
+  this->write_bytes(BH1750_COMMAND_MT_REG_LO | mtreg_lo, nullptr, 0);
 }
+
 void BH1750Sensor::dump_config() {
   LOG_SENSOR("", "BH1750", this);
   LOG_I2C_DEVICE(this);
@@ -59,6 +67,7 @@ void BH1750Sensor::update() {
 
   this->set_timeout("illuminance", wait, [this]() { this->read_data_(); });
 }
+
 float BH1750Sensor::get_setup_priority() const { return setup_priority::DATA; }
 void BH1750Sensor::read_data_() {
   uint16_t raw_value;
@@ -68,10 +77,12 @@ void BH1750Sensor::read_data_() {
   }
 
   float lx = float(raw_value) / 1.2f;
+  lx *= 69.0f / this->measurement_time_;
   ESP_LOGD(TAG, "'%s': Got illuminance=%.1flx", this->get_name().c_str(), lx);
   this->publish_state(lx);
   this->status_clear_warning();
 }
+
 void BH1750Sensor::set_resolution(BH1750Resolution resolution) { this->resolution_ = resolution; }
 
 }  // namespace bh1750

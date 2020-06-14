@@ -1,8 +1,11 @@
 import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome.const import CONF_ID, ESP_PLATFORM_ESP32, CONF_INTERVAL, \
-    CONF_DURATION
+    CONF_DURATION, CONF_TRIGGER_ID, CONF_MAC_ADDRESS, CONF_SERVICE_UUID, CONF_MANUFACTURER_ID, \
+    CONF_ON_BLE_ADVERTISE, CONF_ON_BLE_SERVICE_DATA_ADVERTISE, \
+    CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE
 from esphome.core import coroutine
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
@@ -15,6 +18,17 @@ CONF_ACTIVE = 'active'
 esp32_ble_tracker_ns = cg.esphome_ns.namespace('esp32_ble_tracker')
 ESP32BLETracker = esp32_ble_tracker_ns.class_('ESP32BLETracker', cg.Component)
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_('ESPBTDeviceListener')
+ESPBTDevice = esp32_ble_tracker_ns.class_('ESPBTDevice')
+ESPBTDeviceConstRef = ESPBTDevice.operator('ref').operator('const')
+adv_data_t = cg.std_vector.template(cg.uint8)
+adv_data_t_const_ref = adv_data_t.operator('ref').operator('const')
+# Triggers
+ESPBTAdvertiseTrigger = esp32_ble_tracker_ns.class_(
+    'ESPBTAdvertiseTrigger', automation.Trigger.template(ESPBTDeviceConstRef))
+BLEServiceDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
+    'BLEServiceDataAdvertiseTrigger', automation.Trigger.template(adv_data_t_const_ref))
+BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
+    'BLEManufacturerDataAdvertiseTrigger', automation.Trigger.template(adv_data_t_const_ref))
 
 
 def validate_scan_parameters(config):
@@ -85,6 +99,20 @@ CONFIG_SCHEMA = cv.Schema({
         cv.Optional(CONF_WINDOW, default='30ms'): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ACTIVE, default=True): cv.boolean,
     }), validate_scan_parameters),
+    cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+    }),
+    cv.Optional(CONF_ON_BLE_SERVICE_DATA_ADVERTISE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEServiceDataAdvertiseTrigger),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Required(CONF_SERVICE_UUID): bt_uuid,
+    }),
+    cv.Optional(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLEManufacturerDataAdvertiseTrigger),
+        cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
+        cv.Required(CONF_MANUFACTURER_ID): bt_uuid,
+    }),
 
     cv.Optional('scan_interval'): cv.invalid("This option has been removed in 1.14 (Reason: "
                                              "it never had an effect)"),
@@ -103,6 +131,35 @@ def to_code(config):
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
     cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
+    for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if CONF_MAC_ADDRESS in conf:
+            cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
+        yield automation.build_automation(trigger, [(ESPBTDeviceConstRef, 'x')], conf)
+    for conf in config.get(CONF_ON_BLE_SERVICE_DATA_ADVERTISE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if len(conf[CONF_SERVICE_UUID]) == len(bt_uuid16_format):
+            cg.add(trigger.set_service_uuid16(as_hex(conf[CONF_SERVICE_UUID])))
+        elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid32_format):
+            cg.add(trigger.set_service_uuid32(as_hex(conf[CONF_SERVICE_UUID])))
+        elif len(conf[CONF_SERVICE_UUID]) == len(bt_uuid128_format):
+            uuid128 = as_hex_array(conf[CONF_SERVICE_UUID])
+            cg.add(trigger.set_service_uuid128(uuid128))
+        if CONF_MAC_ADDRESS in conf:
+            cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
+        yield automation.build_automation(trigger, [(adv_data_t_const_ref, 'x')], conf)
+    for conf in config.get(CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        if len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid16_format):
+            cg.add(trigger.set_manufacturer_uuid16(as_hex(conf[CONF_MANUFACTURER_ID])))
+        elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid32_format):
+            cg.add(trigger.set_manufacturer_uuid32(as_hex(conf[CONF_MANUFACTURER_ID])))
+        elif len(conf[CONF_MANUFACTURER_ID]) == len(bt_uuid128_format):
+            uuid128 = as_hex_array(conf[CONF_MANUFACTURER_ID])
+            cg.add(trigger.set_manufacturer_uuid128(uuid128))
+        if CONF_MAC_ADDRESS in conf:
+            cg.add(trigger.set_address(conf[CONF_MAC_ADDRESS].as_hex))
+        yield automation.build_automation(trigger, [(adv_data_t_const_ref, 'x')], conf)
 
 
 @coroutine
