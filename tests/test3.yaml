@@ -719,10 +719,6 @@ rf_bridge:
         code: 0x123456
     - rf_bridge.learn
 
-spi:
-  clk_pin: GPIO14
-  mosi_pin: GPIO13 
-
 display:
   - platform: max7219digit
     cs_pin: GPIO15
