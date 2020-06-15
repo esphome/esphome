@@ -3,7 +3,7 @@
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_HOST: tcp://docker:2375/
-  BASE_VERSION: '2.0.1'
+  BASE_VERSION: '2.1.1'
   TZ: UTC
 
 stages:
@@ -33,7 +33,7 @@ stages:
     - docker info
     - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
   script:
-    - docker run --rm --privileged multiarch/qemu-user-static:4.1.0-1 --reset -p yes
+    - docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
     - TAG="${CI_COMMIT_TAG#v}"
     - TAG="${TAG:-${CI_COMMIT_SHA:0:7}}"
     - echo "Tag ${TAG}"

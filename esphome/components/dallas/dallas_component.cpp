@@ -1,5 +1,6 @@
 #include "dallas_component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace dallas {
@@ -52,6 +53,29 @@ void DallasComponent::setup() {
       continue;
     }
     this->found_sensors_.push_back(address);
+
+    if (this->auto_setup_sensors_) {
+      // avoid re-generating  pre-configured sensors
+      bool skip = false;
+      for (auto sensor : this->sensors_) {
+        if (sensor->get_address() == address) {
+          skip = true;
+          break;
+        }
+      }
+      if (!skip) {
+        auto dallastemperaturesensor = this->get_sensor_by_address(address, this->resolution_);
+        char sensor_name[64];
+        snprintf(sensor_name, sizeof(sensor_name), this->sensor_name_template_.c_str(), App.get_name().c_str(),
+                 s.c_str());
+        dallastemperaturesensor->set_name(sensor_name);
+        dallastemperaturesensor->set_unit_of_measurement(this->unit_of_measurement_);
+        dallastemperaturesensor->set_icon(this->icon_);
+        dallastemperaturesensor->set_accuracy_decimals(this->accuracy_decimals_);
+        dallastemperaturesensor->set_force_update(false);
+        App.register_sensor(dallastemperaturesensor);
+      }
+    }
   }
 
   for (auto sensor : this->sensors_) {
@@ -156,12 +180,25 @@ void DallasComponent::update() {
   }
 }
 DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
+void DallasComponent::set_auto_setup_sensors(bool auto_setup_sensors) {
+  this->auto_setup_sensors_ = auto_setup_sensors;
+}
+void DallasComponent::set_sensor_name_template(const std::string &sensor_name_template) {
+  this->sensor_name_template_ = sensor_name_template;
+}
+void DallasComponent::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
+void DallasComponent::set_unit_of_measurement(const std::string &unit_of_measurement) {
+  this->unit_of_measurement_ = unit_of_measurement;
+}
+void DallasComponent::set_icon(const std::string &icon) { this->icon_ = icon; }
+void DallasComponent::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
 
 DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
     : parent_(parent) {
   this->set_address(address);
   this->set_resolution(resolution);
 }
+const uint64_t &DallasTemperatureSensor::get_address() const { return this->address_; }
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }

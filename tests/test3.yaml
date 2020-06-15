@@ -183,9 +183,13 @@ spi:
   miso_pin: GPIO14
 
 uart:
-  tx_pin: GPIO1
-  rx_pin: GPIO3
-  baud_rate: 115200
+  - tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 115200
+
+  - id: adalight_uart
+    rx_pin: GPIO3
+    baud_rate: 115200
 
 ota:
   safe_mode: True
@@ -197,10 +201,15 @@ logger:
   esp8266_store_log_strings_in_flash: false
 
 web_server:
+  prometheus: true
 
 deep_sleep:
   run_duration: 20s
   sleep_duration: 50s
+
+wled:
+
+adalight:
 
 sensor:
   - platform: apds9960
@@ -221,7 +230,7 @@ sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
     id: ha_hello_world
-  - platform: aht10  
+  - platform: aht10
     temperature:
       name: "Temperature"
     humidity:
@@ -360,6 +369,42 @@ sensor:
       name: "PM2.5"
     pm_10_0:
       name: "PM10.0"
+    aqi:
+      name: "AQI"
+      calculation_type: "AQI"
+  - platform: pmsx003
+    type: PMSX003
+    pm_1_0:
+      name: "PM 1.0 Concentration"
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    pm_10_0:
+      name: "PM 10.0 Concentration"
+  - platform: pmsx003
+    type: PMS5003T
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+  - platform: pmsx003
+    type: PMS5003ST
+    pm_2_5:
+      name: "PM 2.5 Concentration"
+    temperature:
+      name: "PMS Temperature"
+    humidity:
+      name: "PMS Humidity"
+    formaldehyde:
+      name: "PMS Formaldehyde Concentration"
+  - platform: cse7766
+    voltage:
+      name: "CSE7766 Voltage"
+    current:
+      name: "CSE7766 Current"
+    power:
+      name: "CSE776 Power"
 
 time:
 - platform: homeassistant
@@ -660,6 +705,8 @@ mcp23017:
 mcp23008:
   id: mcp23008_hub
 
+e131:
+
 light:
   - platform: neopixelbus
     name: Neopixelbus Light
@@ -668,6 +715,12 @@ light:
     variant: SK6812
     method: ESP8266_UART0
     num_leds: 100
+    effects:
+      - wled:
+      - adalight:
+          uart_id: adalight_uart
+      - e131:
+          universe: 1
 
 servo:
   id: my_servo
