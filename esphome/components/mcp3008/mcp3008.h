@@ -8,6 +8,8 @@
 namespace esphome {
 namespace mcp3008 {
 
+class MCP3008Sensor;
+
 class MCP3008 : public Component,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                       spi::DATA_RATE_1MHZ> {  // At 3.3V 2MHz is too fast 1.35MHz is about right
@@ -17,9 +19,11 @@ class MCP3008 : public Component,
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  float read_data(uint8_t pin);
 
  protected:
+  float read_data(uint8_t pin);
+
+  friend class MCP3008Sensor;
 };
 
 class MCP3008Sensor : public PollingComponent, public sensor::Sensor {
