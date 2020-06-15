@@ -21,7 +21,7 @@ class MCP3008 : public Component,
   float get_setup_priority() const override;
 
  protected:
-  float read_data(uint8_t pin);
+  float read_data_(uint8_t pin);
 
   friend class MCP3008Sensor;
 };
