@@ -132,9 +132,9 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color)
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
 
-  if (this->invert_) {
-    this->max_displaybuffer_[pos] ^= (1 << subpos);
-  } else {
+  // ESP_LOGD(TAG, "COLORPIXELVALUE %i", color);
+
+  if (color == 1) {
     this->max_displaybuffer_[pos] |= (1 << subpos);
   }
 }
@@ -160,20 +160,16 @@ void MAX7219Component::update() {
 void MAX7219Component::invert_on_off(bool on_off) {
   if (on_off) {
     this->invert_ = true;
-    this->bckgrnd_ = 0xFF;
   } else {
     this->invert_ = false;
-    this->bckgrnd_ = 0x0;
   }
 }
 
 void MAX7219Component::invert_on_off() {
   if (this->invert_) {
     this->invert_ = false;
-    this->bckgrnd_ = 0x0;
   } else {
     this->invert_ = true;
-    this->bckgrnd_ = 0xFF;
   }
 }
 
@@ -241,7 +237,11 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
     } else {
       b = pixels[7 - col];
     }
-    this->send_byte_(col + 1, b);                          // send this byte to dispay at selected chip
+    if (this->invert_) {
+      this->send_byte_(col + 1, ~b);
+    } else {
+      this->send_byte_(col + 1, b);
+    }                          // send this byte to dispay at selected chip
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
     this->disable();  // all done disable SPI
