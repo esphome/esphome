@@ -60,7 +60,6 @@ void MAX7219Component::loop() {
   // check if the buffer has shrunk past the current position since last update
   if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||
       (this->max_displaybuffer_.size() <= this->old_buffer_size_ - 3)) {
-             this->old_buffer_size_);
     this->stepsleft_ = 0;
     this->display();
     this->old_buffer_size_ = this->max_displaybuffer_.size();
