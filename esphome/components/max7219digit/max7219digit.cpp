@@ -60,7 +60,6 @@ void MAX7219Component::loop() {
   // check if the buffer has shrunk past the current position since last update
   if ((this->max_displaybuffer_.size() >= this->old_buffer_size_ + 3) ||
       (this->max_displaybuffer_.size() <= this->old_buffer_size_ - 3)) {
-    ESP_LOGD(TAG, "RESET CALLED displaybuffer %zu old diplay buffer %i", this->max_displaybuffer_.size(),
              this->old_buffer_size_);
     this->stepsleft_ = 0;
     this->display();
@@ -134,10 +133,10 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color)
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
 
-  // ESP_LOGD(TAG, "COLORPIXELVALUE %i", color);
-
   if (color == 1) {
     this->max_displaybuffer_[pos] |= (1 << subpos);
+  } else {
+    this->max_displaybuffer_[pos] &= ~(1 << subpos);
   }
 }
 
