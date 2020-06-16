@@ -104,11 +104,13 @@ void MAX7219Component::loop() {
 
 void MAX7219Component::display() {
   byte pixels[8];
-  for (uint8_t i = 0; i < this->num_chips_; i++) {  // Run this loop for every MAX CHIP (GRID OF 64 leds)
-    for (uint8_t j = 0; j < 8; j++) {  // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
-      pixels[j] = this->max_displaybuffer_[i * 8 + j];  // Fill the pixel parameter with diplay data
-    }
-    this->send64pixels(i, pixels);  // Send the data to the chip
+  // Run this loop for every MAX CHIP (GRID OF 64 leds)
+  // Run this routine for the rows of every chip 8x row 0 top to 7 bottom
+  // Fill the pixel parameter with diplay data
+  // Send the data to the chip
+  for (uint8_t i = 0; i < this->num_chips_; i++) { 
+    for (uint8_t j = 0; j < 8; j++) { pixels[j] = this->max_displaybuffer_[i * 8 + j]; }
+    this->send64pixels(i, pixels);
   }
 }
 
@@ -157,21 +159,8 @@ void MAX7219Component::update() {
     (*this->writer_local_)(*this);
 }
 
-void MAX7219Component::invert_on_off(bool on_off) {
-  if (on_off) {
-    this->invert_ = true;
-  } else {
-    this->invert_ = false;
-  }
-}
-
-void MAX7219Component::invert_on_off() {
-  if (this->invert_) {
-    this->invert_ = false;
-  } else {
-    this->invert_ = true;
-  }
-}
+void MAX7219Component::invert_on_off(bool on_off) { this->invert_ = on_off; };
+void MAX7219Component::invert_on_off() { this->invert_ = !this->invert_; };
 
 void MAX7219Component::turn_on_off(bool on_off) {
   if (on_off) {
@@ -237,11 +226,12 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
     } else {
       b = pixels[7 - col];
     }
+    // send this byte to dispay at selected chip
     if (this->invert_) {
       this->send_byte_(col + 1, ~b);
     } else {
       this->send_byte_(col + 1, b);
-    }                          // send this byte to dispay at selected chip
+    }
     for (int i = 0; i < this->num_chips_ - chip - 1; i++)  // end with enough NOPs so later chips don't update
       this->send_byte_(MAX7219_REGISTER_NOOP, MAX7219_REGISTER_NOOP);
     this->disable();  // all done disable SPI
