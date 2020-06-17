@@ -615,6 +615,49 @@ climate:
       - switch.turn_on: gpio_switch2
     heat_action:
       - switch.turn_on: gpio_switch1
+    dry_action:
+      - switch.turn_on: gpio_switch2
+    fan_only_action:
+      - switch.turn_on: gpio_switch1
+    auto_mode:
+      - switch.turn_on: gpio_switch2
+    off_mode:
+      - switch.turn_on: gpio_switch1
+    heat_mode:
+      - switch.turn_on: gpio_switch2
+    cool_mode:
+      - switch.turn_on: gpio_switch1
+    dry_mode:
+      - switch.turn_on: gpio_switch2
+    fan_only_mode:
+      - switch.turn_on: gpio_switch1
+    fan_mode_auto_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_on_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_off_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_low_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_medium_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_high_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_middle_action:
+      - switch.turn_on: gpio_switch2
+    fan_mode_focus_action:
+      - switch.turn_on: gpio_switch1
+    fan_mode_diffuse_action:
+      - switch.turn_on: gpio_switch2
+    swing_off_action:
+      - switch.turn_on: gpio_switch1
+    swing_horizontal_action:
+      - switch.turn_on: gpio_switch2
+    swing_vertical_action:
+      - switch.turn_on: gpio_switch1
+    swing_both_action:
+      - switch.turn_on: gpio_switch2
+    hysteresis: 0.2
     away_config:
       default_target_temperature_low: 16°C
       default_target_temperature_high: 20°C
