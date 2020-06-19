@@ -73,8 +73,6 @@ void SSD1306::setup() {
       break;
   }
 
-  set_brightness(this->brightness_);
-
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
   if (this->external_vcc_)
     this->command(0x22);
@@ -89,10 +87,12 @@ void SSD1306::setup() {
 
   this->command(SSD1306_COMMAND_DEACTIVATE_SCROLL);
 
+  set_brightness(this->brightness_);
+
   this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
   this->display();    // ...write buffer, which actually clears the display's memory
 
-  this->command(SSD1306_COMMAND_DISPLAY_ON);
+  this->turn_on();
 }
 void SSD1306::display() {
   if (this->is_sh1106_()) {
