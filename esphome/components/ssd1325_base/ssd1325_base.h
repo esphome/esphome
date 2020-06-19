@@ -28,6 +28,7 @@ class SSD1325 : public PollingComponent, public display::DisplayBuffer {
   void set_external_vcc(bool external_vcc) { this->external_vcc_ = external_vcc; }
   void init_brightness(float brightness) { this->brightness_ = brightness; }
   void set_brightness(float brightness);
+  bool is_on();
   void turn_on();
   void turn_off();
 
@@ -49,6 +50,7 @@ class SSD1325 : public PollingComponent, public display::DisplayBuffer {
   SSD1325Model model_{SSD1325_MODEL_128_64};
   GPIOPin *reset_pin_{nullptr};
   bool external_vcc_{false};
+  bool is_on_{false};
   float brightness_{1.0};
 };
 

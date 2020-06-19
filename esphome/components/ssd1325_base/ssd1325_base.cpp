@@ -94,9 +94,9 @@ void SSD1325::setup() {
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
   set_brightness(this->brightness_);
-  this->fill(BLACK);                 // clear display - ensures we do not see garbage at power-on
-  this->display();                   // ...write buffer, which actually clears the display's memory
-  this->command(SSD1325_DISPLAYON);  // display ON
+  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();    // ...write buffer, which actually clears the display's memory
+  this->turn_on();    // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR);  // set column address
@@ -127,8 +127,15 @@ void SSD1325::set_brightness(float brightness) {
   this->command(SSD1325_SETCONTRAST);
   this->command(int(SSD1325_MAX_CONTRAST * (this->brightness_)));
 }
-void SSD1325::turn_on() { this->command(SSD1325_DISPLAYON); }
-void SSD1325::turn_off() { this->command(SSD1325_DISPLAYOFF); }
+bool SSD1325::is_on() { return this->is_on_; }
+void SSD1325::turn_on() {
+  this->command(SSD1325_DISPLAYON);
+  this->is_on_ = true;
+}
+void SSD1325::turn_off() {
+  this->command(SSD1325_DISPLAYOFF);
+  this->is_on_ = false;
+}
 int SSD1325::get_height_internal() {
   switch (this->model_) {
     case SSD1325_MODEL_128_32:
