@@ -80,7 +80,6 @@ void SSD1325::setup() {
   this->command(0x54);
   this->command(0x65);
   this->command(0x76);
-  set_brightness(this->brightness_);
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
@@ -94,9 +93,10 @@ void SSD1325::setup() {
   this->command(SSD1325_SETVSL);  // set Low Voltage Level of SEG Pin
   this->command(0x0D | 0x02);
   this->command(SSD1325_NORMALDISPLAY);  // set display mode
-  this->fill(BLACK);                     // clear display - ensures we do not see garbage at power-on
-  this->display();                       // ...write buffer, which actually clears the display's memory
-  this->command(SSD1325_DISPLAYON);      // display ON
+  set_brightness(this->brightness_);
+  this->fill(BLACK);                 // clear display - ensures we do not see garbage at power-on
+  this->display();                   // ...write buffer, which actually clears the display's memory
+  this->command(SSD1325_DISPLAYON);  // display ON
 }
 void SSD1325::display() {
   this->command(SSD1325_SETCOLADDR);  // set column address

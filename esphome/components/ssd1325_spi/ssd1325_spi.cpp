@@ -25,6 +25,7 @@ void SPISSD1325::dump_config() {
     LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Initial Brightness: %.2f", this->brightness_);
   ESP_LOGCONFIG(TAG, "  External VCC: %s", YESNO(this->external_vcc_));
   LOG_UPDATE_INTERVAL(this);
 }
