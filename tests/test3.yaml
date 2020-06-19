@@ -14,6 +14,8 @@ esphome:
 substitutions:
   devicename: test3
   devicecomment: test3 device
+  min_sub: "0.03"
+  max_sub: "12.0%"
 
 api:
   port: 8000
@@ -769,6 +771,8 @@ servo:
   id: my_servo
   output: out
   restore: true
+  min_level: $min_sub
+  max_level: $max_sub
 
 ttp229_lsf:
 
