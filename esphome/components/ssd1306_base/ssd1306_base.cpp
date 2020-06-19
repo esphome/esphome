@@ -140,8 +140,15 @@ void SSD1306::set_brightness(float brightness) {
   this->command(SSD1306_COMMAND_SET_CONTRAST);
   this->command(int(SSD1306_MAX_CONTRAST * (this->brightness_)));
 }
-void SSD1306::turn_on() { this->command(SSD1306_COMMAND_DISPLAY_ON); }
-void SSD1306::turn_off() { this->command(SSD1306_COMMAND_DISPLAY_OFF); }
+bool SSD1306::is_on() { return this->is_on_; }
+void SSD1306::turn_on() {
+  this->command(SSD1306_COMMAND_DISPLAY_ON);
+  this->is_on_ = true;
+}
+void SSD1306::turn_off() {
+  this->command(SSD1306_COMMAND_DISPLAY_OFF);
+  this->is_on_ = false;
+}
 int SSD1306::get_height_internal() {
   switch (this->model_) {
     case SSD1306_MODEL_128_32:
