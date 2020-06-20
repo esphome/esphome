@@ -70,6 +70,11 @@ extern const Color COLOR_ON;
 
 enum ImageType { BINARY = 0, GRAYSCALE4 = 1, RGB565 = 2 };
 
+enum ImageType {
+  BINARY = 0,
+  GRAYSCALE4 = 1,
+};
+
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
   DISPLAY_ROTATION_90_DEGREES = 90,
