@@ -126,7 +126,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   ESP_LOGD(TAG, "Decoded 0x%02X", remote_state);
   if ((remote_state & 0xFF00000) != 0x8800000)
     return false;
-  
+
   if ((remote_state & COMMAND_MASK) == COMMAND_ON) {
     this->mode = climate::CLIMATE_MODE_COOL;
   } else if ((remote_state & COMMAND_MASK) == COMMAND_ON_AI) {
