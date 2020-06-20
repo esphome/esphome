@@ -45,7 +45,7 @@ void LgIrClimate::transmit_state() {
     send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
   } else {
-    if(mode_before_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_AUTO) {
+    if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_AUTO) {
       remote_state |= COMMAND_ON_AI;
     } else if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_OFF) {
       remote_state |= COMMAND_ON;
@@ -73,7 +73,7 @@ void LgIrClimate::transmit_state() {
 
     if (this->mode == climate::CLIMATE_MODE_OFF) {
       remote_state |= FAN_AUTO;
-    } else if(this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
+    } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
       switch (this->fan_mode) {
         case climate::CLIMATE_FAN_HIGH:
           remote_state |= FAN_MAX;
@@ -93,10 +93,10 @@ void LgIrClimate::transmit_state() {
 
     if (this->mode == climate::CLIMATE_MODE_AUTO) {
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
-      //remote_state |= FAN_MODE_AUTO_DRY;
+      // remote_state |= FAN_MODE_AUTO_DRY;
     }
-    if(this->mode == climate::CLIMATE_MODE_COOL) {
-      auto temp = (uint8_t)roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
+    if (this->mode == climate::CLIMATE_MODE_COOL) {
+      auto temp = (uint8_t) roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
   }  
@@ -129,14 +129,14 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   
   if ((remote_state & COMMAND_MASK) == COMMAND_ON) {
     this->mode = climate::CLIMATE_MODE_COOL;
-  } else if((remote_state & COMMAND_MASK) == COMMAND_ON_AI) {
+  } else if ((remote_state & COMMAND_MASK) == COMMAND_ON_AI) {
     this->mode = climate::CLIMATE_MODE_AUTO;
   }
   
   if ((remote_state & COMMAND_MASK) == COMMAND_OFF) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
-    this->swing_mode = 
+    this->swing_mode =
         this->swing_mode == climate::CLIMATE_SWING_OFF ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
   } else {
     if ((remote_state & COMMAND_MASK) == COMMAND_AUTO)
@@ -149,13 +149,13 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   // Temperature
-  if(this->mode == climate::CLIMATE_MODE_COOL)
+  if (this->mode == climate::CLIMATE_MODE_COOL)
     this->target_temperature = ((remote_state & TEMP_MASK) >> TEMP_SHIFT) + 15;
 
   // Fan Speed
-  if(this->mode == climate::CLIMATE_MODE_AUTO) {
+  if (this->mode == climate::CLIMATE_MODE_AUTO) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
-  } else if(this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
+  } else if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_DRY) {
     if ((remote_state & FAN_MASK) == FAN_AUTO)
       this->fan_mode = climate::CLIMATE_FAN_AUTO;
     else if ((remote_state & FAN_MASK) == FAN_MIN)
@@ -193,7 +193,7 @@ void LgIrClimate::transmit_(uint32_t value) {
 void LgIrClimate::calc_checksum_(uint32_t &value) {
   uint32_t mask = 0xF;
   uint32_t sum = 0;
-  for(uint8_t i=1; i<8; i++) {
+  for (uint8_t i = 1; i < 8; i++) {
     sum += (value & (mask << (i * 4))) >> (i * 4);
   }
 
