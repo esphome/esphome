@@ -32,7 +32,6 @@ class LgIrClimate : public climate_ir::ClimateIR {
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  //bool supports_heat_{false};
   bool send_swing_cmd_{false};
 
   void calc_checksum_(uint32_t &value);

@@ -62,7 +62,7 @@ void LgIrClimate::transmit_state() {
           remote_state |= COMMAND_DRY_FAN;
           break;
         case climate::CLIMATE_MODE_OFF:
-        default:        
+        default:
           remote_state |= COMMAND_OFF;
           break;
       }
@@ -99,7 +99,7 @@ void LgIrClimate::transmit_state() {
       auto temp = (uint8_t) roundf(clamp(this->target_temperature, TEMP_MIN, TEMP_MAX));
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
-  }  
+  }
   transmit_(remote_state);
   this->publish_state();
 }
@@ -132,7 +132,7 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
   } else if ((remote_state & COMMAND_MASK) == COMMAND_ON_AI) {
     this->mode = climate::CLIMATE_MODE_AUTO;
   }
-  
+
   if ((remote_state & COMMAND_MASK) == COMMAND_OFF) {
     this->mode = climate::CLIMATE_MODE_OFF;
   } else if ((remote_state & COMMAND_MASK) == COMMAND_SWING) {
