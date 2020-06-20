@@ -40,14 +40,14 @@ const uint16_t BITS = 28;
 void LgIrClimate::transmit_state() {
   uint32_t remote_state = 0x8800000;
 
-  //ESP_LOGD(TAG, "climate_lg_ir modeBefore code: 0x%02X", modeBefore_);
+  // ESP_LOGD(TAG, "climate_lg_ir mode_before_ code: 0x%02X", modeBefore_);
   if (send_swing_cmd_) {
     send_swing_cmd_ = false;
     remote_state |= COMMAND_SWING;
   } else {
-    if(modeBefore_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_AUTO) {
+    if(mode_before_ == climate::CLIMATE_MODE_OFF && this->mode == climate::CLIMATE_MODE_AUTO) {
       remote_state |= COMMAND_ON_AI;
-    } else if (modeBefore_ == climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_OFF) {
+    } else if (mode_before_ == climate::CLIMATE_MODE_OFF && this->mode != climate::CLIMATE_MODE_OFF) {
       remote_state |= COMMAND_ON;
       this->mode = climate::CLIMATE_MODE_COOL;
     } else {
@@ -67,7 +67,7 @@ void LgIrClimate::transmit_state() {
           break;
       }
     }
-    modeBefore_ = this->mode;
+    mode_before_ = this->mode;
 
     ESP_LOGD(TAG, "climate_lg_ir mode code: 0x%02X", this->mode);
 
@@ -100,7 +100,7 @@ void LgIrClimate::transmit_state() {
       remote_state |= ((temp - 15) << TEMP_SHIFT);
     }
   }  
-  transmit(remote_state);
+  transmit_(remote_state);
   this->publish_state();
 }
 
@@ -169,9 +169,8 @@ bool LgIrClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   return true;
 }
-void LgIrClimate::transmit(uint32_t value)
-{
-  calc_checksum(value);
+void LgIrClimate::transmit_(uint32_t value) {
+  calc_checksum_(value);
   ESP_LOGD(TAG, "Sending climate_lg_ir code: 0x%02X", value);
 
   auto transmit = this->transmitter_->transmit();
@@ -191,8 +190,7 @@ void LgIrClimate::transmit(uint32_t value)
   data->mark(BIT_HIGH_US);
   transmit.perform();
 }
-void LgIrClimate::calc_checksum(uint32_t &value)
-{
+void LgIrClimate::calc_checksum_(uint32_t &value) {
   uint32_t mask = 0xF;
   uint32_t sum = 0;
   for(uint8_t i=1; i<8; i++) {

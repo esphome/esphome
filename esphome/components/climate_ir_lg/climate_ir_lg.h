@@ -35,10 +35,10 @@ class LgIrClimate : public climate_ir::ClimateIR {
   //bool supports_heat_{false};
   bool send_swing_cmd_{false};
 
-  void calc_checksum(uint32_t &value);
-  void transmit(uint32_t value);
+  void calc_checksum_(uint32_t &value);
+  void transmit_(uint32_t value);
 
-  climate::ClimateMode modeBefore_{climate::CLIMATE_MODE_OFF};
+  climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
 }  // namespace climate_ir_lg
