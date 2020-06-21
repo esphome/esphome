@@ -1277,6 +1277,8 @@ climate:
     name: Mitsubishi
   - platform: whirlpool
     name: Whirlpool Climate
+  - platform: climate_ir_lg
+    name: LG Climate
 
 switch:
   - platform: gpio
