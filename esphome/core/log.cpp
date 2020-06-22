@@ -54,16 +54,16 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
     return 0;
 
   size_t len = strlen(format);
-  if (format[len - 1] == '\n') {
-    // Remove trailing newline from format
-    // Use locally stored
-    static std::string FORMAT_COPY;
-    FORMAT_COPY.clear();
-    FORMAT_COPY.insert(0, format, len - 1);
-    format = FORMAT_COPY.c_str();
-  }
+  char *mFormat = (char *) malloc(len);
+  if (mFormat == NULL) return 0;
+  memcpy(mFormat, format, len);
 
-  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
+  // Strip trailing newline - just overwrite with a null.
+  if (mFormat[len - 1] == '\n')
+    mFormat[len - 1] = '\0';
+
+  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, mFormat, args);
+  free(mFormat);
 #endif
   return 0;
 }
