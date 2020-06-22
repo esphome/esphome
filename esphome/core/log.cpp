@@ -55,7 +55,8 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
 
   size_t len = strlen(format);
   char *mFormat = (char *) malloc(len);
-  if (mFormat == NULL) return 0;
+  if (mFormat == NULL)
+    return 0;
   memcpy(mFormat, format, len);
 
   // Strip trailing newline - just overwrite with a null.
