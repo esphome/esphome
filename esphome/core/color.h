@@ -1,300 +1,146 @@
 #pragma once
 
-#include "esphome/core/helpers.h"
+#include "esphome/components/colors/color.h"
 
 namespace esphome {
 
-inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
-
-struct ESPColor {
-  union {
-    struct {
-      union {
-        uint8_t r;
-        uint8_t red;
-      };
-      union {
-        uint8_t g;
-        uint8_t green;
-      };
-      union {
-        uint8_t b;
-        uint8_t blue;
-      };
-      union {
-        uint8_t w;
-        uint8_t white;
-      };
-    };
-    uint8_t raw[4];
-    uint32_t raw_32;
-  };
-  inline ESPColor() ALWAYS_INLINE : r(0), g(0), b(0), w(0) {}  // NOLINT
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue, uint8_t white) ALWAYS_INLINE : r(red),
-                                                                                           g(green),
-                                                                                           b(blue),
-                                                                                           w(white) {}
-  inline ESPColor(uint8_t red, uint8_t green, uint8_t blue) ALWAYS_INLINE : r(red), g(green), b(blue), w(0) {}
-  inline ESPColor(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                      g((colorcode >> 8) & 0xFF),
-                                                      b((colorcode >> 0) & 0xFF),
-                                                      w((colorcode >> 24) & 0xFF) {}
-  inline ESPColor(const ESPColor &rhs) ALWAYS_INLINE {
-    this->r = rhs.r;
-    this->g = rhs.g;
-    this->b = rhs.b;
-    this->w = rhs.w;
-  }
-  inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
-  inline ESPColor &operator=(const ESPColor &rhs) ALWAYS_INLINE {
-    this->r = rhs.r;
-    this->g = rhs.g;
-    this->b = rhs.b;
-    this->w = rhs.w;
-    return *this;
-  }
-  inline ESPColor &operator=(uint32_t colorcode) ALWAYS_INLINE {
-    this->w = (colorcode >> 24) & 0xFF;
-    this->r = (colorcode >> 16) & 0xFF;
-    this->g = (colorcode >> 8) & 0xFF;
-    this->b = (colorcode >> 0) & 0xFF;
-    return *this;
-  }
-  inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
-  inline ESPColor operator*(uint8_t scale) const ALWAYS_INLINE {
-    return ESPColor(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
-                    esp_scale8(this->white, scale));
-  }
-  inline ESPColor &operator*=(uint8_t scale) ALWAYS_INLINE {
-    this->red = esp_scale8(this->red, scale);
-    this->green = esp_scale8(this->green, scale);
-    this->blue = esp_scale8(this->blue, scale);
-    this->white = esp_scale8(this->white, scale);
-    return *this;
-  }
-  inline ESPColor operator*(const ESPColor &scale) const ALWAYS_INLINE {
-    return ESPColor(esp_scale8(this->red, scale.red), esp_scale8(this->green, scale.green),
-                    esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
-  }
-  inline ESPColor &operator*=(const ESPColor &scale) ALWAYS_INLINE {
-    this->red = esp_scale8(this->red, scale.red);
-    this->green = esp_scale8(this->green, scale.green);
-    this->blue = esp_scale8(this->blue, scale.blue);
-    this->white = esp_scale8(this->white, scale.white);
-    return *this;
-  }
-  inline ESPColor operator+(const ESPColor &add) const ALWAYS_INLINE {
-    ESPColor ret;
-    if (uint8_t(add.r + this->r) < this->r)
-      ret.r = 255;
-    else
-      ret.r = this->r + add.r;
-    if (uint8_t(add.g + this->g) < this->g)
-      ret.g = 255;
-    else
-      ret.g = this->g + add.g;
-    if (uint8_t(add.b + this->b) < this->b)
-      ret.b = 255;
-    else
-      ret.b = this->b + add.b;
-    if (uint8_t(add.w + this->w) < this->w)
-      ret.w = 255;
-    else
-      ret.w = this->w + add.w;
-    return ret;
-  }
-  inline ESPColor &operator+=(const ESPColor &add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline ESPColor operator+(uint8_t add) const ALWAYS_INLINE { return (*this) + ESPColor(add, add, add, add); }
-  inline ESPColor &operator+=(uint8_t add) ALWAYS_INLINE { return *this = (*this) + add; }
-  inline ESPColor operator-(const ESPColor &subtract) const ALWAYS_INLINE {
-    ESPColor ret;
-    if (subtract.r > this->r)
-      ret.r = 0;
-    else
-      ret.r = this->r - subtract.r;
-    if (subtract.g > this->g)
-      ret.g = 0;
-    else
-      ret.g = this->g - subtract.g;
-    if (subtract.b > this->b)
-      ret.b = 0;
-    else
-      ret.b = this->b - subtract.b;
-    if (subtract.w > this->w)
-      ret.w = 0;
-    else
-      ret.w = this->w - subtract.w;
-    return ret;
-  }
-  inline ESPColor &operator-=(const ESPColor &subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
-  inline ESPColor operator-(uint8_t subtract) const ALWAYS_INLINE {
-    return (*this) - ESPColor(subtract, subtract, subtract, subtract);
-  }
-  inline ESPColor &operator-=(uint8_t subtract) ALWAYS_INLINE { return *this = (*this) - subtract; }
-  static ESPColor random_color() {
-    uint32_t rand = random_uint32();
-    uint8_t w = rand >> 24;
-    uint8_t r = rand >> 16;
-    uint8_t g = rand >> 8;
-    uint8_t b = rand >> 0;
-    const uint16_t max_rgb = std::max(r, std::max(g, b));
-    return ESPColor(uint8_t((uint16_t(r) * 255U / max_rgb)), uint8_t((uint16_t(g) * 255U / max_rgb)),
-                    uint8_t((uint16_t(b) * 255U / max_rgb)), w);
-  }
-  ESPColor fade_to_white(uint8_t amnt) { return ESPColor(255, 255, 255, 255) - (*this * amnt); }
-  ESPColor fade_to_black(uint8_t amnt) { return *this * amnt; }
-  ESPColor lighten(uint8_t delta) { return *this + delta; }
-  ESPColor darken(uint8_t delta) { return *this - delta; }
-
-  uint32_t to_rgb_565() const {
-    uint32_t color565 =
-        (esp_scale8(this->red, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->blue, 31) << 0);
-    return color565;
-  }
-  uint32_t to_bgr_565() const {
-    uint32_t color565 =
-        (esp_scale8(this->blue, 31) << 11) | (esp_scale8(this->green, 63) << 5) | (esp_scale8(this->red, 31) << 0);
-    return color565;
-  }
-  // color list from https://www.rapidtables.com/web/color/RGB_Color.html
-  static const ESPColor MAROON;
-  static const ESPColor DARK_RED;
-  static const ESPColor BROWN;
-  static const ESPColor FIREBRICK;
-  static const ESPColor CRIMSON;
-  static const ESPColor RED;
-  static const ESPColor TOMATO;
-  static const ESPColor CORAL;
-  static const ESPColor INDIAN_RED;
-  static const ESPColor LIGHT_CORAL;
-  static const ESPColor DARK_SALMON;
-  static const ESPColor SALMON;
-  static const ESPColor LIGHT_SALMON;
-  static const ESPColor ORANGE_RED;
-  static const ESPColor DARK_ORANGE;
-  static const ESPColor ORANGE;
-  static const ESPColor GOLD;
-  static const ESPColor DARK_GOLDEN_ROD;
-  static const ESPColor GOLDEN_ROD;
-  static const ESPColor PALE_GOLDEN_ROD;
-  static const ESPColor DARK_KHAKI;
-  static const ESPColor KHAKI;
-  static const ESPColor OLIVE;
-  static const ESPColor YELLOW;
-  static const ESPColor YELLOW_GREEN;
-  static const ESPColor DARK_OLIVE_GREEN;
-  static const ESPColor OLIVE_DRAB;
-  static const ESPColor LAWN_GREEN;
-  static const ESPColor CHART_REUSE;
-  static const ESPColor GREEN_YELLOW;
-  static const ESPColor DARK_GREEN;
-  static const ESPColor GREEN;
-  static const ESPColor FOREST_GREEN;
-  static const ESPColor LIME;
-  static const ESPColor LIME_GREEN;
-  static const ESPColor LIGHT_GREEN;
-  static const ESPColor PALE_GREEN;
-  static const ESPColor DARK_SEA_GREEN;
-  static const ESPColor MEDIUM_SPRING_GREEN;
-  static const ESPColor SPRING_GREEN;
-  static const ESPColor SEA_GREEN;
-  static const ESPColor MEDIUM_AQUA_MARINE;
-  static const ESPColor MEDIUM_SEA_GREEN;
-  static const ESPColor LIGHT_SEA_GREEN;
-  static const ESPColor DARK_SLATE_GRAY;
-  static const ESPColor TEAL;
-  static const ESPColor DARK_CYAN;
-  static const ESPColor CYAN;
-  static const ESPColor LIGHT_CYAN;
-  static const ESPColor DARK_TURQUOISE;
-  static const ESPColor TURQUOISE;
-  static const ESPColor MEDIUM_TURQUOISE;
-  static const ESPColor PALE_TURQUOISE;
-  static const ESPColor AQUA_MARINE;
-  static const ESPColor POWDER_BLUE;
-  static const ESPColor CADET_BLUE;
-  static const ESPColor STEEL_BLUE;
-  static const ESPColor CORN_FLOWER_BLUE;
-  static const ESPColor DEEP_SKY_BLUE;
-  static const ESPColor DODGER_BLUE;
-  static const ESPColor LIGHT_BLUE;
-  static const ESPColor SKY_BLUE;
-  static const ESPColor LIGHT_SKY_BLUE;
-  static const ESPColor MIDNIGHT_BLUE;
-  static const ESPColor NAVY;
-  static const ESPColor DARK_BLUE;
-  static const ESPColor MEDIUM_BLUE;
-  static const ESPColor BLUE;
-  static const ESPColor ROYAL_BLUE;
-  static const ESPColor BLUE_VIOLET;
-  static const ESPColor INDIGO;
-  static const ESPColor DARK_SLATE_BLUE;
-  static const ESPColor SLATE_BLUE;
-  static const ESPColor MEDIUM_SLATE_BLUE;
-  static const ESPColor MEDIUM_PURPLE;
-  static const ESPColor DARK_MAGENTA;
-  static const ESPColor DARK_VIOLET;
-  static const ESPColor DARK_ORCHID;
-  static const ESPColor MEDIUM_ORCHID;
-  static const ESPColor PURPLE;
-  static const ESPColor THISTLE;
-  static const ESPColor PLUM;
-  static const ESPColor VIOLET;
-  static const ESPColor MAGENTA;
-  static const ESPColor ORCHID;
-  static const ESPColor MEDIUM_VIOLET_RED;
-  static const ESPColor PALE_VIOLET_RED;
-  static const ESPColor DEEP_PINK;
-  static const ESPColor HOT_PINK;
-  static const ESPColor LIGHT_PINK;
-  static const ESPColor PINK;
-  static const ESPColor ANTIQUE_WHITE;
-  static const ESPColor BEIGE;
-  static const ESPColor BISQUE;
-  static const ESPColor BLANCHED_ALMOND;
-  static const ESPColor WHEAT;
-  static const ESPColor CORN_SILK;
-  static const ESPColor LEMON_CHIFFON;
-  static const ESPColor LIGHT_GOLDEN_ROD_YELLOW;
-  static const ESPColor LIGHT_YELLOW;
-  static const ESPColor SADDLE_BROWN;
-  static const ESPColor SIENNA;
-  static const ESPColor CHOCOLATE;
-  static const ESPColor PERU;
-  static const ESPColor SANDY_BROWN;
-  static const ESPColor BURLY_WOOD;
-  static const ESPColor TAN;
-  static const ESPColor ROSY_BROWN;
-  static const ESPColor MOCCASIN;
-  static const ESPColor NAVAJO_WHITE;
-  static const ESPColor PEACH_PUFF;
-  static const ESPColor MISTY_ROSE;
-  static const ESPColor LAVENDER_BLUSH;
-  static const ESPColor LINEN;
-  static const ESPColor OLD_LACE;
-  static const ESPColor PAPAYA_WHIP;
-  static const ESPColor SEA_SHELL;
-  static const ESPColor MINT_CREAM;
-  static const ESPColor SLATE_GRAY;
-  static const ESPColor LIGHT_SLATE_GRAY;
-  static const ESPColor LIGHT_STEEL_BLUE;
-  static const ESPColor LAVENDER;
-  static const ESPColor FLORAL_WHITE;
-  static const ESPColor ALICE_BLUE;
-  static const ESPColor GHOST_WHITE;
-  static const ESPColor HONEYDEW;
-  static const ESPColor IVORY;
-  static const ESPColor AZURE;
-  static const ESPColor SNOW;
-  static const ESPColor BLACK;
-  static const ESPColor DIM_GRAY;
-  static const ESPColor GRAY;
-  static const ESPColor DARK_GRAY;
-  static const ESPColor SILVER;
-  static const ESPColor LIGHT_GRAY;
-  static const ESPColor GAINSBORO;
-  static const ESPColor WHITE_SMOKE;
-  static const ESPColor WHITE;
-};
+const color::Color MAROON(0.502, 0, 0);
+const color::Color DARK_RED(0.545, 0, 0);
+const color::Color BROWN(0.647, 0.165, 0.165);
+const color::Color FIREBRICK(0.698, 0.133, 0.133);
+const color::Color CRIMSON(0.863, 0.078, 0.235);
+const color::Color RED(1, 0, 0);
+const color::Color TOMATO(1, 0.388, 0.278);
+const color::Color CORAL(1, 0.498, 0.314);
+const color::Color INDIAN_RED(0.804, 0.361, 0.361);
+const color::Color LIGHT_CORAL(0.941, 0.502, 0.502);
+const color::Color DARK_SALMON(0.914, 0.588, 0.478);
+const color::Color SALMON(0.98, 0.502, 0.447);
+const color::Color LIGHT_SALMON(1, 0.627, 0.478);
+const color::Color ORANGE_RED(1, 0.271, 0);
+const color::Color DARK_ORANGE(1, 0.549, 0);
+const color::Color ORANGE(1, 0.647, 0);
+const color::Color GOLD(1, 0.843, 0);
+const color::Color DARK_GOLDEN_ROD(0.722, 0.525, 0.043);
+const color::Color GOLDEN_ROD(0.855, 0.647, 0.125);
+const color::Color PALE_GOLDEN_ROD(0.933, 0.91, 0.667);
+const color::Color DARK_KHAKI(0.741, 0.718, 0.42);
+const color::Color KHAKI(0.941, 0.902, 0.549);
+const color::Color OLIVE(0.502, 0.502, 0);
+const color::Color YELLOW(1, 1, 0);
+const color::Color YELLOW_GREEN(0.604, 0.804, 0.196);
+const color::Color DARK_OLIVE_GREEN(0.333, 0.42, 0.184);
+const color::Color OLIVE_DRAB(0.42, 0.557, 0.137);
+const color::Color LAWN_GREEN(0.486, 0.988, 0);
+const color::Color CHART_REUSE(0.498, 1, 0);
+const color::Color GREEN_YELLOW(0.678, 1, 0.184);
+const color::Color DARK_GREEN(0, 0.392, 0);
+const color::Color GREEN(0, 0.502, 0);
+const color::Color FOREST_GREEN(0.133, 0.545, 0.133);
+const color::Color LIME(0, 1, 0);
+const color::Color LIME_GREEN(0.196, 0.804, 0.196);
+const color::Color LIGHT_GREEN(0.565, 0.933, 0.565);
+const color::Color PALE_GREEN(0.596, 0.984, 0.596);
+const color::Color DARK_SEA_GREEN(0.561, 0.737, 0.561);
+const color::Color MEDIUM_SPRING_GREEN(0, 0.98, 0.604);
+const color::Color SPRING_GREEN(0, 1, 0.498);
+const color::Color SEA_GREEN(0.18, 0.545, 0.341);
+const color::Color MEDIUM_AQUA_MARINE(0.4, 0.804, 0.667);
+const color::Color MEDIUM_SEA_GREEN(0.235, 0.702, 0.443);
+const color::Color LIGHT_SEA_GREEN(0.125, 0.698, 0.667);
+const color::Color DARK_SLATE_GRAY(0.184, 0.31, 0.31);
+const color::Color TEAL(0, 0.502, 0.502);
+const color::Color DARK_CYAN(0, 0.545, 0.545);
+const color::Color CYAN(0, 1, 1);
+const color::Color LIGHT_CYAN(0.878, 1, 1);
+const color::Color DARK_TURQUOISE(0, 0.808, 0.82);
+const color::Color TURQUOISE(0.251, 0.878, 0.816);
+const color::Color MEDIUM_TURQUOISE(0.282, 0.82, 0.8);
+const color::Color PALE_TURQUOISE(0.686, 0.933, 0.933);
+const color::Color AQUA_MARINE(0.498, 1, 0.831);
+const color::Color POWDER_BLUE(0.69, 0.878, 0.902);
+const color::Color CADET_BLUE(0.373, 0.62, 0.627);
+const color::Color STEEL_BLUE(0.275, 0.51, 0.706);
+const color::Color CORN_FLOWER_BLUE(0.392, 0.584, 0.929);
+const color::Color DEEP_SKY_BLUE(0, 0.749, 1);
+const color::Color DODGER_BLUE(0.118, 0.565, 1);
+const color::Color LIGHT_BLUE(0.678, 0.847, 0.902);
+const color::Color SKY_BLUE(0.529, 0.808, 0.922);
+const color::Color LIGHT_SKY_BLUE(0.529, 0.808, 0.98);
+const color::Color MIDNIGHT_BLUE(0.098, 0.098, 0.439);
+const color::Color NAVY(0, 0, 0.502);
+const color::Color DARK_BLUE(0, 0, 0.545);
+const color::Color MEDIUM_BLUE(0, 0, 0.804);
+const color::Color BLUE(0, 0, 1);
+const color::Color ROYAL_BLUE(0.255, 0.412, 0.882);
+const color::Color BLUE_VIOLET(0.541, 0.169, 0.886);
+const color::Color INDIGO(0.294, 0, 0.51);
+const color::Color DARK_SLATE_BLUE(0.282, 0.239, 0.545);
+const color::Color SLATE_BLUE(0.416, 0.353, 0.804);
+const color::Color MEDIUM_SLATE_BLUE(0.482, 0.408, 0.933);
+const color::Color MEDIUM_PURPLE(0.576, 0.439, 0.859);
+const color::Color DARK_MAGENTA(0.545, 0, 0.545);
+const color::Color DARK_VIOLET(0.58, 0, 0.827);
+const color::Color DARK_ORCHID(0.6, 0.196, 0.8);
+const color::Color MEDIUM_ORCHID(0.729, 0.333, 0.827);
+const color::Color PURPLE(0.502, 0, 0.502);
+const color::Color THISTLE(0.847, 0.749, 0.847);
+const color::Color PLUM(0.867, 0.627, 0.867);
+const color::Color VIOLET(0.933, 0.51, 0.933);
+const color::Color MAGENTA(1, 0, 1);
+const color::Color ORCHID(0.855, 0.439, 0.839);
+const color::Color MEDIUM_VIOLET_RED(0.78, 0.082, 0.522);
+const color::Color PALE_VIOLET_RED(0.859, 0.439, 0.576);
+const color::Color DEEP_PINK(1, 0.078, 0.576);
+const color::Color HOT_PINK(1, 0.412, 0.706);
+const color::Color LIGHT_PINK(1, 0.714, 0.757);
+const color::Color PINK(1, 0.753, 0.796);
+const color::Color ANTIQUE_WHITE(0.98, 0.922, 0.843);
+const color::Color BEIGE(0.961, 0.961, 0.863);
+const color::Color BISQUE(1, 0.894, 0.769);
+const color::Color BLANCHED_ALMOND(1, 0.922, 0.804);
+const color::Color WHEAT(0.961, 0.871, 0.702);
+const color::Color CORN_SILK(1, 0.973, 0.863);
+const color::Color LEMON_CHIFFON(1, 0.98, 0.804);
+const color::Color LIGHT_GOLDEN_ROD_YELLOW(0.98, 0.98, 0.824);
+const color::Color LIGHT_YELLOW(1, 1, 0.878);
+const color::Color SADDLE_BROWN(0.545, 0.271, 0.075);
+const color::Color SIENNA(0.627, 0.322, 0.176);
+const color::Color CHOCOLATE(0.824, 0.412, 0.118);
+const color::Color PERU(0.804, 0.522, 0.247);
+const color::Color SANDY_BROWN(0.957, 0.643, 0.376);
+const color::Color BURLY_WOOD(0.871, 0.722, 0.529);
+const color::Color TAN(0.824, 0.706, 0.549);
+const color::Color ROSY_BROWN(0.737, 0.561, 0.561);
+const color::Color MOCCASIN(1, 0.894, 0.71);
+const color::Color NAVAJO_WHITE(1, 0.871, 0.678);
+const color::Color PEACH_PUFF(1, 0.855, 0.725);
+const color::Color MISTY_ROSE(1, 0.894, 0.882);
+const color::Color LAVENDER_BLUSH(1, 0.941, 0.961);
+const color::Color LINEN(0.98, 0.941, 0.902);
+const color::Color OLD_LACE(0.992, 0.961, 0.902);
+const color::Color PAPAYA_WHIP(1, 0.937, 0.835);
+const color::Color SEA_SHELL(1, 0.961, 0.933);
+const color::Color MINT_CREAM(0.961, 1, 0.98);
+const color::Color SLATE_GRAY(0.439, 0.502, 0.565);
+const color::Color LIGHT_SLATE_GRAY(0.467, 0.533, 0.6);
+const color::Color LIGHT_STEEL_BLUE(0.69, 0.769, 0.871);
+const color::Color LAVENDER(0.902, 0.902, 0.98);
+const color::Color FLORAL_WHITE(1, 0.98, 0.941);
+const color::Color ALICE_BLUE(0.941, 0.973, 1);
+const color::Color GHOST_WHITE(0.973, 0.973, 1);
+const color::Color HONEYDEW(0.941, 1, 0.941);
+const color::Color IVORY(1, 1, 0.941);
+const color::Color AZURE(0.941, 1, 1);
+const color::Color SNOW(1, 0.98, 0.98);
+const color::Color BLACK(0, 0, 0);
+const color::Color DIM_GRAY(0.412, 0.412, 0.412);
+const color::Color GRAY(0.502, 0.502, 0.502);
+const color::Color DARK_GRAY(0.663, 0.663, 0.663);
+const color::Color SILVER(0.753, 0.753, 0.753);
+const color::Color LIGHT_GRAY(0.827, 0.827, 0.827);
+const color::Color GAINSBORO(0.863, 0.863, 0.863);
+const color::Color WHITE_SMOKE(0.961, 0.961, 0.961);
+const color::Color WHITE(1, 1, 1);
 
 }  // namespace esphome
