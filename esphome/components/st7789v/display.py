@@ -20,7 +20,7 @@ CONFIG_SCHEMA = display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
-}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.COMPONENT_SCHEMA).extend(spi.spi_device_schema())
 
 
 def to_code(config):
