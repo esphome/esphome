@@ -7,8 +7,7 @@ ColorComponent = color_ns.class_('Color', cg.Component)
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(ColorComponent),
-    cv.Optional(CONF_ID): cv.declare_id(ColorComponent),
+    cv.Required(CONF_ID): cv.declare_id(ColorComponent),
     cv.Optional(CONF_RED, default=0.0): cv.percentage,
     cv.Optional(CONF_GREEN, default=0.0): cv.percentage,
     cv.Optional(CONF_BLUE, default=0.0): cv.percentage,
