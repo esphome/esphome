@@ -203,14 +203,24 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, int color, TextAlign alig
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
-void DisplayBuffer::image(int x, int y, Image *image) {
-  if (image->get_type() == 0) {
+void DisplayBuffer::image(int x, int y, Image *image) { this->image(x, y, COLOR_ON, image); }
+void DisplayBuffer::image(int x, int y, int color, Image *image, bool invert) {
+  if (image->get_type() == BINARY) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
-        this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_ON : COLOR_OFF);
+        if (invert)
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_OFF : color);
+        else
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color : COLOR_OFF);
       }
     }
-  } else if (image->get_type() == 1) {
+  } else if (image->get_type() == GRAYSCALE4) {
+    for (int img_x = 0; img_x < image->get_width(); img_x++) {
+      for (int img_y = 0; img_y < image->get_height(); img_y++) {
+        this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale4_pixel(img_x, img_y));
+      }
+    }
+  } else if (image->get_type() == RGB565) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
         this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
@@ -439,7 +449,6 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-
 int Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
@@ -448,13 +457,22 @@ int Image::get_color_pixel(int x, int y) const {
   int color = (pgm_read_byte(this->data_start_ + pos) << 8) + (pgm_read_byte(this->data_start_ + pos + 1));
   return color;
 }
+int Image::get_grayscale4_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return 0;
+  const uint32_t pos = (x + y * this->width_) / 2;
+  // 2 = number of pixels per byte, 4 = pixel shift
+  uint8_t shift = (x % 2) * 4;
+  int color = (pgm_read_byte(this->data_start_ + pos) >> shift) & 0x0f;
+  return color;
+}
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
-int Image::get_type() const { return this->type_; }
+ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height)
     : width_(width), height_(height), data_start_(data_start) {}
 Image::Image(const uint8_t *data_start, int width, int height, int type)
-    : width_(width), height_(height), type_(type), data_start_(data_start) {}
+    : width_(width), height_(height), type_((ImageType) type), data_start_(data_start) {}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }

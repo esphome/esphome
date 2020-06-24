@@ -4,12 +4,12 @@
 #include "esphome/core/helpers.h"
 
 namespace esphome {
-namespace color {
+namespace colors {
 
 inline static uint8_t esp_scale8(uint8_t i, uint8_t scale) { return (uint16_t(i) * (1 + uint16_t(scale))) / 256; }
 
 class Color : public Component {
-public:
+ public:
   union {
     struct {
       union {
@@ -42,9 +42,9 @@ public:
                                                                                 b(uint8_t(blue * 255)),
                                                                                 w(uint8_t(white * 255)) {}
   inline Color(uint32_t colorcode) ALWAYS_INLINE : r((colorcode >> 16) & 0xFF),
-                                                      g((colorcode >> 8) & 0xFF),
-                                                      b((colorcode >> 0) & 0xFF),
-                                                      w((colorcode >> 24) & 0xFF) {}
+                                                   g((colorcode >> 8) & 0xFF),
+                                                   b((colorcode >> 0) & 0xFF),
+                                                   w((colorcode >> 24) & 0xFF) {}
   inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
   inline Color &operator=(const Color &rhs) ALWAYS_INLINE {
     this->r = rhs.r;
@@ -63,7 +63,7 @@ public:
   inline uint8_t &operator[](uint8_t x) ALWAYS_INLINE { return this->raw[x]; }
   inline Color operator*(uint8_t scale) const ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale), esp_scale8(this->green, scale), esp_scale8(this->blue, scale),
-                    esp_scale8(this->white, scale));
+                 esp_scale8(this->white, scale));
   }
   inline Color &operator*=(uint8_t scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale);
@@ -74,7 +74,7 @@ public:
   }
   inline Color operator*(const Color &scale) const ALWAYS_INLINE {
     return Color(esp_scale8(this->red, scale.red), esp_scale8(this->green, scale.green),
-                    esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
+                 esp_scale8(this->blue, scale.blue), esp_scale8(this->white, scale.white));
   }
   inline Color &operator*=(const Color &scale) ALWAYS_INLINE {
     this->red = esp_scale8(this->red, scale.red);
@@ -156,7 +156,8 @@ public:
   uint32_t to_grayscale4() const {
     uint32_t gs4 = esp_scale8(this->white, 15);
     return gs4;
-  }};
+  }
+};
 
-}  // namespace color
+}  // namespace colors
 }  // namespace esphome

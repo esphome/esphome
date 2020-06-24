@@ -39,7 +39,21 @@ def to_code(config):
         image.thumbnail(config[CONF_RESIZE])
 
     if CONF_TYPE in config:
-        if config[CONF_TYPE].startswith('RGB565'):
+        if config[CONF_TYPE].startswith('GRAYSCALE4'):
+            width, height = image.size
+            image = image.convert('L', dither=Image.NONE)
+            pixels = list(image.getdata())
+            data = [0 for _ in range(height * width // 2)]
+            pos = 0
+            for pixnum, pix in enumerate(pixels):
+                pixshift = (pixnum % 2) * 4
+                data[pos] |= (pix >> 4) << pixshift
+                if pixshift != 0:
+                    pos += 1
+            rhs = [HexInt(x) for x in data]
+            prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, 1)
+        elif config[CONF_TYPE].startswith('RGB565'):
             width, height = image.size
             image = image.convert('RGB')
             pixels = list(image.getdata())

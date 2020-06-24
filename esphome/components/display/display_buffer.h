@@ -67,6 +67,8 @@ extern const uint8_t COLOR_OFF;
 /// Turn the pixel ON.
 extern const uint8_t COLOR_ON;
 
+enum ImageType { BINARY = 0, GRAYSCALE4 = 1, RGB565 = 2 };
+
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
   DISPLAY_ROTATION_90_DEGREES = 90,
@@ -261,6 +263,7 @@ class DisplayBuffer {
 
   /// Draw the `image` with the top-left corner at [x,y] to the screen.
   void image(int x, int y, Image *image);
+  void image(int x, int y, int color, Image *image, bool invert = false);
 
   /** Get the text bounds of the given string.
    *
@@ -381,14 +384,15 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, int type);
   bool get_pixel(int x, int y) const;
   int get_color_pixel(int x, int y) const;
+  int get_grayscale4_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
-  int get_type() const;
+  ImageType get_type() const;
 
  protected:
   int width_;
   int height_;
-  int type_ = 0;
+  ImageType type_{BINARY};
   const uint8_t *data_start_;
 };
 
