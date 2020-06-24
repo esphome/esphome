@@ -11,6 +11,8 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ['display']
 MULTI_CONF = True
 
+ImageType = {'binary': 0, 'grayscale4': 1, 'rgb565': 2}
+
 Image_ = display.display_ns.class_('Image')
 
 CONF_RAW_DATA_ID = 'raw_data_id'
@@ -52,7 +54,7 @@ def to_code(config):
                     pos += 1
             rhs = [HexInt(x) for x in data]
             prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, 1)
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['grayscale4'])
         elif config[CONF_TYPE].startswith('RGB565'):
             width, height = image.size
             image = image.convert('RGB')
@@ -70,7 +72,7 @@ def to_code(config):
                 pos += 1
             rhs = [HexInt(x) for x in data]
             prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, 1)
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['rgb565'])
     else:
         image = image.convert('1', dither=Image.NONE)
         width, height = image.size
