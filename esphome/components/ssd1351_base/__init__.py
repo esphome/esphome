@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display
-from esphome.const import CONF_BRIGHTNESS, CONF_EXTERNAL_VCC, CONF_LAMBDA, CONF_MODEL, \
-                          CONF_RESET_PIN
+from esphome.const import CONF_BRIGHTNESS, CONF_LAMBDA, CONF_MODEL, CONF_RESET_PIN
 from esphome.core import coroutine
 
 ssd1351_base_ns = cg.esphome_ns.namespace('ssd1351_base')

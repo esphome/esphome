@@ -58,7 +58,7 @@ void SSD1351::setup() {
   this->data(0xB1);
   this->command(SSD1351_DISPLAYOFF);
   this->command(SSD1351_CLOCKDIV);
-  this->data(0xF1); // 7:4 = Oscillator Freq, 3:0 = CLK Div Ratio (A[3:0]+1 = 1..16)
+  this->data(0xF1);  // 7:4 = Oscillator Freq, 3:0 = CLK Div Ratio (A[3:0]+1 = 1..16)
   this->command(SSD1351_MUXRATIO);
   this->data(127);
   this->command(SSD1351_DISPLAYOFFSET);
@@ -66,7 +66,7 @@ void SSD1351::setup() {
   this->command(SSD1351_SETGPIO);
   this->data(0x00);
   this->command(SSD1351_FUNCTIONSELECT);
-  this->data(0x01); // internal (diode drop)
+  this->data(0x01);  // internal (diode drop)
   this->command(SSD1351_PRECHARGE);
   this->data(0x32);
   this->command(SSD1351_VCOMH);
@@ -92,12 +92,12 @@ void SSD1351::setup() {
   this->turn_on();    // display ON
 }
 void SSD1351::display() {
-  this->command(SSD1351_SETCOLUMN);// set column address
-  this->data(0x00);                // set column start address
-  this->data(0x7F);                // set column end address
-  this->command(SSD1351_SETROW);   // set row address
-  this->data(0x00);                // set row start address
-  this->data(0x7F);                // set last row
+  this->command(SSD1351_SETCOLUMN);  // set column address
+  this->data(0x00);                  // set column start address
+  this->data(0x7F);                  // set column end address
+  this->command(SSD1351_SETROW);     // set row address
+  this->data(0x00);                  // set row start address
+  this->data(0x7F);                  // set last row
   this->command(SSD1351_WRITERAM);
   this->write_display_data();
 }
