@@ -183,6 +183,11 @@ void MAX7219Component::scroll(bool on_off, uint8_t mode) {
   this->set_scroll_mode(mode);
 }
 
+void MAX7219Component::intensity(uint8_t intensity) {
+  this->intensity_ = intensity;
+  this->send_to_all_(MAX7219_REGISTER_INTENSITY, this->intensity_);
+}
+
 void MAX7219Component::scroll(bool on_off) { this->set_scroll(on_off); }
 
 void MAX7219Component::scroll_left() {
