@@ -53,18 +53,7 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
   if (log == nullptr)
     return 0;
 
-  size_t len = strlen(format);
-  char *mFormat = (char *) malloc(len);
-  if (mFormat == NULL)
-    return 0;
-  memcpy(mFormat, format, len);
-
-  // Strip trailing newline - just overwrite with a null.
-  if (mFormat[len - 1] == '\n')
-    mFormat[len - 1] = '\0';
-
-  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, mFormat, args);
-  free(mFormat);
+  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
 #endif
   return 0;
 }
