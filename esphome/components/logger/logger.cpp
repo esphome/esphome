@@ -110,8 +110,10 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   // here usually allows the stack to recover instead.
   // See issue #1234 for analysis.
   if (xPortGetFreeHeapSize() > 2048)
-#endif
     this->log_callback_.call(level, tag, msg);
+#else
+  this->log_callback_.call(level, tag, msg);
+#endif
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
