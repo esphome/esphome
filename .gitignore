@@ -118,10 +118,3 @@ config/
 tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
-tests/maxsmile.yaml
-tests/pixelmix_bold.ttf
-tests/pixelmix.ttf
-tests/pixelmix_ss.ttf
-tests/smile.png
-tests/nextion/partitions.csv
-.gitignore
