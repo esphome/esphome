@@ -115,20 +115,20 @@ void WaveshareEPaper::update() {
   this->do_update_();
   this->display();
 }
-void WaveshareEPaper::fill(int color) {
+void WaveshareEPaper::fill(Color color) {
   // flip logic
-  const uint8_t fill = color ? 0x00 : 0xFF;
+  const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
   const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
-  if (!color)
+  if (!color.is_on())
     this->buffer_[pos] |= 0x80 >> subpos;
   else
     this->buffer_[pos] &= ~(0x80 >> subpos);

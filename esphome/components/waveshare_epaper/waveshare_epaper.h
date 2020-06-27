@@ -26,7 +26,7 @@ class WaveshareEPaper : public PollingComponent,
 
   void update() override;
 
-  void fill(int color) override;
+  void fill(Color color) override;
 
   void setup() override {
     this->setup_pins_();
@@ -36,7 +36,7 @@ class WaveshareEPaper : public PollingComponent,
   void on_safe_shutdown() override;
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   bool wait_until_idle_();
 

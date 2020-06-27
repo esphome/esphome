@@ -64,9 +64,9 @@ enum class TextAlign {
 };
 
 /// Turn the pixel OFF.
-extern const uint8_t COLOR_OFF;
+extern const Color COLOR_OFF;
 /// Turn the pixel ON.
-extern const uint8_t COLOR_ON;
+extern const Color COLOR_ON;
 
 enum ImageType { BINARY = 0, GRAYSCALE4 = 1, RGB565 = 2 };
 
