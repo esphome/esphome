@@ -144,7 +144,7 @@ class ST7789V : public PollingComponent,
 
   void draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 };
 
 }  // namespace st7789v

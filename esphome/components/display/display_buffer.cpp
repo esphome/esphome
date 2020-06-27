@@ -18,7 +18,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   }
   this->clear();
 }
-void DisplayBuffer::fill(int color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
+void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {
   switch (this->rotation_) {
@@ -43,7 +43,7 @@ int DisplayBuffer::get_height() {
   }
 }
 void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
-void HOT DisplayBuffer::draw_pixel_at(int x, int y, int color) {
+void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -63,7 +63,7 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, int color) {
   this->draw_absolute_pixel_internal(x, y, color);
   App.feed_wdt();
 }
-void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, int color) {
+void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
   int32_t err = dx + dy;
@@ -83,29 +83,29 @@ void HOT DisplayBuffer::line(int x1, int y1, int x2, int y2, int color) {
     }
   }
 }
-void HOT DisplayBuffer::horizontal_line(int x, int y, int width, int color) {
+void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, color);
 }
-void HOT DisplayBuffer::vertical_line(int x, int y, int height, int color) {
+void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
     this->draw_pixel_at(x, i, color);
 }
-void DisplayBuffer::rectangle(int x1, int y1, int width, int height, int color) {
+void DisplayBuffer::rectangle(int x1, int y1, int width, int height, Color color) {
   this->horizontal_line(x1, y1, width, color);
   this->horizontal_line(x1, y1 + height - 1, width, color);
   this->vertical_line(x1, y1, height, color);
   this->vertical_line(x1 + width - 1, y1, height, color);
 }
-void DisplayBuffer::filled_rectangle(int x1, int y1, int width, int height, int color) {
+void DisplayBuffer::filled_rectangle(int x1, int y1, int width, int height, Color color) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   for (int i = y1; i < y1 + height; i++) {
     this->horizontal_line(x1, i, width, color);
   }
 }
-void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, int color) {
+void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color) {
   int dx = -radius;
   int dy = 0;
   int err = 2 - 2 * radius;
@@ -128,7 +128,7 @@ void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, int colo
     }
   } while (dx <= 0);
 }
-void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, int color) {
+void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color) {
   int dx = -int32_t(radius);
   int dy = 0;
   int err = 2 - 2 * radius;
@@ -155,7 +155,7 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, int co
   } while (dx <= 0);
 }
 
-void DisplayBuffer::print(int x, int y, Font *font, int color, TextAlign align, const char *text) {
+void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
@@ -197,14 +197,14 @@ void DisplayBuffer::print(int x, int y, Font *font, int color, TextAlign align, 
     i += match_length;
   }
 }
-void DisplayBuffer::vprintf_(int x, int y, Font *font, int color, TextAlign align, const char *format, va_list arg) {
+void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
 void DisplayBuffer::image(int x, int y, Image *image) { this->image(x, y, COLOR_ON, image); }
-void DisplayBuffer::image(int x, int y, int color, Image *image, bool invert) {
+void DisplayBuffer::image(int x, int y, Color color, Image *image, bool invert) {
   if (image->get_type() == BINARY) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
@@ -266,7 +266,7 @@ void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, 
       break;
   }
 }
-void DisplayBuffer::print(int x, int y, Font *font, int color, const char *text) {
+void DisplayBuffer::print(int x, int y, Font *font, Color color, const char *text) {
   this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
 }
 void DisplayBuffer::print(int x, int y, Font *font, TextAlign align, const char *text) {
@@ -275,13 +275,13 @@ void DisplayBuffer::print(int x, int y, Font *font, TextAlign align, const char 
 void DisplayBuffer::print(int x, int y, Font *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, int color, TextAlign align, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, Font *font, Color color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, align, format, arg);
   va_end(arg);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, int color, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, Font *font, Color color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, TextAlign::TOP_LEFT, format, arg);
@@ -324,14 +324,14 @@ void DisplayBuffer::do_update_() {
   }
 }
 #ifdef USE_TIME
-void DisplayBuffer::strftime(int x, int y, Font *font, int color, TextAlign align, const char *format,
+void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
                              time::ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, int color, const char *format, time::ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time) {
   this->strftime(x, y, font, color, TextAlign::TOP_LEFT, format, time);
 }
 void DisplayBuffer::strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time) {

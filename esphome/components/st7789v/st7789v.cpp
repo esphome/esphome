@@ -259,13 +259,15 @@ void ST7789V::draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t 
   this->disable();
 }
 
-void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
+  auto color565 = color.to_bgr_565();
+
   uint16_t pos = (x + y * this->get_width_internal()) * 2;
-  this->buffer_[pos++] = (color >> 8) & 0xff;
-  this->buffer_[pos] = color & 0xff;
+  this->buffer_[pos++] = (color565 >> 8) & 0xff;
+  this->buffer_[pos] = color565 & 0xff;
 }
 
 }  // namespace st7789v
