@@ -1187,13 +1187,13 @@ light:
             if (initial_run) {
               it[0] = current_color;
             }
-            
+
     - wled:
         port: 11111
-        
+
     - adalight:
         uart_id: adalight_uart
-        
+
     - automation:
         name: Custom Effect
         sequence:
@@ -1465,6 +1465,14 @@ switch:
         id: my_stepper
         position: 0
 
+  - platform: gpio
+    name: "SN74HC595 Pin #0"
+    pin:
+      sn74hc595: sn74hc595_hub
+      # Use pin number 0
+      number: 0
+      inverted: False
+
 fan:
   - platform: binary
     output: gpio_26
@@ -1715,3 +1723,11 @@ text_sensor:
     name: "BSSID"
   mac_address:
     name: "Mac Address"
+
+sn74hc595:
+  - id: 'sn74hc595_hub'
+    data_pin: GPIO21
+    clock_pin: GPIO23
+    latch_pin: GPIO22
+    oe_pin: GPIO32
+    sr_count: 2
