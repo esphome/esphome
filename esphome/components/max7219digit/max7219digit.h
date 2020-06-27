@@ -60,6 +60,7 @@ class MAX7219Component : public PollingComponent,
   void scroll(bool on_off, uint8_t mode, uint16_t speed, uint16_t delay, uint16_t dwell);
   void scroll(bool on_off, uint8_t mode);
   void scroll(bool on_off);
+  void intensity(uint8_t intensity);
 
   /// Evaluate the printf-format and print the result at the given position.
   uint8_t printdigitf(uint8_t pos, const char *format, ...) __attribute__((format(printf, 3, 4)));
