@@ -25,7 +25,6 @@ template<typename... Ts> class TurnOnAction : public Action<Ts...> {
     call.perform();
   }
 
- protected:
   FanState *state_;
 };
 
@@ -35,7 +34,6 @@ template<typename... Ts> class TurnOffAction : public Action<Ts...> {
 
   void play(Ts... x) override { this->state_->turn_off().perform(); }
 
- protected:
   FanState *state_;
 };
 
@@ -45,7 +43,6 @@ template<typename... Ts> class ToggleAction : public Action<Ts...> {
 
   void play(Ts... x) override { this->state_->toggle().perform(); }
 
- protected:
   FanState *state_;
 };
 

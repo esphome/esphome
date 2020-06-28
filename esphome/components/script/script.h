@@ -53,41 +53,34 @@ template<typename... Ts> class ScriptWaitAction : public Action<Ts...>, public C
  public:
   ScriptWaitAction(Script *script) : script_(script) {}
 
-  void play(Ts... x) { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
+    this->num_running_++;
     // Check if we can continue immediately.
     if (!this->script_->is_running()) {
-      this->triggered_ = false;
-      this->play_next(x...);
+      this->play_next_(x...);
       return;
     }
     this->var_ = std::make_tuple(x...);
-    this->triggered_ = true;
     this->loop();
   }
 
-  void stop() override { this->triggered_ = false; }
-
   void loop() override {
-    if (!this->triggered_)
+    if (this->num_running_ == 0)
       return;
 
     if (this->script_->is_running())
       return;
 
-    this->triggered_ = false;
-    this->play_next_tuple(this->var_);
+    this->play_next_tuple_(this->var_);
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  bool is_running() override { return this->triggered_ || this->is_running_next(); }
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
 
  protected:
   Script *script_;
-  bool triggered_{false};
   std::tuple<Ts...> var_{};
 };
 
