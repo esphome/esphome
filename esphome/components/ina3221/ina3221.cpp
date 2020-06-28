@@ -100,7 +100,7 @@ void INA3221Component::update() {
         this->status_set_warning();
         return;
       }
-      const float shunt_voltage_v = int16_t(raw) * 40.0f / 1000000.0f;
+      const float shunt_voltage_v = int16_t(raw) * 40.0f / 8.0f / 1000000.0f;
       if (channel.shunt_voltage_sensor_ != nullptr)
         channel.shunt_voltage_sensor_->publish_state(shunt_voltage_v);
       current_a = shunt_voltage_v / channel.shunt_resistance_;

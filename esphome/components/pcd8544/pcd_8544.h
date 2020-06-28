@@ -43,7 +43,7 @@ class PCD8544 : public PollingComponent,
 
   void update() override;
 
-  void fill(int color) override;
+  void fill(Color color) override;
 
   void setup() override {
     this->setup_pins_();
@@ -51,7 +51,7 @@ class PCD8544 : public PollingComponent,
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   void setup_pins_();
 

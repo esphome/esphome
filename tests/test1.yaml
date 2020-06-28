@@ -1507,6 +1507,16 @@ interval:
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
 
+color:
+  - id: kbx_red
+    red: 100%
+    green: 1%
+    blue: 2%
+  - id: kbx_blue
+    red: 0%
+    green: 1%
+    blue: 100%
+
 display:
 - platform: lcd_gpio
   dimensions: 18x4
@@ -1589,6 +1599,13 @@ display:
   reset_pin: GPIO23
   model: 2.90in
   full_update_every: 30
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: st7789v
+  cs_pin: GPIO5
+  dc_pin: GPIO16
+  reset_pin: GPIO23
+  backlight_pin: GPIO4
   lambda: |-
     it.rectangle(0, 0, it.get_width(), it.get_height());
 
