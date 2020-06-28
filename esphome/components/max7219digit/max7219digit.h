@@ -40,7 +40,7 @@ class MAX7219Component : public PollingComponent,
 
   void turn_on_off(bool on_off);
 
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
   int get_height_internal() override;
   int get_width_internal() override;
 

@@ -123,7 +123,7 @@ int MAX7219Component::get_width_internal() { return this->num_chips_ * 8; }
 
 size_t MAX7219Component::get_buffer_length_() { return this->num_chips_ * 8; }
 
-void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x + 1 > this->max_displaybuffer_.size()) {  // Extend the display buffer in case required
     this->max_displaybuffer_.resize(x + 1, this->bckgrnd_);
   }
@@ -134,7 +134,7 @@ void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, int color)
   uint16_t pos = x;    // X is starting at 0 top left
   uint8_t subpos = y;  // Y is starting at 0 top left
 
-  if (color == 1) {
+  if (color.is_on()) {
     this->max_displaybuffer_[pos] |= (1 << subpos);
   } else {
     this->max_displaybuffer_[pos] &= ~(1 << subpos);
