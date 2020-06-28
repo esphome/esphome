@@ -217,6 +217,10 @@ sensor:
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
+  - platform: vl53l0x
+    name: "VL53L0x Distance"
+    address: 0x29
+    update_interval: 60s
   - platform: apds9960
     type: clear
     name: APDS9960 Clear
