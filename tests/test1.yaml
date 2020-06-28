@@ -1507,11 +1507,15 @@ interval:
 
             id(btn_left)->set_threshold(btn_left_state * 0.9);
 
-colors:
+color:
   - id: kbx_red
     red: 100%
     green: 1%
     blue: 2%
+  - id: kbx_blue
+    red: 0%
+    green: 1%
+    blue: 100%
 
 display:
 - platform: lcd_gpio
