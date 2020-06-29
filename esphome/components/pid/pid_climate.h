@@ -39,6 +39,7 @@ class PIDClimate : public climate::Climate, public Component {
     default_target_temperature_ = default_target_temperature;
   }
   void start_autotune(std::unique_ptr<PIDAutotuner> &&autotune);
+  void reset_integral_term();
 
  protected:
   /// Override control to change settings of the climate device.
@@ -87,6 +88,16 @@ template<typename... Ts> class PIDAutotuneAction : public Action<Ts...> {
   float noiseband_;
   float positive_output_;
   float negative_output_;
+  PIDClimate *parent_;
+};
+
+template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...> {
+ public:
+  PIDResetIntegralTermAction(PIDClimate *parent) : parent_(parent) {}
+
+  void play(Ts... x) { this->parent_->reset_integral_term(); }
+
+ protected:
   PIDClimate *parent_;
 };
 

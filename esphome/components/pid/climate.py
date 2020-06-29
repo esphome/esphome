@@ -7,6 +7,7 @@ from esphome.const import CONF_ID, CONF_SENSOR
 pid_ns = cg.esphome_ns.namespace('pid')
 PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
 PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
+PIDResetIntegralTermAction = pid_ns.class_('PIDResetIntegralTermAction', automation.Action)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 
@@ -62,6 +63,18 @@ def to_code(config):
         cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
+
+
+@automation.register_action(
+    'climate.pid.reset_integral_term',
+    PIDResetIntegralTermAction,
+    automation.maybe_simple_id({
+        cv.Required(CONF_ID): cv.use_id(PIDClimate),
+    })
+)
+def pid_reset_integral_term(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
 
 
 @automation.register_action('climate.pid.autotune', PIDAutotuneAction, automation.maybe_simple_id({
