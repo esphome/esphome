@@ -148,20 +148,22 @@ int SSD1351::get_width_internal() {
 size_t SSD1351::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * size_t(SSD1351_BYTESPERPIXEL);
 }
-void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
+  const uint32_t color565 = color.to_rgb_565();
   // where should the bits go in the big buffer array? math...
   uint16_t pos = (x + y * this->get_width_internal()) * SSD1351_BYTESPERPIXEL;
-  this->buffer_[pos++] = (color >> 8) & 0xff;
-  this->buffer_[pos] = color & 0xff;
+  this->buffer_[pos++] = (color565 >> 8) & 0xff;
+  this->buffer_[pos] = color565 & 0xff;
 }
-void SSD1351::fill(int color) {
+void SSD1351::fill(Color color) {
+  const uint32_t color565 = color.to_rgb_565();
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     if (i & 1) {
-      this->buffer_[i] = color & 0xff;
+      this->buffer_[i] = color565 & 0xff;
     } else {
-      this->buffer_[i] = (color >> 8) & 0xff;
+      this->buffer_[i] = (color565 >> 8) & 0xff;
     }
 }
 void SSD1351::init_reset_() {
