@@ -37,6 +37,7 @@ static const uint8_t SSD1325_SETROWPERIOD = 0xB2;
 static const uint8_t SSD1325_SETCLOCK = 0xB3;
 static const uint8_t SSD1325_SETPRECHARGECOMP = 0xB4;
 static const uint8_t SSD1325_SETGRAYTABLE = 0xB8;
+static const uint8_t SSD1325_SETDEFAULTGRAYTABLE = 0xB9;
 static const uint8_t SSD1325_SETPRECHARGEVOLTAGE = 0xBC;
 static const uint8_t SSD1325_SETVCOMLEVEL = 0xBE;
 static const uint8_t SSD1325_SETVSL = 0xBF;
@@ -72,14 +73,33 @@ void SSD1325::setup() {
     this->command(0x50);                    // COM bottom-up, split odd/even
   this->command(SSD1325_SETCURRENT + 0x2);  // Set Full Current Range
   this->command(SSD1325_SETGRAYTABLE);
-  this->command(0x01);
-  this->command(0x11);
-  this->command(0x22);
-  this->command(0x32);
-  this->command(0x43);
-  this->command(0x54);
-  this->command(0x65);
-  this->command(0x76);
+  // gamma ~2.2
+  if (this->model_ == SSD1327_MODEL_128_128) {
+    this->command(0);
+    this->command(1);
+    this->command(2);
+    this->command(3);
+    this->command(6);
+    this->command(8);
+    this->command(12);
+    this->command(16);
+    this->command(20);
+    this->command(26);
+    this->command(32);
+    this->command(39);
+    this->command(46);
+    this->command(54);
+    this->command(63);
+  } else {
+    this->command(0x01);
+    this->command(0x11);
+    this->command(0x22);
+    this->command(0x32);
+    this->command(0x43);
+    this->command(0x54);
+    this->command(0x65);
+    this->command(0x76);
+  }
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
