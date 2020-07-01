@@ -75,6 +75,8 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
   Trigger<> *get_swing_mode_vertical_trigger() const;
+  /// Get current hysteresis value
+  float hysteresis();
   /// Call triggers based on updated climate states (modes/actions)
   void refresh();
 

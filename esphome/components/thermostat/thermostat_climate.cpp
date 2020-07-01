@@ -29,6 +29,7 @@ void ThermostatClimate::setup() {
   this->setup_complete_ = true;
   this->publish_state();
 }
+float ThermostatClimate::hysteresis() { return this->hysteresis_; }
 void ThermostatClimate::refresh() {
   this->switch_to_mode_(this->mode);
   this->switch_to_action_(compute_action_());
