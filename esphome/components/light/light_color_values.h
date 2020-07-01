@@ -180,15 +180,13 @@ class LightColorValues {
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
+    float brightness_ = this->state_ * this->brightness_;
     if (color_interlock) {
-      *red = gamma_correct(this->state_ * this->brightness_ * (1.0f - this->white_) * this->red_, gamma);
-      *green = gamma_correct(this->state_ * this->brightness_ * (1.0f - this->white_) * this->green_, gamma);
-      *blue = gamma_correct(this->state_ * this->brightness_ * (1.0f - this->white_) * this->blue_, gamma);
-    } else {
-      *red = gamma_correct(this->state_ * this->brightness_ * this->red_, gamma);
-      *green = gamma_correct(this->state_ * this->brightness_ * this->green_, gamma);
-      *blue = gamma_correct(this->state_ * this->brightness_ * this->blue_, gamma);
+      brightness_ = brightness_ * (1.0f - this->white_) ;
     }
+    *red = gamma_correct(brightness_ * this->red_, gamma);
+    *green = gamma_correct(brightness_ * this->green_, gamma);
+    *blue = gamma_correct(brightness_ * this->blue_, gamma);
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
