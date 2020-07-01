@@ -610,7 +610,7 @@ interval:
         position: !lambda 'return 50/100.0;'
 
 climate:
-  - platform: thermostat
+  - platform: bang_bang
     name: Bang Bang Climate
     sensor: ha_hello_world
     default_target_temperature_low: 18°C
