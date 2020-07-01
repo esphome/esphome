@@ -545,7 +545,7 @@ ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature)
     : default_temperature(default_temperature) {}
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig(float default_temperature_low,
-                                                                 float default_temperature_high)
+                                                                     float default_temperature_high)
     : default_temperature_low(default_temperature_low), default_temperature_high(default_temperature_high) {}
 
 }  // namespace thermostat
