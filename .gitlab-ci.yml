@@ -134,7 +134,7 @@ test3:
 test4:
   <<: *test
   script:
-    - esphome tests/test3.yaml compile
+    - esphome tests/test4.yaml compile
 
 .deploy-pypi: &deploy-pypi
   <<: *lint
