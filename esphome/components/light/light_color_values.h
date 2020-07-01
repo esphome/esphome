@@ -182,7 +182,7 @@ class LightColorValues {
   void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
     float brightness = this->state_ * this->brightness_;
     if (color_interlock) {
-      brightness = brightness * (1.0f - this->white_) ;
+      brightness = brightness * (1.0f - this->white_);
     }
     *red = gamma_correct(brightness * this->red_, gamma);
     *green = gamma_correct(brightness * this->green_, gamma);
