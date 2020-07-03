@@ -360,6 +360,37 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * `thup`.
    */
   void set_touch_sleep_timeout(uint16_t timeout);
+    /**
+   * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
+   * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
+   * wakes up to current page.
+   *
+   * Example:
+   * ```cpp
+   * it.set_wake_up_page(2);
+   * ```
+   *
+   * The display will wake up to page 2.
+   */
+  void set_wake_up_page(uint8_t page_id = 255);
+  /**
+   * Sets if Nextion should auto-wake from sleep when touch press occurs.
+   * @param auto_wake True or false. When auto_wake is true and Nextion is in sleep mode,
+   * the first touch will only trigger the auto wake mode and not trigger a Touch Event.
+   *
+   * Example:
+   * ```cpp
+   * it.set_auto_wake_on_touch(true);
+   * ```
+   *
+   * The display will wake up by touch.
+   */
+  void set_auto_wake_on_touch(bool auto_wake);
+  /**
+   * Sets Nextion mode between sleep and awake
+   * @param True or false. Sleep=true to enter sleep mode or sleep=false to exit sleep mode.
+   */
+  void sleep(bool sleep);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
