@@ -360,7 +360,7 @@ class Nextion : public PollingComponent, public uart::UARTDevice {
    * `thup`.
    */
   void set_touch_sleep_timeout(uint16_t timeout);
-    /**
+  /**
    * Sets which page Nextion loads when exiting sleep mode. Note this can be set even when Nextion is in sleep mode.
    * @param page_id The page id, from 0 to the lage page in Nextion. Set 255 (not set to any existing page) to
    * wakes up to current page.

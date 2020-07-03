@@ -263,7 +263,9 @@ void Nextion::set_nextion_rtc_time(time::ESPTime time) {
 void Nextion::set_backlight_brightness(uint8_t brightness) { this->send_command_printf("dim=%u", brightness); }
 void Nextion::set_touch_sleep_timeout(uint16_t timeout) { this->send_command_printf("thsp=%u", timeout); }
 void Nextion::set_wake_up_page(uint8_t page_id) { this->send_command_printf("wup=%u", page_id); }
-void Nextion::set_auto_wake_on_touch(bool auto_wake) { auto_wake ? this->send_command_no_ack("thup=1") : this->send_command_no_ack("thup=0"); }
+void Nextion::set_auto_wake_on_touch(bool auto_wake) {
+  auto_wake ? this->send_command_no_ack("thup=1") : this->send_command_no_ack("thup=0");
+}
 void Nextion::sleep(bool sleep) { sleep ? this->send_command_no_ack("sleep=1") : this->send_command_no_ack("sleep=0"); }
 
 void Nextion::set_writer(const nextion_writer_t &writer) { this->writer_ = writer; }
