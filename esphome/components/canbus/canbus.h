@@ -74,7 +74,7 @@ class Canbus : public Component {
  protected:
   std::vector<CanbusTrigger *> triggers_{};
   uint32_t sender_id_{0};
-  CanSpeed bit_rate_{CAN_125KBPS};
+  CanSpeed bit_rate_;
 
   virtual bool setup_internal();
   virtual Error send_message(struct CanFrame *frame);

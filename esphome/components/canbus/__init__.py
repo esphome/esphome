@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.core import CORE, coroutine, coroutine_with_priority
+from esphome.core import CORE, coroutine
 from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
@@ -18,8 +18,6 @@ CONF_CANBUS_SEND = 'canbus.send'
 def validate_raw_data(value):
     if isinstance(value, str):
         return value.encode('utf-8')
-    if isinstance(value, str):
-        return value
     if isinstance(value, list):
         return cv.Schema([cv.hex_uint8_t])(value)
     raise cv.Invalid("data must either be a string wrapped in quotes or a list of bytes")
@@ -76,9 +74,9 @@ def setup_canbus_core_(var, config):
     yield cg.register_component(var, config)
     if CONF_SENDER_ID in config:
         cg.add(var.set_sender_id([config[CONF_SENDER_ID]]))
-    if CONF_BIT_RATE in config:
-        bitrate = CAN_SPEEDS[config[CONF_BIT_RATE]]
-        cg.add(var.set_bitrate(bitrate))
+
+    cg.add(var.set_bitrate(CAN_SPEEDS[config[CONF_BIT_RATE]]))
+
     for conf in config.get(CONF_ON_FRAME, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var, conf[CONF_CAN_ID])
         yield cg.register_component(trigger, conf)
@@ -108,9 +106,3 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_data_static(data))
     yield var
-
-
-@coroutine_with_priority(100.0)
-def to_code(config):
-    cg.add_global(canbus_ns.using)
-    cg.add_define("USE_CANBUS")

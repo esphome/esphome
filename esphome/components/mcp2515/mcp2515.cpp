@@ -14,14 +14,13 @@ const struct MCP2515::RxBnRegs MCP2515::RXB[N_RXBUFFERS] = {{MCP_RXB0CTRL, MCP_R
                                                             {MCP_RXB1CTRL, MCP_RXB1SIDH, MCP_RXB1DATA, CANINTF_RX1IF}};
 
 bool MCP2515::setup_internal() {
-  ESP_LOGD(TAG, "setup_internal_()");
   this->spi_setup();
 
   if (this->reset_() == canbus::ERROR_FAIL)
     return false;
   this->set_bitrate_(this->bit_rate_, this->mcp_clock_);
   this->set_mode_(this->mcp_mode_);
-  ESP_LOGD(TAG, "setup done send test message");
+  ESP_LOGV(TAG, "setup done");
   return true;
 }
 
@@ -29,10 +28,10 @@ canbus::Error MCP2515::reset_() {
   this->enable();
   this->transfer_byte(INSTRUCTION_RESET);
   this->disable();
-  ESP_LOGD(TAG, "reset_()");
+  ESP_LOGV(TAG, "reset_()");
   delay(10);
 
-  ESP_LOGD(TAG, "reset() CLEAR ALL TXB registers");
+  ESP_LOGV(TAG, "reset() CLEAR ALL TXB registers");
 
   uint8_t zeros[14];
   memset(zeros, 0, sizeof(zeros));
