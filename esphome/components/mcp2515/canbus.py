@@ -14,9 +14,9 @@ CanClock = mcp2515_ns.enum('CAN_CLOCK')
 McpMode = mcp2515_ns.enum('CANCTRL_REQOP_MODE')
 
 CAN_CLOCK = {
-    '20MHZ': CanClock.MCP_20MHZ,
-    '16MHZ': CanClock.MCP_16MHZ,
     '8MHZ': CanClock.MCP_8MHZ,
+    '16MHZ': CanClock.MCP_16MHZ,
+    '20MHZ': CanClock.MCP_20MHZ,
 }
 
 MCP_MODE = {
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = canbus.CONFIG_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(mcp2515),
     cv.Optional(CONF_CLOCK, default='8MHZ'): cv.enum(CAN_CLOCK, upper=True),
     cv.Optional(CONF_MODE, default='NORMAL'): cv.enum(MCP_MODE, upper=True),
-}).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(spi.spi_device_schema(True))
 
 
 def to_code(config):

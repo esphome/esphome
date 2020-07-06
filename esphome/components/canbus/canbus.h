@@ -46,6 +46,7 @@ static const uint32_t CAN_EFF_MASK = 0x1FFFFFFFUL; /* extended frame format (EFF
 static const uint32_t CAN_ERR_MASK = 0x1FFFFFFFUL; /* omit EFF, RTR, ERR flags */
 
 class CanbusTrigger;
+template<typename... Ts> class CanbusSendAction;
 
 /* CAN payload length and DLC definitions according to ISO 11898-1 */
 static const uint8_t CAN_MAX_DLC = 8;
@@ -66,14 +67,15 @@ class Canbus : public Component {
   void loop() override;
 
   void send_data(uint32_t can_id, const std::vector<uint8_t> &data);
-  void set_sender_id(int sender_id) { this->sender_id_ = sender_id; }
+  void set_can_id(int can_id) { this->can_id_ = can_id; }
   void set_bitrate(CanSpeed bit_rate) { this->bit_rate_ = bit_rate; }
 
   void add_trigger(CanbusTrigger *trigger);
 
  protected:
+  template<typename... Ts> friend class CanbusSendAction;
   std::vector<CanbusTrigger *> triggers_{};
-  uint32_t sender_id_{0};
+  uint32_t can_id_;
   CanSpeed bit_rate_;
 
   virtual bool setup_internal();
@@ -95,16 +97,17 @@ template<typename... Ts> class CanbusSendAction : public Action<Ts...>, public P
   void set_can_id(uint32_t can_id) { this->can_id_ = can_id; }
 
   void play(Ts... x) override {
+    auto can_id = this->can_id_.has_value() ? *this->can_id_ : this->parent_->can_id_;
     if (this->static_) {
-      this->parent_->send_data(this->can_id_, this->data_static_);
+      this->parent_->send_data(can_id, this->data_static_);
     } else {
       auto val = this->data_func_(x...);
-      this->parent_->send_data(this->can_id_, val);
+      this->parent_->send_data(can_id, val);
     }
   }
 
  protected:
-  uint32_t can_id_;
+  optional<uint32_t> can_id_{};
   bool static_{false};
   std::function<std::vector<uint8_t>(Ts...)> data_func_{};
   std::vector<uint8_t> data_static_{};
