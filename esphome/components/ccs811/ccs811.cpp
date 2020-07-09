@@ -21,7 +21,7 @@ static const char *TAG = "ccs811";
 void CCS811Component::setup() {
   if (this->wakepin_) {
     this->wakepin_->setup();
-  } 
+  }
   this->NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(true);
   // page 9 programming guide - hwid is always 0x81
   uint8_t hw_id;
@@ -157,10 +157,10 @@ void CCS811Component::dump_config() {
   }
 }
 void CCS811Component::NO_PRIVATE_METHODS_ALWAYS_USE_PROTECTEDwakeup(boolean set_on) {
-  if (this->wakepin_!=nullptr) {
+  if (this->wakepin_ != nullptr) {
     this->wakepin_->digital_write(!set_on);
   }
-} 
+}
 
 }  // namespace ccs811
 }  // namespace esphome

@@ -170,9 +170,9 @@ bool parse_xiaomi_service_data(XiaomiParseResult &result, const esp32_ble_tracke
     data_length -= data_offset + 3 + datapoint_length;
     data_offset += 3 + datapoint_length;
   }
-// Hack for MiScale
+  // Hack for MiScale
   if (is_xmtzc0xhm || is_mibfs) {
-    const uint8_t *datapoint_data = &raw[0]; // raw data
+    const uint8_t *datapoint_data = &raw[0];  // raw data
     if (parse_xiaomi_data_byte(0x16, datapoint_data, raw.size(), result))
       success = true;
   }
