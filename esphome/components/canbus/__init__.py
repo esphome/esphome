@@ -6,12 +6,10 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_DATA
 
 IS_PLATFORM_COMPONENT = True
 
-CONF_CANBUS_ID = 'canbus_id'
 CONF_CAN_ID = 'can_id'
-CONF_SENDER_ID = 'sender_id'
+CONF_CANBUS_ID = 'canbus_id'
 CONF_BIT_RATE = 'bit_rate'
 CONF_ON_FRAME = 'on_frame'
-
 CONF_CANBUS_SEND = 'canbus.send'
 
 
@@ -91,7 +89,7 @@ def canbus_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_CANBUS_ID])
 
-    if (CONF_CAN_ID in config):
+    if CONF_CAN_ID in config:
         can_id = yield cg.templatable(config[CONF_CAN_ID], args, cg.uint16)
         cg.add(var.set_can_id(can_id))
 
