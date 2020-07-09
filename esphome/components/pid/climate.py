@@ -8,6 +8,7 @@ pid_ns = cg.esphome_ns.namespace('pid')
 PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
 PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
 PIDResetIntegralTermAction = pid_ns.class_('PIDResetIntegralTermAction', automation.Action)
+PIDSetControlParametersAction = pid_ns.class_('PIDSetControlParametersAction', automation.Action)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 
@@ -89,4 +90,23 @@ def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     cg.add(var.set_noiseband(config[CONF_NOISEBAND]))
     cg.add(var.set_positive_output(config[CONF_POSITIVE_OUTPUT]))
     cg.add(var.set_negative_output(config[CONF_NEGATIVE_OUTPUT]))
+    yield var
+
+
+@automation.register_action(
+    'climate.pid.set_control_parameters',
+    PIDSetControlParametersAction,
+    automation.maybe_simple_id({
+        cv.Required(CONF_ID): cv.use_id(PIDClimate),
+        cv.Required(CONF_KP): cv.float_,
+        cv.Optional(CONF_KI, default=0.0): cv.float_,
+        cv.Optional(CONF_KD, default=0.0): cv.float_,
+    })
+)
+def set_control_parameters(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_kp(config[CONF_KP]))
+    cg.add(var.set_ki(config[CONF_KI]))
+    cg.add(var.set_kd(config[CONF_KD]))
     yield var

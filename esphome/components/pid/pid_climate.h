@@ -104,5 +104,26 @@ template<typename... Ts> class PIDResetIntegralTermAction : public Action<Ts...>
   PIDClimate *parent_;
 };
 
+template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts...> {
+ public:
+  PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
+
+  void set_kp(float kp) { kp_ = kp; }
+  void set_ki(float ki) { ki_ = ki; }
+  void set_kd(float kd) { kd_ = kd; }
+
+  void play(Ts... x) {
+    this->parent_->set_kp(this->kp_);
+    this->parent_->set_ki(this->ki_);
+    this->parent_->set_kd(this->kd_);
+  }
+
+ protected:
+  float kp_;
+  float ki_;
+  float kd_;
+  PIDClimate *parent_;
+};
+
 }  // namespace pid
 }  // namespace esphome
