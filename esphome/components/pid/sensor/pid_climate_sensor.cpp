@@ -35,6 +35,15 @@ void PIDClimateSensor::update_from_parent_() {
     case PID_SENSOR_TYPE_COOL:
       value = clamp(-this->parent_->get_output_value(), 0.0f, 1.0f);
       break;
+    case PID_SENSOR_TYPE_KP:
+      value = this->parent_->get_kp();
+      break;
+    case PID_SENSOR_TYPE_KI:
+      value = this->parent_->get_ki();
+      break;
+    case PID_SENSOR_TYPE_KD:
+      value = this->parent_->get_kd();
+      break;
     default:
       value = NAN;
       break;

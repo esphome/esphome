@@ -29,6 +29,9 @@ class PIDClimate : public climate::Climate, public Component {
 
   float get_output_value() const { return output_value_; }
   float get_error_value() const { return controller_.error; }
+  float get_kp() { return controller_.kp; }
+  float get_ki() { return controller_.ki; }
+  float get_kd() { return controller_.kd; }
   float get_proportional_term() const { return controller_.proportional_term; }
   float get_integral_term() const { return controller_.integral_term; }
   float get_derivative_term() const { return controller_.derivative_term; }
