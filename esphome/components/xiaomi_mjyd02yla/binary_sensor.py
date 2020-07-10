@@ -44,4 +44,4 @@ def to_code(config):
         sens = yield binary_sensor.new_binary_sensor(config[CONF_LIGHT])
         cg.add(var.set_light(sens))
 
-    cg.add_library("mbedtls", "cdf462088d")
+    cg.add_library("mbedtls", None)

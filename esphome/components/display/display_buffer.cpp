@@ -1,4 +1,5 @@
 #include "display_buffer.h"
+#include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -7,8 +8,8 @@ namespace display {
 
 static const char *TAG = "display";
 
-const Color COLOR_OFF = 0;
-const Color COLOR_ON = 1;
+const Color COLOR_OFF(0, 0, 0, 0);
+const Color COLOR_ON(1, 1, 1, 1);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   this->buffer_ = new uint8_t[buffer_length];
@@ -214,13 +215,13 @@ void DisplayBuffer::image(int x, int y, Color color, Image *image, bool invert) 
           this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color : COLOR_OFF);
       }
     }
-  } else if (image->get_type() == GRAYSCALE4) {
+  } else if (image->get_type() == GRAYSCALE) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
-        this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale4_pixel(img_x, img_y));
+        this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
       }
     }
-  } else if (image->get_type() == RGB565) {
+  } else if (image->get_type() == RGB) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
         this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
@@ -449,22 +450,20 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-int Image::get_color_pixel(int x, int y) const {
+Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
-
-  const uint32_t pos = (x + y * this->width_) * 2;
-  int color = (pgm_read_byte(this->data_start_ + pos) << 8) + (pgm_read_byte(this->data_start_ + pos + 1));
-  return color;
+  const uint32_t pos = (x + y * this->width_) * 3;
+  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  return Color(color32);
 }
-int Image::get_grayscale4_pixel(int x, int y) const {
+Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
-  const uint32_t pos = (x + y * this->width_) / 2;
-  // 2 = number of pixels per byte, 4 = pixel shift
-  uint8_t shift = (x % 2) * 4;
-  int color = (pgm_read_byte(this->data_start_ + pos) >> shift) & 0x0f;
-  return color;
+  const uint32_t pos = (x + y * this->width_);
+  return Color(pgm_read_byte(this->data_start_ + pos) << 24);
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }

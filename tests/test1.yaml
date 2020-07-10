@@ -1114,6 +1114,7 @@ light:
     green: pca_4
     blue: pca_5
     white: pca_6
+    color_interlock: true
   - platform: rgbww
     name: "Living Room Lights 2"
     red: pca_3
@@ -1123,6 +1124,7 @@ light:
     warm_white: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
+    color_interlock: true
   - platform: cwww
     name: "Living Room Lights 2"
     cold_white: pca_6
@@ -1587,6 +1589,13 @@ display:
     it.rectangle(0, 0, it.get_width(), it.get_height());
 - platform: ssd1325_spi
   model: "SSD1325 128x64"
+  cs_pin: GPIO23
+  dc_pin: GPIO23
+  reset_pin: GPIO23
+  lambda: |-
+    it.rectangle(0, 0, it.get_width(), it.get_height());
+- platform: ssd1351_spi
+  model: "SSD1351 128x128"
   cs_pin: GPIO23
   dc_pin: GPIO23
   reset_pin: GPIO23

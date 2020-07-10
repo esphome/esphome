@@ -1,14 +1,14 @@
-#include "ssd1325_spi.h"
+#include "ssd1351_spi.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
 namespace esphome {
-namespace ssd1325_spi {
+namespace ssd1351_spi {
 
-static const char *TAG = "ssd1325_spi";
+static const char *TAG = "ssd1351_spi";
 
-void SPISSD1325::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SPI SSD1325...");
+void SPISSD1351::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up SPI SSD1351...");
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
   if (this->cs_)
@@ -16,20 +16,19 @@ void SPISSD1325::setup() {
 
   this->init_reset_();
   delay(500);  // NOLINT
-  SSD1325::setup();
+  SSD1351::setup();
 }
-void SPISSD1325::dump_config() {
-  LOG_DISPLAY("", "SPI SSD1325", this);
+void SPISSD1351::dump_config() {
+  LOG_DISPLAY("", "SPI SSD1351", this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
   if (this->cs_)
     LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   ESP_LOGCONFIG(TAG, "  Initial Brightness: %.2f", this->brightness_);
-  ESP_LOGCONFIG(TAG, "  External VCC: %s", YESNO(this->external_vcc_));
   LOG_UPDATE_INTERVAL(this);
 }
-void SPISSD1325::command(uint8_t value) {
+void SPISSD1351::command(uint8_t value) {
   if (this->cs_)
     this->cs_->digital_write(true);
   this->dc_pin_->digital_write(false);
@@ -42,7 +41,20 @@ void SPISSD1325::command(uint8_t value) {
     this->cs_->digital_write(true);
   this->disable();
 }
-void HOT SPISSD1325::write_display_data() {
+void SPISSD1351::data(uint8_t value) {
+  if (this->cs_)
+    this->cs_->digital_write(true);
+  this->dc_pin_->digital_write(true);
+  delay(1);
+  this->enable();
+  if (this->cs_)
+    this->cs_->digital_write(false);
+  this->write_byte(value);
+  if (this->cs_)
+    this->cs_->digital_write(true);
+  this->disable();
+}
+void HOT SPISSD1351::write_display_data() {
   if (this->cs_)
     this->cs_->digital_write(true);
   this->dc_pin_->digital_write(true);
@@ -56,5 +68,5 @@ void HOT SPISSD1325::write_display_data() {
   this->disable();
 }
 
-}  // namespace ssd1325_spi
+}  // namespace ssd1351_spi
 }  // namespace esphome
