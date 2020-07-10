@@ -1,6 +1,13 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
+// Record the current time to check an upcoming timeout against
+#define startTimeout() (timeout_start_us_ = micros())
+
+// Check if timeout is enabled (set to nonzero value) and has expired
+#define checkTimeoutExpired() (timeout_us_ > 0 && ((uint16_t)(micros() - timeout_start_us_) > timeout_us_))
+
+
 /*
  * Most of the code in this integration is based on the VL53L0x library
  * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
@@ -14,13 +21,52 @@ namespace esphome {
 namespace vl53l0x {
 
 static const char *TAG = "vl53l0x";
+std::list<VL53L0XSensor*> VL53L0XSensor::vl53Sensors_;
+bool VL53L0XSensor::enable_pin_setup_complete_;
+
+VL53L0XSensor::VL53L0XSensor() {
+  VL53L0XSensor::vl53Sensors_.push_back(this);
+}
 
 void VL53L0XSensor::dump_config() {
   LOG_SENSOR("", "VL53L0X", this);
   LOG_UPDATE_INTERVAL(this);
   LOG_I2C_DEVICE(this);
+  if (this->enable_pin_ != nullptr) {
+    LOG_PIN("  Enable Pin: ", this->enable_pin_);
+  }
+  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_>0?"us": " (no timeout)");
 }
+
 void VL53L0XSensor::setup() {
+
+  ESP_LOGW(TAG, "'%s' - setup BEGIN", this->name_.c_str());
+
+  if (!enable_pin_setup_complete_) {
+    for (std::list<VL53L0XSensor*>::iterator it = vl53Sensors_.begin();
+          it != vl53Sensors_.end(); ++it){
+        if ((*it)->enable_pin_ != nullptr) {
+          // Disable the enable pin to force vl53 to HW Standby mode 
+          ESP_LOGD(TAG, "i2c vl53l0x disable enable pins: GPIO%u", ((*it)->enable_pin_)->get_pin());
+          // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode 
+          (*it)->enable_pin_->setup();
+          (*it)->enable_pin_->digital_write(false);
+        }
+    }
+    enable_pin_setup_complete_ = true;
+  }
+
+  if (this->enable_pin_ != nullptr) {
+    // Enable the enable pin to cause FW boot (to get back to 0x29 default address)
+    this->enable_pin_->digital_write(true);
+    delayMicroseconds(100);
+  }
+
+  // Save the i2c address we want and force it to use the default 0x29
+  // until we finish setup, then re-address to final desired address.
+  uint8_t final_address = address_;
+  this->set_i2c_address(0x29);
+
   reg(0x89) |= 0x01;
   reg(0x88) = 0x00;
 
@@ -52,8 +98,14 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  while (reg(0x83).get() == 0x00)
+  startTimeout();
+  while (reg(0x83).get() == 0x00) {
+    if (checkTimeoutExpired()) {
+      ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      return;
+    }
     yield();
+  }
 
   reg(0x83) = 0x01;
   uint8_t tmp = reg(0x92).get();
@@ -205,6 +257,16 @@ void VL53L0XSensor::setup() {
     return;
   }
   reg(0x01) = 0xE8;
+
+  // Set the sensor to the desired final address
+  // The following is different for VL53L0X vs VL53L1X
+  // I2C_SLAVE_DEVICE_ADDRESS = 0x8A for VL53L0X
+  // I2C_SLAVE__DEVICE_ADDRESS = 0x0001 for VL53L1X
+  reg(0x8A) = final_address & 0x7F;
+  this->set_i2c_address(final_address);
+
+  ESP_LOGW(TAG, "'%s' - setup END", this->name_.c_str());
+
 }
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
