@@ -1,6 +1,43 @@
 #include "hlw8012.h"
 #include "esphome/core/log.h"
 
+/* https://datasheetspdf.com/datasheet/download-pdf.php?id=1157559 (chinese)
+
+The HLW8012 is supposed to have a 50% duty-cycle on its CF and CF1 pins but
+this has been observed to not be the case.  Some hardware showed square waves
+very close to this but other hardware had 99+% "low" with only brief spikes
+"high" before going back.
+
+If the duty cycle is not exactly 50% then the it is not possible to tune all
+three outputs (voltage, current, and power) from two resistor values.  As the
+duty-cycle approaches 100%, resistor values that give accurate voltage and
+current result in 2x power being reported.
+
+Experiments done using the width of the "low" portion, the apparently stable
+portion, of the wave yielded a correct power measurement but voltage and
+current each about 1/2 what they should be.  Adjusting resistor values to fix
+voltage and current resulted in power measurements 4x what it should have been.
+
+Correct results for all three (V, I, and P) could possibly be achieved by doing
+pulse counting for CF1 (voltage and current) but pulse width measuring for CF
+(power).  However, it seems wrong to have two separate measurement techniques
+for outputs that are supposed to function the same way.
+
+Also, pulse width measurement has a problem when the entity being measured
+goes to zero.  In that case, the pulse width should be infinite making it
+technically impossible to measure.  In practice, the reported last-width is
+always the last non-zero measurement.  This can be the previous value before
+it went to zero or it could be a signal glitch that erroneously triggered an
+interrupt, resulting in completely random timing.  The former is wrong but
+the latter is just plain bad.  As such, pulse width measuring is a dangerous
+choice.
+
+Using pulse counting, accurate voltage and current measuring can be achieved
+by tuning the two resistor parameters.  But if the hardware is non-ideal
+(i.e. non 50% duty-cycle) then an additional "linear filter" will have to be
+added to the power sensor in order to compensate there.
+*/
+
 namespace esphome {
 namespace hlw8012 {
 
@@ -31,7 +68,6 @@ void HLW8012Component::dump_config() {
 }
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
-  // HLW8012 has 50% duty cycle
   pulse_counter::pulse_counter_t raw_cf = this->cf_store_.read_raw_value();
   pulse_counter::pulse_counter_t raw_cf1 = this->cf1_store_.read_raw_value();
   float cf_hz = raw_cf / (this->get_update_interval() / 1000.0f);
