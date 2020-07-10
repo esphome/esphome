@@ -57,6 +57,16 @@ struct ManualIP {
   IPAddress dns2;  ///< The second DNS server. 0.0.0.0 for default.
 };
 
+struct EAPAuth {
+  std::string identity;  // required for all auth types
+  std::string username;
+  std::string password;
+  char *ca_cert;  // optionally verify authentication server
+  // used for EAP-TLS
+  char *client_cert;
+  char *client_key;
+};
+
 using bssid_t = std::array<uint8_t, 6>;
 
 class WiFiAP {
@@ -65,6 +75,7 @@ class WiFiAP {
   void set_bssid(bssid_t bssid);
   void set_bssid(optional<bssid_t> bssid);
   void set_password(const std::string &password);
+  void set_eap(optional<EAPAuth> eap_auth);
   void set_channel(optional<uint8_t> channel);
   void set_priority(float priority) { priority_ = priority; }
   void set_manual_ip(optional<ManualIP> manual_ip);
@@ -72,6 +83,7 @@ class WiFiAP {
   const std::string &get_ssid() const;
   const optional<bssid_t> &get_bssid() const;
   const std::string &get_password() const;
+  const optional<EAPAuth> &get_eap() const;
   const optional<uint8_t> &get_channel() const;
   float get_priority() const { return priority_; }
   const optional<ManualIP> &get_manual_ip() const;
@@ -81,6 +93,7 @@ class WiFiAP {
   std::string ssid_;
   optional<bssid_t> bssid_;
   std::string password_;
+  optional<EAPAuth> eap_;
   optional<uint8_t> channel_;
   float priority_{0};
   optional<ManualIP> manual_ip_;

@@ -10,4 +10,5 @@ pyserial==3.4
 ifaddr==0.1.6
 platformio==4.3.3
 esptool==2.8
+cryptography==2.9.2
 click==7.1.2
