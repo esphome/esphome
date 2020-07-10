@@ -1,4 +1,5 @@
 #include "display_buffer.h"
+#include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
@@ -220,7 +221,7 @@ void DisplayBuffer::image(int x, int y, Color color, Image *image, bool invert) 
         this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
       }
     }
-  } else if (image->get_type() == RGB565) {
+  } else if (image->get_type() == RGB) {
     for (int img_x = 0; img_x < image->get_width(); img_x++) {
       for (int img_y = 0; img_y < image->get_height(); img_y++) {
         this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
@@ -449,13 +450,14 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return pgm_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-int Image::get_color_pixel(int x, int y) const {
+Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
-
-  const uint32_t pos = (x + y * this->width_) * 2;
-  int color = (pgm_read_byte(this->data_start_ + pos) << 8) + (pgm_read_byte(this->data_start_ + pos + 1));
-  return color;
+  const uint32_t pos = (x + y * this->width_) * 3;
+  const uint32_t color32 = (pgm_read_byte(this->data_start_ + pos + 2) << 0) |
+                           (pgm_read_byte(this->data_start_ + pos + 1) << 8) |
+                           (pgm_read_byte(this->data_start_ + pos + 0) << 16);
+  return Color(color32);
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

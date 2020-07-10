@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { BINARY = 0, GRAYSCALE = 1, RGB565 = 2 };
+enum ImageType { BINARY = 0, GRAYSCALE = 1, RGB = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -384,7 +384,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height);
   Image(const uint8_t *data_start, int width, int height, int type);
   bool get_pixel(int x, int y) const;
-  int get_color_pixel(int x, int y) const;
+  Color get_color_pixel(int x, int y) const;
   Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
