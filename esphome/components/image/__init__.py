@@ -11,7 +11,7 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ['display']
 MULTI_CONF = True
 
-ImageType = {'binary': 0, 'grayscale4': 1, 'rgb565': 2}
+ImageType = {'binary': 0, 'grayscale': 1, 'rgb565': 2}
 
 Image_ = display.display_ns.class_('Image')
 
@@ -41,20 +41,18 @@ def to_code(config):
         image.thumbnail(config[CONF_RESIZE])
 
     if CONF_TYPE in config:
-        if config[CONF_TYPE].startswith('GRAYSCALE4'):
+        if config[CONF_TYPE].startswith('GRAYSCALE'):
             width, height = image.size
             image = image.convert('L', dither=Image.NONE)
             pixels = list(image.getdata())
-            data = [0 for _ in range(height * width // 2)]
+            data = [0 for _ in range(height * width)]
             pos = 0
-            for pixnum, pix in enumerate(pixels):
-                pixshift = (pixnum % 2) * 4
-                data[pos] |= (pix >> 4) << pixshift
-                if pixshift != 0:
-                    pos += 1
+            for pix in pixels:
+                data[pos] = pix
+                pos += 1
             rhs = [HexInt(x) for x in data]
             prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['grayscale4'])
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['grayscale'])
         elif config[CONF_TYPE].startswith('RGB565'):
             width, height = image.size
             image = image.convert('RGB')

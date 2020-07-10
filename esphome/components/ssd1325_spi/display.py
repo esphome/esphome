@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.All(ssd1325_base.SSD1325_SCHEMA.extend({
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield ssd1325_base.setup_ssd1036(var, config)
+    yield ssd1325_base.setup_ssd1325(var, config)
     yield spi.register_spi_device(var, config)
 
     dc = yield cg.gpio_pin_expression(config[CONF_DC_PIN])

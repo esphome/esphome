@@ -21,9 +21,11 @@ void SPISSD1325::setup() {
 void SPISSD1325::dump_config() {
   LOG_DISPLAY("", "SPI SSD1325", this);
   ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
-  LOG_PIN("  CS Pin: ", this->cs_);
+  if (this->cs_)
+    LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  ESP_LOGCONFIG(TAG, "  Initial Brightness: %.2f", this->brightness_);
   ESP_LOGCONFIG(TAG, "  External VCC: %s", YESNO(this->external_vcc_));
   LOG_UPDATE_INTERVAL(this);
 }
@@ -48,20 +50,7 @@ void HOT SPISSD1325::write_display_data() {
     this->cs_->digital_write(false);
   delay(1);
   this->enable();
-  for (uint16_t x = 0; x < this->get_width_internal(); x += 2) {
-    for (uint16_t y = 0; y < this->get_height_internal(); y += 8) {  // we write 8 pixels at once
-      uint8_t left8 = this->buffer_[y * 16 + x];
-      uint8_t right8 = this->buffer_[y * 16 + x + 1];
-      for (uint8_t p = 0; p < 8; p++) {
-        uint8_t d = 0;
-        if (left8 & (1 << p))
-          d |= 0xF0;
-        if (right8 & (1 << p))
-          d |= 0x0F;
-        this->write_byte(d);
-      }
-    }
-  }
+  this->write_array(this->buffer_, this->get_buffer_length_());
   if (this->cs_)
     this->cs_->digital_write(true);
   this->disable();
