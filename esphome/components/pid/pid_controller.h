@@ -40,6 +40,8 @@ struct PIDController {
     return proportional_term + integral_term + derivative_term;
   }
 
+  void reset_accumulated_integral() { accumulated_integral_ = 0; }
+
   /// Proportional gain K_p.
   float kp = 0;
   /// Integral gain K_i.

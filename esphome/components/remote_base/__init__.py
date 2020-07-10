@@ -420,7 +420,7 @@ def raw_action(var, config, args):
 RC5Data, RC5BinarySensor, RC5Trigger, RC5Action, RC5Dumper = declare_protocol('RC5')
 RC5_SCHEMA = cv.Schema({
     cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-    cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x3F)),
+    cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
 })
 
 

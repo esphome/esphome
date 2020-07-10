@@ -266,12 +266,12 @@ class LightState : public Nameable, public Component {
 
   void current_values_as_brightness(float *brightness);
 
-  void current_values_as_rgb(float *red, float *green, float *blue);
+  void current_values_as_rgb(float *red, float *green, float *blue, bool color_interlock = false);
 
-  void current_values_as_rgbw(float *red, float *green, float *blue, float *white);
+  void current_values_as_rgbw(float *red, float *green, float *blue, float *white, bool color_interlock = false);
 
   void current_values_as_rgbww(float *red, float *green, float *blue, float *cold_white, float *warm_white,
-                               bool constant_brightness = false);
+                               bool constant_brightness = false, bool color_interlock = false);
 
   void current_values_as_cwww(float *cold_white, float *warm_white, bool constant_brightness = false);
 

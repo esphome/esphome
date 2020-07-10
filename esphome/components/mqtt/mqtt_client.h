@@ -316,6 +316,7 @@ template<typename... Ts> class MQTTPublishJsonAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(bool, retain)
 
   void set_payload(std::function<void(Ts..., JsonObject &)> payload) { this->payload_ = payload; }
+
   void play(Ts... x) override {
     auto f = std::bind(&MQTTPublishJsonAction<Ts...>::encode_, this, x..., std::placeholders::_1);
     auto topic = this->topic_.value(x...);

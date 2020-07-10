@@ -9,7 +9,7 @@ MAX6675Sensor = max6675_ns.class_('MAX6675Sensor', sensor.Sensor, cg.PollingComp
 
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1).extend({
     cv.GenerateID(): cv.declare_id(MAX6675Sensor),
-}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):

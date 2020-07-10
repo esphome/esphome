@@ -34,15 +34,25 @@ def to_code(config):
         cg.add(var.set_mosi(mosi))
 
 
-SPI_DEVICE_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
-    cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-})
+def spi_device_schema(CS_PIN_required=False):
+    """Create a schema for an SPI device.
+    :param CS_PIN_required: If true, make the CS_PIN required in the config.
+    :return: The SPI device schema, `extend` this in your config schema.
+    """
+    schema = {
+        cv.GenerateID(CONF_SPI_ID): cv.use_id(SPIComponent),
+    }
+    if CS_PIN_required:
+        schema[cv.Required(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+    else:
+        schema[cv.Optional(CONF_CS_PIN)] = pins.gpio_output_pin_schema
+    return cv.Schema(schema)
 
 
 @coroutine
 def register_spi_device(var, config):
     parent = yield cg.get_variable(config[CONF_SPI_ID])
     cg.add(var.set_spi_parent(parent))
-    pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
-    cg.add(var.set_cs_pin(pin))
+    if CONF_CS_PIN in config:
+        pin = yield cg.gpio_pin_expression(config[CONF_CS_PIN])
+        cg.add(var.set_cs_pin(pin))
