@@ -472,6 +472,7 @@ CONF_SWING_HORIZONTAL_ACTION = 'swing_horizontal_action'
 CONF_SWING_MODE = 'swing_mode'
 CONF_SWING_OFF_ACTION = 'swing_off_action'
 CONF_SWING_VERTICAL_ACTION = 'swing_vertical_action'
+CONF_SWITCH_DATAPOINT = "switch_datapoint"
 CONF_SWITCHES = 'switches'
 CONF_SYNC = 'sync'
 CONF_TABLET = 'tablet'

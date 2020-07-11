@@ -1,12 +1,10 @@
 from esphome.components import switch
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
-
-CONF_SWITCH_DATAPOINT = "switch_datapoint"
 
 TuyaSwitch = tuya_ns.class_('TuyaSwitch', switch.Switch, cg.Component)
 

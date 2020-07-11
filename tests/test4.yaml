@@ -75,7 +75,14 @@ sensor:
 #    type: blue
 #    name: APDS9960 Blue
 
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+
 switch:
   - platform: tuya
     id: tuya_switch
     switch_datapoint: 1
+
