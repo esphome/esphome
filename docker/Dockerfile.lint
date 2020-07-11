@@ -6,6 +6,10 @@ RUN \
         clang-format-7 \
         clang-tidy-7 \
         patch \
+        software-properties-common \
+    && apt-add-repository ppa:git-core/ppa \
+    && apt-get install -y --no-install-recommends \
+        git \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
