@@ -387,15 +387,15 @@ def recursive_check_replaceme(value):
     return value
 
 
-def validate_config(config):
+def validate_config(config, command_line_substitutions):
     result = Config()
 
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
-        result[CONF_SUBSTITUTIONS] = config[CONF_SUBSTITUTIONS]
+        result[CONF_SUBSTITUTIONS] = {**config[CONF_SUBSTITUTIONS], **command_line_substitutions}
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
-            substitutions.do_substitution_pass(config)
+            substitutions.do_substitution_pass(config, command_line_substitutions)
         except vol.Invalid as err:
             result.add_error(err)
             return result
@@ -656,7 +656,7 @@ class InvalidYAMLError(EsphomeError):
         self.base_exc = base_exc
 
 
-def _load_config():
+def _load_config(command_line_substitutions):
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
@@ -664,7 +664,7 @@ def _load_config():
     CORE.raw_config = config
 
     try:
-        result = validate_config(config)
+        result = validate_config(config, command_line_substitutions)
     except EsphomeError:
         raise
     except Exception:
@@ -674,9 +674,9 @@ def _load_config():
     return result
 
 
-def load_config():
+def load_config(command_line_substitutions):
     try:
-        return _load_config()
+        return _load_config(command_line_substitutions)
     except vol.Invalid as err:
         raise EsphomeError(f"Error while parsing config: {err}")
 
@@ -813,10 +813,10 @@ def strip_default_ids(config):
     return config
 
 
-def read_config():
+def read_config(command_line_substitutions):
     _LOGGER.info("Reading configuration %s...", CORE.config_path)
     try:
-        res = load_config()
+        res = load_config(command_line_substitutions)
     except EsphomeError as err:
         _LOGGER.error("Error while reading config: %s", err)
         return None

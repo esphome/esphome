@@ -41,4 +41,4 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
 
-    cg.add_library("mbedtls", "cdf462088d")
+    cg.add_library("mbedtls", None)
