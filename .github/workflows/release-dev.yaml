@@ -8,7 +8,7 @@ on:
 jobs:
   lint-custom:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint
+    container: jesserockz/esphome-lint
     name: Lint Custom
     steps:
     - uses: actions/checkout@v2
@@ -16,7 +16,7 @@ jobs:
     - run: script/ci-custom.py
   lint-python:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint
+    container: jesserockz/esphome-lint
     name: Lint Python
     steps:
     - uses: actions/checkout@v2
@@ -24,7 +24,7 @@ jobs:
     - run: script/lint-python
   lint-tidy:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint
+    container: jesserockz/esphome-lint
     name: Lint Tidy
     steps:
     - uses: actions/checkout@v2
@@ -34,7 +34,7 @@ jobs:
     - run: script/ci-suggest-changes
   lint-format:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint
+    container: jesserockz/esphome-lint
     name: Lint Format
     steps:
     - uses: actions/checkout@v2
@@ -44,7 +44,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint
+    container: jesserockz/esphome-lint
     strategy:
       matrix:
         test:
