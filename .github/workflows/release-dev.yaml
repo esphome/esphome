@@ -11,7 +11,7 @@ jobs:
     container: esphome/esphome-lint
     name: Lint Custom
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: actions/checkout@v2
     - run: script/setup
     - run: script/ci-custom.py
   lint-python:
@@ -19,7 +19,7 @@ jobs:
     container: esphome/esphome-lint
     name: Lint Python
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: actions/checkout@v2
     - run: script/setup
     - run: script/lint-python
   lint-tidy:
@@ -27,7 +27,7 @@ jobs:
     container: esphome/esphome-lint
     name: Lint Tidy
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: actions/checkout@v2
     - run: script/setup
     - run: pio init --ide atom
     - run: script/clang-tidy --all-headers --fix
@@ -37,7 +37,7 @@ jobs:
     container: esphome/esphome-lint
     name: Lint Format
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: actions/checkout@v2
     - run: script/setup
     - run: script/clang-format -i
     - run: script/ci-suggest-changes
@@ -53,7 +53,7 @@ jobs:
         - test3
         - test4
     steps:
-    - uses: "actions/checkout@v2"
+    - uses: actions/checkout@v2
     - run: script/setup
     - run: esphome tests/${{ matrix.test }}.yaml compile
 
@@ -63,11 +63,11 @@ jobs:
     strategy:
       matrix:
         arch: [aarch64, amd64, armv7, i386]
-        build-type: ["hassio", "docker"]
+        build-type: [hassio, docker]
     steps:
     - uses: actions/checkout@v2
     - run: docker info
-    - run: docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
