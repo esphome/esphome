@@ -263,7 +263,6 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   bool waiting_for_interrupt_{false};
   uint8_t stop_variable_;
 
-  //bool did_timeout;
   uint16_t timeout_start_us_;
   uint16_t timeout_us_{};
 

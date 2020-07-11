@@ -2,10 +2,10 @@
 #include "esphome/core/log.h"
 
 // Record the current time to check an upcoming timeout against
-#define startTimeout() (timeout_start_us_ = micros())
+#define startTimeout() (this->timeout_start_us_ = micros())
 
 // Check if timeout is enabled (set to nonzero value) and has expired
-#define checkTimeoutExpired() (timeout_us_ > 0 && ((uint16_t)(micros() - timeout_start_us_) > timeout_us_))
+#define checkTimeoutExpired() (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_))
 
 
 /*
@@ -42,7 +42,7 @@ void VL53L0XSensor::setup() {
 
   ESP_LOGW(TAG, "'%s' - setup BEGIN", this->name_.c_str());
 
-  if (!enable_pin_setup_complete_) {
+  if (!this->enable_pin_setup_complete_) {
     for (std::list<VL53L0XSensor*>::iterator it = vl53Sensors_.begin();
           it != vl53Sensors_.end(); ++it){
         if ((*it)->enable_pin_ != nullptr) {
@@ -53,7 +53,7 @@ void VL53L0XSensor::setup() {
           (*it)->enable_pin_->digital_write(false);
         }
     }
-    enable_pin_setup_complete_ = true;
+    this->enable_pin_setup_complete_ = true;
   }
 
   if (this->enable_pin_ != nullptr) {
@@ -73,7 +73,7 @@ void VL53L0XSensor::setup() {
   reg(0x80) = 0x01;
   reg(0xFF) = 0x01;
   reg(0x00) = 0x00;
-  stop_variable_ = reg(0x91).get();
+  this->stop_variable_ = reg(0x91).get();
 
   reg(0x00) = 0x01;
   reg(0xFF) = 0x00;
@@ -279,7 +279,7 @@ void VL53L0XSensor::update() {
   reg(0xFF) = 0x01;
 
   reg(0x00) = 0x00;
-  reg(0x91) = stop_variable_;
+  reg(0x91) = this->stop_variable_;
   reg(0x00) = 0x01;
   reg(0xFF) = 0x00;
   reg(0x80) = 0x00;
