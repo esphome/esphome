@@ -14,10 +14,16 @@ void RC5Protocol::encode(RemoteTransmitData *dst, const RC5Data &data) {
   dst->set_carrier_frequency(36000);
 
   uint64_t out_data = 0;
-  out_data |= 0b11 << 12;
+  uint8_t command = data.command;
+  if (data.command >= 64) {
+    out_data |= 0b10 << 12;
+    command = command - 64;
+  } else {
+    out_data |= 0b11 << 12;
+  }
   out_data |= TOGGLE << 11;
   out_data |= data.address << 6;
-  out_data |= data.command;
+  out_data |= command;
 
   for (uint64_t mask = 1UL << (NBITS - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
@@ -35,22 +41,44 @@ optional<RC5Data> RC5Protocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
-  src.expect_space(BIT_TIME_US);
-  if (!src.expect_mark(BIT_TIME_US) || !src.expect_space(BIT_TIME_US) || !src.expect_mark(BIT_TIME_US))
+  int field_bit = 0;
+
+  if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
+    field_bit = 1;
+  } else if (src.expect_space(2 * BIT_TIME_US)) {
+    field_bit = 0;
+  } else {
     return {};
+  }
+
+  if (!(((src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US)) ||
+         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) &&
+        (((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+          (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) ||
+         ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+          (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US)))))) {
+    return {};
+  }
 
   uint64_t out_data = 0;
-  for (int bit = NBITS - 3; bit >= 0; bit--) {
-    if (src.expect_space(BIT_TIME_US) && src.expect_mark(BIT_TIME_US)) {
-      out_data |= 1 << bit;
-    } else if (src.expect_mark(BIT_TIME_US) && src.expect_space(BIT_TIME_US)) {
+  for (int bit = NBITS - 4; bit >= 1; bit--) {
+    if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
+        (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
+    } else if ((src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) &&
+               (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
+      out_data |= 1 << bit;
     } else {
       return {};
     }
   }
+  if (src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) {
+    out_data |= 0;
+  } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
+    out_data |= 1;
+  }
 
-  out.command = out_data & 0x3F;
+  out.command = (out_data & 0x3F) + (1 - field_bit) * 64;
   out.address = (out_data >> 6) & 0x1F;
   return out;
 }

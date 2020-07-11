@@ -8,7 +8,11 @@ namespace ssd1325_base {
 static const char *TAG = "ssd1325";
 
 static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 1;
+static const uint8_t WHITE = 15;
+static const uint8_t SSD1325_MAX_CONTRAST = 127;
+static const uint8_t SSD1325_COLORMASK = 0x0f;
+static const uint8_t SSD1325_COLORSHIFT = 4;
+static const uint8_t SSD1325_PIXELSPERBYTE = 2;
 
 static const uint8_t SSD1325_SETCOLADDR = 0x15;
 static const uint8_t SSD1325_SETROWADDR = 0x75;
@@ -33,6 +37,7 @@ static const uint8_t SSD1325_SETROWPERIOD = 0xB2;
 static const uint8_t SSD1325_SETCLOCK = 0xB3;
 static const uint8_t SSD1325_SETPRECHARGECOMP = 0xB4;
 static const uint8_t SSD1325_SETGRAYTABLE = 0xB8;
+static const uint8_t SSD1325_SETDEFAULTGRAYTABLE = 0xB9;
 static const uint8_t SSD1325_SETPRECHARGEVOLTAGE = 0xBC;
 static const uint8_t SSD1325_SETVCOMLEVEL = 0xBE;
 static const uint8_t SSD1325_SETVSL = 0xBF;
@@ -44,31 +49,57 @@ static const uint8_t SSD1325_COPY = 0x25;
 void SSD1325::setup() {
   this->init_internal_(this->get_buffer_length_());
 
-  this->command(SSD1325_DISPLAYOFF);   /* display off */
-  this->command(SSD1325_SETCLOCK);     /* set osc division */
-  this->command(0xF1);                 /* 145 */
-  this->command(SSD1325_SETMULTIPLEX); /* multiplex ratio */
-  this->command(0x3f);                 /* duty = 1/64 */
-  this->command(SSD1325_SETOFFSET);    /* set display offset --- */
-  this->command(0x4C);                 /* 76 */
-  this->command(SSD1325_SETSTARTLINE); /*set start line */
-  this->command(0x00);                 /* ------ */
-  this->command(SSD1325_MASTERCONFIG); /*Set Master Config DC/DC Converter*/
+  this->command(SSD1325_DISPLAYOFF);    // display off
+  this->command(SSD1325_SETCLOCK);      // set osc division
+  this->command(0xF1);                  // 145
+  this->command(SSD1325_SETMULTIPLEX);  // multiplex ratio
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x7f);  // duty = height - 1
+  else
+    this->command(0x3f);             // duty = 1/64
+  this->command(SSD1325_SETOFFSET);  // set display offset
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x00);  // 0
+  else
+    this->command(0x4C);                // 76
+  this->command(SSD1325_SETSTARTLINE);  // set start line
+  this->command(0x00);                  // ...
+  this->command(SSD1325_MASTERCONFIG);  // Set Master Config DC/DC Converter
   this->command(0x02);
-  this->command(SSD1325_SETREMAP); /* set segment remap------ */
-  this->command(0x56);
-  this->command(SSD1325_SETCURRENT + 0x2); /* Set Full Current Range */
+  this->command(SSD1325_SETREMAP);  // set segment remapping
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(0x53);  //  COM bottom-up, split odd/even, enable column and nibble remapping
+  else
+    this->command(0x50);                    // COM bottom-up, split odd/even
+  this->command(SSD1325_SETCURRENT + 0x2);  // Set Full Current Range
   this->command(SSD1325_SETGRAYTABLE);
-  this->command(0x01);
-  this->command(0x11);
-  this->command(0x22);
-  this->command(0x32);
-  this->command(0x43);
-  this->command(0x54);
-  this->command(0x65);
-  this->command(0x76);
-  this->command(SSD1325_SETCONTRAST); /* set contrast current */
-  this->command(0x7F);                // max!
+  // gamma ~2.2
+  if (this->model_ == SSD1327_MODEL_128_128) {
+    this->command(0);
+    this->command(1);
+    this->command(2);
+    this->command(3);
+    this->command(6);
+    this->command(8);
+    this->command(12);
+    this->command(16);
+    this->command(20);
+    this->command(26);
+    this->command(32);
+    this->command(39);
+    this->command(46);
+    this->command(54);
+    this->command(63);
+  } else {
+    this->command(0x01);
+    this->command(0x11);
+    this->command(0x22);
+    this->command(0x32);
+    this->command(0x43);
+    this->command(0x54);
+    this->command(0x65);
+    this->command(0x76);
+  }
   this->command(SSD1325_SETROWPERIOD);
   this->command(0x51);
   this->command(SSD1325_SETPHASELEN);
@@ -78,25 +109,52 @@ void SSD1325::setup() {
   this->command(SSD1325_SETPRECHARGECOMPENABLE);
   this->command(0x28);
   this->command(SSD1325_SETVCOMLEVEL);  // Set High Voltage Level of COM Pin
-  this->command(0x1C);                  //?
-  this->command(SSD1325_SETVSL);        // set Low Voltage Level of SEG Pin
+  this->command(0x1C);
+  this->command(SSD1325_SETVSL);  // set Low Voltage Level of SEG Pin
   this->command(0x0D | 0x02);
-  this->command(SSD1325_NORMALDISPLAY); /* set display mode */
-  this->command(SSD1325_DISPLAYON);     /* display ON */
+  this->command(SSD1325_NORMALDISPLAY);  // set display mode
+  set_brightness(this->brightness_);
+  this->fill(BLACK);  // clear display - ensures we do not see garbage at power-on
+  this->display();    // ...write buffer, which actually clears the display's memory
+  this->turn_on();    // display ON
 }
 void SSD1325::display() {
-  this->command(SSD1325_SETCOLADDR); /* set column address */
-  this->command(0x00);               /* set column start address */
-  this->command(0x3F);               /* set column end address */
-  this->command(SSD1325_SETROWADDR); /* set row address */
-  this->command(0x00);               /* set row start address */
-  this->command(0x3F);               /* set row end address */
+  this->command(SSD1325_SETCOLADDR);  // set column address
+  this->command(0x00);                // set column start address
+  this->command(0x3F);                // set column end address
+  this->command(SSD1325_SETROWADDR);  // set row address
+  this->command(0x00);                // set row start address
+  if (this->model_ == SSD1327_MODEL_128_128)
+    this->command(127);  // set last row
+  else
+    this->command(63);  // set last row
 
   this->write_display_data();
 }
 void SSD1325::update() {
   this->do_update_();
   this->display();
+}
+void SSD1325::set_brightness(float brightness) {
+  // validation
+  if (brightness > 1)
+    this->brightness_ = 1.0;
+  else if (brightness < 0)
+    this->brightness_ = 0;
+  else
+    this->brightness_ = brightness;
+  // now write the new brightness level to the display
+  this->command(SSD1325_SETCONTRAST);
+  this->command(int(SSD1325_MAX_CONTRAST * (this->brightness_)));
+}
+bool SSD1325::is_on() { return this->is_on_; }
+void SSD1325::turn_on() {
+  this->command(SSD1325_DISPLAYON);
+  this->is_on_ = true;
+}
+void SSD1325::turn_off() {
+  this->command(SSD1325_DISPLAYOFF);
+  this->is_on_ = false;
 }
 int SSD1325::get_height_internal() {
   switch (this->model_) {
@@ -108,6 +166,8 @@ int SSD1325::get_height_internal() {
       return 16;
     case SSD1325_MODEL_64_48:
       return 48;
+    case SSD1327_MODEL_128_128:
+      return 128;
     default:
       return 0;
   }
@@ -116,6 +176,7 @@ int SSD1325::get_width_internal() {
   switch (this->model_) {
     case SSD1325_MODEL_128_32:
     case SSD1325_MODEL_128_64:
+    case SSD1327_MODEL_128_128:
       return 128;
     case SSD1325_MODEL_96_16:
       return 96;
@@ -126,23 +187,25 @@ int SSD1325::get_width_internal() {
   }
 }
 size_t SSD1325::get_buffer_length_() {
-  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
+  return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / SSD1325_PIXELSPERBYTE;
 }
-
-void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT SSD1325::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
-
-  uint16_t pos = x + (y / 8) * this->get_width_internal();
-  uint8_t subpos = y % 8;
-  if (color) {
-    this->buffer_[pos] |= (1 << subpos);
-  } else {
-    this->buffer_[pos] &= ~(1 << subpos);
-  }
+  uint32_t color4 = color.to_grayscale4();
+  // where should the bits go in the big buffer array? math...
+  uint16_t pos = (x / SSD1325_PIXELSPERBYTE) + (y * this->get_width_internal() / SSD1325_PIXELSPERBYTE);
+  uint8_t shift = (x % SSD1325_PIXELSPERBYTE) * SSD1325_COLORSHIFT;
+  // ensure 'color4' is valid (only 4 bits aka 1 nibble) and shift the bits left when necessary
+  color4 = (color4 & SSD1325_COLORMASK) << shift;
+  // first mask off the nibble we must change...
+  this->buffer_[pos] &= (~SSD1325_COLORMASK >> shift);
+  // ...then lay the new nibble back on top. done!
+  this->buffer_[pos] |= color4;
 }
-void SSD1325::fill(int color) {
-  uint8_t fill = color ? 0xFF : 0x00;
+void SSD1325::fill(Color color) {
+  const uint32_t color4 = color.to_grayscale4();
+  uint8_t fill = (color4 & SSD1325_COLORMASK) | ((color4 & SSD1325_COLORMASK) << SSD1325_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
@@ -168,6 +231,8 @@ const char *SSD1325::model_str_() {
       return "SSD1325 96x16";
     case SSD1325_MODEL_64_48:
       return "SSD1325 64x48";
+    case SSD1327_MODEL_128_128:
+      return "SSD1327 128x128";
     default:
       return "Unknown";
   }
