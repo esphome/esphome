@@ -1,12 +1,11 @@
 from esphome.components import climate
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
 
-CONF_SWITCH_DATAPOINT = "switch_datapoint"
 CONF_TARGET_TEMPERATURE_DATAPOINT = "target_temperature_datapoint"
 CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 # CONF_ECO_MODE_DATAPOINT = "eco_mode_datapoint"
