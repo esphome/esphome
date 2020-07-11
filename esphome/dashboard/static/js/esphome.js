@@ -735,6 +735,7 @@ document.querySelectorAll("[data-action='edit']").forEach((button) => {
     const closeButton = document.querySelector("#js-editor-modal [data-action='close']");
     saveButton.setAttribute('data-filename', editorActiveFilename);
     uploadButton.setAttribute('data-filename', editorActiveFilename);
+    uploadButton.setAttribute('onClick', `saveFile("${editorActiveFilename}")`);
     if (editorActiveFilename === "secrets.yaml") {
       uploadButton.classList.add("disabled");
       editorActiveSecrets = true;

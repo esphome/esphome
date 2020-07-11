@@ -41,6 +41,10 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
  public:
   explicit ControlAction(Cover *cover) : cover_(cover) {}
 
+  TEMPLATABLE_VALUE(bool, stop)
+  TEMPLATABLE_VALUE(float, position)
+  TEMPLATABLE_VALUE(float, tilt)
+
   void play(Ts... x) override {
     auto call = this->cover_->make_call();
     if (this->stop_.has_value())
@@ -52,10 +56,6 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
     call.perform();
   }
 
-  TEMPLATABLE_VALUE(bool, stop)
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
-
  protected:
   Cover *cover_;
 };
@@ -63,6 +63,10 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
 template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
  public:
   CoverPublishAction(Cover *cover) : cover_(cover) {}
+  TEMPLATABLE_VALUE(float, position)
+  TEMPLATABLE_VALUE(float, tilt)
+  TEMPLATABLE_VALUE(CoverOperation, current_operation)
+
   void play(Ts... x) override {
     if (this->position_.has_value())
       this->cover_->position = this->position_.value(x...);
@@ -72,10 +76,6 @@ template<typename... Ts> class CoverPublishAction : public Action<Ts...> {
       this->cover_->current_operation = this->current_operation_.value(x...);
     this->cover_->publish_state();
   }
-
-  TEMPLATABLE_VALUE(float, position)
-  TEMPLATABLE_VALUE(float, tilt)
-  TEMPLATABLE_VALUE(CoverOperation, current_operation)
 
  protected:
   Cover *cover_;

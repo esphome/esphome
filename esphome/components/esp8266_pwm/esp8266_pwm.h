@@ -43,7 +43,6 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
     this->parent_->update_frequency(freq);
   }
 
- protected:
   ESP8266PWM *parent_;
 };
 

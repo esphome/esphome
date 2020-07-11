@@ -52,18 +52,22 @@ void UARTComponent::setup() {
   if (this->tx_pin_.value_or(1) == 1 && this->rx_pin_.value_or(3) == 3) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else if (this->tx_pin_.value_or(15) == 15 && this->rx_pin_.value_or(13) == 13) {
     this->hw_serial_ = &Serial;
     this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
     this->hw_serial_->swap();
   } else if (this->tx_pin_.value_or(2) == 2 && this->rx_pin_.value_or(8) == 8) {
     this->hw_serial_ = &Serial1;
     this->hw_serial_->begin(this->baud_rate_, config);
+    this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
   } else {
     this->sw_serial_ = new ESP8266SoftwareSerial();
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_);
+    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_,
+                            this->rx_buffer_size_);
   }
 }
 
@@ -74,6 +78,7 @@ void UARTComponent::dump_config() {
   }
   if (this->rx_pin_.has_value()) {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
+    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
@@ -210,8 +215,9 @@ void ESP8266SoftwareSerial::begin() {
   // this->gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
 }
 void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
-                                  UARTParityOptions parity) {
+                                  UARTParityOptions parity, size_t rx_buffer_size) {
   this->bit_time_ = F_CPU / baud_rate;
+  this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
   this->nr_bits_ = nr_bits;
   this->parity_ = parity;

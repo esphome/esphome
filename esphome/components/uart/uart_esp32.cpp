@@ -81,6 +81,7 @@ void UARTComponent::setup() {
   int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
   int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
   this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx);
+  this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
 }
 
 void UARTComponent::dump_config() {
@@ -90,6 +91,7 @@ void UARTComponent::dump_config() {
   }
   if (this->rx_pin_.has_value()) {
     ESP_LOGCONFIG(TAG, "  RX Pin: GPIO%d", *this->rx_pin_);
+    ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);

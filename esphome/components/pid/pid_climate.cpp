@@ -148,5 +148,7 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   });
 }
 
+void PIDClimate::reset_integral_term() { this->controller_.reset_accumulated_integral(); }
+
 }  // namespace pid
 }  // namespace esphome
