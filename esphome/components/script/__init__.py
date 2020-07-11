@@ -48,7 +48,7 @@ def script_stop_action_to_code(config, action_id, template_arg, args):
 }))
 def script_wait_action_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = yield cg.new_Pvariable(action_id, template_arg, paren)
     yield cg.register_component(var, {})
     yield var
 
