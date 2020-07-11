@@ -49,6 +49,9 @@ web_server:
     username: admin
     password: admin
 
+
+tuya:
+
 sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world
@@ -71,3 +74,8 @@ sensor:
 #  - platform: apds9960
 #    type: blue
 #    name: APDS9960 Blue
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1
