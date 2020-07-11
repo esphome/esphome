@@ -1281,6 +1281,8 @@ climate:
     name: Whirlpool Climate
   - platform: climate_ir_lg
     name: LG Climate
+  - platform: toshiba
+    name: Toshiba Climate
 
 switch:
   - platform: gpio
