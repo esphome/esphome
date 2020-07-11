@@ -1749,6 +1749,9 @@ text_sensor:
     name: "BSSID"
   mac_address:
     name: "Mac Address"
+- platform: version
+  name: "ESPHome Version No Timestamp"
+  hide_timestamp: True
 
 sn74hc595:
   - id: 'sn74hc595_hub'
