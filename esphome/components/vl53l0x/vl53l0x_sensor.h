@@ -23,7 +23,6 @@ struct SequenceStepTimeouts {
 
 class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-
   VL53L0XSensor();
 
   void setup() override;
@@ -266,9 +265,8 @@ class VL53L0XSensor : public sensor::Sensor, public PollingComponent, public i2c
   uint16_t timeout_start_us_;
   uint16_t timeout_us_{};
 
-  static std::list<VL53L0XSensor*> vl53Sensors_;
-  static bool enable_pin_setup_complete_;
-  
+  static std::list<VL53L0XSensor *> vl53_sensors;
+  static bool enable_pin_setup_complete;
 };
 
 }  // namespace vl53l0x

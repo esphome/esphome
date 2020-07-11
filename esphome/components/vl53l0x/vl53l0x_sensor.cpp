@@ -5,8 +5,8 @@
 #define startTimeout() (this->timeout_start_us_ = micros())
 
 // Check if timeout is enabled (set to nonzero value) and has expired
-#define checkTimeoutExpired() (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_))
-
+#define checkTimeoutExpired() \
+  (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_))
 
 /*
  * Most of the code in this integration is based on the VL53L0x library
@@ -21,12 +21,10 @@ namespace esphome {
 namespace vl53l0x {
 
 static const char *TAG = "vl53l0x";
-std::list<VL53L0XSensor*> VL53L0XSensor::vl53Sensors_;
-bool VL53L0XSensor::enable_pin_setup_complete_;
+std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;
+bool VL53L0XSensor::enable_pin_setup_complete;
 
-VL53L0XSensor::VL53L0XSensor() {
-  VL53L0XSensor::vl53Sensors_.push_back(this);
-}
+VL53L0XSensor::VL53L0XSensor() { VL53L0XSensor::vl53_sensors.push_back(this); }
 
 void VL53L0XSensor::dump_config() {
   LOG_SENSOR("", "VL53L0X", this);
@@ -35,25 +33,23 @@ void VL53L0XSensor::dump_config() {
   if (this->enable_pin_ != nullptr) {
     LOG_PIN("  Enable Pin: ", this->enable_pin_);
   }
-  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_>0?"us": " (no timeout)");
+  ESP_LOGCONFIG(TAG, "  Timeout: %u%s", this->timeout_us_, this->timeout_us_ > 0 ? "us" : " (no timeout)");
 }
 
 void VL53L0XSensor::setup() {
-
   ESP_LOGW(TAG, "'%s' - setup BEGIN", this->name_.c_str());
 
-  if (!this->enable_pin_setup_complete_) {
-    for (std::list<VL53L0XSensor*>::iterator it = vl53Sensors_.begin();
-          it != vl53Sensors_.end(); ++it){
-        if ((*it)->enable_pin_ != nullptr) {
-          // Disable the enable pin to force vl53 to HW Standby mode 
-          ESP_LOGD(TAG, "i2c vl53l0x disable enable pins: GPIO%u", ((*it)->enable_pin_)->get_pin());
-          // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode 
-          (*it)->enable_pin_->setup();
-          (*it)->enable_pin_->digital_write(false);
-        }
+  if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
+    for (auto &vl53_sensor : vl53_sensors) {
+      if (vl53_sensor->enable_pin_ != nullptr) {
+        // Disable the enable pin to force vl53 to HW Standby mode
+        ESP_LOGD(TAG, "i2c vl53l0x disable enable pins: GPIO%u", (vl53_sensor->enable_pin_)->get_pin());
+        // Set enable pin as OUTPUT and disable the enable pin to force vl53 to HW Standby mode
+        vl53_sensor->enable_pin_->setup();
+        vl53_sensor->enable_pin_->digital_write(false);
+      }
     }
-    this->enable_pin_setup_complete_ = true;
+    esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete = true;
   }
 
   if (this->enable_pin_ != nullptr) {
@@ -266,7 +262,6 @@ void VL53L0XSensor::setup() {
   this->set_i2c_address(final_address);
 
   ESP_LOGW(TAG, "'%s' - setup END", this->name_.c_str());
-
 }
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {

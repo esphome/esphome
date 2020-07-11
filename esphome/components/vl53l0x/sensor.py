@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, CONF_ADDRESS, CONF_TIMEOUT, CONF_ENABLE_PIN
+from esphome.const import (CONF_ID, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, CONF_ADDRESS,
+                           CONF_TIMEOUT, CONF_ENABLE_PIN)
 from esphome import pins
 
 DEPENDENCIES = ['i2c']
@@ -13,6 +14,7 @@ VL53L0XSensor = vl53l0x_ns.class_('VL53L0XSensor', sensor.Sensor, cg.PollingComp
 CONF_SIGNAL_RATE_LIMIT = 'signal_rate_limit'
 CONF_LONG_RANGE = 'long_range'
 
+
 def check_keys(obj):
     if obj[CONF_ADDRESS] != 0x29 and CONF_ENABLE_PIN not in obj:
         msg = "Address other then 0x29 requires enable_pin definition to allow sensor\r"
@@ -21,19 +23,21 @@ def check_keys(obj):
         raise cv.Invalid(msg)
     return obj
 
+
 def check_timeout(value):
     value = cv.positive_time_period_microseconds(value)
     if value.total_seconds > 60:
         raise cv.Invalid("Maximum timeout can not be greater then 60 seconds")
     return value
 
+
 CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_METER, ICON_ARROW_EXPAND_VERTICAL, 2).extend({
         cv.GenerateID(): cv.declare_id(VL53L0XSensor),
         cv.Optional(CONF_SIGNAL_RATE_LIMIT, default=0.25): cv.float_range(
             min=0.0, max=512.0, min_included=False, max_included=False),
         cv.Optional(CONF_LONG_RANGE, default=False): cv.boolean,
-        cv.Optional(CONF_TIMEOUT, default='0ms'): cv.All(cv.positive_time_period_microseconds, 
-            check_timeout),
+        cv.Optional(CONF_TIMEOUT, default='0ms'): cv.All(cv.positive_time_period_microseconds,
+                                                         check_timeout),
         cv.Optional(CONF_ENABLE_PIN): pins.gpio_output_pin_schema,
     }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x29)), check_keys)
 
@@ -47,8 +51,7 @@ def to_code(config):
 
     if CONF_ENABLE_PIN in config:
         enable = yield cg.gpio_pin_expression(config[CONF_ENABLE_PIN])
-        cg.add(var.set_enable_pin(enable))   
-    
+        cg.add(var.set_enable_pin(enable))
 
     yield sensor.register_sensor(var, config)
     yield i2c.register_i2c_device(var, config)
