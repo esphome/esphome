@@ -78,3 +78,14 @@ binary_sensor:
   - platform: tuya
     id: tuya_binary_sensor
     sensor_datapoint: 1
+
+climate:
+  - platform: tuya
+    id: tuya_climate
+    switch_datapoint: 1
+    target_temperature_datapoint: 3
+
+switch:
+  - platform: tuya
+    id: tuya_switch
+    switch_datapoint: 1
