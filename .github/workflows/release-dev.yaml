@@ -1,0 +1,124 @@
+name: Release dev
+
+on:
+  push:
+    branches:
+    - dev
+
+jobs:
+  lint-custom:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Custom
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/ci-custom.py
+  lint-python:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Python
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/lint-python
+  lint-tidy:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Tidy
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: pio init --ide atom
+    - run: script/clang-tidy --all-headers --fix
+    - run: script/ci-suggest-changes
+  lint-format:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Format
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/clang-format -i
+    - run: script/ci-suggest-changes
+
+  test:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    strategy:
+      matrix:
+        test:
+        - test1
+        - test2
+        - test3
+        - test4
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: esphome tests/${{ matrix.test }}.yaml compile
+
+  deploy-docker:
+    runs-on: ubuntu-latest
+    needs: [lint-custom, lint-python, lint-tidy, lint-format, test]
+    strategy:
+      matrix:
+        arch: [aarch64, amd64, armv7, i386]
+        build-type: [hassio, docker]
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker info
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+    - env:
+        BASE_VERSION: 2.1.1
+      run: |
+        if [[ "${{ matrix.build-type }}" == "hassio" ]]; then
+          BUILD_FROM=esphome/esphome-hassio-base-${{ matrix.arch }}:${BASE_VERSION}
+          BUILD_TO=${{ github.repository }}-hassio-${{ matrix.arch }}
+          DOCKERFILE=docker/Dockerfile.hassio
+        else
+          BUILD_FROM=esphome/esphome-base-${{ matrix.arch }}:${BASE_VERSION}
+          BUILD_TO=${{ github.repository }}-${{ matrix.arch }}
+          DOCKERFILE=docker/Dockerfile
+        fi
+
+        TAG=${{ github.sha }}
+        TAG=${TAG:0:7}
+
+        echo "Building tag: ${TAG}"
+
+        docker build \
+          --build-arg BUILD_FROM=${BUILD_FROM} \
+          --build-arg BUILD_VERSION=${TAG} \
+          --tag ${BUILD_TO}:dev \
+          --file ${DOCKERFILE} \
+          .
+
+        echo "Pushing to ${BUILD_TO}:dev"
+        docker push ${BUILD_TO}:dev
+
+  deploy-docker-manifest-version:
+    runs-on: ubuntu-latest
+    needs: [deploy-docker]
+    steps:
+    - run: mkdir -p ~/.docker
+    - run: |
+        echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - run: |
+        REPO=${{ github.repository }}
+
+        docker manifest create ${REPO}:dev \
+          ${REPO}-aarch64:dev \
+          ${REPO}-amd64:dev \
+          ${REPO}-armv7:dev \
+          ${REPO}-i386:dev
+
+        echo "Pushing to ${REPO}:dev"
+        docker manifest push ${REPO}:dev
