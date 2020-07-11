@@ -117,6 +117,7 @@ jobs:
     - run: mkdir -p ~/.docker
     - run: |
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
     - run: |
         REPO=${{ github.repository }}
 
@@ -138,6 +139,7 @@ jobs:
     - run: mkdir -p ~/.docker
     - run: |
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
     - run: |
         REPO=${{ github.repository }}
 
