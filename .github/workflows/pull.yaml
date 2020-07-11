@@ -25,10 +25,10 @@ jobs:
     name: Lint Tidy
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - run: script/setup
     - run: pio init --ide atom
-    - run: pwd
-    - run: ls -al
     - run: script/clang-tidy --all-headers --fix
     - run: script/ci-suggest-changes
   lint-format:
@@ -37,6 +37,8 @@ jobs:
     name: Lint Format
     steps:
     - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
     - run: script/setup
     - run: script/clang-format -i
     - run: script/ci-suggest-changes
