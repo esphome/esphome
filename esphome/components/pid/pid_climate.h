@@ -108,20 +108,21 @@ template<typename... Ts> class PIDSetControlParametersAction : public Action<Ts.
  public:
   PIDSetControlParametersAction(PIDClimate *parent) : parent_(parent) {}
 
-  void set_kp(float kp) { kp_ = kp; }
-  void set_ki(float ki) { ki_ = ki; }
-  void set_kd(float kd) { kd_ = kd; }
-
   void play(Ts... x) {
-    this->parent_->set_kp(this->kp_);
-    this->parent_->set_ki(this->ki_);
-    this->parent_->set_kd(this->kd_);
+    auto kp = this->kp_.value(x...);
+    auto ki = this->ki_.value(x...);
+    auto kd = this->kd_.value(x...);
+
+    this->parent_->set_kp(kp);
+    this->parent_->set_ki(ki);
+    this->parent_->set_kd(kd);
   }
 
  protected:
-  float kp_;
-  float ki_;
-  float kd_;
+  TEMPLATABLE_VALUE(float, kp)
+  TEMPLATABLE_VALUE(float, ki)
+  TEMPLATABLE_VALUE(float, kd)
+
   PIDClimate *parent_;
 };
 
