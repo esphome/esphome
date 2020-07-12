@@ -1,0 +1,180 @@
+name: Release a version
+
+on:
+  push:
+    tags:
+    - "*"
+
+jobs:
+  lint-custom:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Custom
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/ci-custom.py
+  lint-python:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Python
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/lint-python
+  lint-tidy:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Tidy
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: pio init --ide atom
+    - run: script/clang-tidy --all-headers --fix
+    - run: script/ci-suggest-changes
+  lint-format:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    name: Lint Format
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: script/clang-format -i
+    - run: script/ci-suggest-changes
+
+  test:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    strategy:
+      matrix:
+        test:
+        - test1
+        - test2
+        - test3
+        - test4
+    steps:
+    - uses: actions/checkout@v2
+    - run: script/setup
+    - run: esphome tests/${{ matrix.test }}.yaml compile
+
+  deploy-pypi:
+    runs-on: ubuntu-latest
+    container: jesserockz/esphome-lint
+    needs: [lint-custom, lint-python, lint-tidy, lint-format, test]
+    steps:
+    - run: pip install twine wheel
+    - run: python setup.py sdist bdist_wheel
+    - run: twine upload dist/*
+      env:
+        TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+        TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
+
+  deploy-docker:
+    runs-on: ubuntu-latest
+    needs: [lint-custom, lint-python, lint-tidy, lint-format, test]
+    strategy:
+      matrix:
+        arch: [aarch64, amd64, armv7, i386]
+        build-type: [hassio, docker]
+    steps:
+    - uses: actions/checkout@v2
+    - run: docker info
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
+    - env:
+        BASE_VERSION: 2.1.1
+      run: |
+        if [[ "${{ matrix.build-type }}" == "hassio" ]]; then
+          BUILD_FROM=esphome/esphome-hassio-base-${{ matrix.arch }}:${BASE_VERSION}
+          BUILD_TO=${{ github.repository }}-hassio-${{ matrix.arch }}
+          DOCKERFILE=docker/Dockerfile.hassio
+        else
+          BUILD_FROM=esphome/esphome-base-${{ matrix.arch }}:${BASE_VERSION}
+          BUILD_TO=${{ github.repository }}-${{ matrix.arch }}
+          DOCKERFILE=docker/Dockerfile
+        fi
+
+        TAG=${{ github.ref }}
+        TAG=${TAG#refs/tags/v}
+
+        echo "Building tag: ${TAG}"
+
+        docker build \
+          --build-arg BUILD_FROM=${BUILD_FROM} \
+          --build-arg BUILD_VERSION=${TAG} \
+          --tag ${BUILD_TO}:${TAG} \
+          --file ${DOCKERFILE} \
+          .
+
+        echo "Pushing to ${BUILD_TO}:${TAG}"
+        docker push ${BUILD_TO}:${TAG}
+
+        beta_tag="^v\d+\.\d+\.\d+b\d+$"
+        if [[ "${TAG}" ~= "${beta_tag}" ]]; then
+          echo "Pushing to ${BUILD_TO}:beta"
+          docker tag ${BUILD_TO}:${TAG} ${BUILD_TO}:beta
+          docker push ${BUILD_TO}:beta
+        else
+          echo "Pushing to ${BUILD_TO}:latest"
+          docker tag ${BUILD_TO}:${TAG} ${BUILD_TO}:latest
+          docker push ${BUILD_TO}:latest
+        fi
+
+  deploy-docker-manifest-version:
+    runs-on: ubuntu-latest
+    steps:
+    - run: mkdir -p ~/.docker
+    - run: |
+        echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - run: |
+        REPO=${{ github.repository }}
+
+        TAG=${{ github.ref }}
+        TAG=${TAG#refs/tags/v}
+
+        docker manifest create ${REPO}:${TAG} \
+          ${REPO}-aarch64:${TAG} \
+          ${REPO}-amd64:${TAG} \
+          ${REPO}-armv7:${TAG} \
+          ${REPO}-i386:${TAG}
+
+        echo "Pushing to ${REPO}:${TAG}"
+        docker push ${REPO}:${TAG}
+
+  deploy-docker-manifest:
+    runs-on: ubuntu-latest
+    steps:
+    - run: mkdir -p ~/.docker
+    - run: |
+        echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
+      env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+    - run: |
+        REPO=${{ github.repository }}
+
+        TAG=${{ github.ref }}
+        TAG=${TAG#refs/tags/v}
+
+        beta_tag="^v\d+\.\d+\.\d+b\d+$"
+        if [[ "${TAG}" ~= "${beta_tag}" ]]; then
+          TAG=beta
+        else
+          TAG=latest
+        fi
+        docker manifest create ${REPO}:${TAG} \
+          ${REPO}-aarch64:${TAG} \
+          ${REPO}-amd64:${TAG} \
+          ${REPO}-armv7:${TAG} \
+          ${REPO}-i386:${TAG}
+
+        echo "Pushing to ${REPO}:${TAG}"
+        docker push ${REPO}:${TAG}
