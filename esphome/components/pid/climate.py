@@ -109,7 +109,7 @@ def set_control_parameters(config, action_id, template_arg, args):
 
     kp_template_ = yield cg.templatable(config[CONF_KP], args, float)
     cg.add(var.set_kp(kp_template_))
-  
+
     ki_template_ = yield cg.templatable(config[CONF_KI], args, float)
     cg.add(var.set_ki(ki_template_))
 

@@ -37,13 +37,16 @@ void PIDClimateSensor::update_from_parent_() {
       break;
     case PID_SENSOR_TYPE_KP:
       value = this->parent_->get_kp();
-      break;
+      this->publish_state(value);
+      return;
     case PID_SENSOR_TYPE_KI:
       value = this->parent_->get_ki();
-      break;
+      this->publish_state(value);
+      return;
     case PID_SENSOR_TYPE_KD:
       value = this->parent_->get_kd();
-      break;
+      this->publish_state(value);
+      return;
     default:
       value = NAN;
       break;
