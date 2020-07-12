@@ -1,14 +1,9 @@
 #!/bin/bash
 
 components=()
-platforms=()
-count=0
 for c_diff in $(git diff ${1}..${2} --name-only esphome/components); do
-  ((count=count+1))
-  base=`dirname $c_diff`
-  base=${base#esphome/components/}
+  base=${c_diff#esphome/components/}
   component=`dirname ${base}`
-  platform=`basename ${base}`
 
   if [[ "${component}" == "." ]]; then
     component=${platform}
@@ -16,9 +11,6 @@ for c_diff in $(git diff ${1}..${2} --name-only esphome/components); do
 
   if [[ ! "${components[@]}" =~ "${component}" ]]; then
     components+=($component)
-  fi
-  if [[ "${platform}" != "${component}" ]] && [[ ! "${platforms[@]}" =~ "${platform}" ]]; then
-    platforms+=($platform)
   fi
 done
 
@@ -28,13 +20,6 @@ echo "Components:"
 for component in ${components[@]}; do
   echo "  ${component}"
   labels+=("component: $component")
-done
-
-echo ""
-echo "Platforms:"
-for platform in ${platforms[@]}; do
-  echo "  ${platform}"
-  labels+=($platform)
 done
 
 echo "Labels: ${labels[@]}"
