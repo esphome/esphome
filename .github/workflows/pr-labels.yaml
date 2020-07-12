@@ -1,0 +1,24 @@
+name: PR labels
+
+on: [pull_request]
+
+
+jobs:
+  pr-label:
+    runs-on: ubuntu-latest
+    name: PR label
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+    - id: pr_labels
+      run: script/pr-labels ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+    - uses: octokit/request-action@v2.0.7
+      if: ${{ steps.pr_labels.outputs.labels != '[""]' }}
+      with:
+        route: POST /repos/:repository/issues/:number/labels
+        number: ${{ github.event.number }}
+        repository: ${{ github.repository }}
+        labels: ${{ steps.pr_labels.outputs.labels }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

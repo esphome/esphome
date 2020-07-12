@@ -1,0 +1,29 @@
+#!/bin/bash
+
+components=()
+for c_diff in $(git diff ${1}..${2} --name-only esphome/components); do
+  base=${c_diff#esphome/components/}
+  component=`dirname ${base}`
+
+  if [[ "${component}" == "." ]]; then
+    component=${platform}
+  fi
+
+  if [[ ! "${components[@]}" =~ "${component}" ]]; then
+    components+=($component)
+  fi
+done
+
+labels=()
+
+echo "Components:"
+for component in ${components[@]}; do
+  echo "  ${component}"
+  labels+=("component: $component")
+done
+
+echo "Labels: ${labels[@]}"
+
+output=$(printf '%s\n' "${labels[@]}" | jq -R . | jq -c -s .)
+
+echo "::set-output name=labels::${output}"
