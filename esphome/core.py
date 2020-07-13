@@ -24,11 +24,12 @@ class EsphomeError(Exception):
 
 class HexInt(int):
     def __str__(self):
-        sign = "-" if self < 0 else ""
-        self = abs(self)
-        if 0 <= self <= 255:
-            return f"{sign}0x{self:02X}"
-        return f"{sign}0x{self:X}"
+        value = self
+        sign = "-" if value < 0 else ""
+        value = abs(value)
+        if 0 <= value <= 255:
+            return f"{sign}0x{value:02X}"
+        return f"{sign}0x{value:X}"
 
 
 class IPAddress:
