@@ -6,24 +6,20 @@ from esphome.const import CONF_PACKAGES
 def _merge_package(full_old, full_new):
 
     def merge(old, new):
+        # pylint: disable=no-else-return
         if isinstance(new, dict):
-            # Different types, just use new
             if not isinstance(old, dict):
                 return new
             res = old.copy()
             for k, v in new.items():
-                if k in old:
-                    res[k] = merge(old[k], v)
-                else:
-                    res[k] = v
+                res[k] = merge(old[k], v) if k in old else v
             return res
         elif isinstance(new, list):
-            # Different types, just use new
-            if not isinstance(old, dict):
+            if not isinstance(old, list):
                 return new
             return old + new
-        else:
-            return new
+
+        return new
 
     return merge(full_old, full_new)
 
