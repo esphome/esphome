@@ -74,6 +74,8 @@ class ESPBTDevice {
 
   uint64_t address_uint64() const;
 
+  const uint8_t *address() const { return address_; }
+
   esp_ble_addr_type_t get_address_type() const { return this->address_type_; }
   int get_rssi() const { return rssi_; }
   const std::string &get_name() const { return this->name_; }
