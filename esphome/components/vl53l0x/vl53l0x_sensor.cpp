@@ -1,13 +1,6 @@
 #include "vl53l0x_sensor.h"
 #include "esphome/core/log.h"
 
-// Record the current time to check an upcoming timeout against
-#define startTimeout() (this->timeout_start_us_ = micros())
-
-// Check if timeout is enabled (set to nonzero value) and has expired
-#define checkTimeoutExpired() \
-  (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_))
-
 /*
  * Most of the code in this integration is based on the VL53L0x library
  * by Pololu (Pololu Corporation), which in turn is based on the VL53L0X
@@ -22,7 +15,7 @@ namespace vl53l0x {
 
 static const char *TAG = "vl53l0x";
 std::list<VL53L0XSensor *> VL53L0XSensor::vl53_sensors;
-bool VL53L0XSensor::enable_pin_setup_complete;
+bool VL53L0XSensor::enable_pin_setup_complete = false;
 
 VL53L0XSensor::VL53L0XSensor() { VL53L0XSensor::vl53_sensors.push_back(this); }
 
@@ -37,7 +30,7 @@ void VL53L0XSensor::dump_config() {
 }
 
 void VL53L0XSensor::setup() {
-  ESP_LOGW(TAG, "'%s' - setup BEGIN", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' - setup BEGIN", this->name_.c_str());
 
   if (!esphome::vl53l0x::VL53L0XSensor::enable_pin_setup_complete) {
     for (auto &vl53_sensor : vl53_sensors) {
@@ -94,10 +87,11 @@ void VL53L0XSensor::setup() {
   reg(0x94) = 0x6B;
   reg(0x83) = 0x00;
 
-  startTimeout();
+  this->timeout_start_us_ = micros();
   while (reg(0x83).get() == 0x00) {
-    if (checkTimeoutExpired()) {
+    if (this->timeout_us_ > 0 && ((uint16_t)(micros() - this->timeout_start_us_) > this->timeout_us_)) {
       ESP_LOGE(TAG, "'%s' - setup timeout", this->name_.c_str());
+      this->mark_failed();
       return;
     }
     yield();
@@ -261,7 +255,7 @@ void VL53L0XSensor::setup() {
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
 
-  ESP_LOGW(TAG, "'%s' - setup END", this->name_.c_str());
+  ESP_LOGD(TAG, "'%s' - setup END", this->name_.c_str());
 }
 void VL53L0XSensor::update() {
   if (this->initiated_read_ || this->waiting_for_interrupt_) {
