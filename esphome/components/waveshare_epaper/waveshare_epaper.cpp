@@ -115,20 +115,20 @@ void WaveshareEPaper::update() {
   this->do_update_();
   this->display();
 }
-void WaveshareEPaper::fill(int color) {
+void WaveshareEPaper::fill(Color color) {
   // flip logic
-  const uint8_t fill = color ? 0x00 : 0xFF;
+  const uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;
 }
-void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
   const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
-  if (!color)
+  if (!color.is_on())
     this->buffer_[pos] |= 0x80 >> subpos;
   else
     this->buffer_[pos] &= ~(0x80 >> subpos);
@@ -751,63 +751,51 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-
 void WaveshareEPaper7P5In::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x37);
   this->data(0x00);
-
   // COMMAND PANEL SETTING
   this->command(0x00);
   this->data(0xCF);
   this->data(0x0B);
-
   // COMMAND BOOSTER SOFT START
   this->command(0x06);
   this->data(0xC7);
   this->data(0xCC);
   this->data(0x28);
-
   // COMMAND POWER ON
   this->command(0x04);
   this->wait_until_idle_();
   delay(10);
-
   // COMMAND PLL CONTROL
   this->command(0x30);
   this->data(0x3C);
-
   // COMMAND TEMPERATURE SENSOR CALIBRATION
   this->command(0x41);
   this->data(0x00);
-
   // COMMAND VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
   this->data(0x77);
-
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);
-
   // COMMAND RESOLUTION SETTING
   this->command(0x61);
   this->data(0x02);
   this->data(0x80);
   this->data(0x01);
   this->data(0x80);
-
   // COMMAND VCM DC SETTING REGISTER
   this->command(0x82);
   this->data(0x1E);
-
   this->command(0xE5);
   this->data(0x03);
 }
 void HOT WaveshareEPaper7P5In::display() {
   // COMMAND DATA START TRANSMISSION 1
   this->command(0x10);
-
   this->start_data_();
   for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     uint8_t temp1 = this->buffer_[i];
@@ -817,7 +805,6 @@ void HOT WaveshareEPaper7P5In::display() {
         temp2 = 0x03;
       else
         temp2 = 0x00;
-
       temp2 <<= 4;
       temp1 <<= 1;
       j++;
@@ -828,11 +815,9 @@ void HOT WaveshareEPaper7P5In::display() {
       temp1 <<= 1;
       this->write_byte(temp2);
     }
-
     App.feed_wdt();
   }
   this->end_data_();
-
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
 }
@@ -846,6 +831,62 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+void WaveshareEPaper7P5InV2::initialize() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+  this->command(0x04);
 
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x1F);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x03);
+  this->data(0x20);
+  this->data(0x01);
+  this->data(0xE0);
+  // COMMAND ...?
+  this->command(0x15);
+  this->data(0x00);
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x10);
+  this->data(0x07);
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+}
+void HOT WaveshareEPaper7P5InV2::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(~(this->buffer_[i]));
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+
+int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
+int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
+void WaveshareEPaper7P5InV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5inV2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 }  // namespace waveshare_epaper
 }  // namespace esphome

@@ -31,7 +31,8 @@ void PN532::setup() {
   //    (this may time out, but that's ok)
   // 3. Send SAM config command with normal mode without waiting for ready bit (IRQ not initialized yet)
   // 4. Probably optional, send SAM config again, this time checking ACK and return value
-  this->cs_->digital_write(false);
+  if (this->cs_)
+    this->cs_->digital_write(false);
   delay(10);
 
   // send dummy firmware version command to get synced up
@@ -86,6 +87,8 @@ void PN532::setup() {
     this->mark_failed();
     return;
   }
+
+  this->turn_off_rf_();
 }
 
 void PN532::update() {
@@ -114,13 +117,16 @@ void PN532::loop() {
 
   if (read.size() <= 2 || read[0] != 0x4B) {
     // Something failed
+    this->turn_off_rf_();
     return;
   }
 
   uint8_t num_targets = read[1];
-  if (num_targets != 1)
+  if (num_targets != 1) {
     // no tags found or too many
+    this->turn_off_rf_();
     return;
+  }
 
   // const uint8_t target_number = read[2];
   // const uint16_t sens_res = uint16_t(read[3] << 8) | read[4];
@@ -150,6 +156,17 @@ void PN532::loop() {
     format_uid(buf, nfcid, nfcid_length);
     ESP_LOGD(TAG, "Found new tag '%s'", buf);
   }
+
+  this->turn_off_rf_();
+}
+
+void PN532::turn_off_rf_() {
+  ESP_LOGVV(TAG, "Turning RF field OFF");
+  this->pn532_write_command_check_ack_({
+      0x32,  // RFConfiguration
+      0x1,   // RF Field
+      0x0    // Off
+  });
 }
 
 float PN532::get_setup_priority() const { return setup_priority::DATA; }

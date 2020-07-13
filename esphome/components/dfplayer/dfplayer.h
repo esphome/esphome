@@ -104,7 +104,6 @@ class DFPlayer : public uart::UARTDevice, public Component {
 
 #define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
   template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
-   public: \
     void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
   };
 
@@ -115,6 +114,7 @@ template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Par
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(boolean, loop)
+
   void play(Ts... x) override {
     auto file = this->file_.value(x...);
     auto loop = this->loop_.value(x...);
@@ -131,6 +131,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, folder)
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(boolean, loop)
+
   void play(Ts... x) override {
     auto folder = this->folder_.value(x...);
     auto file = this->file_.value(x...);
@@ -146,6 +147,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
 template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(Device, device)
+
   void play(Ts... x) override {
     auto device = this->device_.value(x...);
     this->parent_->set_device(device);
@@ -155,6 +157,7 @@ template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Pa
 template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint8_t, volume)
+
   void play(Ts... x) override {
     auto volume = this->volume_.value(x...);
     this->parent_->set_volume(volume);
@@ -164,6 +167,7 @@ template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Pa
 template<typename... Ts> class SetEqAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(EqPreset, eq)
+
   void play(Ts... x) override {
     auto eq = this->eq_.value(x...);
     this->parent_->set_eq(eq);

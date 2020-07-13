@@ -103,7 +103,17 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   const char *msg = this->tx_buffer_ + offset;
   if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
+#ifdef ARDUINO_ARCH_ESP32
+  // Suppress network-logging if memory constrained, but still log to serial
+  // ports. In some configurations (eg BLE enabled) there may be some transient
+  // memory exhaustion, and trying to log when OOM can lead to a crash. Skipping
+  // here usually allows the stack to recover instead.
+  // See issue #1234 for analysis.
+  if (xPortGetFreeHeapSize() > 2048)
+    this->log_callback_.call(level, tag, msg);
+#else
   this->log_callback_.call(level, tag, msg);
+#endif
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
