@@ -77,11 +77,11 @@ jobs:
       run: |
         if [[ "${{ matrix.build-type }}" == "hassio" ]]; then
           BUILD_FROM=esphome/esphome-hassio-base-${{ matrix.arch }}:${BASE_VERSION}
-          BUILD_TO=glmnet/esphome-hassio-${{ matrix.arch }}
+          BUILD_TO=${{ github.repository }}-hassio-${{ matrix.arch }}
           DOCKERFILE=docker/Dockerfile.hassio
         else
           BUILD_FROM=esphome/esphome-base-${{ matrix.arch }}:${BASE_VERSION}
-          BUILD_TO=glmnet/esphome-${{ matrix.arch }}
+          BUILD_TO=${{ github.repository }}-${{ matrix.arch }}
           DOCKERFILE=docker/Dockerfile
         fi
 
@@ -112,7 +112,7 @@ jobs:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}
         DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
     - run: |
-        REPO=glmnet/esphome
+        REPO=${{ github.repository }}
 
         docker manifest create ${REPO}:dev \
           ${REPO}-aarch64:dev \
