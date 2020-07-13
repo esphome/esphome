@@ -11,10 +11,8 @@ from contextlib import contextmanager
 import voluptuous as vol
 
 from esphome import core, core_config, yaml_util
-from esphome.components import substitutions
-from esphome.components.packages import do_packages_pass
-from esphome.components.substitutions import CONF_SUBSTITUTIONS
-from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES
+from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES, \
+    CONF_SUBSTITUTIONS
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.util import safe_print, OrderedDict
@@ -393,9 +391,10 @@ def validate_config(config, command_line_substitutions):
 
     # 0. Load packages
     if CONF_PACKAGES in config:
+        from esphome.components.packages import do_packages_pass
         result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
         try:
-            do_packages_pass(config)
+            config = do_packages_pass(config)
         except vol.Invalid as err:
             result.update(config)
             result.add_error(err)
@@ -403,6 +402,7 @@ def validate_config(config, command_line_substitutions):
 
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:
+        from esphome.components import substitutions
         result[CONF_SUBSTITUTIONS] = {**config[CONF_SUBSTITUTIONS], **command_line_substitutions}
         result.add_output_path([CONF_SUBSTITUTIONS], CONF_SUBSTITUTIONS)
         try:
