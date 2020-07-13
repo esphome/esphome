@@ -24,15 +24,17 @@ class EsphomeError(Exception):
 
 class HexInt(int):
     def __str__(self):
+        sign = "-" if self < 0 else ""
+        self = abs(self)
         if 0 <= self <= 255:
-            return f"0x{self:02X}"
-        return f"0x{self:X}"
+            return f"{sign}0x{self:02X}"
+        return f"{sign}0x{self:X}"
 
 
 class IPAddress:
     def __init__(self, *args):
         if len(args) != 4:
-            raise ValueError("IPAddress must consist up 4 items")
+            raise ValueError("IPAddress must consist of 4 items")
         self.args = args
 
     def __str__(self):
