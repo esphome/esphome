@@ -33,6 +33,7 @@ REQUIRES = [
     'pytz==2020.1',
     'pyserial==3.4',
     'ifaddr==0.1.6',
+    'deepmerge==0.1.0'
 ]
 
 # If you have problems importing platformio and esptool as modules you can set

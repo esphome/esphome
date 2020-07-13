@@ -12,8 +12,9 @@ import voluptuous as vol
 
 from esphome import core, core_config, yaml_util
 from esphome.components import substitutions
+from esphome.components.packages import do_packages_pass
 from esphome.components.substitutions import CONF_SUBSTITUTIONS
-from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS
+from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES
 from esphome.core import CORE, EsphomeError  # noqa
 from esphome.helpers import color, indent
 from esphome.util import safe_print, OrderedDict
@@ -389,6 +390,16 @@ def recursive_check_replaceme(value):
 
 def validate_config(config, command_line_substitutions):
     result = Config()
+
+    # 0. Load packages
+    if CONF_PACKAGES in config:
+        result.add_output_path([CONF_PACKAGES], CONF_PACKAGES)
+        try:
+            do_packages_pass(config)
+        except vol.Invalid as err:
+            result.update(config)
+            result.add_error(err)
+            return result
 
     # 1. Load substitutions
     if CONF_SUBSTITUTIONS in config:

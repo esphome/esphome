@@ -1,3 +1,6 @@
+substitutions:
+  devicename: test1
+
 esphome:
   name: test1
   platform: ESP32
@@ -24,6 +27,10 @@ esphome:
           blue: 0%
           white: 100%
   build_path: build/test1
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  pkg_test: !include test_packages/test_packages_package1.yaml
 
 wifi:
   networks:
