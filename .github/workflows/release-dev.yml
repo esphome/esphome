@@ -1,0 +1,171 @@
+name: Publish dev releases to docker hub
+
+on:
+  push:
+    branches:
+    - dev
+
+jobs:
+  cpp-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+      - name: Cache pip modules
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: esphome-pip-3.8-${{ hashFiles('setup.py') }}
+          restore-keys: |
+            esphome-pip-
+      - name: Cache Platformio
+        uses: actions/cache@v1
+        with:
+          path: ~/.platformio
+          key: esphome-platformio
+      - name: Setup environment
+        run: |
+          script/setup
+          pio init --ide atom
+      - name: Lint Cpp Code
+        uses: esphome/esphome-lint-action@v1
+        with:
+          run: |
+            script/clang-tidy --all-headers --fix
+            script/clang-format -i
+            script/ci-suggest-changes
+
+  python-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+      - name: Cache pip modules
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
+          restore-keys: |
+            esphome-pip-
+      - name: Cache Platformio
+        uses: actions/cache@v1
+        with:
+          path: ~/.platformio
+          key: esphome-platformio
+      - name: Setup environment
+        run: |
+          script/setup
+      - name: Lint Python
+        run: |
+          script/ci-custom.py
+          flake8 esphome
+          pylint esphome
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+          test:
+          - test1
+          - test2
+          - test3
+          - test4
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.6'
+      - name: Cache pip modules
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: esphome-pip-3.6-${{ hashFiles('setup.py') }}
+          restore-keys: |
+            esphome-pip-
+      - name: Cache Platformio
+        uses: actions/cache@v1
+        with:
+          path: ~/.platformio
+          key: esphome-platformio
+      - name: Setup environment
+        run: |
+          script/setup
+      - run: |
+          esphome tests/${{ matrix.test }}.yaml compile
+
+  deploy-docker:
+    name: Build and publish docker containers
+    runs-on: ubuntu-latest
+    needs: [lint-custom, lint-python, lint-tidy, lint-format, test]
+    strategy:
+      matrix:
+        arch: [amd64, i386, armv7, aarch64]
+        build_type: ["hassio", "docker"]
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          tag="dev"
+          base_version="2.0.1"
+
+          if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
+            build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
+            build_to="esphome/esphome-hassio-${{ matrix.arch }}"
+            dockerfile="docker/Dockerfile.hassio"
+          else
+            build_from="esphome/esphome-base-${{ matrix.arch }}:${base_version}"
+            build_to="esphome/esphome-${{ matrix.arch }}"
+            dockerfile="docker/Dockerfile"
+            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
+              build_to="esphome/esphome"
+            fi
+          fi
+          echo "::set-env name=TAG::${tag}"
+          echo "::set-env name=BUILD_FROM::${build_from}"
+          echo "::set-env name=BUILD_TO::${build_to}"
+          echo "::set-env name=IMAGE::${build_to}:${tag}"
+          echo "::set-env name=DOCKERFILE::${dockerfile}"
+      - run: |
+          docker run --rm --privileged multiarch/qemu-user-static:register
+
+          docker build \
+            --build-arg "BUILD_FROM=${BUILD_FROM}" \
+            --build-arg "BUILD_VERSION=${TAG}" \
+            --tag "${IMAGE}" \
+            --file "${DOCKERFILE}" \
+            .
+      - env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+      - run: |
+          docker push "${IMAGE}"
+
+  deploy-docker-manifest:
+    runs-on: ubuntu-latest
+    needs: [deploy-docker]
+    steps:
+    - run: |
+        mkdir -p ~/.docker
+        echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - env:
+        DOCKER_USER: ${{ secrets.DOCKER_USER }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      run: docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+    - run: |
+        REPO=esphome/esphome
+        tag=dev
+
+        docker manifest create ${REPO}:${tag} \
+          ${REPO}-aarch64:${tag} \
+          ${REPO}-amd64:${tag} \
+          ${REPO}-armv7:${tag} \
+          ${REPO}-i386:${tag}
+        echo "Pushing to ${REPO}:${tag}"
+        docker push ${REPO}:${tag}
