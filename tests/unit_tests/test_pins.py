@@ -94,7 +94,6 @@ class Test_lookup_pin:
 
         assert actual == expected
 
-    @pytest.mark.xfail(reason="This may be expected")
     def test_valid_32_pin_alias(self, core_esp32):
         core_esp32.board = MOCK_ESP32_BOARD_ALIAS_ID
 

@@ -493,9 +493,9 @@ class EsphomeCore:
         # The board that's used (for example nodemcuv2)
         self.board: Optional[str] = None
         # The full raw configuration
-        self.raw_config: ConfigType = {}
+        self.raw_config: ConfigType = None
         # The validated configuration, this is None until the config has been validated
-        self.config: ConfigType = {}
+        self.config: ConfigType = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
