@@ -104,7 +104,7 @@ def alphanumeric(value):
         raise Invalid("string value is None")
     value = str(value)
     if not value.isalnum():
-        raise Invalid("string value is not alphanumeric")
+        raise Invalid(f"{value} is not alphanumeric")
     return value
 
 
