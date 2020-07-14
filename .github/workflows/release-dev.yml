@@ -193,9 +193,9 @@ jobs:
             .
       - name: Log in to docker hub
         env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-        run: docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD"
+        run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
       - run: docker push "${IMAGE}"
 
   deploy-docker-manifest:
