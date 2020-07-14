@@ -9,11 +9,6 @@ on:
     branches: [beta, master]
 
   pull_request:
-    # Only trigger on certain events (not when comments are added)
-    types: [opened, reopened, synchronize]
-    # Only run when PR is against dev branch (all PRs should be against dev branch)
-    # Helps prevent accidentally merging PRs against master branch
-    branches: [dev]
 
 jobs:
   # A fast overview job that checks only changed files
