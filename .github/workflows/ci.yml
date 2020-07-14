@@ -1,11 +1,18 @@
+# THESE JOBS ARE COPIED IN release.yml and release-dev.yml
+# PLEASE ALSO UPDATE THOSE FILES WHEN CHANGING LINES HERE
 name: CI
 
 on:
   push:
     # On dev branch release-dev already performs CI checks
-    branches: [beta, master, gh-actions2]
+    # On other branches the `pull_request` trigger will be used
+    branches: [beta, master]
+
   pull_request:
+    # Only trigger on certain events (not when comments are added)
     types: [opened, reopened, synchronize]
+    # Only run when PR is against dev branch (all PRs should be against dev branch)
+    # Helps prevent accidentally merging PRs against master branch
     branches: [dev]
 
 jobs:
@@ -14,12 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     container: esphome/esphome-lint:dev
     steps:
+      # Also fetch history and dev branch so that we can check which files changed
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      # Also fetch dev branch so that we can check which files changed
       - name: Fetch dev branch
         run: git fetch origin dev
+      
+      # Cache the .pio directory with (primarily) library dependencies
       - name: Cache .pio lib_deps
         uses: actions/cache@v1
         with:
@@ -77,6 +86,7 @@ jobs:
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
     container: esphome/esphome-lint:dev
+    # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       matrix:
         split: [1, 2, 3, 4]
@@ -122,11 +132,10 @@ jobs:
           path: ~/.cache/pip
           key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
           restore-keys: |
-            esphome-pip-
+            esphome-pip-3.7-
       - name: Set up python environment
         run: script/setup
 
-      
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
@@ -158,7 +167,7 @@ jobs:
           path: ~/.cache/pip
           key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
           restore-keys: |
-            esphome-pip-
+            esphome-pip-3.7-
       # Use per test platformio cache because tests have different platform versions
       - name: Cache ~/.platformio
         uses: actions/cache@v1
@@ -171,11 +180,10 @@ jobs:
       - name: Cache Test Build
         uses: actions/cache@v1
         with:
-          path: |
-            tests/build/${{ matrix.test }}
+          path: tests/build/${{ matrix.test }}
           key: test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-${{ hashFiles('esphome/**') }}
           restore-keys: |
-            test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
+            test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-
             test-pio-${{ matrix.test }}-
       - name: Set up environment
         run: script/setup
