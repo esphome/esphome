@@ -2,7 +2,7 @@
 
 from esphome.core import CORE
 from esphome.config import read_config
-from esphome.__main__ import assemble_cpp_file
+from esphome.__main__ import generate_cpp_contents
 
 
 def test_binary_sensor_config_value_internal_set():
@@ -14,7 +14,7 @@ def test_binary_sensor_config_value_internal_set():
     CORE.config = read_config({})
 
     # When
-    assemble_cpp_file(CORE.config)
+    generate_cpp_contents(CORE.config)
     # print(CORE.cpp_main_section)
 
     # Then
