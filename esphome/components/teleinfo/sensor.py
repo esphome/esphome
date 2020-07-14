@@ -6,7 +6,7 @@ from esphome.const import CONF_ID, CONF_SENSOR, CONF_NAME, ICON_FLASH, UNIT_WATT
 DEPENDENCIES = ['uart']
 
 teleinfo_ns = cg.esphome_ns.namespace('teleinfo')
-TELEINFO = teleinfo_ns.class_('TeleInfo', cg.PollingComponent, uart.UARTDevice)
+TeleInfo = teleinfo_ns.class_('TeleInfo', cg.PollingComponent, uart.UARTDevice)
 
 TELEINFO_TAG_SCHEMA = cv.Schema({
     cv.Required(CONF_NAME): cv.string,
@@ -16,7 +16,7 @@ TELEINFO_TAG_SCHEMA = cv.Schema({
 CONF_TAGS = "tags"
 CONF_HISTORICAL_MODE = "historical_mode"
 CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(TELEINFO),
+    cv.GenerateID(): cv.declare_id(TeleInfo),
     cv.Optional(CONF_HISTORICAL_MODE): cv.boolean,
     cv.Optional(CONF_TAGS): cv.ensure_list(TELEINFO_TAG_SCHEMA),
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
