@@ -131,6 +131,11 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config):
+    generate_cpp_contents(config)
+    return write_cpp_file()
+
+
+def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_components(CORE.config):
@@ -140,6 +145,8 @@ def write_cpp(config):
 
     CORE.flush_tasks()
 
+
+def write_cpp_file():
     writer.write_platformio_project()
 
     code_s = indent(CORE.cpp_main_section)
