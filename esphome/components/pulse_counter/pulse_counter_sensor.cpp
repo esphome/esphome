@@ -137,6 +137,7 @@ pulse_counter_t PulseCounterStorage::read_raw_value() {
 
 void PulseCounterSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up pulse counter '%s'...", this->name_.c_str());
+  last_update_ = millis();
   if (!this->storage_.pulse_counter_setup(this->pin_)) {
     this->mark_failed();
     return;
@@ -153,8 +154,17 @@ void PulseCounterSensor::dump_config() {
 }
 
 void PulseCounterSensor::update() {
+
   pulse_counter_t raw = this->storage_.read_raw_value();
-  float value = (60000.0f * raw) / float(this->get_update_interval());  // per minute
+
+  uint32_t now = millis();
+  uint32_t cycleDuration = now - last_update_;
+  last_update_ = now;
+  if (cycleDuration == 0) {
+    return;
+  }
+
+  float value = (60000.0f * raw) / float(cycleDuration ));  // per minute
 
   ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
   this->publish_state(value);

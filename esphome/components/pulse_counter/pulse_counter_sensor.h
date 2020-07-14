@@ -64,6 +64,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  protected:
   GPIOPin *pin_;
   PulseCounterStorage storage_;
+  uint32_t last_update_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32
