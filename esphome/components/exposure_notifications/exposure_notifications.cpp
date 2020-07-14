@@ -18,7 +18,9 @@ bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
 
   // Exposure notifications have Service UUID FD 6F
   ESPBTUUID uuid = device.get_service_uuids()[0];
-  if (uuid != ESPBTUUID::from_uint16(0xFD6F))
+  // constant service identifier
+  const ESPBTUUID expected_uuid = ESPBTUUID::from_uint16(0xFD6F);
+  if (uuid != expected_uuid)
     return false;
   if (device.get_service_datas().size() != 1)
     return false;
@@ -27,6 +29,8 @@ bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
   // First 16 bytes are the rolling proximity identifier (RPI)
   // Then 4 bytes of encrypted metadata follow which can be used to get the transmit power level.
   ServiceData service_data = device.get_service_datas()[0];
+  if (service_data.uuid != expected_uuid)
+    return false;
   auto data = service_data.data;
   if (data.size() != 20)
     return false;
