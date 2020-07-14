@@ -208,9 +208,9 @@ jobs:
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${IMAGE}" \
             --file "${DOCKERFILE}" \
-            --cache-from "${{ github.repository }}:latest"
-            --cache-from "${{ github.repository }}:beta"
-            --cache-from "${{ github.repository }}:dev"
+            --cache-from "${{ github.repository }}:latest" \
+            --cache-from "${{ github.repository }}:beta" \
+            --cache-from "${{ github.repository }}:dev" \
             .
       - name: Log in to docker hub
         env:
@@ -253,7 +253,7 @@ jobs:
           ${REPO}-armv7:${TAG} \
           ${REPO}-i386:${TAG}
         echo "::set-env name=REPO::${REPO}"
-        docker push ${REPO}:${TAG}
+        docker manifest push ${REPO}:${TAG}
 
     - name: Publish docker beta tag
       if: ${{ github.event.release.prerelease) }}
@@ -263,7 +263,7 @@ jobs:
           ${REPO}-amd64:beta \
           ${REPO}-armv7:beta \
           ${REPO}-i386:beta
-        docker push ${REPO}:beta
+        docker manifest push ${REPO}:beta
     - name: Publish docker latest tag
       if: ${{ !github.event.release.prerelease) }}
       run: |
@@ -272,4 +272,4 @@ jobs:
           ${REPO}-amd64:latest \
           ${REPO}-armv7:latest \
           ${REPO}-i386:latest
-        docker push ${REPO}:latest
+        docker manifest push ${REPO}:latest
