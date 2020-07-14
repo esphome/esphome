@@ -165,15 +165,12 @@ jobs:
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
-            build_to="esphome/esphome-hassio-${{ matrix.arch }}"
+            build_to="${{ github.repository }}-hassio-${{ matrix.arch }}"
             dockerfile="docker/Dockerfile.hassio"
           else
             build_from="esphome/esphome-base-${{ matrix.arch }}:${base_version}"
-            build_to="esphome/esphome-${{ matrix.arch }}"
+            build_to="${{ github.repository }}-${{ matrix.arch }}"
             dockerfile="docker/Dockerfile"
-            if [[ "${{ matrix.arch }}" == "amd64" ]]; then
-              build_to="esphome/esphome"
-            fi
           fi
 
           # Set env variables so these values don't need to be calculated again
@@ -190,6 +187,9 @@ jobs:
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${IMAGE}" \
             --file "${DOCKERFILE}" \
+            --cache-from "${{ github.repository }}:latest"
+            --cache-from "${{ github.repository }}:beta"
+            --cache-from "${{ github.repository }}:dev"
             .
       - name: Log in to docker hub
         env:
@@ -213,7 +213,7 @@ jobs:
       run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
     - name: "Create the manifest"
       run: |
-        REPO=esphome/esphome
+        REPO=${{ github.repository }}
         TAG="dev"
 
         docker manifest create ${REPO}:${TAG} \
@@ -221,6 +221,4 @@ jobs:
           ${REPO}-amd64:${TAG} \
           ${REPO}-armv7:${TAG} \
           ${REPO}-i386:${TAG}
-        echo "::set-env name=TAG::${TAG}"
-        echo "::set-env name=REPO::${REPO}"
-    - run: docker push ${REPO}:${TAG}
+        docker push ${REPO}:${TAG}
