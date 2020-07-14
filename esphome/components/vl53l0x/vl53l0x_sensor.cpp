@@ -297,7 +297,7 @@ void VL53L0XSensor::loop() {
       this->waiting_for_interrupt_ = false;
 
       if (range_mm >= 8190) {
-        ESP_LOGW(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
+        ESP_LOGD(TAG, "'%s' - Distance is out of range, please move the target closer", this->name_.c_str());
         this->publish_state(NAN);
         return;
       }
