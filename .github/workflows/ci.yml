@@ -19,7 +19,7 @@ jobs:
   # A fast overview job that checks only changed files
   overview:
     runs-on: ubuntu-latest
-    container: esphome/esphome-lint:dev
+    container: esphome/esphome-lint:latest
     steps:
       # Also fetch history and dev branch so that we can check which files changed
       - uses: actions/checkout@v2
@@ -27,7 +27,7 @@ jobs:
           fetch-depth: 0
       - name: Fetch dev branch
         run: git fetch origin dev
-      
+
       # Cache the .pio directory with (primarily) library dependencies
       - name: Cache .pio lib_deps
         uses: actions/cache@v1
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:dev
+    container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
       # Cache platformio intermediary files (like libraries etc)
@@ -85,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:dev
+    container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       matrix:
@@ -106,7 +106,7 @@ jobs:
       - name: Set up platformio environment
         run: pio init --ide atom
 
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
@@ -188,7 +188,7 @@ jobs:
       - name: Set up environment
         run: script/setup
 
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
