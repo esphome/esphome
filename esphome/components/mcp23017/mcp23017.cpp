@@ -13,10 +13,6 @@ void MCP23017::setup() {
     this->mark_failed();
     return;
   }
-
-  // all pins input
-  this->write_reg_(MCP23017_IODIRA, 0xFF);
-  this->write_reg_(MCP23017_IODIRB, 0xFF);
 }
 bool MCP23017::digital_read(uint8_t pin) {
   uint8_t bit = pin % 8;
