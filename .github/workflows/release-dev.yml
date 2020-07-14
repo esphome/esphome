@@ -129,15 +129,6 @@ jobs:
           key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
           restore-keys: |
             test-home-platformio-${{ matrix.test }}-
-      # Cache the intermediary build files
-      - name: Cache Test Build
-        uses: actions/cache@v1
-        with:
-          path: tests/build/${{ matrix.test }}
-          key: test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-${{ hashFiles('esphome/**') }}
-          restore-keys: |
-            test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-
-            test-pio-${{ matrix.test }}-
       - name: Set up environment
         run: script/setup
 
