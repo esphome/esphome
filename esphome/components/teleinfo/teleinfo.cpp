@@ -55,7 +55,7 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
      * Data will be retrieved on next update.
      */
     if (buf_index_ >= (MAX_BUF_SIZE - 1)) {
-      ESP_LOGE(TAG, "Internal buffer full");
+      ESP_LOGW(TAG, "Internal buffer full");
       state_ = OFF;
       return false;
     }
