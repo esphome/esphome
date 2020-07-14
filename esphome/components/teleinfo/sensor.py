@@ -28,6 +28,6 @@ def to_code(config):
     yield uart.register_uart_device(var, config)
 
     if CONF_TAGS in config:
-        for _, tag in enumerate(config[CONF_TAGS]):
+        for tag in config[CONF_TAGS]:
             sens = yield sensor.new_sensor(tag[CONF_SENSOR])
             cg.add(var.register_teleinfo_sensor(tag[CONF_NAME], sens))
