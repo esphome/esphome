@@ -28,6 +28,7 @@ class ESPBTUUID {
   bool contains(uint8_t data1, uint8_t data2) const;
 
   bool operator==(const ESPBTUUID &uuid) const;
+  bool operator!=(const ESPBTUUID &uuid) const { return !(*this == uuid); }
 
   esp_bt_uuid_t get_uuid();
 

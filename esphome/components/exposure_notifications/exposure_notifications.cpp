@@ -18,7 +18,7 @@ bool ExposureNotificationTrigger::parse_device(const ESPBTDevice &device) {
 
   // Exposure notifications have Service UUID FD 6F
   ESPBTUUID uuid = device.get_service_uuids()[0];
-  if (!(uuid == ESPBTUUID::from_uint16(0xFD6F)))
+  if (uuid != ESPBTUUID::from_uint16(0xFD6F))
     return false;
   if (device.get_service_datas().size() != 1)
     return false;
