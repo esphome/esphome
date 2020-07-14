@@ -1,4 +1,4 @@
-FROM esphome/esphome-base-amd64:2.1.1
+FROM esphome/esphome-base-amd64:2.1.2
 
 RUN \
     apt-get update \
@@ -7,6 +7,8 @@ RUN \
         clang-tidy-7 \
         patch \
         software-properties-common \
+    # Update to latest git version because of github actions
+    # https://github.com/actions/checkout/issues/126
     && apt-add-repository ppa:git-core/ppa \
     && apt-get install -y --no-install-recommends \
         git \
@@ -16,7 +18,7 @@ RUN \
         /var/lib/apt/lists/*
 
 COPY requirements_test.txt /requirements_test.txt
-RUN pip3 install --no-cache-dir wheel && pip3 install --no-cache-dir -r /requirements_test.txt
+RUN pip3 install --no-cache-dir -r /requirements_test.txt
 
 VOLUME ["/esphome"]
 WORKDIR /esphome
