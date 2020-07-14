@@ -4,7 +4,6 @@ on:
   push:
     branches:
     - dev
-    - gh-actions-test
 
 jobs:
   # THE LINT/TEST JOBS ARE COPIED FROM ci.yaml
