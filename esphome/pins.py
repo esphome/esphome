@@ -269,7 +269,7 @@ def _lookup_pin(value):
     # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
         board_pins = board_pins_dict[board_pins]
-    
+
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:
