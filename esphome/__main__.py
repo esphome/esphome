@@ -131,11 +131,11 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config):
-    assemble_cpp_file(config)
-    write_cpp_file()
+    generate_cpp_contents(config)
+    return write_cpp_file()
 
 
-def assemble_cpp_file(config):
+def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_components(CORE.config):

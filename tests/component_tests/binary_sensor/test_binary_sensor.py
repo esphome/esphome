@@ -20,3 +20,5 @@ def test_binary_sensor_config_value_internal_set():
     # Then
     assert "bs_1->set_internal(true);" in CORE.cpp_main_section
     assert "bs_2->set_internal(false);" in CORE.cpp_main_section
+
+    CORE.reset()
