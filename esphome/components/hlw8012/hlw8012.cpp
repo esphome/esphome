@@ -33,23 +33,21 @@ void HLW8012Component::dump_config() {
 }
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
-
   uint32_t now = millis();
-  uint32_t cycleDuration = now - last_update_;
+  uint32_t cycle_duration = now - last_update_;
   last_update_ = now;
-  if (cycleDuration == 0) {
+  if (cycle_duration == 0) {
     return;
   }
-
   // HLW8012 has 50% duty cycle
   pulse_counter::pulse_counter_t raw_cf = this->cf_store_.read_raw_value();
   pulse_counter::pulse_counter_t raw_cf1 = this->cf1_store_.read_raw_value();
-  float cf_hz = raw_cf / (cycleDuration / 1000.0f);
+  float cf_hz = raw_cf / (cycle_duration / 1000.0f);
   if (raw_cf <= 1) {
     // don't count single pulse as power
     cf_hz = 0.0f;
   }
-  float cf1_hz = raw_cf1 / (cycleDuration / 1000.0f); 
+  float cf1_hz = raw_cf1 / (cycle_duration / 1000.0f);
   if (raw_cf1 <= 1) {
     // don't count single pulse as anything
     cf1_hz = 0.0f;
