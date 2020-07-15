@@ -1,15 +1,16 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
-from esphome.const import CONF_ID, CONF_SENSOR, CONF_NAME, ICON_FLASH, UNIT_WATT_HOURS
+from esphome.const import CONF_ID, CONF_SENSOR, ICON_FLASH, UNIT_WATT_HOURS
 
 DEPENDENCIES = ['uart']
 
 teleinfo_ns = cg.esphome_ns.namespace('teleinfo')
 TeleInfo = teleinfo_ns.class_('TeleInfo', cg.PollingComponent, uart.UARTDevice)
 
+CONF_TAG_NAME = "tag_name"
 TELEINFO_TAG_SCHEMA = cv.Schema({
-    cv.Required(CONF_NAME): cv.string,
+    cv.Required(CONF_TAG_NAME): cv.string,
     cv.Required(CONF_SENSOR): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_FLASH, 0)
 })
 
@@ -30,4 +31,4 @@ def to_code(config):
     if CONF_TAGS in config:
         for tag in config[CONF_TAGS]:
             sens = yield sensor.new_sensor(tag[CONF_SENSOR])
-            cg.add(var.register_teleinfo_sensor(tag[CONF_NAME], sens))
+            cg.add(var.register_teleinfo_sensor(tag[CONF_TAG_NAME], sens))
