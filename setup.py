@@ -41,7 +41,7 @@ REQUIRES = [
 # This means they have to be in your $PATH.
 if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
     REQUIRES.extend([
-        'platformio==4.3.3',
+        'platformio==4.3.4',
         'esptool==2.8',
     ])
 

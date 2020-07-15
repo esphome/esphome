@@ -6,12 +6,12 @@ on:
 
 jobs:
   # THE LINT/TEST JOBS ARE COPIED FROM ci.yaml
- 
+
   lint-clang-format:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:dev
+    container: esphome/esphome-lint:latest
     steps:
       - uses: actions/checkout@v2
       # Cache platformio intermediary files (like libraries etc)
@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     # cpp lint job runs with esphome-lint docker image so that clang-format-*
     # doesn't have to be installed
-    container: esphome/esphome-lint:dev
+    container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
       matrix:
@@ -58,7 +58,7 @@ jobs:
       - name: Set up platformio environment
         run: pio init --ide atom
 
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/clang-tidy.json"
@@ -140,7 +140,6 @@ jobs:
       - name: Set up environment
         run: script/setup
 
-      
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
@@ -179,54 +178,62 @@ jobs:
         build_type: ["hassio", "docker"]
     steps:
       - uses: actions/checkout@v2
+      - name: Set TAG
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "::set-env name=TAG::${TAG}"
       - name: Set up env variables
         run: |
-          tag="${GITHUB_REF#v}"
-          base_version="2.1.2"
+          base_version="2.3.1"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
-            build_to="${{ github.repository }}-hassio-${{ matrix.arch }}"
+            build_to="esphome/esphome-hassio-${{ matrix.arch }}"
             dockerfile="docker/Dockerfile.hassio"
           else
             build_from="esphome/esphome-base-${{ matrix.arch }}:${base_version}"
-            build_to="${{ github.repository }}-${{ matrix.arch }}"
+            build_to="esphome/esphome-${{ matrix.arch }}"
             dockerfile="docker/Dockerfile"
           fi
 
           # Set env variables so these values don't need to be calculated again
-          echo "::set-env name=TAG::${tag}"
           echo "::set-env name=BUILD_FROM::${build_from}"
           echo "::set-env name=BUILD_TO::${build_to}"
-          echo "::set-env name=IMAGE::${build_to}:${tag}"
           echo "::set-env name=DOCKERFILE::${dockerfile}"
+      - name: Pull for cache
+        run: |
+          docker pull "${BUILD_TO}:latest" || true
+          docker pull "${BUILD_TO}:beta" || true
+          docker pull "${BUILD_TO}:dev" || true
       - name: Register QEMU binfmt
         run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
       - run: |
           docker build \
             --build-arg "BUILD_FROM=${BUILD_FROM}" \
             --build-arg "BUILD_VERSION=${TAG}" \
-            --tag "${IMAGE}" \
+            --tag "${BUILD_TO}:${TAG}" \
+            --cache-from "${BUILD_TO}:latest" \
+            --cache-from "${BUILD_TO}:beta" \
+            --cache-from "${BUILD_TO}:dev" \
             --file "${DOCKERFILE}" \
-            --cache-from "${{ github.repository }}:latest" \
-            --cache-from "${{ github.repository }}:beta" \
-            --cache-from "${{ github.repository }}:dev" \
             .
       - name: Log in to docker hub
         env:
           DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
-      - run: docker push "${IMAGE}"
-      - if: ${{ github.event.release.prerelease) }}
-        name: Publish docker beta tag
+      - run: docker push "${BUILD_TO}:${TAG}"
+
+      # Always publish to beta tag (also full releases)
+      - name: Publish docker beta tag
         run: |
-          docker tag "${IMAGE}" ${BUILD_TO}:beta
+          docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:beta"
           docker push "${BUILD_TO}:beta"
+
       - if: ${{ !github.event.release.prerelease) }}
         name: Publish docker latest tag
         run: |
-          docker tag "${IMAGE}" ${BUILD_TO}:latest
+          docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:latest"
           docker push "${BUILD_TO}:latest"
 
   deploy-docker-manifest:
@@ -237,6 +244,10 @@ jobs:
       run: |
         mkdir -p ~/.docker
         echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+    - name: Set TAG
+      run: |
+        TAG="${GITHUB_REF#refs/tags/v}"
+        echo "::set-env name=TAG::${TAG}"
     - name: Log in to docker hub
       env:
         DOCKER_USER: ${{ secrets.DOCKER_USER }}
@@ -244,32 +255,28 @@ jobs:
       run: docker login -u "${DOCKER_USER}" -p "${DOCKER_PASSWORD}"
     - name: "Create the manifest"
       run: |
-        REPO=${{ github.repository }}
-        TAG="${GITHUB_REF#v}"
-
-        docker manifest create ${REPO}:${TAG} \
-          ${REPO}-aarch64:${TAG} \
-          ${REPO}-amd64:${TAG} \
-          ${REPO}-armv7:${TAG} \
-          ${REPO}-i386:${TAG}
-        echo "::set-env name=REPO::${REPO}"
-        docker manifest push ${REPO}:${TAG}
+        docker manifest create esphome/esphome:${TAG} \
+          esphome/esphome-aarch64:${TAG} \
+          esphome/esphome-amd64:${TAG} \
+          esphome/esphome-armv7:${TAG} \
+          esphome/esphome-i386:${TAG}
+        docker manifest push esphome/esphome:${TAG}
 
     - name: Publish docker beta tag
-      if: ${{ github.event.release.prerelease) }}
       run: |
-        docker manifest create ${REPO}:beta \
-          ${REPO}-aarch64:beta \
-          ${REPO}-amd64:beta \
-          ${REPO}-armv7:beta \
-          ${REPO}-i386:beta
-        docker manifest push ${REPO}:beta
+        docker manifest create esphome/esphome:beta \
+          esphome/esphome-aarch64:${TAG} \
+          esphome/esphome-amd64:${TAG} \
+          esphome/esphome-armv7:${TAG} \
+          esphome/esphome-i386:${TAG}
+        docker manifest push esphome/esphome:beta
+
     - name: Publish docker latest tag
       if: ${{ !github.event.release.prerelease) }}
       run: |
-        docker manifest create ${REPO}:latest \
-          ${REPO}-aarch64:latest \
-          ${REPO}-amd64:latest \
-          ${REPO}-armv7:latest \
-          ${REPO}-i386:latest
-        docker manifest push ${REPO}:latest
+        docker manifest create esphome/esphome:latest \
+          esphome/esphome-aarch64:${TAG} \
+          esphome/esphome-amd64:${TAG} \
+          esphome/esphome-armv7:${TAG} \
+          esphome/esphome-i386:${TAG}
+        docker manifest push esphome/esphome:latest
