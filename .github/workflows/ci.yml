@@ -9,8 +9,6 @@ on:
     branches: [beta, master]
 
   pull_request:
-    # Only trigger on certain events (not when comments are added)
-    types: [opened, reopened, synchronize]
     # Only run when PR is against dev branch (all PRs should be against dev branch)
     # Helps prevent accidentally merging PRs against master branch
     branches: [dev]
@@ -176,15 +174,6 @@ jobs:
           key: test-home-platformio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}
           restore-keys: |
             test-home-platformio-${{ matrix.test }}-
-      # Cache the intermediary build files
-      - name: Cache Test Build
-        uses: actions/cache@v1
-        with:
-          path: tests/build/${{ matrix.test }}
-          key: test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-${{ hashFiles('esphome/**') }}
-          restore-keys: |
-            test-pio-${{ matrix.test }}-${{ hashFiles('esphome/core_config.py') }}-
-            test-pio-${{ matrix.test }}-
       - name: Set up environment
         run: script/setup
 
@@ -194,3 +183,34 @@ jobs:
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/python.json"
       - run: esphome tests/${{ matrix.test }}.yaml compile
+
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.7'
+      - name: Cache pip modules
+        uses: actions/cache@v1
+        with:
+          path: ~/.cache/pip
+          key: esphome-pip-3.7-${{ hashFiles('setup.py') }}
+          restore-keys: |
+            esphome-pip-3.7-
+      - name: Set up environment
+        run: script/setup
+      - name: Install Github Actions annotator
+        run: pip install pytest-github-actions-annotate-failures
+
+      - name: Register problem matchers
+        run: |
+          echo "::add-matcher::.github/workflows/matchers/python.json"
+      - name: Run pytest
+        run: |
+          pytest \
+            -qq \
+            --durations=10 \
+            -o console_output_style=count \
+            tests

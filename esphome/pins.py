@@ -256,16 +256,20 @@ ESP32_BOARD_PINS = {
 
 def _lookup_pin(value):
     if CORE.is_esp8266:
-        board_pins = ESP8266_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP8266_BOARD_PINS
         base_pins = ESP8266_BASE_PINS
     elif CORE.is_esp32:
-        board_pins = ESP32_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP32_BOARD_PINS
         base_pins = ESP32_BASE_PINS
     else:
         raise NotImplementedError
 
+    board_pins = board_pins_dict.get(CORE.board, {})
+
+    # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
-        board_pins = ESP8266_BOARD_PINS.get(board_pins, {})
+        board_pins = board_pins_dict[board_pins]
+
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:

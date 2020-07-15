@@ -493,9 +493,9 @@ class EsphomeCore:
         # The board that's used (for example nodemcuv2)
         self.board: Optional[str] = None
         # The full raw configuration
-        self.raw_config: ConfigType = {}
+        self.raw_config: Optional[ConfigType] = None
         # The validated configuration, this is None until the config has been validated
-        self.config: ConfigType = {}
+        self.config: Optional[ConfigType] = None
         # The pending tasks in the task queue (mostly for C++ generation)
         # This is a priority queue (with heapq)
         # Each item is a tuple of form: (-priority, unique number, task)
@@ -547,6 +547,10 @@ class EsphomeCore:
 
     @property
     def address(self) -> Optional[str]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        # pylint: disable=unsupported-membership-test,unsubscriptable-object
         if 'wifi' in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
@@ -557,6 +561,10 @@ class EsphomeCore:
 
     @property
     def comment(self) -> Optional[str]:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        # pylint: disable=unsubscriptable-object
         if CONF_COMMENT in self.config[CONF_ESPHOME]:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
@@ -570,6 +578,10 @@ class EsphomeCore:
 
     @property
     def arduino_version(self) -> str:
+        if self.config is None:
+            raise ValueError("Config has not been loaded yet")
+
+        # pylint: disable=unsubscriptable-object
         return self.config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
 
     @property
