@@ -3,7 +3,7 @@ FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
 COPY requirements.txt /
-RUN pip3 install -r /requirements.txt
+RUN pip3 install --no-cache-dir -r /requirements.txt
 
 # Then copy esphome and install
 COPY . .
