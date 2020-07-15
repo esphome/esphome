@@ -34,6 +34,10 @@ FAN_SCHEMA = cv.MQTT_COMMAND_COMPONENT_SCHEMA.extend({
                                                       cv.publish_topic),
     cv.Optional(CONF_OSCILLATION_COMMAND_TOPIC): cv.All(cv.requires_component('mqtt'),
                                                         cv.subscribe_topic),
+    cv.Optional(CONF_SPEED_STATE_TOPIC): cv.All(cv.requires_component('mqtt'),
+                                                cv.publish_topic),
+    cv.Optional(CONF_SPEED_COMMAND_TOPIC): cv.All(cv.requires_component('mqtt'),
+                                                  cv.subscribe_topic),
 })
 
 

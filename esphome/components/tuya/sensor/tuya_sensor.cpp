@@ -24,17 +24,6 @@ void TuyaSensor::setup() {
   });
 }
 
-// void TuyaSensor::write_state(bool state) {
-//   TuyaDatapoint datapoint{};
-//   datapoint.id = this->sensor_id_;
-//   datapoint.type = TuyaDatapointType::BOOLEAN;
-//   datapoint.value_bool = state;
-//   this->parent_->set_datapoint_value(datapoint);
-//   ESP_LOGD(TAG, "Setting sensor: %s", ONOFF(state));
-
-//   this->publish_state(state);
-// }
-
 void TuyaSensor::dump_config() {
   LOG_SENSOR("", "Tuya Sensor", this);
   ESP_LOGCONFIG(TAG, "  Sensor has datapoint ID %u", this->sensor_id_);
