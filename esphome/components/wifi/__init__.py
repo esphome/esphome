@@ -65,9 +65,9 @@ EAP_AUTH_SCHEMA = cv.All(cv.only_on_esp32, cv.Schema({
     cv.Optional(CONF_USERNAME): cv.string_strict,
     cv.Optional(CONF_PASSWORD): cv.string_strict,
     cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
-    cv.Optional(CONF_CERTIFICATE): wpa2_eap.validate_certificate,
-    cv.Optional(CONF_KEY): cv.string_strict,
-}), wpa2_eap.validate_eap)
+    cv.Inclusive(CONF_CERTIFICATE, 'certificate_and_key'): wpa2_eap.validate_certificate,
+    cv.Inclusive(CONF_KEY, 'certificate_and_key'): cv.string_strict,
+}), wpa2_eap.validate_eap, cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE))
 
 WIFI_NETWORK_BASE = cv.Schema({
     cv.GenerateID(): cv.declare_id(WiFiAP),
