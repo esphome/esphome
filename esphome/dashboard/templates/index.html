@@ -52,7 +52,9 @@
         <li><a data-action="update-all" data-filename="{{ escape(config_dir) }}">Update All</a></li>
         <li><a data-action="edit" data-filename="secrets.yaml">Secrets Editor</a></li>
         <li class="divider"></li>
-        <li><a href="{{ relative_url }}logout">Logout</a></li>
+        {% if login_enabled %}
+          <li><a href="{{ relative_url }}logout">Logout</a></li>
+        {% end %}
       </ul>
     </nav>
   </div>

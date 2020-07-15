@@ -56,7 +56,9 @@ class DashboardSettings:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            self.password_digest = hmac.new(password.encode()).digest()
+            # Store digest of password with HMAC-SHA256
+            # This is to provide constant size input to hmac.compare_digest
+            self.password_digest = hmac.new(password.encode(), digestmod='sha256').digest()
         self.config_dir = args.configuration[0]
 
     @property
@@ -83,8 +85,10 @@ class DashboardSettings:
         if username != self.username:
             return False
 
-        password = hmac.new(password.encode()).digest()
-        return username == self.username and hmac.compare_digest(self.password_digest, password)
+        # Compute HMAC-SHA256 of password
+        password = hmac.new(password.encode(), digestmod='sha256').digest()
+        # Compare digests in constant running time (to prevent timing attacks)
+        return hmac.compare_digest(self.password_digest, password)
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
@@ -313,14 +317,15 @@ class SerialPortRequestHandler(BaseHandler):
     def get(self):
         ports = get_serial_ports()
         data = []
-        for port, desc in ports:
-            if port == '/dev/ttyAMA0':
+        for port in ports:
+            desc = port.description
+            if port.path == '/dev/ttyAMA0':
                 desc = 'UART pins on GPIO header'
             split_desc = desc.split(' - ')
             if len(split_desc) == 2 and split_desc[0] == split_desc[1]:
                 # Some serial ports repeat their values
                 desc = split_desc[0]
-            data.append({'port': port, 'desc': desc})
+            data.append({'port': port.path, 'desc': desc})
         data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
         data.sort(key=lambda x: x['port'], reverse=True)
         self.write(json.dumps(data))
@@ -446,7 +451,7 @@ class MainRequestHandler(BaseHandler):
         entries = _list_dashboard_entries()
 
         self.render("templates/index.html", entries=entries, begin=begin,
-                    **template_args())
+                    **template_args(), login_enabled=settings.using_auth)
 
 
 def _ping_func(filename, address):
