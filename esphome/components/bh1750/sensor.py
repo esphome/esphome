@@ -15,9 +15,11 @@ BH1750_RESOLUTIONS = {
 
 BH1750Sensor = bh1750_ns.class_('BH1750Sensor', sensor.Sensor, cg.PollingComponent, i2c.I2CDevice)
 
+CONF_MEASUREMENT_TIME = 'measurement_time'
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 1).extend({
     cv.GenerateID(): cv.declare_id(BH1750Sensor),
     cv.Optional(CONF_RESOLUTION, default=0.5): cv.enum(BH1750_RESOLUTIONS, float=True),
+    cv.Optional(CONF_MEASUREMENT_TIME, default=69): cv.int_range(min=31, max=254),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x23))
 
 
@@ -28,3 +30,4 @@ def to_code(config):
     yield i2c.register_i2c_device(var, config)
 
     cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+    cg.add(var.set_measurement_time(config[CONF_MEASUREMENT_TIME]))

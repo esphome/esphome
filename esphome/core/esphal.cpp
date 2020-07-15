@@ -12,6 +12,7 @@ typedef struct {        // NOLINT
 
 void ICACHE_RAM_ATTR __attachInterruptArg(uint8_t pin, void (*)(void *), void *fp,  // NOLINT
                                           int mode);
+void ICACHE_RAM_ATTR __detachInterrupt(uint8_t pin);  // NOLINT
 };
 #endif
 
@@ -226,6 +227,15 @@ void ICACHE_RAM_ATTR interrupt_handler(void *arg) {
 }
 #endif
 
+void GPIOPin::detach_interrupt() const { this->detach_interrupt_(); }
+void GPIOPin::detach_interrupt_() const {
+#ifdef ARDUINO_ARCH_ESP8266
+  __detachInterrupt(get_pin());
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+  detachInterrupt(get_pin());
+#endif
+}
 void GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, int mode) const {
   if (this->inverted_) {
     if (mode == RISING) {

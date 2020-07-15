@@ -104,7 +104,7 @@ def alphanumeric(value):
         raise Invalid("string value is None")
     value = str(value)
     if not value.isalnum():
-        raise Invalid("string value is not alphanumeric")
+        raise Invalid(f"{value} is not alphanumeric")
     return value
 
 
@@ -566,6 +566,23 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
+def bind_key(value):
+    value = string_strict(value)
+    parts = [value[i:i+2] for i in range(0, len(value), 2)]
+    if len(parts) != 16:
+        raise Invalid("Bind key must consist of 16 hexadecimal numbers")
+    parts_int = []
+    if any(len(part) != 2 for part in parts):
+        raise Invalid("Bind key must be format XX")
+    for part in parts:
+        try:
+            parts_int.append(int(part, 16))
+        except ValueError:
+            raise Invalid("Bind key must be hex values from 00 to FF")
+
+    return ''.join(f'{part:02X}' for part in parts_int)
+
+
 def uuid(value):
     return Coerce(uuid_.UUID)(value)
 
@@ -821,9 +838,16 @@ def percentage(value):
 
 
 def possibly_negative_percentage(value):
-    has_percent_sign = isinstance(value, str) and value.endswith('%')
-    if has_percent_sign:
-        value = float(value[:-1].rstrip()) / 100.0
+    has_percent_sign = False
+    if isinstance(value, str):
+        try:
+            if value.endswith('%'):
+                has_percent_sign = False
+                value = float(value[:-1].rstrip()) / 100.0
+            else:
+                value = float(value)
+        except ValueError:
+            raise Invalid("invalid number")
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:

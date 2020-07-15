@@ -33,8 +33,8 @@ def get_serial_ports():
 def choose_prompt(options):
     if not options:
         raise EsphomeError("Found no valid options for upload/logging, please make sure relevant "
-                           "sections (ota, mqtt, ...) are in your configuration and/or the device "
-                           "is plugged in.")
+                           "sections (ota, api, mqtt, ...) are in your configuration and/or the "
+                           "device is plugged in.")
 
     if len(options) == 1:
         return options[0][1]
@@ -131,6 +131,11 @@ def wrap_to_code(name, comp):
 
 
 def write_cpp(config):
+    generate_cpp_contents(config)
+    return write_cpp_file()
+
+
+def generate_cpp_contents(config):
     _LOGGER.info("Generating C++ source...")
 
     for name, component, conf in iter_components(CORE.config):
@@ -140,6 +145,8 @@ def write_cpp(config):
 
     CORE.flush_tasks()
 
+
+def write_cpp_file():
     writer.write_platformio_project()
 
     code_s = indent(CORE.cpp_main_section)
@@ -428,6 +435,8 @@ def parse_args(argv):
     parser.add_argument('-q', '--quiet', help="Disable all esphome logs.",
                         action='store_true')
     parser.add_argument('--dashboard', help=argparse.SUPPRESS, action='store_true')
+    parser.add_argument('-s', '--substitution', nargs=2, action='append',
+                        help='Add a substitution', metavar=('key', 'value'))
     parser.add_argument('configuration', help='Your YAML configuration file.', nargs='*')
 
     subparsers = parser.add_subparsers(help='Commands', dest='command')
@@ -532,7 +541,7 @@ def run_esphome(argv):
         CORE.config_path = conf_path
         CORE.dashboard = args.dashboard
 
-        config = read_config()
+        config = read_config(dict(args.substitution) if args.substitution else {})
         if config is None:
             return 1
         CORE.config = config

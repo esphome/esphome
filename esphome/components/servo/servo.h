@@ -36,11 +36,11 @@ class Servo : public Component {
       this->rtc_ = global_preferences.make_preference<float>(global_servo_id);
       global_servo_id++;
       if (this->rtc_.load(&v)) {
-        this->write(v);
+        this->output_->set_level(v);
         return;
       }
     }
-    this->write(0.0f);
+    this->detach();
   }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -64,6 +64,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
  public:
   ServoWriteAction(Servo *servo) : servo_(servo) {}
   TEMPLATABLE_VALUE(float, value)
+
   void play(Ts... x) override { this->servo_->write(this->value_.value(x...)); }
 
  protected:
@@ -73,6 +74,7 @@ template<typename... Ts> class ServoWriteAction : public Action<Ts...> {
 template<typename... Ts> class ServoDetachAction : public Action<Ts...> {
  public:
   ServoDetachAction(Servo *servo) : servo_(servo) {}
+
   void play(Ts... x) override { this->servo_->detach(); }
 
  protected:

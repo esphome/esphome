@@ -24,40 +24,42 @@ struct Header {
 
 class HttpRequestComponent : public Component {
  public:
-  void setup() override {
-#ifdef ARDUINO_ARCH_ESP8266
-    this->wifi_client_ = new BearSSL::WiFiClientSecure();
-    this->wifi_client_->setInsecure();
-#endif
-  }
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void set_url(const char *url) { this->url_ = url; }
+  void set_url(std::string url) {
+    this->url_ = url;
+    this->secure_ = url.compare(0, 6, "https:") == 0;
+  }
   void set_method(const char *method) { this->method_ = method; }
   void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
   void set_body(std::string body) { this->body_ = body; }
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
   void send();
+  void close();
+  const char *get_string();
 
  protected:
   HTTPClient client_{};
-  const char *url_;
+  std::string url_;
   const char *method_;
   const char *useragent_{nullptr};
+  bool secure_;
   uint16_t timeout_{5000};
   std::string body_;
   std::list<Header> headers_;
 #ifdef ARDUINO_ARCH_ESP8266
-  BearSSL::WiFiClientSecure *wifi_client_;
+  WiFiClient *wifi_client_{nullptr};
+  BearSSL::WiFiClientSecure *wifi_client_secure_{nullptr};
+  WiFiClient *get_wifi_client_();
 #endif
 };
 
 template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
  public:
   HttpRequestSendAction(HttpRequestComponent *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(const char *, url)
+  TEMPLATABLE_VALUE(std::string, url)
   TEMPLATABLE_VALUE(const char *, method)
   TEMPLATABLE_VALUE(std::string, body)
   TEMPLATABLE_VALUE(const char *, useragent)
@@ -101,6 +103,7 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
       this->parent_->set_headers(headers);
     }
     this->parent_->send();
+    this->parent_->close();
   }
 
  protected:

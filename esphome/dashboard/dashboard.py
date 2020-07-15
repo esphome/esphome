@@ -100,9 +100,15 @@ cookie_authenticated_yes = b'yes'
 
 def template_args():
     version = const.__version__
+    if 'b' in version:
+        docs_link = 'https://beta.esphome.io/'
+    elif 'dev' in version:
+        docs_link = 'https://next.esphome.io/'
+    else:
+        docs_link = 'https://www.esphome.io/'
     return {
         'version': version,
-        'docs_link': 'https://beta.esphome.io/' if 'b' in version else 'https://esphome.io/',
+        'docs_link': docs_link,
         'get_static_file_url': get_static_file_url,
         'relative_url': settings.relative_url,
         'streamer_mode': get_bool_env('ESPHOME_STREAMER_MODE'),
@@ -325,7 +331,10 @@ class WizardRequestHandler(BaseHandler):
     def post(self):
         from esphome import wizard
 
-        kwargs = {k: ''.join(str(x) for x in v) for k, v in self.request.arguments.items()}
+        kwargs = {
+            k: ''.join(x.decode() for x in v)
+            for k, v in self.request.arguments.items()
+        }
         destination = settings.rel_path(kwargs['name'] + '.yaml')
         wizard.wizard_write(path=destination, **kwargs)
         self.redirect('./?begin=True')

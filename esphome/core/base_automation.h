@@ -108,34 +108,23 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
 
   TEMPLATABLE_VALUE(uint32_t, delay)
 
-  void stop() override {
-    this->cancel_timeout("");
-    this->num_running_ = 0;
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
-    auto f = std::bind(&DelayAction<Ts...>::delay_end_, this, x...);
+    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
     this->set_timeout(this->delay_.value(x...), f);
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  bool is_running() override { return this->num_running_ > 0 || this->is_running_next(); }
-
- protected:
-  void delay_end_(Ts... x) {
-    this->num_running_--;
-    this->play_next(x...);
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
-  int num_running_{0};
+
+  void stop() override { this->cancel_timeout(""); }
 };
 
 template<typename... Ts> class LambdaAction : public Action<Ts...> {
  public:
   explicit LambdaAction(std::function<void(Ts...)> &&f) : f_(std::move(f)) {}
+
   void play(Ts... x) override { this->f_(x...); }
 
  protected:
@@ -148,40 +137,39 @@ template<typename... Ts> class IfAction : public Action<Ts...> {
 
   void add_then(const std::vector<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
-    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next(x...); }));
+    this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
 
   void add_else(const std::vector<Action<Ts...> *> &actions) {
     this->else_.add_actions(actions);
-    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next(x...); }));
-  }
-
-  void play(Ts... x) override { /* ignore - see play_complex */
+    this->else_.add_action(new LambdaAction<Ts...>([this](Ts... x) { this->play_next_(x...); }));
   }
 
   void play_complex(Ts... x) override {
+    this->num_running_++;
     bool res = this->condition_->check(x...);
     if (res) {
       if (this->then_.empty()) {
-        this->play_next(x...);
-      } else {
+        this->play_next_(x...);
+      } else if (this->num_running_ > 0) {
         this->then_.play(x...);
       }
     } else {
       if (this->else_.empty()) {
-        this->play_next(x...);
-      } else {
+        this->play_next_(x...);
+      } else if (this->num_running_ > 0) {
         this->else_.play(x...);
       }
     }
+  }
+
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
   void stop() override {
     this->then_.stop();
     this->else_.stop();
   }
-
-  bool is_running() override { return this->then_.is_running() || this->else_.is_running() || this->is_running_next(); }
 
  protected:
   Condition<Ts...> *condition_;
@@ -196,36 +184,39 @@ template<typename... Ts> class WhileAction : public Action<Ts...> {
   void add_then(const std::vector<Action<Ts...> *> &actions) {
     this->then_.add_actions(actions);
     this->then_.add_action(new LambdaAction<Ts...>([this](Ts... x) {
-      if (this->condition_->check_tuple(this->var_)) {
+      if (this->num_running_ > 0 && this->condition_->check_tuple(this->var_)) {
         // play again
-        this->then_.play_tuple(this->var_);
+        if (this->num_running_ > 0) {
+          this->then_.play_tuple(this->var_);
+        }
       } else {
         // condition false, play next
-        this->play_next_tuple(this->var_);
+        this->play_next_tuple_(this->var_);
       }
     }));
   }
 
-  void play(Ts... x) override { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
+    this->num_running_++;
     // Store loop parameters
     this->var_ = std::make_tuple(x...);
     // Initial condition check
     if (!this->condition_->check_tuple(this->var_)) {
       // If new condition check failed, stop loop if running
       this->then_.stop();
-      this->play_next_tuple(this->var_);
+      this->play_next_tuple_(this->var_);
       return;
     }
 
-    this->then_.play_tuple(this->var_);
+    if (this->num_running_ > 0) {
+      this->then_.play_tuple(this->var_);
+    }
+  }
+
+  void play(Ts... x) override { /* ignore - see play_complex */
   }
 
   void stop() override { this->then_.stop(); }
-
-  bool is_running() override { return this->then_.is_running() || this->is_running_next(); }
 
  protected:
   Condition<Ts...> *condition_;
@@ -237,48 +228,44 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
  public:
   WaitUntilAction(Condition<Ts...> *condition) : condition_(condition) {}
 
-  void play(Ts... x) { /* ignore - see play_complex */
-  }
-
   void play_complex(Ts... x) override {
+    this->num_running_++;
     // Check if we can continue immediately.
     if (this->condition_->check(x...)) {
-      this->triggered_ = false;
-      this->play_next(x...);
+      if (this->num_running_ > 0) {
+        this->play_next_(x...);
+      }
       return;
     }
     this->var_ = std::make_tuple(x...);
-    this->triggered_ = true;
     this->loop();
   }
 
-  void stop() override { this->triggered_ = false; }
-
   void loop() override {
-    if (!this->triggered_)
+    if (this->num_running_ == 0)
       return;
 
     if (!this->condition_->check_tuple(this->var_)) {
       return;
     }
 
-    this->triggered_ = false;
-    this->play_next_tuple(this->var_);
+    this->play_next_tuple_(this->var_);
   }
 
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  bool is_running() override { return this->triggered_ || this->is_running_next(); }
+  void play(Ts... x) override { /* ignore - see play_complex */
+  }
 
  protected:
   Condition<Ts...> *condition_;
-  bool triggered_{false};
   std::tuple<Ts...> var_{};
 };
 
 template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
  public:
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
+
   void play(Ts... x) override { this->component_->update(); }
 
  protected:

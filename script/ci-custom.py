@@ -91,7 +91,8 @@ def lint_post_check(func):
 
 
 def lint_re_check(regex, **kwargs):
-    prog = re.compile(regex, re.MULTILINE)
+    flags = kwargs.pop('flags', re.MULTILINE)
+    prog = re.compile(regex, flags)
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
@@ -101,10 +102,12 @@ def lint_re_check(regex, **kwargs):
                 if 'NOLINT' in match.group(0):
                     continue
                 lineno = content.count("\n", 0, match.start()) + 1
+                substr = content[:match.start()]
+                col = len(substr) - substr.rfind('\n')
                 err = func(fname, match)
                 if err is None:
                     continue
-                errors.append(f"{err} See line {lineno}.")
+                errors.append((lineno, col+1, err))
             return errors
         return decor(new_func)
     return decorator
@@ -121,8 +124,7 @@ def lint_content_find_check(find, **kwargs):
             errors = []
             for line, col in find_all(content, find_):
                 err = func(fname)
-                errors.append("{err} See line {line}:{col}."
-                              "".format(err=err, line=line+1, col=col+1))
+                errors.append((line+1, col+1, err))
             return errors
         return decor(new_func)
     return decorator
@@ -215,9 +217,10 @@ def lint_const_ordered(fname, content):
                 continue
             target = next(i for i, l in ordered if l == ml)
             target_text = next(l for i, l in matching if target == i)
-            errors.append("Constant {} is not ordered, please make sure all constants are ordered. "
-                          "See line {} (should go to line {}, {})"
-                          "".format(highlight(ml), mi, target, target_text))
+            errors.append((ml, None,
+                           "Constant {} is not ordered, please make sure all constants are ordered. "
+                           "See line {} (should go to line {}, {})"
+                           "".format(highlight(ml), mi, target, target_text)))
     return errors
 
 
@@ -325,6 +328,24 @@ def lint_pragma_once(fname, content):
     return None
 
 
+@lint_re_check(r'(whitelist|blacklist|slave)', exclude=['script/ci-custom.py'], 
+               flags=re.IGNORECASE | re.MULTILINE)
+def lint_inclusive_language(fname, match):
+    # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
+    return ("Avoid the use of whitelist/blacklist/slave.\n"
+            "Recommended replacements for 'master / slave' are:\n"
+            "    '{primary,main} / {secondary,replica,subordinate}\n"
+            "    '{initiator,requester} / {target,responder}'\n"
+            "    '{controller,host} / {device,worker,proxy}'\n"
+            "    'leader / follower'\n"
+            "    'director / performer'\n"
+            "\n"
+            "Recommended replacements for 'blacklist/whitelist' are:\n"
+            "    'denylist / allowlist'\n"
+            "    'blocklist / passlist'")
+
+
+
 @lint_content_find_check('ESP_LOG', include=['*.h', '*.tcc'], exclude=[
     'esphome/components/binary_sensor/binary_sensor.h',
     'esphome/components/cover/cover.h',
@@ -354,13 +375,22 @@ errors = collections.defaultdict(list)
 def add_errors(fname, errs):
     if not isinstance(errs, list):
         errs = [errs]
-    errs = [x for x in errs if x is not None]
     for err in errs:
-        if not isinstance(err, str):
+        if err is None:
+            continue
+        try:
+            lineno, col, msg = err
+        except ValueError:
+            lineno = 1
+            col = 1
+            msg = err
+        if not isinstance(msg, str):
             raise ValueError("Error is not instance of string!")
-    if not errs:
-        return
-    errors[fname].extend(errs)
+        if not isinstance(lineno, int):
+            raise ValueError("Line number is not an int!")
+        if not isinstance(col, int):
+            raise ValueError("Column number is not an int!")
+        errors[fname].append((lineno, col, msg))
 
 
 for fname in files:
@@ -380,8 +410,8 @@ run_checks(LINT_POST_CHECKS, 'POST')
 
 for f, errs in sorted(errors.items()):
     print(f"\033[0;32m************* File \033[1;32m{f}\033[0m")
-    for err in errs:
-        print(err)
+    for lineno, col, msg in errs:
+        print(f"ERROR {f}:{lineno}:{col} - {msg}")
     print()
 
 sys.exit(len(errors))

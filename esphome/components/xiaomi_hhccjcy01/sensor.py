@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_BATTERY_LEVEL, CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
-    UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID, \
+from esphome.const import CONF_MAC_ADDRESS, CONF_TEMPERATURE, \
+    UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, CONF_ID, \
     CONF_MOISTURE, CONF_ILLUMINANCE, ICON_BRIGHTNESS_5, UNIT_LUX, CONF_CONDUCTIVITY, \
     UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER
 
@@ -21,7 +21,6 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(UNIT_LUX, ICON_BRIGHTNESS_5, 0),
     cv.Optional(CONF_CONDUCTIVITY):
         sensor.sensor_schema(UNIT_MICROSIEMENS_PER_CENTIMETER, ICON_FLOWER, 0),
-    cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(UNIT_PERCENT, ICON_BATTERY, 0),
 }).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 
@@ -44,6 +43,3 @@ def to_code(config):
     if CONF_CONDUCTIVITY in config:
         sens = yield sensor.new_sensor(config[CONF_CONDUCTIVITY])
         cg.add(var.set_conductivity(sens))
-    if CONF_BATTERY_LEVEL in config:
-        sens = yield sensor.new_sensor(config[CONF_BATTERY_LEVEL])
-        cg.add(var.set_battery_level(sens))

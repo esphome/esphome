@@ -1,4 +1,6 @@
 import json
+from typing import Union
+
 import logging
 import os
 import re
@@ -62,7 +64,7 @@ FILTER_PLATFORMIO_LINES = [
 ]
 
 
-def run_platformio_cli(*args, **kwargs):
+def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
@@ -80,7 +82,7 @@ def run_platformio_cli(*args, **kwargs):
                                 *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs):
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
     command = ['run', '-d', CORE.build_path]
     if verbose:
         command += ['-v']
@@ -98,7 +100,7 @@ def run_upload(config, verbose, port):
 
 def run_idedata(config):
     args = ['-t', 'idedata']
-    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True).decode()
+    stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.debug("Could not match IDEData for %s", stdout)
