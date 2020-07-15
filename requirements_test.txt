@@ -4,7 +4,7 @@ pillow
 pexpect
 
 # Unit tests
-pytest==5.4.1
+pytest==5.4.3
 pytest-cov==2.8.1
 pytest-mock==1.13.0
 asyncmock==0.4.2
