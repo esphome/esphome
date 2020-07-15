@@ -193,6 +193,7 @@ def wifi_network(config, static_ip):
         cg.add(ap.set_password(config[CONF_PASSWORD]))
     if CONF_EAP in config:
         cg.add(ap.set_eap(eap_auth(config[CONF_EAP])))
+        cg.add_define('ESPHOME_WIFI_WPA2_EAP')
     if CONF_BSSID in config:
         cg.add(ap.set_bssid([HexInt(i) for i in config[CONF_BSSID].parts]))
     if CONF_HIDDEN in config:
