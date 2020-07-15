@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """esphome setup script."""
-from setuptools import setup, find_packages
 import os
+
+from setuptools import setup, find_packages
 
 from esphome import const
 
@@ -22,28 +23,20 @@ GITHUB_URL = 'https://github.com/{}'.format(GITHUB_PATH)
 
 DOWNLOAD_URL = '{}/archive/v{}.zip'.format(GITHUB_URL, const.__version__)
 
-REQUIRES = [
-    'voluptuous==0.11.7',
-    'PyYAML==5.3.1',
-    'paho-mqtt==1.5.0',
-    'colorlog==4.1.0',
-    'tornado==6.0.4',
-    'protobuf==3.11.3',
-    'tzlocal==2.0.0',
-    'pytz==2020.1',
-    'pyserial==3.4',
-    'ifaddr==0.1.6',
-    'deepmerge==0.1.0'
-]
+here = os.path.abspath(os.path.dirname(__file__))
+
+with open(os.path.join(here, 'requirements.txt')) as requirements_txt:
+    REQUIRES = requirements_txt.read().splitlines()
 
 # If you have problems importing platformio and esptool as modules you can set
 # $ESPHOME_USE_SUBPROCESS to make ESPHome call their executables instead.
 # This means they have to be in your $PATH.
-if os.environ.get('ESPHOME_USE_SUBPROCESS') is None:
-    REQUIRES.extend([
-        'platformio==4.3.4',
-        'esptool==2.8',
-    ])
+if 'ESPHOME_USE_SUBPROCESS' in os.environ:
+    # Remove platformio and esptool from requirements
+    REQUIRES = [
+        req for req in REQUIRES
+        if not any(req.startswith(prefix) for prefix in ['platformio', 'esptool'])
+    ]
 
 CLASSIFIERS = [
     'Environment :: Console',
