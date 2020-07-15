@@ -18,7 +18,7 @@ CONF_TAGS = "tags"
 CONF_HISTORICAL_MODE = "historical_mode"
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(TeleInfo),
-    cv.Optional(CONF_HISTORICAL_MODE): cv.boolean,
+    cv.Optional(CONF_HISTORICAL_MODE, default=False): cv.boolean,
     cv.Optional(CONF_TAGS): cv.ensure_list(TELEINFO_TAG_SCHEMA),
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
 
