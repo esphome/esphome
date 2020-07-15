@@ -15,7 +15,7 @@ def generate_main():
         CORE.config_path = path
         CORE.config = read_config({})
         generate_cpp_contents(CORE.config)
-        # print(CORE.cpp_main_section)
+        print(CORE.cpp_main_section)
         return CORE.cpp_main_section
 
     yield generator
