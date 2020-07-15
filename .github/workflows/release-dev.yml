@@ -172,7 +172,7 @@ jobs:
 
   deploy-docker:
     name: Build and publish docker containers
-    if: github.repository == "esphome/esphome"
+    if: github.repository == 'esphome/esphome'
     runs-on: ubuntu-latest
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     strategy:
@@ -228,7 +228,7 @@ jobs:
 
 
   deploy-docker-manifest:
-    if: github.repository == "esphome/esphome"
+    if: github.repository == 'esphome/esphome'
     runs-on: ubuntu-latest
     needs: [deploy-docker]
     steps:
