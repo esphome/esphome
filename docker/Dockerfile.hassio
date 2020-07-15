@@ -1,11 +1,15 @@
 ARG BUILD_FROM
 FROM ${BUILD_FROM}
 
+# First install requirements to leverage caching when requirements don't change
+COPY requirements.txt /
+RUN pip3 install --no-cache-dir -r /requirements.txt
+
 # Copy root filesystem
 COPY docker/rootfs/ /
-COPY setup.py setup.cfg MANIFEST.in /opt/esphome/
-COPY esphome /opt/esphome/esphome
 
+# Then copy esphome and install
+COPY . /opt/esphome/
 RUN pip3 install --no-cache-dir -e /opt/esphome
 
 # Build arguments
