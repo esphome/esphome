@@ -12,22 +12,10 @@ from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
     CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
-from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files
+from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files, \
+    get_serial_ports
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def get_serial_ports():
-    # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
-    from serial.tools.list_ports import comports
-    result = []
-    for port, desc, info in comports(include_links=True):
-        if not port:
-            continue
-        if "VID:PID" in info:
-            result.append((port, desc))
-    result.sort(key=lambda x: x[0])
-    return result
 
 
 def choose_prompt(options):
@@ -60,8 +48,8 @@ def choose_prompt(options):
 
 def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
     options = []
-    for res, desc in get_serial_ports():
-        options.append((f"{res} ({desc})", res))
+    for port in get_serial_ports():
+        options.append((f"{port.path} ({port.description})", port.path))
     if (show_ota and 'ota' in CORE.config) or (show_api and 'api' in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == 'OTA':
