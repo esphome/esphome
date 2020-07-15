@@ -1,8 +1,0 @@
-# Set to false to create a new comment instead of updating the app's first one
-updateComment: true
-
-# Use a custom string, or set to false to disable
-before: "✨ Good work on this PR so far! ✨ Unfortunately, the [ build]() is failing as of . Here's the output:"
-
-# Use a custom string, or set to false to disable
-after: "Thanks for contributing to this project!"

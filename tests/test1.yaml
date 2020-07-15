@@ -1499,6 +1499,10 @@ fan:
       low: 0.45
       medium: 0.75
       high: 1.0
+    oscillation_state_topic: oscillation/state/topic
+    oscillation_command_topic: oscillation/command/topic
+    speed_state_topic: speed/state/topic
+    speed_command_topic: speed/command/topic
 
 interval:
   - interval: 10s
