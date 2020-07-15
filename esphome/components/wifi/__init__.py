@@ -1,5 +1,4 @@
 import logging
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed448, ed25519
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -11,7 +10,8 @@ from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS
     CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY, CONF_IDENTITY, CONF_CERTIFICATE_AUTHORITY, \
     CONF_CERTIFICATE, CONF_KEY, CONF_USERNAME, CONF_EAP
 from esphome.core import CORE, HexInt, coroutine_with_priority
-_LOGGER = logging.getLogger(__name__)
+from . import wpa2_eap
+
 
 AUTO_LOAD = ['network']
 
@@ -42,55 +42,6 @@ def validate_password(value):
     return value
 
 
-def validate_eap(value):
-    if CONF_USERNAME in value:
-        if CONF_IDENTITY not in value:
-            _LOGGER.info("EAP 'identity:' is not set, assuming username.")
-            value[CONF_IDENTITY] = value[CONF_USERNAME]
-        if CONF_PASSWORD not in value:
-            raise cv.Invalid("You cannot use the EAP 'username:' option without a 'password:'. "
-                             "Please provide the 'password:' key")
-    if CONF_CERTIFICATE in value or CONF_KEY in value:
-        if CONF_CERTIFICATE not in value and CONF_KEY not in value:
-            raise cv.Invalid("You have provided an EAP 'certificate:' or 'key:' without providing "
-                             "the other. Please check you have provided both.")
-        # Check the key is valid and for this certificate, just to check the user hasn't pasted
-        # the wrong thing. I write this after I spent a while debugging that exact issue.
-        # This may require a password to decrypt to key, so we should verify that at the same time.
-        certPw = None
-        if CONF_PASSWORD in value:
-            certPw = value[CONF_PASSWORD]
-
-        cert = cv.load_certificate(value[CONF_CERTIFICATE])
-        try:
-            key = cv.load_key(value[CONF_KEY], certPw)
-        except ValueError as e:
-            raise cv.Invalid(
-                "There was an error with the EAP 'password:' provided for 'key:' :%s" % e
-            )
-        except TypeError as e:
-            raise cv.Invalid("There was an error with the EAP 'key:' provided :%s" % e)
-
-        if isinstance(key, rsa.RSAPrivateKey):
-            if key.public_key().public_numbers() != cert.public_key().public_numbers():
-                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(key, ec.EllipticCurvePrivateKey):
-            if key.public_key().public_numbers() != cert.public_key().public_numbers():
-                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(key, ed448.Ed448PrivateKey):
-            if key.public_key() != cert:
-                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        elif isinstance(key, ed25519.Ed25519PrivateKey):
-            if key.public_key() != cert:
-                raise cv.Invalid("The provided EAP 'key:' does not match the 'certificate:'")
-        else:
-            _LOGGER.warning(
-                "Unrecognised EAP 'certificate:' 'key:' pair format: %s. Proceed with caution!",
-                type(key)
-            )
-    return value
-
-
 def validate_channel(value):
     value = cv.positive_int(value)
     if value < 1:
@@ -115,8 +66,8 @@ EAP_AUTH_SCHEMA = cv.Schema({
     cv.Optional(CONF_IDENTITY): cv.string_strict,
     cv.Optional(CONF_USERNAME): cv.string_strict,
     cv.Optional(CONF_PASSWORD): cv.string_strict,
-    cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.certificate,
-    cv.Optional(CONF_CERTIFICATE): cv.certificate,
+    cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
+    cv.Optional(CONF_CERTIFICATE): wpa2_eap.validate_certificate,
     cv.Optional(CONF_KEY): cv.string_strict,
 })
 
@@ -160,7 +111,7 @@ def validate(config):
 
     for network in config[CONF_NETWORKS]:
         if CONF_EAP in network:
-            network[CONF_EAP] = validate_eap(network[CONF_EAP])
+            network[CONF_EAP] = wpa2_eap.validate_eap(network[CONF_EAP])
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
