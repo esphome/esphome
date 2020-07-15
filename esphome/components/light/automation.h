@@ -102,13 +102,13 @@ class LightTurnOnTrigger : public Trigger<> {
  public:
   LightTurnOnTrigger(LightState *a_light) {
     a_light->add_new_remote_values_callback([this, a_light]() {
-      auto is_on = a_light->current_values.is_on();
+      auto is_on = a_light->remote_values.is_on();
       if (is_on && !last_on_) {
         this->trigger();
       }
       last_on_ = is_on;
     });
-    last_on_ = a_light->current_values.is_on();
+    last_on_ = a_light->remote_values.is_on();
   }
 
  protected:
@@ -119,13 +119,13 @@ class LightTurnOffTrigger : public Trigger<> {
  public:
   LightTurnOffTrigger(LightState *a_light) {
     a_light->add_new_remote_values_callback([this, a_light]() {
-      auto is_on = a_light->current_values.is_on();
+      auto is_on = a_light->remote_values.is_on();
       if (!is_on && last_on_) {
         this->trigger();
       }
       last_on_ = is_on;
     });
-    last_on_ = a_light->current_values.is_on();
+    last_on_ = a_light->remote_values.is_on();
   }
 
  protected:
