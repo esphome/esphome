@@ -155,7 +155,8 @@ jobs:
     strategy:
       matrix:
         arch: [amd64, i386, armv7, aarch64]
-        build_type: ["hassio", "docker"]
+        # Hassio dev image doesn't use esphome/esphome-hassio-$arch and uses base directly
+        build_type: ["docker"]
     steps:
       - uses: actions/checkout@v2
       - name: Set TAG
