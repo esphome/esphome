@@ -136,7 +136,7 @@ jobs:
           echo "::add-matcher::.github/workflows/matchers/gcc.json"
           echo "::add-matcher::.github/workflows/matchers/python.json"
       - run: esphome tests/${{ matrix.test }}.yaml compile
-  
+
   pytest:
     runs-on: ubuntu-latest
     steps:
@@ -156,7 +156,7 @@ jobs:
         run: script/setup
       - name: Install Github Actions annotator
         run: pip install pytest-github-actions-annotate-failures
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/python.json"
@@ -225,8 +225,6 @@ jobs:
       - name: Pull for cache
         run: |
           docker pull "${BUILD_TO}:latest" || true
-          docker pull "${BUILD_TO}:beta" || true
-          docker pull "${BUILD_TO}:dev" || true
       - name: Register QEMU binfmt
         run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
       - run: |
@@ -235,8 +233,6 @@ jobs:
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${BUILD_TO}:${TAG}" \
             --cache-from "${BUILD_TO}:latest" \
-            --cache-from "${BUILD_TO}:beta" \
-            --cache-from "${BUILD_TO}:dev" \
             --file "${DOCKERFILE}" \
             .
       - name: Log in to docker hub

@@ -158,7 +158,7 @@ jobs:
         run: script/setup
       - name: Install Github Actions annotator
         run: pip install pytest-github-actions-annotate-failures
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/python.json"
@@ -204,8 +204,6 @@ jobs:
           echo "::set-env name=DOCKERFILE::${dockerfile}"
       - name: Pull for cache
         run: |
-          docker pull "${BUILD_TO}:latest" || true
-          docker pull "${BUILD_TO}:beta" || true
           docker pull "${BUILD_TO}:dev" || true
       - name: Register QEMU binfmt
         run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
@@ -215,8 +213,6 @@ jobs:
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${BUILD_TO}:${TAG}" \
             --tag "${BUILD_TO}:dev" \
-            --cache-from "${BUILD_TO}:latest" \
-            --cache-from "${BUILD_TO}:beta" \
             --cache-from "${BUILD_TO}:dev" \
             --file "${DOCKERFILE}" \
             .
