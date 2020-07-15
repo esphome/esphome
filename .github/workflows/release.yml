@@ -170,6 +170,7 @@ jobs:
 
   deploy-pypi:
     name: Build and publish to PyPi
+    if: github.repository == "esphome/esphome"
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     runs-on: ubuntu-latest
     steps:
@@ -192,6 +193,7 @@ jobs:
 
   deploy-docker:
     name: Build and publish docker containers
+    if: github.repository == "esphome/esphome"
     runs-on: ubuntu-latest
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     strategy:
@@ -255,6 +257,7 @@ jobs:
           docker push "${BUILD_TO}:latest"
 
   deploy-docker-manifest:
+    if: github.repository == "esphome/esphome"
     runs-on: ubuntu-latest
     needs: [deploy-docker]
     steps:
