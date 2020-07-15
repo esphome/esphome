@@ -176,7 +176,7 @@ jobs:
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     strategy:
       matrix:
-        arch: [amd64, i386, armv7, aarch64]
+        arch: [amd64, armv7, aarch64]
         # Hassio dev image doesn't use esphome/esphome-hassio-$arch and uses base directly
         build_type: ["docker"]
     steps:
@@ -187,7 +187,7 @@ jobs:
           echo "::set-env name=TAG::${TAG}"
       - name: Set up env variables
         run: |
-          base_version="2.3.3"
+          base_version="2.3.4"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -252,13 +252,11 @@ jobs:
         docker manifest create esphome/esphome:${TAG} \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:${TAG}
 
         docker manifest create esphome/esphome:dev \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:dev

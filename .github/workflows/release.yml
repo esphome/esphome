@@ -196,7 +196,7 @@ jobs:
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     strategy:
       matrix:
-        arch: [amd64, i386, armv7, aarch64]
+        arch: [amd64, armv7, aarch64]
         build_type: ["hassio", "docker"]
     steps:
       - uses: actions/checkout@v2
@@ -206,7 +206,7 @@ jobs:
           echo "::set-env name=TAG::${TAG}"
       - name: Set up env variables
         run: |
-          base_version="2.3.3"
+          base_version="2.3.4"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -280,8 +280,7 @@ jobs:
         docker manifest create esphome/esphome:${TAG} \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:${TAG}
 
     - name: Publish docker beta tag
@@ -289,8 +288,7 @@ jobs:
         docker manifest create esphome/esphome:beta \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:beta
 
     - name: Publish docker latest tag
@@ -299,6 +297,5 @@ jobs:
         docker manifest create esphome/esphome:latest \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:latest
