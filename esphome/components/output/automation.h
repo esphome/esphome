@@ -33,6 +33,7 @@ template<typename... Ts> class SetLevelAction : public Action<Ts...> {
   SetLevelAction(FloatOutput *output) : output_(output) {}
 
   TEMPLATABLE_VALUE(float, level)
+
   void play(Ts... x) override { this->output_->set_level(this->level_.value(x...)); }
 
  protected:

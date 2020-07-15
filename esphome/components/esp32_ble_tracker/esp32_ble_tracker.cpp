@@ -99,13 +99,13 @@ bool ESP32BLETracker::ble_setup() {
     return false;
   }
 
+  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
+
   // Initialize the bluetooth controller with the default configuration
   if (!btStart()) {
     ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
     return false;
   }
-
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
 
   err = esp_bluedroid_init();
   if (err != ESP_OK) {
@@ -223,6 +223,22 @@ ESPBTUUID ESPBTUUID::from_raw(const uint8_t *data) {
     ret.uuid_.uuid.uuid128[i] = data[i];
   return ret;
 }
+ESPBTUUID ESPBTUUID::as_128bit() const {
+  if (this->uuid_.len == ESP_UUID_LEN_128) {
+    return *this;
+  }
+  uint8_t data[] = {0xFB, 0x34, 0x9B, 0x5F, 0x80, 0x00, 0x00, 0x80, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint32_t uuid32;
+  if (this->uuid_.len == ESP_UUID_LEN_32) {
+    uuid32 = this->uuid_.uuid.uuid32;
+  } else {
+    uuid32 = this->uuid_.uuid.uuid16;
+  }
+  for (uint8_t i = 0; i < this->uuid_.len; i++) {
+    data[12 + i] = ((uuid32 >> i * 8) & 0xFF);
+  }
+  return ESPBTUUID::from_raw(data);
+}
 bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   if (this->uuid_.len == ESP_UUID_LEN_16) {
     return (this->uuid_.uuid.uuid16 >> 8) == data2 || (this->uuid_.uuid.uuid16 & 0xFF) == data1;
@@ -241,16 +257,43 @@ bool ESPBTUUID::contains(uint8_t data1, uint8_t data2) const {
   }
   return false;
 }
+bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
+  if (this->uuid_.len == uuid.uuid_.len) {
+    switch (this->uuid_.len) {
+      case ESP_UUID_LEN_16:
+        if (uuid.uuid_.uuid.uuid16 == this->uuid_.uuid.uuid16) {
+          return true;
+        }
+        break;
+      case ESP_UUID_LEN_32:
+        if (uuid.uuid_.uuid.uuid32 == this->uuid_.uuid.uuid32) {
+          return true;
+        }
+        break;
+      case ESP_UUID_LEN_128:
+        for (int i = 0; i < ESP_UUID_LEN_128; i++) {
+          if (uuid.uuid_.uuid.uuid128[i] != this->uuid_.uuid.uuid128[i]) {
+            return false;
+          }
+        }
+        return true;
+        break;
+    }
+  } else {
+    return this->as_128bit() == uuid.as_128bit();
+  }
+  return false;
+}
 esp_bt_uuid_t ESPBTUUID::get_uuid() { return this->uuid_; }
 std::string ESPBTUUID::to_string() {
   char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      sprintf(sbuf, "%02X:%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16);
+      sprintf(sbuf, "%02X:%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
       break;
     case ESP_UUID_LEN_32:
-      sprintf(sbuf, "%02X:%02X:%02X:%02X", this->uuid_.uuid.uuid32 >> 24, this->uuid_.uuid.uuid32 >> 16,
-              this->uuid_.uuid.uuid32 >> 8, this->uuid_.uuid.uuid32);
+      sprintf(sbuf, "%02X:%02X:%02X:%02X", this->uuid_.uuid.uuid32 >> 24, (this->uuid_.uuid.uuid32 >> 16 & 0xff),
+              (this->uuid_.uuid.uuid32 >> 8 & 0xff), this->uuid_.uuid.uuid32 & 0xff);
       break;
     default:
     case ESP_UUID_LEN_128:

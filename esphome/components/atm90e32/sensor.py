@@ -14,11 +14,16 @@ CONF_REACTIVE_POWER = 'reactive_power'
 CONF_LINE_FREQUENCY = 'line_frequency'
 CONF_CHIP_TEMPERATURE = 'chip_temperature'
 CONF_GAIN_PGA = 'gain_pga'
+CONF_CURRENT_PHASES = 'current_phases'
 CONF_GAIN_VOLTAGE = 'gain_voltage'
 CONF_GAIN_CT = 'gain_ct'
 LINE_FREQS = {
     '50HZ': 50,
     '60HZ': 60,
+}
+CURRENT_PHASES = {
+    '2': 2,
+    '3': 3,
 }
 PGA_GAINS = {
     '1X': 0x0,
@@ -36,8 +41,8 @@ ATM90E32_PHASE_SCHEMA = cv.Schema({
     cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(UNIT_VOLT_AMPS_REACTIVE,
                                                            ICON_LIGHTBULB, 2),
     cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(UNIT_EMPTY, ICON_FLASH, 2),
-    cv.Optional(CONF_GAIN_VOLTAGE, default=41820): cv.uint16_t,
-    cv.Optional(CONF_GAIN_CT, default=25498): cv.uint16_t,
+    cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
+    cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
 })
 
 CONFIG_SCHEMA = cv.Schema({
@@ -48,8 +53,9 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_FREQUENCY): sensor.sensor_schema(UNIT_HERTZ, ICON_CURRENT_AC, 1),
     cv.Optional(CONF_CHIP_TEMPERATURE): sensor.sensor_schema(UNIT_CELSIUS, ICON_THERMOMETER, 1),
     cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
+    cv.Optional(CONF_CURRENT_PHASES, default='3'): cv.enum(CURRENT_PHASES, upper=True),
     cv.Optional(CONF_GAIN_PGA, default='2X'): cv.enum(PGA_GAINS, upper=True),
-}).extend(cv.polling_component_schema('60s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('60s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):
@@ -85,4 +91,5 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
         cg.add(var.set_chip_temperature_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
+    cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))

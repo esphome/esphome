@@ -21,6 +21,10 @@ AddressableSet = light_ns.class_('AddressableSet', automation.Action)
 LightIsOnCondition = light_ns.class_('LightIsOnCondition', automation.Condition)
 LightIsOffCondition = light_ns.class_('LightIsOffCondition', automation.Condition)
 
+# Triggers
+LightTurnOnTrigger = light_ns.class_('LightTurnOnTrigger', automation.Trigger.template())
+LightTurnOffTrigger = light_ns.class_('LightTurnOffTrigger', automation.Trigger.template())
+
 # Effects
 LightEffect = light_ns.class_('LightEffect')
 RandomLightEffect = light_ns.class_('RandomLightEffect', LightEffect)

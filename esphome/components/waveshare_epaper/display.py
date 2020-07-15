@@ -14,7 +14,9 @@ WaveshareEPaperTypeA = waveshare_epaper_ns.class_('WaveshareEPaperTypeA', Wavesh
 WaveshareEPaper2P7In = waveshare_epaper_ns.class_('WaveshareEPaper2P7In', WaveshareEPaper)
 WaveshareEPaper2P9InB = waveshare_epaper_ns.class_('WaveshareEPaper2P9InB', WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_('WaveshareEPaper4P2In', WaveshareEPaper)
+WaveshareEPaper5P8In = waveshare_epaper_ns.class_('WaveshareEPaper5P8In', WaveshareEPaper)
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_('WaveshareEPaper7P5In', WaveshareEPaper)
+WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_('WaveshareEPaper7P5InV2', WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeAModel')
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeBModel')
@@ -23,11 +25,14 @@ MODELS = {
     '1.54in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_1_54_IN),
     '2.13in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_13_IN),
     '2.13in-ttgo': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN),
+    '2.13in-ttgo-b73': ('a', WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B73),
     '2.90in': ('a', WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     '2.70in': ('b', WaveshareEPaper2P7In),
     '2.90in-b': ('b', WaveshareEPaper2P9InB),
     '4.20in': ('b', WaveshareEPaper4P2In),
+    '5.83in': ('b', WaveshareEPaper5P8In),
     '7.50in': ('b', WaveshareEPaper7P5In),
+    '7.50inv2': ('b', WaveshareEPaper7P5InV2),
 }
 
 
@@ -47,7 +52,7 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
+}).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema()),
                        validate_full_update_every_only_type_a,
                        cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
@@ -56,10 +61,10 @@ def to_code(config):
     model_type, model = MODELS[config[CONF_MODEL]]
     if model_type == 'a':
         rhs = WaveshareEPaperTypeA.new(model)
-        var = cg.Pvariable(config[CONF_ID], rhs, type=WaveshareEPaperTypeA)
+        var = cg.Pvariable(config[CONF_ID], rhs, WaveshareEPaperTypeA)
     elif model_type == 'b':
         rhs = model.new()
-        var = cg.Pvariable(config[CONF_ID], rhs, type=model)
+        var = cg.Pvariable(config[CONF_ID], rhs, model)
     else:
         raise NotImplementedError()
 
