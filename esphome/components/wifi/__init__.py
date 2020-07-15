@@ -60,14 +60,14 @@ STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend({
     cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
 })
 
-EAP_AUTH_SCHEMA = cv.Schema({
+EAP_AUTH_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_IDENTITY): cv.string_strict,
     cv.Optional(CONF_USERNAME): cv.string_strict,
     cv.Optional(CONF_PASSWORD): cv.string_strict,
     cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
     cv.Optional(CONF_CERTIFICATE): wpa2_eap.validate_certificate,
     cv.Optional(CONF_KEY): cv.string_strict,
-})
+}), wpa2_eap.validate_eap)
 
 WIFI_NETWORK_BASE = cv.Schema({
     cv.GenerateID(): cv.declare_id(WiFiAP),
@@ -106,10 +106,6 @@ def validate(config):
     if (CONF_NETWORKS not in config) and (CONF_AP not in config):
         raise cv.Invalid("Please specify at least an SSID or an Access Point "
                          "to create.")
-
-    for network in config[CONF_NETWORKS]:
-        if CONF_EAP in network:
-            network[CONF_EAP] = wpa2_eap.validate_eap(network[CONF_EAP])
 
     if config.get(CONF_FAST_CONNECT, False):
         networks = config.get(CONF_NETWORKS, [])
