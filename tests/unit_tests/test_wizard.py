@@ -136,3 +136,74 @@ def test_wizard_write_defaults_platform_from_board_esp32(default_config, tmp_pat
     # Then
     generated_config = wz.write_file.call_args.args[1]
     assert "platform: ESP32" in generated_config
+
+
+def test_safe_print_step_prints_step_number_and_description(monkeypatch):
+    """
+    The safe_print_step function prints the step number and the passed description
+    """
+    # Given
+    monkeypatch.setattr(wz, "safe_print", MagicMock())
+    monkeypatch.setattr(wz, "sleep", lambda time: 0)
+
+    step_num = 22
+    step_desc = "foobartest"
+
+    # When
+    wz.safe_print_step(step_num, step_desc)
+
+    # Then
+    # Collect arguments to all safe_print() calls (substituting "" for any empty ones)
+    all_args = [call.args[0] if len(call.args) else "" for call in wz.safe_print.call_args_list]
+
+    assert any(step_desc == arg for arg in all_args)
+    assert any(f"STEP {step_num}" in arg for arg in all_args)
+
+
+def test_default_input_uses_default_if_no_input_supplied(monkeypatch):
+    """
+    The default_input() function should return the supplied default value if the user doesn't enter anything
+    """
+
+    # Given
+    monkeypatch.setattr("builtins.input", lambda _: "")
+    default_string = "foobar"
+
+    # When
+    retval = wz.default_input("", default_string)
+
+    # Then
+    assert retval == default_string
+
+
+def test_default_input_uses_user_supplied_value(monkeypatch):
+    """
+    The default_input() function should return the value that the user enters
+    """
+
+    # Given
+    user_input = "A value"
+    monkeypatch.setattr("builtins.input", lambda _: user_input)
+    default_string = "foobar"
+
+    # When
+    retval = wz.default_input("", default_string)
+
+    # Then
+    assert retval == user_input
+
+
+def test_strip_accents_removes_diacritics():
+    """
+    The strip_accents() function should remove diacritics (umlauts)
+    """
+
+    # Given
+    input_str = u"Kühne"
+    expected_str = "Kuhne"
+
+    # When
+    output_str = wz.strip_accents(input_str)
+
+    # Then
+    assert output_str == expected_str
