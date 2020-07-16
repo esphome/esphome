@@ -40,7 +40,7 @@ def check_max_runs(value):
 
 def assign_declare_id(value):
     value = value.copy()
-    value[CONF_ID] = cv.declare_id(value[CONF_MODE])(value[CONF_ID])
+    value[CONF_ID] = cv.declare_id(SCRIPT_MODES[value[CONF_MODE]])(value[CONF_ID])
     return value
 
 
