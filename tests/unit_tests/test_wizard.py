@@ -372,7 +372,7 @@ def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
     """
 
     # Given
-    wizard_answers.insert(3, "")  # add an invalid entry for board
+    wizard_answers.insert(3, "")  # add an invalid entry for ssid
 
     config_file = tmpdir.join("test.yaml")
     input_mock = MagicMock(side_effect=wizard_answers)
