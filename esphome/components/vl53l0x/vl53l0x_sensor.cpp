@@ -250,8 +250,8 @@ void VL53L0XSensor::setup() {
 
   // Set the sensor to the desired final address
   // The following is different for VL53L0X vs VL53L1X
-  // I2C_SLAVE_DEVICE_ADDRESS = 0x8A for VL53L0X
-  // I2C_SLAVE__DEVICE_ADDRESS = 0x0001 for VL53L1X
+  // I2C_SXXXX_DEVICE_ADDRESS = 0x8A for VL53L0X
+  // I2C_SXXXX__DEVICE_ADDRESS = 0x0001 for VL53L1X
   reg(0x8A) = final_address & 0x7F;
   this->set_i2c_address(final_address);
 
