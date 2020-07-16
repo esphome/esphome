@@ -223,7 +223,7 @@ void ThermostatClimate::switch_to_action_(climate::ClimateAction action) {
   }
 
   if (this->prev_action_trigger_ != nullptr) {
-    this->prev_action_trigger_->stop();
+    this->prev_action_trigger_->stop_action();
     this->prev_action_trigger_ = nullptr;
   }
   Trigger<> *trig = this->idle_action_trigger_;
@@ -262,7 +262,7 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode) {
     return;
 
   if (this->prev_fan_mode_trigger_ != nullptr) {
-    this->prev_fan_mode_trigger_->stop();
+    this->prev_fan_mode_trigger_->stop_action();
     this->prev_fan_mode_trigger_ = nullptr;
   }
   Trigger<> *trig = this->fan_mode_auto_trigger_;
@@ -313,7 +313,7 @@ void ThermostatClimate::switch_to_mode_(climate::ClimateMode mode) {
     return;
 
   if (this->prev_mode_trigger_ != nullptr) {
-    this->prev_mode_trigger_->stop();
+    this->prev_mode_trigger_->stop_action();
     this->prev_mode_trigger_ = nullptr;
   }
   Trigger<> *trig = this->auto_mode_trigger_;
@@ -355,7 +355,7 @@ void ThermostatClimate::switch_to_swing_mode_(climate::ClimateSwingMode swing_mo
     return;
 
   if (this->prev_swing_mode_trigger_ != nullptr) {
-    this->prev_swing_mode_trigger_->stop();
+    this->prev_swing_mode_trigger_->stop_action();
     this->prev_swing_mode_trigger_ = nullptr;
   }
   Trigger<> *trig = this->swing_mode_off_trigger_;

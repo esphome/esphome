@@ -120,7 +120,7 @@ void TemplateCover::set_has_position(bool has_position) { this->has_position_ = 
 void TemplateCover::set_has_tilt(bool has_tilt) { this->has_tilt_ = has_tilt; }
 void TemplateCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
-    this->prev_command_trigger_->stop();
+    this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;
   }
 }
