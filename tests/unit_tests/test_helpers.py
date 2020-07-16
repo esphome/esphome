@@ -1,7 +1,7 @@
 import pytest
 
 from hypothesis import given
-from hypothesis.provisional import ip4_addr_strings
+from hypothesis.provisional import ip_addresses
 
 from esphome import helpers
 
@@ -75,7 +75,7 @@ def test_is_ip_address__invalid(host):
     assert actual is False
 
 
-@given(value=ip4_addr_strings())
+@given(value=ip_addresses(v=4).map(str))
 def test_is_ip_address__valid(value):
     actual = helpers.is_ip_address(value)
 
