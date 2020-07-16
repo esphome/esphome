@@ -2,6 +2,8 @@
 
 import esphome.wizard as wz
 import pytest
+from esphome.pins import ESP8266_BOARD_PINS
+from mock import MagicMock
 
 
 @pytest.fixture
@@ -83,3 +85,54 @@ def test_config_file_should_include_ota_when_password_set(default_config):
 
     # Then
     "ota:" in config
+
+
+def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
+    """
+    If the platform is not explicitly set, use "ESP8266" if the board is one of the ESP8266 boards
+    """
+    # Given
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert f"platform: {default_config['platform']}" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_esp8266(default_config, tmp_path, monkeypatch):
+    """
+    If the platform is not explicitly set, use "ESP8266" if the board is one of the ESP8266 boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*ESP8266_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "platform: ESP8266" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_esp32(default_config, tmp_path, monkeypatch):
+    """
+    If the platform is not explicitly set, use "ESP32" if the board is not one of the ESP8266 boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = "foo"
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "platform: ESP32" in generated_config
