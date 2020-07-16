@@ -1125,7 +1125,7 @@ def typed_schema(schemas, **kwargs):
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if CONF_TYPE not in value:
+        if key not in value:
             raise Invalid("type not specified!")
         value = value.copy()
         key_v = key_validator(value.pop(key))
