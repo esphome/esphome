@@ -318,15 +318,14 @@ class SerialPortRequestHandler(BaseHandler):
     def get(self):
         ports = get_serial_ports()
         data = []
-        for port in ports:
-            desc = port.description
-            if port.path == '/dev/ttyAMA0':
+        for port, desc in ports:
+            if port == '/dev/ttyAMA0':
                 desc = 'UART pins on GPIO header'
             split_desc = desc.split(' - ')
             if len(split_desc) == 2 and split_desc[0] == split_desc[1]:
                 # Some serial ports repeat their values
                 desc = split_desc[0]
-            data.append({'port': port.path, 'desc': desc})
+            data.append({'port': port, 'desc': desc})
         data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
         data.sort(key=lambda x: x['port'], reverse=True)
         self.write(json.dumps(data))
