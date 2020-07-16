@@ -98,7 +98,7 @@ template<typename... Ts> class Action {
   /// the following actions in the chain.
   int num_running_total() {
     int total = this->num_running_;
-    if (this->next_ != 0)
+    if (this->next_ != nullptr)
       total += this->next_->num_running_total();
     return total;
   }
@@ -202,7 +202,7 @@ template<typename... Ts> class Automation {
   bool is_running() { return this->actions_.is_running(); }
 
   /// Return the number of actions in the action part of this automation that are currently running.
-  int num_running() { return this->actions_->num_running(); }
+  int num_running() { return this->actions_.num_running(); }
 
  protected:
   Trigger<Ts...> *trigger_;

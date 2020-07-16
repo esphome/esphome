@@ -1,4 +1,5 @@
 #include "script.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace script {
@@ -28,7 +29,7 @@ void QueueingScript::execute() {
     // num_runs_ is the number of *queued* instances, so total number of instances is
     // num_runs_ + 1
     if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
-      ESP_LOGW(TAG, "Script '%s' maximum number of queued runs exceeded!", this->name_.c_str);
+      ESP_LOGW(TAG, "Script '%s' maximum number of queued runs exceeded!", this->name_.c_str());
       return;
     }
 
@@ -55,8 +56,8 @@ void QueueingScript::loop() {
 }
 
 void ParallelScript::execute() {
-  if (this->max_runs_ != 0 &&  this->automation_parent_->num_running() >= this->max_runs_) {
-    ESP_LOGW(TAG, "Script '%s' maximum number of parallel runs exceeded!", this->name_.c_str);
+  if (this->max_runs_ != 0 && this->automation_parent_->num_running() >= this->max_runs_) {
+    ESP_LOGW(TAG, "Script '%s' maximum number of parallel runs exceeded!", this->name_.c_str());
     return;
   }
   this->trigger();

@@ -64,6 +64,9 @@ def to_code(config):
         if CONF_MAX_RUNS in conf:
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
 
+        if conf[CONF_MODE] == CONF_QUEUE:
+            yield cg.register_component(trigger, conf)
+
         triggers.append((trigger, conf))
 
     for trigger, conf in triggers:
