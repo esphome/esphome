@@ -49,7 +49,7 @@ void QueueingScript::stop() {
 }
 
 void QueueingScript::loop() {
-  if (this->num_runs_ != 0) {
+  if (this->num_runs_ != 0 && !this->is_action_running()) {
     this->num_runs_--;
     this->trigger();
   }
