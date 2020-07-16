@@ -7,7 +7,6 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 from esphome import const
@@ -260,10 +259,10 @@ def filter_yaml_files(files):
     return files
 
 
-@dataclass
 class SerialPort:
-    path: str
-    description: str
+    def __init__(self, path: str, description: str):
+        self.path = path
+        self.description = description
 
 
 # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
@@ -282,7 +281,6 @@ def get_serial_ports() -> List[SerialPort]:
     if sys.platform.lower().startswith('linux') and by_id_path.exists():
         from serial.tools.list_ports_linux import SysFS
 
-        devices = [SysFS(d) for d in by_id_path.glob('*')]
         for path in by_id_path.glob('*'):
             device = SysFS(path)
             if device.subsystem == 'platform':
