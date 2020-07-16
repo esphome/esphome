@@ -1,5 +1,5 @@
 pylint==2.5.3
-flake8==3.7.9
+flake8==3.8.3
 pillow
 pexpect
 
