@@ -18,6 +18,18 @@ def default_config():
     }
 
 
+@pytest.fixture
+def wizard_answers():
+    return [
+        "test_node",  # Name of the node
+        "ESP8266",  # platform
+        "nodemcuv2",  # board
+        "SSID",  # ssid
+        "psk",  # wifi password
+        "ota_pass",  # ota password
+    ]
+
+
 def test_sanitize_quotes_replaces_with_escaped_char():
     """
     The sanitize_quotes function should replace double quotes with their escaped equivalents
@@ -207,3 +219,170 @@ def test_strip_accents_removes_diacritics():
 
     # Then
     assert output_str == expected_str
+
+
+def test_wizard_rejects_path_with_invalid_extension():
+    """
+    The wizard should reject config files that are not yaml
+    """
+
+    # Given
+    config_file = "test.json"
+
+    # When
+    retval = wz.wizard(config_file)
+
+    # Then
+    assert retval == 1
+
+
+def test_wizard_rejects_existing_files(tmpdir):
+    """
+    The wizard should reject any configuration file that already exists
+    """
+
+    # Given
+    config_file = tmpdir.join("test.yaml")
+    config_file.write("")
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 2
+
+
+def test_wizard_accepts_default_answers_esp8266(tmpdir, monkeypatch, wizard_answers):
+    """
+    The wizard should accept the given default answers for esp8266
+    """
+
+    # Given
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
+
+
+def test_wizard_accepts_default_answers_esp32(tmpdir, monkeypatch, wizard_answers):
+    """
+    The wizard should accept the given default answers for esp32
+    """
+
+    # Given
+    wizard_answers[1] = "ESP32"
+    wizard_answers[2] = "nodemcu-32s"
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
+
+
+def test_wizard_offers_better_node_name(tmpdir, monkeypatch, wizard_answers):
+    """
+    When the node name does not conform, a better alternative is offered
+    * Removes special chars
+    * Replaces spaces with underscores
+    * Converts all uppercase letters to lowercase
+    """
+
+    # Given
+    wizard_answers[0] = "Küche #2"
+    expected_name = "kuche_2"
+    monkeypatch.setattr(wz, "default_input", MagicMock(side_effect=lambda _, default: default))
+
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
+    assert wz.default_input.call_args.args[1] == expected_name
+
+
+def test_wizard_requires_correct_platform(tmpdir, monkeypatch, wizard_answers):
+    """
+    When the platform is not either esp32 or esp8266, the wizard should reject it
+    """
+
+    # Given
+    wizard_answers.insert(1, "foobar")  # add invalid entry for platform
+
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
+
+
+def test_wizard_requires_correct_board(tmpdir, monkeypatch, wizard_answers):
+    """
+    When the board is not a valid esp8266 board, the wizard should reject it
+    """
+
+    # Given
+    wizard_answers.insert(2, "foobar")  # add an invalid entry for board
+
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
+
+
+def test_wizard_requires_valid_ssid(tmpdir, monkeypatch, wizard_answers):
+    """
+    When the board is not a valid esp8266 board, the wizard should reject it
+    """
+
+    # Given
+    wizard_answers.insert(3, "")  # add an invalid entry for board
+
+    config_file = tmpdir.join("test.yaml")
+    input_mock = MagicMock(side_effect=wizard_answers)
+    monkeypatch.setattr("builtins.input", input_mock)
+    monkeypatch.setattr(wz, "safe_print", lambda t=None: 0)
+    monkeypatch.setattr(wz, "sleep", lambda _: 0)
+    monkeypatch.setattr(wz, "wizard_write",  MagicMock())
+
+    # When
+    retval = wz.wizard(str(config_file))
+
+    # Then
+    assert retval == 0
