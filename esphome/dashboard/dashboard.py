@@ -43,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 class DashboardSettings:
     def __init__(self):
         self.config_dir = ''
-        self.password_digest = ''
+        self.password_hash = ''
         self.username = ''
         self.using_password = False
         self.on_hassio = False
@@ -56,9 +56,9 @@ class DashboardSettings:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            # Store digest of password with HMAC-SHA256
-            # This is to provide constant size input to hmac.compare_digest
-            self.password_digest = hmac.new(password.encode(), digestmod='sha256').digest()
+            # Store digest of password with SHA256 so that they have constant size
+            # and can be compared in constant running time
+            self.password_hash = hashlib.sha256(password.encode()).digest()
         self.config_dir = args.configuration[0]
 
     @property
@@ -85,10 +85,11 @@ class DashboardSettings:
         if username != self.username:
             return False
 
-        # Compute HMAC-SHA256 of password
-        password = hmac.new(password.encode(), digestmod='sha256').digest()
-        # Compare digests in constant running time (to prevent timing attacks)
-        return hmac.compare_digest(self.password_digest, password)
+        # Compare password in constant running time (to prevent timing attacks)
+        return hmac.compare_digest(
+            self.password_hash,
+            hashlib.sha256(password.encode()).digest()
+        )
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
