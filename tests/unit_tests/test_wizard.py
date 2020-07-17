@@ -49,12 +49,13 @@ def test_config_file_fallback_ap_includes_descriptive_name(default_config):
     The fallback AP should include the node and a descriptive name
     """
     # Given
+    default_config["name"] = "test_node"
 
     # When
     config = wz.wizard_file(**default_config)
 
     # Then
-    f"ssid: \"{default_config['name']} Fallback Hotspot\"" in config
+    assert f"ssid: \"Test Node Fallback Hotspot\"" in config
 
 
 def test_config_file_fallback_ap_name_less_than_32_chars(default_config):
@@ -69,7 +70,7 @@ def test_config_file_fallback_ap_name_less_than_32_chars(default_config):
     config = wz.wizard_file(**default_config)
 
     # Then
-    f"ssid: \"{default_config['name']}\"" in config
+    assert f"ssid: \"A Very Long Name For This Node\"" in config
 
 
 def test_config_file_should_include_ota(default_config):
@@ -82,7 +83,7 @@ def test_config_file_should_include_ota(default_config):
     config = wz.wizard_file(**default_config)
 
     # Then
-    "ota:" in config
+    assert "ota:" in config
 
 
 def test_config_file_should_include_ota_when_password_set(default_config):
@@ -96,7 +97,7 @@ def test_config_file_should_include_ota_when_password_set(default_config):
     config = wz.wizard_file(**default_config)
 
     # Then
-    "ota:" in config
+    assert "ota:" in config
 
 
 def test_wizard_write_sets_platform(default_config, tmp_path, monkeypatch):
