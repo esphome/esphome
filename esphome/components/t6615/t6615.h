@@ -20,7 +20,7 @@ class T6615Component : public PollingComponent, public uart::UARTDevice {
 
  protected:
   uint8_t t6615_write_command_(uint8_t len, const uint8_t *command, uint8_t *response);
-  uint16_t get_ppm_();
+  void publish_ppm_();
 
   sensor::Sensor *co2_sensor_{nullptr};
 };
