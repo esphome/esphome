@@ -16,13 +16,12 @@ static const uint8_t T6615_COMMAND_ENABLE_ABC[] = {0xB7, 0x01};
 static const uint8_t T6615_COMMAND_DISABLE_ABC[] = {0xB7, 0x02};
 static const uint8_t T6615_COMMAND_SET_ELEVATION[] = {0x03, 0x0F};
 
-void T6615Component::setup() {
-}
+void T6615Component::setup() {}
 
 void T6615Component::update() {
   // CO2 sensor
   if (this->co2_sensor_ != nullptr) {
-    uint16_t ppm = this->get_ppm();
+    uint16_t ppm = this->get_ppm_();
     if (ppm > 0) {
       ESP_LOGD(TAG, "T6615 Received CO₂=%uppm", ppm);
       this->co2_sensor_->publish_state(ppm);
@@ -33,7 +32,7 @@ void T6615Component::update() {
   }
 }
 
-uint16_t T6615Component::get_ppm() {
+uint16_t T6615Component::get_ppm_() {
   uint8_t response[T6615_RESPONSE_BUFFER_LENGTH];
   uint8_t length = this->t6615_write_command_(sizeof(T6615_COMMAND_GET_PPM), T6615_COMMAND_GET_PPM, response);
   if (length == 0) {
@@ -44,7 +43,7 @@ uint16_t T6615Component::get_ppm() {
   return ppm;
 }
 
-uint8_t T6615Component::t6615_write_command_(const uint8_t len, const uint8_t *command, uint8_t *response) {
+uint8_t T6615Component::t6615_write_command_(uint8_t len, const uint8_t *command, uint8_t *response) {
   // Empty existing buffer
   while (this->available()) {
     this->read();
@@ -55,7 +54,7 @@ uint8_t T6615Component::t6615_write_command_(const uint8_t len, const uint8_t *c
   this->write_byte(len);
   this->write_array(command, len);
   this->flush();
-  delay(1050);
+  delay(40);
 
   // Read header
   uint8_t header[3];
