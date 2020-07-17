@@ -20,9 +20,7 @@ static const uint8_t T6615_COMMAND_SET_ELEVATION[] = {0x03, 0x0F};
 
 void T6615Component::setup() {}
 
-void T6615Component::update() {
-  this->publish_ppm_();
-}
+void T6615Component::update() { this->publish_ppm_(); }
 
 void T6615Component::publish_ppm_() {
   if (this->co2_sensor_ == nullptr) {
