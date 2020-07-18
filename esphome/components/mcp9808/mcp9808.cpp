@@ -71,7 +71,7 @@ void MCP9808Sensor::update() {
     return;
   }
 
-  ESP_LOGD(TAG, "%s: Got temperature=%.1f°C", this->name_.c_str(), temp);
+  ESP_LOGD(TAG, "%s: Got temperature=%.4f°C", this->name_.c_str(), temp);
   this->publish_state(temp);
   this->status_clear_warning();
 }
