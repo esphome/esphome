@@ -15,20 +15,22 @@ class Rtttl : public Component {
   void set_output(output::FloatOutput *output) { output_ = output; }
   void play(std::string rtttl);
 
-  //   void setup() override {}
+  void setup() override {}
   //   void dump_config() override;
 
   void loop() override;
 
  protected:
-  const char *play_pointer_ = nullptr;
-
+  std::string rtttl_;
+  std::string::const_iterator p_{};
   uint32_t duration_;
   uint32_t wholenote_;
   uint32_t default_dur_;
   uint32_t default_oct_;
 
-  uint32_t note_delay_;
+  uint32_t next_tone_play_{0};
+
+  bool note_playing_;
 
   output::FloatOutput *output_;
 };

@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.automation import maybe_simple_id
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_OUTPUT
 
@@ -26,10 +25,10 @@ def to_code(config):
     cg.add(var.set_output(out))
 
 
-@automation.register_action('rtttl.play', RtttlPlayAction, cv.Schema({
+@automation.register_action('rtttl.play', RtttlPlayAction, cv.maybe_simple_value({
     cv.GenerateID(CONF_ID): cv.use_id(Rtttl),
     cv.Required(CONF_RTTTL): cv.templatable(cv.string)
-}))
+}, key=CONF_RTTTL))
 def rtttl_play_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

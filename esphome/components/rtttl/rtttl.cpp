@@ -20,9 +20,11 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 
 void Rtttl::play(std::string rtttl) {
   // Absolutely no error checking in here
-  const char* p = rtttl.c_str();
+  this->rtttl_ = rtttl;
 
-  ESP_LOGD(TAG, "Playing song %s", p);
+  ESP_LOGD(TAG, "Playing song %s", rtttl_.c_str());
+
+  p_ = rtttl_.cbegin();
 
   this->default_dur_ = 4;
   this->default_oct_ = 6;
@@ -32,77 +34,83 @@ void Rtttl::play(std::string rtttl) {
   // format: d=N,o=N,b=NNN:
   // find the start (skip name, etc)
 
-  while (*p != ':')
-    p++;  // ignore name
+  // ignore name
+  while (*p_ != ':')
+    p_++;
 
   // skip colon and spaces
-  while (*p == ':' || *p == ' ')
-    p++;
+  while (*p_ == ':' || *p_ == ' ')
+    p_++;
 
   // get default duration
-  if (*p == 'd') {
-    p++;
-    p++;  // skip "d="
+  if (*p_ == 'd') {
+    p_++;
+    p_++;  // skip "d="
     num = 0;
-    while (is_digit(*p)) {
-      num = (num * 10) + (*p++ - '0');
+    while (is_digit(*p_)) {
+      num = (num * 10) + (*p_++ - '0');
     }
     if (num > 0)
       default_dur_ = num;
-    p++;  // skip comma
+    p_++;  // skip comma
   }
 
   // get default octave
-  if (*p == 'o') {
-    p++;
-    p++;  // skip "o="
-    num = *p++ - '0';
+  if (*p_ == 'o') {
+    p_++;
+    p_++;  // skip "o="
+    num = *p_++ - '0';
     if (num >= 3 && num <= 7)
       default_oct_ = num;
     // skip comma and spaces
-    while (*p == ',' || *p == ' ')
-      p++;
+    while (*p_ == ',' || *p_ == ' ')
+      p_++;
   }
 
   // get BPM
-  if (*p == 'b') {
-    p++;
-    p++;  // skip "b="
+  if (*p_ == 'b') {
+    p_++;
+    p_++;  // skip "b="
     num = 0;
-    while (is_digit(*p)) {
-      num = (num * 10) + (*p++ - '0');
+    while (is_digit(*p_)) {
+      num = (num * 10) + (*p_++ - '0');
     }
     bpm = num;
     // skip colon and spaces
-    while (*p == ':' || *p == ' ')
-      p++;
+    while (*p_ == ':' || *p_ == ' ')
+      p_++;
   }
 
   // BPM usually expresses the number of quarter notes per minute
   this->wholenote_ = (60 * 1000L / bpm) * 4;  // this is the time for whole note (in milliseconds)
 
-  this->play_pointer_ = p;
-  note_delay_ = millis();
+  note_playing_ = false;
+  next_tone_play_ = millis();
 }
 
 void Rtttl::loop() {
-  const char* p = this->play_pointer_;
-  if (p == nullptr)
+  if (next_tone_play_ == 0 || millis() < next_tone_play_)
     return;
 
-  if (millis() < note_delay_)
+  if (note_playing_) {
+    // add small silence between notes, but this should be done only when repeating notes.
+    next_tone_play_ = millis() + 10;
+    output_->set_level(0);
+    note_playing_ = false;
     return;
+  }
 
-  if (!(*p)) {
+  if (p_ == rtttl_.cend()) {
     output_->set_level(0.0);
-    this->play_pointer_ = nullptr;
+    ESP_LOGD(TAG, "Play ended");
+    next_tone_play_ = 0;
     return;
   }
 
   // first, get note duration, if available
   auto num = 0;
-  while (is_digit(*p)) {
-    num = (num * 10) + (*p++ - '0');
+  while (is_digit(*p_)) {
+    num = (num * 10) + (*p_++ - '0');
   }
 
   if (num)
@@ -113,7 +121,7 @@ void Rtttl::loop() {
   // now get the note
   uint8_t note = 0;
 
-  switch (*p) {
+  switch (*p_) {
     case 'c':
       note = 1;
       break;
@@ -140,33 +148,33 @@ void Rtttl::loop() {
     default:
       note = 0;
   }
-  p++;
+  p_++;
 
   // now, get optional '#' sharp
-  if (*p == '#') {
+  if (*p_ == '#') {
     note++;
-    p++;
+    p_++;
   }
 
   // now, get optional '.' dotted note
-  if (*p == '.') {
+  if (*p_ == '.') {
     duration_ += duration_ / 2;
-    p++;
+    p_++;
   }
 
   // now, get scale
   uint8_t scale;
-  if (isdigit(*p)) {
-    scale = *p - '0';
-    p++;
+  if (isdigit(*p_)) {
+    scale = *p_ - '0';
+    p_++;
   } else {
     scale = default_oct_;
   }
 
   scale += OCTAVE_OFFSET;
 
-  if (*p == ',')
-    p++;  // skip comma for next note (or we may be at the end)
+  if (*p_ == ',')
+    p_++;  // skip comma for next note (or we may be at the end)
 
   // Now play the note
 
@@ -176,12 +184,13 @@ void Rtttl::loop() {
     ESP_LOGVV(TAG, "playing note: %d %d %d", duration_, note);
     output_->update_frequency(freq);
     output_->set_level(0.5);
+    note_playing_ = true;
   } else {
     ESP_LOGVV(TAG, "waiting: %d", duration_);
     output_->set_level(0.0);
+    note_playing_ = false;
   }
-  this->play_pointer_ = p;
-  note_delay_ += duration_;
+  next_tone_play_ += duration_;
 }
 }  // namespace rtttl
 }  // namespace esphome
