@@ -759,8 +759,7 @@ sensor:
       name: "AQI"
       calculation_type: "CAQI"
   - platform: mcp9808
-    temperature:
-      name: "MCP9808 Temperature"
+    name: "MCP9808 Temperature"
     update_interval: 15s
 
 esp32_touch:
