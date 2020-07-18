@@ -49,6 +49,9 @@ class FloatOutput : public BinaryOutput {
   /// Set the level of this float output, this is called from the front-end.
   void set_level(float state);
 
+  /// Set the frequency of the output for PWM outputs
+  virtual void update_frequency(float frequency) {}
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
 
