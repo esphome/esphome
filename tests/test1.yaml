@@ -1773,3 +1773,6 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
+
+rtttl:
+  output: gpio_19
