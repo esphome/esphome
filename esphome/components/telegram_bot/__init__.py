@@ -86,6 +86,7 @@ TELEGRAM_BOT_CALLBACK_ACTION_SCHEMA = TELEGRAM_BOT_ACTION_SCHEMA.extend({
     cv.Required(CONF_CALLBACK_QUERY_ID): cv.templatable(cv.string),
 })
 
+
 @automation.register_action('telegram_bot.send_message', TelegramBotSendAction,
                             TELEGRAM_BOT_SEND_ACTION_SCHEMA)
 def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
@@ -104,6 +105,7 @@ def telegram_bot_send_action_to_code(config, action_id, template_arg, args):
                                        btn.get(CONF_CALLBACK_DATA, '')))
 
     yield var
+
 
 @automation.register_action('telegram_bot.answer_callback_query', TelegramBotAnswerCallbackAction,
                             TELEGRAM_BOT_CALLBACK_ACTION_SCHEMA)
