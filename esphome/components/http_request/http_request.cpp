@@ -15,7 +15,7 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool begin_status = false;
   this->client_.setReuse(true);
-  static const String URL = this->url_.c_str();
+  const String URL = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
   begin_status = this->client_.begin(URL);
 #endif
