@@ -1,11 +1,9 @@
-# coding=utf-8
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (CONF_ADDRESS, CONF_ID, CONF_OVERSAMPLING, CONF_RANGE, ICON_MAGNET,
                            UNIT_MICROTESLA, UNIT_DEGREES, ICON_SCREEN_ROTATION,
                            CONF_UPDATE_INTERVAL)
-from esphome.py_compat import text_type
 
 DEPENDENCIES = ['i2c']
 
@@ -46,7 +44,7 @@ def validate_enum(enum_values, units=None, int=True):
     _units = []
     if units is not None:
         _units = units if isinstance(units, list) else [units]
-        _units = [text_type(x) for x in _units]
+        _units = [str(x) for x in _units]
     enum_bound = cv.enum(enum_values, int=int)
 
     def validate_enum_bound(value):
@@ -65,7 +63,7 @@ heading_schema = sensor.sensor_schema(UNIT_DEGREES, ICON_SCREEN_ROTATION, 1)
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(QMC5883LComponent),
     cv.Optional(CONF_ADDRESS): cv.i2c_address,
-    cv.Optional(CONF_RANGE, default=u'200µT'): validate_enum(QMC5883L_RANGES, units=["uT", u"µT"]),
+    cv.Optional(CONF_RANGE, default='200µT'): validate_enum(QMC5883L_RANGES, units=["uT", "µT"]),
     cv.Optional(CONF_OVERSAMPLING, default="512x"): validate_enum(QMC5883LOversamplings, units="x"),
     cv.Optional(CONF_FIELD_STRENGTH_X): field_strength_schema,
     cv.Optional(CONF_FIELD_STRENGTH_Y): field_strength_schema,

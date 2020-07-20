@@ -1,5 +1,3 @@
-from __future__ import division
-
 import logging
 
 import esphome.config_validation as cv
@@ -35,7 +33,8 @@ ESP8266_BOARD_PINS = {
     'espresso_lite_v2': {'LED': 2},
     'gen4iod': {},
     'heltec_wifi_kit_8': 'd1_mini',
-    'huzzah': {'LED': 0},
+    'huzzah': {'LED': 0, 'LED_RED': 0, 'LED_BLUE': 2, 'D4': 4, 'D5': 5, 'D12': 12,
+               'D13': 13, 'D14': 14, 'D15': 15, 'D16': 16},
     'inventone': {},
     'modwifi': {},
     'nodemcu': {'D0': 16, 'D1': 5, 'D2': 4, 'D3': 0, 'D4': 2, 'D5': 14, 'D6': 12, 'D7': 13,
@@ -257,27 +256,31 @@ ESP32_BOARD_PINS = {
 
 def _lookup_pin(value):
     if CORE.is_esp8266:
-        board_pins = ESP8266_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP8266_BOARD_PINS
         base_pins = ESP8266_BASE_PINS
     elif CORE.is_esp32:
-        board_pins = ESP32_BOARD_PINS.get(CORE.board, {})
+        board_pins_dict = ESP32_BOARD_PINS
         base_pins = ESP32_BASE_PINS
     else:
         raise NotImplementedError
 
+    board_pins = board_pins_dict.get(CORE.board, {})
+
+    # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
-        board_pins = ESP8266_BOARD_PINS.get(board_pins, {})
+        board_pins = board_pins_dict[board_pins]
+
     if value in board_pins:
         return board_pins[value]
     if value in base_pins:
         return base_pins[value]
-    raise cv.Invalid(u"Cannot resolve pin name '{}' for board {}.".format(value, CORE.board))
+    raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {CORE.board}.")
 
 
 def _translate_pin(value):
     if isinstance(value, dict) or value is None:
-        raise cv.Invalid(u"This variable only supports pin numbers, not full pin schemas "
-                         u"(with inverted and mode).")
+        raise cv.Invalid("This variable only supports pin numbers, not full pin schemas "
+                         "(with inverted and mode).")
     if isinstance(value, int):
         return value
     try:
@@ -301,27 +304,27 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     if CORE.is_esp32:
         if value < 0 or value > 39:
-            raise cv.Invalid(u"ESP32: Invalid pin number: {}".format(value))
+            raise cv.Invalid(f"ESP32: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid("This pin cannot be used on ESP32s and is already used by "
                              "the flash interface (function: {})".format(_ESP_SDIO_PINS[value]))
         if 9 <= value <= 10:
-            _LOGGER.warning(u"ESP32: Pin %s (9-10) might already be used by the "
-                            u"flash interface in QUAD IO flash mode.", value)
+            _LOGGER.warning("ESP32: Pin %s (9-10) might already be used by the "
+                            "flash interface in QUAD IO flash mode.", value)
         if value in (20, 24, 28, 29, 30, 31):
             # These pins are not exposed in GPIO mux (reason unknown)
             # but they're missing from IO_MUX list in datasheet
-            raise cv.Invalid("The pin GPIO{} is not usable on ESP32s.".format(value))
+            raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")
         return value
     if CORE.is_esp8266:
         if value < 0 or value > 17:
-            raise cv.Invalid(u"ESP8266: Invalid pin number: {}".format(value))
+            raise cv.Invalid(f"ESP8266: Invalid pin number: {value}")
         if value in _ESP_SDIO_PINS:
             raise cv.Invalid("This pin cannot be used on ESP8266s and is already used by "
                              "the flash interface (function: {})".format(_ESP_SDIO_PINS[value]))
         if 9 <= value <= 10:
-            _LOGGER.warning(u"ESP8266: Pin %s (9-10) might already be used by the "
-                            u"flash interface in QUAD IO flash mode.", value)
+            _LOGGER.warning("ESP8266: Pin %s (9-10) might already be used by the "
+                            "flash interface in QUAD IO flash mode.", value)
         return value
     raise NotImplementedError
 
@@ -349,8 +352,8 @@ def output_pin(value):
     value = validate_gpio_pin(value)
     if CORE.is_esp32:
         if 34 <= value <= 39:
-            raise cv.Invalid(u"ESP32: GPIO{} (34-39) can only be used as an "
-                             u"input pin.".format(value))
+            raise cv.Invalid("ESP32: GPIO{} (34-39) can only be used as an "
+                             "input pin.".format(value))
         return value
     if CORE.is_esp8266:
         if value == 17:
@@ -364,11 +367,11 @@ def analog_pin(value):
     if CORE.is_esp32:
         if 32 <= value <= 39:  # ADC1
             return value
-        raise cv.Invalid(u"ESP32: Only pins 32 though 39 support ADC.")
+        raise cv.Invalid("ESP32: Only pins 32 though 39 support ADC.")
     if CORE.is_esp8266:
         if value == 17:  # A0
             return value
-        raise cv.Invalid(u"ESP8266: Only pin A0 (GPIO17) supports ADC.")
+        raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC.")
     raise NotImplementedError
 
 

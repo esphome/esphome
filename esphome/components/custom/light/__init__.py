@@ -10,7 +10,7 @@ CONF_LIGHTS = 'lights'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(CustomLightOutputConstructor),
     cv.Required(CONF_LAMBDA): cv.returning_lambda,
-    cv.Required(CONF_LIGHTS): cv.ensure_list(light.RGB_LIGHT_SCHEMA),
+    cv.Required(CONF_LIGHTS): cv.ensure_list(light.ADDRESSABLE_LIGHT_SCHEMA),
 })
 
 

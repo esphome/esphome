@@ -1,16 +1,12 @@
+import urllib.parse as urlparse
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
-    CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_0, CONF_URL
+    CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_1, CONF_URL
 from esphome.core import CORE, Lambda
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
-from esphome.py_compat import IS_PY3
-
-if IS_PY3:
-    import urllib.parse as urlparse  # pylint: disable=no-name-in-module,import-error
-else:
-    import urlparse  # pylint: disable=import-error
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['json']
@@ -38,8 +34,8 @@ def validate_framework(config):
         return config
 
     framework = PLATFORMIO_ESP8266_LUT[version] if version in PLATFORMIO_ESP8266_LUT else version
-    if framework < ARDUINO_VERSION_ESP8266_2_5_0:
-        raise cv.Invalid('This component is not supported on arduino framework version below 2.5.0')
+    if framework < ARDUINO_VERSION_ESP8266_2_5_1:
+        raise cv.Invalid('This component is not supported on arduino framework version below 2.5.1')
     return config
 
 
@@ -124,7 +120,7 @@ def http_request_action_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    template_ = yield cg.templatable(config[CONF_URL], args, cg.const_char_ptr)
+    template_ = yield cg.templatable(config[CONF_URL], args, cg.std_string)
     cg.add(var.set_url(template_))
     cg.add(var.set_method(config[CONF_METHOD]))
     if CONF_BODY in config:

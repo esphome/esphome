@@ -1,4 +1,3 @@
-# coding=utf-8
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
@@ -27,7 +26,7 @@ DISPLAY_ROTATIONS = {
 
 def validate_rotation(value):
     value = cv.string(value)
-    if value.endswith(u"°"):
+    if value.endswith("°"):
         value = value[:-1]
     return cv.enum(DISPLAY_ROTATIONS, int=True)(value)
 

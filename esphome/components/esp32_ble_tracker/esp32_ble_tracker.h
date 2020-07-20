@@ -23,7 +23,12 @@ class ESPBTUUID {
 
   static ESPBTUUID from_raw(const uint8_t *data);
 
+  ESPBTUUID as_128bit() const;
+
   bool contains(uint8_t data1, uint8_t data2) const;
+
+  bool operator==(const ESPBTUUID &uuid) const;
+  bool operator!=(const ESPBTUUID &uuid) const { return !(*this == uuid); }
 
   esp_bt_uuid_t get_uuid();
 
@@ -46,14 +51,15 @@ class ESPBLEiBeacon {
   ESPBLEiBeacon(const uint8_t *data);
   static optional<ESPBLEiBeacon> from_manufacturer_data(const ServiceData &data);
 
-  uint16_t get_major() { return reverse_bits_16(this->beacon_data_.major); }
-  uint16_t get_minor() { return reverse_bits_16(this->beacon_data_.minor); }
+  uint16_t get_major() { return ((this->beacon_data_.major & 0xFF) << 8) | (this->beacon_data_.major >> 8); }
+  uint16_t get_minor() { return ((this->beacon_data_.minor & 0xFF) << 8) | (this->beacon_data_.minor >> 8); }
   int8_t get_signal_power() { return this->beacon_data_.signal_power; }
   ESPBTUUID get_uuid() { return ESPBTUUID::from_raw(this->beacon_data_.proximity_uuid); }
 
  protected:
   struct {
     uint8_t sub_type;
+    uint8_t length;
     uint8_t proximity_uuid[16];
     uint16_t major;
     uint16_t minor;
@@ -68,6 +74,8 @@ class ESPBTDevice {
   std::string address_str() const;
 
   uint64_t address_uint64() const;
+
+  const uint8_t *address() const { return address_; }
 
   esp_ble_addr_type_t get_address_type() const { return this->address_type_; }
   int get_rssi() const { return rssi_; }

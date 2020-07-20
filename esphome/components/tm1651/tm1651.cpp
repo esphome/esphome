@@ -5,8 +5,9 @@ namespace esphome {
 namespace tm1651 {
 
 static const char *TAG = "tm1651.display";
+
+static const uint8_t MAX_INPUT_LEVEL_PERCENT = 100;
 static const uint8_t TM1651_MAX_LEVEL = 7;
-static const uint8_t MAX_INPUT_LEVEL = 100;
 
 static const uint8_t TM1651_BRIGHTNESS_LOW = 0;
 static const uint8_t TM1651_BRIGHTNESS_MEDIUM = 2;
@@ -29,8 +30,13 @@ void TM1651Display::dump_config() {
   LOG_PIN("  DIO: ", dio_pin_);
 }
 
-void TM1651Display::set_level(uint8_t new_level) {
+void TM1651Display::set_level_percent(uint8_t new_level) {
   this->level_ = calculate_level_(new_level);
+  this->repaint_();
+}
+
+void TM1651Display::set_level(uint8_t new_level) {
+  this->level_ = new_level;
   this->repaint_();
 }
 
@@ -39,7 +45,21 @@ void TM1651Display::set_brightness(uint8_t new_brightness) {
   this->repaint_();
 }
 
+void TM1651Display::turn_on() {
+  this->is_on_ = true;
+  this->repaint_();
+}
+
+void TM1651Display::turn_off() {
+  this->is_on_ = false;
+  battery_display_->displayLevel(0);
+}
+
 void TM1651Display::repaint_() {
+  if (!this->is_on_) {
+    return;
+  }
+
   battery_display_->set(this->brightness_);
   battery_display_->displayLevel(this->level_);
 }
@@ -49,7 +69,7 @@ uint8_t TM1651Display::calculate_level_(uint8_t new_level) {
     return 0;
   }
 
-  float calculated_level = TM1651_MAX_LEVEL / (float) (MAX_INPUT_LEVEL / (float) new_level);
+  float calculated_level = TM1651_MAX_LEVEL / (float) (MAX_INPUT_LEVEL_PERCENT / (float) new_level);
   return (uint8_t) roundf(calculated_level);
 }
 

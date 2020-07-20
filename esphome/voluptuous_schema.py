@@ -3,8 +3,6 @@ import itertools
 
 import voluptuous as vol
 
-from esphome.py_compat import string_types
-
 
 class ExtraKeysInvalid(vol.Invalid):
     def __init__(self, *arg, **kwargs):
@@ -22,14 +20,14 @@ def ensure_multiple_invalid(err):
 class _Schema(vol.Schema):
     """Custom cv.Schema that prints similar keys on error."""
     def __init__(self, schema, required=False, extra=vol.PREVENT_EXTRA, extra_schemas=None):
-        super(_Schema, self).__init__(schema, required=required, extra=extra)
+        super().__init__(schema, required=required, extra=extra)
         # List of extra schemas to apply after validation
         # Should be used sparingly, as it's not a very voluptuous-way/clean way of
         # doing things.
         self._extra_schemas = extra_schemas or []
 
     def __call__(self, data):
-        res = super(_Schema, self).__call__(data)
+        res = super().__call__(data)
         for extra in self._extra_schemas:
             try:
                 res = extra(res)
@@ -51,10 +49,10 @@ class _Schema(vol.Schema):
                 raise ValueError("All schema keys must be wrapped in cv.Required or cv.Optional")
 
         # Keys that may be required
-        all_required_keys = set(key for key in schema if isinstance(key, vol.Required))
+        all_required_keys = {key for key in schema if isinstance(key, vol.Required)}
 
         # Keys that may have defaults
-        all_default_keys = set(key for key in schema if isinstance(key, vol.Optional))
+        all_default_keys = {key for key in schema if isinstance(key, vol.Optional)}
 
         # Recursively compile schema
         _compiled_schema = {}
@@ -84,9 +82,9 @@ class _Schema(vol.Schema):
 
         key_names = []
         for skey in schema:
-            if isinstance(skey, string_types):
+            if isinstance(skey, str):
                 key_names.append(skey)
-            elif isinstance(skey, vol.Marker) and isinstance(skey.schema, string_types):
+            elif isinstance(skey, vol.Marker) and isinstance(skey.schema, str):
                 key_names.append(skey.schema)
 
         def validate_mapping(path, iterable, out):
@@ -156,7 +154,7 @@ class _Schema(vol.Schema):
                     if self.extra == vol.ALLOW_EXTRA:
                         out[key] = value
                     elif self.extra != vol.REMOVE_EXTRA:
-                        if isinstance(key, string_types) and key_names:
+                        if isinstance(key, str) and key_names:
                             matches = difflib.get_close_matches(key, key_names)
                             errors.append(ExtraKeysInvalid('extra keys not allowed', key_path,
                                                            candidates=matches))
@@ -179,7 +177,7 @@ class _Schema(vol.Schema):
         self._extra_schemas.append(validator)
         return self
 
-    # pylint: disable=arguments-differ
+    # pylint: disable=signature-differs
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop('extra', None)
         if kwargs:
@@ -195,5 +193,5 @@ class _Schema(vol.Schema):
         schema = schemas[0]
         if isinstance(schema, vol.Schema):
             schema = schema.schema
-        ret = super(_Schema, self).extend(schema, extra=extra)
+        ret = super().extend(schema, extra=extra)
         return _Schema(ret.schema, extra=ret.extra, extra_schemas=self._extra_schemas)

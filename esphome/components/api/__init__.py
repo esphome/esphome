@@ -102,7 +102,7 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
 
 def validate_homeassistant_event(value):
     value = cv.string(value)
-    if not value.startswith(u'esphome.'):
+    if not value.startswith('esphome.'):
         raise cv.Invalid("ESPHome can only generate Home Assistant events that begin with "
                          "esphome. For example 'esphome.xyz'")
     return value

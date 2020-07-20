@@ -1,0 +1,5 @@
+# Uptime sensor.
+platform: uptime
+id: ${devicename}_uptime_pcg
+name: Uptime From Package
+update_interval: 5min

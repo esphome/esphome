@@ -1,13 +1,12 @@
-from __future__ import print_function
-
 import json
+from typing import Union
+
 import logging
 import os
 import re
 import subprocess
 
 from esphome.core import CORE
-from esphome.py_compat import decode_text
 from esphome.util import run_external_command, run_external_process
 
 _LOGGER = logging.getLogger(__name__)
@@ -61,10 +60,11 @@ FILTER_PLATFORMIO_LINES = [
     r'Installing dependencies',
     r'.* @ .* is already installed',
     r'Building in .* mode',
+    r'Advanced Memory Usage is available via .*',
 ]
 
 
-def run_platformio_cli(*args, **kwargs):
+def run_platformio_cli(*args, **kwargs) -> Union[str, int]:
     os.environ["PLATFORMIO_FORCE_COLOR"] = "true"
     os.environ["PLATFORMIO_BUILD_DIR"] = os.path.abspath(CORE.relative_pioenvs_path())
     os.environ["PLATFORMIO_LIBDEPS_DIR"] = os.path.abspath(CORE.relative_piolibdeps_path())
@@ -82,7 +82,7 @@ def run_platformio_cli(*args, **kwargs):
                                 *cmd, **kwargs)
 
 
-def run_platformio_cli_run(config, verbose, *args, **kwargs):
+def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
     command = ['run', '-d', CORE.build_path]
     if verbose:
         command += ['-v']
@@ -101,7 +101,6 @@ def run_upload(config, verbose, port):
 def run_idedata(config):
     args = ['-t', 'idedata']
     stdout = run_platformio_cli_run(config, False, *args, capture_stdout=True)
-    stdout = decode_text(stdout)
     match = re.search(r'{\s*".*}', stdout)
     if match is None:
         _LOGGER.debug("Could not match IDEData for %s", stdout)
@@ -172,7 +171,7 @@ def _decode_pc(config, addr):
         return
     command = [idedata.addr2line_path, '-pfiaC', '-e', idedata.firmware_elf_path, addr]
     try:
-        translation = decode_text(subprocess.check_output(command)).strip()
+        translation = subprocess.check_output(command).decode().strip()
     except Exception:  # pylint: disable=broad-except
         _LOGGER.debug("Caught exception for command %s", command, exc_info=1)
         return
@@ -246,7 +245,7 @@ def process_stacktrace(config, line, backtrace_state):
     return backtrace_state
 
 
-class IDEData(object):
+class IDEData:
     def __init__(self, raw):
         if not isinstance(raw, dict):
             self.raw = {}

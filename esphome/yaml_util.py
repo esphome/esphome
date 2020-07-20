@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import fnmatch
 import functools
 import inspect
@@ -15,7 +13,6 @@ from esphome import core
 from esphome.config_helpers import read_config_file
 from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
 from esphome.helpers import add_class_to_obj
-from esphome.py_compat import text_type, IS_PY2
 from esphome.util import OrderedDict, filter_yaml_files
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,12 +20,12 @@ _LOGGER = logging.getLogger(__name__)
 # Mostly copied from Home Assistant because that code works fine and
 # let's not reinvent the wheel here
 
-SECRET_YAML = u'secrets.yaml'
+SECRET_YAML = 'secrets.yaml'
 _SECRET_CACHE = {}
 _SECRET_VALUES = {}
 
 
-class ESPHomeDataBase(object):
+class ESPHomeDataBase:
     @property
     def esp_range(self):
         return getattr(self, '_esp_range', None)
@@ -38,7 +35,7 @@ class ESPHomeDataBase(object):
         self._esp_range = DocumentRange.from_marks(node.start_mark, node.end_mark)
 
 
-class ESPForceValue(object):
+class ESPForceValue:
     pass
 
 
@@ -74,27 +71,27 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_yaml_int(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_int(node)
+        return super().construct_yaml_int(node)
 
     @_add_data_ref
     def construct_yaml_float(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_float(node)
+        return super().construct_yaml_float(node)
 
     @_add_data_ref
     def construct_yaml_binary(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_binary(node)
+        return super().construct_yaml_binary(node)
 
     @_add_data_ref
     def construct_yaml_omap(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_omap(node)
+        return super().construct_yaml_omap(node)
 
     @_add_data_ref
     def construct_yaml_str(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_str(node)
+        return super().construct_yaml_str(node)
 
     @_add_data_ref
     def construct_yaml_seq(self, node):
-        return super(ESPHomeLoader, self).construct_yaml_seq(node)
+        return super().construct_yaml_seq(node)
 
     @_add_data_ref
     def construct_yaml_map(self, node):
@@ -130,12 +127,12 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
                     hash(key)
                 except TypeError:
                     raise yaml.constructor.ConstructorError(
-                        'Invalid key "{}" (not hashable)'.format(key), key_node.start_mark)
+                        f'Invalid key "{key}" (not hashable)', key_node.start_mark)
 
                 # Check if it is a duplicate key
                 if key in seen_keys:
                     raise yaml.constructor.ConstructorError(
-                        'Duplicate key "{}"'.format(key), key_node.start_mark,
+                        f'Duplicate key "{key}"', key_node.start_mark,
                         'NOTE: Previous declaration here:', seen_keys[key],
                     )
                 seen_keys[key] = key_node.start_mark
@@ -194,11 +191,11 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         args = node.value.split()
         # Check for a default value
         if len(args) > 1:
-            return os.getenv(args[0], u' '.join(args[1:]))
+            return os.getenv(args[0], ' '.join(args[1:]))
         if args[0] in os.environ:
             return os.environ[args[0]]
         raise yaml.MarkedYAMLError(
-            u"Environment variable '{}' not defined".format(node.value), node.start_mark
+            f"Environment variable '{node.value}' not defined", node.start_mark
         )
 
     @property
@@ -213,10 +210,10 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         secrets = _load_yaml_internal(self._rel_path(SECRET_YAML))
         if node.value not in secrets:
             raise yaml.MarkedYAMLError(
-                u"Secret '{}' not defined".format(node.value), node.start_mark
+                f"Secret '{node.value}' not defined", node.start_mark
             )
         val = secrets[node.value]
-        _SECRET_VALUES[text_type(val)] = node.value
+        _SECRET_VALUES[str(val)] = node.value
         return val
 
     @_add_data_ref
@@ -259,7 +256,7 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
 
     @_add_data_ref
     def construct_lambda(self, node):
-        return Lambda(text_type(node.value))
+        return Lambda(str(node.value))
 
     @_add_data_ref
     def construct_force(self, node):
@@ -267,13 +264,13 @@ class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
         return add_class_to_obj(obj, ESPForceValue)
 
 
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:binary', ESPHomeLoader.construct_yaml_binary)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:omap', ESPHomeLoader.construct_yaml_omap)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:str', ESPHomeLoader.construct_yaml_str)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:seq', ESPHomeLoader.construct_yaml_seq)
-ESPHomeLoader.add_constructor(u'tag:yaml.org,2002:map', ESPHomeLoader.construct_yaml_map)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:int', ESPHomeLoader.construct_yaml_int)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:float', ESPHomeLoader.construct_yaml_float)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:binary', ESPHomeLoader.construct_yaml_binary)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:omap', ESPHomeLoader.construct_yaml_omap)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:str', ESPHomeLoader.construct_yaml_str)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:seq', ESPHomeLoader.construct_yaml_seq)
+ESPHomeLoader.add_constructor('tag:yaml.org,2002:map', ESPHomeLoader.construct_yaml_map)
 ESPHomeLoader.add_constructor('!env_var', ESPHomeLoader.construct_env_var)
 ESPHomeLoader.add_constructor('!secret', ESPHomeLoader.construct_secret)
 ESPHomeLoader.add_constructor('!include', ESPHomeLoader.construct_include)
@@ -313,7 +310,7 @@ def dump(dict_):
 
 def _is_file_valid(name):
     """Decide if a file is valid."""
-    return not name.startswith(u'.')
+    return not name.startswith('.')
 
 
 def _find_files(directory, pattern):
@@ -328,7 +325,7 @@ def _find_files(directory, pattern):
 
 def is_secret(value):
     try:
-        return _SECRET_VALUES[text_type(value)]
+        return _SECRET_VALUES[str(value)]
     except (KeyError, ValueError):
         return None
 
@@ -341,7 +338,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             self.represented_objects[self.alias_key] = node
         best_style = True
         if hasattr(mapping, 'items'):
-            mapping = list(mapping.items())
+            mapping = sorted(mapping.items(), key=lambda item: item[0])
         for item_key, item_value in mapping:
             node_key = self.represent_data(item_key)
             node_value = self.represent_data(item_value)
@@ -358,31 +355,31 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
         return node
 
     def represent_secret(self, value):
-        return self.represent_scalar(tag=u'!secret', value=_SECRET_VALUES[text_type(value)])
+        return self.represent_scalar(tag='!secret', value=_SECRET_VALUES[str(value)])
 
     def represent_stringify(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:str', value=text_type(value))
+        return self.represent_scalar(tag='tag:yaml.org,2002:str', value=str(value))
 
     # pylint: disable=arguments-differ
     def represent_bool(self, value):
-        return self.represent_scalar(u'tag:yaml.org,2002:bool', u'true' if value else u'false')
+        return self.represent_scalar('tag:yaml.org,2002:bool', 'true' if value else 'false')
 
     def represent_int(self, value):
         if is_secret(value):
             return self.represent_secret(value)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:int', value=text_type(value))
+        return self.represent_scalar(tag='tag:yaml.org,2002:int', value=str(value))
 
     def represent_float(self, value):
         if is_secret(value):
             return self.represent_secret(value)
         if math.isnan(value):
-            value = u'.nan'
+            value = '.nan'
         elif math.isinf(value):
-            value = u'.inf' if value > 0 else u'-.inf'
+            value = '.inf' if value > 0 else '-.inf'
         else:
-            value = text_type(repr(value)).lower()
+            value = str(repr(value)).lower()
             # Note that in some cases `repr(data)` represents a float number
             # without the decimal parts.  For instance:
             #   >>> repr(1e17)
@@ -390,9 +387,9 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             # Unfortunately, this is not a valid float representation according
             # to the definition of the `!!float` tag.  We fix this by adding
             # '.0' before the 'e' symbol.
-            if u'.' not in value and u'e' in value:
-                value = value.replace(u'e', u'.0e', 1)
-        return self.represent_scalar(tag=u'tag:yaml.org,2002:float', value=value)
+            if '.' not in value and 'e' in value:
+                value = value.replace('e', '.0e', 1)
+        return self.represent_scalar(tag='tag:yaml.org,2002:float', value=value)
 
     def represent_lambda(self, value):
         if is_secret(value.value):
@@ -417,9 +414,6 @@ ESPHomeDumper.add_multi_representer(bool, ESPHomeDumper.represent_bool)
 ESPHomeDumper.add_multi_representer(str, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(int, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(float, ESPHomeDumper.represent_float)
-if IS_PY2:
-    ESPHomeDumper.add_multi_representer(unicode, ESPHomeDumper.represent_stringify)
-    ESPHomeDumper.add_multi_representer(long, ESPHomeDumper.represent_int)
 ESPHomeDumper.add_multi_representer(IPAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(MACAddress, ESPHomeDumper.represent_stringify)
 ESPHomeDumper.add_multi_representer(TimePeriod, ESPHomeDumper.represent_stringify)

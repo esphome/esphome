@@ -12,6 +12,7 @@ typedef struct {        // NOLINT
 
 void ICACHE_RAM_ATTR __attachInterruptArg(uint8_t pin, void (*)(void *), void *fp,  // NOLINT
                                           int mode);
+void ICACHE_RAM_ATTR __detachInterrupt(uint8_t pin);  // NOLINT
 };
 #endif
 
@@ -226,6 +227,15 @@ void ICACHE_RAM_ATTR interrupt_handler(void *arg) {
 }
 #endif
 
+void GPIOPin::detach_interrupt() const { this->detach_interrupt_(); }
+void GPIOPin::detach_interrupt_() const {
+#ifdef ARDUINO_ARCH_ESP8266
+  __detachInterrupt(get_pin());
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+  detachInterrupt(get_pin());
+#endif
+}
 void GPIOPin::attach_interrupt_(void (*func)(void *), void *arg, int mode) const {
   if (this->inverted_) {
     if (mode == RISING) {
@@ -259,6 +269,22 @@ ISRInternalGPIOPin *GPIOPin::to_isr() const {
                                 this->gpio_clear_, this->gpio_set_,
 #endif
                                 this->gpio_read_, this->gpio_mask_, this->inverted_);
+}
+
+void force_link_symbols() {
+#ifdef ARDUINO_ARCH_ESP8266
+  // Tasmota uses magic bytes in the binary to check if an OTA firmware is compatible
+  // with their settings - ESPHome uses a different settings system (that can also survive
+  // erases). So set magic bytes indicating all tasmota versions are supported.
+  // This only adds 12 bytes of binary size, which is an acceptable price to pay for easier support
+  // for Tasmota.
+  // https://github.com/arendst/Tasmota/blob/b05301b1497942167a015a6113b7f424e42942cd/tasmota/settings.ino#L346-L380
+  // https://github.com/arendst/Tasmota/blob/b05301b1497942167a015a6113b7f424e42942cd/tasmota/i18n.h#L652-L654
+  const static uint32_t TASMOTA_MAGIC_BYTES[] PROGMEM = {0x5AA55AA5, 0xFFFFFFFF, 0xA55AA55A};
+  // Force link symbol by using a volatile integer (GCC attribute used does not work because of LTO)
+  volatile int x = 0;
+  x = TASMOTA_MAGIC_BYTES[x];
+#endif
 }
 
 }  // namespace esphome

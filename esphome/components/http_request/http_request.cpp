@@ -15,14 +15,15 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool begin_status = false;
   this->client_.setReuse(true);
+  static const String URL = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
-  begin_status = this->client_.begin(this->url_);
+  begin_status = this->client_.begin(URL);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->wifi_client_, this->url_);
+  begin_status = this->client_.begin(*this->get_wifi_client_(), URL);
 #endif
 #endif
 
@@ -43,24 +44,46 @@ void HttpRequestComponent::send() {
 
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
   if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_, HTTPClient::errorToString(http_code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
+             HTTPClient::errorToString(http_code).c_str());
     this->status_set_warning();
     return;
   }
 
   if (http_code < 200 || http_code >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_, http_code);
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), http_code);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_, http_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
 }
+
+#ifdef ARDUINO_ARCH_ESP8266
+WiFiClient *HttpRequestComponent::get_wifi_client_() {
+  if (this->secure_) {
+    if (this->wifi_client_secure_ == nullptr) {
+      this->wifi_client_secure_ = new BearSSL::WiFiClientSecure();
+      this->wifi_client_secure_->setInsecure();
+      this->wifi_client_secure_->setBufferSizes(512, 512);
+    }
+    return this->wifi_client_secure_;
+  }
+
+  if (this->wifi_client_ == nullptr) {
+    this->wifi_client_ = new WiFiClient();
+  }
+  return this->wifi_client_;
+}
+#endif
 
 void HttpRequestComponent::close() { this->client_.end(); }
 
-const char *HttpRequestComponent::get_string() { return this->client_.getString().c_str(); }
+const char *HttpRequestComponent::get_string() {
+  static const String STR = this->client_.getString();
+  return STR.c_str();
+}
 
 }  // namespace http_request
 }  // namespace esphome

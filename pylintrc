@@ -25,9 +25,3 @@ disable=
   stop-iteration-return,
   no-self-use,
   import-outside-toplevel,
-
-
-additional-builtins=
-  unicode,
-  long,
-  raw_input

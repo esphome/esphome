@@ -30,9 +30,9 @@ def validate_password(value):
     if not value:
         return value
     if len(value) < 8:
-        raise cv.Invalid(u"WPA password must be at least 8 characters long")
+        raise cv.Invalid("WPA password must be at least 8 characters long")
     if len(value) > 64:
-        raise cv.Invalid(u"WPA password must be at most 64 characters long")
+        raise cv.Invalid("WPA password must be at most 64 characters long")
     return value
 
 

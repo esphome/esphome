@@ -1,19 +1,17 @@
-from __future__ import print_function
-
 import json
 import os
 
+# pylint: disable=unused-import
 from esphome.config import load_config, _format_vol_invalid, Config
 from esphome.core import CORE, DocumentRange
-from esphome.py_compat import text_type, safe_input
+import esphome.config_validation as cv
 
 # pylint: disable=unused-import, wrong-import-order
-import voluptuous as vol
 from typing import Optional
 
 
 def _get_invalid_range(res, invalid):
-    # type: (Config, vol.Invalid) -> Optional[DocumentRange]
+    # type: (Config, cv.Invalid) -> Optional[DocumentRange]
     return res.get_deepest_document_range_for_path(invalid.path)
 
 
@@ -30,7 +28,7 @@ def _dump_range(range):
     }
 
 
-class VSCodeResult(object):
+class VSCodeResult:
     def __init__(self):
         self.yaml_errors = []
         self.validation_errors = []
@@ -57,7 +55,7 @@ class VSCodeResult(object):
 def read_config(args):
     while True:
         CORE.reset()
-        data = json.loads(safe_input())
+        data = json.loads(input())
         assert data['type'] == 'validate'
         CORE.vscode = True
         CORE.ace = args.ace
@@ -68,9 +66,9 @@ def read_config(args):
             CORE.config_path = data['file']
         vs = VSCodeResult()
         try:
-            res = load_config()
+            res = load_config(dict(args.substitution) if args.substitution else {})
         except Exception as err:  # pylint: disable=broad-except
-            vs.add_yaml_error(text_type(err))
+            vs.add_yaml_error(str(err))
         else:
             for err in res.errors:
                 try:

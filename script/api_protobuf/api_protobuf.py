@@ -39,12 +39,12 @@ content = prot.read_bytes()
 d = descriptor.FileDescriptorSet.FromString(content)
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 def camel_to_snake(name):
@@ -432,7 +432,7 @@ class SInt64Type(TypeInfo):
 
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field):
-        super(RepeatedTypeInfo, self).__init__(field)
+        super().__init__(field)
         self._ti = TYPE_INFO[field.type](field)
 
     @property
@@ -731,7 +731,7 @@ def build_service_message_type(mt):
         cout += f'bool {class_name}::{func}(const {mt.name} &msg) {{\n'
         if log:
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-        cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
+        # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f'  return this->send_message_<{mt.name}>(msg, {id_});\n'
         cout += f'}}\n'
     if source in (SOURCE_BOTH, SOURCE_CLIENT):

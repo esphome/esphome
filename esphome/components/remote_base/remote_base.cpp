@@ -6,13 +6,23 @@ namespace remote_base {
 
 static const char *TAG = "remote_base";
 
-RemoteComponentBase::RemoteComponentBase(GPIOPin *pin) : pin_(pin) {
 #ifdef ARDUINO_ARCH_ESP32
+RemoteRMTChannel::RemoteRMTChannel(uint8_t mem_block_num) : mem_block_num_(mem_block_num) {
   static rmt_channel_t next_rmt_channel = RMT_CHANNEL_0;
   this->channel_ = next_rmt_channel;
-  next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + 1);
-#endif
+  next_rmt_channel = rmt_channel_t(int(next_rmt_channel) + mem_block_num);
 }
+
+void RemoteRMTChannel::config_rmt(rmt_config_t &rmt) {
+  if (rmt_channel_t(int(this->channel_) + this->mem_block_num_) > RMT_CHANNEL_7) {
+    this->mem_block_num_ = int(RMT_CHANNEL_7) - int(this->channel_) + 1;
+    ESP_LOGW(TAG, "Not enough RMT memory blocks avaiable, reduced to %i blocks.", this->mem_block_num_);
+  }
+  rmt.channel = this->channel_;
+  rmt.clk_div = this->clock_divider_;
+  rmt.mem_block_num = this->mem_block_num_;
+}
+#endif
 
 void RemoteReceiverBinarySensorBase::dump_config() { LOG_BINARY_SENSOR("", "Remote Receiver Binary Sensor", this); }
 

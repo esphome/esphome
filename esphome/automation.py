@@ -83,9 +83,9 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
                 try:
                     return cv.Schema([schema])(value)
                 except cv.Invalid as err2:
-                    if u'extra keys not allowed' in str(err2) and len(err2.path) == 2:
+                    if 'extra keys not allowed' in str(err2) and len(err2.path) == 2:
                         raise err
-                    if u'Unable to find action' in str(err):
+                    if 'Unable to find action' in str(err):
                         raise err2
                     raise cv.MultipleInvalid([err, err2])
         elif isinstance(value, dict):

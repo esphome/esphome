@@ -138,13 +138,17 @@ float Component::get_actual_setup_priority() const {
   return this->setup_priority_override_;
 }
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
+
 bool Component::has_overridden_loop() const {
 #ifdef CLANG_TIDY
   bool loop_overridden = true;
   bool call_loop_overridden = true;
 #else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpmf-conversions"
   bool loop_overridden = (void *) (this->*(&Component::loop)) != (void *) (&Component::loop);
   bool call_loop_overridden = (void *) (this->*(&Component::call_loop)) != (void *) (&Component::call_loop);
+#pragma GCC diagnostic pop
 #endif
   return loop_overridden || call_loop_overridden;
 }
@@ -173,7 +177,7 @@ const std::string &Nameable::get_object_id() { return this->object_id_; }
 bool Nameable::is_internal() const { return this->internal_; }
 void Nameable::set_internal(bool internal) { this->internal_ = internal; }
 void Nameable::calc_object_id_() {
-  this->object_id_ = sanitize_string_whitelist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_WHITELIST);
+  this->object_id_ = sanitize_string_allowlist(to_lowercase_underscore(this->name_), HOSTNAME_CHARACTER_ALLOWLIST);
   // FNV-1 hash
   this->object_id_hash_ = fnv1_hash(this->object_id_);
 }
