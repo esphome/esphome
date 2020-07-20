@@ -159,9 +159,12 @@ void PulseCounterSensor::update() {
   ESP_LOGD(TAG, "'%s': Retrieved counter: %0.2f pulses/min", this->get_name().c_str(), value);
   this->publish_state(value);
  
-  current_total += raw;
-  ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total);
-  this->total_sensor_->publish_state(current_total);
+  if (this->total_sensor_ != nullptr)
+  {
+    current_total += raw;
+    ESP_LOGD(TAG, "'%s': Total : %i pulses", this->get_name().c_str(), current_total);
+    this->total_sensor_->publish_state(current_total);
+  }
 }
 
 #ifdef ARDUINO_ARCH_ESP32
