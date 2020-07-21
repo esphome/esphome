@@ -10,18 +10,20 @@ namespace ble_client {
 
 class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
  public:
-  explicit BLESensorNotifyTrigger(BLESensor *parent) { }
+  explicit BLESensorNotifyTrigger(BLESensor *sensor) {sensor_ = sensor; }
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
     switch (event) {
       case ESP_GATTC_NOTIFY_EVT: {
-        if (param->notify.conn_id != this->parent_->conn_id_ || param->notify.handle != this->sensor_handle_) break;
+        if (param->notify.conn_id != this->parent_->conn_id_ || param->notify.handle != this->sensor_->sensor_handle_) break;
 	this->trigger(this->parent_->parse_char_value(param->notify.value, param->notify.value_len));
       }
       default:
         break;
     }
   }
+ protected:
+  BLESensor *sensor_;
 };
 
 }

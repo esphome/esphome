@@ -30,10 +30,10 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   void set_descr_uuid32(uint32_t uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_descr_uuid128(uint8_t *uuid) { this->descr_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
   void set_enable_notify(bool notify) { this->notify_ = notify; }
+  uint16_t sensor_handle_;
 
 protected:
   uint32_t hash_base() override;
-  uint16_t sensor_handle_;
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
