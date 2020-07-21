@@ -15,15 +15,15 @@ void HttpRequestComponent::dump_config() {
 void HttpRequestComponent::send() {
   bool begin_status = false;
   this->client_.setReuse(true);
-  static const String URL = this->url_.c_str();
+  const String url = this->url_.c_str();
 #ifdef ARDUINO_ARCH_ESP32
-  begin_status = this->client_.begin(URL);
+  begin_status = this->client_.begin(url);
 #endif
 #ifdef ARDUINO_ARCH_ESP8266
 #ifndef CLANG_TIDY
   this->client_.setFollowRedirects(true);
   this->client_.setRedirectLimit(3);
-  begin_status = this->client_.begin(*this->get_wifi_client_(), URL);
+  begin_status = this->client_.begin(*this->get_wifi_client_(), url);
 #endif
 #endif
 
@@ -80,9 +80,8 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
 
 void HttpRequestComponent::close() { this->client_.end(); }
 
-const char *HttpRequestComponent::get_string() {
-  static const String STR = this->client_.getString();
-  return STR.c_str();
+const std::string HttpRequestComponent::get_string() {
+  return std::string(this->client_.getString().c_str());
 }
 
 }  // namespace http_request
