@@ -17,6 +17,7 @@ CONF_WINDOW = 'window'
 CONF_ACTIVE = 'active'
 esp32_ble_tracker_ns = cg.esphome_ns.namespace('esp32_ble_tracker')
 ESP32BLETracker = esp32_ble_tracker_ns.class_('ESP32BLETracker', cg.Component)
+ESPBTClient = esp32_ble_tracker_ns.class_('ESPBTClient')
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_('ESPBTDeviceListener')
 ESPBTDevice = esp32_ble_tracker_ns.class_('ESPBTDevice')
 ESPBTDeviceConstRef = ESPBTDevice.operator('ref').operator('const')
@@ -122,6 +123,11 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_id(ESP32BLETracker),
 })
 
+ESP_BLE_CLIENT_SCHEMA = cv.Schema({
+    cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_id(ESP32BLETracker),
+    cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
+})
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -166,4 +172,10 @@ def to_code(config):
 def register_ble_device(var, config):
     paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
     cg.add(paren.register_listener(var))
+    yield var
+
+@coroutine
+def register_client(var, config):
+    paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
+    cg.add(paren.register_client(var))
     yield var

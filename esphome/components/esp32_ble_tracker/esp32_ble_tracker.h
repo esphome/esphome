@@ -2,12 +2,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
+#include "queue.h"
 
 #ifdef ARDUINO_ARCH_ESP32
 
 #include <string>
 #include <array>
 #include <esp_gap_ble_api.h>
+#include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
 
 namespace esphome {
@@ -22,6 +24,8 @@ class ESPBTUUID {
   static ESPBTUUID from_uint32(uint32_t uuid);
 
   static ESPBTUUID from_raw(const uint8_t *data);
+
+  static ESPBTUUID from_uuid(esp_bt_uuid_t uuid);
 
   ESPBTUUID as_128bit() const;
 
@@ -135,6 +139,26 @@ class ESPBTDeviceListener {
   ESP32BLETracker *parent_{nullptr};
 };
 
+enum class ClientState {
+  // Connection is idle, no device detected.
+  Idle,
+  // Device advertisement found.
+  Discovered,
+  // Connection in progress.
+  Connecting,
+  // Connection established.
+  Connected,
+};
+
+class ESPBTClient : public ESPBTDeviceListener {
+ public:
+  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) = 0;
+  virtual void connect() = 0;
+
+  int app_id_;
+  ClientState state_;
+};
+
 class ESP32BLETracker : public Component {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
@@ -153,6 +177,8 @@ class ESP32BLETracker : public Component {
     this->listeners_.push_back(listener);
   }
 
+  void register_client(ESPBTClient *client);
+
   void print_bt_device_info(const ESPBTDevice &device);
 
  protected:
@@ -162,16 +188,26 @@ class ESP32BLETracker : public Component {
   void start_scan(bool first);
   /// Callback that will handle all GAP events and redistribute them to other callbacks.
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void real_gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
   /// Called when a `ESP_GAP_BLE_SCAN_RESULT_EVT` event is received.
   void gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT` event is received.
   void gap_scan_set_param_complete(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param);
   /// Called when a `ESP_GAP_BLE_SCAN_START_COMPLETE_EVT` event is received.
   void gap_scan_start_complete(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param);
+  /// Called when a `ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT` event is received.
+  void gap_scan_stop_complete(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param);
+
+  int app_id_;
+  /// Callback that will handle all GATTC events and redistribute them to other callbacks.
+  static void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
+  void real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
 
   /// Vector of addresses that have already been printed in print_bt_device_info
   std::vector<uint64_t> already_discovered_;
   std::vector<ESPBTDeviceListener *> listeners_;
+  /// Client parameters.
+  std::vector<ESPBTClient *> clients_;
   /// A structure holding the ESP BLE scan parameters.
   esp_ble_scan_params_t scan_params_;
   /// The interval in seconds to perform scans.
@@ -185,6 +221,8 @@ class ESP32BLETracker : public Component {
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_buffer_[16];
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
+
+  Queue<BLEEvent> ble_events_;
 };
 
 extern ESP32BLETracker *global_esp32_ble_tracker;
