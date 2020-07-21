@@ -80,9 +80,7 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
 
 void HttpRequestComponent::close() { this->client_.end(); }
 
-const std::string HttpRequestComponent::get_string() {
-  return std::string(this->client_.getString().c_str());
-}
+const std::string HttpRequestComponent::get_string() { return std::string(this->client_.getString().c_str()); }
 
 }  // namespace http_request
 }  // namespace esphome
