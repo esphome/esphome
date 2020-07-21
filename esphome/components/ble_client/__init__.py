@@ -11,12 +11,12 @@ DEPENDENCIES = ['esp32_ble_tracker']
 ble_client_ns = cg.esphome_ns.namespace('ble_client')
 BLEClient = ble_client_ns.class_('BLEClient', cg.Component, cg.Nameable, esp32_ble_tracker.ESPBTClient)
 BLEClientNode = ble_client_ns.class_('BLEClientNode')
-BLEClientConstRef = BLEClient.operator('ref').operator('const')
+BLEClientNodeConstRef = BLEClientNode.operator('ref').operator('const')
 # Triggers
 BLEClientConnectTrigger = ble_client_ns.class_(
-    'BLEClientConnectTrigger', automation.Trigger.template(BLEClientConstRef))
+    'BLEClientConnectTrigger', automation.Trigger.template(BLEClientNodeConstRef))
 BLEClientDisconnectTrigger = ble_client_ns.class_(
-    'BLEClientDisconnectTrigger', automation.Trigger.template(BLEClientConstRef))
+    'BLEClientDisconnectTrigger', automation.Trigger.template(BLEClientNodeConstRef))
 
 MULTI_CONF = 3
 
@@ -50,7 +50,7 @@ def to_code(config):
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(BLEClientConstRef, 'x')], conf)
+        yield automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_DISCONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        yield automation.build_automation(trigger, [(BLEClientConstRef, 'x')], conf)
+        yield automation.build_automation(trigger, [], conf)

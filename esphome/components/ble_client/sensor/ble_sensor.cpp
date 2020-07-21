@@ -86,8 +86,8 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if (param->notify.conn_id != this->parent_->conn_id_) break;
-      ESP_LOGI(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: value=0x%x", this->get_name().c_str(), param->notify.value[0]);
+      if (param->notify.conn_id != this->parent_->conn_id_ || param->notify.handle != this->sensor_handle_) break;
+      ESP_LOGI(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(), param->notify.handle, param->notify.value[0]);
       this->publish_state((float)param->notify.value[0]); 
       break;
     }
