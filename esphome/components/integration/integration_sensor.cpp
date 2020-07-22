@@ -9,8 +9,10 @@ static const char *TAG = "integration";
 
 void IntegrationSensor::setup() {
   if (this->restore_) {
-    this->rtc_ = global_preferences.make_preference<double>(this->get_object_id_hash());
-    this->rtc_.load(&this->result_);
+    this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
+    float preference_value;
+    this->rtc_.load(&preference_value);
+    this->result_ = preference_value;
   }
 
   this->last_update_ = millis();
