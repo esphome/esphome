@@ -5,9 +5,10 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 #include <esp_gattc_api.h>
 
-#ifdef ARDUINO_ARCH_ESP32
 namespace espbt = esphome::esp32_ble_tracker;
 
 namespace esphome {

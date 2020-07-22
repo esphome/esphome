@@ -79,7 +79,6 @@ class BLEEvent {
   uint8_t type_;  // 0=gap 1=gattc
 };
 
-
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
 

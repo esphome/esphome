@@ -49,13 +49,13 @@ def to_code(config):
         cg.add(var.set_char_uuid128(uuid128))
 
     if CONF_DESCR_UUID in config:
-      if len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
-          cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
-      elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
-          cg.add(var.set_descr_uuid32(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
-      elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-          uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCR_UUID])
-          cg.add(var.set_descr_uuid128(uuid128))
+        if len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+            cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
+        elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
+            cg.add(var.set_descr_uuid32(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
+        elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
+            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCR_UUID])
+            cg.add(var.set_descr_uuid128(uuid128))
 
     yield cg.register_component(var, config)
     yield ble_client.register_ble_node(var, config)
