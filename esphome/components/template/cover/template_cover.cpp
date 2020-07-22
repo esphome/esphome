@@ -86,9 +86,9 @@ void TemplateCover::control(const CoverCall &call) {
     } else if (pos == COVER_CLOSED) {
       this->close_trigger_->trigger();
       this->prev_command_trigger_ = this->close_trigger_;
+    } else {
+      this->position_trigger_->trigger(pos);
     }
-
-    this->position_trigger_->trigger(pos);
 
     if (this->optimistic_) {
       this->position = pos;

@@ -42,7 +42,7 @@ void INA3221Component::setup() {
     config |= 0b0001000000000000;
   }
   // 0b0000xxx000000000 << 9 Averaging Mode (0 -> 1 sample, 111 -> 1024 samples)
-  config |= 0b0000111000000000;
+  config |= 0b0000000000000000;
   // 0b0000000xxx000000 << 6 Bus Voltage Conversion time (100 -> 1.1ms, 111 -> 8.244 ms)
   config |= 0b0000000111000000;
   // 0b0000000000xxx000 << 3 Shunt Voltage Conversion time (same as above)
@@ -100,7 +100,7 @@ void INA3221Component::update() {
         this->status_set_warning();
         return;
       }
-      const float shunt_voltage_v = int16_t(raw) * 40.0f / 1000000.0f;
+      const float shunt_voltage_v = int16_t(raw) * 40.0f / 8.0f / 1000000.0f;
       if (channel.shunt_voltage_sensor_ != nullptr)
         channel.shunt_voltage_sensor_->publish_state(shunt_voltage_v);
       current_a = shunt_voltage_v / channel.shunt_resistance_;

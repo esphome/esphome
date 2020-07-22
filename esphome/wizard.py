@@ -1,5 +1,3 @@
-from __future__ import print_function
-
 import os
 import random
 import string
@@ -11,7 +9,6 @@ import esphome.config_validation as cv
 from esphome.helpers import color, get_bool_env, write_file
 # pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
-from esphome.py_compat import safe_input, text_type
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
 
@@ -44,7 +41,7 @@ OTA_BIG = r"""       ____ _______
       \____/  |_/_/    \_\\
 """
 
-BASE_CONFIG = u"""esphome:
+BASE_CONFIG = """esphome:
   name: {name}
   platform: {platform}
   board: {board}
@@ -75,7 +72,7 @@ def sanitize_double_quotes(value):
 def wizard_file(**kwargs):
     letters = string.ascii_letters + string.digits
     ap_name_base = kwargs['name'].replace('_', ' ').title()
-    ap_name = "{} Fallback Hotspot".format(ap_name_base)
+    ap_name = f"{ap_name_base} Fallback Hotspot"
     if len(ap_name) > 32:
         ap_name = ap_name_base
     kwargs['fallback_name'] = ap_name
@@ -84,9 +81,9 @@ def wizard_file(**kwargs):
     config = BASE_CONFIG.format(**kwargs)
 
     if kwargs['password']:
-        config += u'  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
+        config += '  password: "{0}"\n\nota:\n  password: "{0}"\n'.format(kwargs['password'])
     else:
-        config += u"\nota:\n"
+        config += "\nota:\n"
 
     return config
 
@@ -119,7 +116,7 @@ else:
 def safe_print_step(step, big):
     safe_print()
     safe_print()
-    safe_print("============= STEP {} =============".format(step))
+    safe_print(f"============= STEP {step} =============")
     safe_print(big)
     safe_print("===================================")
     sleep(0.25)
@@ -127,24 +124,24 @@ def safe_print_step(step, big):
 
 def default_input(text, default):
     safe_print()
-    safe_print(u"Press ENTER for default ({})".format(default))
-    return safe_input(text.format(default)) or default
+    safe_print(f"Press ENTER for default ({default})")
+    return input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
 def strip_accents(value):
-    return u''.join(c for c in unicodedata.normalize('NFD', text_type(value))
-                    if unicodedata.category(c) != 'Mn')
+    return ''.join(c for c in unicodedata.normalize('NFD', str(value))
+                   if unicodedata.category(c) != 'Mn')
 
 
 def wizard(path):
     if not path.endswith('.yaml') and not path.endswith('.yml'):
-        safe_print(u"Please make your configuration file {} have the extension .yaml or .yml"
-                   u"".format(color('cyan', path)))
+        safe_print("Please make your configuration file {} have the extension .yaml or .yml"
+                   "".format(color('cyan', path)))
         return 1
     if os.path.exists(path):
-        safe_print(u"Uh oh, it seems like {} already exists, please delete that file first "
-                   u"or chose another configuration file.".format(color('cyan', path)))
+        safe_print("Uh oh, it seems like {} already exists, please delete that file first "
+                   "or chose another configuration file.".format(color('cyan', path)))
         return 1
     safe_print("Hi there!")
     sleep(1.5)
@@ -164,21 +161,21 @@ def wizard(path):
         color('bold_white', "livingroom")))
     safe_print()
     sleep(1)
-    name = safe_input(color("bold_white", "(name): "))
+    name = input(color("bold_white", "(name): "))
     while True:
         try:
             name = cv.valid_name(name)
             break
         except vol.Invalid:
-            safe_print(color("red", u"Oh noes, \"{}\" isn't a valid name. Names can only include "
-                                    u"numbers, letters and underscores.".format(name)))
+            safe_print(color("red", "Oh noes, \"{}\" isn't a valid name. Names can only include "
+                                    "numbers, letters and underscores.".format(name)))
             name = strip_accents(name).replace(' ', '_')
-            name = u''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
-            safe_print(u"Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
+            name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
+            safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
             sleep(0.5)
-            name = default_input(u"(name [{}]): ", name)
+            name = default_input("(name [{}]): ", name)
 
-    safe_print(u"Great! Your node is now called \"{}\".".format(color('cyan', name)))
+    safe_print("Great! Your node is now called \"{}\".".format(color('cyan', name)))
     sleep(1)
     safe_print_step(2, ESP_BIG)
     safe_print("Now I'd like to know what microcontroller you're using so that I can compile "
@@ -189,14 +186,14 @@ def wizard(path):
         sleep(0.5)
         safe_print()
         safe_print("Please enter either ESP32 or ESP8266.")
-        platform = safe_input(color("bold_white", "(ESP32/ESP8266): "))
+        platform = input(color("bold_white", "(ESP32/ESP8266): "))
         try:
             platform = vol.All(vol.Upper, vol.Any('ESP32', 'ESP8266'))(platform)
             break
         except vol.Invalid:
-            safe_print(u"Unfortunately, I can't find an espressif microcontroller called "
-                       u"\"{}\". Please try again.".format(platform))
-    safe_print(u"Thanks! You've chosen {} as your platform.".format(color('cyan', platform)))
+            safe_print("Unfortunately, I can't find an espressif microcontroller called "
+                       "\"{}\". Please try again.".format(platform))
+    safe_print("Thanks! You've chosen {} as your platform.".format(color('cyan', platform)))
     safe_print()
     sleep(1)
 
@@ -221,17 +218,17 @@ def wizard(path):
     safe_print("Options: {}".format(', '.join(sorted(boards))))
 
     while True:
-        board = safe_input(color("bold_white", "(board): "))
+        board = input(color("bold_white", "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
         except vol.Invalid:
-            safe_print(color('red', "Sorry, I don't think the board \"{}\" exists.".format(board)))
+            safe_print(color('red', f"Sorry, I don't think the board \"{board}\" exists."))
             safe_print()
             sleep(0.25)
             safe_print()
 
-    safe_print(u"Way to go! You've chosen {} as your board.".format(color('cyan', board)))
+    safe_print("Way to go! You've chosen {} as your board.".format(color('cyan', board)))
     safe_print()
     sleep(1)
 
@@ -241,22 +238,22 @@ def wizard(path):
     safe_print()
     sleep(1)
     safe_print("First, what's the " + color('green', 'SSID') +
-               u" (the name) of the WiFi network {} I should connect to?".format(name))
+               f" (the name) of the WiFi network {name} I should connect to?")
     sleep(1.5)
     safe_print("For example \"{}\".".format(color('bold_white', "Abraham Linksys")))
     while True:
-        ssid = safe_input(color('bold_white', "(ssid): "))
+        ssid = input(color('bold_white', "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
         except vol.Invalid:
-            safe_print(color('red', u"Unfortunately, \"{}\" doesn't seem to be a valid SSID. "
-                                    u"Please try again.".format(ssid)))
+            safe_print(color('red', "Unfortunately, \"{}\" doesn't seem to be a valid SSID. "
+                                    "Please try again.".format(ssid)))
             safe_print()
             sleep(1)
 
-    safe_print(u"Thank you very much! You've just chosen \"{}\" as your SSID."
-               u"".format(color('cyan', ssid)))
+    safe_print("Thank you very much! You've just chosen \"{}\" as your SSID."
+               "".format(color('cyan', ssid)))
     safe_print()
     sleep(0.75)
 
@@ -265,7 +262,7 @@ def wizard(path):
     safe_print()
     safe_print("For example \"{}\"".format(color('bold_white', 'PASSWORD42')))
     sleep(0.5)
-    psk = safe_input(color('bold_white', '(PSK): '))
+    psk = input(color('bold_white', '(PSK): '))
     safe_print("Perfect! WiFi is now set up (you can create static IPs and so on later).")
     sleep(1.5)
 
@@ -277,7 +274,7 @@ def wizard(path):
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    password = safe_input(color('bold_white', '(password): '))
+    password = input(color('bold_white', '(password): '))
 
     wizard_write(path=path, name=name, platform=platform, board=board,
                  ssid=ssid, psk=psk, password=password)

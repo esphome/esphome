@@ -64,28 +64,28 @@ def validate_config(value):
     topic_prefix = value[CONF_TOPIC_PREFIX]
     if CONF_BIRTH_MESSAGE not in value:
         out[CONF_BIRTH_MESSAGE] = {
-            CONF_TOPIC: '{}/status'.format(topic_prefix),
+            CONF_TOPIC: f'{topic_prefix}/status',
             CONF_PAYLOAD: 'online',
             CONF_QOS: 0,
             CONF_RETAIN: True,
         }
     if CONF_WILL_MESSAGE not in value:
         out[CONF_WILL_MESSAGE] = {
-            CONF_TOPIC: '{}/status'.format(topic_prefix),
+            CONF_TOPIC: f'{topic_prefix}/status',
             CONF_PAYLOAD: 'offline',
             CONF_QOS: 0,
             CONF_RETAIN: True,
         }
     if CONF_SHUTDOWN_MESSAGE not in value:
         out[CONF_SHUTDOWN_MESSAGE] = {
-            CONF_TOPIC: '{}/status'.format(topic_prefix),
+            CONF_TOPIC: f'{topic_prefix}/status',
             CONF_PAYLOAD: 'offline',
             CONF_QOS: 0,
             CONF_RETAIN: True,
         }
     if CONF_LOG_TOPIC not in value:
         out[CONF_LOG_TOPIC] = {
-            CONF_TOPIC: '{}/debug'.format(topic_prefix),
+            CONF_TOPIC: f'{topic_prefix}/debug',
             CONF_QOS: 0,
             CONF_RETAIN: True,
         }
@@ -95,7 +95,7 @@ def validate_config(value):
 def validate_fingerprint(value):
     value = cv.string(value)
     if re.match(r'^[0-9a-f]{40}$', value) is None:
-        raise cv.Invalid(u"fingerprint must be valid SHA1 hash")
+        raise cv.Invalid("fingerprint must be valid SHA1 hash")
     return value
 
 
@@ -155,7 +155,7 @@ def to_code(config):
     yield cg.register_component(var, config)
 
     # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-    cg.add_library('AsyncMqttClient-esphome', '0.8.3')
+    cg.add_library('AsyncMqttClient-esphome', '0.8.4')
     cg.add_define('USE_MQTT')
     cg.add_global(mqtt_ns.using)
 
@@ -280,8 +280,8 @@ def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
 
 
 def get_default_topic_for(data, component_type, name, suffix):
-    whitelist = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
-    sanitized_name = ''.join(x for x in name.lower().replace(' ', '_') if x in whitelist)
+    allowlist = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
+    sanitized_name = ''.join(x for x in name.lower().replace(' ', '_') if x in allowlist)
     return '{}/{}/{}/{}'.format(data.topic_prefix, component_type,
                                 sanitized_name, suffix)
 

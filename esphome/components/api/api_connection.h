@@ -133,12 +133,6 @@ class APIConnection : public APIServerConnection {
   friend APIServer;
 
   void parse_recv_buffer_();
-  void set_nodelay(bool nodelay) override {
-    if (nodelay == this->current_nodelay_)
-      return;
-    this->client_->set_no_delay(nodelay);
-    this->current_nodelay_ = nodelay;
-  }
 
   enum class ConnectionState {
     WAITING_FOR_HELLO,

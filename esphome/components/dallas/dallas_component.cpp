@@ -1,5 +1,6 @@
 #include "dallas_component.h"
 #include "esphome/core/log.h"
+#include "esphome/core/application.h"
 
 namespace esphome {
 namespace dallas {
@@ -32,9 +33,11 @@ void DallasComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DallasComponent...");
 
   yield();
-  disable_interrupts();
-  std::vector<uint64_t> raw_sensors = this->one_wire_->search_vec();
-  enable_interrupts();
+  std::vector<uint64_t> raw_sensors;
+  {
+    InterruptLock lock;
+    raw_sensors = this->one_wire_->search_vec();
+  }
 
   for (auto &address : raw_sensors) {
     std::string s = uint64_to_string(address);
@@ -50,6 +53,29 @@ void DallasComponent::setup() {
       continue;
     }
     this->found_sensors_.push_back(address);
+
+    if (this->auto_setup_sensors_) {
+      // avoid re-generating  pre-configured sensors
+      bool skip = false;
+      for (auto sensor : this->sensors_) {
+        if (sensor->get_address() == address) {
+          skip = true;
+          break;
+        }
+      }
+      if (!skip) {
+        auto dallastemperaturesensor = this->get_sensor_by_address(address, this->resolution_);
+        char sensor_name[64];
+        snprintf(sensor_name, sizeof(sensor_name), this->sensor_name_template_.c_str(), App.get_name().c_str(),
+                 s.c_str());
+        dallastemperaturesensor->set_name(sensor_name);
+        dallastemperaturesensor->set_unit_of_measurement(this->unit_of_measurement_);
+        dallastemperaturesensor->set_icon(this->icon_);
+        dallastemperaturesensor->set_accuracy_decimals(this->accuracy_decimals_);
+        dallastemperaturesensor->set_force_update(false);
+        App.register_sensor(dallastemperaturesensor);
+      }
+    }
   }
 
   for (auto sensor : this->sensors_) {
@@ -108,16 +134,17 @@ DallasTemperatureSensor *DallasComponent::get_sensor_by_index(uint8_t index, uin
 void DallasComponent::update() {
   this->status_clear_warning();
 
-  disable_interrupts();
   bool result;
-  if (!this->one_wire_->reset()) {
-    result = false;
-  } else {
-    result = true;
-    this->one_wire_->skip();
-    this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
+  {
+    InterruptLock lock;
+    if (!this->one_wire_->reset()) {
+      result = false;
+    } else {
+      result = true;
+      this->one_wire_->skip();
+      this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
+    }
   }
-  enable_interrupts();
 
   if (!result) {
     ESP_LOGE(TAG, "Requesting conversion failed");
@@ -127,9 +154,11 @@ void DallasComponent::update() {
 
   for (auto *sensor : this->sensors_) {
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
-      disable_interrupts();
-      bool res = sensor->read_scratch_pad();
-      enable_interrupts();
+      bool res;
+      {
+        InterruptLock lock;
+        res = sensor->read_scratch_pad();
+      }
 
       if (!res) {
         ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
@@ -151,12 +180,25 @@ void DallasComponent::update() {
   }
 }
 DallasComponent::DallasComponent(ESPOneWire *one_wire) : one_wire_(one_wire) {}
+void DallasComponent::set_auto_setup_sensors(bool auto_setup_sensors) {
+  this->auto_setup_sensors_ = auto_setup_sensors;
+}
+void DallasComponent::set_sensor_name_template(const std::string &sensor_name_template) {
+  this->sensor_name_template_ = sensor_name_template;
+}
+void DallasComponent::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
+void DallasComponent::set_unit_of_measurement(const std::string &unit_of_measurement) {
+  this->unit_of_measurement_ = unit_of_measurement;
+}
+void DallasComponent::set_icon(const std::string &icon) { this->icon_ = icon; }
+void DallasComponent::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
 
 DallasTemperatureSensor::DallasTemperatureSensor(uint64_t address, uint8_t resolution, DallasComponent *parent)
     : parent_(parent) {
   this->set_address(address);
   this->set_resolution(resolution);
 }
+const uint64_t &DallasTemperatureSensor::get_address() const { return this->address_; }
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
@@ -170,7 +212,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
-bool DallasTemperatureSensor::read_scratch_pad() {
+bool ICACHE_RAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;
@@ -185,9 +227,11 @@ bool DallasTemperatureSensor::read_scratch_pad() {
   return true;
 }
 bool DallasTemperatureSensor::setup_sensor() {
-  disable_interrupts();
-  bool r = this->read_scratch_pad();
-  enable_interrupts();
+  bool r;
+  {
+    InterruptLock lock;
+    r = this->read_scratch_pad();
+  }
 
   if (!r) {
     ESP_LOGE(TAG, "Reading scratchpad failed: reset");
@@ -222,20 +266,21 @@ bool DallasTemperatureSensor::setup_sensor() {
   }
 
   ESPOneWire *wire = this->parent_->one_wire_;
-  disable_interrupts();
-  if (wire->reset()) {
-    wire->select(this->address_);
-    wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-    wire->write8(this->scratch_pad_[2]);  // high alarm temp
-    wire->write8(this->scratch_pad_[3]);  // low alarm temp
-    wire->write8(this->scratch_pad_[4]);  // resolution
-    wire->reset();
+  {
+    InterruptLock lock;
+    if (wire->reset()) {
+      wire->select(this->address_);
+      wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
+      wire->write8(this->scratch_pad_[2]);  // high alarm temp
+      wire->write8(this->scratch_pad_[3]);  // low alarm temp
+      wire->write8(this->scratch_pad_[4]);  // resolution
+      wire->reset();
 
-    // write value to EEPROM
-    wire->select(this->address_);
-    wire->write8(0x48);
+      // write value to EEPROM
+      wire->select(this->address_);
+      wire->write8(0x48);
+    }
   }
-  enable_interrupts();
 
   delay(20);  // allow it to finish operation
   wire->reset();

@@ -127,19 +127,21 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, uint32_t DATA_RATE>
   void enable(GPIOPin *cs) {
-    SPIComponent::debug_enable(cs->get_pin());
+    if (cs) {
+      SPIComponent::debug_enable(cs->get_pin());
 
-    if (this->hw_spi_ != nullptr) {
-      uint8_t data_mode = (uint8_t(CLOCK_POLARITY) << 1) | uint8_t(CLOCK_PHASE);
-      SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
-      this->hw_spi_->beginTransaction(settings);
-    } else {
-      this->clk_->digital_write(CLOCK_POLARITY);
-      this->wait_cycle_ = uint32_t(F_CPU) / DATA_RATE / 2ULL;
+      if (this->hw_spi_ != nullptr) {
+        uint8_t data_mode = (uint8_t(CLOCK_POLARITY) << 1) | uint8_t(CLOCK_PHASE);
+        SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
+        this->hw_spi_->beginTransaction(settings);
+      } else {
+        this->clk_->digital_write(CLOCK_POLARITY);
+        this->wait_cycle_ = uint32_t(F_CPU) / DATA_RATE / 2ULL;
+      }
+
+      this->active_cs_ = cs;
+      this->active_cs_->digital_write(false);
     }
-
-    this->active_cs_ = cs;
-    this->active_cs_->digital_write(false);
   }
 
   void disable();
@@ -174,8 +176,10 @@ class SPIDevice {
   void set_cs_pin(GPIOPin *cs) { cs_ = cs; }
 
   void spi_setup() {
-    this->cs_->setup();
-    this->cs_->digital_write(true);
+    if (this->cs_) {
+      this->cs_->setup();
+      this->cs_->digital_write(true);
+    }
   }
 
   void enable() { this->parent_->template enable<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE, DATA_RATE>(this->cs_); }

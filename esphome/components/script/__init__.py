@@ -8,7 +8,7 @@ script_ns = cg.esphome_ns.namespace('script')
 Script = script_ns.class_('Script', automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', automation.Action)
 ScriptStopAction = script_ns.class_('ScriptStopAction', automation.Action)
-ScriptWaitAction = script_ns.class_('ScriptWaitAction', automation.Action)
+ScriptWaitAction = script_ns.class_('ScriptWaitAction', automation.Action, cg.Component)
 IsRunningCondition = script_ns.class_('IsRunningCondition', automation.Condition)
 
 CONFIG_SCHEMA = automation.validate_automation({
@@ -48,7 +48,9 @@ def script_stop_action_to_code(config, action_id, template_arg, args):
 }))
 def script_wait_action_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+    var = yield cg.new_Pvariable(action_id, template_arg, paren)
+    yield cg.register_component(var, {})
+    yield var
 
 
 @automation.register_condition('script.is_running', IsRunningCondition, automation.maybe_simple_id({

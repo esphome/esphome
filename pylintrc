@@ -24,9 +24,4 @@ disable=
   useless-object-inheritance,
   stop-iteration-return,
   no-self-use,
-
-
-additional-builtins=
-  unicode,
-  long,
-  raw_input
+  import-outside-toplevel,

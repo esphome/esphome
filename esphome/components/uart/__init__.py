@@ -1,9 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins, automation
-from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID, CONF_DATA
+from esphome.const import CONF_BAUD_RATE, CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_UART_ID, \
+    CONF_DATA, CONF_RX_BUFFER_SIZE
 from esphome.core import CORE, coroutine
-from esphome.py_compat import text_type, binary_type, char_to_byte
 
 uart_ns = cg.esphome_ns.namespace('uart')
 UARTComponent = uart_ns.class_('UARTComponent', cg.Component)
@@ -13,7 +13,7 @@ MULTI_CONF = True
 
 
 def validate_raw_data(value):
-    if isinstance(value, text_type):
+    if isinstance(value, str):
         return value.encode('utf-8')
     if isinstance(value, str):
         return value
@@ -29,13 +29,26 @@ def validate_rx_pin(value):
     return value
 
 
+UARTParityOptions = uart_ns.enum('UARTParityOptions')
+UART_PARITY_OPTIONS = {
+    'NONE': UARTParityOptions.UART_CONFIG_PARITY_NONE,
+    'EVEN': UARTParityOptions.UART_CONFIG_PARITY_EVEN,
+    'ODD': UARTParityOptions.UART_CONFIG_PARITY_ODD,
+}
+
 CONF_STOP_BITS = 'stop_bits'
+CONF_DATA_BITS = 'data_bits'
+CONF_PARITY = 'parity'
+
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(UARTComponent),
     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
     cv.Optional(CONF_TX_PIN): pins.output_pin,
     cv.Optional(CONF_RX_PIN): validate_rx_pin,
+    cv.Optional(CONF_RX_BUFFER_SIZE, default=256): cv.validate_bytes,
     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
+    cv.Optional(CONF_DATA_BITS, default=8): cv.int_range(min=5, max=8),
+    cv.Optional(CONF_PARITY, default="NONE"): cv.enum(UART_PARITY_OPTIONS, upper=True)
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(CONF_TX_PIN, CONF_RX_PIN))
 
 
@@ -50,7 +63,10 @@ def to_code(config):
         cg.add(var.set_tx_pin(config[CONF_TX_PIN]))
     if CONF_RX_PIN in config:
         cg.add(var.set_rx_pin(config[CONF_RX_PIN]))
+    cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
     cg.add(var.set_stop_bits(config[CONF_STOP_BITS]))
+    cg.add(var.set_data_bits(config[CONF_DATA_BITS]))
+    cg.add(var.set_parity(config[CONF_PARITY]))
 
 
 # A schema to use for all UART devices, all UART integrations must extend this!
@@ -77,8 +93,8 @@ def uart_write_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     yield cg.register_parented(var, config[CONF_ID])
     data = config[CONF_DATA]
-    if isinstance(data, binary_type):
-        data = [char_to_byte(x) for x in data]
+    if isinstance(data, bytes):
+        data = list(data)
 
     if cg.is_template(data):
         templ = yield cg.templatable(data, args, cg.std_vector.template(cg.uint8))

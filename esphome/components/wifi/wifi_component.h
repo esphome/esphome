@@ -162,6 +162,7 @@ class WiFiComponent : public Component {
   bool is_connected();
 
   void set_power_save_mode(WiFiPowerSaveMode power_save);
+  void set_output_power(float output_power) { output_power_ = output_power; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -217,6 +218,7 @@ class WiFiComponent : public Component {
 
   bool wifi_mode_(optional<bool> sta, optional<bool> ap);
   bool wifi_sta_pre_setup_();
+  bool wifi_apply_output_power_(float output_power);
   bool wifi_apply_power_save_();
   bool wifi_sta_ip_config_(optional<ManualIP> manual_ip);
   IPAddress wifi_sta_ip_();
@@ -260,6 +262,7 @@ class WiFiComponent : public Component {
   std::vector<WiFiScanResult> scan_result_;
   bool scan_done_{false};
   bool ap_setup_{false};
+  optional<float> output_power_;
 };
 
 extern WiFiComponent *global_wifi_component;

@@ -216,6 +216,9 @@ message BinarySensorStateResponse {
 
   fixed32 key = 1;
   bool state = 2;
+  // If the binary sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== COVER ====================
@@ -298,11 +301,16 @@ message ListEntitiesFanResponse {
 
   bool supports_oscillation = 5;
   bool supports_speed = 6;
+  bool supports_direction = 7;
 }
 enum FanSpeed {
   FAN_SPEED_LOW = 0;
   FAN_SPEED_MEDIUM = 1;
   FAN_SPEED_HIGH = 2;
+}
+enum FanDirection {
+  FAN_DIRECTION_FORWARD = 0;
+  FAN_DIRECTION_REVERSE = 1;
 }
 message FanStateResponse {
   option (id) = 23;
@@ -314,6 +322,7 @@ message FanStateResponse {
   bool state = 2;
   bool oscillating = 3;
   FanSpeed speed = 4;
+  FanDirection direction = 5;
 }
 message FanCommandRequest {
   option (id) = 31;
@@ -328,6 +337,8 @@ message FanCommandRequest {
   FanSpeed speed = 5;
   bool has_oscillating = 6;
   bool oscillating = 7;
+  bool has_direction = 8;
+  FanDirection direction = 9;
 }
 
 // ==================== LIGHT ====================
@@ -416,6 +427,9 @@ message SensorStateResponse {
 
   fixed32 key = 1;
   float state = 2;
+  // If the sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== SWITCH ====================
@@ -472,6 +486,9 @@ message TextSensorStateResponse {
 
   fixed32 key = 1;
   string state = 2;
+  // If the text sensor does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
 }
 
 // ==================== SUBSCRIBE LOGS ====================
@@ -644,12 +661,34 @@ enum ClimateMode {
   CLIMATE_MODE_AUTO = 1;
   CLIMATE_MODE_COOL = 2;
   CLIMATE_MODE_HEAT = 3;
+  CLIMATE_MODE_FAN_ONLY = 4;
+  CLIMATE_MODE_DRY = 5;
+}
+enum ClimateFanMode {
+  CLIMATE_FAN_ON = 0;
+  CLIMATE_FAN_OFF = 1;
+  CLIMATE_FAN_AUTO = 2;
+  CLIMATE_FAN_LOW = 3;
+  CLIMATE_FAN_MEDIUM = 4;
+  CLIMATE_FAN_HIGH = 5;
+  CLIMATE_FAN_MIDDLE = 6;
+  CLIMATE_FAN_FOCUS = 7;
+  CLIMATE_FAN_DIFFUSE = 8;
+}
+enum ClimateSwingMode {
+  CLIMATE_SWING_OFF = 0;
+  CLIMATE_SWING_BOTH = 1;
+  CLIMATE_SWING_VERTICAL = 2;
+  CLIMATE_SWINT_HORIZONTAL = 3;
 }
 enum ClimateAction {
   CLIMATE_ACTION_OFF = 0;
   // values same as mode for readability
   CLIMATE_ACTION_COOLING = 2;
   CLIMATE_ACTION_HEATING = 3;
+  CLIMATE_ACTION_IDLE = 4;
+  CLIMATE_ACTION_DRYING = 5;
+  CLIMATE_ACTION_FAN = 6;
 }
 message ListEntitiesClimateResponse {
   option (id) = 46;
@@ -669,6 +708,8 @@ message ListEntitiesClimateResponse {
   float visual_temperature_step = 10;
   bool supports_away = 11;
   bool supports_action = 12;
+  repeated ClimateFanMode supported_fan_modes = 13;
+  repeated ClimateSwingMode supported_swing_modes = 14;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -684,6 +725,8 @@ message ClimateStateResponse {
   float target_temperature_high = 6;
   bool away = 7;
   ClimateAction action = 8;
+  ClimateFanMode fan_mode = 9;
+  ClimateSwingMode swing_mode = 10;
 }
 message ClimateCommandRequest {
   option (id) = 48;
@@ -702,4 +745,8 @@ message ClimateCommandRequest {
   float target_temperature_high = 9;
   bool has_away = 10;
   bool away = 11;
+  bool has_fan_mode = 12;
+  ClimateFanMode fan_mode = 13;
+  bool has_swing_mode = 14;
+  ClimateSwingMode swing_mode = 15;
 }

@@ -70,14 +70,14 @@ def to_code(config):
     cg.add_global(api_ns.using)
 
 
-KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string)})
+KEY_VALUE_SCHEMA = cv.Schema({cv.string: cv.templatable(cv.string_strict)})
 
 HOMEASSISTANT_SERVICE_ACTION_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.use_id(APIServer),
     cv.Required(CONF_SERVICE): cv.templatable(cv.string),
     cv.Optional(CONF_DATA, default={}): KEY_VALUE_SCHEMA,
     cv.Optional(CONF_DATA_TEMPLATE, default={}): KEY_VALUE_SCHEMA,
-    cv.Optional(CONF_VARIABLES, default={}): KEY_VALUE_SCHEMA,
+    cv.Optional(CONF_VARIABLES, default={}): cv.Schema({cv.string: cv.returning_lambda}),
 })
 
 
@@ -102,7 +102,7 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
 
 def validate_homeassistant_event(value):
     value = cv.string(value)
-    if not value.startswith(u'esphome.'):
+    if not value.startswith('esphome.'):
         raise cv.Invalid("ESPHome can only generate Home Assistant events that begin with "
                          "esphome. For example 'esphome.xyz'")
     return value

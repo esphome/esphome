@@ -16,7 +16,7 @@ class UserServiceDescriptor {
 
 template<typename T> T get_execute_arg_value(const ExecuteServiceArgument &arg);
 
-template<typename T> EnumServiceArgType to_service_arg_type();
+template<typename T> enums::ServiceArgType to_service_arg_type();
 
 template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
  public:
@@ -29,7 +29,7 @@ template<typename... Ts> class UserServiceBase : public UserServiceDescriptor {
     ListEntitiesServicesResponse msg;
     msg.name = this->name_;
     msg.key = this->key_;
-    std::array<EnumServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
+    std::array<enums::ServiceArgType, sizeof...(Ts)> arg_types = {to_service_arg_type<Ts>()...};
     for (int i = 0; i < sizeof...(Ts); i++) {
       ListEntitiesServicesArgument arg;
       arg.type = arg_types[i];

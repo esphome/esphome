@@ -149,6 +149,7 @@ void PulseCounterSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Rising Edge: %s", EDGE_MODE_TO_STRING[this->storage_.rising_edge_mode]);
   ESP_LOGCONFIG(TAG, "  Falling Edge: %s", EDGE_MODE_TO_STRING[this->storage_.falling_edge_mode]);
   ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->storage_.filter_us);
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void PulseCounterSensor::update() {

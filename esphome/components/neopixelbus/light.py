@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import light
 from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_METHOD, CONF_NUM_LEDS, CONF_PIN, \
-    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID
+    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID, CONF_INVERT
 from esphome.core import CORE
 
 neopixelbus_ns = cg.esphome_ns.namespace('neopixelbus')
@@ -74,11 +74,15 @@ def validate_method_pin(value):
         method_pins['BIT_BANG'] = list(range(0, 16))
     elif CORE.is_esp32:
         method_pins['BIT_BANG'] = list(range(0, 32))
-    pins_ = method_pins[method]
+    pins_ = method_pins.get(method)
+    if pins_ is None:
+        # all pins allowed for this method
+        return value
+
     for opt in (CONF_PIN, CONF_CLOCK_PIN, CONF_DATA_PIN):
         if opt in value and value[opt] not in pins_:
             raise cv.Invalid("Method {} only supports pin(s) {}".format(
-                method, ', '.join('GPIO{}'.format(x) for x in pins_)
+                method, ', '.join(f'GPIO{x}' for x in pins_)
             ), path=[CONF_METHOD])
     return value
 
@@ -116,6 +120,13 @@ ESP32_METHODS = {
 def format_method(config):
     variant = VARIANTS[config[CONF_VARIANT]]
     method = config[CONF_METHOD]
+
+    if config[CONF_INVERT]:
+        if method == 'ESP8266_DMA':
+            variant = 'Inverted' + variant
+        else:
+            variant += 'Inverted'
+
     if CORE.is_esp8266:
         return ESP8266_METHODS[method].format(variant)
     if CORE.is_esp32:
@@ -141,6 +152,7 @@ CONFIG_SCHEMA = cv.All(light.ADDRESSABLE_LIGHT_SCHEMA.extend({
     cv.Optional(CONF_TYPE, default='GRB'): validate_type,
     cv.Optional(CONF_VARIANT, default='800KBPS'): validate_variant,
     cv.Optional(CONF_METHOD, default=None): validate_method,
+    cv.Optional(CONF_INVERT, default='no'): cv.boolean,
     cv.Optional(CONF_PIN): pins.output_pin,
     cv.Optional(CONF_CLOCK_PIN): pins.output_pin,
     cv.Optional(CONF_DATA_PIN): pins.output_pin,
@@ -157,7 +169,7 @@ def to_code(config):
     else:
         out_type = NeoPixelRGBLightOutput.template(template)
     rhs = out_type.new()
-    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, type=out_type)
+    var = cg.Pvariable(config[CONF_OUTPUT_ID], rhs, out_type)
     yield light.register_light(var, config)
     yield cg.register_component(var, config)
 

@@ -1,11 +1,7 @@
-from __future__ import print_function
-
 import codecs
 
 import logging
 import os
-
-from esphome.py_compat import char_to_byte, text_type, IS_PY2, encode_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -18,24 +14,24 @@ def ensure_unique_string(preferred_string, current_strings):
 
     while test_string in current_strings_set:
         tries += 1
-        test_string = u"{}_{}".format(preferred_string, tries)
+        test_string = f"{preferred_string}_{tries}"
 
     return test_string
 
 
-def indent_all_but_first_and_last(text, padding=u'  '):
+def indent_all_but_first_and_last(text, padding='  '):
     lines = text.splitlines(True)
     if len(lines) <= 2:
         return text
-    return lines[0] + u''.join(padding + line for line in lines[1:-1]) + lines[-1]
+    return lines[0] + ''.join(padding + line for line in lines[1:-1]) + lines[-1]
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 # From https://stackoverflow.com/a/14945195/8924614
@@ -43,17 +39,16 @@ def cpp_string_escape(string, encoding='utf-8'):
     def _should_escape(byte):  # type: (int) -> bool
         if not 32 <= byte < 127:
             return True
-        if byte in (char_to_byte('\\'), char_to_byte('"')):
+        if byte in (ord('\\'), ord('"')):
             return True
         return False
 
-    if isinstance(string, text_type):
+    if isinstance(string, str):
         string = string.encode(encoding)
     result = ''
     for character in string:
-        character = char_to_byte(character)
         if _should_escape(character):
-            result += '\\%03o' % character
+            result += f'\\{character:03o}'
         else:
             result += chr(character)
     return '"' + result + '"'
@@ -80,6 +75,9 @@ def run_system_command(*args):
 
 
 def mkdir_p(path):
+    if not path:
+        # Empty path - means create current dir
+        return
     try:
         os.makedirs(path)
     except OSError as err:
@@ -88,7 +86,7 @@ def mkdir_p(path):
             pass
         else:
             from esphome.core import EsphomeError
-            raise EsphomeError(u"Error creating directories {}: {}".format(path, err))
+            raise EsphomeError(f"Error creating directories {path}: {err}")
 
 
 def is_ip_address(host):
@@ -115,7 +113,7 @@ def _resolve_with_zeroconf(host):
     try:
         info = zc.resolve_host(host + '.')
     except Exception as err:
-        raise EsphomeError("Error resolving mDNS hostname: {}".format(err))
+        raise EsphomeError(f"Error resolving mDNS hostname: {err}")
     finally:
         zc.close()
     if info is None:
@@ -138,7 +136,7 @@ def resolve_ip_address(host):
 
     try:
         return socket.gethostbyname(host)
-    except socket.error as err:
+    except OSError as err:
         errs.append(str(err))
         raise EsphomeError("Error resolving IP address: {}"
                            "".format(', '.join(errs)))
@@ -164,10 +162,10 @@ def read_file(path):
             return f_handle.read()
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Error reading file {}: {}".format(path, err))
+        raise EsphomeError(f"Error reading file {path}: {err}")
     except UnicodeDecodeError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Error reading file {}: {}".format(path, err))
+        raise EsphomeError(f"Error reading file {path}: {err}")
 
 
 def _write_file(path, text):
@@ -176,20 +174,17 @@ def _write_file(path, text):
     mkdir_p(directory)
 
     tmp_path = None
-    data = encode_text(text)
+    data = text
+    if isinstance(text, str):
+        data = text.encode()
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=directory, delete=False) as f_handle:
             tmp_path = f_handle.name
             f_handle.write(data)
         # Newer tempfile implementations create the file with mode 0o600
         os.chmod(tmp_path, 0o644)
-        if IS_PY2:
-            if os.path.exists(path):
-                os.remove(path)
-            os.rename(tmp_path, path)
-        else:
-            # If destination exists, will be overwritten
-            os.replace(tmp_path, path)
+        # If destination exists, will be overwritten
+        os.replace(tmp_path, path)
     finally:
         if tmp_path is not None and os.path.exists(tmp_path):
             try:
@@ -203,7 +198,7 @@ def write_file(path, text):
         _write_file(path, text)
     except OSError:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Could not write file at {}".format(path))
+        raise EsphomeError(f"Could not write file at {path}")
 
 
 def write_file_if_changed(path, text):
@@ -223,7 +218,7 @@ def copy_file_if_changed(src, dst):
         shutil.copy(src, dst)
     except OSError as err:
         from esphome.core import EsphomeError
-        raise EsphomeError(u"Error copying file {} to {}: {}".format(src, dst, err))
+        raise EsphomeError(f"Error copying file {src} to {dst}: {err}")
 
 
 def list_starts_with(list_, sub):
@@ -258,3 +253,47 @@ def file_compare(path1, path2):
             if not blob1:
                 # Reached end
                 return True
+
+
+# A dict of types that need to be converted to heaptypes before a class can be added
+# to the object
+_TYPE_OVERLOADS = {
+    int: type('EInt', (int,), dict()),
+    float: type('EFloat', (float,), dict()),
+    str: type('EStr', (str,), dict()),
+    dict: type('EDict', (str,), dict()),
+    list: type('EList', (list,), dict()),
+}
+
+# cache created classes here
+_CLASS_LOOKUP = {}
+
+
+def add_class_to_obj(value, cls):
+    """Add a class to a python type.
+
+    This function modifies value so that it has cls as a basetype.
+    The value itself may be modified by this action! You must use the return
+    value of this function however, since some types need to be copied first (heaptypes).
+    """
+    if isinstance(value, cls):
+        # If already is instance, do not add
+        return value
+
+    try:
+        orig_cls = value.__class__
+        key = (orig_cls, cls)
+        new_cls = _CLASS_LOOKUP.get(key)
+        if new_cls is None:
+            new_cls = orig_cls.__class__(orig_cls.__name__, (orig_cls, cls), {})
+            _CLASS_LOOKUP[key] = new_cls
+        value.__class__ = new_cls
+        return value
+    except TypeError:
+        # Non heap type, look in overloads dict
+        for type_, func in _TYPE_OVERLOADS.items():
+            # Use type() here, we only need to trigger if it's the exact type,
+            # as otherwise we don't need to overload the class
+            if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
+                return add_class_to_obj(func(value), cls)
+        raise

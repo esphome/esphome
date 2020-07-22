@@ -5,7 +5,7 @@ from esphome.components import mqtt
 from esphome.const import CONF_AWAY, CONF_ID, CONF_INTERNAL, CONF_MAX_TEMPERATURE, \
     CONF_MIN_TEMPERATURE, CONF_MODE, CONF_TARGET_TEMPERATURE, \
     CONF_TARGET_TEMPERATURE_HIGH, CONF_TARGET_TEMPERATURE_LOW, CONF_TEMPERATURE_STEP, CONF_VISUAL, \
-    CONF_MQTT_ID, CONF_NAME
+    CONF_MQTT_ID, CONF_NAME, CONF_FAN_MODE, CONF_SWING_MODE
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
@@ -22,9 +22,35 @@ CLIMATE_MODES = {
     'AUTO': ClimateMode.CLIMATE_MODE_AUTO,
     'COOL': ClimateMode.CLIMATE_MODE_COOL,
     'HEAT': ClimateMode.CLIMATE_MODE_HEAT,
+    'DRY': ClimateMode.CLIMATE_MODE_DRY,
+    'FAN_ONLY': ClimateMode.CLIMATE_MODE_FAN_ONLY,
+}
+validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
+
+ClimateFanMode = climate_ns.enum('ClimateFanMode')
+CLIMATE_FAN_MODES = {
+    'ON': ClimateFanMode.CLIMATE_FAN_ON,
+    'OFF': ClimateFanMode.CLIMATE_FAN_OFF,
+    'AUTO': ClimateFanMode.CLIMATE_FAN_AUTO,
+    'LOW': ClimateFanMode.CLIMATE_FAN_LOW,
+    'MEDIUM': ClimateFanMode.CLIMATE_FAN_MEDIUM,
+    'HIGH': ClimateFanMode.CLIMATE_FAN_HIGH,
+    'MIDDLE': ClimateFanMode.CLIMATE_FAN_MIDDLE,
+    'FOCUS': ClimateFanMode.CLIMATE_FAN_FOCUS,
+    'DIFFUSE': ClimateFanMode.CLIMATE_FAN_DIFFUSE,
 }
 
-validate_climate_mode = cv.enum(CLIMATE_MODES, upper=True)
+validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
+
+ClimateSwingMode = climate_ns.enum('ClimateSwingMode')
+CLIMATE_SWING_MODES = {
+    'OFF': ClimateSwingMode.CLIMATE_SWING_OFF,
+    'BOTH': ClimateSwingMode.CLIMATE_SWING_BOTH,
+    'VERTICAL': ClimateSwingMode.CLIMATE_SWING_VERTICAL,
+    'HORIZONTAL': ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
+}
+
+validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
 # Actions
 ControlAction = climate_ns.class_('ControlAction', automation.Action)
@@ -74,6 +100,8 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema({
     cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
     cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
     cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+    cv.Optional(CONF_FAN_MODE): cv.templatable(validate_climate_fan_mode),
+    cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
 })
 
 
@@ -96,6 +124,12 @@ def climate_control_to_code(config, action_id, template_arg, args):
     if CONF_AWAY in config:
         template_ = yield cg.templatable(config[CONF_AWAY], args, bool)
         cg.add(var.set_away(template_))
+    if CONF_FAN_MODE in config:
+        template_ = yield cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
+        cg.add(var.set_fan_mode(template_))
+    if CONF_SWING_MODE in config:
+        template_ = yield cg.templatable(config[CONF_SWING_MODE], args, ClimateSwingMode)
+        cg.add(var.set_swing_mode(template_))
     yield var
 
 

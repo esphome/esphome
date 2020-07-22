@@ -30,9 +30,9 @@ def validate_password(value):
     if not value:
         return value
     if len(value) < 8:
-        raise cv.Invalid(u"WPA password must be at least 8 characters long")
+        raise cv.Invalid("WPA password must be at least 8 characters long")
     if len(value) > 64:
-        raise cv.Invalid(u"WPA password must be at most 64 characters long")
+        raise cv.Invalid("WPA password must be at most 64 characters long")
     return value
 
 
@@ -110,6 +110,7 @@ def validate(config):
     return config
 
 
+CONF_OUTPUT_POWER = 'output_power'
 CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.GenerateID(): cv.declare_id(WiFiComponent),
     cv.Optional(CONF_NETWORKS): cv.ensure_list(WIFI_NETWORK_STA),
@@ -125,6 +126,8 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
         cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
     cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
     cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
+    cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
+        cv.decibel, cv.float_range(min=10.0, max=20.5)),
 
     cv.Optional('hostname'): cv.invalid("The hostname option has been removed in 1.11.0"),
 }), validate)
@@ -179,12 +182,15 @@ def to_code(config):
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        cg.add(var.set_ap(wifi_network(conf, config.get(CONF_MANUAL_IP))))
+        ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        cg.add(var.set_ap(wifi_network(conf, ip_config)))
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    if CONF_OUTPUT_POWER in config:
+        cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
 
     if CORE.is_esp8266:
         cg.add_library('ESP8266WiFi', None)

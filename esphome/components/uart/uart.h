@@ -7,10 +7,19 @@
 namespace esphome {
 namespace uart {
 
+enum UARTParityOptions {
+  UART_CONFIG_PARITY_NONE,
+  UART_CONFIG_PARITY_EVEN,
+  UART_CONFIG_PARITY_ODD,
+};
+
+const char *parity_to_str(UARTParityOptions parity);
+
 #ifdef ARDUINO_ARCH_ESP8266
 class ESP8266SoftwareSerial {
  public:
-  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits);
+  void setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
+             UARTParityOptions parity, size_t rx_buffer_size);
 
   uint8_t read_byte();
   uint8_t peek_byte();
@@ -21,6 +30,11 @@ class ESP8266SoftwareSerial {
 
   int available();
 
+  void begin();
+  void end();
+  GPIOPin *gpio_tx_pin_{nullptr};
+  GPIOPin *gpio_rx_pin_{nullptr};
+
  protected:
   static void gpio_intr(ESP8266SoftwareSerial *arg);
 
@@ -30,10 +44,12 @@ class ESP8266SoftwareSerial {
 
   uint32_t bit_time_{0};
   uint8_t *rx_buffer_{nullptr};
-  size_t rx_buffer_size_{512};
+  size_t rx_buffer_size_;
   volatile size_t rx_in_pos_{0};
   size_t rx_out_pos_{0};
   uint8_t stop_bits_;
+  uint8_t nr_bits_;
+  UARTParityOptions parity_;
   ISRInternalGPIOPin *tx_pin_{nullptr};
   ISRInternalGPIOPin *rx_pin_{nullptr};
 };
@@ -42,6 +58,8 @@ class ESP8266SoftwareSerial {
 class UARTComponent : public Component, public Stream {
  public:
   void set_baud_rate(uint32_t baud_rate) { baud_rate_ = baud_rate; }
+
+  uint32_t get_config();
 
   void setup() override;
 
@@ -53,6 +71,8 @@ class UARTComponent : public Component, public Stream {
   void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
 
   void write_str(const char *str);
+  void end();
+  void begin();
 
   bool peek_byte(uint8_t *data);
 
@@ -73,9 +93,13 @@ class UARTComponent : public Component, public Stream {
 
   void set_tx_pin(uint8_t tx_pin) { this->tx_pin_ = tx_pin; }
   void set_rx_pin(uint8_t rx_pin) { this->rx_pin_ = rx_pin; }
+  void set_rx_buffer_size(size_t rx_buffer_size) { this->rx_buffer_size_ = rx_buffer_size; }
   void set_stop_bits(uint8_t stop_bits) { this->stop_bits_ = stop_bits; }
+  void set_data_bits(uint8_t nr_bits) { this->nr_bits_ = nr_bits; }
+  void set_parity(UARTParityOptions parity) { this->parity_ = parity; }
 
  protected:
+  void check_logger_conflict_();
   bool check_read_timeout_(size_t len = 1);
   friend class UARTDevice;
 
@@ -85,8 +109,11 @@ class UARTComponent : public Component, public Stream {
 #endif
   optional<uint8_t> tx_pin_;
   optional<uint8_t> rx_pin_;
+  size_t rx_buffer_size_;
   uint32_t baud_rate_;
   uint8_t stop_bits_;
+  uint8_t nr_bits_;
+  UARTParityOptions parity_;
 };
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -129,9 +156,12 @@ class UARTDevice : public Stream {
   size_t write(uint8_t data) override { return this->parent_->write(data); }
   int read() override { return this->parent_->read(); }
   int peek() override { return this->parent_->peek(); }
+  void end() { this->parent_->end(); }
+  void begin() { this->parent_->begin(); }
 
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
-  void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1);
+  void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,
+                           UARTParityOptions parity = UART_CONFIG_PARITY_NONE, uint8_t nr_bits = 8);
 
  protected:
   UARTComponent *parent_{nullptr};

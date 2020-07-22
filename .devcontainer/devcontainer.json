@@ -1,0 +1,32 @@
+{
+  "name": "ESPHome Dev",
+  "context": "..",
+  "dockerFile": "../docker/Dockerfile.dev",
+  "postCreateCommand": "mkdir -p config && pip3 install -e .",
+  "runArgs": ["--privileged", "-e", "ESPHOME_DASHBOARD_USE_PING=1"],
+  "appPort": 6052,
+  "extensions": [
+    "ms-python.python",
+    "visualstudioexptteam.vscodeintellicode",
+    "redhat.vscode-yaml"
+  ],
+  "settings": {
+    "python.pythonPath": "/usr/local/bin/python",
+    "python.linting.pylintEnabled": true,
+    "python.linting.enabled": true,
+    "python.formatting.provider": "black",
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": true,
+    "editor.formatOnType": true,
+    "files.trimTrailingWhitespace": true,
+    "terminal.integrated.shell.linux": "/bin/bash",
+    "yaml.customTags": [
+      "!secret scalar",
+      "!lambda scalar",
+      "!include_dir_named scalar",
+      "!include_dir_list scalar",
+      "!include_dir_merge_list scalar",
+      "!include_dir_merge_named scalar"
+    ]
+  }
+}

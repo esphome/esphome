@@ -35,5 +35,5 @@ def new_fastled_light(config):
 
     yield light.register_light(var, config)
     # https://github.com/FastLED/FastLED/blob/master/library.json
-    cg.add_library('FastLED', '3.2.9')
+    cg.add_library('FastLED', '3.3.3')
     yield var

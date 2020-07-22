@@ -50,14 +50,6 @@ enum AS3935Values {
   NOISE_INT = 0x01
 };
 
-/// Store data in a class that doesn't use multiple-inheritance (vtables in flash)
-struct AS3935ComponentStore {
-  volatile bool interrupt;
-
-  ISRInternalGPIOPin *pin;
-  static void gpio_intr(AS3935ComponentStore *arg);
-};
-
 class AS3935Component : public Component {
  public:
   void setup() override;
@@ -65,7 +57,7 @@ class AS3935Component : public Component {
   float get_setup_priority() const override;
   void loop() override;
 
-  void set_pin(GPIOPin *pin) { pin_ = pin; }
+  void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; }
   void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
   void set_thunder_alert_binary_sensor(binary_sensor::BinarySensor *thunder_alert_binary_sensor) {
@@ -102,8 +94,7 @@ class AS3935Component : public Component {
   sensor::Sensor *distance_sensor_;
   sensor::Sensor *energy_sensor_;
   binary_sensor::BinarySensor *thunder_alert_binary_sensor_;
-  GPIOPin *pin_;
-  AS3935ComponentStore store_;
+  GPIOPin *irq_pin_;
 
   bool indoor_;
   uint8_t noise_level_;

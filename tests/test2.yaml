@@ -10,7 +10,7 @@ substitutions:
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23
-  mdio_pin: GPIO24
+  mdio_pin: GPIO25
   clk_mode: GPIO0_IN
   phy_addr: 0
   power_pin: GPIO25
@@ -44,23 +44,53 @@ ota:
 logger:
   level: DEBUG
 
-web_server:
-  auth:
-    username: admin
-    password: admin
-
-deep_sleep:
-  run_duration: 20s
-  sleep_duration: 50s
-
 as3935_i2c:
-  pin: GPIO12
+  irq_pin: GPIO12
 
 
 sensor:
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
+  - platform: ble_rssi
+    service_uuid: '11aa'
+    name: "BLE Test Service 16"
+  - platform: ble_rssi
+    service_uuid: '11223344'
+    name: "BLE Test Service 32"
+  - platform: ble_rssi
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128"
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
+    humidity:
+      name: "RuuviTag Humidity"
+    temperature:
+      name: "RuuviTag Temperature"
+    pressure:
+      name: "RuuviTag Pressure"
+    acceleration_x:
+      name: "RuuviTag Acceleration X"
+    acceleration_y:
+      name: "RuuviTag Acceleration Y"
+    acceleration_z:
+      name: "RuuviTag Acceleration Z"
+    battery_voltage:
+      name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
@@ -71,8 +101,6 @@ sensor:
       name: "Xiaomi HHCCJCY01 Illuminance"
     conductivity:
       name: "Xiaomi HHCCJCY01 Soil Conductivity"
-    battery_level:
-      name: "Xiaomi HHCCJCY01 Battery Level"
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -86,7 +114,7 @@ sensor:
     temperature:
       name: "Xiaomi LYWSD02 Temperature"
     humidity:
-      name: "Xiaomi LYWSD02 Humidity"    
+      name: "Xiaomi LYWSD02 Humidity"
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -95,62 +123,51 @@ sensor:
       name: "Xiaomi CGG1 Humidity"
     battery_level:
       name: "Xiaomi CGG1 Battery Level"
-  - platform: pmsx003
-    type: PMSX003
-    pm_1_0:
-      name: "PM 1.0 Concentration"
-    pm_2_5:
-      name: "PM 2.5 Concentration"
-    pm_10_0:
-      name: "PM 10.0 Concentration"
-  - platform: pmsx003
-    type: PMS5003T
-    pm_2_5:
-      name: "PM 2.5 Concentration"
+  - platform: xiaomi_gcls002
+    mac_address: "94:2B:FF:5C:91:61"
     temperature:
-      name: "PMS Temperature"
-    humidity:
-      name: "PMS Humidity"
-  - platform: pmsx003
-    type: PMS5003ST
-    pm_2_5:
-      name: "PM 2.5 Concentration"
+      name: "GCLS02 Temperature"
+    moisture:
+      name: "GCLS02 Moisture"
+    conductivity:
+      name: "GCLS02 Soil Conductivity"
+    illuminance:
+      name: "GCLS02 Illuminance"
+  - platform: xiaomi_hhccpot002
+    mac_address: "94:2B:FF:5C:91:61"
+    moisture:
+      name: "HHCCPOT002 Moisture"
+    conductivity:
+      name: "HHCCPOT002 Soil Conductivity"
+  - platform: xiaomi_lywsd03mmc
+    mac_address: "A4:C1:38:4E:16:78"
+    bindkey: "e9efaa6873f9f9c87a5e75a5f814801c"
     temperature:
-      name: "PMS Temperature"
+      name: "Xiaomi LYWSD03MMC Temperature"
     humidity:
-      name: "PMS Humidity"
+      name: "Xiaomi LYWSD03MMC Humidity"
+    battery_level:
+      name: "Xiaomi LYWSD03MMC Battery Level"
+  - platform: xiaomi_cgd1
+    mac_address: "A4:C1:38:D1:61:7D"
+    bindkey: "c99d2313182473b38001086febf781bd"
+    temperature:
+      name: "Xiaomi CGD1 Temperature"
+    humidity:
+      name: "Xiaomi CGD1 Humidity"
+    battery_level:
+      name: "Xiaomi CGD1 Battery Level"
+  - platform: xiaomi_jqjcy01ym
+    mac_address: "7A:80:8E:19:36:BA"
+    temperature:
+      name: "JQJCY01YM Temperature"
+    humidity:
+      name: "JQJCY01YM Humidity"
     formaldehyde:
-      name: "PMS Formaldehyde Concentration"
-  - platform: cse7766
-    voltage:
-      name: "CSE7766 Voltage"
-    current:
-      name: "CSE7766 Current"
-    power:
-      name: "CSE776 Power"
-  - platform: apds9960
-    type: proximity
-    name: APDS9960 Proximity
-  - platform: apds9960
-    type: clear
-    name: APDS9960 Clear
-  - platform: apds9960
-    type: red
-    name: APDS9960 Red
-  - platform: apds9960
-    type: green
-    name: APDS9960 Green
-  - platform: apds9960
-    type: blue
-    name: APDS9960 Blue
-  - platform: homeassistant
-    entity_id: sensor.hello_world
-    id: ha_hello_world
-  - platform: as3935
-    lightning_energy:
-      name: "Lightning Energy"
-    distance:
-      name: "Distance Storm"
+      name: "JQJCY01YM Formaldehyde"
+    battery_level:
+      name: "JQJCY01YM Battery Level"
+
 
 time:
 - platform: homeassistant
@@ -159,44 +176,74 @@ time:
       then:
         - logger.log: It's 16:00
 
-apds9960:
-  address: 0x20
-  update_interval: 60s
-
 esp32_touch:
   setup_mode: True
 
 binary_sensor:
+  - platform: homeassistant
+    entity_id: binary_sensor.hello_world
+    id: ha_hello_world_binary
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
+  - platform: ble_presence
+    service_uuid: '11aa'
+    name: "BLE Test Service 16 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344'
+    name: "BLE Test Service 32 Presence"
+  - platform: ble_presence
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: "BLE Test Service 128 Presence"
   - platform: esp32_touch
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
-  - platform: apds9960
-    direction: up
-    name: APDS9960 Up
-  - platform: apds9960
-    direction: down
-    name: APDS9960 Down
-  - platform: apds9960
-    direction: left
-    name: APDS9960 Left
-  - platform: apds9960
-    direction: right
-    name: APDS9960 Right
-  - platform: homeassistant
-    entity_id: binary_sensor.hello_world
-    id: ha_hello_world_binary
   - platform: as3935
     name: "Storm Alert"
+  - platform: xiaomi_mue4094rt
+    name: "MUE4094RT Motion"
+    mac_address: "7A:80:8E:19:36:BA"
+    timeout: "5s"
+  - platform: xiaomi_mjyd02yla
+    name: "MJYD02YL-A Motion"
+    mac_address: "50:EC:50:CD:32:02"
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
+    idle_time:
+      name: "MJYD02YL-A Idle Time"
+    light:
+      name: "MJYD02YL-A Light Status"
+    battery_level:
+      name: "MJYD02YL-A Battery Level"
+  - platform: xiaomi_wx08zm
+    name: "WX08ZM Activation State"
+    mac_address: "74:a3:4a:b5:07:34"
+    tablet:
+      name: "WX08ZM Tablet Resource"
+    battery_level:
+      name: "WX08ZM Battery Level"
 
-remote_receiver:
-  pin: GPIO32
-  dump: []
 
 esp32_ble_tracker:
+  on_ble_advertise:
+    - mac_address: AC:37:43:77:5F:4C
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+    - then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+  on_ble_service_data_advertise:
+    - service_uuid: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of service data is %i", x.size());
+  on_ble_manufacturer_data_advertise:
+    - manufacturer_id: ABCD
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("main", "Length of manufacturer data is %i", x.size());
+
 
 #esp32_ble_beacon:
 #  type: iBeacon
@@ -240,6 +287,8 @@ text_sensor:
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
+  - platform: ble_scanner
+    name: Scanner
 
 script:
   - id: my_script
@@ -250,7 +299,7 @@ stepper:
   - platform: uln2003
     id: my_stepper
     pin_a: GPIO23
-    pin_b: GPIO24
+    pin_b: GPIO27
     pin_c: GPIO25
     pin_d: GPIO26
     sleep_when_done: no
@@ -267,4 +316,5 @@ interval:
     - logger.log: "Interval Run"
 
 display:
+
 

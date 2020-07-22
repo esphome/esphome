@@ -34,13 +34,10 @@ CONF_ADDRESSABLE_FIREWORKS = 'addressable_fireworks'
 CONF_ADDRESSABLE_FLICKER = 'addressable_flicker'
 CONF_AUTOMATION = 'automation'
 
-BINARY_EFFECTS = ['lambda', 'automation', 'strobe']
-MONOCHROMATIC_EFFECTS = BINARY_EFFECTS + ['flicker']
-RGB_EFFECTS = MONOCHROMATIC_EFFECTS + ['random']
-ADDRESSABLE_EFFECTS = RGB_EFFECTS + [CONF_ADDRESSABLE_LAMBDA, CONF_ADDRESSABLE_RAINBOW,
-                                     CONF_ADDRESSABLE_COLOR_WIPE, CONF_ADDRESSABLE_SCAN,
-                                     CONF_ADDRESSABLE_TWINKLE, CONF_ADDRESSABLE_RANDOM_TWINKLE,
-                                     CONF_ADDRESSABLE_FIREWORKS, CONF_ADDRESSABLE_FLICKER]
+BINARY_EFFECTS = []
+MONOCHROMATIC_EFFECTS = []
+RGB_EFFECTS = []
+ADDRESSABLE_EFFECTS = []
 
 EFFECTS_REGISTRY = Registry()
 
@@ -53,7 +50,41 @@ def register_effect(name, effect_type, default_name, schema, *extra_validators):
     return EFFECTS_REGISTRY.register(name, effect_type, validator)
 
 
-@register_effect('lambda', LambdaLightEffect, "Lambda", {
+def register_binary_effect(name, effect_type, default_name, schema, *extra_validators):
+    # binary effect can be used for all lights
+    BINARY_EFFECTS.append(name)
+    MONOCHROMATIC_EFFECTS.append(name)
+    RGB_EFFECTS.append(name)
+    ADDRESSABLE_EFFECTS.append(name)
+
+    return register_effect(name, effect_type, default_name, schema, *extra_validators)
+
+
+def register_monochromatic_effect(name, effect_type, default_name, schema, *extra_validators):
+    # monochromatic effect can be used for all lights expect binary
+    MONOCHROMATIC_EFFECTS.append(name)
+    RGB_EFFECTS.append(name)
+    ADDRESSABLE_EFFECTS.append(name)
+
+    return register_effect(name, effect_type, default_name, schema, *extra_validators)
+
+
+def register_rgb_effect(name, effect_type, default_name, schema, *extra_validators):
+    # RGB effect can be used for RGB and addressable lights
+    RGB_EFFECTS.append(name)
+    ADDRESSABLE_EFFECTS.append(name)
+
+    return register_effect(name, effect_type, default_name, schema, *extra_validators)
+
+
+def register_addressable_effect(name, effect_type, default_name, schema, *extra_validators):
+    # addressable effect can be used only in addressable
+    ADDRESSABLE_EFFECTS.append(name)
+
+    return register_effect(name, effect_type, default_name, schema, *extra_validators)
+
+
+@register_binary_effect('lambda', LambdaLightEffect, "Lambda", {
     cv.Required(CONF_LAMBDA): cv.lambda_,
     cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.update_interval,
 })
@@ -63,7 +94,7 @@ def lambda_effect_to_code(config, effect_id):
                            config[CONF_UPDATE_INTERVAL])
 
 
-@register_effect('automation', AutomationLightEffect, "Automation", {
+@register_binary_effect('automation', AutomationLightEffect, "Automation", {
     cv.Required(CONF_SEQUENCE): automation.validate_automation(single=True),
 })
 def automation_effect_to_code(config, effect_id):
@@ -72,7 +103,7 @@ def automation_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('random', RandomLightEffect, "Random", {
+@register_rgb_effect('random', RandomLightEffect, "Random", {
     cv.Optional(CONF_TRANSITION_LENGTH, default='7.5s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_UPDATE_INTERVAL, default='10s'): cv.positive_time_period_milliseconds,
 })
@@ -83,7 +114,7 @@ def random_effect_to_code(config, effect_id):
     yield effect
 
 
-@register_effect('strobe', StrobeLightEffect, "Strobe", {
+@register_binary_effect('strobe', StrobeLightEffect, "Strobe", {
     cv.Optional(CONF_COLORS, default=[
         {CONF_STATE: True, CONF_DURATION: '0.5s'},
         {CONF_STATE: False, CONF_DURATION: '0.5s'},
@@ -113,7 +144,7 @@ def strobe_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('flicker', FlickerLightEffect, "Flicker", {
+@register_monochromatic_effect('flicker', FlickerLightEffect, "Flicker", {
     cv.Optional(CONF_ALPHA, default=0.95): cv.percentage,
     cv.Optional(CONF_INTENSITY, default=0.015): cv.percentage,
 })
@@ -124,19 +155,21 @@ def flicker_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_lambda', AddressableLambdaLightEffect, "Addressable Lambda", {
-    cv.Required(CONF_LAMBDA): cv.lambda_,
-    cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
-})
+@register_addressable_effect(
+    'addressable_lambda', AddressableLambdaLightEffect, "Addressable Lambda", {
+        cv.Required(CONF_LAMBDA): cv.lambda_,
+        cv.Optional(CONF_UPDATE_INTERVAL, default='0ms'): cv.positive_time_period_milliseconds,
+    }
+)
 def addressable_lambda_effect_to_code(config, effect_id):
-    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color')]
+    args = [(AddressableLightRef, 'it'), (ESPColor, 'current_color'), (bool, 'initial_run')]
     lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], args, return_type=cg.void)
     var = cg.new_Pvariable(effect_id, config[CONF_NAME], lambda_,
                            config[CONF_UPDATE_INTERVAL])
     yield var
 
 
-@register_effect('addressable_rainbow', AddressableRainbowLightEffect, "Rainbow", {
+@register_addressable_effect('addressable_rainbow', AddressableRainbowLightEffect, "Rainbow", {
     cv.Optional(CONF_SPEED, default=10): cv.uint32_t,
     cv.Optional(CONF_WIDTH, default=50): cv.uint32_t,
 })
@@ -147,7 +180,7 @@ def addressable_rainbow_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_color_wipe', AddressableColorWipeEffect, "Color Wipe", {
+@register_addressable_effect('addressable_color_wipe', AddressableColorWipeEffect, "Color Wipe", {
     cv.Optional(CONF_COLORS, default=[{CONF_NUM_LEDS: 1, CONF_RANDOM: True}]): cv.ensure_list({
         cv.Optional(CONF_RED, default=1.0): cv.percentage,
         cv.Optional(CONF_GREEN, default=1.0): cv.percentage,
@@ -178,7 +211,7 @@ def addressable_color_wipe_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_scan', AddressableScanEffect, "Scan", {
+@register_addressable_effect('addressable_scan', AddressableScanEffect, "Scan", {
     cv.Optional(CONF_MOVE_INTERVAL, default='0.1s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SCAN_WIDTH, default=1): cv.int_range(min=1),
 })
@@ -189,7 +222,7 @@ def addressable_scan_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_twinkle', AddressableTwinkleEffect, "Twinkle", {
+@register_addressable_effect('addressable_twinkle', AddressableTwinkleEffect, "Twinkle", {
     cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
     cv.Optional(CONF_PROGRESS_INTERVAL, default='4ms'): cv.positive_time_period_milliseconds,
 })
@@ -200,10 +233,12 @@ def addressable_twinkle_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_random_twinkle', AddressableRandomTwinkleEffect, "Random Twinkle", {
-    cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
-    cv.Optional(CONF_PROGRESS_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
-})
+@register_addressable_effect(
+    'addressable_random_twinkle', AddressableRandomTwinkleEffect, "Random Twinkle", {
+        cv.Optional(CONF_TWINKLE_PROBABILITY, default='5%'): cv.percentage,
+        cv.Optional(CONF_PROGRESS_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
+    }
+)
 def addressable_random_twinkle_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_twinkle_probability(config[CONF_TWINKLE_PROBABILITY]))
@@ -211,7 +246,7 @@ def addressable_random_twinkle_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_fireworks', AddressableFireworksEffect, "Fireworks", {
+@register_addressable_effect('addressable_fireworks', AddressableFireworksEffect, "Fireworks", {
     cv.Optional(CONF_UPDATE_INTERVAL, default='32ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SPARK_PROBABILITY, default='10%'): cv.percentage,
     cv.Optional(CONF_USE_RANDOM_COLOR, default=False): cv.boolean,
@@ -226,10 +261,12 @@ def addressable_fireworks_effect_to_code(config, effect_id):
     yield var
 
 
-@register_effect('addressable_flicker', AddressableFlickerEffect, "Addressable Flicker", {
-    cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
-    cv.Optional(CONF_INTENSITY, default='5%'): cv.percentage,
-})
+@register_addressable_effect(
+    'addressable_flicker', AddressableFlickerEffect, "Addressable Flicker", {
+        cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_INTENSITY, default='5%'): cv.percentage,
+    }
+)
 def addressable_flicker_effect_to_code(config, effect_id):
     var = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
@@ -253,8 +290,8 @@ def validate_effects(allowed_effects):
             name = x[key][CONF_NAME]
             if name in names:
                 errors.append(
-                    cv.Invalid(u"Found the effect name '{}' twice. All effects must have "
-                               u"unique names".format(name), [i])
+                    cv.Invalid("Found the effect name '{}' twice. All effects must have "
+                               "unique names".format(name), [i])
                 )
                 continue
             names.add(name)

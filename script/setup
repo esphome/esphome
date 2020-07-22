@@ -4,5 +4,5 @@
 set -e
 
 cd "$(dirname "$0")/.."
-pip install -r requirements_test.txt
-pip install -e .
+pip3 install -r requirements.txt -r requirements_test.txt
+pip3 install -e .
