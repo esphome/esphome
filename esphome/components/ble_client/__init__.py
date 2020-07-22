@@ -9,7 +9,8 @@ from esphome import automation
 DEPENDENCIES = ['esp32_ble_tracker']
 
 ble_client_ns = cg.esphome_ns.namespace('ble_client')
-BLEClient = ble_client_ns.class_('BLEClient', cg.Component, cg.Nameable, esp32_ble_tracker.ESPBTClient)
+BLEClient = ble_client_ns.class_('BLEClient', cg.Component, cg.Nameable,
+                                 esp32_ble_tracker.ESPBTClient)
 BLEClientNode = ble_client_ns.class_('BLEClientNode')
 BLEClientNodeConstRef = BLEClientNode.operator('ref').operator('const')
 # Triggers
