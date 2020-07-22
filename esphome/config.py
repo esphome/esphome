@@ -568,10 +568,10 @@ def validate_config(config, command_line_substitutions):
             if not isinstance(conf, list):
                 result[domain] = conf = [conf]
             if not isinstance(comp.is_multi_conf, bool) and len(conf) > comp.is_multi_conf:
-              result.add_str_error(u"Component {} supports a maximum of {} "
-                                   u"entries ({} found).".format(domain, comp.is_multi_conf,
-                                   len(conf)), path)
-              continue
+                result.add_str_error(u"Component {} supports a maximum of {} "
+                                     u"entries ({} found).".format(domain, comp.is_multi_conf,
+                                     len(conf)), path)
+                continue
             for i, part_conf in enumerate(conf):
                 validate_queue.append((path + [i], part_conf, comp))
             continue

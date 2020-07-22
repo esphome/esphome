@@ -758,17 +758,6 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
-  - platform: ble_client
-    ble_client_id: ble_foo
-    name: "Green iTag btn"
-    service_uuid: 'ffe0'
-    char_uuid: 'ffe1'
-    notify: true
-    update_interval: never
-    on_notify:
-      then:
-        - lambda: |-
-            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
 
 esp32_touch:
   setup_mode: False
@@ -1786,18 +1775,3 @@ sn74hc595:
     latch_pin: GPIO22
     oe_pin: GPIO32
     sr_count: 2
-
-esp32_ble_tracker:
-
-ble_client:
-  - mac_address: AA:BB:CC:DD:EE:FF
-    id: ble_foo
-  - mac_address: 11:22:33:44:55:66
-    id: ble_blah
-    on_connect:
-      then:
-       - switch.turn_on: ble1_status
-    on_disconnect:
-      then:
-       - switch.turn_on: ble1_status
-

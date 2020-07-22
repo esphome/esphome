@@ -46,6 +46,7 @@ template<class T> class Queue {
     }
     return element;
   }
+
  protected:
   std::queue<T *> q;
   SemaphoreHandle_t m;
@@ -78,7 +79,8 @@ class BLEEvent {
   uint8_t type_;  // 0=gap 1=gattc
 };
 
-#endif
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
+
+#endif

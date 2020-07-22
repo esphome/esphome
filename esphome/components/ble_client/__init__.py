@@ -32,16 +32,18 @@ CONFIG_SCHEMA = cv.Schema({
     }),
 }).extend(cv.COMPONENT_SCHEMA).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
 
-CONF_BLE_CLIENT_ID = 'ble_client_id' 
+CONF_BLE_CLIENT_ID = 'ble_client_id'
 
 BLE_CLIENT_SCHEMA = cv.Schema({
     cv.GenerateID(CONF_BLE_CLIENT_ID): cv.use_id(BLEClient),
 })
 
+
 @coroutine
 def register_ble_node(var, config):
-  parent = yield cg.get_variable(config[CONF_BLE_CLIENT_ID])
-  cg.add(parent.register_ble_node(var))
+    parent = yield cg.get_variable(config[CONF_BLE_CLIENT_ID])
+    cg.add(parent.register_ble_node(var))
+
 
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

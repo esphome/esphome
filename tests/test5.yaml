@@ -1,0 +1,84 @@
+substitutions:
+  devicename: test1
+
+esphome:
+  name: test1
+  platform: ESP32
+  board: nodemcu-32s
+  on_boot:
+    priority: 150.0
+    then:
+      - lambda: >-
+          ESP_LOGD("main", "ON BOOT!");
+  on_shutdown:
+    then:
+      - lambda: >-
+          ESP_LOGD("main", "ON SHUTDOWN!");
+  on_loop:
+    then:
+      - lambda: >-
+          ESP_LOGV("main", "ON LOOP!");
+      - light.addressable_set:
+          id: addr1
+          range_from: 0
+          range_to: 100
+          red: 100%
+          green: !lambda 'return 255;'
+          blue: 0%
+          white: 100%
+  build_path: build/test1
+
+packages:
+  wifi: !include test_packages/test_packages_package_wifi.yaml
+  pkg_test: !include test_packages/test_packages_package1.yaml
+
+wifi:
+  networks:
+  - ssid: 'MySSID'
+    password: 'password1'
+  - ssid: 'MySSID2'
+    password: ''
+    channel: 14
+    bssid: 'A1:63:95:47:D3:1D'
+  manual_ip:
+    static_ip: 192.168.178.230
+    gateway: 192.168.178.1
+    subnet: 255.255.255.0
+    dns1: 1.1.1.1
+    dns2: 1.2.2.1
+  domain: .local
+  reboot_timeout: 120s
+  power_save_mode: none
+
+ota:
+  safe_mode: True
+  password: 'superlongpasswordthatnoonewillknow'
+  port: 3286
+
+sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: "Green iTag btn"
+    service_uuid: 'ffe0'
+    char_uuid: 'ffe1'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: ble_foo
+  - mac_address: 11:22:33:44:55:66
+    id: ble_blah
+    on_connect:
+      then:
+       - switch.turn_on: ble1_status
+    on_disconnect:
+      then:
+       - switch.turn_on: ble1_status
+

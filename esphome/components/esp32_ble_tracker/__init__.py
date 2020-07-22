@@ -174,6 +174,7 @@ def register_ble_device(var, config):
     cg.add(paren.register_listener(var))
     yield var
 
+
 @coroutine
 def register_client(var, config):
     paren = yield cg.get_variable(config[CONF_ESP32_BLE_ID])
