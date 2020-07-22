@@ -37,17 +37,17 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       ESP_LOGD(TAG, "Learning timeout");
       break;
     case RF_CODE_LEARN_OK:
-    case RF_CODE_RFIN:      
-      if(at < RF_MESSAGE_SIZE)
+    case RF_CODE_RFIN:
+      if (at < RF_MESSAGE_SIZE)
         return true;
-      
+
       RFBridgeData data;
       data.sync = (raw[1] << 8) | raw[2];
       data.low = (raw[3] << 8) | raw[4];
       data.high = (raw[5] << 8) | raw[6];
       data.code = (raw[7] << 16) | (raw[8] << 8) | raw[9];
 
-      if(action == RF_CODE_LEARN_OK)
+      if (action == RF_CODE_LEARN_OK)
         ESP_LOGD(TAG, "Learning success");
 
       ESP_LOGD(TAG, "Received RFBridge Code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
@@ -59,9 +59,8 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       break;
   }
 
-  if (byte == RF_CODE_STOP &&
-      action != RF_CODE_ACK)
-      this->ack_();
+  if (byte == RF_CODE_STOP && action != RF_CODE_ACK)
+    this->ack_();
 
   // return false to reset buffer
   return false;
