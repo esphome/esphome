@@ -1,13 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
-from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY, CONF_TRIGGER_ID
+from esphome.const import CONF_ID, UNIT_EMPTY, ICON_EMPTY, CONF_TRIGGER_ID, CONF_SERVICE_UUID
 from .. import ble_client_ns
 from esphome import automation
 
 DEPENDENCIES = ['ble_client']
 
-CONF_SERVICE_UUID = 'service_uuid'
 CONF_CHAR_UUID = 'char_uuid'
 CONF_DESCR_UUID = 'descr_uuid'
 

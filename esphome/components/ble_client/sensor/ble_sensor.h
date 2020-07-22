@@ -17,7 +17,8 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
  public:
   void loop() override;
   void update() override;
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) override;
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
@@ -32,16 +33,14 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   void set_enable_notify(bool notify) { this->notify_ = notify; }
   uint16_t sensor_handle_;
 
-protected:
+ protected:
   uint32_t hash_base() override;
   bool notify_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   espbt::ESPBTUUID descr_uuid_;
-
 };
 
 }  // namespace ble_client
 }  // namespace esphome
 #endif
-

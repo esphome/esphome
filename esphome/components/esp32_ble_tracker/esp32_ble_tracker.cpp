@@ -48,9 +48,8 @@ void ESP32BLETracker::setup() {
 }
 
 void ESP32BLETracker::loop() {
-
   BLEEvent *ble_event = this->ble_events_.pop();
-  while(ble_event != nullptr) {
+  while (ble_event != nullptr) {
     if (ble_event->type_)
       this->real_gattc_event_handler(ble_event->gattc_event, ble_event->gattc_if, &ble_event->gattc_param);
     else
@@ -116,7 +115,6 @@ void ESP32BLETracker::loop() {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
   }
-
 }
 
 bool ESP32BLETracker::ble_setup() {
@@ -253,13 +251,14 @@ void ESP32BLETracker::gap_scan_result(const esp_ble_gap_cb_param_t::ble_scan_res
   }
 }
 
-
-void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                          esp_ble_gattc_cb_param_t *param) {
   BLEEvent *gattc_event = new BLEEvent(event, gattc_if, param);
   global_esp32_ble_tracker->ble_events_.push(gattc_event);
 }
 
-void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
+void ESP32BLETracker::real_gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                               esp_ble_gattc_cb_param_t *param) {
   for (auto *client : global_esp32_ble_tracker->clients_) {
     client->gattc_event_handler(event, gattc_if, param);
   }

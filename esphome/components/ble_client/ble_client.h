@@ -24,14 +24,15 @@ class BLECharacteristic;
 
 class BLEClientNode {
  public:
-  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) = 0;
+  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                   esp_ble_gattc_cb_param_t *param) = 0;
   virtual void loop() = 0;
   void set_address(uint64_t address) { address_ = address; }
   uint64_t address_;
   espbt::ESPBTClient *client_;
 
   void set_ble_client_parent(BLEClient *parent) { this->parent_ = parent; }
-  
+
  protected:
   BLEClient *parent_;
 };
@@ -92,8 +93,8 @@ class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
     this->nodes_.push_back(node);
   }
 
-  BLEService* get_service(espbt::ESPBTUUID uuid);
-  BLEService* get_service(uint16_t uuid);
+  BLEService *get_service(espbt::ESPBTUUID uuid);
+  BLEService *get_service(uint16_t uuid);
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr);
   BLECharacteristic *get_characteristic(uint16_t service, uint16_t chr);
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID service, espbt::ESPBTUUID chr, espbt::ESPBTUUID descr);
@@ -112,7 +113,7 @@ class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
  protected:
   std::vector<BLEClientNode *> nodes_;
   std::vector<BLEService *> services_;
-  
+
   uint32_t hash_base() override;
 };
 

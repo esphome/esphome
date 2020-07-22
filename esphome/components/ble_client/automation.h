@@ -27,7 +27,7 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
-}
-}
+}  // namespace ble_client
+}  // namespace esphome
 
 #endif

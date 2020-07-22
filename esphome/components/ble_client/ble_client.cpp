@@ -11,9 +11,7 @@ namespace ble_client {
 
 static const char *TAG = "ble_client";
 
-BLEClient::BLEClient() {
-  this->state_ = espbt::ClientState::Idle;
-}
+BLEClient::BLEClient() { this->state_ = espbt::ClientState::Idle; }
 
 void BLEClient::setup() {
   auto ret = esp_ble_gattc_app_register(this->app_id_);
@@ -33,12 +31,14 @@ void BLEClient::loop() {
 
 void BLEClient::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Client:");
-  ESP_LOGCONFIG(TAG, "  Address: %s",this->address_str().c_str());
+  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_str().c_str());
 }
 
 bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_) return false;
-  if (this->state_ != espbt::ClientState::Idle) return false;
+  if (device.address_uint64() != this->address_)
+    return false;
+  if (this->state_ != espbt::ClientState::Idle)
+    return false;
 
   ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
   this->state_ = espbt::ClientState::Discovered;
@@ -55,10 +55,10 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
 
 std::string BLEClient::address_str() const {
   char buf[20];
-  sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
-    (uint8_t)(this->address_ >> 40) & 0xff, (uint8_t)(this->address_ >> 32) & 0xff,
-    (uint8_t)(this->address_ >> 24) & 0xff, (uint8_t)(this->address_ >> 16) & 0xff,
-    (uint8_t)(this->address_ >> 8) & 0xff, (uint8_t)(this->address_ >> 0) & 0xff);
+  sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x", (uint8_t)(this->address_ >> 40) & 0xff,
+          (uint8_t)(this->address_ >> 32) & 0xff, (uint8_t)(this->address_ >> 24) & 0xff,
+          (uint8_t)(this->address_ >> 16) & 0xff, (uint8_t)(this->address_ >> 8) & 0xff,
+          (uint8_t)(this->address_ >> 0) & 0xff);
   std::string ret;
   ret = buf;
   return ret;
@@ -75,11 +75,14 @@ void BLEClient::connect() {
   }
 }
 
-void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param) {
-  if (event == ESP_GATTC_REG_EVT && this->app_id_ != param->reg.app_id) return;
-  if (event != ESP_GATTC_REG_EVT && gattc_if != ESP_GATT_IF_NONE && gattc_if != this->gattc_if_) return;
+void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                    esp_ble_gattc_cb_param_t *param) {
+  if (event == ESP_GATTC_REG_EVT && this->app_id_ != param->reg.app_id)
+    return;
+  if (event != ESP_GATTC_REG_EVT && gattc_if != ESP_GATT_IF_NONE && gattc_if != this->gattc_if_)
+    return;
 
-  switch(event) {
+  switch (event) {
     case ESP_GATTC_REG_EVT: {
       if (param->reg.status == ESP_GATT_OK) {
         ESP_LOGI(TAG, "gattc registered app id %d", this->app_id_);
@@ -104,7 +107,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
-      if (param->cfg_mtu.status!= ESP_GATT_OK) {
+      if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
         this->state_ = espbt::ClientState::Idle;
         break;
@@ -149,15 +152,15 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         ESP_LOGW(TAG, "No descriptor found for notify of handle 0x%x", param->reg_for_notify.handle);
         break;
       }
-      if (descr->uuid_.get_uuid().len != ESP_UUID_LEN_16 || descr->uuid_.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
-        ESP_LOGW(TAG, "Handle 0x%x (uuid %s) is not a client config char uuid", param->reg_for_notify.handle, descr->uuid_.to_string().c_str());
+      if (descr->uuid_.get_uuid().len != ESP_UUID_LEN_16 ||
+          descr->uuid_.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
+        ESP_LOGW(TAG, "Handle 0x%x (uuid %s) is not a client config char uuid", param->reg_for_notify.handle,
+                 descr->uuid_.to_string().c_str());
         break;
       }
       uint8_t notify_en = 1;
-      auto status = esp_ble_gattc_write_char_descr(
-        this->gattc_if_, this->conn_id_,
-        descr->handle_, sizeof(notify_en), &notify_en,
-        ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+      auto status = esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle_, sizeof(notify_en),
+                                                   &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGE(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
       }
@@ -180,30 +183,32 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
   if (length == 0)
     return 0;
   if (length == 1)
-    return (float)((uint8_t)value[0]);
+    return (float) ((uint8_t) value[0]);
 
-  switch(value[0]) {
-    case 0x1: // boolean.
-    case 0x2: // 2bit.
-    case 0x3: // nibble.
-    case 0x4: // uint8.
-      return (float)((uint8_t)value[1]);
-    case 0x5: // uint12.
-    case 0x6: // uint16.
-      return (float)((uint16_t)(value[1] << 8) + (uint16_t)value[2]);
-    case 0x7: // uint24.
-      return (float)((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
-    case 0x8: // uint32.
-      return (float)((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) + (uint32_t)(value[4]));
-    case 0xC: // int8.
-      return (float)((int8_t)value[1]);
-    case 0xD: // int12.
-    case 0xE: // int16.
-      return (float)((int16_t)(value[1] << 8) + (int16_t)value[2]);
-    case 0xF: // int24.
-      return (float)((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
-    case 0x10: // int32.
-      return (float)((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) + (int32_t)(value[4]));
+  switch (value[0]) {
+    case 0x1:  // boolean.
+    case 0x2:  // 2bit.
+    case 0x3:  // nibble.
+    case 0x4:  // uint8.
+      return (float) ((uint8_t) value[1]);
+    case 0x5:  // uint12.
+    case 0x6:  // uint16.
+      return (float) ((uint16_t)(value[1] << 8) + (uint16_t) value[2]);
+    case 0x7:  // uint24.
+      return (float) ((uint32_t)(value[1] << 16) + (uint32_t)(value[2] << 8) + (uint32_t)(value[3]));
+    case 0x8:  // uint32.
+      return (float) ((uint32_t)(value[1] << 24) + (uint32_t)(value[2] << 16) + (uint32_t)(value[3] << 8) +
+                      (uint32_t)(value[4]));
+    case 0xC:  // int8.
+      return (float) ((int8_t) value[1]);
+    case 0xD:  // int12.
+    case 0xE:  // int16.
+      return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+    case 0xF:  // int24.
+      return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+    case 0x10:  // int32.
+      return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
+                      (int32_t)(value[4]));
   }
   ESP_LOGE(TAG, "Cannot parse characteristic value of type 0x%x", value[0]);
   return NAN;
@@ -216,9 +221,7 @@ BLEService *BLEClient::get_service(espbt::ESPBTUUID uuid) {
   return nullptr;
 }
 
-BLEService *BLEClient::get_service(uint16_t uuid) {
-  return this->get_service(espbt::ESPBTUUID::from_uint16(uuid));
-}
+BLEService *BLEClient::get_service(uint16_t uuid) { return this->get_service(espbt::ESPBTUUID::from_uint16(uuid)); }
 
 BLECharacteristic *BLEClient::get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr) {
   auto svc = this->get_service(service);
@@ -263,7 +266,8 @@ BLEDescriptor *BLEClient::get_descriptor(espbt::ESPBTUUID service, espbt::ESPBTU
 }
 
 BLEDescriptor *BLEClient::get_descriptor(uint16_t service, uint16_t chr, uint16_t descr) {
-  return this->get_descriptor(espbt::ESPBTUUID::from_uint16(service), espbt::ESPBTUUID::from_uint16(chr), espbt::ESPBTUUID::from_uint16(descr));
+  return this->get_descriptor(espbt::ESPBTUUID::from_uint16(service), espbt::ESPBTUUID::from_uint16(chr),
+                              espbt::ESPBTUUID::from_uint16(descr));
 }
 
 BLEService::~BLEService() {
@@ -277,10 +281,9 @@ void BLEService::parse_characteristics() {
 
   while (true) {
     uint16_t count = 1;
-    esp_gatt_status_t status = esp_ble_gattc_get_all_char(
-      this->client_->gattc_if_, this->client_->conn_id_,
-      this->start_handle_, this->end_handle_,
-      &result, &count, offset);
+    esp_gatt_status_t status =
+        esp_ble_gattc_get_all_char(this->client_->gattc_if_, this->client_->conn_id_, this->start_handle_,
+                                   this->end_handle_, &result, &count, offset);
     if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
       break;
     }
@@ -298,7 +301,8 @@ void BLEService::parse_characteristics() {
     bChar->handle_ = result.char_handle;
     bChar->service_ = this;
     this->characteristics_.push_back(bChar);
-    ESP_LOGI(TAG, " characteristic %s, handle 0x%x, properties 0x%x", bChar->uuid_.to_string().c_str(), bChar->handle_, bChar->properties_);
+    ESP_LOGI(TAG, " characteristic %s, handle 0x%x, properties 0x%x", bChar->uuid_.to_string().c_str(), bChar->handle_,
+             bChar->properties_);
     bChar->parse_descriptors();
     offset++;
   }
@@ -316,10 +320,7 @@ void BLECharacteristic::parse_descriptors() {
   while (true) {
     uint16_t count = 1;
     esp_gatt_status_t status = esp_ble_gattc_get_all_descr(
-      this->service_->client_->gattc_if_,
-      this->service_->client_->conn_id_,
-      this->handle_,
-      &result, &count, offset);
+        this->service_->client_->gattc_if_, this->service_->client_->conn_id_, this->handle_, &result, &count, offset);
     if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
       break;
     }
@@ -339,7 +340,6 @@ void BLECharacteristic::parse_descriptors() {
     ESP_LOGI(TAG, "   descriptor %s, handle 0x%x", bDesc->uuid_.to_string().c_str(), bDesc->handle_);
     offset++;
   }
-
 }
 
 BLEDescriptor *BLECharacteristic::get_descriptor(espbt::ESPBTUUID uuid) {
@@ -352,7 +352,7 @@ BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(uuid));
 }
 
-} // namespace ble_client
-} // namespece esphome
+}  // namespace ble_client
+}  // namespace esphome
 
 #endif
