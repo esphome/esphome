@@ -12,20 +12,23 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
-#define SKIP_CHAR_OR_SPACE(p, char) \
-  while (*p == char || *p == ' ') \
-    p++;
-#define GET_INTEGER(p, var) \
-  var = 0; \
-  while (isdigit(*p)) { \
-    var = (var * 10) + (*p++ - '0'); \
+inline static void skip_space_or_char(std::string::const_iterator& it, char c) {
+  while (*it == c || *it == ' ')
+    it++;
+}
+
+inline static uint8_t get_integer(std::string::const_iterator& it) {
+  uint8_t ret = 0;
+  while (isdigit(*it)) {
+    ret = (ret * 10) + (*it++ - '0');
   }
+  return ret;
+}
 
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
 void Rtttl::play(std::string rtttl) {
-  // Absolutely no error checking in here
-  this->rtttl_ = rtttl;
+  this->rtttl_ = std::move(rtttl);
 
   ESP_LOGD(TAG, "Playing song %s", rtttl_.c_str());
 
@@ -34,7 +37,7 @@ void Rtttl::play(std::string rtttl) {
   this->default_duration_ = 4;
   this->default_octave_ = 6;
   int bpm = 63;
-  int num;
+  uint8_t num;
 
   // format: d=N,o=N,b=NNN:
   // find the start (skip name, etc)
@@ -43,36 +46,36 @@ void Rtttl::play(std::string rtttl) {
   while (*p_ != ':')
     p_++;
 
-  SKIP_CHAR_OR_SPACE(p_, ':')
+  skip_space_or_char(p_, ':');
 
   // get default duration
   if (*p_ == 'd') {
     p_++;
     p_++;  // skip "d="
-    GET_INTEGER(p_, num)
+    num = get_integer(p_);
     if (num > 0)
       default_duration_ = num;
-    SKIP_CHAR_OR_SPACE(p_, ',')
+    skip_space_or_char(p_, ',');
   }
 
   // get default octave
   if (*p_ == 'o') {
     p_++;
     p_++;  // skip "o="
-    GET_INTEGER(p_, num)
+    num = get_integer(p_);
     if (num >= 3 && num <= 7)
       default_octave_ = num;
-    SKIP_CHAR_OR_SPACE(p_, ',')
+    skip_space_or_char(p_, ',');
   }
 
   // get BPM
   if (*p_ == 'b') {
     p_++;
     p_++;  // skip "b="
-    GET_INTEGER(p_, num)
+    num = get_integer(p_);
     if (num != 0)
       bpm = num;
-    SKIP_CHAR_OR_SPACE(p_, ':')
+    skip_space_or_char(p_, ':');
   }
 
   // BPM usually expresses the number of quarter notes per minute
@@ -96,9 +99,7 @@ void Rtttl::loop() {
   }
 
   // first, get note duration, if available
-  uint8_t num;
-  GET_INTEGER(p_, num)
-
+  uint8_t num = get_integer(p_);
   uint32_t duration;
 
   if (num)
@@ -150,13 +151,12 @@ void Rtttl::loop() {
   }
 
   // now, get scale
-  uint8_t scale;
-  GET_INTEGER(p_, scale)
+  uint8_t scale = get_integer(p_);
   if (!scale)
     scale = default_octave_;
 
   // skip comma for next note (or we may be at the end)
-  SKIP_CHAR_OR_SPACE(p_, ',')
+  skip_space_or_char(p_, ',');
 
   // Now play the note
   if (note) {
