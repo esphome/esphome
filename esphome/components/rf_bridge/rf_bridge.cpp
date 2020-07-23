@@ -38,14 +38,14 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       break;
     case RF_CODE_LEARN_OK:
     case RF_CODE_RFIN:
-      if (at < RF_MESSAGE_SIZE)
+      if (at < RF_MESSAGE_SIZE + 2)
         return true;
 
       RFBridgeData data;
-      data.sync = (raw[1] << 8) | raw[2];
-      data.low = (raw[3] << 8) | raw[4];
-      data.high = (raw[5] << 8) | raw[6];
-      data.code = (raw[7] << 16) | (raw[8] << 8) | raw[9];
+      data.sync = (raw[2] << 8) | raw[3];
+      data.low = (raw[4] << 8) | raw[5];
+      data.high = (raw[6] << 8) | raw[7];
+      data.code = (raw[8] << 16) | (raw[9] << 8) | raw[10];
 
       if (action == RF_CODE_LEARN_OK)
         ESP_LOGD(TAG, "Learning success");
