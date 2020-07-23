@@ -23,7 +23,6 @@ class UnixSocketImpl : public TCPClient {
   std::string get_host() override;
   bool connect(IPAddress ip, uint16_t port) override;
   size_t available_for_write() override;
-  void skip(size_t size) override;
   void reserve_at_least(size_t size) override;
   void ensure_capacity(size_t size) override;
   IPAddress get_remote_address() override;

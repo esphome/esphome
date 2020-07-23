@@ -16,10 +16,9 @@ class ESP8266WiFiClientImpl : public TCPClient {
   ESP8266WiFiClientImpl() = default;
   ~ESP8266WiFiClientImpl() override;
   size_t available() override;
-  void read(uint8_t *buffer, size_t size) override;
-  void skip(size_t size) override;
-  void write(const uint8_t *buffer, size_t size) override;
-  void flush() override;
+  bool read(uint8_t *buffer, size_t size) override;
+  bool write(const uint8_t *buffer, size_t size) override;
+  bool flush() override;
   bool connect(IPAddress ip, uint16_t port) override;
   bool connect(const std::string &host, uint16_t port) override;
   void close(bool force) override;
@@ -48,7 +47,7 @@ class ESP8266WiFiClientImpl : public TCPClient {
 
   bool initialized_{true};
   WiFiClient client_;
-  VectorRingBuffer<uint8_t> reserve_buffer_;
+  RingBuffer reserve_buffer_;
   std::string host_;
 };
 

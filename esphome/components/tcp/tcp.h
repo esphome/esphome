@@ -28,46 +28,61 @@ class ReadableStream {
    * Note: You are required to call available() first to check if the amount of bytes to read
    * are readily available!
    *
-   * As long as size < available, this function is guaranteed to work.
-   *
    * @param buffer The buffer to read data into, must not be null.
    * @param size The number of bytes to read.
+   * @return True if the operation was successful. If false, there was an error and the stream
+   *   should be closed.
    */
-  virtual void read(uint8_t *buffer, size_t size) = 0;
-  virtual void skip(size_t size) = 0;
+  virtual bool read(uint8_t *buffer, size_t size) = 0;
+  /// Check if the stream is currently readable (does not check if data is available).
   virtual bool is_readable() = 0;
 
+  /// Read into a std::array object with a template function.
   template<size_t N> std::array<uint8_t, N> read_array() {
     std::array<uint8_t, N> res;
     this->read(res.data(), N);
     return res;
   }
-  uint8_t read_byte() {
-    uint8_t ret;
-    this->read(&ret, 1);
-    return ret;
-  }
 };
 
+/** A writable stream.
+ *
+ * All writable streams are buffered.
+ */
 class WritableStream {
  public:
-  virtual void write(const uint8_t *buffer, size_t size) = 0;
+  /** Write `size` bytes from `buffer` to the stream.
+   *
+   * Note: The data may be buffered internally.
+   *
+   * @return If the operation was successful. If false, there was an unrecoverable error and the
+   *   stream should be closed.
+   */
+  virtual bool write(const uint8_t *buffer, size_t size) = 0;
   /** Flushes all data in the output buffer and forces any buffered output to be written out.
    *
    * Note that this method will block if the number of buffered bytes is greater than zero.
+   *
+   * Note: This does not guarantee the remote actually received the data, only that the data
+   * has been successfully passed on to the low-level stack.
+   *
+   * @return If the operation was successful.
    */
-  virtual void flush() = 0;
+  virtual bool flush() = 0;
+  /// Return if the stream is in a state where data can be written to it.
   virtual bool is_writable() = 0;
 
-  void write_byte(uint8_t data) { this->write(&data, 1); }
-  void write_str(const char *str) { this->write(reinterpret_cast<const uint8_t *>(str), strlen(str)); }
-  void write_str(const std::string &str) { this->write(reinterpret_cast<const uint8_t *>(str.data()), str.size()); }
-  void write_vector(const std::vector<uint8_t> &data) { this->write(data.data(), data.size()); }
-  template<size_t N> void write_array(const std::array<uint8_t, N> &data) { this->write(data.data(), data.size()); }
-};
+  /// Write a single byte to the stream.
+  bool write_byte(uint8_t data) { return this->write(&data, 1); }
+  /// Write a string to the stream.
+  bool write_str(const char *str) { return this->write(reinterpret_cast<const uint8_t *>(str), strlen(str)); }
+  /// Write a string to the stream.
+  bool write_str(const std::string &str) { return this->write(reinterpret_cast<const uint8_t *>(str.data()), str.size()); }
+  /// Write a vector of data to the stream
+  bool write_vector(const std::vector<uint8_t> &data) { return this->write(data.data(), data.size()); }
+  template<size_t N>
+  bool write_array(const std::array<uint8_t, N> &data) { return this->write(data.data(), data.size()); }
 
-class BufferedWritableStream : public WritableStream {
- public:
   /** Check how many bytes this stream is currently able to write.
    *
    * It is guaranteed that any call to write_* with at most the number of bytes returned
@@ -98,7 +113,7 @@ class BufferedWritableStream : public WritableStream {
   virtual void ensure_capacity(size_t size) = 0;
 };
 
-class Connection : public ReadableStream, public BufferedWritableStream {
+class Connection : public ReadableStream, public WritableStream {
  public:
   virtual ~Connection() = default;
 
@@ -170,6 +185,8 @@ class TCPSocket : public Connection {
   bool is_closed() override { return this->state() == STATE_CLOSED; }
 };
 
+const char *socket_state_to_string(TCPSocket::State state);
+
 class TCPClient : public TCPSocket {
  public:
   virtual bool connect(IPAddress ip, uint16_t port) = 0;
@@ -188,26 +205,6 @@ class TCPServer {
 };
 
 std::unique_ptr<TCPServer> make_server();
-
-class SSLTCPSocket : public TCPSocket {
- public:
-  /// Set this SSL socket to accept *any* certificate. Note: VERY INSECURE!
-  virtual void set_insecure() = 0;
-  /** Set this SSL socket to match with a SHA1 fingerprint of the certificate.
-   *
-   * This is not very secure but at least better than accepting any connection.
-   */
-  virtual void set_fingerprint(const uint8_t fingerprint[20]) = 0;
-  /** Set this SSL socket to match against a X509 certificate authority certificate (root CA).
-   *
-   * For example, for outbound services this might be digicert's CA key, or for a local network
-   * it might be the certificate of the self-signed certificate authority (or any lower element
-   * in the X509 chain)
-   *
-   * @param ca_cert A C-style string to the X509 certificate.
-   */
-  virtual void set_certificate_authority(const char *ca_cert) = 0;
-};
 
 }  // namespace tcp
 }  // namespace esphome

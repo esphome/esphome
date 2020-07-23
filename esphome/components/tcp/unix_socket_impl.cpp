@@ -4,7 +4,21 @@
 #include "unix_socket_impl.h"
 #include "esphome/core/log.h"
 
+#ifdef ARDUINO_ARCH_ESP32
 #include <lwip/sockets.h>
+#define connect lwip_connect_r
+#define close lwip_close_r
+#define recv lwip_recv_r
+#define ioctl lwip_ioctl_r
+#define send lwip_send_r
+#define socket lwip_socket
+#define bind lwip_bind_r
+#define listen lwip_listen
+#define accept lwip_accept_r
+#else
+#include <sys/types.h>
+#include <sys/socket.h>
+#endif
 
 namespace esphome {
 namespace tcp {
@@ -37,7 +51,7 @@ bool UnixSocketImpl::connect_(IPAddress ip, uint16_t port) {
   memcpy(&server_address.sin_addr.s_addr, &ip_addr32, sizeof(ip_addr32));
   server_address.sin_port = htons(port);
 
-  int res = lwip_connect_r(this->fd_, reinterpret_cast<sockaddr *>(&server_address), sizeof(server_address));
+  int res = connect(this->fd_, reinterpret_cast<sockaddr *>(&server_address), sizeof(server_address));
   if (res < 0 && errno != EINPROGRESS) {
     SOCKET_LOG("connect(%d) failed: %s", this->fd_, strerror(errno));
     this->abort_();
@@ -52,7 +66,7 @@ void UnixSocketImpl::abort_() {
   if (this->fd_ < 0)
     return;
 
-  lwip_close_r(this->fd_);
+  close(this->fd_);
   this->is_connecting_ = false;
   this->is_connected_ = false;
   this->has_aborted_ = true;
@@ -124,7 +138,7 @@ void UnixSocketImpl::check_disconnected_() {
   if (!this->is_connected_)
     return;
   uint8_t dummy;
-  lwip_recv_r(this->fd_, &dummy, 0, 0);
+  recv(this->fd_, &dummy, 0, 0);
   switch (errno) {
     case EWOULDBLOCK:
     case ENOENT:
@@ -141,7 +155,7 @@ void UnixSocketImpl::check_disconnected_() {
 }
 size_t UnixSocketImpl::available() {
   int count;
-  int res = lwip_ioctl_r(this->fd_, FIONREAD, &count);
+  int res = ioctl(this->fd_, FIONREAD, &count);
   if (res < 0) {
     SOCKET_LOG("ioctl(FIONREAD) failed: %d %s", res, strerror(res));
     this->abort_();
@@ -211,7 +225,7 @@ void UnixSocketImpl::flush() {
   // not implemented
 }
 void UnixSocketImpl::close(bool force) {
-  lwip_close_r(this->fd_);
+  close(this->fd_);
 }
 tcp::TCPSocket::State UnixSocketImpl::state() {
   if (this->has_aborted_)
@@ -233,7 +247,7 @@ UnixSocketImpl::~UnixSocketImpl() {
   this->close(true);
 }
 size_t UnixSocketImpl::write_internal_(const uint8_t *buffer, size_t size) {
-  int ret = lwip_send_r(this->fd_, buffer, size, 0);
+  int ret = send(this->fd_, buffer, size, 0);
   if (ret != size) {
     this->available_for_write_ = 0;
     this->last_loop_ = millis();
@@ -274,11 +288,6 @@ bool UnixSocketImpl::can_read_() {
   int res = select(this->fd_ + 1, &read_set, nullptr, nullptr, &tv);
   return res == 1 && FD_ISSET(this->fd_, &read_set);
 }
-void UnixSocketImpl::skip(size_t size) {
-  for (int i = 0; i < size; i++) {
-    uint8_t dummy;
-    this->read(&dummy, 1);
-  }
 }
 void UnixSocketImpl::reserve_at_least(size_t size) {
   if (size <= TCP_SND_BUF)
@@ -344,7 +353,7 @@ UnixSocketImpl::UnixSocketImpl(int fd) {
 }
 
 bool UnixServerImpl::bind(uint16_t port) {
-  this->fd_ = lwip_socket(AF_INET, SOCK_STREAM, 0);
+  this->fd_ = (AF_INET, SOCK_STREAM, 0);
   if (this->fd_ < 0) {
     SOCKET_SERVER_LOG("socket() failed: %d %s", this->fd_, strerror(errno));
     return false;
@@ -353,13 +362,13 @@ bool UnixServerImpl::bind(uint16_t port) {
   server.sin_family = AF_INET;
   server.sin_addr.s_addr = INADDR_ANY;
   server.sin_port = htons(port);
-  int res = lwip_bind_r(this->fd_, reinterpret_cast<const sockaddr *>(&server), sizeof(server));
+  int res = bind(this->fd_, reinterpret_cast<const sockaddr *>(&server), sizeof(server));
   if (res < 0) {
     SOCKET_SERVER_LOG("bind() failed: %s", strerror(errno));
     return false;
   }
   const uint8_t max_clients = 4;
-  res = lwip_listen(this->fd_, max_clients);
+  res = listen(this->fd_, max_clients);
   if (res < 0) {
     SOCKET_SERVER_LOG("bind() failed: %s", strerror(errno));
     return false;
@@ -372,13 +381,13 @@ bool UnixServerImpl::bind(uint16_t port) {
 std::unique_ptr<TCPSocket> UnixServerImpl::accept() {
   sockaddr_in client{};
   int cs = sizeof(sockaddr_in);
-  int client_fd = lwip_accept_r(this->fd_, (sockaddr *) &client, (socklen_t *) &cs);
+  int client_fd = accept(this->fd_, (sockaddr *) &client, (socklen_t *) &cs);
   if (client_fd < 0)
     return std::unique_ptr<TCPSocket>();
   return std::unique_ptr<UnixSocketImpl>(new UnixSocketImpl(client_fd));
 }
 void UnixServerImpl::close(bool force) {
-  lwip_close_r(this->fd_);
+  close(this->fd_);
   this->fd_ = -1;
 }
 

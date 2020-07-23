@@ -76,17 +76,22 @@ void APIConnection::loop() {
 
   size_t avail = this->client_->available();
   if (avail != 0) {
-    // TODO: Custom allocator to presevent resize setting zeros
+    // TODO: only resize recv_buffer_ to a size we need to actually parse one frame.
     size_t old_size = this->recv_buffer_.size();
     this->recv_buffer_.resize(old_size + avail);
-    this->client_->read(&this->recv_buffer_[old_size], avail);
+    if (!this->client_->read(&this->recv_buffer_[old_size], avail)) {
+      ESP_LOGW(TAG, "'%s' read failed!", this->client_info_.c_str());
+      this->disconnect_client();
+      return;
+    }
   }
 
   if (this->next_close_) {
     this->disconnect_client();
     return;
   }
-  this->client_->loop();
+  if (this->client_->is_connected())
+    this->client_->loop();
 
   if (!network_is_connected()) {
     // when network is disconnected force disconnect immediately
@@ -564,12 +569,14 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
   // string message = 3;
   buffer.encode_string(3, line, strlen(line));
   // SubscribeLogsResponse - 29
-  bool success = this->send_buffer(buffer, 29);
+  bool success = this->send_buffer(buffer, 29, false);
   if (!success) {
+    // Send failed, try notifying the remote of a missed line
+    // This message is shorted and more likely to fit.
     buffer = this->create_buffer();
     // bool send_failed = 4;
     buffer.encode_bool(4, true);
-    return this->send_buffer(buffer, 29);
+    return this->send_buffer(buffer, 29, false);
   } else {
     return true;
   }
@@ -579,7 +586,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->client_->get_host() + ")";
   ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
 
-  HelloResponse resp;
+  HelloResponse resp{};
   resp.api_version_major = 1;
   resp.api_version_minor = 3;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
@@ -589,8 +596,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 ConnectResponse APIConnection::connect(const ConnectRequest &msg) {
   bool correct = this->parent_->check_password(msg.password);
 
-  ConnectResponse resp;
-  // bool invalid_password = 1;
+  ConnectResponse resp{};
   resp.invalid_password = !correct;
   if (correct) {
     ESP_LOGD(TAG, "Client '%s' connected successfully!", this->client_info_.c_str());
@@ -645,7 +651,7 @@ void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistant
     }
   }
 }
-bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) {
+bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type, bool reserve) {
   if (this->remove_)
     return false;
 
@@ -655,13 +661,17 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
   ProtoVarInt(message_type).encode(header);
 
   size_t needed_space = buffer.get_buffer()->size() + header.size();
+  if (!reserve && this->client_->available_for_write() < needed_space) {
+    // Not an important message and don't reserve any space
+    return false;
+  }
   this->client_->reserve_at_least(needed_space);
 
   if (needed_space > this->client_->available_for_write()) {
     delay(0);
     if (needed_space > this->client_->available_for_write()) {
-      // SubscribeLogsResponse
       if (message_type != 29) {
+        // only print warning when not a log message (would recurse)
         ESP_LOGV(TAG, "Cannot send message because of TCP buffer space");
       }
       delay(0);

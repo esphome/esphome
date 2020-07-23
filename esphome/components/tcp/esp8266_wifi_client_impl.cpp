@@ -35,17 +35,11 @@ void ESP8266WiFiClientImpl::assert_not_closed_() {
     ESP_LOGW(TAG, "Tried to operate on a closed socket!");
   }
 }
-void ESP8266WiFiClientImpl::read(uint8_t *buffer, size_t size) {
+bool ESP8266WiFiClientImpl::read(uint8_t *buffer, size_t size) {
   this->assert_read_(size);
-  this->client_.read(buffer, size);
+  return this->client_.read(buffer, size) == size;
 }
-void ESP8266WiFiClientImpl::skip(size_t size) {
-  this->assert_read_(size);
-  // base has no skip function, and read() has no checks for nullptr, so use read() in a loop.
-  for (size_t i = 0; i < size; i++)
-    this->client_.read();
-}
-void ESP8266WiFiClientImpl::write(const uint8_t *buffer, size_t size) {
+bool ESP8266WiFiClientImpl::write(const uint8_t *buffer, size_t size) {
   this->assert_not_closed_();
   this->drain_reserve_buffer_();
 
@@ -79,9 +73,11 @@ void ESP8266WiFiClientImpl::drain_reserve_buffer_() {
   }
 }
 void ESP8266WiFiClientImpl::write_internal_(const uint8_t *data, size_t len) { this->client_.write(data, len); }
-void ESP8266WiFiClientImpl::flush() {
+bool ESP8266WiFiClientImpl::flush() {
   this->assert_not_closed_();
   this->client_.flush();
+  // flush() does not return anything, so use is_writable as a proxy (not 100% accurate).
+  return this->is_writable();
 }
 bool ESP8266WiFiClientImpl::connect(IPAddress ip, uint16_t port) {
   // returns 0 if unsuccessful, 1 on success

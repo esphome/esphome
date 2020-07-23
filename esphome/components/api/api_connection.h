@@ -127,7 +127,10 @@ class APIConnection : public APIServerConnection {
     this->send_buffer_.clear();
     return {&this->send_buffer_};
   }
-  bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override;
+  bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) override {
+    return this->send_buffer(buffer, message_type, true);
+  }
+  bool send_buffer(ProtoWriteBuffer buffer, uint32_t message_type, bool reserve);
 
  protected:
   friend APIServer;

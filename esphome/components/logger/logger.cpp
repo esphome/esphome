@@ -103,6 +103,11 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   const char *msg = this->tx_buffer_ + offset;
   if (this->baud_rate_ > 0)
     this->hw_serial_->println(msg);
+
+  // Prevent code executed in log callbacks creating an infinite recursion
+  // if the callback code logs something itself.
+  if (this->is_in_recursion_)
+    return;
 #ifdef ARDUINO_ARCH_ESP32
   // Suppress network-logging if memory constrained, but still log to serial
   // ports. In some configurations (eg BLE enabled) there may be some transient
@@ -110,10 +115,12 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   // here usually allows the stack to recover instead.
   // See issue #1234 for analysis.
   if (xPortGetFreeHeapSize() > 2048)
-    this->log_callback_.call(level, tag, msg);
-#else
-  this->log_callback_.call(level, tag, msg);
+    return;
 #endif
+
+  this->is_in_recursion_ = true;
+  this->log_callback_.call(level, tag, msg);
+  this->is_in_recursion_ = false;
 }
 
 Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)

@@ -7,6 +7,7 @@ IMPLEMENTATIONS = [
     'LWIP_RAW_TCP',
     'ESP32_WIFI_CLIENT',
     'UNIX_SOCKET',
+    'ASYNC_TCP',
 ]
 
 CONFIG_SCHEMA = cv.Schema({

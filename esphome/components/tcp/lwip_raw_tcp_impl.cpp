@@ -23,7 +23,7 @@ namespace tcp {
 static const char *TAG = "lwip_tcp";
 static const char *TAG_SERVER = "lwip_server";
 
-#define SOCKET_LOGVV(format, ...) ESP_LOGV(TAG, "%s: " format, this->host_.c_str(), ##__VA_ARGS__)
+#define SOCKET_LOGVV(format, ...) ESP_LOGVV(TAG, "%s: " format, this->host_.c_str(), ##__VA_ARGS__)
 #define SOCKET_LOGV(format, ...) ESP_LOGV(TAG, "%s: " format, this->host_.c_str(), ##__VA_ARGS__)
 #define SOCKET_LOG(format, ...) ESP_LOGD(TAG, "%s: " format, this->host_.c_str(), ##__VA_ARGS__)
 #define SOCKET_SERVER_LOG(format, ...) ESP_LOGD(TAG_SERVER, format, ##__VA_ARGS__)
@@ -36,6 +36,8 @@ void pbuf_free_chain(struct pbuf *pb) {
     pb = next;
   }
 }
+
+// Connect to the remote ip, port tuple.
 bool LWIPRawTCPImpl::connect(IPAddress ip, uint16_t port) {
   this->host_ = ip.toString().c_str();
   this->port_ = port;
@@ -49,6 +51,7 @@ bool LWIPRawTCPImpl::connect_(IPAddress ip, uint16_t port) {
     return false;
   }
 
+  // Set the local port for the outbound connection
   const uint16_t min_local_port = 32768;
   const uint16_t max_local_port = 61000;
   uint32_t rand = random_uint32();
@@ -58,8 +61,11 @@ bool LWIPRawTCPImpl::connect_(IPAddress ip, uint16_t port) {
   tcp_setprio(this->pcb_, TCP_PRIO_MIN);
   this->setup_callbacks_();
 
+  // convert IP address to LWIP format
   ip_addr_t ipa;
   ipa.addr = ip;
+
+  // Call tcp_connect, this call is asynchronous
   err_t err = tcp_connect(this->pcb_, &ipa, port, &on_tcp_connected_static);
   if (err != ERR_OK) {
     SOCKET_LOG("tcp_connect failed: %d", errno);
@@ -67,7 +73,6 @@ bool LWIPRawTCPImpl::connect_(IPAddress ip, uint16_t port) {
   }
   this->pending_connect_ = true;
   this->initialized_ = false;
-  this->connect_started_ = millis();
 
   // Note: is not fully connected yet. Wait for state is_connected()
   return true;
@@ -77,6 +82,7 @@ void LWIPRawTCPImpl::abort() {
   if (this->pcb_ == nullptr)
     return;
   if (this->rx_buffer_ != nullptr) {
+    // Clear and free RX buffer
     tcp_recved(this->pcb_, this->rx_buffer_->tot_len);
     pbuf_free_chain(this->rx_buffer_);
     this->rx_buffer_ = nullptr;
@@ -85,6 +91,7 @@ void LWIPRawTCPImpl::abort() {
   this->remove_callbacks_();
   // "Aborts the connection by sending a RST (reset) segment to the remote host.
   // The pcb is deallocated. This function never fails."
+  // so no need to call tcp_close() afterwards
   tcp_abort(this->pcb_);
   this->pcb_ = nullptr;
 }
@@ -99,13 +106,23 @@ void LWIPRawTCPImpl::close(bool force) {
   }
 
   this->remove_callbacks_();
+  /* tcp_close:
+      "Closes the connection. The function may return ERR_MEM if no memory
+       was available for closing the connection. If so, the application
+       should wait and try again either by using the acknowledgment
+       callback or the polling functionality. If the close succeeds, the
+       function returns ERR_OK.""
+  */
   err_t err = tcp_close(this->pcb_);
   if (err != ERR_OK) {
+    // Close failed, instead of waiting we just deallocate forcefully with tcp_abort
     SOCKET_LOG("close() failed: %d", err);
     tcp_abort(this->pcb_);
   }
   this->pcb_ = nullptr;
 }
+
+// Set no-delay (NAGLE) on TCP buffer
 void LWIPRawTCPImpl::set_no_delay(bool no_delay) {
   if (this->pcb_ == nullptr)
     return;
@@ -116,6 +133,7 @@ void LWIPRawTCPImpl::set_no_delay(bool no_delay) {
     tcp_nagle_enable(this->pcb_);
   }
 }
+// Helper functions
 IPAddress LWIPRawTCPImpl::get_remote_address() {
   if (this->pcb_ == nullptr)
     return {};
@@ -136,7 +154,9 @@ uint16_t LWIPRawTCPImpl::get_local_port() {
     return 0;
   return this->pcb_->local_port;
 }
+
 size_t LWIPRawTCPImpl::available() {
+  // Check how many bytes of data are available to consume (read)
   if (this->rx_buffer_ == nullptr)
     return 0;
 
@@ -145,9 +165,9 @@ size_t LWIPRawTCPImpl::available() {
   // SOCKET_LOGVV("available() -> %u", available);
   return available;
 }
-void LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
+bool LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
   if (this->rx_buffer_ == nullptr)
-    return;
+    return size == 0;
 
   size_t available = this->available();
   if (size > available) {
@@ -162,7 +182,7 @@ void LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
       // Waiting for data, blocking call!
       if (!this->is_readable()) {
         SOCKET_LOG("read() Socket closed while reading blocking data!");
-        return;
+        return false;
       }
       yield();
     }
@@ -170,6 +190,8 @@ void LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
     assert(this->rx_buffer_ != nullptr);
     assert(this->rx_buffer_offset_ < this->rx_buffer_->len);
 
+    // Calculate number of bytes to copy (minimum from number of bytes in current chunk and
+    // number of bytes to read)
     const size_t chunk_left = this->rx_buffer_->len - this->rx_buffer_offset_;
     const size_t copy_size = std::min(chunk_left, to_read);
 
@@ -179,8 +201,9 @@ void LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
     }
     to_read -= copy_size;
 
-    // Notify lwip of new data
-    if (this->pcb_ != nullptr) {  // Socket may be closed already and we're reading remaining data
+    // Notify lwip of how much we consumed
+    if (this->pcb_ != nullptr) {
+      // Socket may be closed already and we're reading remaining data
       // SOCKET_LOGVV("  tcp_recved(%u)", copy_size);
       tcp_recved(this->pcb_, copy_size);
     }
@@ -208,6 +231,8 @@ void LWIPRawTCPImpl::read(uint8_t *destination_buffer, size_t size) {
       this->rx_buffer_offset_ += copy_size;
     }
   }
+
+  return true;
 }
 size_t LWIPRawTCPImpl::sendbuf_size() {
   if (this->pcb_ == nullptr)
@@ -215,9 +240,15 @@ size_t LWIPRawTCPImpl::sendbuf_size() {
   return tcp_sndbuf(this->pcb_);
 }
 size_t LWIPRawTCPImpl::available_for_write() { return this->sendbuf_size() + this->reserve_buffer_.capacity(); }
-void LWIPRawTCPImpl::write(const uint8_t *buffer, size_t size) {
-  if (buffer == nullptr || this->pcb_ == nullptr)
-    return;
+bool LWIPRawTCPImpl::write(const uint8_t *buffer, size_t size) {
+  if (buffer == nullptr) {
+    SOCKET_LOG("write() called with null buffer!");
+    return false;
+  }
+  if (this->pcb_ == nullptr) {
+    SOCKET_LOG("write() called on unintialized socket!");
+    return false;
+  }
 
   this->drain_reserve_buffer_();
   if (size > this->available_for_write()) {
@@ -233,7 +264,12 @@ void LWIPRawTCPImpl::write(const uint8_t *buffer, size_t size) {
     size_t sendbuf_size = this->sendbuf_size();
     size_t to_write = std::min(sendbuf_size, size);
     bool has_more = to_write != size;
-    this->write_internal_(buffer, to_write, has_more);
+    size_t written = this->write_internal_(buffer, to_write, !has_more);
+    if (written != to_write) {
+      // writing failed, overwrite to_write to instead put it in the reserve buffer
+      to_write = written;
+    }
+
     if (has_more) {
       // write rest in reserve buffer
       SOCKET_LOG("  reserve_buffer.push_back(%p, %u)", buffer + to_write, size - to_write);
@@ -244,9 +280,12 @@ void LWIPRawTCPImpl::write(const uint8_t *buffer, size_t size) {
     SOCKET_LOG("  reserve_buffer.push_back(%p, %u)", buffer, size);
     this->reserve_buffer_.push_back(buffer, size);
   }
+
+  return true;
 }
 void LWIPRawTCPImpl::setup_callbacks_() {
   SOCKET_LOGVV("setup_callbacks_(%p)", this->pcb_);
+  // argument for all callbacks will be pointer to this class
   tcp_arg(this->pcb_, this);
   tcp_recv(this->pcb_, &on_tcp_recv_static);
   tcp_sent(this->pcb_, &on_tcp_sent_static);
@@ -261,8 +300,9 @@ void LWIPRawTCPImpl::remove_callbacks_() {
   tcp_err(this->pcb_, nullptr);
   tcp_arg(this->pcb_, nullptr);
 }
-void LWIPRawTCPImpl::write_internal_(const uint8_t *buffer, size_t size, bool has_more) {
-  SOCKET_LOGVV("  write_internal_(%p, %u, %s)", buffer, size, YESNO(has_more));
+/// Internal function called to write `buffer` to the tcp layer.
+size_t LWIPRawTCPImpl::write_internal_(const uint8_t *buffer, size_t size, bool psh_flag) {
+  SOCKET_LOGVV("  write_internal_(%p, size=%u, PSH=%s)", buffer, size, YESNO(psh_flag));
   assert(this->pcb_ != nullptr);
   if (size == 0)
     return;
@@ -270,42 +310,82 @@ void LWIPRawTCPImpl::write_internal_(const uint8_t *buffer, size_t size, bool ha
   assert(size <= sendbuf);
   // SOCKET_LOGVV("  sendbuf: %u", sendbuf);
 
+  // Data should be copied to internal TCP buffer. It just complicates
+  // the code too much to keep track of what data has been ACKed already.
   uint8_t flags = TCP_WRITE_FLAG_COPY;
-  if (has_more) {
+  // - TCP_WRITE_FLAG_COPY: indicates whether the new memory should be allocated
+  // for the data to be copied into. If this flag is not given, no new memory
+  // should be allocated and the data should only be referenced by pointer. This
+  // also means that the memory behind dataptr must not change until the data is
+  // ACKed by the remote host
+
+  if (!psh_flag) {
     flags |= TCP_WRITE_FLAG_MORE;
+    // - TCP_WRITE_FLAG_MORE: indicates that more data follows. If this is omitted,
+    // the PSH flag is set in the last segment created by this call to tcp_write.
+    // If this flag is given, the PSH flag is not set.
   }
-  // TCP_WRITE_FLAG_COPY: "This also means that the memory behind dataptr must not
-  // change until the data is ACKed by the remote host" - https://www.nongnu.org/lwip/2_0_x/raw_api.html
+
 
   err_t err = tcp_write(this->pcb_, buffer, size, flags);
   if (err != ERR_OK) {
+    // Most likely ERR_MEM (but should not happen in practice because we check sndbuf size)
     SOCKET_LOG("tcp_write failed: %d", err);
-    return;
+    return 0;
   }
+
+  // tcp_output: "Find out what we can send and send it"
   err = tcp_output(this->pcb_);
   if (err != ERR_OK) {
+    // "Returns ERR_OK if data has been sent or nothing to send another err_t on error"
     SOCKET_LOG("tcp_output failed: %d", err);
-    return;
+    // data has already been written, use normal return
   }
+
+  return size;
 }
-void LWIPRawTCPImpl::drain_reserve_buffer_() {
+// We have a reserve buffer for data that could not fit in the TCP
+// sendbuffer anymore and was buffered.
+// This function checks if anything can be sent now, and if so sends it.
+// Returns whether the reserve buffer is empty.
+bool LWIPRawTCPImpl::drain_reserve_buffer_() {
   while (!this->reserve_buffer_.empty()) {
+    // Loop until sendbuffer is full
     size_t sendbuf_size = this->sendbuf_size();
     if (sendbuf_size == 0)
-      return;
+      return false;
     SOCKET_LOGVV("drain_reserve_buffer_ sendbuf=%u size=%u", sendbuf_size, this->reserve_buffer_.size());
-    auto pair = this->reserve_buffer_.pop_front_linear(sendbuf_size);
-    this->write_internal_(pair.first, pair.second, !this->reserve_buffer_.empty());
+    auto pair = this->reserve_buffer_.peek_front_linear(sendbuf_size);
+    size_t ret = this->write_internal_(pair.first, pair.second, !this->reserve_buffer_.empty());
+    this->reserve_buffer_.pop_front_linear(ret);
+    if (ret != pair.second) {
+      // Writing failed, stop draining.
+      return false;
+    }
   }
+  return true;
 }
 err_t LWIPRawTCPImpl::on_tcp_recv_(tcp_pcb *pcb, pbuf *packet_buffer, err_t err) {
+  // tcp_recv:
+  // The callback function will be passed a NULL pbuf to
+  // indicate that the remote host has closed the connection. If
+  // there are no errors and the callback function is to return
+  // ERR_OK, then it must free the pbuf. Otherwise, it must not
+  // free the pbuf so that lwIP core code can store it.
+  //
+  // If the callback function returns ERR_OK or ERR_ABRT it must have freed the pbuf,
+  // otherwise it must not have freed it.
+
   SOCKET_LOG_EVENT_LOOP("on_tcp_recv_(pcb=%p pb=%p err=%d)", pcb, packet_buffer, err);
   if (packet_buffer == nullptr) {
     // connection closed
     SOCKET_LOG_EVENT_LOOP("  -> connection closed!");
+
     this->pending_connect_ = false;
     this->pending_error_ = true;
     this->remove_callbacks_();
+
+    // pbuf is nullptr, nothing to free
 
     // If we return ERR_ABRT or ERR_OK, the packet buffer is now under our control
     // and we are responsible for freeing it.
@@ -313,19 +393,28 @@ err_t LWIPRawTCPImpl::on_tcp_recv_(tcp_pcb *pcb, pbuf *packet_buffer, err_t err)
     return ERR_ABRT;
   }
 
-  if (this->rx_buffer_) {
+  if (this->rx_buffer_ != nullptr) {
     SOCKET_LOG_EVENT_LOOP("  rx_buf(%d) += %d", this->rx_buffer_->tot_len, packet_buffer->tot_len);
+    // pbuf_cat: Concatenate two pbufs (each may be a pbuf chain) and take over the caller's reference of the tail pbuf.
+    //
+    // This means we don't need to call pbuf_free.
     pbuf_cat(this->rx_buffer_, packet_buffer);
   } else {
     SOCKET_LOG_EVENT_LOOP("  rx_buf(0) += %d", packet_buffer->tot_len);
     this->rx_buffer_ = packet_buffer;
   }
 
+  // TODO: lwIP docs say the pbuf should be freed when returning OK, but we don't do that here.
+  // ClientContext.h in Arduino framework also does that, but is it correct?
+
   return ERR_OK;
 }
 err_t LWIPRawTCPImpl::on_tcp_sent_(tcp_pcb *pcb, uint16_t len) {
-  // this->drain_reserve_buffer_();
   SOCKET_LOG_EVENT_LOOP("on_tcp_sent_(pcb=%p len=%u)", pcb, len);
+  // data has been acked, which means more space is available in the reserve buffer
+  // so now is a good time to output any data that we have in the reserve buffer.
+  if (this->is_writable())
+    this->drain_reserve_buffer_();
   return ERR_OK;
 }
 void LWIPRawTCPImpl::on_tcp_err_(err_t err) {
@@ -336,34 +425,36 @@ void LWIPRawTCPImpl::on_tcp_err_(err_t err) {
   tcp_err(this->pcb_, nullptr);
   tcp_arg(this->pcb_, nullptr);
   this->pcb_ = nullptr;
-  this->connect_started_ = false;
 }
 err_t LWIPRawTCPImpl::on_tcp_connected_(tcp_pcb *pcb, err_t err) {
   SOCKET_LOG_EVENT_LOOP("on_tcp_connected_(pcb=%p, err=%d)", pcb, err);
   assert(pcb == this->pcb_);
   this->pending_connect_ = false;
-  // this->drain_reserve_buffer_();
   return ERR_OK;
 }
-void LWIPRawTCPImpl::skip(size_t size) { this->read(nullptr, size); }
-void LWIPRawTCPImpl::flush() {
+bool LWIPRawTCPImpl::flush() {
   if (this->pcb_ == nullptr)
-    return;
+    return false;
 
   SOCKET_LOGVV("flush()");
   uint32_t start_time = millis();
   while (true) {
     uint32_t now = millis();
     if (now - start_time > 50)
-      return;
+      // wait a maximum of 50ms (could be done better)
+      return false;
 
     tcp_output(this->pcb_);
+    this->drain_reserve_buffer_();
     size_t sendbuf = this->sendbuf_size();
+    // This check appears to work and be used in other places as well
+    // (ClientContext in eps8266 Arduino).
     if (sendbuf == TCP_SND_BUF)
-      return;
+      return true;
   }
 }
 
+// Callback when looking up a host finishes
 void LWIPRawTCPImpl::on_dns_found_(const char *name, const ip_addr_t *ipaddr) {
   if (ipaddr == nullptr) {
     this->dns_resolved_error_ = true;
@@ -383,13 +474,18 @@ bool LWIPRawTCPImpl::connect(const std::string &host, uint16_t port) {
   this->host_ = host;
   this->port_ = port;
   ip_addr_t addr;
+
+  // look of host with DNS, if can't finish immediately, callback will be called later
+  // and ERR_INPROGRESS is returned.
   err_t err = dns_gethostbyname(host.c_str(), reinterpret_cast<ip_addr_t *>(&result),
                                 &on_dns_found_static_, this);
 
   if (err == ERR_OK) {
+    // lookup finished immediately
     result = addr.addr;
     return this->connect(result, port);
   } else if (err == ERR_INPROGRESS) {
+    // lookup will finish in future
     this->pending_dns_result_ = true;
     return true;
   } else {
@@ -410,12 +506,14 @@ void LWIPRawTCPImpl::reserve_at_least(size_t size) {
 }
 void LWIPRawTCPImpl::ensure_capacity(size_t size) {
   size_t avail = this->available_for_write();
-  if (size <= avail)
+  size_t sndbuf = this->sendbuf_size();
+  if (size <= avail || size <= sndbuf)
     return;
-  if (size - avail > this->reserve_buffer_.capacity()) {
+
+  if (size - sndbuf > this->reserve_buffer_.capacity()) {
     SOCKET_LOGVV("ensure_capacity(%u) avail=%u capacity=%u", size, avail, this->reserve_buffer_.capacity());
   }
-  this->reserve_buffer_.reserve(size - avail);
+  this->reserve_buffer_.reserve(size - sndbuf);
 }
 void LWIPRawTCPImpl::loop() {
   if (this->pending_error_) {
