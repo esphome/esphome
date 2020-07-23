@@ -156,7 +156,12 @@ void PulseCounterSensor::dump_config() {
 void PulseCounterSensor::update() {
   pulse_counter_t raw = this->storage_.read_raw_value();
 
+#ifdef ARDUINO_ARCH_ESP8266
   uint32_t now = this->storage_.last_pulse;
+#else
+// on the ESP32 we do not keep the last pulse time
+  uint32_t now = micros();
+#endif
   uint32_t cycle_duration = now - last_update_;
   last_update_ = now;
   if (cycle_duration == 0) {
