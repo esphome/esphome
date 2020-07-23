@@ -59,6 +59,8 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       break;
   }
 
+  ESP_LOGVV(TAG, "Parsed: 0x%02X", byte);
+
   if (byte == RF_CODE_STOP && action != RF_CODE_ACK)
     this->ack_();
 
@@ -77,6 +79,7 @@ void RFBridgeComponent::loop() {
     uint8_t byte;
     this->read_byte(&byte);
     if (this->parse_bridge_byte_(byte)) {
+      ESP_LOGVV(TAG, "Parsed: 0x%02X", byte);
       this->last_bridge_byte_ = now;
     } else {
       this->rx_buffer_.clear();
