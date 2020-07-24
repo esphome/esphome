@@ -128,48 +128,38 @@ void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
 void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
   if (obj->is_internal())
     return;
-  if (!isnan(obj->state)) {
-    // We have a valid value, output this value
-    stream->print(F("esphome_fan_failed{id=\""));
-    stream->print(obj->get_object_id().c_str());
-    stream->print(F("\",name=\""));
-    stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 0\n"));
-    // Data itself
-    stream->print(F("esphome_fan_value{id=\""));
+  stream->print(F("esphome_fan_failed{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_fan_value{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} "));
+  stream->print(obj->state);
+  stream->print('\n');
+  // Speed if available
+  if (obj->get_traits().supports_speed()) {
+    stream->print(F("esphome_fan_speed{id=\""));
     stream->print(obj->get_object_id().c_str());
     stream->print(F("\",name=\""));
     stream->print(obj->get_name().c_str());
     stream->print(F("\"} "));
-    stream->print(obj->state);
+    stream->print(obj->speed);
     stream->print('\n');
-    // Speed if available
-    if (obj->get_traits().supports_speed()) {
-      stream->print(F("esphome_fan_speed{id=\""));
-      stream->print(obj->get_object_id().c_str());
-      stream->print(F("\",name=\""));
-      stream->print(obj->get_name().c_str());
-      stream->print(F("\"} "));
-      stream->print(obj->speed);
-      stream->print('\n');
-    }
-    // Oscillation if available
-    if (obj->get_traits().supports_oscillation()) {
-      stream->print(F("esphome_fan_oscillation{id=\""));
-      stream->print(obj->get_object_id().c_str());
-      stream->print(F("\",name=\""));
-      stream->print(obj->get_name().c_str());
-      stream->print(F("\"} "));
-      stream->print(obj->oscillating);
-      stream->print('\n');
-    }
-  } else {
-    // Invalid state
-    stream->print(F("esphome_fan_failed{id=\""));
+  }
+  // Oscillation if available
+  if (obj->get_traits().supports_oscillation()) {
+    stream->print(F("esphome_fan_oscillation{id=\""));
     stream->print(obj->get_object_id().c_str());
     stream->print(F("\",name=\""));
     stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(F("\"} "));
+    stream->print(obj->oscillating);
+    stream->print('\n');
   }
 }
 #endif
@@ -302,7 +292,7 @@ void PrometheusHandler::switch_type_(AsyncResponseStream *stream) {
 void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
   if (obj->is_internal())
     return;
-stream->print(F("esphome_switch_failed{id=\""));
+  stream->print(F("esphome_switch_failed{id=\""));
   stream->print(obj->get_object_id().c_str());
   stream->print(F("\",name=\""));
   stream->print(obj->get_name().c_str());
