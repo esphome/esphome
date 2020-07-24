@@ -31,6 +31,7 @@ from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote
+from .util import password_hash
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
@@ -56,9 +57,7 @@ class DashboardSettings:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            # Store digest of password with SHA256 so that they have constant size
-            # and can be compared in constant running time
-            self.password_hash = hashlib.sha256(password.encode()).digest()
+            self.password_hash = password_hash(password)
         self.config_dir = args.configuration[0]
 
     @property
@@ -88,7 +87,7 @@ class DashboardSettings:
         # Compare password in constant running time (to prevent timing attacks)
         return hmac.compare_digest(
             self.password_hash,
-            hashlib.sha256(password.encode()).digest()
+            password_hash(password)
         )
 
     def rel_path(self, *args):
