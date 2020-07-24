@@ -158,7 +158,7 @@ jobs:
         run: script/setup
       - name: Install Github Actions annotator
         run: pip install pytest-github-actions-annotate-failures
-      
+
       - name: Register problem matchers
         run: |
           echo "::add-matcher::.github/workflows/matchers/python.json"
@@ -172,11 +172,12 @@ jobs:
 
   deploy-docker:
     name: Build and publish docker containers
+    if: github.repository == 'esphome/esphome'
     runs-on: ubuntu-latest
     needs: [lint-clang-format, lint-clang-tidy, lint-python, test, pytest]
     strategy:
       matrix:
-        arch: [amd64, i386, armv7, aarch64]
+        arch: [amd64, armv7, aarch64]
         # Hassio dev image doesn't use esphome/esphome-hassio-$arch and uses base directly
         build_type: ["docker"]
     steps:
@@ -187,7 +188,7 @@ jobs:
           echo "::set-env name=TAG::${TAG}"
       - name: Set up env variables
         run: |
-          base_version="2.3.3"
+          base_version="2.3.4"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
@@ -204,8 +205,6 @@ jobs:
           echo "::set-env name=DOCKERFILE::${dockerfile}"
       - name: Pull for cache
         run: |
-          docker pull "${BUILD_TO}:latest" || true
-          docker pull "${BUILD_TO}:beta" || true
           docker pull "${BUILD_TO}:dev" || true
       - name: Register QEMU binfmt
         run: docker run --rm --privileged multiarch/qemu-user-static:5.0.0-2 --reset -p yes
@@ -215,8 +214,6 @@ jobs:
             --build-arg "BUILD_VERSION=${TAG}" \
             --tag "${BUILD_TO}:${TAG}" \
             --tag "${BUILD_TO}:dev" \
-            --cache-from "${BUILD_TO}:latest" \
-            --cache-from "${BUILD_TO}:beta" \
             --cache-from "${BUILD_TO}:dev" \
             --file "${DOCKERFILE}" \
             .
@@ -231,6 +228,7 @@ jobs:
 
 
   deploy-docker-manifest:
+    if: github.repository == 'esphome/esphome'
     runs-on: ubuntu-latest
     needs: [deploy-docker]
     steps:
@@ -252,13 +250,11 @@ jobs:
         docker manifest create esphome/esphome:${TAG} \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:${TAG}
 
         docker manifest create esphome/esphome:dev \
           esphome/esphome-aarch64:${TAG} \
           esphome/esphome-amd64:${TAG} \
-          esphome/esphome-armv7:${TAG} \
-          esphome/esphome-i386:${TAG}
+          esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:dev
