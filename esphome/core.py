@@ -553,7 +553,6 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        # pylint: disable=unsupported-membership-test,unsubscriptable-object
         if 'wifi' in self.config:
             return self.config[CONF_WIFI][CONF_USE_ADDRESS]
 
@@ -567,7 +566,6 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        # pylint: disable=unsubscriptable-object
         if CONF_COMMENT in self.config[CONF_ESPHOME]:
             return self.config[CONF_ESPHOME][CONF_COMMENT]
 
@@ -584,7 +582,6 @@ class EsphomeCore:
         if self.config is None:
             raise ValueError("Config has not been loaded yet")
 
-        # pylint: disable=unsubscriptable-object
         return self.config[CONF_ESPHOME][CONF_ARDUINO_VERSION]
 
     @property
