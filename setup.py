@@ -56,6 +56,13 @@ setup(
     version=const.__version__,
     license=PROJECT_LICENSE,
     url=GITHUB_URL,
+    project_urls={
+        "Bug Tracker": "https://github.com/esphome/issues/issues",
+        "Feature Request Tracker": "https://github.com/esphome/feature-requests/issues",
+        "Source Code": "https://github.com/esphome/esphome",
+        "Documentation": "https://esphome.io",
+        "Twitter": "https://twitter.com/esphome_",
+    },
     download_url=DOWNLOAD_URL,
     author=PROJECT_AUTHOR,
     author_email=PROJECT_EMAIL,
@@ -74,5 +81,5 @@ setup(
             'esphome = esphome.__main__:main'
         ]
     },
-    packages=find_packages()
+    packages=find_packages(include="esphome.*")
 )
