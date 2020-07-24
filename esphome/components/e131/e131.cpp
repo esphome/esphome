@@ -31,6 +31,7 @@ void E131Component::setup() {
   if (!udp_->begin(PORT)) {
     ESP_LOGE(TAG, "Cannot bind E131 to %d.", PORT);
     mark_failed();
+    return;
   }
 
   join_igmp_groups_();
