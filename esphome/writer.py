@@ -208,6 +208,7 @@ def get_ini_content():
         partitions_csv = CORE.relative_build_path('partitions.csv')
         write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
 
+    # pylint: disable=unsubscriptable-object
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
         flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
         data['board_build.flash_mode'] = flash_mode
