@@ -284,7 +284,7 @@ ARDUINO_FORBIDDEN = [
     'pulseIn', 'pulseInLong',
     'tone',
 ]
-ARDUINO_FORBIDDEN_RE = r'.*\s+(' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
+ARDUINO_FORBIDDEN_RE = r'.*[^\w\d](' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
 
 
 @lint_re_check(ARDUINO_FORBIDDEN_RE, include=cpp_include, exclude=[
@@ -299,6 +299,16 @@ def lint_no_arduino_framework_functions(fname, match):
         f"C++ instead.\n"
         f"\n"
         f"(If the function is strictly necessary, please add `{nolint}` to the end of the line)"
+    )
+
+
+@lint_re_check(r'[^\w\d]byte\s+[\w\d]+\s*=.*', include=cpp_include, exclude={
+    'esphome/components/tuya/tuya.h',
+})
+def lint_no_byte_datatype(fname, match):
+    return (
+        f"The datatype {highlight('byte')} is not allowed to be used in ESPHome. "
+        f"Please use {highlight('uint8_t')} instead."
     )
 
 

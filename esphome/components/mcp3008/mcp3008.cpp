@@ -19,11 +19,11 @@ void MCP3008::dump_config() {
 }
 
 float MCP3008::read_data_(uint8_t pin) {
-  byte data_msb = 0;
-  byte data_lsb = 0;
+  uint8_t data_msb = 0;
+  uint8_t data_lsb = 0;
 
-  byte command = ((0x01 << 7) |          // start bit
-                  ((pin & 0x07) << 4));  // channel number
+  uint8_t command = ((0x01 << 7) |          // start bit
+                    ((pin & 0x07) << 4));  // channel number
 
   this->enable();
 
