@@ -24,11 +24,11 @@ void SenseAirComponent::update() {
 
     this->status_set_warning();
     while (this->available()) {
-      unsigned char b;
+      uint8_t b;
       if (this->read_byte(&b)) {
-        ESP_LOGD(TAG, "    ... %02x", b);
+        ESP_LOGV(TAG, "    ... %02x", b);
       } else {
-        ESP_LOGD(TAG, "    ... nothing read");
+        ESP_LOGV(TAG, "    ... nothing read");
       }
     }
     return;
