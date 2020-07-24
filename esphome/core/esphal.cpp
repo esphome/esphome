@@ -307,7 +307,7 @@ void *memchr(const void *s, int c, size_t n) {
 
 #ifdef ARDUINO_ARCH_ESP8266
 extern "C" {
-extern void resetPins() {
+extern void resetPins() {  // NOLINT
   // Added in framework 2.7.0
   // usually this sets up all pins to be in INPUT mode
   // however, not strictly needed as we set up the pins properly
