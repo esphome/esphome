@@ -6,6 +6,9 @@
 
 #include <utility>
 #include <algorithm>
+#ifdef ESPHOME_WIFI_WPA2_EAP
+#include <esp_wpa2.h>
+#endif
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
@@ -186,6 +189,53 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (!this->wifi_sta_ip_config_(ap.get_manual_ip())) {
     return false;
   }
+
+  // setup enterprise authentication if required
+#ifdef ESPHOME_WIFI_WPA2_EAP
+  if (ap.get_eap().has_value()) {
+    // note: all certificates and keys have to be null terminated. Lengths are appended by +1 to include \0.
+    EAPAuth eap = ap.get_eap().value();
+    err = esp_wifi_sta_wpa2_ent_set_identity((uint8_t *) eap.identity.c_str(), eap.identity.length());
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_identity failed! %d", err);
+    }
+    int ca_cert_len = strlen(eap.ca_cert);
+    int client_cert_len = strlen(eap.client_cert);
+    int client_key_len = strlen(eap.client_key);
+    if (ca_cert_len) {
+      err = esp_wifi_sta_wpa2_ent_set_ca_cert((uint8_t *) eap.ca_cert, ca_cert_len + 1);
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_ca_cert failed! %d", err);
+      }
+    }
+    // workout what type of EAP this is
+    // validation is not required as the config tool has already validated it
+    if (client_cert_len && client_key_len) {
+      // if we have certs, this must be EAP-TLS
+      err = esp_wifi_sta_wpa2_ent_set_cert_key((uint8_t *) eap.client_cert, client_cert_len + 1,
+                                               (uint8_t *) eap.client_key, client_key_len + 1,
+                                               (uint8_t *) eap.password.c_str(), strlen(eap.password.c_str()));
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_cert_key failed! %d", err);
+      }
+    } else {
+      // in the absence of certs, assume this is username/password based
+      err = esp_wifi_sta_wpa2_ent_set_username((uint8_t *) eap.username.c_str(), eap.username.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_username failed! %d", err);
+      }
+      err = esp_wifi_sta_wpa2_ent_set_password((uint8_t *) eap.password.c_str(), eap.password.length());
+      if (err != ESP_OK) {
+        ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
+      }
+    }
+    esp_wpa2_config_t wpa2_config = WPA2_CONFIG_INIT_DEFAULT();
+    err = esp_wifi_sta_wpa2_ent_enable(&wpa2_config);
+    if (err != ESP_OK) {
+      ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
+    }
+  }
+#endif  // ESPHOME_WIFI_WPA2_EAP
 
   this->wifi_apply_hostname_();
 

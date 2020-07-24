@@ -1,7 +1,8 @@
 pylint==2.5.3
 flake8==3.8.3
-pillow
-pexpect
+pillow>4.0.0
+cryptography>=2.0.0,<3
+pexpect==4.8.0
 
 # Unit tests
 pytest==5.4.3
