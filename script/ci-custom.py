@@ -255,7 +255,7 @@ def lint_conf_from_const_py(fname, match):
             "const.py directly.".format(highlight(name)))
 
 
-RAW_PIN_ACCESS_RE = r'.*(pinMode|digitalWrite|digitalRead)\((.*)->get_pin\(\),\s*([^)]+).*\)'
+RAW_PIN_ACCESS_RE = r'^\s(pinMode|digitalWrite|digitalRead)\((.*)->get_pin\(\),\s*([^)]+).*\)'
 
 
 @lint_re_check(RAW_PIN_ACCESS_RE, include=cpp_include)
@@ -284,7 +284,7 @@ ARDUINO_FORBIDDEN = [
     'pulseIn', 'pulseInLong',
     'tone',
 ]
-ARDUINO_FORBIDDEN_RE = r'.*[^\w\d](' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
+ARDUINO_FORBIDDEN_RE = r'[^\w\d](' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
 
 
 @lint_re_check(ARDUINO_FORBIDDEN_RE, include=cpp_include, exclude=[
