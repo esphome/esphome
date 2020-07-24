@@ -4,3 +4,7 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    ignored_updates:
+      # Hypotehsis is only used for testing and is updated quite often
+      - match:
+          dependency_name: hypothesis

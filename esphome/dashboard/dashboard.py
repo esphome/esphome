@@ -26,11 +26,10 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, util
-from esphome.__main__ import get_serial_ports
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
-from esphome.util import shlex_quote
+from esphome.util import shlex_quote, get_serial_ports
 from .util import password_hash
 
 # pylint: disable=unused-import, wrong-import-order
@@ -317,14 +316,15 @@ class SerialPortRequestHandler(BaseHandler):
     def get(self):
         ports = get_serial_ports()
         data = []
-        for port, desc in ports:
-            if port == '/dev/ttyAMA0':
+        for port in ports:
+            desc = port.description
+            if port.path == '/dev/ttyAMA0':
                 desc = 'UART pins on GPIO header'
             split_desc = desc.split(' - ')
             if len(split_desc) == 2 and split_desc[0] == split_desc[1]:
                 # Some serial ports repeat their values
                 desc = split_desc[0]
-            data.append({'port': port, 'desc': desc})
+            data.append({'port': port.path, 'desc': desc})
         data.append({'port': 'OTA', 'desc': 'Over-The-Air'})
         data.sort(key=lambda x: x['port'], reverse=True)
         self.write(json.dumps(data))
