@@ -23,8 +23,8 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
 
   void reset() { initial_value_ = 0; }
 
-  void process_sensor_value_(float value);
-  void SaveIfNeeded(float value);
+  void process_sensor_value(float value);
+  void save_if_needed(float value);
 
  protected:
   std::string unit_of_measurement() override { return this->sensor_->get_unit_of_measurement(); }

@@ -17,7 +17,7 @@ void IntegrationSensor::setup() {
 
   this->last_update_ = millis();
   this->publish_and_save_(this->result_);
-  this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
+  this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value(state); });
 }
 void IntegrationSensor::dump_config() { LOG_SENSOR("", "Integration Sensor", this); }
 std::string IntegrationSensor::unit_of_measurement() {
@@ -45,7 +45,7 @@ std::string IntegrationSensor::unit_of_measurement() {
   }
   return base + suffix;
 }
-void IntegrationSensor::process_sensor_value_(float value) {
+void IntegrationSensor::process_sensor_value(float value) {
   const uint32_t now = millis();
   const double old_value = this->last_value_;
   const double new_value = value;

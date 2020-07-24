@@ -8,7 +8,6 @@ namespace accumulator {
 static const char *TAG = "accumulator";
 
 void AccumulatorSensor::setup() {
-
   if (this->reset_) {
     this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
     this->rtc_.save(&initial_value_);
@@ -22,32 +21,31 @@ void AccumulatorSensor::setup() {
   last_saved_time = millis();
 
   this->publish_state(initial_value_);
-  this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
+  this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value(state); });
 }
 
-void AccumulatorSensor::process_sensor_value_(float value) {
+void AccumulatorSensor::process_sensor_value(float value) {
   ESP_LOGD(TAG, "process_sensor_value_ Got: %f, initial_value_ = %f", value, initial_value_);
 
   float total = value + initial_value_;
   publish_state(total);
-  SaveIfNeeded(total);
+  save_if_needed(total);
 }
 
-void AccumulatorSensor::SaveIfNeeded(float value) {
-  uint currMills = millis();
-  float valueDelta = abs(value - last_saved_value);
-  uint timeDelta = currMills - last_saved_time;
+void AccumulatorSensor::save_if_needed(float value) {
+  uint now = millis();
+  float value_delta = fabs(value - last_saved_value);
+  uint time_delta = now - last_saved_time;
 
-  if ( 
+  if (
       // save after saveMaxTimeDelta if value has changed
-      (valueDelta > 0 && timeDelta > max_time_interval_) ||
+      (value_delta > 0 && time_delta > max_time_interval_) ||
 
       // save after max_value_interval if saveMinTimeInterval has passed)
-      (valueDelta > max_value_interval_ && timeDelta > min_time_interval_))
-  {
+      (value_delta > max_value_interval_ && time_delta > min_time_interval_)) {
     this->rtc_.save(&value);
     last_saved_value = value;
-    last_saved_time = currMills;
+    last_saved_time = now;
 
     ESP_LOGD(TAG, "value saved to preferences: %f", value);
   }
