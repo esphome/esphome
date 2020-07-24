@@ -48,11 +48,11 @@ void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
 
 // Type-specific implementation
 #ifdef USE_SENSOR
-void WebServerPrometheus::sensor_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_sensor_value GAUGE\n"));
   stream->print(F("#TYPE esphome_sensor_failed GAUGE\n"));
 }
-void WebServerPrometheus::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
+void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->state)) {
@@ -85,11 +85,11 @@ void WebServerPrometheus::sensor_row_(AsyncResponseStream *stream, sensor::Senso
 
 // Type-specific implementation
 #ifdef USE_BINARY_SENSOR
-void WebServerPrometheus::binary_sensor_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::binary_sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_binary_sensor_value GAUGE\n"));
   stream->print(F("#TYPE esphome_binary_sensor_failed GAUGE\n"));
 }
-void WebServerPrometheus::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
+void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->state)) {
@@ -119,13 +119,13 @@ void WebServerPrometheus::binary_sensor_row_(AsyncResponseStream *stream, binary
 #endif
 
 #ifdef USE_FAN
-void WebServerPrometheus::fan_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_fan_value GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_failed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_speed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
 }
-void WebServerPrometheus::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
+void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->state)) {
@@ -175,12 +175,12 @@ void WebServerPrometheus::fan_row_(AsyncResponseStream *stream, fan::FanState *o
 #endif
 
 #ifdef USE_LIGHT
-void WebServerPrometheus::light_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::light_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_light_state GAUGE\n"));
   stream->print(F("#TYPE esphome_light_color GAUGE\n"));
   stream->print(F("#TYPE esphome_light_effect_active GAUGE\n"));
 }
-void WebServerPrometheus::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
+void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
   if (obj->is_internal())
     return;
   // State
@@ -252,11 +252,11 @@ void WebServerPrometheus::light_row_(AsyncResponseStream *stream, light::LightSt
 #endif
 
 #ifdef USE_COVER
-void WebServerPrometheus::cover_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::cover_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_cover_value GAUGE\n"));
   stream->print(F("#TYPE esphome_cover_failed GAUGE\n"));
 }
-void WebServerPrometheus::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
+void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->position)) {
@@ -295,11 +295,11 @@ void WebServerPrometheus::cover_row_(AsyncResponseStream *stream, cover::Cover *
 #endif
 
 #ifdef USE_SWITCH
-void WebServerPrometheus::switch_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::switch_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_switch_value GAUGE\n"));
   stream->print(F("#TYPE esphome_switch_failed GAUGE\n"));
 }
-void WebServerPrometheus::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
+void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->state)) {
@@ -326,6 +326,7 @@ void WebServerPrometheus::switch_row_(AsyncResponseStream *stream, switch_::Swit
     stream->print(F("\"} 1\n"));
   }
 }
+#endif
 
 }  // namespace prometheus
 }  // namespace esphome
