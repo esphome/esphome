@@ -28,6 +28,9 @@ here = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(here, 'requirements.txt')) as requirements_txt:
     REQUIRES = requirements_txt.read().splitlines()
 
+with open(os.path.join(here, 'README.md')) as readme:
+    LONG_DESCRIPTION = readme.read()
+
 # If you have problems importing platformio and esptool as modules you can set
 # $ESPHOME_USE_SUBPROCESS to make ESPHome call their executables instead.
 # This means they have to be in your $PATH.
@@ -57,6 +60,8 @@ setup(
     author=PROJECT_AUTHOR,
     author_email=PROJECT_EMAIL,
     description="Make creating custom firmwares for ESP32/ESP8266 super easy.",
+    long_description=LONG_DESCRIPTION,
+    long_description_content_type='text/markdown',
     include_package_data=True,
     zip_safe=False,
     platforms='any',
