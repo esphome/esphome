@@ -39,7 +39,7 @@ CONFIG_SCHEMA = display.BASIC_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_SCROLL_SPEED, default='250ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SCROLL_DELAY, default='1000ms'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SCROLL_DWELL, default='1000ms'): cv.positive_time_period_milliseconds,
-}).extend(cv.polling_component_schema('500ms')).extend(spi.spi_device_schema(CS_PIN_required=True))
+}).extend(cv.polling_component_schema('500ms')).extend(spi.spi_device_schema(cs_pin_required=True))
 
 
 def to_code(config):
