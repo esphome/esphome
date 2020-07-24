@@ -92,7 +92,7 @@ void PrometheusHandler::binary_sensor_type_(AsyncResponseStream *stream) {
 void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
   if (obj->is_internal())
     return;
-  if (!isnan(obj->state)) {
+  if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(F("esphome_binary_sensor_failed{id=\""));
     stream->print(obj->get_object_id().c_str());
