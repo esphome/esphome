@@ -219,15 +219,18 @@ void MAX7219Component::send64pixels(byte chip, const byte pixels[8]) {
     for (byte i = 0; i < chip; i++)     // send extra NOPs to push the pixels out to extra displays
       this->send_byte_(MAX7219_REGISTER_NOOP,
                        MAX7219_REGISTER_NOOP);  // run this loop unit the matching chip is reached
-    byte b = 0;                                 // rotate pixels 90 degrees -- set byte to 0
+    uint8_t b = 0;                                 // rotate pixels 90 degrees -- set byte to 0
     if (this->orientation_ == 0) {
-      for (byte i = 0; i < 8; i++)                // run this loop 8 times for all the pixels[8] received
-        b |= bitRead(pixels[i], col) << (7 - i);  // change the column bits into row bits
+      for (uint8_t i = 0; i < 8; i++) {
+        // run this loop 8 times for all the pixels[8] received
+        b |= ((pixels[i] >> col) & 1) << (7 - i);  // change the column bits into row bits
+      }
     } else if (this->orientation_ == 1) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
-      for (byte i = 0; i < 8; i++)
-        b |= bitRead(pixels[i], 7 - col) << (7 - i);
+      for (byte i = 0; i < 8; i++) {
+        b |= ((pixels[i] >> (7 - col)) << (7 - i));
+      }
     } else {
       b = pixels[7 - col];
     }
