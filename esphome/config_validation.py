@@ -186,6 +186,7 @@ def ensure_list(*validators):
     None and empty dictionaries are converted to empty lists.
     """
     user = All(*validators)
+    list_schema = Schema([user])
 
     def validator(value):
         check_not_templatable(value)
@@ -193,19 +194,7 @@ def ensure_list(*validators):
             return []
         if not isinstance(value, list):
             return [user(value)]
-        ret = []
-        errs = []
-        for i, val in enumerate(value):
-            try:
-                with prepend_path([i]):
-                    ret.append(user(val))
-            except MultipleInvalid as err:
-                errs.extend(err.errors)
-            except Invalid as err:
-                errs.append(err)
-        if errs:
-            raise MultipleInvalid(errs)
-        return ret
+        return list_schema(value)
 
     return validator
 
