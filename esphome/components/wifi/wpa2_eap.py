@@ -5,9 +5,11 @@ so that it doesn't crash if it's not installed.
 """
 import logging
 
+from esphome.core import CORE
 import esphome.config_validation as cv
 from esphome.const import CONF_USERNAME, CONF_IDENTITY, CONF_PASSWORD, CONF_CERTIFICATE, \
     CONF_KEY
+from pathlib import Path
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,18 +47,30 @@ def wrapped_load_pem_private_key(value, password):
     return load_pem_private_key(value.encode('UTF-8'), password, default_backend())
 
 
-def validate_certificate(value):
-    value = cv.string_strict(value)
+def read_relative_config_path(value):
+    return Path(CORE.relative_config_path(value)).read_text()
+
+
+def _validate_load_certificate(value):
+    value = cv.file_(value)
     try:
-        wrapped_load_pem_x509_certificate(value)  # raises ValueError
-        return value
+        contents = read_relative_config_path(value)
+        return wrapped_load_pem_x509_certificate(contents)
     except ValueError as err:
         raise cv.Invalid(f"Invalid certificate: {err}")
 
 
-def validate_private_key(key, cert_pw):
+def validate_certificate(value):
+    _validate_load_certificate(value)
+    # Validation result should be the path, not the loaded certificate
+    return value
+
+
+def _validate_load_private_key(key, cert_pw):
+    key = cv.file_(key)
     try:
-        return wrapped_load_pem_private_key(key, cert_pw)
+        contents = read_relative_config_path(key)
+        return wrapped_load_pem_private_key(contents, cert_pw)
     except ValueError as e:
         raise cv.Invalid(f"There was an error with the EAP 'password:' provided for 'key' {e}")
     except TypeError as e:
@@ -89,7 +103,7 @@ def _check_private_key_cert_match(key, cert):
         # ed448, ed25519 not supported
         pass
 
-    key_type = next((kt for kt in private_key_types if isinstance(key, kt)), default=None)
+    key_type = next((kt for kt in private_key_types if isinstance(key, kt)), None)
     if key_type is None:
         _LOGGER.warning(
             "Unrecognised EAP 'certificate:' 'key:' pair format: %s. Proceed with caution!",
@@ -116,9 +130,9 @@ def validate_eap(value):
         # the wrong thing. I write this after I spent a while debugging that exact issue.
         # This may require a password to decrypt to key, so we should verify that at the same time.
         cert_pw = value.get(CONF_PASSWORD)
-        key = validate_private_key(value[CONF_KEY], cert_pw)
+        key = _validate_load_private_key(value[CONF_KEY], cert_pw)
 
-        cert = wrapped_load_pem_x509_certificate(value[CONF_CERTIFICATE])
+        cert = _validate_load_certificate(value[CONF_CERTIFICATE])
         _check_private_key_cert_match(key, cert)
 
     return value

@@ -66,7 +66,9 @@ EAP_AUTH_SCHEMA = cv.All(cv.only_on_esp32, cv.Schema({
     cv.Optional(CONF_PASSWORD): cv.string_strict,
     cv.Optional(CONF_CERTIFICATE_AUTHORITY): wpa2_eap.validate_certificate,
     cv.Inclusive(CONF_CERTIFICATE, 'certificate_and_key'): wpa2_eap.validate_certificate,
-    cv.Inclusive(CONF_KEY, 'certificate_and_key'): cv.string_strict,
+    # Only validate as file first because we need the password to load it
+    # Actual validation happens in validate_eap.
+    cv.Inclusive(CONF_KEY, 'certificate_and_key'): cv.file_,
 }), wpa2_eap.validate_eap, cv.has_at_least_one_key(CONF_IDENTITY, CONF_CERTIFICATE))
 
 WIFI_NETWORK_BASE = cv.Schema({
@@ -155,14 +157,23 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
 def eap_auth(config):
     if config is None:
         return None
+    ca_cert = ""
+    if CONF_CERTIFICATE_AUTHORITY in config:
+        ca_cert = wpa2_eap.read_relative_config_path(config[CONF_CERTIFICATE_AUTHORITY])
+    client_cert = ""
+    if CONF_CERTIFICATE in config:
+        client_cert = wpa2_eap.read_relative_config_path(config[CONF_CERTIFICATE])
+    key = ""
+    if CONF_KEY in config:
+        key = wpa2_eap.read_relative_config_path(config[CONF_KEY])
     return cg.StructInitializer(
         EAPAuth,
         ('identity', config.get(CONF_IDENTITY, "")),
         ('username', config.get(CONF_USERNAME, "")),
         ('password', config.get(CONF_PASSWORD, "")),
-        ('ca_cert', config.get(CONF_CERTIFICATE_AUTHORITY, "")),
-        ('client_cert', config.get(CONF_CERTIFICATE, "")),
-        ('client_key', config.get(CONF_KEY, "")),
+        ('ca_cert', ca_cert),
+        ('client_cert', client_cert),
+        ('client_key', key),
     )
 
 

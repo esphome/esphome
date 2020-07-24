@@ -229,8 +229,8 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
         ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_set_password failed! %d", err);
       }
     }
-    esp_wpa2_config_t wpa2Config = WPA2_CONFIG_INIT_DEFAULT();
-    err = esp_wifi_sta_wpa2_ent_enable(&wpa2Config);
+    esp_wpa2_config_t wpa2_config = WPA2_CONFIG_INIT_DEFAULT();
+    err = esp_wifi_sta_wpa2_ent_enable(&wpa2_config);
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_sta_wpa2_ent_enable failed! %d", err);
     }

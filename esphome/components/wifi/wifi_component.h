@@ -62,10 +62,10 @@ struct EAPAuth {
   std::string identity;  // required for all auth types
   std::string username;
   std::string password;
-  char *ca_cert;  // optionally verify authentication server
+  const char *ca_cert;  // optionally verify authentication server
   // used for EAP-TLS
-  char *client_cert;
-  char *client_key;
+  const char *client_cert;
+  const char *client_key;
 };
 #endif  // ESPHOME_WIFI_WPA2_EAP
 
