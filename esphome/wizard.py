@@ -142,7 +142,7 @@ def wizard(path):
     if os.path.exists(path):
         safe_print("Uh oh, it seems like {} already exists, please delete that file first "
                    "or chose another configuration file.".format(color('cyan', path)))
-        return 1
+        return 2
     safe_print("Hi there!")
     sleep(1.5)
     safe_print("I'm the wizard of ESPHome :)")
@@ -162,14 +162,15 @@ def wizard(path):
     safe_print()
     sleep(1)
     name = input(color("bold_white", "(name): "))
+
     while True:
         try:
             name = cv.valid_name(name)
             break
         except vol.Invalid:
             safe_print(color("red", "Oh noes, \"{}\" isn't a valid name. Names can only include "
-                                    "numbers, letters and underscores.".format(name)))
-            name = strip_accents(name).replace(' ', '_')
+                                    "numbers, lower-case letters and underscores.".format(name)))
+            name = strip_accents(name).lower().replace(' ', '_')
             name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
             safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
             sleep(0.5)
