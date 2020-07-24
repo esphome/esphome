@@ -13,9 +13,7 @@ void AccumulatorSensor::setup() {
     this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
     this->rtc_.save(&initial_value_);
     ESP_LOGD(TAG, "Reset initial_value_ in preferences to: %f", this->initial_value_);
-  }
-  else
-  {
+  } else {
     this->rtc_.load(&initial_value_);
     ESP_LOGD(TAG, "initial_value_ loaded from preferences is: %f", this->initial_value_);
   }
@@ -27,8 +25,7 @@ void AccumulatorSensor::setup() {
   this->sensor_->add_on_state_callback([this](float state) { this->process_sensor_value_(state); });
 }
 
-void AccumulatorSensor::process_sensor_value_(float value) 
-{
+void AccumulatorSensor::process_sensor_value_(float value) {
   ESP_LOGD(TAG, "process_sensor_value_ Got: %f, initial_value_ = %f", value, initial_value_);
 
   float total = value + initial_value_;
@@ -36,8 +33,7 @@ void AccumulatorSensor::process_sensor_value_(float value)
   SaveIfNeeded(total);
 }
 
-void AccumulatorSensor::SaveIfNeeded(float value)
-{
+void AccumulatorSensor::SaveIfNeeded(float value) {
   uint currMills = millis();
   float valueDelta = abs(value - last_saved_value);
   uint timeDelta = currMills - last_saved_time;
