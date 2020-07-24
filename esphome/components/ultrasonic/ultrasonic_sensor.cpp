@@ -18,10 +18,7 @@ void UltrasonicSensorComponent::update() {
   this->trigger_pin_->digital_write(false);
 
   uint32_t time = pulseIn(  // NOLINT
-    this->echo_pin_->get_pin(),
-    uint8_t(!this->echo_pin_->is_inverted()),
-    this->timeout_us_
-  );
+      this->echo_pin_->get_pin(), uint8_t(!this->echo_pin_->is_inverted()), this->timeout_us_);
 
   ESP_LOGV(TAG, "Echo took %uµs", time);
 

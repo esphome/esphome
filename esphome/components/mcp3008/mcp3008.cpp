@@ -23,7 +23,7 @@ float MCP3008::read_data_(uint8_t pin) {
   uint8_t data_lsb = 0;
 
   uint8_t command = ((0x01 << 7) |          // start bit
-                    ((pin & 0x07) << 4));  // channel number
+                     ((pin & 0x07) << 4));  // channel number
 
   this->enable();
 

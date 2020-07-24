@@ -28,9 +28,7 @@ void SN74HC595Component::setup() {
 
 void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
 
-bool SN74HC595Component::digital_read_(uint8_t pin) {
-  return this->output_bits_ >> pin;
-}
+bool SN74HC595Component::digital_read_(uint8_t pin) { return this->output_bits_ >> pin; }
 
 void SN74HC595Component::digital_write_(uint8_t pin, bool value) {
   uint32_t mask = 1UL << pin;
