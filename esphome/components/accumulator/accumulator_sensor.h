@@ -42,8 +42,8 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   bool reset_;
 
   // Track last save
-  float last_saved_value = 0;
-  uint last_saved_time = 0;
+  float last_saved_value_ = 0;
+  uint last_saved_time_ = 0;
 };
 
 template<typename... Ts> class ResetAction : public Action<Ts...> {
