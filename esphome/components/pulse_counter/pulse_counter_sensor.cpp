@@ -156,7 +156,7 @@ void PulseCounterSensor::dump_config() {
 void PulseCounterSensor::update() {
   pulse_counter_t raw = this->storage_.read_raw_value();
 
-  uint32_t now = this->storage_.last_pulse;
+  uint32_t now = micros();
   uint32_t cycle_duration = now - last_update_;
   last_update_ = now;
   if (cycle_duration == 0) {
