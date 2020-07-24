@@ -43,7 +43,8 @@ void UARTComponent::check_logger_conflict_() {
 #endif
 }
 
-void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity, uint8_t data_bits) {
+void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity,
+                                     uint8_t data_bits) {
   if (this->parent_->baud_rate_ != baud_rate) {
     ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
              this->parent_->baud_rate_);

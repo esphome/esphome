@@ -81,7 +81,7 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Bits: %u", this->data_bits_);
+  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
@@ -120,18 +120,6 @@ void UARTComponent::write_str(const char *str) {
       this->sw_serial_->write_byte(data[i]);
   }
   ESP_LOGVV(TAG, "    Wrote \"%s\"", str);
-}
-void UARTComponent::end() {
-  if (this->hw_serial_ != nullptr)
-    this->hw_serial_->end();
-  else if (this->sw_serial_ != nullptr)
-    this->sw_serial_->end();
-}
-void UARTComponent::begin() {
-  if (this->hw_serial_ != nullptr)
-    this->hw_serial_->begin(this->baud_rate_, static_cast<SerialConfig>(get_config()));
-  else if (this->sw_serial_ != nullptr)
-    this->sw_serial_->begin();
 }
 bool UARTComponent::read_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
@@ -198,24 +186,8 @@ void UARTComponent::flush() {
     this->sw_serial_->flush();
   }
 }
-void ESP8266SoftwareSerial::end() {
-  /* Because of this bug: https://github.com/esp8266/Arduino/issues/6049
-   * detach_interrupt can't called.
-   * So simply reset rx_in_pos and rx_out_pos even if it's totally racy with
-   * the interrupt.
-   */
-  // this->gpio_rx_pin_->detach_interrupt();
-  this->rx_in_pos_ = 0;
-  this->rx_out_pos_ = 0;
-}
-void ESP8266SoftwareSerial::begin() {
-  /* attach_interrupt() is also not safe because gpio_intr() may
-   * endup with arg == nullptr.
-   */
-  // this->gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
-}
-void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t data_bits,
-                                  UARTParityOptions parity, size_t rx_buffer_size) {
+void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits,
+                                  uint32_t data_bits, UARTParityOptions parity, size_t rx_buffer_size) {
   this->bit_time_ = F_CPU / baud_rate;
   this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
@@ -333,4 +305,4 @@ int ESP8266SoftwareSerial::available() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // ESP8266
+#endif  // ARDUINO_ARCH_ESP8266

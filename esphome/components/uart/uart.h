@@ -30,8 +30,6 @@ class ESP8266SoftwareSerial {
 
   int available();
 
-  void begin();
-  void end();
   GPIOPin *gpio_tx_pin_{nullptr};
   GPIOPin *gpio_rx_pin_{nullptr};
 
@@ -71,8 +69,6 @@ class UARTComponent : public Component, public Stream {
   void write_array(const std::vector<uint8_t> &data) { this->write_array(&data[0], data.size()); }
 
   void write_str(const char *str);
-  void end();
-  void begin();
 
   bool peek_byte(uint8_t *data);
 
@@ -156,8 +152,6 @@ class UARTDevice : public Stream {
   size_t write(uint8_t data) override { return this->parent_->write(data); }
   int read() override { return this->parent_->read(); }
   int peek() override { return this->parent_->peek(); }
-  void end() { this->parent_->end(); }
-  void begin() { this->parent_->begin(); }
 
   /// Check that the configuration of the UART bus matches the provided values and otherwise print a warning
   void check_uart_settings(uint32_t baud_rate, uint8_t stop_bits = 1,

@@ -94,7 +94,7 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Bits: %u", this->data_bits_);
+  ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();
@@ -114,8 +114,6 @@ void UARTComponent::write_str(const char *str) {
   this->hw_serial_->write(str);
   ESP_LOGVV(TAG, "    Wrote \"%s\"", str);
 }
-void UARTComponent::end() { this->hw_serial_->end(); }
-void UARTComponent::begin() { this->hw_serial_->begin(this->baud_rate_, get_config()); }
 bool UARTComponent::read_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
@@ -161,4 +159,4 @@ void UARTComponent::flush() {
 
 }  // namespace uart
 }  // namespace esphome
-#endif  // ESP32
+#endif  // ARDUINO_ARCH_ESP32
