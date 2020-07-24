@@ -43,7 +43,7 @@ uint32_t UARTComponent::get_config() {
   else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     config |= UART_PARITY_ODD | UART_PARITY_EN;
 
-  switch (this->nr_bits_) {
+  switch (this->data_bits_) {
     case 5:
       config |= UART_NB_BIT_5;
       break;
@@ -94,7 +94,7 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
+  ESP_LOGCONFIG(TAG, "  Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   this->check_logger_conflict_();

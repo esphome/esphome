@@ -43,7 +43,7 @@ void UARTComponent::check_logger_conflict_() {
 #endif
 }
 
-void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity, uint8_t nr_bits) {
+void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UARTParityOptions parity, uint8_t data_bits) {
   if (this->parent_->baud_rate_ != baud_rate) {
     ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
              this->parent_->baud_rate_);
@@ -52,9 +52,9 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
     ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
              this->parent_->stop_bits_);
   }
-  if (this->parent_->nr_bits_ != nr_bits) {
-    ESP_LOGE(TAG, "  Invalid number of data bits: Integration requested %u data bits but you have %u!", nr_bits,
-             this->parent_->nr_bits_);
+  if (this->parent_->data_bits_ != data_bits) {
+    ESP_LOGE(TAG, "  Invalid number of data bits: Integration requested %u data bits but you have %u!", data_bits,
+             this->parent_->data_bits_);
   }
   if (this->parent_->parity_ != parity) {
     ESP_LOGE(TAG, "  Invalid parity: Integration requested parity %s but you have %s!", parity_to_str(parity),

@@ -19,7 +19,7 @@ uint32_t UARTComponent::get_config() {
   else if (this->parity_ == UART_CONFIG_PARITY_ODD)
     config |= UART_PARITY_ODD;
 
-  switch (this->nr_bits_) {
+  switch (this->data_bits_) {
     case 5:
       config |= UART_NB_BIT_5;
       break;
@@ -66,7 +66,7 @@ void UARTComponent::setup() {
     this->sw_serial_ = new ESP8266SoftwareSerial();
     int8_t tx = this->tx_pin_.has_value() ? *this->tx_pin_ : -1;
     int8_t rx = this->rx_pin_.has_value() ? *this->rx_pin_ : -1;
-    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->nr_bits_, this->parity_,
+    this->sw_serial_->setup(tx, rx, this->baud_rate_, this->stop_bits_, this->data_bits_, this->parity_,
                             this->rx_buffer_size_);
   }
 }
@@ -81,7 +81,7 @@ void UARTComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);  // NOLINT
   }
   ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
-  ESP_LOGCONFIG(TAG, "  Bits: %u", this->nr_bits_);
+  ESP_LOGCONFIG(TAG, "  Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", parity_to_str(this->parity_));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
   if (this->hw_serial_ != nullptr) {
@@ -214,12 +214,12 @@ void ESP8266SoftwareSerial::begin() {
    */
   // this->gpio_rx_pin_->attach_interrupt(ESP8266SoftwareSerial::gpio_intr, this, FALLING);
 }
-void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t nr_bits,
+void ESP8266SoftwareSerial::setup(int8_t tx_pin, int8_t rx_pin, uint32_t baud_rate, uint8_t stop_bits, uint32_t data_bits,
                                   UARTParityOptions parity, size_t rx_buffer_size) {
   this->bit_time_ = F_CPU / baud_rate;
   this->rx_buffer_size_ = rx_buffer_size;
   this->stop_bits_ = stop_bits;
-  this->nr_bits_ = nr_bits;
+  this->data_bits_ = data_bits;
   this->parity_ = parity;
   if (tx_pin != -1) {
     auto pin = GPIOPin(tx_pin, OUTPUT);
@@ -242,7 +242,7 @@ void ICACHE_RAM_ATTR ESP8266SoftwareSerial::gpio_intr(ESP8266SoftwareSerial *arg
   const uint32_t start = ESP.getCycleCount();
   uint8_t rec = 0;
   // Manually unroll the loop
-  for (int i = 0; i < arg->nr_bits_; i++)
+  for (int i = 0; i < arg->data_bits_; i++)
     rec |= arg->read_bit_(&wait, start) << i;
 
   /* If parity is enabled, just read it and ignore it. */
@@ -282,7 +282,7 @@ void ICACHE_RAM_ATTR HOT ESP8266SoftwareSerial::write_byte(uint8_t data) {
     const uint32_t start = ESP.getCycleCount();
     // Start bit
     this->write_bit_(false, &wait, start);
-    for (int i = 0; i < this->nr_bits_; i++) {
+    for (int i = 0; i < this->data_bits_; i++) {
       bool bit = data & (1 << i);
       this->write_bit_(bit, &wait, start);
       if (need_parity_bit)
