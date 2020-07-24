@@ -98,7 +98,6 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_STA_CONNECTED: {
         if (!this->is_connected()) {
           ESP_LOGW(TAG, "WiFi Connection lost... Reconnecting...");
-          this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
           this->retry_connect();
         } else {
           this->status_clear_warning();
@@ -500,6 +499,16 @@ void WiFiComponent::retry_connect() {
     this->num_retried_++;
   }
   this->error_from_callback_ = false;
+
+  // If was previously connected, go to connecting mode
+  if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTED) {
+    yield();
+    this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING;
+    this->start_connecting(this->selected_ap_, false);
+    return;
+  }
+
+  // If already tried connect, try again
   if (this->state_ == WIFI_COMPONENT_STATE_STA_CONNECTING) {
     yield();
     this->state_ = WIFI_COMPONENT_STATE_STA_CONNECTING_2;
@@ -507,6 +516,7 @@ void WiFiComponent::retry_connect() {
     return;
   }
 
+  // else wait for some time and then try again
   this->state_ = WIFI_COMPONENT_STATE_COOLDOWN;
   this->action_started_ = millis();
 }
