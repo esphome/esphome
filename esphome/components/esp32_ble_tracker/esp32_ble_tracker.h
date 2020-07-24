@@ -146,8 +146,10 @@ enum class ClientState {
   Discovered,
   // Connection in progress.
   Connecting,
-  // Connection established.
+  // Initial connection established.
   Connected,
+  // The client and sub-clients have completed setup.
+  Established,
 };
 
 class ESPBTClient : public ESPBTDeviceListener {

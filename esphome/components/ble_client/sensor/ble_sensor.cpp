@@ -71,8 +71,9 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         if (status) {
           ESP_LOGE(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
+      } else {
+        this->node_state_ = espbt::ClientState::Established;
       }
-
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
@@ -96,13 +97,17 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       this->publish_state((float) param->notify.value[0]);
       break;
     }
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      this->node_state_ = espbt::ClientState::Established;
+      break;
+    }
     default:
       break;
   }
 }
 
 void BLESensor::update() {
-  if (this->parent_->state_ != espbt::ClientState::Connected) {
+  if (this->node_state_ != espbt::ClientState::Established) {
     ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->get_name().c_str());
     return;
   }

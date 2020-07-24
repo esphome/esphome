@@ -11,14 +11,13 @@ namespace ble_client {
 
 static const char *TAG = "ble_client";
 
-BLEClient::BLEClient() { this->state_ = espbt::ClientState::Idle; }
-
 void BLEClient::setup() {
   auto ret = esp_ble_gattc_app_register(this->app_id_);
   if (ret) {
     ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id_, ret);
     this->mark_failed();
   }
+  this->set_states(espbt::ClientState::Idle);
 }
 
 void BLEClient::loop() {
@@ -41,7 +40,7 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
     return false;
 
   ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
-  this->state_ = espbt::ClientState::Discovered;
+  this->set_states(espbt::ClientState::Discovered);
 
   auto addr = device.address_uint64();
   this->remote_bda_[0] = (addr >> 40) & 0xFF;
@@ -69,9 +68,9 @@ void BLEClient::connect() {
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, BLE_ADDR_TYPE_PUBLIC, true);
   if (ret) {
     ESP_LOGE(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
-    this->state_ = espbt::ClientState::Idle;
+    this->set_states(espbt::ClientState::Idle);
   } else {
-    this->state_ = espbt::ClientState::Connecting;
+    this->set_states(espbt::ClientState::Connecting);
   }
 }
 
@@ -81,6 +80,8 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     return;
   if (event != ESP_GATTC_REG_EVT && gattc_if != ESP_GATT_IF_NONE && gattc_if != this->gattc_if_)
     return;
+
+  bool all_established = this->all_nodes_established();
 
   switch (event) {
     case ESP_GATTC_REG_EVT: {
@@ -96,7 +97,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGI(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
-        this->state_ = espbt::ClientState::Idle;
+        this->set_states(espbt::ClientState::Idle);
         break;
       }
       this->conn_id_ = param->open.conn_id;
@@ -109,7 +110,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGE(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
-        this->state_ = espbt::ClientState::Idle;
+        this->set_states(espbt::ClientState::Idle);
         break;
       }
       ESP_LOGV(TAG, "cfg_mtu status %d, mtu %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
@@ -124,7 +125,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       for (auto &svc : this->services_)
         delete svc;
       this->services_.clear();
-      this->state_ = espbt::ClientState::Idle;
+      this->set_states(espbt::ClientState::Idle);
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
@@ -143,7 +144,8 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         ESP_LOGI(TAG, "  start_handle: 0x%x  end_handle: 0x%x", svc->start_handle_, svc->end_handle_);
         svc->parse_characteristics();
       }
-      this->state_ = espbt::ClientState::Connected;
+      this->set_states(espbt::ClientState::Connected);
+      this->state_ = espbt::ClientState::Established;
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
@@ -172,6 +174,13 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
   }
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, gattc_if, param);
+
+  // Delete characteristics after clients have used them to save RAM.
+  if (!all_established && this->all_nodes_established()) {
+    for (auto &svc : this->services_)
+      delete svc;
+    this->services_.clear();
+  }
 }
 
 uint32_t BLEClient::hash_base() { return 2387463249UL; }

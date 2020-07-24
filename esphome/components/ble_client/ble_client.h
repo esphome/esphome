@@ -30,6 +30,10 @@ class BLEClientNode {
   void set_address(uint64_t address) { address_ = address; }
   uint64_t address_;
   espbt::ESPBTClient *client_;
+  // This should be transitioned to Established once the node no longer needs
+  // the services/descriptors/characteristics of the parent client. This will
+  // allow some memory to be freed.
+  espbt::ClientState node_state_;
 
   void set_ble_client_parent(BLEClient *parent) { this->parent_ = parent; }
 
@@ -74,8 +78,6 @@ class BLEService {
 
 class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
  public:
-  explicit BLEClient();
-
   void setup() override;
   void dump_config() override;
   void loop() override;
@@ -111,6 +113,20 @@ class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
   std::string address_str() const;
 
  protected:
+  void set_states(espbt::ClientState st) {
+    this->state_ = st;
+    for (auto &node : nodes_)
+      node->node_state_ = st;
+  }
+  bool all_nodes_established() {
+    if (this->state_ != espbt::ClientState::Established)
+      return false;
+    for (auto &node : nodes_)
+      if (node->node_state_ != espbt::ClientState::Established)
+        return false;
+    return true;
+  }
+
   std::vector<BLEClientNode *> nodes_;
   std::vector<BLEService *> services_;
 
