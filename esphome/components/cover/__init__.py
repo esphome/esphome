@@ -11,7 +11,7 @@ IS_PLATFORM_COMPONENT = True
 
 DEVICE_CLASSES = [
     '', 'awning', 'blind', 'curtain', 'damper', 'door', 'garage',
-    'shade', 'shutter', 'window'
+    'gate', 'shade', 'shutter', 'window'
 ]
 
 cover_ns = cg.esphome_ns.namespace('cover')

@@ -8,12 +8,15 @@ import os
 import re
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List, Optional, Set  # noqa
+from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING  # noqa
 
 from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
     CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
+
+if TYPE_CHECKING:
+    from .cpp_generator import MockObj, MockObjClass, Statement
 
 _LOGGER = logging.getLogger(__name__)
 
