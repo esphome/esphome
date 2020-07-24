@@ -30,6 +30,7 @@ from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
     esphome_storage_path, ext_storage_path, trash_storage_path
 from esphome.util import shlex_quote, get_serial_ports
+from .util import password_hash
 
 # pylint: disable=unused-import, wrong-import-order
 from typing import Optional  # noqa
@@ -42,7 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 class DashboardSettings:
     def __init__(self):
         self.config_dir = ''
-        self.password_digest = ''
+        self.password_hash = ''
         self.username = ''
         self.using_password = False
         self.on_hassio = False
@@ -55,7 +56,7 @@ class DashboardSettings:
             self.username = args.username or os.getenv('USERNAME', '')
             self.using_password = bool(password)
         if self.using_password:
-            self.password_digest = hmac.new(password.encode()).digest()
+            self.password_hash = password_hash(password)
         self.config_dir = args.configuration[0]
 
     @property
@@ -82,8 +83,11 @@ class DashboardSettings:
         if username != self.username:
             return False
 
-        password = hmac.new(password.encode()).digest()
-        return username == self.username and hmac.compare_digest(self.password_digest, password)
+        # Compare password in constant running time (to prevent timing attacks)
+        return hmac.compare_digest(
+            self.password_hash,
+            password_hash(password)
+        )
 
     def rel_path(self, *args):
         return os.path.join(self.config_dir, *args)
@@ -446,7 +450,7 @@ class MainRequestHandler(BaseHandler):
         entries = _list_dashboard_entries()
 
         self.render("templates/index.html", entries=entries, begin=begin,
-                    **template_args())
+                    **template_args(), login_enabled=settings.using_auth)
 
 
 def _ping_func(filename, address):
