@@ -45,9 +45,9 @@ class Version:
 def sub(path, pattern, repl, expected_count=1):
     with open(path) as fh:
         content = fh.read()
-    content, count = re.subn(pattern, repl, content, re.MULTILINE)
+    content, count = re.subn(pattern, repl, content, flags=re.MULTILINE)
     if expected_count is not None:
-        assert count == expected_count
+        assert count == expected_count, f"Pattern {pattern} replacement failed!"
     with open(path, "wt") as fh:
         fh.write(content)
 
