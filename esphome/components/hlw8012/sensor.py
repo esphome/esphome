@@ -56,10 +56,10 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_CURRENT])
         cg.add(var.set_current_sensor(sens))
     if CONF_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_ENERGY])
+        sens = yield sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))
     if CONF_ENERGY in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER])
+        sens = yield sensor.new_sensor(config[CONF_ENERGY])
         cg.add(var.set_energy_sensor(sens))
     cg.add(var.set_current_resistor(config[CONF_CURRENT_RESISTOR]))
     cg.add(var.set_voltage_divider(config[CONF_VOLTAGE_DIVIDER]))
