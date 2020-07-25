@@ -9,6 +9,7 @@ from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
+CODEOWNERS = ['@esphome/core']
 DEVICE_CLASSES = [
     '', 'awning', 'blind', 'curtain', 'damper', 'door', 'garage',
     'gate', 'shade', 'shutter', 'window'

@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE
 
+CODEOWNERS = ['@esphome/core']
 script_ns = cg.esphome_ns.namespace('script')
 Script = script_ns.class_('Script', automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', automation.Action)

@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_INTERVAL
 
+CODEOWNERS = ['@esphome/core']
 interval_ns = cg.esphome_ns.namespace('interval')
 IntervalTrigger = interval_ns.class_('IntervalTrigger', automation.Trigger.template(),
                                      cg.PollingComponent)

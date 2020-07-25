@@ -2,6 +2,8 @@
 import esphome.codegen as cg
 from esphome.core import CORE, coroutine_with_priority
 
+CODEOWNERS = ['@OttoWinter']
+
 
 @coroutine_with_priority(200.0)
 def to_code(config):

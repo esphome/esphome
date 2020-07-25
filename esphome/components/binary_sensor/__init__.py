@@ -11,6 +11,7 @@ from esphome.const import CONF_DEVICE_CLASS, CONF_FILTERS, \
 from esphome.core import CORE, coroutine, coroutine_with_priority
 from esphome.util import Registry
 
+CODEOWNERS = ['@esphome/core']
 DEVICE_CLASSES = [
     '', 'battery', 'cold', 'connectivity', 'door', 'garage_door', 'gas',
     'heat', 'light', 'lock', 'moisture', 'motion', 'moving', 'occupancy',

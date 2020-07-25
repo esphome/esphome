@@ -66,6 +66,10 @@ class ComponentManifest:
     def auto_load(self):
         return getattr(self.module, 'AUTO_LOAD', [])
 
+    @property
+    def codeowners(self) -> List[str]:
+        return getattr(self.module, 'CODEOWNERS', [])
+
     def _get_flags_set(self, name, config):
         if not hasattr(self.module, name):
             return set()
