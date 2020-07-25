@@ -255,6 +255,63 @@ def lint_conf_from_const_py(fname, match):
             "const.py directly.".format(highlight(name)))
 
 
+RAW_PIN_ACCESS_RE = r'^\s(pinMode|digitalWrite|digitalRead)\((.*)->get_pin\(\),\s*([^)]+).*\)'
+
+
+@lint_re_check(RAW_PIN_ACCESS_RE, include=cpp_include)
+def lint_no_raw_pin_access(fname, match):
+    func = match.group(1)
+    pin = match.group(2)
+    mode = match.group(3)
+    new_func = {
+        'pinMode': 'pin_mode',
+        'digitalWrite': 'digital_write',
+        'digitalRead': 'digital_read',
+    }[func]
+    new_code = highlight(f'{pin}->{new_func}({mode})')
+    return (f"Don't use raw {func} calls. Instead, use the `->{new_func}` function: {new_code}")
+
+
+# Functions from Arduino framework that are forbidden to use directly
+ARDUINO_FORBIDDEN = [
+    'digitalWrite', 'digitalRead', 'pinMode',
+    'shiftOut', 'shiftIn',
+    'radians', 'degrees',
+    'interrupts', 'noInterrupts',
+    'lowByte', 'highByte',
+    'bitRead', 'bitSet', 'bitClear', 'bitWrite',
+    'bit', 'analogRead', 'analogWrite',
+    'pulseIn', 'pulseInLong',
+    'tone',
+]
+ARDUINO_FORBIDDEN_RE = r'[^\w\d](' + r'|'.join(ARDUINO_FORBIDDEN) + r')\(.*'
+
+
+@lint_re_check(ARDUINO_FORBIDDEN_RE, include=cpp_include, exclude=[
+    'esphome/components/mqtt/custom_mqtt_device.h',
+    'esphome/core/esphal.*',
+])
+def lint_no_arduino_framework_functions(fname, match):
+    nolint = highlight("// NOLINT")
+    return (
+        f"The function {highlight(match.group(1))} from the Arduino framework is forbidden to be "
+        f"used directly in the ESPHome codebase. Please use ESPHome's abstractions and equivalent "
+        f"C++ instead.\n"
+        f"\n"
+        f"(If the function is strictly necessary, please add `{nolint}` to the end of the line)"
+    )
+
+
+@lint_re_check(r'[^\w\d]byte\s+[\w\d]+\s*=.*', include=cpp_include, exclude={
+    'esphome/components/tuya/tuya.h',
+})
+def lint_no_byte_datatype(fname, match):
+    return (
+        f"The datatype {highlight('byte')} is not allowed to be used in ESPHome. "
+        f"Please use {highlight('uint8_t')} instead."
+    )
+
+
 @lint_post_check
 def lint_constants_usage():
     errors = []
@@ -328,7 +385,7 @@ def lint_pragma_once(fname, content):
     return None
 
 
-@lint_re_check(r'(whitelist|blacklist|slave)', exclude=['script/ci-custom.py'], 
+@lint_re_check(r'(whitelist|blacklist|slave)', exclude=['script/ci-custom.py'],
                flags=re.IGNORECASE | re.MULTILINE)
 def lint_inclusive_language(fname, match):
     # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
