@@ -5,6 +5,7 @@ from esphome.const import CONF_CLK_PIN, CONF_ID, CONF_MISO_PIN, CONF_MOSI_PIN, C
     CONF_CS_PIN
 from esphome.core import coroutine, coroutine_with_priority
 
+CODEOWNERS = ['@esphome/core']
 spi_ns = cg.esphome_ns.namespace('spi')
 SPIComponent = spi_ns.class_('SPIComponent', cg.Component)
 SPIDevice = spi_ns.class_('SPIDevice')

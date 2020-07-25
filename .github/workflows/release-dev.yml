@@ -98,6 +98,8 @@ jobs:
         run: script/ci-custom.py
       - name: Lint Python
         run: script/lint-python
+      - name: Lint CODEOWNERS
+        run: script/build_codeowners.py --check
 
   test:
     runs-on: ubuntu-latest

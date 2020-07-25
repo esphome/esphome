@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components import spi
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
+CODEOWNERS = ['@OttoWinter']
 DEPENDENCIES = ['spi']
 AUTO_LOAD = ['binary_sensor']
 MULTI_CONF = True

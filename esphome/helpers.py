@@ -2,6 +2,9 @@ import codecs
 
 import logging
 import os
+from pathlib import Path
+from typing import Union
+import tempfile
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -168,15 +171,21 @@ def read_file(path):
         raise EsphomeError(f"Error reading file {path}: {err}")
 
 
-def _write_file(path, text):
-    import tempfile
-    directory = os.path.dirname(path)
-    mkdir_p(directory)
+def _write_file(path: Union[Path, str], text: Union[str, bytes]):
+    """Atomically writes `text` to the given path.
 
-    tmp_path = None
+    Automatically creates all parent directories.
+    """
+    if not isinstance(path, Path):
+        path = Path(path)
     data = text
     if isinstance(text, str):
         data = text.encode()
+
+    directory = path.parent
+    directory.mkdir(exist_ok=True, parents=True)
+
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(mode="wb", dir=directory, delete=False) as f_handle:
             tmp_path = f_handle.name
@@ -193,7 +202,7 @@ def _write_file(path, text):
                 _LOGGER.error("Write file cleanup failed: %s", err)
 
 
-def write_file(path, text):
+def write_file(path: Union[Path, str], text: str):
     try:
         _write_file(path, text)
     except OSError:
@@ -201,9 +210,12 @@ def write_file(path, text):
         raise EsphomeError(f"Could not write file at {path}")
 
 
-def write_file_if_changed(path, text):
+def write_file_if_changed(path: Union[Path, str], text: str):
+    if not isinstance(path, Path):
+        path = Path(path)
+
     src_content = None
-    if os.path.isfile(path):
+    if path.is_file():
         src_content = read_file(path)
     if src_content != text:
         write_file(path, text)

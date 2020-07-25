@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import CONF_ENABLE_TIME, CONF_ID, CONF_KEEP_ON_TIME, CONF_PIN
 
+CODEOWNERS = ['@esphome/core']
 power_supply_ns = cg.esphome_ns.namespace('power_supply')
 PowerSupply = power_supply_ns.class_('PowerSupply', cg.Component)
 MULTI_CONF = True
