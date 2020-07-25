@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components.output import FloatOutput
 from esphome.const import CONF_ID, CONF_OUTPUT, CONF_TRIGGER_ID
 
+CODEOWNERS = ['@glmnet']
 CONF_RTTTL = 'rtttl'
 CONF_ON_FINISHED_PLAYBACK = 'on_finished_playback'
 

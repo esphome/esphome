@@ -8,6 +8,7 @@ DEPENDENCIES = ['uart']
 
 sim800l_ns = cg.esphome_ns.namespace('sim800l')
 Sim800LComponent = sim800l_ns.class_('Sim800LComponent', cg.Component)
+CODEOWNERS = ['@glmnet']
 
 Sim800LReceivedMessageTrigger = sim800l_ns.class_('Sim800LReceivedMessageTrigger',
                                                   automation.Trigger.template(cg.std_string,
