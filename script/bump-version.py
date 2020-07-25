@@ -73,20 +73,12 @@ def write_version(version: Version):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('new_version', type=str)
-    parser.add_argument('--commit', action='store_true')
     args = parser.parse_args()
-
-    if args.commit and subprocess.call(["git", "diff", "--quiet"]) == 1:
-        print("Cannot use --commit because git is dirty.")
-        return 1
 
     version = Version.parse(args.new_version)
     print(f"Bumping to {version}")
     write_version(version)
-
-    if args.commit:
-        subprocess.check_call(["git", "commit", "-nam", f"Bump version to v{version}"])
-    return 1
+    return 0
 
 
 if __name__ == "__main__":
