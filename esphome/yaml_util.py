@@ -338,7 +338,7 @@ class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
             self.represented_objects[self.alias_key] = node
         best_style = True
         if hasattr(mapping, 'items'):
-            mapping = sorted(mapping.items(), key=lambda item: item[0])
+            mapping = list(mapping.items())
         for item_key, item_value in mapping:
             node_key = self.represent_data(item_key)
             node_value = self.represent_data(item_value)
