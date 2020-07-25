@@ -6,8 +6,6 @@ namespace rtttl {
 
 static const char* TAG = "rtttl";
 
-static const char* INVALID_RTTTL = "Invalid rtttl string provided.";
-
 static const uint32_t DOUBLE_NOTE_GAP_MS = 10;
 
 // These values can also be found as constants in the Tone library (Tone.h)
@@ -31,7 +29,7 @@ void Rtttl::play(std::string rtttl) {
 
   // it's somewhat documented to be up to 10 characters but let's be a bit flexible here
   if (position_ == std::string::npos || position_ > 15) {
-    ESP_LOGE(TAG, INVALID_RTTTL);
+    ESP_LOGE(TAG, "Missing ':' when looking for name.");
     return;
   }
 
@@ -41,7 +39,7 @@ void Rtttl::play(std::string rtttl) {
   // get default duration
   position_ = this->rtttl_.find("d=", position_);
   if (position_ == std::string::npos) {
-    ESP_LOGE(TAG, INVALID_RTTTL);
+    ESP_LOGE(TAG, "Missing 'd='");
     return;
   }
   position_ += 2;
@@ -52,7 +50,7 @@ void Rtttl::play(std::string rtttl) {
   // get default octave
   position_ = rtttl_.find("o=", position_);
   if (position_ == std::string::npos) {
-    ESP_LOGE(TAG, INVALID_RTTTL);
+    ESP_LOGE(TAG, "Missing 'o=");
     return;
   }
   position_ += 2;
@@ -63,7 +61,7 @@ void Rtttl::play(std::string rtttl) {
   // get BPM
   position_ = rtttl_.find("b=", position_);
   if (position_ == std::string::npos) {
-    ESP_LOGE(TAG, INVALID_RTTTL);
+    ESP_LOGE(TAG, "Missing b=");
     return;
   }
   position_ += 2;
@@ -73,7 +71,7 @@ void Rtttl::play(std::string rtttl) {
 
   position_ = rtttl_.find(":", position_);
   if (position_ == std::string::npos) {
-    ESP_LOGE(TAG, INVALID_RTTTL);
+    ESP_LOGE(TAG, "Missing second ':'");
     return;
   }
   position_++;
@@ -161,8 +159,7 @@ void Rtttl::loop() {
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= sizeof(NOTES)) {
-      ESP_LOGE(TAG, INVALID_RTTTL);
-      ESP_LOGD(TAG, "Note index: %d", note_index);
+      ESP_LOGE(TAG, "Note out of valid range");
       return;
     }
     auto freq = NOTES[note_index];
