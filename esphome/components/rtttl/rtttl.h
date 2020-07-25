@@ -14,12 +14,12 @@ class Rtttl : public Component {
   void set_output(output::FloatOutput *output) { output_ = output; }
   void play(std::string rtttl);
   void stop() {
-    next_tone_play_ = 0;
+    note_duration_ = 0;
     output_->set_level(0.0);
   }
   void dump_config() override;
 
-  bool is_playing() { return next_tone_play_ != 0; }
+  bool is_playing() { return note_duration_ != 0; }
   void loop() override;
 
   void add_on_finished_playback_callback(std::function<void()> callback) {
@@ -27,15 +27,23 @@ class Rtttl : public Component {
   }
 
  protected:
-  std::string rtttl_;
-  std::string::const_iterator p_;
-  uint32_t wholenote_;
-  uint32_t default_duration_;
-  uint32_t default_octave_;
+  inline uint8_t get_integer_() {
+    uint8_t ret = 0;
+    while (isdigit(rtttl_[position_])) {
+      ret = (ret * 10) + (rtttl_[position_++] - '0');
+    }
+    return ret;
+  }
 
-  uint32_t next_tone_play_{0};
+  std::string rtttl_;
+  size_t position_;
+  uint16_t wholenote_;
+  uint16_t default_duration_;
+  uint16_t default_octave_;
+  uint32_t last_note_;
+  uint16_t note_duration_;
+
   uint32_t output_freq_;
-  bool note_playing_;
   output::FloatOutput *output_;
 
   CallbackManager<void()> on_finished_playback_callback_;

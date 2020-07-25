@@ -46,10 +46,18 @@ class FloatOutput : public BinaryOutput {
    */
   void set_min_power(float min_power);
 
-  /// Set the level of this float output, this is called from the front-end.
+  /** Set the level of this float output, this is called from the front-end.
+   *
+   * @param state The new state.
+   */
   void set_level(float state);
 
-  /// Set the frequency of the output for PWM outputs
+  /** Set the frequency of the output for PWM outputs.
+   *
+   * Implemented only by components which can set the output PWM frequency.
+   *
+   * @param frequence The new frequency.
+   */
   virtual void update_frequency(float frequency) {}
 
   // ========== INTERNAL METHODS ==========
