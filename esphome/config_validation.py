@@ -812,6 +812,7 @@ def mqtt_qos(value):
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
     def validator(value):
+        # pylint: disable=unsupported-membership-test
         if comp not in CORE.raw_config:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -1125,7 +1126,7 @@ def typed_schema(schemas, **kwargs):
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if CONF_TYPE not in value:
+        if key not in value:
             raise Invalid("type not specified!")
         value = value.copy()
         key_v = key_validator(value.pop(key))
@@ -1175,6 +1176,7 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
+        # pylint: disable=unsupported-membership-test
         if self._component not in CORE.raw_config:
             return vol.UNDEFINED
         return self._default

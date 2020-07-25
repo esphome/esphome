@@ -78,7 +78,7 @@ void TimeBasedCover::control(const CoverCall &call) {
 }
 void TimeBasedCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
-    this->prev_command_trigger_->stop();
+    this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;
   }
 }

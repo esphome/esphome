@@ -19,7 +19,7 @@ void TemplateSwitch::loop() {
 }
 void TemplateSwitch::write_state(bool state) {
   if (this->prev_trigger_ != nullptr) {
-    this->prev_trigger_->stop();
+    this->prev_trigger_->stop_action();
   }
 
   if (state) {
