@@ -30,7 +30,7 @@ class HLW8012Component : public PollingComponent {
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
   void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
-  
+
  protected:
   uint32_t nth_value_{0};
   bool current_mode_{false};

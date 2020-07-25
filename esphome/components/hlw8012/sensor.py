@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_INITIAL_MODE, CONF_CURRENT, \
-    CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_SEL_PIN, CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER, \
+    CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_ENERGY, CONF_SEL_PIN, CONF_VOLTAGE, CONF_VOLTAGE_DIVIDER, \
     ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
 
 AUTO_LOAD = ['pulse_counter']
