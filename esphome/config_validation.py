@@ -800,6 +800,7 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
+    # pylint: disable=unsupported-membership-test
     def validator(value):
         if comp not in CORE.raw_config:
             raise Invalid(f"This option requires component {comp}")
@@ -1164,6 +1165,7 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
+        # pylint: disable=unsupported-membership-test
         if self._component not in CORE.raw_config:
             return vol.UNDEFINED
         return self._default
