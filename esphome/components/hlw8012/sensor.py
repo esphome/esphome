@@ -4,7 +4,7 @@ from esphome import pins
 from esphome.components import sensor
 from esphome.const import CONF_CHANGE_MODE_EVERY, CONF_INITIAL_MODE, CONF_CURRENT, \
     CONF_CURRENT_RESISTOR, CONF_ID, CONF_POWER, CONF_ENERGY, CONF_SEL_PIN, CONF_VOLTAGE, \
-    CONF_VOLTAGE_DIVIDER, ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT
+    CONF_VOLTAGE_DIVIDER, ICON_FLASH, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_WATT_HOURS
 
 AUTO_LOAD = ['pulse_counter']
 
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_VOLTAGE): sensor.sensor_schema(UNIT_VOLT, ICON_FLASH, 1),
     cv.Optional(CONF_CURRENT): sensor.sensor_schema(UNIT_AMPERE, ICON_FLASH, 2),
     cv.Optional(CONF_POWER): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
-    cv.Optional(CONF_ENERGY): sensor.sensor_schema(UNIT_WATT, ICON_FLASH, 1),
+    cv.Optional(CONF_ENERGY): sensor.sensor_schema(UNIT_WATT_HOURS, ICON_FLASH, 1),
 
     cv.Optional(CONF_CURRENT_RESISTOR, default=0.001): cv.resistance,
     cv.Optional(CONF_VOLTAGE_DIVIDER, default=2351): cv.positive_float,
