@@ -18,7 +18,7 @@ static const uint8_t MCP9808_AMBIENT_TEMP_NEGATIVE = 0x10;
 static const char *TAG = "mcp9808";
 
 void MCP9808Sensor::setup() {
-  ESP_LOGI(TAG, "Setting up %s...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up %s...", this->name_.c_str());
 
   uint16_t manu;
   if (!this->read_byte_16(MCP9808_REG_MANUF_ID, &manu, 0) || manu != MCP9808_MANUF_ID) {
