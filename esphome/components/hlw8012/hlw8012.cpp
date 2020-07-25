@@ -79,6 +79,12 @@ void HLW8012Component::update() {
     this->power_sensor_->publish_state(power);
   }
 
+  if (this->energy_sensor_ != nullptr) {
+    cf_total_pulses_ += raw_cf;
+    float energy = cf_total_pulses_ * power_multiplier_micros * 3600 / 1000000.0f;
+    this->power_sensor_->publish_state(energy);
+  }
+
   if (this->change_mode_at_++ == this->change_mode_every_) {
     this->current_mode_ = !this->current_mode_;
     ESP_LOGV(TAG, "Changing mode to %s mode", this->current_mode_ ? "CURRENT" : "VOLTAGE");
