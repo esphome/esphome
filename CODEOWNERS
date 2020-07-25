@@ -18,8 +18,10 @@ esphome/components/bang_bang/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/climate/* @esphome/core
+esphome/components/climate_ir/* @glmnet
 esphome/components/cover/* @esphome/core
 esphome/components/debug/* @OttoWinter
+esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/fastled_base/* @OttoWinter
@@ -40,9 +42,11 @@ esphome/components/pid/* @OttoWinter
 esphome/components/pn532/* @OttoWinter
 esphome/components/power_supply/* @esphome/core
 esphome/components/restart/* @esphome/core
+esphome/components/rtttl/* @glmnet
 esphome/components/script/* @esphome/core
 esphome/components/sensor/* @esphome/core
 esphome/components/shutdown/* @esphome/core
+esphome/components/sim800l/* @glmnet
 esphome/components/spi/* @esphome/core
 esphome/components/substitutions/* @esphome/core
 esphome/components/sun/* @OttoWinter
