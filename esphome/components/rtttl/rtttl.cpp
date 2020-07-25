@@ -69,7 +69,7 @@ void Rtttl::play(std::string rtttl) {
   if (num != 0)
     bpm = num;
 
-  position_ = rtttl_.find(":", position_);
+  position_ = rtttl_.find(':', position_);
   if (position_ == std::string::npos) {
     ESP_LOGE(TAG, "Missing second ':'");
     return;
