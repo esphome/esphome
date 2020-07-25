@@ -180,6 +180,16 @@ def gather_build_flags():
     return list(sorted(list(build_flags)))
 
 
+ESP32_LARGE_PARTITIONS_CSV = """\
+nvs,      data, nvs,     0x009000, 0x005000,
+otadata,  data, ota,     0x00e000, 0x002000,
+app0,     app,  ota_0,   0x010000, 0x1C0000,
+app1,     app,  ota_1,   0x1D0000, 0x1C0000,
+eeprom,   data, 0x99,    0x390000, 0x001000,
+spiffs,   data, spiffs,  0x391000, 0x00F000
+"""
+
+
 def get_ini_content():
     lib_deps = gather_lib_deps()
     build_flags = gather_build_flags()
@@ -196,15 +206,9 @@ def get_ini_content():
     if CORE.is_esp32:
         data['board_build.partitions'] = "partitions.csv"
         partitions_csv = CORE.relative_build_path('partitions.csv')
-        if not os.path.isfile(partitions_csv):
-            with open(partitions_csv, "w") as f:
-                f.write("nvs,      data, nvs,     0x009000, 0x005000,\n")
-                f.write("otadata,  data, ota,     0x00e000, 0x002000,\n")
-                f.write("app0,     app,  ota_0,   0x010000, 0x190000,\n")
-                f.write("app1,     app,  ota_1,   0x200000, 0x190000,\n")
-                f.write("eeprom,   data, 0x99,    0x390000, 0x001000,\n")
-                f.write("spiffs,   data, spiffs,  0x391000, 0x00F000\n")
+        write_file_if_changed(partitions_csv, ESP32_LARGE_PARTITIONS_CSV)
 
+    # pylint: disable=unsubscriptable-object
     if CONF_BOARD_FLASH_MODE in CORE.config[CONF_ESPHOME]:
         flash_mode = CORE.config[CONF_ESPHOME][CONF_BOARD_FLASH_MODE]
         data['board_build.flash_mode'] = flash_mode
