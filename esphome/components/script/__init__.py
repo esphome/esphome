@@ -41,8 +41,6 @@ def check_max_runs(value):
 def assign_declare_id(value):
     value = value.copy()
     value[CONF_ID] = cv.declare_id(SCRIPT_MODES[value[CONF_MODE]])(value[CONF_ID])
-    if value[CONF_MODE] in [CONF_QUEUE, CONF_PARALLEL] and CONF_MAX_RUNS not in value:
-        value[CONF_MAX_RUNS] = 10
     return value
 
 
