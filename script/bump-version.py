@@ -66,7 +66,7 @@ def write_version(version: Version):
     sub(
         'esphome/const.py',
         r"^PATCH_VERSION = .*$",
-        f"PATCH_VERSION = '{version.full_patch}''"
+        f"PATCH_VERSION = '{version.full_patch}'"
     )
 
 
