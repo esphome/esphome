@@ -37,6 +37,12 @@ parts = [BASE]
 # Fake some diretory so that get_component works
 CORE.config_path = str(root)
 
+def verify_codeowners(codeowners):
+    for owner in codeowners:
+        if not owner.startswith('@'):
+            print(f"Codeowner {owner} for integration {name} must start with an '@' symbol!")
+            sys.exit(1)
+
 for path in sorted(components_dir.iterdir()):
     if not path.is_dir():
         continue
@@ -44,29 +50,35 @@ for path in sorted(components_dir.iterdir()):
         continue
     name = path.name
     comp = get_component(name)
+    codeowners = []
     if comp.codeowners:
-        for owner in comp.codeowners:
-            if not owner.startswith('@'):
-                print(f"Codeowner {owner} for integration {name} must start with an '@' symbol!")
-                sys.exit(1)
-
-        parts.append(f"esphome/components/{name}/* {' '.join(comp.codeowners)}")
+        verify_codeowners(comp.codeowners)
+        codeowners = comp.codeowners
 
     for platform_path in sorted(path.iterdir()):
         platform_name = platform_path.name
         if platform_path.is_dir():
+            # Sub foldered platforms get their own line
             if not (platform_path / '__init__.py').is_file():
                 continue
-        elif not platform_name.endswith('.py') or platform_name == '__init__.py':
+
+            platform = get_platform(platform_name, name)
+            if platform and platform.codeowners:
+                verify_codeowners(platform.codeowners)
+                parts.append(f"esphome/components/{name}/{platform_name}/* {' '.join(platform.codeowners)}")
+            continue
+
+        # Non-subfoldered platforms add to codeowners at component level
+        if not platform_name.endswith('.py') or platform_name == '__init__.py':
             continue
         platform_name = platform_name.replace('.py', '')
         platform = get_platform(platform_name, name)
         if platform and platform.codeowners:
-            for owner in platform.codeowners:
-                if not owner.startswith('@'):
-                    print(f"Codeowner {owner} for integration {name}/{platform_name} must start with an '@' symbol!")
-                    sys.exit(1)
-            parts.append(f"esphome/components/{name}/{platform_name} {' '.join(platform.codeowners)}")
+            verify_codeowners(platform.codeowners)
+            codeowners = codeowners + platform.codeowners
+
+    if len(codeowners) > 0:
+        parts.append(f"esphome/components/{name}/* {' '.join(codeowners)}")
 
 
 # End newline
