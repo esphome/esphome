@@ -7,7 +7,6 @@ import os.path
 import re
 import subprocess
 import sys
-import re
 
 
 def find_all(a_str, sub):
