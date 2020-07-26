@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_CODE, CONF_LOW, CONF_SY
 from esphome.components import uart
 
 DEPENDENCIES = ['uart']
+CODEOWNERS = ['@jesserockz']
 
 rf_bridge_ns = cg.esphome_ns.namespace('rf_bridge')
 RFBridgeComponent = rf_bridge_ns.class_('RFBridgeComponent', cg.Component, uart.UARTDevice)
