@@ -4,7 +4,7 @@ import sys
 import argparse
 
 from esphome.helpers import write_file_if_changed
-from esphome.config import get_component
+from esphome.config import get_component, get_platform
 from esphome.core import CORE
 
 parser = argparse.ArgumentParser()
@@ -51,6 +51,23 @@ for path in sorted(components_dir.iterdir()):
                 sys.exit(1)
 
         parts.append(f"esphome/components/{name}/* {' '.join(comp.codeowners)}")
+
+    for platform_path in sorted(path.iterdir()):
+        platform_name = platform_path.name
+        if platform_path.is_dir():
+            if not (platform_path / '__init__.py').is_file():
+                continue
+        elif not platform_name.endswith('.py') or platform_name == '__init__.py':
+            continue
+        platform_name = platform_name.replace('.py', '')
+        platform = get_platform(platform_name, name)
+        if platform and platform.codeowners:
+            for owner in platform.codeowners:
+                if not owner.startswith('@'):
+                    print(f"Codeowner {owner} for integration {name}/{platform_name} must start with an '@' symbol!")
+                    sys.exit(1)
+            parts.append(f"esphome/components/{name}/{platform_name} {' '.join(platform.codeowners)}")
+
 
 # End newline
 parts.append('')
