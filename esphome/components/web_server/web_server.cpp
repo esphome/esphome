@@ -18,6 +18,8 @@ namespace web_server {
 static const char *TAG = "web_server";
 
 void write_row(AsyncResponseStream *stream, Nameable *obj, const std::string &klass, const std::string &action) {
+  if (obj->is_internal())
+    return;
   stream->print("<tr class=\"");
   stream->print(klass.c_str());
   stream->print("\" id=\"");
@@ -58,10 +60,13 @@ UrlMatch match_url(const std::string &url, bool only_domain = false) {
 }
 
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
+void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
+void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
+  this->setup_controller();
   this->base_->init();
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
@@ -103,6 +108,12 @@ void WebServer::setup() {
       if (!obj->is_internal())
         client->send(this->text_sensor_json(obj, obj->state).c_str(), "state");
 #endif
+
+#ifdef USE_COVER
+    for (auto *obj : App.get_covers())
+      if (!obj->is_internal())
+        client->send(this->cover_json(obj).c_str(), "state");
+#endif
   });
 
 #ifdef USE_LOGGER
@@ -128,61 +139,99 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
   std::string title = App.get_name() + " Web Server";
-  stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><title>"));
+  stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><title>"));
   stream->print(title.c_str());
-  stream->print(F("</title><link rel=\"stylesheet\" href=\""));
-  stream->print(this->css_url_);
-  stream->print(F("\"></head><body><article class=\"markdown-body\"><h1>"));
+  stream->print(F("</title>"));
+#ifdef WEBSERVER_CSS_INCLUDE
+  stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
+#endif
+  if (strlen(this->css_url_) > 0) {
+    stream->print(F("<link rel=\"stylesheet\" href=\""));
+    stream->print(this->css_url_);
+    stream->print(F("\">"));
+  }
+  stream->print(F("</head><body><article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1><h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
+  // All content is controlled and created by user - so allowing all origins is fine here.
+  stream->addHeader("Access-Control-Allow-Origin", "*");
 
 #ifdef USE_SENSOR
   for (auto *obj : App.get_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "sensor", "");
+    write_row(stream, obj, "sensor", "");
 #endif
 
 #ifdef USE_SWITCH
   for (auto *obj : App.get_switches())
-    if (!obj->is_internal())
-      write_row(stream, obj, "switch", "<button>Toggle</button>");
+    write_row(stream, obj, "switch", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
   for (auto *obj : App.get_binary_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "binary_sensor", "");
+    write_row(stream, obj, "binary_sensor", "");
 #endif
 
 #ifdef USE_FAN
   for (auto *obj : App.get_fans())
-    if (!obj->is_internal())
-      write_row(stream, obj, "fan", "<button>Toggle</button>");
+    write_row(stream, obj, "fan", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_LIGHT
   for (auto *obj : App.get_lights())
-    if (!obj->is_internal())
-      write_row(stream, obj, "light", "<button>Toggle</button>");
+    write_row(stream, obj, "light", "<button>Toggle</button>");
 #endif
 
 #ifdef USE_TEXT_SENSOR
   for (auto *obj : App.get_text_sensors())
-    if (!obj->is_internal())
-      write_row(stream, obj, "text_sensor", "");
+    write_row(stream, obj, "text_sensor", "");
+#endif
+
+#ifdef USE_COVER
+  for (auto *obj : App.get_covers())
+    write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
 #endif
 
   stream->print(F("</tbody></table><p>See <a href=\"https://esphome.io/web-api/index.html\">ESPHome Web API</a> for "
                   "REST API documentation.</p>"
                   "<h2>OTA Update</h2><form method=\"POST\" action=\"/update\" enctype=\"multipart/form-data\"><input "
                   "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"
-                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"
-                  "<script src=\""));
-  stream->print(this->js_url_);
-  stream->print(F("\"></script></article></body></html>"));
+                  "<h2>Debug Log</h2><pre id=\"log\"></pre>"));
+#ifdef WEBSERVER_JS_INCLUDE
+  if (this->js_include_ != nullptr) {
+    stream->print(F("<script src=\"/0.js\"></script>"));
+  }
+#endif
+  if (strlen(this->js_url_) > 0) {
+    stream->print(F("<script src=\""));
+    stream->print(this->js_url_);
+    stream->print(F("\"></script>"));
+  }
+  stream->print(F("</article></body></html>"));
 
   request->send(stream);
 }
+
+#ifdef WEBSERVER_CSS_INCLUDE
+void WebServer::handle_css_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/css");
+  if (this->css_include_ != nullptr) {
+    stream->print(this->css_include_);
+  }
+
+  request->send(stream);
+}
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+void WebServer::handle_js_request(AsyncWebServerRequest *request) {
+  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
+  if (this->js_include_ != nullptr) {
+    stream->print(this->js_include_);
+  }
+
+  request->send(stream);
+}
+#endif
 
 #ifdef USE_SENSOR
 void WebServer::on_sensor_update(sensor::Sensor *obj, float state) {
@@ -457,9 +506,86 @@ std::string WebServer::light_json(light::LightState *obj) {
 }
 #endif
 
+#ifdef USE_COVER
+void WebServer::on_cover_update(cover::Cover *obj) {
+  if (obj->is_internal())
+    return;
+  this->events_.send(this->cover_json(obj).c_str(), "state");
+}
+void WebServer::handle_cover_request(AsyncWebServerRequest *request, UrlMatch match) {
+  for (cover::Cover *obj : App.get_covers()) {
+    if (obj->is_internal())
+      continue;
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->cover_json(obj);
+      request->send(200, "text/json", data.c_str());
+      continue;
+    }
+
+    auto call = obj->make_call();
+    if (match.method == "open") {
+      call.set_command_open();
+    } else if (match.method == "close") {
+      call.set_command_close();
+    } else if (match.method == "stop") {
+      call.set_command_stop();
+    } else if (match.method != "set") {
+      request->send(404);
+      return;
+    }
+
+    auto traits = obj->get_traits();
+    if ((request->hasParam("position") && !traits.get_supports_position()) ||
+        (request->hasParam("tilt") && !traits.get_supports_tilt())) {
+      request->send(409);
+      return;
+    }
+
+    if (request->hasParam("position"))
+      call.set_position(request->getParam("position")->value().toFloat());
+    if (request->hasParam("tilt"))
+      call.set_tilt(request->getParam("tilt")->value().toFloat());
+
+    this->defer([call]() mutable { call.perform(); });
+    request->send(200);
+    return;
+  }
+  request->send(404);
+}
+std::string WebServer::cover_json(cover::Cover *obj) {
+  return json::build_json([obj](JsonObject &root) {
+    root["id"] = "cover-" + obj->get_object_id();
+    root["state"] = obj->is_fully_closed() ? "CLOSED" : "OPEN";
+    root["value"] = obj->position;
+    root["current_operation"] = cover::cover_operation_to_str(obj->current_operation);
+
+    if (obj->get_traits().get_supports_tilt())
+      root["tilt"] = obj->tilt;
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
+
+#ifdef WEBSERVER_PROMETHEUS
+  if (request->url() == "/metrics")
+    return true;
+#endif
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css")
+    return true;
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js")
+    return true;
+#endif
 
   UrlMatch match = match_url(request->url().c_str(), true);
   if (!match.valid)
@@ -494,6 +620,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_COVER
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "cover")
+    return true;
+#endif
+
   return false;
 }
 void WebServer::handleRequest(AsyncWebServerRequest *request) {
@@ -505,6 +636,27 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
+
+#ifdef WEBSERVER_PROMETHEUS
+  if (request->url() == "/metrics") {
+    this->prometheus.handle_request(request);
+    return;
+  }
+#endif
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  if (request->url() == "/0.css") {
+    this->handle_css_request(request);
+    return;
+  }
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  if (request->url() == "/0.js") {
+    this->handle_js_request(request);
+    return;
+  }
+#endif
 
   UrlMatch match = match_url(request->url().c_str());
 #ifdef USE_SENSOR
@@ -545,6 +697,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_TEXT_SENSOR
   if (match.domain == "text_sensor") {
     this->handle_text_sensor_request(request, match);
+    return;
+  }
+#endif
+
+#ifdef USE_COVER
+  if (match.domain == "cover") {
+    this->handle_cover_request(request, match);
     return;
   }
 #endif

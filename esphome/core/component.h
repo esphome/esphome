@@ -126,6 +126,8 @@ class Component {
 
   void status_momentary_error(const std::string &name, uint32_t length = 5000);
 
+  bool has_overridden_loop() const;
+
  protected:
   virtual void call_loop();
   virtual void call_setup();

@@ -47,8 +47,10 @@ void DHT::update() {
   if (error) {
     ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-    this->temperature_sensor_->publish_state(temperature);
-    this->humidity_sensor_->publish_state(humidity);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(temperature);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(humidity);
     this->status_clear_warning();
   } else {
     const char *str = "";
@@ -56,8 +58,10 @@ void DHT::update() {
       str = " and consider manually specifying the DHT model using the model option";
     }
     ESP_LOGW(TAG, "Invalid readings! Please check your wiring (pull-up resistor, pin number)%s.", str);
-    this->temperature_sensor_->publish_state(NAN);
-    this->humidity_sensor_->publish_state(NAN);
+    if (this->temperature_sensor_ != nullptr)
+      this->temperature_sensor_->publish_state(NAN);
+    if (this->humidity_sensor_ != nullptr)
+      this->humidity_sensor_->publish_state(NAN);
     this->status_set_warning();
   }
 }
@@ -67,80 +71,103 @@ void DHT::set_dht_model(DHTModel model) {
   this->model_ = model;
   this->is_auto_detect_ = model == DHT_MODEL_AUTO_DETECT;
 }
-bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
+bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool report_errors) {
   *humidity = NAN;
   *temperature = NAN;
 
-  disable_interrupts();
-  this->pin_->digital_write(false);
-  this->pin_->pin_mode(OUTPUT);
-  this->pin_->digital_write(false);
-
-  if (this->model_ == DHT_MODEL_DHT11) {
-    delayMicroseconds(18000);
-  } else if (this->model_ == DHT_MODEL_SI7021) {
-    delayMicroseconds(500);
-    this->pin_->digital_write(true);
-    delayMicroseconds(40);
-  } else {
-    delayMicroseconds(800);
-  }
-  this->pin_->pin_mode(INPUT_PULLUP);
-  delayMicroseconds(40);
-
+  int error_code = 0;
+  int8_t i = 0;
   uint8_t data[5] = {0, 0, 0, 0, 0};
-  uint8_t bit = 7;
-  uint8_t byte = 0;
 
-  for (int8_t i = -1; i < 40; i++) {
-    uint32_t start_time = micros();
+  {
+    InterruptLock lock;
 
-    // Wait for rising edge
-    while (!this->pin_->digital_read()) {
-      if (micros() - start_time > 90) {
-        enable_interrupts();
-        if (report_errors) {
-          if (i < 0) {
-            ESP_LOGW(TAG, "Waiting for DHT communication to clear failed!");
-          } else {
-            ESP_LOGW(TAG, "Rising edge for bit %d failed!", i);
-          }
+    this->pin_->digital_write(false);
+    this->pin_->pin_mode(OUTPUT);
+    this->pin_->digital_write(false);
+
+    if (this->model_ == DHT_MODEL_DHT11) {
+      delayMicroseconds(18000);
+    } else if (this->model_ == DHT_MODEL_SI7021) {
+      delayMicroseconds(500);
+      this->pin_->digital_write(true);
+      delayMicroseconds(40);
+    } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
+      delayMicroseconds(2000);
+    } else {
+      delayMicroseconds(800);
+    }
+    this->pin_->pin_mode(INPUT_PULLUP);
+    delayMicroseconds(40);
+
+    uint8_t bit = 7;
+    uint8_t byte = 0;
+
+    for (i = -1; i < 40; i++) {
+      uint32_t start_time = micros();
+
+      // Wait for rising edge
+      while (!this->pin_->digital_read()) {
+        if (micros() - start_time > 90) {
+          if (i < 0)
+            error_code = 1;
+          else
+            error_code = 2;
+          break;
         }
-        return false;
       }
-    }
+      if (error_code != 0)
+        break;
 
-    start_time = micros();
-    uint32_t end_time = start_time;
+      start_time = micros();
+      uint32_t end_time = start_time;
 
-    // Wait for falling edge
-    while (this->pin_->digital_read()) {
-      if ((end_time = micros()) - start_time > 90) {
-        enable_interrupts();
-        if (report_errors) {
-          if (i < 0) {
-            ESP_LOGW(TAG, "Requesting data from DHT failed!");
-          } else {
-            ESP_LOGW(TAG, "Falling edge for bit %d failed!", i);
-          }
+      // Wait for falling edge
+      while (this->pin_->digital_read()) {
+        if ((end_time = micros()) - start_time > 90) {
+          if (i < 0)
+            error_code = 3;
+          else
+            error_code = 4;
+          break;
         }
-        return false;
       }
-    }
+      if (error_code != 0)
+        break;
 
-    if (i < 0)
-      continue;
+      if (i < 0)
+        continue;
 
-    if (end_time - start_time >= 40) {
-      data[byte] |= 1 << bit;
+      if (end_time - start_time >= 40) {
+        data[byte] |= 1 << bit;
+      }
+      if (bit == 0) {
+        bit = 7;
+        byte++;
+      } else
+        bit--;
     }
-    if (bit == 0) {
-      bit = 7;
-      byte++;
-    } else
-      bit--;
   }
-  enable_interrupts();
+  if (!report_errors && error_code != 0)
+    return false;
+
+  switch (error_code) {
+    case 1:
+      ESP_LOGW(TAG, "Waiting for DHT communication to clear failed!");
+      return false;
+    case 2:
+      ESP_LOGW(TAG, "Rising edge for bit %d failed!", i);
+      return false;
+    case 3:
+      ESP_LOGW(TAG, "Requesting data from DHT failed!");
+      return false;
+    case 4:
+      ESP_LOGW(TAG, "Falling edge for bit %d failed!", i);
+      return false;
+    case 0:
+    default:
+      break;
+  }
 
   ESP_LOGVV(TAG,
             "Data: Hum=0b" BYTE_TO_BINARY_PATTERN BYTE_TO_BINARY_PATTERN
@@ -161,15 +188,29 @@ bool HOT DHT::read_sensor_(float *temperature, float *humidity, bool report_erro
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
-    *humidity = data[0];
-    if (*humidity > 100)
-      *humidity = NAN;
-    *temperature = data[2];
+    if (checksum_a == data[4]) {
+      // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
+      // check sum - some models always have 0 in the decimal part
+      const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
+      *temperature = raw_temperature / 10.0f;
+      if ((data[3] & 0x80) != 0) {
+        // negative
+        *temperature *= -1;
+      }
+
+      const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
+      *humidity = raw_humidity / 10.0f;
+    } else {
+      // For compatibily with DHT11 models which might only use 2 bytes checksums, only use the data from these two
+      // bytes
+      *temperature = data[2];
+      *humidity = data[0];
+    }
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
 
-    if ((raw_temperature & 0x8000) != 0)
+    if (this->model_ != DHT_MODEL_DHT22_TYPE2 && (raw_temperature & 0x8000) != 0)
       raw_temperature = ~(raw_temperature & 0x7FFF);
 
     if (raw_temperature == 1 && raw_humidity == 10) {

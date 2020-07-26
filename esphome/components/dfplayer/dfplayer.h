@@ -27,29 +27,56 @@ class DFPlayer : public uart::UARTDevice, public Component {
  public:
   void loop() override;
 
-  void next() { this->send_cmd_(0x01); }
-  void previous() { this->send_cmd_(0x02); }
+  void next() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x01);
+  }
+  void previous() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x02);
+  }
   void play_file(uint16_t file) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x03, file);
   }
-  void play_file_loop(uint16_t file) { this->send_cmd_(0x08, file); }
+  void play_file_loop(uint16_t file) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x08, file);
+  }
   void play_folder(uint16_t folder, uint16_t file);
-  void play_folder_loop(uint16_t folder) { this->send_cmd_(0x17, folder); }
+  void play_folder_loop(uint16_t folder) {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x17, folder);
+  }
   void volume_up() { this->send_cmd_(0x04); }
   void volume_down() { this->send_cmd_(0x05); }
   void set_device(Device device) { this->send_cmd_(0x09, device); }
   void set_volume(uint8_t volume) { this->send_cmd_(0x06, volume); }
   void set_eq(EqPreset preset) { this->send_cmd_(0x07, preset); }
-  void sleep() { this->send_cmd_(0x0A); }
-  void reset() { this->send_cmd_(0x0C); }
-  void start() { this->send_cmd_(0x0D); }
+  void sleep() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x0A);
+  }
+  void reset() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x0C);
+  }
+  void start() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x0D);
+  }
   void pause() {
     this->ack_reset_is_playing_ = true;
     this->send_cmd_(0x0E);
   }
-  void stop() { this->send_cmd_(0x16); }
-  void random() { this->send_cmd_(0x18); }
+  void stop() {
+    this->ack_reset_is_playing_ = true;
+    this->send_cmd_(0x16);
+  }
+  void random() {
+    this->ack_set_is_playing_ = true;
+    this->send_cmd_(0x18);
+  }
 
   bool is_playing() { return is_playing_; }
   void dump_config() override;
@@ -77,7 +104,6 @@ class DFPlayer : public uart::UARTDevice, public Component {
 
 #define DFPLAYER_SIMPLE_ACTION(ACTION_CLASS, ACTION_METHOD) \
   template<typename... Ts> class ACTION_CLASS : public Action<Ts...>, public Parented<DFPlayer> { \
-   public: \
     void play(Ts... x) override { this->parent_->ACTION_METHOD(); } \
   };
 
@@ -88,6 +114,7 @@ template<typename... Ts> class PlayFileAction : public Action<Ts...>, public Par
  public:
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(boolean, loop)
+
   void play(Ts... x) override {
     auto file = this->file_.value(x...);
     auto loop = this->loop_.value(x...);
@@ -104,6 +131,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
   TEMPLATABLE_VALUE(uint16_t, folder)
   TEMPLATABLE_VALUE(uint16_t, file)
   TEMPLATABLE_VALUE(boolean, loop)
+
   void play(Ts... x) override {
     auto folder = this->folder_.value(x...);
     auto file = this->file_.value(x...);
@@ -119,6 +147,7 @@ template<typename... Ts> class PlayFolderAction : public Action<Ts...>, public P
 template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(Device, device)
+
   void play(Ts... x) override {
     auto device = this->device_.value(x...);
     this->parent_->set_device(device);
@@ -128,6 +157,7 @@ template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Pa
 template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint8_t, volume)
+
   void play(Ts... x) override {
     auto volume = this->volume_.value(x...);
     this->parent_->set_volume(volume);
@@ -137,6 +167,7 @@ template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Pa
 template<typename... Ts> class SetEqAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(EqPreset, eq)
+
   void play(Ts... x) override {
     auto eq = this->eq_.value(x...);
     this->parent_->set_eq(eq);

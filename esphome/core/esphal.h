@@ -94,11 +94,13 @@ class GPIOPin {
   bool is_inverted() const;
 
   template<typename T> void attach_interrupt(void (*func)(T *), T *arg, int mode) const;
+  void detach_interrupt() const;
 
   ISRInternalGPIOPin *to_isr() const;
 
  protected:
   void attach_interrupt_(void (*func)(void *), void *arg, int mode) const;
+  void detach_interrupt_() const;
 
   const uint8_t pin_;
   const uint8_t mode_;
@@ -114,5 +116,12 @@ class GPIOPin {
 template<typename T> void GPIOPin::attach_interrupt(void (*func)(T *), T *arg, int mode) const {
   this->attach_interrupt_(reinterpret_cast<void (*)(void *)>(func), arg, mode);
 }
+/** This function can be used by the HAL to force-link specific symbols
+ * into the generated binary without modifying the linker script.
+ *
+ * It is called by the application very early on startup and should not be used for anything
+ * other than forcing symbols to be linked.
+ */
+void force_link_symbols();
 
 }  // namespace esphome

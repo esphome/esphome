@@ -211,6 +211,7 @@ uint32_t Scheduler::millis_() {
     ESP_LOGD(TAG, "Incrementing scheduler major");
     this->millis_major_++;
   }
+  this->last_millis_ = now;
   return now;
 }
 

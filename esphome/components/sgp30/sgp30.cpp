@@ -74,9 +74,9 @@ void SGP30Component::setup() {
   }
 
   // Sensor baseline reliability timer
-  if (this->baseline_ > 0) {
+  if (this->eco2_baseline_ > 0 && this->tvoc_baseline_ > 0) {
     this->required_warm_up_time_ = IAQ_BASELINE_WARM_UP_SECONDS_WITH_BASELINE_PROVIDED;
-    this->write_iaq_baseline_(this->baseline_);
+    this->write_iaq_baseline_(this->eco2_baseline_, this->tvoc_baseline_);
   } else {
     this->required_warm_up_time_ = IAQ_BASELINE_WARM_UP_SECONDS_WITHOUT_BASELINE;
   }
@@ -106,10 +106,10 @@ void SGP30Component::read_iaq_baseline_() {
         return;
       }
 
-      uint8_t eco2baseline = (raw_data[0]);
-      uint8_t tvocbaseline = (raw_data[1]);
+      uint16_t eco2baseline = (raw_data[0]);
+      uint16_t tvocbaseline = (raw_data[1]);
 
-      ESP_LOGI(TAG, "Current eCO2 & TVOC baseline: 0x%04X", uint16_t((eco2baseline << 8) | (tvocbaseline & 0xFF)));
+      ESP_LOGI(TAG, "Current eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2baseline, tvocbaseline);
       this->status_clear_warning();
     });
   } else {
@@ -159,18 +159,19 @@ void SGP30Component::send_env_data_() {
   }
 }
 
-void SGP30Component::write_iaq_baseline_(uint16_t baseline) {
-  uint8_t e_c_o2_baseline = baseline >> 8;
-  uint8_t tvoc_baseline = baseline & 0xFF;
-  uint8_t data[4];
+void SGP30Component::write_iaq_baseline_(uint16_t eco2_baseline, uint16_t tvoc_baseline) {
+  uint8_t data[7];
   data[0] = SGP30_CMD_SET_IAQ_BASELINE & 0xFF;
-  data[1] = e_c_o2_baseline;
-  data[2] = tvoc_baseline;
-  data[3] = sht_crc_(e_c_o2_baseline, tvoc_baseline);
-  if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 4)) {
-    ESP_LOGE(TAG, "Error applying baseline: 0x%04X", baseline);
+  data[1] = tvoc_baseline >> 8;
+  data[2] = tvoc_baseline & 0xFF;
+  data[3] = sht_crc_(data[1], data[2]);
+  data[4] = eco2_baseline >> 8;
+  data[5] = eco2_baseline & 0xFF;
+  data[6] = sht_crc_(data[4], data[5]);
+  if (!this->write_bytes(SGP30_CMD_SET_IAQ_BASELINE >> 8, data, 7)) {
+    ESP_LOGE(TAG, "Error applying eCO2 baseline: 0x%04X, TVOC baseline: 0x%04X", eco2_baseline, tvoc_baseline);
   } else
-    ESP_LOGI(TAG, "Initial baseline 0x%04X applied successfully!", baseline);
+    ESP_LOGI(TAG, "Initial eCO2 and TVOC baselines applied successfully!");
 }
 
 void SGP30Component::dump_config() {
@@ -196,8 +197,13 @@ void SGP30Component::dump_config() {
     }
   } else {
     ESP_LOGCONFIG(TAG, "  Serial number: %llu", this->serial_number_);
-    ESP_LOGCONFIG(TAG, "  Baseline: 0x%04X%s", this->baseline_,
-                  ((this->baseline_ != 0x0000) ? " (enabled)" : " (disabled)"));
+    if (this->eco2_baseline_ != 0x0000 && this->tvoc_baseline_ != 0x0000) {
+      ESP_LOGCONFIG(TAG, "  Baseline:");
+      ESP_LOGCONFIG(TAG, "    eCO2 Baseline: 0x%04X", this->eco2_baseline_);
+      ESP_LOGCONFIG(TAG, "    TVOC Baseline: 0x%04X", this->tvoc_baseline_);
+    } else {
+      ESP_LOGCONFIG(TAG, "  Baseline: No baseline configured");
+    }
     ESP_LOGCONFIG(TAG, "  Warm up time: %lds", this->required_warm_up_time_);
   }
   LOG_UPDATE_INTERVAL(this);
