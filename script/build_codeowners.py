@@ -60,8 +60,7 @@ for path in components_dir.iterdir():
             # Sub foldered platforms get their own line
             if not (platform_path / '__init__.py').is_file():
                 continue
-            if platform is not None:
-                codeowners[f'esphome/components/{name}/{platform_name}/*'].extend(platform.codeowners)
+            codeowners[f'esphome/components/{name}/{platform_name}/*'].extend(platform.codeowners)
             continue
 
         # Non-subfoldered platforms add to codeowners at component level
