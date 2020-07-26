@@ -12,7 +12,6 @@ from esphome.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOME, \
     CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color
-from esphome.py_compat import decode_text
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)
