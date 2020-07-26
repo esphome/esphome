@@ -2,9 +2,10 @@
 from pathlib import Path
 import sys
 import argparse
+from collections import defaultdict
 
 from esphome.helpers import write_file_if_changed
-from esphome.config import get_component
+from esphome.config import get_component, get_platform
 from esphome.core import CORE
 
 parser = argparse.ArgumentParser()
@@ -37,20 +38,47 @@ parts = [BASE]
 # Fake some diretory so that get_component works
 CORE.config_path = str(root)
 
-for path in sorted(components_dir.iterdir()):
+codeowners = defaultdict(list)
+
+for path in components_dir.iterdir():
     if not path.is_dir():
         continue
     if not (path / '__init__.py').is_file():
         continue
+
     name = path.name
     comp = get_component(name)
-    if comp.codeowners:
-        for owner in comp.codeowners:
-            if not owner.startswith('@'):
-                print(f"Codeowner {owner} for integration {name} must start with an '@' symbol!")
-                sys.exit(1)
+    codeowners[f'esphome/components/{name}/*'].extend(comp.codeowners)
 
-        parts.append(f"esphome/components/{name}/* {' '.join(comp.codeowners)}")
+    for platform_path in path.iterdir():
+        platform_name = platform_path.stem
+        platform = get_platform(platform_name, name)
+        if platform is None:
+            continue
+
+        if platform_path.is_dir():
+            # Sub foldered platforms get their own line
+            if not (platform_path / '__init__.py').is_file():
+                continue
+            codeowners[f'esphome/components/{name}/{platform_name}/*'].extend(platform.codeowners)
+            continue
+
+        # Non-subfoldered platforms add to codeowners at component level
+        if not platform_path.is_file() or platform_path.name == '__init__.py':
+            continue
+        codeowners[f'esphome/components/{name}/*'].extend(platform.codeowners)
+
+
+for path, owners in sorted(codeowners.items()):
+    owners = sorted(set(owners))
+    if not owners:
+        continue
+    for owner in owners:
+        if not owner.startswith('@'):
+            print(f"Codeowner {owner} for integration {path} must start with an '@' symbol!")
+            sys.exit(1)
+    parts.append(f"{path} {' '.join(owners)}")
+
 
 # End newline
 parts.append('')

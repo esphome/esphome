@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_SWITCH_DATAPOINT
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
+CODEOWNERS = ['@jesserockz']
 
 CONF_TARGET_TEMPERATURE_DATAPOINT = "target_temperature_datapoint"
 CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"

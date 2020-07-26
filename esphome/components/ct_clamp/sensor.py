@@ -4,6 +4,7 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import CONF_SENSOR, CONF_ID, ICON_FLASH, UNIT_AMPERE
 
 AUTO_LOAD = ['voltage_sampler']
+CODEOWNERS = ['@jesserockz']
 
 CONF_SAMPLE_DURATION = 'sample_duration'
 
