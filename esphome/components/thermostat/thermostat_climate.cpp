@@ -507,10 +507,18 @@ Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return
 Trigger<> *ThermostatClimate::get_swing_mode_vertical_trigger() const { return this->swing_mode_vertical_trigger_; }
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
-  if (this->supports_heat_)
-    ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
-  if ((this->supports_cool_) || (this->supports_fan_only_))
-    ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+  if (this->supports_heat_) {
+    if (this->supports_two_points_)
+      ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature_low);
+    else
+      ESP_LOGCONFIG(TAG, "  Default Target Temperature Low: %.1f°C", this->normal_config_.default_temperature);
+  }
+  if ((this->supports_cool_) || (this->supports_fan_only_)) {
+    if (this->supports_two_points_)
+      ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature_high);
+    else
+      ESP_LOGCONFIG(TAG, "  Default Target Temperature High: %.1f°C", this->normal_config_.default_temperature);
+  }
   ESP_LOGCONFIG(TAG, "  Hysteresis: %.1f°C", this->hysteresis_);
   ESP_LOGCONFIG(TAG, "  Supports AUTO: %s", YESNO(this->supports_auto_));
   ESP_LOGCONFIG(TAG, "  Supports COOL: %s", YESNO(this->supports_cool_));
@@ -533,11 +541,20 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports TWO SET POINTS: %s", YESNO(this->supports_two_points_));
   ESP_LOGCONFIG(TAG, "  Supports AWAY mode: %s", YESNO(this->supports_away_));
   if (this->supports_away_) {
-    if (this->supports_heat_)
-      ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C", this->away_config_.default_temperature_low);
-    if ((this->supports_cool_) || (this->supports_fan_only_))
-      ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C",
-                    this->away_config_.default_temperature_high);
+    if (this->supports_heat_) {
+      if (this->supports_two_points_)
+        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C",
+                      this->away_config_.default_temperature_low);
+      else
+        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature Low: %.1f°C", this->away_config_.default_temperature);
+    }
+    if ((this->supports_cool_) || (this->supports_fan_only_)) {
+      if (this->supports_two_points_)
+        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C",
+                      this->away_config_.default_temperature_high);
+      else
+        ESP_LOGCONFIG(TAG, "    Away Default Target Temperature High: %.1f°C", this->away_config_.default_temperature);
+    }
   }
 }
 
