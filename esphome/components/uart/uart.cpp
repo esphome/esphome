@@ -61,7 +61,6 @@ void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits, UART
     ESP_LOGE(TAG, "  Invalid parity: Integration requested parity %s but you have %s!", parity_to_str(parity),
              parity_to_str(this->parent_->parity_));
   }
-  this->stop_bits_ = stop_bits;
 }
 
 const char *parity_to_str(UARTParityOptions parity) {
@@ -74,17 +73,6 @@ const char *parity_to_str(UARTParityOptions parity) {
       return "ODD";
     default:
       return "UNKNOWN";
-  }
-}
-
-void UARTDevice::check_uart_settings(uint32_t baud_rate, uint8_t stop_bits) {
-  if (this->parent_->baud_rate_ != baud_rate) {
-    ESP_LOGE(TAG, "  Invalid baud_rate: Integration requested baud_rate %u but you have %u!", baud_rate,
-             this->parent_->baud_rate_);
-  }
-  if (this->parent_->stop_bits_ != stop_bits) {
-    ESP_LOGE(TAG, "  Invalid stop bits: Integration requested stop_bits %u but you have %u!", stop_bits,
-             this->parent_->stop_bits_);
   }
 }
 
