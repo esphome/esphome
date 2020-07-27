@@ -1,6 +1,7 @@
 from esphome.components import time as time_
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_SERVERS
 
 
@@ -27,3 +28,8 @@ def to_code(config):
 
     yield cg.register_component(var, config)
     yield time_.register_time(var, config)
+
+    if CORE.is_esp8266:
+        # When LWIP_FEATURES is disabled, the default number of sntp servers is 1
+        # but our code expects 3.
+        cg.add_build_flag('-DLWIP_DHCP_MAX_NTP_SERVERS=3')
