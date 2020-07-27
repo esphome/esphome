@@ -252,7 +252,7 @@ jobs:
           docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:beta"
           docker push "${BUILD_TO}:beta"
 
-      - if: ${{ !github.event.release.prerelease) }}
+      - if: ${{ !github.event.release.prerelease }}
         name: Publish docker latest tag
         run: |
           docker tag "${BUILD_TO}:${TAG}" "${BUILD_TO}:latest"
@@ -293,7 +293,7 @@ jobs:
         docker manifest push esphome/esphome:beta
 
     - name: Publish docker latest tag
-      if: ${{ !github.event.release.prerelease) }}
+      if: ${{ !github.event.release.prerelease }}
       run: |
         docker manifest create esphome/esphome:latest \
           esphome/esphome-aarch64:${TAG} \
