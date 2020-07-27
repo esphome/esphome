@@ -169,14 +169,6 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
     conf.sta.channel = *ap.get_channel();
   }
 
-  if (ap.get_password().empty()) {
-    conf.threshold.authmode = WIFI_AUTH_OPEN;
-  } else {
-    // Only allow auth modes with at least WPA2
-    // https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/network/esp_wifi.html?highlight=wifi_auth_wpa2_psk#_CPPv416wifi_auth_mode_t
-    conf.threshold.authmode = WIFI_AUTH_WPA_PSK;
-  }
-
   wifi_config_t current_conf;
   esp_err_t err;
   esp_wifi_get_config(WIFI_IF_STA, &current_conf);
