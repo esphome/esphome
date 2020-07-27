@@ -407,7 +407,7 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
         // we can't call retry_connect() from this context, so disconnect immediately
         // and notify main thread with error_from_callback_
         wifi_station_disconnect();
-        this->error_from_callback_ = true;
+        global_wifi_component->error_from_callback_ = true;
       }
       break;
     }
