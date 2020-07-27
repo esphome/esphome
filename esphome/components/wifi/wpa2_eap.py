@@ -114,8 +114,6 @@ def _check_private_key_cert_match(key, cert):
 
 
 def validate_eap(value):
-    validate_cryptography_installed()
-
     if CONF_USERNAME in value:
         if CONF_IDENTITY not in value:
             _LOGGER.info("EAP 'identity:' is not set, assuming username.")
