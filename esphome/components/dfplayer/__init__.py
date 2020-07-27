@@ -5,6 +5,7 @@ from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_FILE, CONF_DEVICE
 from esphome.components import uart
 
 DEPENDENCIES = ['uart']
+CODEOWNERS = ['@glmnet']
 
 dfplayer_ns = cg.esphome_ns.namespace('dfplayer')
 DFPlayer = dfplayer_ns.class_('DFPlayer', cg.Component)

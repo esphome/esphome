@@ -32,9 +32,11 @@ void DallasComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DallasComponent...");
 
   yield();
-  disable_interrupts();
-  std::vector<uint64_t> raw_sensors = this->one_wire_->search_vec();
-  enable_interrupts();
+  std::vector<uint64_t> raw_sensors;
+  {
+    InterruptLock lock;
+    raw_sensors = this->one_wire_->search_vec();
+  }
 
   for (auto &address : raw_sensors) {
     std::string s = uint64_to_string(address);
@@ -108,16 +110,17 @@ DallasTemperatureSensor *DallasComponent::get_sensor_by_index(uint8_t index, uin
 void DallasComponent::update() {
   this->status_clear_warning();
 
-  disable_interrupts();
   bool result;
-  if (!this->one_wire_->reset()) {
-    result = false;
-  } else {
-    result = true;
-    this->one_wire_->skip();
-    this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
+  {
+    InterruptLock lock;
+    if (!this->one_wire_->reset()) {
+      result = false;
+    } else {
+      result = true;
+      this->one_wire_->skip();
+      this->one_wire_->write8(DALLAS_COMMAND_START_CONVERSION);
+    }
   }
-  enable_interrupts();
 
   if (!result) {
     ESP_LOGE(TAG, "Requesting conversion failed");
@@ -127,9 +130,11 @@ void DallasComponent::update() {
 
   for (auto *sensor : this->sensors_) {
     this->set_timeout(sensor->get_address_name(), sensor->millis_to_wait_for_conversion(), [this, sensor] {
-      disable_interrupts();
-      bool res = sensor->read_scratch_pad();
-      enable_interrupts();
+      bool res;
+      {
+        InterruptLock lock;
+        res = sensor->read_scratch_pad();
+      }
 
       if (!res) {
         ESP_LOGW(TAG, "'%s' - Reseting bus for read failed!", sensor->get_name().c_str());
@@ -170,7 +175,7 @@ const std::string &DallasTemperatureSensor::get_address_name() {
 
   return this->address_name_;
 }
-bool DallasTemperatureSensor::read_scratch_pad() {
+bool ICACHE_RAM_ATTR DallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;
@@ -185,9 +190,11 @@ bool DallasTemperatureSensor::read_scratch_pad() {
   return true;
 }
 bool DallasTemperatureSensor::setup_sensor() {
-  disable_interrupts();
-  bool r = this->read_scratch_pad();
-  enable_interrupts();
+  bool r;
+  {
+    InterruptLock lock;
+    r = this->read_scratch_pad();
+  }
 
   if (!r) {
     ESP_LOGE(TAG, "Reading scratchpad failed: reset");
@@ -222,20 +229,21 @@ bool DallasTemperatureSensor::setup_sensor() {
   }
 
   ESPOneWire *wire = this->parent_->one_wire_;
-  disable_interrupts();
-  if (wire->reset()) {
-    wire->select(this->address_);
-    wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
-    wire->write8(this->scratch_pad_[2]);  // high alarm temp
-    wire->write8(this->scratch_pad_[3]);  // low alarm temp
-    wire->write8(this->scratch_pad_[4]);  // resolution
-    wire->reset();
+  {
+    InterruptLock lock;
+    if (wire->reset()) {
+      wire->select(this->address_);
+      wire->write8(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
+      wire->write8(this->scratch_pad_[2]);  // high alarm temp
+      wire->write8(this->scratch_pad_[3]);  // low alarm temp
+      wire->write8(this->scratch_pad_[4]);  // resolution
+      wire->reset();
 
-    // write value to EEPROM
-    wire->select(this->address_);
-    wire->write8(0x48);
+      // write value to EEPROM
+      wire->select(this->address_);
+      wire->write8(0x48);
+    }
   }
-  enable_interrupts();
 
   delay(20);  // allow it to finish operation
   wire->reset();

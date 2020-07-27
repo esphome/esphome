@@ -7,23 +7,21 @@ import os
 
 from esphome import const
 from esphome.core import CORE
-from esphome.helpers import mkdir_p, write_file_if_changed
+from esphome.helpers import write_file_if_changed
 
 # pylint: disable=unused-import, wrong-import-order
-from esphome.core import CoreType  # noqa
-from typing import Any, Dict, Optional  # noqa
-
-from esphome.py_compat import text_type
+from esphome.core import CoreType
+from typing import Any, Optional, List
 
 _LOGGER = logging.getLogger(__name__)
 
 
 def storage_path():  # type: () -> str
-    return CORE.relative_config_path('.esphome', '{}.json'.format(CORE.config_filename))
+    return CORE.relative_config_path('.esphome', f'{CORE.config_filename}.json')
 
 
 def ext_storage_path(base_path, config_filename):  # type: (str, str) -> str
-    return os.path.join(base_path, '.esphome', '{}.json'.format(config_filename))
+    return os.path.join(base_path, '.esphome', f'{config_filename}.json')
 
 
 def esphome_storage_path(base_path):  # type: (str) -> str
@@ -35,7 +33,7 @@ def trash_storage_path(base_path):  # type: (str) -> str
 
 
 # pylint: disable=too-many-instance-attributes
-class StorageJSON(object):
+class StorageJSON:
     def __init__(self, storage_version, name, comment, esphome_version,
                  src_version, arduino_version, address, esp_platform, board, build_path,
                  firmware_bin_path, loaded_integrations):
@@ -85,10 +83,9 @@ class StorageJSON(object):
         }
 
     def to_json(self):
-        return json.dumps(self.as_dict(), indent=2) + u'\n'
+        return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):
-        mkdir_p(os.path.dirname(path))
         write_file_if_changed(path, self.to_json())
 
     @staticmethod
@@ -157,7 +154,7 @@ class StorageJSON(object):
         return isinstance(o, StorageJSON) and self.as_dict() == o.as_dict()
 
 
-class EsphomeStorageJSON(object):
+class EsphomeStorageJSON:
     def __init__(self, storage_version, cookie_secret, last_update_check,
                  remote_version):
         # Version of the storage JSON schema
@@ -190,7 +187,7 @@ class EsphomeStorageJSON(object):
         self.last_update_check_str = new.strftime("%Y-%m-%dT%H:%M:%S")
 
     def to_json(self):  # type: () -> dict
-        return json.dumps(self.as_dict(), indent=2) + u'\n'
+        return json.dumps(self.as_dict(), indent=2) + '\n'
 
     def save(self, path):  # type: (str) -> None
         write_file_if_changed(path, self.to_json())
@@ -217,7 +214,7 @@ class EsphomeStorageJSON(object):
     def get_default():  # type: () -> EsphomeStorageJSON
         return EsphomeStorageJSON(
             storage_version=1,
-            cookie_secret=text_type(binascii.hexlify(os.urandom(64))),
+            cookie_secret=binascii.hexlify(os.urandom(64)).decode(),
             last_update_check=None,
             remote_version=None,
         )

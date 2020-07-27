@@ -32,7 +32,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void set_brightness(float brightness) { this->brightness_ = brightness; }
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
-  void fill(int color) override;
+  void fill(Color color) override;
 
  protected:
   virtual void command(uint8_t value) = 0;
@@ -41,7 +41,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
 
   bool is_sh1106_() const;
 
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
   int get_height_internal() override;
   int get_width_internal() override;

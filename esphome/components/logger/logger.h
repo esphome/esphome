@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
@@ -31,6 +32,7 @@ class Logger : public Component {
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
+  HardwareSerial *get_hw_serial() const { return hw_serial_; }
 
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
@@ -114,6 +116,21 @@ class Logger : public Component {
 };
 
 extern Logger *global_logger;
+
+class LoggerMessageTrigger : public Trigger<int, const char *, const char *> {
+ public:
+  explicit LoggerMessageTrigger(Logger *parent, int level) {
+    this->level_ = level;
+    parent->add_on_log_callback([this](int level, const char *tag, const char *message) {
+      if (level <= this->level_) {
+        this->trigger(level, tag, message);
+      }
+    });
+  }
+
+ protected:
+  int level_;
+};
 
 }  // namespace logger
 

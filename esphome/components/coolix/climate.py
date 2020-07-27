@@ -4,6 +4,7 @@ from esphome.components import climate_ir
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ['climate_ir']
+CODEOWNERS = ['@glmnet']
 
 coolix_ns = cg.esphome_ns.namespace('coolix')
 CoolixClimate = coolix_ns.class_('CoolixClimate', climate_ir.ClimateIR)

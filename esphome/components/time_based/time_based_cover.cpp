@@ -51,7 +51,7 @@ float TimeBasedCover::get_setup_priority() const { return setup_priority::DATA; 
 CoverTraits TimeBasedCover::get_traits() {
   auto traits = CoverTraits();
   traits.set_supports_position(true);
-  traits.set_is_assumed_state(true);
+  traits.set_is_assumed_state(this->assumed_state_);
   return traits;
 }
 void TimeBasedCover::control(const CoverCall &call) {
@@ -78,7 +78,7 @@ void TimeBasedCover::control(const CoverCall &call) {
 }
 void TimeBasedCover::stop_prev_trigger_() {
   if (this->prev_command_trigger_ != nullptr) {
-    this->prev_command_trigger_->stop();
+    this->prev_command_trigger_->stop_action();
     this->prev_command_trigger_ = nullptr;
   }
 }

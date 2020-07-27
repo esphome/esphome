@@ -32,7 +32,13 @@ static const uint16_t STATE_DECREMENT_COUNTER_1 = 0x1000;
 // Bit 2&3 (0x0C) encodes state S0-S3
 // Bit 4 (0x10) encodes clockwise/counter-clockwise rotation
 
-static const uint16_t STATE_LOOKUP_TABLE[32] = {
+// Only apply if DRAM_ATTR exists on this platform (exists on ESP32, not on ESP8266)
+#ifndef DRAM_ATTR
+#define DRAM_ATTR
+#endif
+// array needs to be placed in .dram1 for ESP32
+// otherwise it will automatically go into flash, and cause cache disabled issues
+static const uint16_t DRAM_ATTR STATE_LOOKUP_TABLE[32] = {
     // act state S0 in CCW direction
     STATE_CCW | STATE_S0,                              // 0x00: stay here
     STATE_CW | STATE_S1 | STATE_INCREMENT_COUNTER_1,   // 0x01: goto CW+S1 and increment counter (dir change)

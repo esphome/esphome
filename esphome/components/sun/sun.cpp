@@ -52,6 +52,14 @@ double Sun::azimuth() {
     return NAN;
   return this->azimuth_(time);
 }
+// like clamp, but with doubles
+double clampd(double val, double min, double max) {
+  if (val < min)
+    return min;
+  if (val > max)
+    return max;
+  return val;
+}
 double Sun::sun_declination_(double sun_time) {
   double n = sun_time - 1.0;
   // maximum declination
@@ -67,7 +75,7 @@ double Sun::sun_declination_(double sun_time) {
   const double c = TAU / 365.24;
   double v = cos(c * days_since_december_solstice + 2 * eccentricity * sin(c * days_since_perihelion));
   // Make sure value is in range (double error may lead to results slightly larger than 1)
-  double x = clamp(tot * v, 0, 1);
+  double x = clampd(tot * v, -1.0, 1.0);
   return asin(x);
 }
 double Sun::elevation_ratio_(double sun_time) {
@@ -75,7 +83,7 @@ double Sun::elevation_ratio_(double sun_time) {
   double hangle = this->hour_angle_(sun_time);
   double a = sin(this->latitude_rad_()) * sin(decl);
   double b = cos(this->latitude_rad_()) * cos(decl) * cos(hangle);
-  double val = clamp(a + b, -1.0, 1.0);
+  double val = clampd(a + b, -1.0, 1.0);
   return val;
 }
 double Sun::latitude_rad_() { return this->latitude_ * TO_RADIANS; }
@@ -92,7 +100,7 @@ double Sun::azimuth_rad_(double sun_time) {
   double zen = this->zenith_rad_(sun_time);
   double nom = cos(zen) * sin(this->latitude_rad_()) - sin(decl);
   double denom = sin(zen) * cos(this->latitude_rad_());
-  double v = clamp(nom / denom, -1.0, 1.0);
+  double v = clampd(nom / denom, -1.0, 1.0);
   double az = PI - acos(v);
   if (hangle > 0)
     az = -az;
