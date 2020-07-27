@@ -30,6 +30,5 @@ def to_code(config):
     yield time_.register_time(var, config)
 
     if CORE.is_esp8266:
-        # When LWIP_FEATURES is disabled, the default number of sntp servers is 1
-        # but our code expects 3.
-        cg.add_build_flag('-DLWIP_DHCP_MAX_NTP_SERVERS=3')
+        # We need LwIP features enabled to get 3 SNTP servers (not just one)
+        cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_LOW_MEMORY')
