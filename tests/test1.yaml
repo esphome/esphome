@@ -166,7 +166,6 @@ web_server:
   port: 8080
   css_url: https://esphome.io/_static/webserver-v1.min.css
   js_url: https://esphome.io/_static/webserver-v1.min.js
-  prometheus: true
 
 power_supply:
   id: 'atx_power_supply'

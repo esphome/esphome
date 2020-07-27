@@ -210,7 +210,6 @@ logger:
   esp8266_store_log_strings_in_flash: false
 
 web_server:
-  prometheus: true
 
 deep_sleep:
   run_duration: 20s

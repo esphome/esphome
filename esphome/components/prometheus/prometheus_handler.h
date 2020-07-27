@@ -1,17 +1,31 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/controller.h"
 #include "esphome/components/web_server_base/web_server_base.h"
+#include "esphome/core/controller.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
-namespace web_server {
+namespace prometheus {
 
-class WebServerPrometheus {
+class PrometheusHandler : public AsyncWebHandler, public Component {
  public:
-  WebServerPrometheus(){};
-  /// Handle an prometheus metrics request under '/metrics'.
-  void handle_request(AsyncWebServerRequest *request);
+  PrometheusHandler(web_server_base::WebServerBase *base) : base_(base) {}
+
+  bool canHandle(AsyncWebServerRequest *request) override {
+    if (request->method() == HTTP_GET) {
+      if (request->url() == "/metrics")
+        return true;
+    }
+
+    return false;
+  }
+
+  void handleRequest(AsyncWebServerRequest *req) override;
+
+  void setup() override {
+    this->base_->init();
+    this->base_->add_handler(this);
+  }
 
  protected:
 #ifdef USE_SENSOR
@@ -55,7 +69,9 @@ class WebServerPrometheus {
   /// Return the switch Values state as prometheus data point
   void switch_row_(AsyncResponseStream *stream, switch_::Switch *obj);
 #endif
+
+  web_server_base::WebServerBase *base_;
 };
 
-}  // namespace web_server
+}  // namespace prometheus
 }  // namespace esphome
