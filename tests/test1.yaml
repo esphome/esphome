@@ -196,6 +196,13 @@ wled:
 adalight:
 
 sensor:
+  - platform: accumulator
+    name: "Total uptime"
+    sensor: uptimeSensor
+    reset_value: 200
+    max_time_interval: 20min
+    min_time_interval: 30s
+    max_value_interval: 100
   - platform: adc
     pin: A0
     name: "Living Room Brightness"
@@ -417,7 +424,7 @@ sensor:
     power:
       name: "HLW8012 Power"
       id: hlw8012_power
-    update_interval: 15s
+     update_interval: 15s
     current_resistor: 0.001 ohm
     voltage_divider: 2351
     change_mode_every: 16
@@ -694,6 +701,7 @@ sensor:
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
+    id: uptimeSensor
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 15s

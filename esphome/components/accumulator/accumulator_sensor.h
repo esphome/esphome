@@ -21,7 +21,7 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   void set_min_time_interval(int value) { min_time_interval_ = value; }
   void set_max_value_interval(float value) { max_value_interval_ = value; }
 
-  void reset() { initial_value_ = 0; }
+  void reset() { initial_value_ = - sensor_->state; }
 
   void process_sensor_value(float value);
   void save_if_needed(float value);
