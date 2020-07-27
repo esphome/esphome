@@ -401,8 +401,8 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
                get_auth_mode_str(it.new_mode));
       // Mitigate CVE-2020-12638
       // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
-      if (it.old_mode == WIFI_AUTH_OPEN && it.new_mode == WIFI_AUTH_OPEN) {
-        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...", esp_err_to_name(err));
+      if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
         // we can't call retry_connect() from this context, so disconnect immediately
         // and notify main thread with error_from_callback_
         wifi_station_disconnect();
