@@ -17,14 +17,15 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   void set_reset(bool reset) { reset_ = reset; }
   void set_reset_value(float reset_value) { initial_value_ = reset_value; }
 
-  void set_max_time_interval(int value) { max_value_interval_ = value; }
-  void set_min_time_interval(int value) { min_time_interval_ = value; }
-  void set_max_value_interval(float value) { max_value_interval_ = value; }
+  void set_save_on_value_delta(float value) { save_on_value_delta_ = value; }
+  void set_save_min_interval(int value) { save_min_interval_ = value; }
+  void set_save_max_interval(int value) { save_max_interval_ = value; }
 
   void reset() { initial_value_ = -sensor_->state; }
 
   void process_sensor_value(float value);
-  void save_if_needed(float value);
+  bool needs_save(float value);
+  void save(float value);
 
  protected:
   std::string unit_of_measurement() override { return this->sensor_->get_unit_of_measurement(); }
@@ -35,9 +36,9 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   ESPPreferenceObject rtc_;
 
   // settings
-  float max_value_interval_;
-  int min_time_interval_;
-  int max_time_interval_;
+  float save_on_value_delta_{0.0f};
+  int save_min_interval_{0};
+  int save_max_interval_{0};
   float initial_value_{0.0f};
   bool reset_;
 

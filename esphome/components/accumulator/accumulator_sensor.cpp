@@ -25,30 +25,33 @@ void AccumulatorSensor::setup() {
 }
 
 void AccumulatorSensor::process_sensor_value(float value) {
-  ESP_LOGD(TAG, "process_sensor_value_ Got: %f, initial_value_ = %f", value, initial_value_);
+  ESP_LOGD(TAG, "process_sensor_value Got: %f, initial_value = %f", value, initial_value_);
 
   float total = value + initial_value_;
   publish_state(total);
-  save_if_needed(total);
+  if (needs_save(total))
+  {
+    save(total);
+  }
 }
 
-void AccumulatorSensor::save_if_needed(float value) {
+bool AccumulatorSensor::needs_save(float value)
+{
   uint now = millis();
   float value_delta = std::fabs(value - last_saved_value_);
-  uint time_delta = now - last_saved_time_;
+  uint time_since_last_save = now - last_saved_time_;
 
-  if (
-      // save after saveMaxTimeDelta if value has changed
-      (value_delta > 0 && time_delta > max_time_interval_) ||
+  return (value_delta != 0) && (
+    (time_since_last_save >= save_min_interval_ && value_delta >= save_on_value_delta_ ) ||
+    (time_since_last_save >= save_max_interval_ && save_max_interval_ != 0 ) );
+}
 
-      // save after max_value_interval if saveMinTimeInterval has passed)
-      (value_delta > max_value_interval_ && time_delta > min_time_interval_)) {
-    this->rtc_.save(&value);
-    last_saved_value_ = value;
-    last_saved_time_ = now;
+void AccumulatorSensor::save(float value) {
+  this->rtc_.save(&value);
+  last_saved_value_ = value;
+  last_saved_time_ = millis();
 
-    ESP_LOGD(TAG, "value saved to preferences: %f", value);
-  }
+  ESP_LOGD(TAG, "Value saved to preferences: %f", value);
 }
 
 void AccumulatorSensor::dump_config() { LOG_SENSOR("", "Accumulator Sensor", this); }
