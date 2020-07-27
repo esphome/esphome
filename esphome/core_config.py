@@ -13,7 +13,6 @@ from esphome.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MOD
     ARDUINO_VERSION_ESP32, ESP_PLATFORMS
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
-from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -190,6 +189,26 @@ def add_includes(includes):
             include_file(path, basename)
 
 
+@coroutine_with_priority(-1000.0)
+def _esp8266_add_lwip_type():
+    # If any component has already set this, do not change it
+    if any(flag.startswith('-DPIO_FRAMEWORK_ARDUINO_LWIP2_') for flag in CORE.build_flags):
+        return
+
+    # Default for platformio is LWIP2_LOW_MEMORY with:
+    #  - MSS=536
+    #  - LWIP_FEATURES enabled
+    #     - this only adds some optional features like IP incoming packet reassembly and NAPT
+    #       see also:
+    #  https://github.com/esp8266/Arduino/blob/master/tools/sdk/lwip2/include/lwipopts.h
+
+    # Instead we use LWIP2_HIGHER_BANDWIDTH_LOW_FLASH with:
+    #  - MSS=1460
+    #  - LWIP_FEATURES disabled (because we don't need them)
+    # Other projects like Tasmota & ESPEasy also use this
+    cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH')
+
+
 @coroutine_with_priority(100.0)
 def to_code(config):
     cg.add_global(cg.global_ns.namespace('esphome').using)
@@ -210,41 +229,9 @@ def to_code(config):
         yield cg.register_component(trigger, conf)
         yield automation.build_automation(trigger, [], conf)
 
-    # Build flags
-    if CORE.is_esp8266 and CORE.board in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[CORE.board]
-        ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
-
-        versions_with_old_ldscripts = [
-            ARDUINO_VERSION_ESP8266['2.4.0'],
-            ARDUINO_VERSION_ESP8266['2.4.1'],
-            ARDUINO_VERSION_ESP8266['2.4.2'],
-        ]
-        if CORE.arduino_version == ARDUINO_VERSION_ESP8266['2.3.0']:
-            # No ld script support
-            ld_script = None
-        if CORE.arduino_version in versions_with_old_ldscripts:
-            # Old ld script path
-            ld_script = ld_scripts[0]
-        else:
-            ld_script = ld_scripts[1]
-
-        cg.add_build_flag(f'-Wl,-T{ld_script}')
-
     # Set LWIP build constants for ESP8266
     if CORE.is_esp8266:
-        # Default for platformio is LWIP2_LOW_MEMORY with:
-        #  - MSS=536
-        #  - LWIP_FEATURES enabled
-        #     - this only adds some optional features like IP incoming packet reassembly and NAPT
-        #       see also:
-        #  https://github.com/esp8266/Arduino/blob/master/tools/sdk/lwip2/include/lwipopts.h
-
-        # Instead we use LWIP2_HIGHER_BANDWIDTH_LOW_FLASH with:
-        #  - MSS=1460
-        #  - LWIP_FEATURES disabled (because we don't need them)
-        # Other projects like Tasmota & ESPEasy also use this
-        cg.add_build_flag('-DPIO_FRAMEWORK_ARDUINO_LWIP2_HIGHER_BANDWIDTH_LOW_FLASH')
+        CORE.add_job(_esp8266_add_lwip_type)
 
     cg.add_build_flag('-fno-exceptions')
 
