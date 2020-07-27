@@ -572,11 +572,6 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
 
-#ifdef WEBSERVER_PROMETHEUS
-  if (request->url() == "/metrics")
-    return true;
-#endif
-
 #ifdef WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css")
     return true;
@@ -636,13 +631,6 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
     this->handle_index_request(request);
     return;
   }
-
-#ifdef WEBSERVER_PROMETHEUS
-  if (request->url() == "/metrics") {
-    this->prometheus.handle_request(request);
-    return;
-  }
-#endif
 
 #ifdef WEBSERVER_CSS_INCLUDE
   if (request->url() == "/0.css") {

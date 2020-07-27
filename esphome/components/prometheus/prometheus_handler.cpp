@@ -1,23 +1,11 @@
-#include "web_server.h"
-#include "web_server_prometheus.h"
-#include "esphome/core/log.h"
+#include "prometheus_handler.h"
 #include "esphome/core/application.h"
-#include "esphome/core/util.h"
-#include "esphome/components/json/json_util.h"
-
-#include "StreamString.h"
-
-#include <cstdlib>
-
-#ifdef USE_LOGGER
-#include <esphome/components/logger/logger.h>
-#endif
 
 namespace esphome {
-namespace web_server {
+namespace prometheus {
 
-void WebServerPrometheus::handle_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/plain");
+void PrometheusHandler::handleRequest(AsyncWebServerRequest *req) {
+  AsyncResponseStream *stream = req->beginResponseStream("text/plain");
 
 #ifdef USE_SENSOR
   this->sensor_type_(stream);
@@ -55,16 +43,16 @@ void WebServerPrometheus::handle_request(AsyncWebServerRequest *request) {
     this->switch_row_(stream, obj);
 #endif
 
-  request->send(stream);
+  req->send(stream);
 }
 
 // Type-specific implementation
 #ifdef USE_SENSOR
-void WebServerPrometheus::sensor_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_sensor_value GAUGE\n"));
   stream->print(F("#TYPE esphome_sensor_failed GAUGE\n"));
 }
-void WebServerPrometheus::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
+void PrometheusHandler::sensor_row_(AsyncResponseStream *stream, sensor::Sensor *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->state)) {
@@ -97,14 +85,14 @@ void WebServerPrometheus::sensor_row_(AsyncResponseStream *stream, sensor::Senso
 
 // Type-specific implementation
 #ifdef USE_BINARY_SENSOR
-void WebServerPrometheus::binary_sensor_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::binary_sensor_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_binary_sensor_value GAUGE\n"));
   stream->print(F("#TYPE esphome_binary_sensor_failed GAUGE\n"));
 }
-void WebServerPrometheus::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
+void PrometheusHandler::binary_sensor_row_(AsyncResponseStream *stream, binary_sensor::BinarySensor *obj) {
   if (obj->is_internal())
     return;
-  if (!isnan(obj->state)) {
+  if (obj->has_state()) {
     // We have a valid value, output this value
     stream->print(F("esphome_binary_sensor_failed{id=\""));
     stream->print(obj->get_object_id().c_str());
@@ -131,68 +119,58 @@ void WebServerPrometheus::binary_sensor_row_(AsyncResponseStream *stream, binary
 #endif
 
 #ifdef USE_FAN
-void WebServerPrometheus::fan_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::fan_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_fan_value GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_failed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_speed GAUGE\n"));
   stream->print(F("#TYPE esphome_fan_oscillation GAUGE\n"));
 }
-void WebServerPrometheus::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
+void PrometheusHandler::fan_row_(AsyncResponseStream *stream, fan::FanState *obj) {
   if (obj->is_internal())
     return;
-  if (!isnan(obj->state)) {
-    // We have a valid value, output this value
-    stream->print(F("esphome_fan_failed{id=\""));
-    stream->print(obj->get_object_id().c_str());
-    stream->print(F("\",name=\""));
-    stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 0\n"));
-    // Data itself
-    stream->print(F("esphome_fan_value{id=\""));
+  stream->print(F("esphome_fan_failed{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_fan_value{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} "));
+  stream->print(obj->state);
+  stream->print('\n');
+  // Speed if available
+  if (obj->get_traits().supports_speed()) {
+    stream->print(F("esphome_fan_speed{id=\""));
     stream->print(obj->get_object_id().c_str());
     stream->print(F("\",name=\""));
     stream->print(obj->get_name().c_str());
     stream->print(F("\"} "));
-    stream->print(obj->state);
+    stream->print(obj->speed);
     stream->print('\n');
-    // Speed if available
-    if (obj->get_traits().supports_speed()) {
-      stream->print(F("esphome_fan_speed{id=\""));
-      stream->print(obj->get_object_id().c_str());
-      stream->print(F("\",name=\""));
-      stream->print(obj->get_name().c_str());
-      stream->print(F("\"} "));
-      stream->print(obj->speed);
-      stream->print('\n');
-    }
-    // Oscillation if available
-    if (obj->get_traits().supports_oscillation()) {
-      stream->print(F("esphome_fan_oscillation{id=\""));
-      stream->print(obj->get_object_id().c_str());
-      stream->print(F("\",name=\""));
-      stream->print(obj->get_name().c_str());
-      stream->print(F("\"} "));
-      stream->print(obj->oscillating);
-      stream->print('\n');
-    }
-  } else {
-    // Invalid state
-    stream->print(F("esphome_fan_failed{id=\""));
+  }
+  // Oscillation if available
+  if (obj->get_traits().supports_oscillation()) {
+    stream->print(F("esphome_fan_oscillation{id=\""));
     stream->print(obj->get_object_id().c_str());
     stream->print(F("\",name=\""));
     stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 1\n"));
+    stream->print(F("\"} "));
+    stream->print(obj->oscillating);
+    stream->print('\n');
   }
 }
 #endif
 
 #ifdef USE_LIGHT
-void WebServerPrometheus::light_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::light_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_light_state GAUGE\n"));
   stream->print(F("#TYPE esphome_light_color GAUGE\n"));
   stream->print(F("#TYPE esphome_light_effect_active GAUGE\n"));
 }
-void WebServerPrometheus::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
+void PrometheusHandler::light_row_(AsyncResponseStream *stream, light::LightState *obj) {
   if (obj->is_internal())
     return;
   // State
@@ -264,11 +242,11 @@ void WebServerPrometheus::light_row_(AsyncResponseStream *stream, light::LightSt
 #endif
 
 #ifdef USE_COVER
-void WebServerPrometheus::cover_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::cover_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_cover_value GAUGE\n"));
   stream->print(F("#TYPE esphome_cover_failed GAUGE\n"));
 }
-void WebServerPrometheus::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
+void PrometheusHandler::cover_row_(AsyncResponseStream *stream, cover::Cover *obj) {
   if (obj->is_internal())
     return;
   if (!isnan(obj->position)) {
@@ -307,38 +285,28 @@ void WebServerPrometheus::cover_row_(AsyncResponseStream *stream, cover::Cover *
 #endif
 
 #ifdef USE_SWITCH
-void WebServerPrometheus::switch_type_(AsyncResponseStream *stream) {
+void PrometheusHandler::switch_type_(AsyncResponseStream *stream) {
   stream->print(F("#TYPE esphome_switch_value GAUGE\n"));
   stream->print(F("#TYPE esphome_switch_failed GAUGE\n"));
 }
-void WebServerPrometheus::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
+void PrometheusHandler::switch_row_(AsyncResponseStream *stream, switch_::Switch *obj) {
   if (obj->is_internal())
     return;
-  if (!isnan(obj->state)) {
-    // We have a valid value, output this value
-    stream->print(F("esphome_switch_failed{id=\""));
-    stream->print(obj->get_object_id().c_str());
-    stream->print(F("\",name=\""));
-    stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 0\n"));
-    // Data itself
-    stream->print(F("esphome_switch_value{id=\""));
-    stream->print(obj->get_object_id().c_str());
-    stream->print(F("\",name=\""));
-    stream->print(obj->get_name().c_str());
-    stream->print(F("\"} "));
-    stream->print(obj->state);
-    stream->print('\n');
-  } else {
-    // Invalid state
-    stream->print(F("esphome_switch_failed{id=\""));
-    stream->print(obj->get_object_id().c_str());
-    stream->print(F("\",name=\""));
-    stream->print(obj->get_name().c_str());
-    stream->print(F("\"} 1\n"));
-  }
+  stream->print(F("esphome_switch_failed{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} 0\n"));
+  // Data itself
+  stream->print(F("esphome_switch_value{id=\""));
+  stream->print(obj->get_object_id().c_str());
+  stream->print(F("\",name=\""));
+  stream->print(obj->get_name().c_str());
+  stream->print(F("\"} "));
+  stream->print(obj->state);
+  stream->print('\n');
 }
 #endif
 
-}  // namespace web_server
+}  // namespace prometheus
 }  // namespace esphome
