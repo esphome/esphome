@@ -220,6 +220,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
+    // Only allow auth modes with at least WPA2
     conf.threshold.authmode = AUTH_WPA_PSK;
   }
   conf.threshold.rssi = -127;
