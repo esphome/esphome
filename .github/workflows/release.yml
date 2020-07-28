@@ -222,10 +222,10 @@ jobs:
             dockerfile="docker/Dockerfile"
           fi
 
-          if [[ "${{ !github.event.release.prerelease }}"]]; then
-            cache_tag="latest"
-          else
+          if [[ "${{ github.event.release.prerelease }}" == "true" ]]; then
             cache_tag="beta"
+          else
+            cache_tag="latest"
           end
 
           # Set env variables so these values don't need to be calculated again
