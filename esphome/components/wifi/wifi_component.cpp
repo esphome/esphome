@@ -201,15 +201,23 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
+
+#ifdef ESPHOME_WIFI_WPA2_EAP
   if (ap.get_eap().has_value()) {
     ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
     ESP_LOGV(TAG, "    identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
     ESP_LOGV(TAG, "    username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
     ESP_LOGV(TAG, "    password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    ESP_LOGV(TAG, "    CA cert:     %s", strlen(eap_config.ca_cert) ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client cert: %s", strlen(eap_config.client_cert) ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client key:  %s", strlen(eap_config.client_key) ? "present" : "not present");
   } else {
+#endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+#ifdef ESPHOME_WIFI_WPA2_EAP
   }
+#endif
   if (ap.get_channel().has_value()) {
     ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
   } else {
@@ -411,8 +419,10 @@ void WiFiComponent::check_scanning_finished() {
     // copy manual IP (if set)
     connect_params.set_manual_ip(config.get_manual_ip());
 
+#ifdef ESPHOME_WIFI_WPA2_EAP
     // copy EAP parameters (if set)
     connect_params.set_eap(config.get_eap());
+#endif
 
     // copy password (if set)
     connect_params.set_password(config.get_password());
@@ -591,13 +601,18 @@ bool WiFiScanResult::matches(const WiFiAP &config) {
   if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
     return false;
 
+#ifdef ESPHOME_WIFI_WPA2_EAP
   // BSSID requires auth but no PSK or EAP credentials given
-  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value() ))
+  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value()))
     return false;
 
   // BSSID does not require auth, but PSK or EAP credentials given
-  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value() ))
+  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value()))
     return false;
+#else
+  // If PSK given, only match for networks with auth (and vice versa)
+  if (config.get_password().empty() == this->with_auth_)
+#endif
 
   // If channel configured, only match networks on that channel.
   if (config.get_channel().has_value() && *config.get_channel() != this->channel_) {
