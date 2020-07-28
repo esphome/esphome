@@ -36,5 +36,7 @@ def new_fastled_light(config):
 
     yield light.register_light(var, config)
     # https://github.com/FastLED/FastLED/blob/master/library.json
-    cg.add_library('FastLED', '3.3.3')
+    # 3.3.3 has an issue on ESP32 with RMT and fastled_clockless:
+    # https://github.com/esphome/issues/issues/1375
+    cg.add_library('FastLED', '3.3.2')
     yield var
