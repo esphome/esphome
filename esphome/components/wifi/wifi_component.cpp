@@ -612,6 +612,7 @@ bool WiFiScanResult::matches(const WiFiAP &config) {
 #else
   // If PSK given, only match for networks with auth (and vice versa)
   if (config.get_password().empty() == this->with_auth_)
+    return false;
 #endif
 
   // If channel configured, only match networks on that channel.
