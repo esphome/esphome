@@ -200,9 +200,9 @@ sensor:
     name: "Total uptime"
     sensor: uptimeSensor
     reset_value: 200
-    max_time_interval: 20min
-    min_time_interval: 30s
-    max_value_interval: 100
+    save_on_value_delta: 100
+    save_min_interval: 30s
+    save_max_interval: 20min
   - platform: adc
     pin: A0
     name: "Living Room Brightness"

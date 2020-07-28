@@ -34,15 +34,13 @@ void AccumulatorSensor::process_sensor_value(float value) {
   }
 }
 
-bool AccumulatorSensor::needs_save(float value)
-{
+bool AccumulatorSensor::needs_save(float value) {
   uint now = millis();
   float value_delta = std::fabs(value - last_saved_value_);
   uint time_since_last_save = now - last_saved_time_;
 
-  return (value_delta != 0) && 
-            ((time_since_last_save >= save_min_interval_ && value_delta >= save_on_value_delta_) ||
-             (time_since_last_save >= save_max_interval_ && save_max_interval_ != 0));
+  return (value_delta != 0) && ((time_since_last_save >= save_min_interval_ && value_delta >= save_on_value_delta_) ||
+                                (time_since_last_save >= save_max_interval_ && save_max_interval_ != 0));
 }
 
 void AccumulatorSensor::save(float value) {
