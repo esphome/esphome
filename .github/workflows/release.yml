@@ -223,9 +223,9 @@ jobs:
           fi
 
           if [[ "${{ !github.event.release.prerelease }}"]]; then
-            cache_tag="beta"
-          else
             cache_tag="latest"
+          else
+            cache_tag="beta"
           end
 
           # Set env variables so these values don't need to be calculated again
