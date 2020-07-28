@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, uart
-from esphome.const import CONF_CO2, CONF_ID, ICON_PERIODIC_TABLE_CO2, UNIT_PARTS_PER_MILLION
+from esphome.const import CONF_CO2, CONF_ID, ICON_MOLECULE_CO2, UNIT_PARTS_PER_MILLION
 
 DEPENDENCIES = ['uart']
 
@@ -10,7 +10,7 @@ SenseAirComponent = senseair_ns.class_('SenseAirComponent', cg.PollingComponent,
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SenseAirComponent),
-    cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_PERIODIC_TABLE_CO2, 0),
+    cv.Required(CONF_CO2): sensor.sensor_schema(UNIT_PARTS_PER_MILLION, ICON_MOLECULE_CO2, 0),
 }).extend(cv.polling_component_schema('60s')).extend(uart.UART_DEVICE_SCHEMA)
 
 
