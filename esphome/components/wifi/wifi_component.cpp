@@ -201,7 +201,15 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   } else {
     ESP_LOGV(TAG, "  BSSID: Not Set");
   }
-  ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+  if (ap.get_eap().has_value()) {
+    ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
+    EAPAuth eap_config = ap.get_eap().value();
+    ESP_LOGV(TAG, "    identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
+    ESP_LOGV(TAG, "    username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
+    ESP_LOGV(TAG, "    password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+  } else {
+    ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
+  }
   if (ap.get_channel().has_value()) {
     ESP_LOGV(TAG, "  Channel: %u", *ap.get_channel());
   } else {
@@ -400,9 +408,15 @@ void WiFiComponent::check_scanning_finished() {
       connect_params.set_channel(scan_res.get_channel());
       connect_params.set_bssid(scan_res.get_bssid());
     }
-    // set manual IP+password (if any)
+    // copy manual IP (if set)
     connect_params.set_manual_ip(config.get_manual_ip());
+
+    // copy EAP parameters (if set)
+    connect_params.set_eap(config.get_eap());
+
+    // copy password (if set)
     connect_params.set_password(config.get_password());
+
     break;
   }
 
@@ -576,9 +590,15 @@ bool WiFiScanResult::matches(const WiFiAP &config) {
   // If BSSID configured, only match for correct BSSIDs
   if (config.get_bssid().has_value() && *config.get_bssid() != this->bssid_)
     return false;
-  // If PW given, only match for networks with auth (and vice versa)
-  if (config.get_password().empty() == this->with_auth_)
+
+  // BSSID requires auth but no PSK or EAP credentials given
+  if (this->with_auth_ && (config.get_password().empty() && !config.get_eap().has_value() ))
     return false;
+
+  // BSSID does not require auth, but PSK or EAP credentials given
+  if (!this->with_auth_ && (!config.get_password().empty() || config.get_eap().has_value() ))
+    return false;
+
   // If channel configured, only match networks on that channel.
   if (config.get_channel().has_value() && *config.get_channel() != this->channel_) {
     return false;
