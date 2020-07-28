@@ -300,3 +300,29 @@ jobs:
           esphome/esphome-amd64:${TAG} \
           esphome/esphome-armv7:${TAG}
         docker manifest push esphome/esphome:latest
+
+  deploy-community-addons:
+    # Prevent from triggering errors on people's forks because of missing secrets
+    if: github.repository == 'esphome/esphome'
+    runs-on: ubuntu-latest
+    needs: [deploy-docker]
+    steps:
+    - name: Publish release to community-addons repository
+      if: ${{ !github.event.release.prerelease }}
+      run: |
+        docker run -it --rm hassioaddons/repository-updater:latest \
+          --repository hassio-addons/repository \
+          --addon esphome \
+          --token "${COMMUNITY_ADDONS_TOKEN}"
+      env:
+        COMMUNITY_ADDONS_TOKEN: ${{ secrets.COMMUNITY_ADDONS_TOKEN }}
+
+    - name: Publish beta release to community-addons beta repository
+      if: ${{ github.event.release.prerelease }}
+      run: |
+        docker run -it --rm hassioaddons/repository-updater:latest \
+          --repository hassio-addons/repository-beta \
+          --addon esphome \
+          --token "${COMMUNITY_ADDONS_TOKEN}"
+      env:
+        COMMUNITY_ADDONS_TOKEN: ${{ secrets.COMMUNITY_ADDONS_TOKEN }}
