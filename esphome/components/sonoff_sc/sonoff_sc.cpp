@@ -96,13 +96,12 @@ void SonoffSCComponent::process_status_request_() {
 
   if (now - this->last_update_time_ > 2 * this->update_interval_sec_) {
     ESP_LOGV(TAG, "Sending devconfig");
-    this->write_str((
-                        "AT+DEVCONFIG=\"uploadFreq\":" + to_string(this->update_interval_sec_)
-                        + ",\"humiThreshold\":" + to_string(this->humidity_threshold_)
-                        + ",\"tempThreshold\":" + to_string(this->temperature_threshold_) + "\x1b").c_str());
+    this->write_str(("AT+DEVCONFIG=\"uploadFreq\":" + to_string(this->update_interval_sec_) +
+                     ",\"humiThreshold\":" + to_string(this->humidity_threshold_) +
+                     ",\"tempThreshold\":" + to_string(this->temperature_threshold_) + "\x1b")
+                        .c_str());
   }
 }
-
 
 void SonoffSCComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Sonoff SC:");
