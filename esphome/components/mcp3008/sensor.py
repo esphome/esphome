@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_NAME
-from . import mcp3008_ns, MCP3008
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_NAME, CONF_NUMBER
+
+from . import MCP3008, mcp3008_ns
 
 DEPENDENCIES = ['mcp3008']
 

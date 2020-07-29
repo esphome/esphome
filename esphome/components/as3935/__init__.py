@@ -1,9 +1,10 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import CONF_INDOOR, CONF_WATCHDOG_THRESHOLD, \
-    CONF_NOISE_LEVEL, CONF_SPIKE_REJECTION, CONF_LIGHTNING_THRESHOLD, \
-    CONF_MASK_DISTURBER, CONF_DIV_RATIO, CONF_CAPACITANCE
+from esphome.const import (
+    CONF_CAPACITANCE, CONF_DIV_RATIO, CONF_INDOOR, CONF_LIGHTNING_THRESHOLD, CONF_MASK_DISTURBER,
+    CONF_NOISE_LEVEL, CONF_SPIKE_REJECTION, CONF_WATCHDOG_THRESHOLD,
+)
 from esphome.core import coroutine
 
 AUTO_LOAD = ['sensor', 'binary_sensor']

@@ -1,26 +1,25 @@
+# pylint: disable=unused-import, wrong-import-order
 import collections
+from contextlib import contextmanager
 import importlib
 import logging
-import re
 import os.path
-
-# pylint: disable=unused-import, wrong-import-order
+import re
 import sys
-from contextlib import contextmanager
+from typing import List, Optional, Tuple, Union  # noqa
 
 import voluptuous as vol
 
 from esphome import core, core_config, yaml_util
-from esphome.const import CONF_ESPHOME, CONF_PLATFORM, ESP_PLATFORMS, CONF_PACKAGES, \
-    CONF_SUBSTITUTIONS
-from esphome.core import CORE, EsphomeError  # noqa
+from esphome.const import (
+    CONF_ESPHOME, CONF_PACKAGES, CONF_PLATFORM, CONF_SUBSTITUTIONS, ESP_PLATFORMS,
+)
+from esphome.core import CORE, EsphomeError
+from esphome.core import ConfigType  # noqa; noqa
 from esphome.helpers import color, indent
-from esphome.util import safe_print, OrderedDict
-
-from typing import List, Optional, Tuple, Union  # noqa
-from esphome.core import ConfigType  # noqa
-from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
+from esphome.util import OrderedDict, safe_print
 from esphome.voluptuous_schema import ExtraKeysInvalid
+from esphome.yaml_util import ESPForceValue, ESPHomeDataBase, is_secret
 
 _LOGGER = logging.getLogger(__name__)
 

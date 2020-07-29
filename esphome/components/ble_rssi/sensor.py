@@ -1,7 +1,7 @@
 import esphome.codegen as cg
+from esphome.components import esp32_ble_tracker, sensor
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
-from esphome.const import CONF_SERVICE_UUID, CONF_MAC_ADDRESS, CONF_ID, UNIT_DECIBEL, ICON_SIGNAL
+from esphome.const import CONF_ID, CONF_MAC_ADDRESS, CONF_SERVICE_UUID, ICON_SIGNAL, UNIT_DECIBEL
 
 DEPENDENCIES = ['esp32_ble_tracker']
 

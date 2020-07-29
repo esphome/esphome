@@ -1,10 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_CSS_INCLUDE, CONF_CSS_URL, CONF_ID, CONF_JS_INCLUDE, CONF_JS_URL, CONF_PORT,
-    CONF_AUTH, CONF_USERNAME, CONF_PASSWORD)
+    CONF_AUTH, CONF_CSS_INCLUDE, CONF_CSS_URL, CONF_ID, CONF_JS_INCLUDE, CONF_JS_URL, CONF_PASSWORD,
+    CONF_PORT, CONF_USERNAME,
+)
 from esphome.core import coroutine_with_priority
 
 AUTO_LOAD = ['json', 'web_server_base']

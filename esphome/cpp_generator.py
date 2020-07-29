@@ -1,14 +1,13 @@
+# pylint: disable=unused-import, wrong-import-order
 import abc
 import inspect
 import math
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
+from typing import Any, Generator, List, Optional, Sequence, Tuple, Type, Union
 
 from esphome.core import (  # noqa
-    CORE, HexInt, ID, Lambda, TimePeriod, TimePeriodMicroseconds,
-    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine, Library, Define,
-    EnumValue)
+    CORE, ID, Define, EnumValue, HexInt, Lambda, Library, TimePeriod, TimePeriodMicroseconds,
+    TimePeriodMilliseconds, TimePeriodMinutes, TimePeriodSeconds, coroutine,
+)
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.util import OrderedDict
 

@@ -1,6 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
+
 from . import AS3935, CONF_AS3935_ID
 
 DEPENDENCIES = ['as3935']

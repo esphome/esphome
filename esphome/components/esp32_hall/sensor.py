@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, ESP_PLATFORM_ESP32, UNIT_MICROTESLA, ICON_MAGNET
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, ESP_PLATFORM_ESP32, ICON_MAGNET, UNIT_MICROTESLA
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 

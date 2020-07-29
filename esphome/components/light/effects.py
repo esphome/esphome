@@ -1,17 +1,21 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_NAME, CONF_LAMBDA, CONF_UPDATE_INTERVAL, CONF_TRANSITION_LENGTH, \
-    CONF_COLORS, CONF_STATE, CONF_DURATION, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, \
-    CONF_WHITE, CONF_ALPHA, CONF_INTENSITY, CONF_SPEED, CONF_WIDTH, CONF_NUM_LEDS, CONF_RANDOM, \
-    CONF_SEQUENCE
+from esphome.const import (
+    CONF_ALPHA, CONF_BLUE, CONF_BRIGHTNESS, CONF_COLORS, CONF_DURATION, CONF_GREEN, CONF_INTENSITY,
+    CONF_LAMBDA, CONF_NAME, CONF_NUM_LEDS, CONF_RANDOM, CONF_RED, CONF_SEQUENCE, CONF_SPEED,
+    CONF_STATE, CONF_TRANSITION_LENGTH, CONF_UPDATE_INTERVAL, CONF_WHITE, CONF_WIDTH,
+)
 from esphome.util import Registry
-from .types import LambdaLightEffect, RandomLightEffect, StrobeLightEffect, \
-    StrobeLightEffectColor, LightColorValues, AddressableLightRef, AddressableLambdaLightEffect, \
-    FlickerLightEffect, AddressableRainbowLightEffect, AddressableColorWipeEffect, \
-    AddressableColorWipeEffectColor, AddressableScanEffect, AddressableTwinkleEffect, \
-    AddressableRandomTwinkleEffect, AddressableFireworksEffect, AddressableFlickerEffect, \
-    AutomationLightEffect, ESPColor
+
+from .types import (
+    AddressableColorWipeEffect, AddressableColorWipeEffectColor, AddressableFireworksEffect,
+    AddressableFlickerEffect, AddressableLambdaLightEffect, AddressableLightRef,
+    AddressableRainbowLightEffect, AddressableRandomTwinkleEffect, AddressableScanEffect,
+    AddressableTwinkleEffect, AutomationLightEffect, ESPColor, FlickerLightEffect,
+    LambdaLightEffect, LightColorValues, RandomLightEffect, StrobeLightEffect,
+    StrobeLightEffectColor,
+)
 
 CONF_ADD_LED_INTERVAL = 'add_led_interval'
 CONF_REVERSE = 'reverse'

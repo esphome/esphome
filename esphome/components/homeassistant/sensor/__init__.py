@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ENTITY_ID, CONF_ID, ICON_EMPTY, UNIT_EMPTY
+
 from .. import homeassistant_ns
 
 DEPENDENCIES = ['api']

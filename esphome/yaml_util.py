@@ -4,14 +4,14 @@ import inspect
 import logging
 import math
 import os
-
 import uuid
+
 import yaml
 import yaml.constructor
 
 from esphome import core
 from esphome.config_helpers import read_config_file
-from esphome.core import EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod, DocumentRange
+from esphome.core import DocumentRange, EsphomeError, IPAddress, Lambda, MACAddress, TimePeriod
 from esphome.helpers import add_class_to_obj
 from esphome.util import OrderedDict, filter_yaml_files
 

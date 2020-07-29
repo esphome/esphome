@@ -1,19 +1,19 @@
+# pylint: disable=unused-import
 from datetime import datetime
 import functools
 import logging
 import socket
 import threading
 import time
-
-# pylint: disable=unused-import
 from typing import Optional  # noqa
+
 from google.protobuf import message  # noqa
 
 from esphome import const
 import esphome.api.api_pb2 as pb
 from esphome.const import CONF_PASSWORD, CONF_PORT
 from esphome.core import EsphomeError
-from esphome.helpers import resolve_ip_address, indent, color
+from esphome.helpers import color, indent, resolve_ip_address
 from esphome.util import safe_print
 
 _LOGGER = logging.getLogger(__name__)

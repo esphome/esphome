@@ -1,8 +1,10 @@
 from esphome import pins
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_DOMAIN, CONF_ID, CONF_MANUAL_IP, CONF_STATIC_IP, CONF_TYPE, \
-    CONF_USE_ADDRESS, ESP_PLATFORM_ESP32, CONF_GATEWAY, CONF_SUBNET, CONF_DNS1, CONF_DNS2
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DNS1, CONF_DNS2, CONF_DOMAIN, CONF_GATEWAY, CONF_ID, CONF_MANUAL_IP, CONF_STATIC_IP,
+    CONF_SUBNET, CONF_TYPE, CONF_USE_ADDRESS, ESP_PLATFORM_ESP32,
+)
 from esphome.core import CORE, coroutine_with_priority
 
 CONFLICTS_WITH = ['wifi']

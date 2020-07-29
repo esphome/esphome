@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, esp32_ble_tracker
-from esphome.const import CONF_MAC_ADDRESS, CONF_SERVICE_UUID, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_MAC_ADDRESS, CONF_SERVICE_UUID
 
 DEPENDENCIES = ['esp32_ble_tracker']
 

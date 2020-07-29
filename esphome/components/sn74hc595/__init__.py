@@ -1,7 +1,7 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_INVERTED, CONF_DATA_PIN, CONF_CLOCK_PIN
+from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_ID, CONF_INVERTED, CONF_NUMBER
 
 DEPENDENCIES = []
 MULTI_CONF = True

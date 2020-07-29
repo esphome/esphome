@@ -1,19 +1,22 @@
 import argparse
+from datetime import datetime
 import functools
 import logging
 import os
 import sys
-from datetime import datetime
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
-from esphome.const import CONF_BAUD_RATE, CONF_BROKER, CONF_LOGGER, CONF_OTA, \
-    CONF_PASSWORD, CONF_PORT, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS
+from esphome.const import (
+    CONF_BAUD_RATE, CONF_BROKER, CONF_ESPHOME, CONF_LOGGER, CONF_OTA, CONF_PASSWORD,
+    CONF_PLATFORMIO_OPTIONS, CONF_PORT,
+)
 from esphome.core import CORE, EsphomeError, coroutine, coroutine_with_priority
 from esphome.helpers import color, indent
-from esphome.util import run_external_command, run_external_process, safe_print, list_yaml_files, \
-    get_serial_ports
+from esphome.util import (
+    get_serial_ports, list_yaml_files, run_external_command, run_external_process, safe_print,
+)
 
 _LOGGER = logging.getLogger(__name__)
 

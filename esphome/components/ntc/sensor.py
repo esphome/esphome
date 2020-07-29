@@ -1,11 +1,12 @@
 from math import log
 
-import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_CALIBRATION, CONF_ID, CONF_REFERENCE_RESISTANCE, \
-    CONF_REFERENCE_TEMPERATURE, CONF_SENSOR, CONF_TEMPERATURE, CONF_VALUE, ICON_THERMOMETER, \
-    UNIT_CELSIUS
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CALIBRATION, CONF_ID, CONF_REFERENCE_RESISTANCE, CONF_REFERENCE_TEMPERATURE, CONF_SENSOR,
+    CONF_TEMPERATURE, CONF_VALUE, ICON_THERMOMETER, UNIT_CELSIUS,
+)
 
 ntc_ns = cg.esphome_ns.namespace('ntc')
 NTC = ntc_ns.class_('NTC', cg.Component, sensor.Sensor)

@@ -1,7 +1,6 @@
 import hashlib
 
-from esphome import config_validation as cv, automation
-from esphome import codegen as cg
+from esphome import automation, codegen as cg, config_validation as cv
 from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE, CONF_VALUE
 from esphome.core import coroutine_with_priority
 

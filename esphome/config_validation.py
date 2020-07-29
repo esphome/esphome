@@ -1,23 +1,27 @@
 """Helpers for config validation using voluptuous."""
 
+from contextlib import contextmanager
+from datetime import datetime
 import logging
 import os
 import re
-from contextlib import contextmanager
-import uuid as uuid_
-from datetime import datetime
 from string import ascii_letters, digits
+import uuid as uuid_
 
 import voluptuous as vol
 
 from esphome import core
-from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
-    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
-    CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
-from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
-    TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
-from esphome.helpers import list_starts_with, add_class_to_obj
+from esphome.const import (
+    CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_HOUR, CONF_ID, CONF_INTERNAL,
+    CONF_MINUTE, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN,
+    CONF_SECOND, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, CONF_TYPE, CONF_TYPE_ID,
+    CONF_UPDATE_INTERVAL, CONF_VALUE,
+)
+from esphome.core import (
+    CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, TimePeriodMilliseconds,
+    TimePeriodMinutes, TimePeriodSeconds,
+)
+from esphome.helpers import add_class_to_obj, list_starts_with
 from esphome.voluptuous_schema import _Schema
 
 _LOGGER = logging.getLogger(__name__)

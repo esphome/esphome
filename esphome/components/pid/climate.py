@@ -1,7 +1,7 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import climate, sensor, output
+import esphome.codegen as cg
+from esphome.components import climate, output, sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_SENSOR
 
 pid_ns = cg.esphome_ns.namespace('pid')

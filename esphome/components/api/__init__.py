@@ -1,9 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
-from esphome.const import CONF_DATA, CONF_DATA_TEMPLATE, CONF_ID, CONF_PASSWORD, CONF_PORT, \
-    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_VARIABLES, CONF_SERVICES, CONF_TRIGGER_ID, CONF_EVENT
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DATA, CONF_DATA_TEMPLATE, CONF_EVENT, CONF_ID, CONF_PASSWORD, CONF_PORT,
+    CONF_REBOOT_TIMEOUT, CONF_SERVICE, CONF_SERVICES, CONF_TRIGGER_ID, CONF_VARIABLES,
+)
 from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']

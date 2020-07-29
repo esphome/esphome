@@ -1,9 +1,8 @@
+import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.core import CORE
 from esphome.const import CONF_ID, CONF_SERVERS
-
+from esphome.core import CORE
 
 DEPENDENCIES = ['network']
 sntp_ns = cg.esphome_ns.namespace('sntp')

@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_PIN, UNIT_PERCENT, ICON_PERCENT
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_PIN, ICON_PERCENT, UNIT_PERCENT
 
 duty_cycle_ns = cg.esphome_ns.namespace('duty_cycle')
 DutyCycleSensor = duty_cycle_ns.class_('DutyCycleSensor', sensor.Sensor, cg.PollingComponent)

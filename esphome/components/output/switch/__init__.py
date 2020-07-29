@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output, switch
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_OUTPUT
+
 from .. import output_ns
 
 OutputSwitch = output_ns.class_('OutputSwitch', switch.Switch, cg.Component)

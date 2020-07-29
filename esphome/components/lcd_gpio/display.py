@@ -1,9 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import lcd_base
-from esphome.const import CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_RS_PIN, CONF_RW_PIN, CONF_ID, \
-    CONF_LAMBDA
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DATA_PINS, CONF_ENABLE_PIN, CONF_ID, CONF_LAMBDA, CONF_RS_PIN, CONF_RW_PIN,
+)
 
 AUTO_LOAD = ['lcd_base']
 

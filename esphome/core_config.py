@@ -2,15 +2,16 @@ import logging
 import os
 import re
 
+from esphome import automation, pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation, pins
-from esphome.const import CONF_ARDUINO_VERSION, CONF_BOARD, CONF_BOARD_FLASH_MODE, \
-    CONF_BUILD_PATH, CONF_COMMENT, CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, \
-    CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP, CONF_ON_SHUTDOWN, CONF_PLATFORM, \
-    CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID, \
-    CONF_ESP8266_RESTORE_FROM_FLASH, ARDUINO_VERSION_ESP8266, \
-    ARDUINO_VERSION_ESP32, ESP_PLATFORMS
+from esphome.const import (
+    ARDUINO_VERSION_ESP32, ARDUINO_VERSION_ESP8266, CONF_ARDUINO_VERSION, CONF_BOARD,
+    CONF_BOARD_FLASH_MODE, CONF_BUILD_PATH, CONF_COMMENT, CONF_ESP8266_RESTORE_FROM_FLASH,
+    CONF_ESPHOME, CONF_INCLUDES, CONF_LIBRARIES, CONF_NAME, CONF_ON_BOOT, CONF_ON_LOOP,
+    CONF_ON_SHUTDOWN, CONF_PLATFORM, CONF_PLATFORMIO_OPTIONS, CONF_PRIORITY, CONF_TRIGGER_ID,
+    ESP_PLATFORMS,
+)
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
 

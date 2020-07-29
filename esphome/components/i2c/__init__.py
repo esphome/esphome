@@ -1,8 +1,9 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA, CONF_ADDRESS, \
-    CONF_I2C_ID
+from esphome.const import (
+    CONF_ADDRESS, CONF_FREQUENCY, CONF_I2C_ID, CONF_ID, CONF_SCAN, CONF_SCL, CONF_SDA,
+)
 from esphome.core import coroutine, coroutine_with_priority
 
 CODEOWNERS = ['@esphome/core']

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, UNIT_SECOND, ICON_TIMER
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, ICON_TIMER, UNIT_SECOND
 
 uptime_ns = cg.esphome_ns.namespace('uptime')
 UptimeSensor = uptime_ns.class_('UptimeSensor', sensor.Sensor, cg.PollingComponent)

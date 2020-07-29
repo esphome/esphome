@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import fan, output
-from esphome.const import CONF_DIRECTION_OUTPUT, CONF_OSCILLATION_OUTPUT, \
-    CONF_OUTPUT, CONF_OUTPUT_ID
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DIRECTION_OUTPUT, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_OUTPUT_ID,
+)
+
 from .. import binary_ns
 
 BinaryFan = binary_ns.class_('BinaryFan', cg.Component)

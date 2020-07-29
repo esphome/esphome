@@ -1,7 +1,7 @@
-import esphome.codegen as cg
 from esphome import automation
-import esphome.config_validation as cv
+import esphome.codegen as cg
 from esphome.components import esp32_ble_tracker
+import esphome.config_validation as cv
 from esphome.const import CONF_TRIGGER_ID
 
 CODEOWNERS = ['@OttoWinter']

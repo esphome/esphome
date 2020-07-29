@@ -1,9 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import mqtt
-from esphome.const import CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_ON_VALUE, \
-    CONF_TRIGGER_ID, CONF_MQTT_ID, CONF_NAME, CONF_STATE
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ICON, CONF_ID, CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, CONF_ON_VALUE, CONF_STATE,
+    CONF_TRIGGER_ID,
+)
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True

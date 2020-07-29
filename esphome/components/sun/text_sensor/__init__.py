@@ -1,9 +1,11 @@
+import esphome.codegen as cg
 from esphome.components import text_sensor
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_ICON, ICON_WEATHER_SUNSET_DOWN, ICON_WEATHER_SUNSET_UP, CONF_TYPE, \
-    CONF_ID, CONF_FORMAT
-from .. import sun_ns, CONF_SUN_ID, Sun, CONF_ELEVATION, elevation, DEFAULT_ELEVATION
+from esphome.const import (
+    CONF_FORMAT, CONF_ICON, CONF_ID, CONF_TYPE, ICON_WEATHER_SUNSET_DOWN, ICON_WEATHER_SUNSET_UP,
+)
+
+from .. import CONF_ELEVATION, CONF_SUN_ID, DEFAULT_ELEVATION, Sun, elevation, sun_ns
 
 DEPENDENCIES = ['sun']
 

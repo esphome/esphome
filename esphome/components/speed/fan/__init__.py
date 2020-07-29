@@ -1,8 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import fan, output
-from esphome.const import CONF_OSCILLATION_OUTPUT, CONF_OUTPUT, CONF_DIRECTION_OUTPUT, \
-    CONF_OUTPUT_ID, CONF_SPEED, CONF_LOW, CONF_MEDIUM, CONF_HIGH
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DIRECTION_OUTPUT, CONF_HIGH, CONF_LOW, CONF_MEDIUM, CONF_OSCILLATION_OUTPUT, CONF_OUTPUT,
+    CONF_OUTPUT_ID, CONF_SPEED,
+)
+
 from .. import speed_ns
 
 SpeedFan = speed_ns.class_('SpeedFan', cg.Component)

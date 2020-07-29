@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import display, uart
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_BRIGHTNESS
+import esphome.config_validation as cv
+from esphome.const import CONF_BRIGHTNESS, CONF_ID, CONF_LAMBDA
+
 from . import nextion_ns
 
 DEPENDENCIES = ['uart']

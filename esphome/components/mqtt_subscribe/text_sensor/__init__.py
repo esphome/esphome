@@ -1,7 +1,8 @@
 import esphome.codegen as cg
+from esphome.components import mqtt, text_sensor
 import esphome.config_validation as cv
-from esphome.components import text_sensor, mqtt
 from esphome.const import CONF_ID, CONF_QOS, CONF_TOPIC
+
 from .. import mqtt_subscribe_ns
 
 DEPENDENCIES = ['mqtt']

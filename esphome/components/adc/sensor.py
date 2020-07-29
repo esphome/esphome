@@ -1,9 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor, voltage_sampler
+import esphome.config_validation as cv
 from esphome.const import CONF_ATTENUATION, CONF_ID, CONF_PIN, ICON_FLASH, UNIT_VOLT
-
 
 AUTO_LOAD = ['voltage_sampler']
 

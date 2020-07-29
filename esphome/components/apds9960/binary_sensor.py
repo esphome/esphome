@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_DIRECTION, CONF_DEVICE_CLASS, DEVICE_CLASS_MOVING
+import esphome.config_validation as cv
+from esphome.const import CONF_DEVICE_CLASS, CONF_DIRECTION, DEVICE_CLASS_MOVING
+
 from . import APDS9960, CONF_APDS9960_ID
 
 DEPENDENCIES = ['apds9960']

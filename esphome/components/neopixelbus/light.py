@@ -1,9 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import light
-from esphome.const import CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_METHOD, CONF_NUM_LEDS, CONF_PIN, \
-    CONF_TYPE, CONF_VARIANT, CONF_OUTPUT_ID, CONF_INVERT
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CLOCK_PIN, CONF_DATA_PIN, CONF_INVERT, CONF_METHOD, CONF_NUM_LEDS, CONF_OUTPUT_ID,
+    CONF_PIN, CONF_TYPE, CONF_VARIANT,
+)
 from esphome.core import CORE
 
 neopixelbus_ns = cg.esphome_ns.namespace('neopixelbus')

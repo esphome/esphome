@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_GAIN, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT, CONF_ID
-from . import ads1115_ns, ADS1115Component
+import esphome.config_validation as cv
+from esphome.const import CONF_GAIN, CONF_ID, CONF_MULTIPLEXER, ICON_FLASH, UNIT_VOLT
+
+from . import ADS1115Component, ads1115_ns
 
 DEPENDENCIES = ['ads1115']
 

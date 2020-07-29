@@ -1,10 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, \
-    CONF_PIN, CONF_RISING_EDGE, CONF_NUMBER, \
-    ICON_PULSE, UNIT_PULSES_PER_MINUTE
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_COUNT_MODE, CONF_FALLING_EDGE, CONF_ID, CONF_INTERNAL_FILTER, CONF_NUMBER, CONF_PIN,
+    CONF_RISING_EDGE, ICON_PULSE, UNIT_PULSES_PER_MINUTE,
+)
 from esphome.core import CORE
 
 pulse_counter_ns = cg.esphome_ns.namespace('pulse_counter')

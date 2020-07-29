@@ -5,9 +5,9 @@ import unicodedata
 
 import voluptuous as vol
 
+# pylint: disable=anomalous-backslash-in-string
 import esphome.config_validation as cv
 from esphome.helpers import color, get_bool_env, write_file
-# pylint: disable=anomalous-backslash-in-string
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print

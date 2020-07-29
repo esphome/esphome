@@ -1,10 +1,9 @@
 import codecs
-
 import logging
 import os
 from pathlib import Path
-from typing import Union
 import tempfile
+from typing import Union
 
 _LOGGER = logging.getLogger(__name__)
 

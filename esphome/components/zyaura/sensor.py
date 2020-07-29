@@ -1,11 +1,12 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_CLOCK_PIN, CONF_DATA_PIN, \
-    CONF_CO2, CONF_TEMPERATURE, CONF_HUMIDITY, \
-    UNIT_PARTS_PER_MILLION, UNIT_CELSIUS, UNIT_PERCENT, \
-    ICON_MOLECULE_CO2, ICON_THERMOMETER, ICON_WATER_PERCENT
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CLOCK_PIN, CONF_CO2, CONF_DATA_PIN, CONF_HUMIDITY, CONF_ID, CONF_TEMPERATURE,
+    ICON_MOLECULE_CO2, ICON_THERMOMETER, ICON_WATER_PERCENT, UNIT_CELSIUS, UNIT_PARTS_PER_MILLION,
+    UNIT_PERCENT,
+)
 from esphome.cpp_helpers import gpio_pin_expression
 
 zyaura_ns = cg.esphome_ns.namespace('zyaura')

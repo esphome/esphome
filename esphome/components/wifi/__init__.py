@@ -1,15 +1,17 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition
-from esphome.const import CONF_AP, CONF_BSSID, CONF_CHANNEL, CONF_DNS1, CONF_DNS2, CONF_DOMAIN, \
-    CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID, CONF_MANUAL_IP, CONF_NETWORKS, \
-    CONF_PASSWORD, CONF_POWER_SAVE_MODE, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, \
-    CONF_SUBNET, CONF_USE_ADDRESS, CONF_PRIORITY, CONF_IDENTITY, CONF_CERTIFICATE_AUTHORITY, \
-    CONF_CERTIFICATE, CONF_KEY, CONF_USERNAME, CONF_EAP
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_AP, CONF_BSSID, CONF_CERTIFICATE, CONF_CERTIFICATE_AUTHORITY, CONF_CHANNEL, CONF_DNS1,
+    CONF_DNS2, CONF_DOMAIN, CONF_EAP, CONF_FAST_CONNECT, CONF_GATEWAY, CONF_HIDDEN, CONF_ID,
+    CONF_IDENTITY, CONF_KEY, CONF_MANUAL_IP, CONF_NETWORKS, CONF_PASSWORD, CONF_POWER_SAVE_MODE,
+    CONF_PRIORITY, CONF_REBOOT_TIMEOUT, CONF_SSID, CONF_STATIC_IP, CONF_SUBNET, CONF_USE_ADDRESS,
+    CONF_USERNAME,
+)
 from esphome.core import CORE, HexInt, coroutine_with_priority
-from . import wpa2_eap
 
+from . import wpa2_eap
 
 AUTO_LOAD = ['network']
 

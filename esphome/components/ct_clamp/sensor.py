@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
-from esphome.const import CONF_SENSOR, CONF_ID, ICON_FLASH, UNIT_AMPERE
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_SENSOR, ICON_FLASH, UNIT_AMPERE
 
 AUTO_LOAD = ['voltage_sampler']
 CODEOWNERS = ['@jesserockz']

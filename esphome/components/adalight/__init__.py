@@ -1,8 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
+from esphome.components.light.types import AddressableLightEffect
+import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_UART_ID
 
 DEPENDENCIES = ['uart']

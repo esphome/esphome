@@ -1,9 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ECHO_PIN, CONF_ID, CONF_TRIGGER_PIN, \
-    CONF_TIMEOUT, UNIT_METER, ICON_ARROW_EXPAND_VERTICAL
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ECHO_PIN, CONF_ID, CONF_TIMEOUT, CONF_TRIGGER_PIN, ICON_ARROW_EXPAND_VERTICAL, UNIT_METER,
+)
 
 CONF_PULSE_TIME = 'pulse_time'
 

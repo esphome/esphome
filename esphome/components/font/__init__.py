@@ -1,9 +1,9 @@
 import functools
 
 from esphome import core
+import esphome.codegen as cg
 from esphome.components import display
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_GLYPHS, CONF_ID, CONF_SIZE
 from esphome.core import CORE, HexInt
 

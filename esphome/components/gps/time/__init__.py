@@ -1,8 +1,9 @@
+import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ID
-from .. import gps_ns, GPSListener, CONF_GPS_ID, GPS
+
+from .. import CONF_GPS_ID, GPS, GPSListener, gps_ns
 
 DEPENDENCIES = ['gps']
 

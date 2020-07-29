@@ -1,8 +1,8 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ID
-from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.components import web_server_base
+from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID
 
 AUTO_LOAD = ['web_server_base']
 

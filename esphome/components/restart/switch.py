@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_ICON, ICON_RESTART
+import esphome.config_validation as cv
+from esphome.const import CONF_ICON, CONF_ID, CONF_INVERTED, ICON_RESTART
 
 restart_ns = cg.esphome_ns.namespace('restart')
 RestartSwitch = restart_ns.class_('RestartSwitch', switch.Switch, cg.Component)

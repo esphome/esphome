@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
+import esphome.config_validation as cv
 from esphome.const import CONF_CO2, CONF_ID, ICON_MOLECULE_CO2, UNIT_PARTS_PER_MILLION
 
 DEPENDENCIES = ['uart']

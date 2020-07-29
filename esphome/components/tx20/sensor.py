@@ -1,10 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_WIND_SPEED, CONF_PIN, \
-    CONF_WIND_DIRECTION_DEGREES, UNIT_KILOMETER_PER_HOUR, \
-    ICON_WEATHER_WINDY, ICON_SIGN_DIRECTION, UNIT_DEGREES
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_PIN, CONF_WIND_DIRECTION_DEGREES, CONF_WIND_SPEED, ICON_SIGN_DIRECTION,
+    ICON_WEATHER_WINDY, UNIT_DEGREES, UNIT_KILOMETER_PER_HOUR,
+)
 
 tx20_ns = cg.esphome_ns.namespace('tx20')
 Tx20Component = tx20_ns.class_('Tx20Component', cg.Component)

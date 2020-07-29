@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import light
-from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_RGB_ORDER, CONF_MAX_REFRESH_RATE
+import esphome.config_validation as cv
+from esphome.const import CONF_MAX_REFRESH_RATE, CONF_NUM_LEDS, CONF_OUTPUT_ID, CONF_RGB_ORDER
 from esphome.core import coroutine
 
 CODEOWNERS = ['@OttoWinter']

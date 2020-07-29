@@ -1,10 +1,9 @@
 import json
-from typing import Union
-
 import logging
 import os
 import re
 import subprocess
+from typing import Union
 
 from esphome.core import CORE
 from esphome.util import run_external_command, run_external_process

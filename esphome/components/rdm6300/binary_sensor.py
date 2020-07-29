@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor, rdm6300
-from esphome.const import CONF_UID, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_UID
+
 from . import rdm6300_ns
 
 DEPENDENCIES = ['rdm6300']

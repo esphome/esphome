@@ -1,8 +1,10 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, \
-    CONF_POSITION, CONF_TARGET, CONF_SPEED
+from esphome.const import (
+    CONF_ACCELERATION, CONF_DECELERATION, CONF_ID, CONF_MAX_SPEED, CONF_POSITION, CONF_SPEED,
+    CONF_TARGET,
+)
 from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True

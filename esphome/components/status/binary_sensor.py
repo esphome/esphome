@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ID, CONF_DEVICE_CLASS, DEVICE_CLASS_CONNECTIVITY
+import esphome.config_validation as cv
+from esphome.const import CONF_DEVICE_CLASS, CONF_ID, DEVICE_CLASS_CONNECTIVITY
 
 status_ns = cg.esphome_ns.namespace('status')
 StatusBinarySensor = status_ns.class_('StatusBinarySensor', binary_sensor.BinarySensor,

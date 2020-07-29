@@ -1,9 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import remote_base
-from esphome.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, \
-    CONF_PIN, CONF_TOLERANCE, CONF_MEMORY_BLOCKS
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, CONF_MEMORY_BLOCKS, CONF_PIN,
+    CONF_TOLERANCE,
+)
 from esphome.core import CORE
 
 AUTO_LOAD = ['remote_base']

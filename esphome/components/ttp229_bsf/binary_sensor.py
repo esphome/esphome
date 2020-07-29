@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
-from . import ttp229_bsf_ns, TTP229BSFComponent, CONF_TTP229_ID
+
+from . import CONF_TTP229_ID, TTP229BSFComponent, ttp229_bsf_ns
 
 DEPENDENCIES = ['ttp229_bsf']
 TTP229BSFChannel = ttp229_bsf_ns.class_('TTP229BSFChannel', binary_sensor.BinarySensor)

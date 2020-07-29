@@ -1,11 +1,16 @@
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_ID, CONF_TRANSITION_LENGTH, CONF_STATE, CONF_FLASH_LENGTH, \
-    CONF_EFFECT, CONF_BRIGHTNESS, CONF_RED, CONF_GREEN, CONF_BLUE, CONF_WHITE, \
-    CONF_COLOR_TEMPERATURE, CONF_RANGE_FROM, CONF_RANGE_TO
-from .types import DimRelativeAction, ToggleAction, LightState, LightControlAction, \
-    AddressableLightState, AddressableSet, LightIsOnCondition, LightIsOffCondition
+from esphome.const import (
+    CONF_BLUE, CONF_BRIGHTNESS, CONF_COLOR_TEMPERATURE, CONF_EFFECT, CONF_FLASH_LENGTH, CONF_GREEN,
+    CONF_ID, CONF_RANGE_FROM, CONF_RANGE_TO, CONF_RED, CONF_STATE, CONF_TRANSITION_LENGTH,
+    CONF_WHITE,
+)
+
+from .types import (
+    AddressableLightState, AddressableSet, DimRelativeAction, LightControlAction,
+    LightIsOffCondition, LightIsOnCondition, LightState, ToggleAction,
+)
 
 
 @automation.register_action('light.toggle', ToggleAction, automation.maybe_simple_id({

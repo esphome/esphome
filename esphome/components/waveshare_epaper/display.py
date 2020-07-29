@@ -1,9 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display, spi
-from esphome.const import CONF_BUSY_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_BUSY_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_MODEL,
+    CONF_PAGES, CONF_RESET_PIN,
+)
 
 DEPENDENCIES = ['spi']
 

@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_TEMPERATURE, \
-    ICON_BRIEFCASE_DOWNLOAD, UNIT_METER_PER_SECOND_SQUARED, \
-    ICON_SCREEN_ROTATION, UNIT_DEGREE_PER_SECOND, ICON_THERMOMETER, UNIT_CELSIUS
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_TEMPERATURE, ICON_BRIEFCASE_DOWNLOAD, ICON_SCREEN_ROTATION, ICON_THERMOMETER,
+    UNIT_CELSIUS, UNIT_DEGREE_PER_SECOND, UNIT_METER_PER_SECOND_SQUARED,
+)
 
 DEPENDENCIES = ['i2c']
 

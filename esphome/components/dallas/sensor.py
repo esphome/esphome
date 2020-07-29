@@ -1,8 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ADDRESS, CONF_DALLAS_ID, CONF_INDEX, CONF_RESOLUTION, UNIT_CELSIUS, \
-    ICON_THERMOMETER, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ADDRESS, CONF_DALLAS_ID, CONF_ID, CONF_INDEX, CONF_RESOLUTION, ICON_THERMOMETER,
+    UNIT_CELSIUS,
+)
+
 from . import DallasComponent, dallas_ns
 
 DallasTemperatureSensor = dallas_ns.class_('DallasTemperatureSensor', sensor.Sensor)

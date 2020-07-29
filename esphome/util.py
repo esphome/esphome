@@ -1,13 +1,12 @@
-from typing import Union, List
-
 import collections
 import io
 import logging
 import os
+from pathlib import Path
 import re
 import subprocess
 import sys
-from pathlib import Path
+from typing import List, Union
 
 from esphome import const
 

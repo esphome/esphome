@@ -1,7 +1,8 @@
+import esphome.codegen as cg
 from esphome.components import time as time_
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_ID
+
 from .. import homeassistant_ns
 
 DEPENDENCIES = ['api']

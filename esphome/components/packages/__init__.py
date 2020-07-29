@@ -1,5 +1,4 @@
 import esphome.config_validation as cv
-
 from esphome.const import CONF_PACKAGES
 
 

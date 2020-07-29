@@ -1,7 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_AUTOMATION_ID, CONF_CONDITION, CONF_ELSE, CONF_ID, CONF_THEN, \
-    CONF_TRIGGER_ID, CONF_TYPE_ID, CONF_TIME
+from esphome.const import (
+    CONF_AUTOMATION_ID, CONF_CONDITION, CONF_ELSE, CONF_ID, CONF_THEN, CONF_TIME, CONF_TRIGGER_ID,
+    CONF_TYPE_ID,
+)
 from esphome.core import coroutine
 from esphome.util import Registry
 

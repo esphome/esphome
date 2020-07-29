@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_UID, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_UID
 from esphome.core import HexInt
-from . import pn532_ns, PN532
+
+from . import PN532, pn532_ns
 
 DEPENDENCIES = ['pn532']
 

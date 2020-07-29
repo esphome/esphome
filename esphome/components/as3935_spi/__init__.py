@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import as3935, spi
+import esphome.config_validation as cv
 from esphome.const import CONF_ID
 
 AUTO_LOAD = ['as3935']

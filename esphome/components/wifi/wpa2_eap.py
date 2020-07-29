@@ -6,11 +6,9 @@ so that it doesn't crash if it's not installed.
 import logging
 from pathlib import Path
 
-from esphome.core import CORE
 import esphome.config_validation as cv
-from esphome.const import CONF_USERNAME, CONF_IDENTITY, CONF_PASSWORD, CONF_CERTIFICATE, \
-    CONF_KEY
-
+from esphome.const import CONF_CERTIFICATE, CONF_IDENTITY, CONF_KEY, CONF_PASSWORD, CONF_USERNAME
+from esphome.core import CORE
 
 _LOGGER = logging.getLogger(__name__)
 

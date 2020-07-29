@@ -1,8 +1,8 @@
-from esphome import pins, core
+from esphome import core, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_ID, CONF_PIN, CONF_PERIOD
+from esphome.const import CONF_ID, CONF_PERIOD, CONF_PIN
 
 slow_pwm_ns = cg.esphome_ns.namespace("slow_pwm")
 SlowPWMOutput = slow_pwm_ns.class_("SlowPWMOutput", output.FloatOutput, cg.Component)

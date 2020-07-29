@@ -1,5 +1,5 @@
-import esphome.config_validation as cv
 from esphome.components.remote_base import BINARY_SENSOR_REGISTRY
+import esphome.config_validation as cv
 from esphome.util import OrderedDict
 
 

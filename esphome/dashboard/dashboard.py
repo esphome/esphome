@@ -1,5 +1,6 @@
 # pylint: disable=wrong-import-position
 
+# pylint: disable=unused-import, wrong-import-order
 import codecs
 import collections
 import functools
@@ -12,6 +13,7 @@ import os
 import shutil
 import subprocess
 import threading
+from typing import Optional  # noqa
 
 import tornado
 import tornado.concurrent
@@ -26,16 +28,14 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, util
-from esphome.helpers import mkdir_p, get_bool_env, run_system_command
-from esphome.storage_json import EsphomeStorageJSON, StorageJSON, \
-    esphome_storage_path, ext_storage_path, trash_storage_path
-from esphome.util import shlex_quote, get_serial_ports
-from .util import password_hash
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Optional  # noqa
-
+from esphome.helpers import get_bool_env, mkdir_p, run_system_command
+from esphome.storage_json import (
+    EsphomeStorageJSON, StorageJSON, esphome_storage_path, ext_storage_path, trash_storage_path,
+)
+from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardStatus, Zeroconf
+
+from .util import password_hash
 
 _LOGGER = logging.getLogger(__name__)
 

@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_NAME, CONF_PIN, CONF_THRESHOLD, ESP_PLATFORM_ESP32, CONF_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_NAME, CONF_PIN, CONF_THRESHOLD, ESP_PLATFORM_ESP32
 from esphome.pins import validate_gpio_pin
-from . import esp32_touch_ns, ESP32TouchComponent
+
+from . import ESP32TouchComponent, esp32_touch_ns
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ['esp32_touch']

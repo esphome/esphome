@@ -1,7 +1,7 @@
+from esphome import automation, core
+from esphome.automation import maybe_simple_id
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import core, automation
-from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ROTATION
 from esphome.core import coroutine, coroutine_with_priority
 

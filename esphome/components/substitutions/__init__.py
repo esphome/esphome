@@ -1,8 +1,8 @@
 import logging
 import re
 
-import esphome.config_validation as cv
 from esphome import core
+import esphome.config_validation as cv
 from esphome.const import CONF_SUBSTITUTIONS
 
 CODEOWNERS = ['@esphome/core']

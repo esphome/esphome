@@ -1,11 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor
-from esphome.const import CONF_DATA, CONF_TRIGGER_ID, CONF_NBITS, CONF_ADDRESS, \
-    CONF_COMMAND, CONF_CODE, CONF_PULSE_LENGTH, CONF_SYNC, CONF_ZERO, CONF_ONE, CONF_INVERTED, \
-    CONF_PROTOCOL, CONF_GROUP, CONF_DEVICE, CONF_STATE, CONF_CHANNEL, CONF_FAMILY, CONF_REPEAT, \
-    CONF_WAIT_TIME, CONF_TIMES, CONF_TYPE_ID, CONF_CARRIER_FREQUENCY, CONF_RC_CODE_1, CONF_RC_CODE_2
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ADDRESS, CONF_CARRIER_FREQUENCY, CONF_CHANNEL, CONF_CODE, CONF_COMMAND, CONF_DATA,
+    CONF_DEVICE, CONF_FAMILY, CONF_GROUP, CONF_INVERTED, CONF_NBITS, CONF_ONE, CONF_PROTOCOL,
+    CONF_PULSE_LENGTH, CONF_RC_CODE_1, CONF_RC_CODE_2, CONF_REPEAT, CONF_STATE, CONF_SYNC,
+    CONF_TIMES, CONF_TRIGGER_ID, CONF_TYPE_ID, CONF_WAIT_TIME, CONF_ZERO,
+)
 from esphome.core import coroutine
 from esphome.util import Registry, SimpleRegistry
 

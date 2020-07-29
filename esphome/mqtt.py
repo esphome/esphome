@@ -7,9 +7,10 @@ import time
 
 import paho.mqtt.client as mqtt
 
-from esphome.const import CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOME, \
-    CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME, CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, \
-    CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME
+from esphome.const import (
+    CONF_BROKER, CONF_DISCOVERY_PREFIX, CONF_ESPHOME, CONF_LOG_TOPIC, CONF_MQTT, CONF_NAME,
+    CONF_PASSWORD, CONF_PORT, CONF_SSL_FINGERPRINTS, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_USERNAME,
+)
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import color
 from esphome.util import safe_print

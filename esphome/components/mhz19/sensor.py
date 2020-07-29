@@ -1,10 +1,12 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import sensor, uart
-from esphome.const import CONF_CO2, CONF_ID, CONF_TEMPERATURE, ICON_MOLECULE_CO2, \
-    UNIT_PARTS_PER_MILLION, UNIT_CELSIUS, ICON_THERMOMETER
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CO2, CONF_ID, CONF_TEMPERATURE, ICON_MOLECULE_CO2, ICON_THERMOMETER, UNIT_CELSIUS,
+    UNIT_PARTS_PER_MILLION,
+)
 
 DEPENDENCIES = ['uart']
 

@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import display
-from esphome.const import CONF_CLK_PIN, CONF_DIO_PIN, CONF_ID, CONF_LAMBDA, CONF_INTENSITY
+import esphome.config_validation as cv
+from esphome.const import CONF_CLK_PIN, CONF_DIO_PIN, CONF_ID, CONF_INTENSITY, CONF_LAMBDA
 
 CODEOWNERS = ['@glmnet']
 

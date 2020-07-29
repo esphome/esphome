@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import time
-from esphome.const import CONF_TIME_ID, CONF_ID, CONF_TRIGGER_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TIME_ID, CONF_TRIGGER_ID
 
 CODEOWNERS = ['@OttoWinter']
 sun_ns = cg.esphome_ns.namespace('sun')

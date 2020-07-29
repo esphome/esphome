@@ -1,8 +1,9 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, UNIT_EMPTY, ICON_EMPTY
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_STATE, ICON_EMPTY, UNIT_EMPTY
+
 from .. import template_ns
 
 TemplateSensor = template_ns.class_('TemplateSensor', sensor.Sensor, cg.PollingComponent)

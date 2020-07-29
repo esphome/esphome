@@ -1,8 +1,11 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_DISTANCE, CONF_LIGHTNING_ENERGY, \
-    UNIT_KILOMETER, UNIT_EMPTY, ICON_SIGNAL_DISTANCE_VARIANT, ICON_FLASH
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_DISTANCE, CONF_LIGHTNING_ENERGY, ICON_FLASH, ICON_SIGNAL_DISTANCE_VARIANT, UNIT_EMPTY,
+    UNIT_KILOMETER,
+)
+
 from . import AS3935, CONF_AS3935_ID
 
 DEPENDENCIES = ['as3935']

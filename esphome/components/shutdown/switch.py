@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_ICON, ICON_POWER
+import esphome.config_validation as cv
+from esphome.const import CONF_ICON, CONF_ID, CONF_INVERTED, ICON_POWER
 
 shutdown_ns = cg.esphome_ns.namespace('shutdown')
 ShutdownSwitch = shutdown_ns.class_('ShutdownSwitch', switch.Switch, cg.Component)

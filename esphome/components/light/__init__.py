@@ -1,18 +1,23 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 import esphome.automation as auto
+import esphome.codegen as cg
 from esphome.components import mqtt, power_supply
-from esphome.const import CONF_COLOR_CORRECT, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_MQTT_ID, CONF_POWER_SUPPLY, CONF_RESTORE_MODE, \
-    CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_TRIGGER_ID
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_COLOR_CORRECT, CONF_DEFAULT_TRANSITION_LENGTH, CONF_EFFECTS, CONF_GAMMA_CORRECT, CONF_ID,
+    CONF_INTERNAL, CONF_MQTT_ID, CONF_NAME, CONF_ON_TURN_OFF, CONF_ON_TURN_ON, CONF_POWER_SUPPLY,
+    CONF_RESTORE_MODE, CONF_TRIGGER_ID,
+)
 from esphome.core import coroutine, coroutine_with_priority
+
 from .automation import light_control_to_code  # noqa
-from .effects import validate_effects, BINARY_EFFECTS, \
-    MONOCHROMATIC_EFFECTS, RGB_EFFECTS, ADDRESSABLE_EFFECTS, EFFECTS_REGISTRY
+from .effects import (
+    ADDRESSABLE_EFFECTS, BINARY_EFFECTS, EFFECTS_REGISTRY, MONOCHROMATIC_EFFECTS, RGB_EFFECTS,
+    validate_effects,
+)
 from .types import (  # noqa
-    LightState, AddressableLightState, light_ns, LightOutput, AddressableLight, \
-    LightTurnOnTrigger, LightTurnOffTrigger)
+    AddressableLight, AddressableLightState, LightOutput, LightState, LightTurnOffTrigger,
+    LightTurnOnTrigger, light_ns,
+)
 
 CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True

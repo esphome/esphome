@@ -1,8 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, CONF_PM_2_5, CONF_PM_10_0, CONF_PM_1_0, \
-    UNIT_MICROGRAMS_PER_CUBIC_METER, ICON_CHEMICAL_WEAPON
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_PM_1_0, CONF_PM_2_5, CONF_PM_10_0, ICON_CHEMICAL_WEAPON,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+)
 
 DEPENDENCIES = ['i2c']
 

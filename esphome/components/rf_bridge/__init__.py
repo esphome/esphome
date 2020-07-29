@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
-from esphome.const import CONF_ID, CONF_TRIGGER_ID, CONF_CODE, CONF_LOW, CONF_SYNC, CONF_HIGH
+import esphome.codegen as cg
 from esphome.components import uart
+import esphome.config_validation as cv
+from esphome.const import CONF_CODE, CONF_HIGH, CONF_ID, CONF_LOW, CONF_SYNC, CONF_TRIGGER_ID
 
 DEPENDENCIES = ['uart']
 CODEOWNERS = ['@jesserockz']

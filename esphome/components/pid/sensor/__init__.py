@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_ID, UNIT_PERCENT, ICON_GAUGE, CONF_TYPE
-from ..climate import pid_ns, PIDClimate
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TYPE, ICON_GAUGE, UNIT_PERCENT
+
+from ..climate import PIDClimate, pid_ns
 
 PIDClimateSensor = pid_ns.class_('PIDClimateSensor', sensor.Sensor, cg.Component)
 PIDClimateSensorType = pid_ns.enum('PIDClimateSensorType')

@@ -3,13 +3,16 @@ import os
 import re
 
 from esphome.config import iter_components
-from esphome.const import CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS, \
-    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__, ARDUINO_VERSION_ESP8266
+from esphome.const import (
+    ARDUINO_VERSION_ESP8266, CONF_BOARD_FLASH_MODE, CONF_ESPHOME, CONF_PLATFORMIO_OPTIONS,
+    HEADER_FILE_EXTENSIONS, SOURCE_FILE_EXTENSIONS, __version__,
+)
 from esphome.core import CORE, EsphomeError
-from esphome.helpers import mkdir_p, read_file, write_file_if_changed, walk_files, \
-    copy_file_if_changed
-from esphome.storage_json import StorageJSON, storage_path
+from esphome.helpers import (
+    copy_file_if_changed, mkdir_p, read_file, walk_files, write_file_if_changed,
+)
 from esphome.pins import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
+from esphome.storage_json import StorageJSON, storage_path
 
 _LOGGER = logging.getLogger(__name__)
 

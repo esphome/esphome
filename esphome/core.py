@@ -1,17 +1,17 @@
+# pylint: disable=unused-import, wrong-import-order
 import functools
 import heapq
 import inspect
 import logging
-
 import math
 import os
 import re
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set  # noqa
 
-# pylint: disable=unused-import, wrong-import-order
-from typing import Any, Dict, List, Optional, Set, TYPE_CHECKING  # noqa
-
-from esphome.const import CONF_ARDUINO_VERSION, SOURCE_FILE_EXTENSIONS, \
-    CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI
+from esphome.const import (
+    CONF_ARDUINO_VERSION, CONF_COMMENT, CONF_ESPHOME, CONF_USE_ADDRESS, CONF_WIFI,
+    SOURCE_FILE_EXTENSIONS,
+)
 from esphome.helpers import ensure_unique_string, is_hassio
 from esphome.util import OrderedDict
 

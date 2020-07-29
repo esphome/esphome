@@ -1,9 +1,10 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, uart
-from esphome.const import (CONF_ID, CONF_PM_10_0, CONF_PM_2_5, CONF_RX_ONLY,
-                           CONF_UPDATE_INTERVAL, UNIT_MICROGRAMS_PER_CUBIC_METER,
-                           ICON_CHEMICAL_WEAPON)
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_PM_2_5, CONF_PM_10_0, CONF_RX_ONLY, CONF_UPDATE_INTERVAL, ICON_CHEMICAL_WEAPON,
+    UNIT_MICROGRAMS_PER_CUBIC_METER,
+)
 
 DEPENDENCIES = ['uart']
 

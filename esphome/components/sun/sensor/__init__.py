@@ -1,8 +1,9 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import UNIT_DEGREES, ICON_WEATHER_SUNSET, CONF_ID, CONF_TYPE
-from .. import sun_ns, CONF_SUN_ID, Sun
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_TYPE, ICON_WEATHER_SUNSET, UNIT_DEGREES
+
+from .. import CONF_SUN_ID, Sun, sun_ns
 
 DEPENDENCIES = ['sun']
 

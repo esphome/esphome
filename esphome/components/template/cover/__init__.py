@@ -1,11 +1,13 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import cover
-from esphome.const import CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, \
-    CONF_LAMBDA, CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_RESTORE_MODE, \
-    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA, \
-    CONF_POSITION_ACTION
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ASSUMED_STATE, CONF_CLOSE_ACTION, CONF_CURRENT_OPERATION, CONF_ID, CONF_LAMBDA,
+    CONF_OPEN_ACTION, CONF_OPTIMISTIC, CONF_POSITION, CONF_POSITION_ACTION, CONF_RESTORE_MODE,
+    CONF_STATE, CONF_STOP_ACTION, CONF_TILT, CONF_TILT_ACTION, CONF_TILT_LAMBDA,
+)
+
 from .. import template_ns
 
 TemplateCover = template_ns.class_('TemplateCover', cover.Cover, cg.Component)

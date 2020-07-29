@@ -1,7 +1,7 @@
-from esphome import pins, automation
+from esphome import automation, pins
+import esphome.codegen as cg
 from esphome.components import output
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NUMBER, CONF_PIN, ESP_PLATFORM_ESP8266
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP8266]

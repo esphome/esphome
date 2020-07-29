@@ -1,9 +1,10 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import stepper
-from esphome.const import CONF_ID, CONF_PIN_A, CONF_PIN_B, CONF_PIN_C, CONF_PIN_D, \
-    CONF_SLEEP_WHEN_DONE, CONF_STEP_MODE
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_PIN_A, CONF_PIN_B, CONF_PIN_C, CONF_PIN_D, CONF_SLEEP_WHEN_DONE, CONF_STEP_MODE,
+)
 
 uln2003_ns = cg.esphome_ns.namespace('uln2003')
 ULN2003StepMode = uln2003_ns.enum('ULN2003StepMode')

@@ -1,9 +1,10 @@
 import esphome.codegen as cg
+from esphome.components import binary_sensor, sensor
 import esphome.config_validation as cv
-
-from esphome.components import sensor, binary_sensor
-from esphome.const import CONF_ID, CONF_CHANNELS, CONF_VALUE, CONF_TYPE, UNIT_EMPTY, \
-    ICON_CHECK_CIRCLE_OUTLINE, CONF_BINARY_SENSOR, CONF_GROUP
+from esphome.const import (
+    CONF_BINARY_SENSOR, CONF_CHANNELS, CONF_GROUP, CONF_ID, CONF_TYPE, CONF_VALUE,
+    ICON_CHECK_CIRCLE_OUTLINE, UNIT_EMPTY,
+)
 
 DEPENDENCIES = ['binary_sensor']
 

@@ -1,5 +1,4 @@
-from esphome import config_validation as cv
-from esphome import codegen as cg
+from esphome import codegen as cg, config_validation as cv
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
 
 ColorStruct = cg.esphome_ns.struct('Color')

@@ -1,12 +1,12 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
+import esphome.codegen as cg
 from esphome.components import power_supply
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, \
-    CONF_MIN_POWER, CONF_POWER_SUPPLY
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_ID, CONF_INVERTED, CONF_LEVEL, CONF_MAX_POWER, CONF_MIN_POWER, CONF_POWER_SUPPLY,
+)
 from esphome.core import CORE, coroutine
-
 
 CODEOWNERS = ['@esphome/core']
 IS_PLATFORM_COMPONENT = True

@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
-from esphome.components.light.types import AddressableLightEffect
 from esphome.components.light.effects import register_addressable_effect
+from esphome.components.light.types import AddressableLightEffect
+import esphome.config_validation as cv
 from esphome.const import CONF_NAME, CONF_PORT
 
 wled_ns = cg.esphome_ns.namespace('wled')

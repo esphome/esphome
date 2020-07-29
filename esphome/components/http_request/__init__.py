@@ -1,10 +1,12 @@
 import urllib.parse as urlparse
 
+from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
-from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
-    CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266, CONF_URL
+from esphome.const import (
+    ARDUINO_VERSION_ESP8266, CONF_ARDUINO_VERSION, CONF_ESPHOME, CONF_ID, CONF_METHOD, CONF_TIMEOUT,
+    CONF_URL,
+)
 from esphome.core import CORE, Lambda
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
 

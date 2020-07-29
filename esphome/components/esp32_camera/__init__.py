@@ -1,8 +1,10 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_SCL, CONF_SDA, \
-    ESP_PLATFORM_ESP32, CONF_DATA_PINS, CONF_RESET_PIN, CONF_RESOLUTION, CONF_BRIGHTNESS
+from esphome.const import (
+    CONF_BRIGHTNESS, CONF_DATA_PINS, CONF_FREQUENCY, CONF_ID, CONF_NAME, CONF_PIN, CONF_RESET_PIN,
+    CONF_RESOLUTION, CONF_SCL, CONF_SDA, ESP_PLATFORM_ESP32,
+)
 
 ESP_PLATFORMS = [ESP_PLATFORM_ESP32]
 DEPENDENCIES = ['api']

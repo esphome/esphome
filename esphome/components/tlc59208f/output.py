@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import output
+import esphome.config_validation as cv
 from esphome.const import CONF_CHANNEL, CONF_ID
+
 from . import TLC59208FOutput, tlc59208f_ns
 
 DEPENDENCIES = ['tlc59208f']

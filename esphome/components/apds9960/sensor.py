@@ -1,7 +1,8 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor
-from esphome.const import CONF_TYPE, UNIT_PERCENT, ICON_LIGHTBULB
+import esphome.config_validation as cv
+from esphome.const import CONF_TYPE, ICON_LIGHTBULB, UNIT_PERCENT
+
 from . import APDS9960, CONF_APDS9960_ID
 
 DEPENDENCIES = ['apds9960']

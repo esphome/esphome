@@ -1,8 +1,10 @@
+from esphome import automation, pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins, automation
-from esphome.const import CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, \
-    CONF_RUN_DURATION, CONF_SLEEP_DURATION, CONF_WAKEUP_PIN
+from esphome.const import (
+    CONF_ID, CONF_MODE, CONF_NUMBER, CONF_PINS, CONF_RUN_CYCLES, CONF_RUN_DURATION,
+    CONF_SLEEP_DURATION, CONF_WAKEUP_PIN,
+)
 
 
 def validate_pin_number(value):

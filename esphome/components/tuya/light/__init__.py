@@ -1,9 +1,12 @@
+import esphome.codegen as cg
 from esphome.components import light
 import esphome.config_validation as cv
-import esphome.codegen as cg
-from esphome.const import CONF_OUTPUT_ID, CONF_MIN_VALUE, CONF_MAX_VALUE, CONF_GAMMA_CORRECT, \
-    CONF_DEFAULT_TRANSITION_LENGTH, CONF_SWITCH_DATAPOINT
-from .. import tuya_ns, CONF_TUYA_ID, Tuya
+from esphome.const import (
+    CONF_DEFAULT_TRANSITION_LENGTH, CONF_GAMMA_CORRECT, CONF_MAX_VALUE, CONF_MIN_VALUE,
+    CONF_OUTPUT_ID, CONF_SWITCH_DATAPOINT,
+)
+
+from .. import CONF_TUYA_ID, Tuya, tuya_ns
 
 DEPENDENCIES = ['tuya']
 

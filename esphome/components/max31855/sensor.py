@@ -1,6 +1,6 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import sensor, spi
+import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_REFERENCE_TEMPERATURE, ICON_THERMOMETER, UNIT_CELSIUS
 
 max31855_ns = cg.esphome_ns.namespace('max31855')

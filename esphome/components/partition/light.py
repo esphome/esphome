@@ -1,7 +1,7 @@
 import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome.components import light
-from esphome.const import CONF_FROM, CONF_ID, CONF_SEGMENTS, CONF_TO, CONF_OUTPUT_ID
+import esphome.config_validation as cv
+from esphome.const import CONF_FROM, CONF_ID, CONF_OUTPUT_ID, CONF_SEGMENTS, CONF_TO
 
 partitions_ns = cg.esphome_ns.namespace('partition')
 AddressableSegment = partitions_ns.class_('AddressableSegment')

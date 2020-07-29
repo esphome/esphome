@@ -1,9 +1,8 @@
 from esphome import pins
+import esphome.codegen as cg
 from esphome.components import stepper
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_DIR_PIN, CONF_ID, CONF_SLEEP_PIN, CONF_STEP_PIN
-
 
 a4988_ns = cg.esphome_ns.namespace('a4988')
 A4988 = a4988_ns.class_('A4988', stepper.Stepper, cg.Component)

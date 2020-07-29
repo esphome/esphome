@@ -1,7 +1,7 @@
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
-from esphome.const import CONF_ID, CONF_SDO_PIN, CONF_SCL_PIN
+from esphome.const import CONF_ID, CONF_SCL_PIN, CONF_SDO_PIN
 
 DEPENDENCIES = ['i2c']
 AUTO_LOAD = ['binary_sensor']

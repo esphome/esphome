@@ -1,8 +1,8 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import sensor
-from esphome.const import CONF_ID, CONF_SENSOR, CONF_RESTORE
+import esphome.config_validation as cv
+from esphome.const import CONF_ID, CONF_RESTORE, CONF_SENSOR
 
 integration_ns = cg.esphome_ns.namespace('integration')
 IntegrationSensor = integration_ns.class_('IntegrationSensor', sensor.Sensor, cg.Component)

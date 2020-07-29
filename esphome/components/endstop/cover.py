@@ -1,10 +1,11 @@
-import esphome.codegen as cg
-import esphome.config_validation as cv
 from esphome import automation
+import esphome.codegen as cg
 from esphome.components import binary_sensor, cover
-from esphome.const import CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, \
-    CONF_CLOSE_ENDSTOP, CONF_ID, CONF_OPEN_ACTION, CONF_OPEN_DURATION, \
-    CONF_OPEN_ENDSTOP, CONF_STOP_ACTION, CONF_MAX_DURATION
+import esphome.config_validation as cv
+from esphome.const import (
+    CONF_CLOSE_ACTION, CONF_CLOSE_DURATION, CONF_CLOSE_ENDSTOP, CONF_ID, CONF_MAX_DURATION,
+    CONF_OPEN_ACTION, CONF_OPEN_DURATION, CONF_OPEN_ENDSTOP, CONF_STOP_ACTION,
+)
 
 endstop_ns = cg.esphome_ns.namespace('endstop')
 EndstopCover = endstop_ns.class_('EndstopCover', cover.Cover, cg.Component)

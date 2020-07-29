@@ -1,11 +1,12 @@
 import logging
 
 from esphome import core
+import esphome.codegen as cg
 from esphome.components import display, font
 import esphome.config_validation as cv
-import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_ID, CONF_RESIZE, CONF_TYPE
 from esphome.core import CORE, HexInt
+
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ['display']
