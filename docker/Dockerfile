@@ -1,4 +1,4 @@
-ARG BUILD_FROM=esphome/esphome-base-amd64:2.4.0
+ARG BUILD_FROM=esphome/esphome-base-amd64:2.4.1
 FROM ${BUILD_FROM}
 
 # First install requirements to leverage caching when requirements don't change
