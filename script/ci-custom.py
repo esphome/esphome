@@ -60,7 +60,11 @@ def run_check(lint_obj, fname, *args):
 
 def run_checks(lints, fname, *args):
     for lint in lints:
-        add_errors(fname, run_check(lint, fname, *args))
+        try:
+            add_errors(fname, run_check(lint, fname, *args))
+        except Exception:
+            print(f"Check {lint['func'].__name__} on file {fname} failed:")
+            raise
 
 
 def _add_check(checks, func, include=None, exclude=None):
@@ -206,6 +210,10 @@ def lint_no_long_delays(fname, match):
 
 @lint_content_check(include=['esphome/const.py'])
 def lint_const_ordered(fname, content):
+    """Lint that value in const.py are ordered.
+
+    Reason: Otherwise people add it to the end, and then that results in merge conflicts.
+    """
     lines = content.splitlines()
     errors = []
     for start in ['CONF_', 'ICON_', 'UNIT_']:
@@ -217,10 +225,10 @@ def lint_const_ordered(fname, content):
                 continue
             target = next(i for i, l in ordered if l == ml)
             target_text = next(l for i, l in matching if target == i)
-            errors.append((ml, None,
-                           "Constant {} is not ordered, please make sure all constants are ordered. "
-                           "See line {} (should go to line {}, {})"
-                           "".format(highlight(ml), mi, target, target_text)))
+            errors.append((mi, 1,
+                           f"Constant {highlight(ml)} is not ordered, please make sure all "
+                           f"constants are ordered. See line {mi} (should go to line {target}, "
+                           f"{target_text})"))
     return errors
 
 
