@@ -9,6 +9,10 @@ import subprocess
 import sys
 import time
 import functools
+import argparse
+
+sys.path.append(os.path.dirname(__file__))
+from helpers import git_ls_files, filter_changed
 
 def find_all(a_str, sub):
     if not a_str.find(sub):
@@ -25,15 +29,24 @@ def find_all(a_str, sub):
             column += len(sub)
 
 
-command = ['git', 'ls-files', '-s']
-proc = subprocess.Popen(command, stdout=subprocess.PIPE)
-output, err = proc.communicate()
-lines = [x.split() for x in output.decode('utf-8').splitlines()]
-EXECUTABLE_BIT = {
-    s[3].strip(): int(s[0]) for s in lines
-}
-files = [s[3].strip() for s in lines]
-files = list(filter(os.path.exists, files))
+parser = argparse.ArgumentParser()
+parser.add_argument('files', nargs='*', default=[],
+                    help='files to be processed (regex on path)')
+parser.add_argument('-c', '--changed', action='store_true',
+                    help='Only run on changed files')
+parser.add_argument('--print-slowest', action='store_true',
+                    help='Print the slowest checks')
+args = parser.parse_args()
+
+EXECUTABLE_BIT = git_ls_files()
+files = list(EXECUTABLE_BIT.keys())
+# Match against re
+file_name_re = re.compile('|'.join(args.files))
+files = [p for p in files if file_name_re.search(p)]
+
+if args.changed:
+    files = filter_changed(files)
+
 files.sort()
 
 file_types = ('.h', '.c', '.cpp', '.tcc', '.yaml', '.yml', '.ini', '.txt', '.ico', '.svg',
@@ -490,7 +503,7 @@ for f, errs in sorted(errors.items()):
         print(f"ERROR {f}:{lineno}:{col} - {msg}")
     print()
 
-if '--print-slowest' in sys.argv:
+if args.print_slowest:
     lint_times = []
     for lint in LINT_FILE_CHECKS + LINT_CONTENT_CHECKS + LINT_POST_CHECKS:
         durations = lint.get('durations', [])
