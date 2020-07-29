@@ -206,12 +206,15 @@ void WiFiComponent::start_connecting(const WiFiAP &ap, bool two) {
   if (ap.get_eap().has_value()) {
     ESP_LOGV(TAG, "  WPA2 Enterprise authentication configured:");
     EAPAuth eap_config = ap.get_eap().value();
-    ESP_LOGV(TAG, "    identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
-    ESP_LOGV(TAG, "    username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
-    ESP_LOGV(TAG, "    password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
-    ESP_LOGV(TAG, "    CA cert:     %s", strlen(eap_config.ca_cert) ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client cert: %s", strlen(eap_config.client_cert) ? "present" : "not present");
-    ESP_LOGV(TAG, "    Client key:  %s", strlen(eap_config.client_key) ? "present" : "not present");
+    ESP_LOGV(TAG, "    Identity: " LOG_SECRET("'%s'"), eap_config.identity.c_str());
+    ESP_LOGV(TAG, "    Username: " LOG_SECRET("'%s'"), eap_config.username.c_str());
+    ESP_LOGV(TAG, "    Password: " LOG_SECRET("'%s'"), eap_config.password.c_str());
+    bool ca_cert_present = eap_config.ca_cert != nullptr && strlen(eap_config.ca_cert);
+    bool client_cert_present = eap_config.client_cert != nullptr && strlen(eap_config.client_cert);
+    bool client_key_present = eap_config.client_key != nullptr && strlen(eap_config.client_key);
+    ESP_LOGV(TAG, "    CA Cert:     %s", ca_cert_present ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client Cert: %s", client_cert_present ? "present" : "not present");
+    ESP_LOGV(TAG, "    Client Key:  %s", client_key_present ? "present" : "not present");
   } else {
 #endif
     ESP_LOGV(TAG, "  Password: " LOG_SECRET("'%s'"), ap.get_password().c_str());
