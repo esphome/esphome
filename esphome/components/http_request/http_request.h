@@ -39,6 +39,7 @@ class HttpRequestComponent : public Component {
   void send();
   void close();
   const String get_string();
+
  protected:
   HTTPClient client_{};
   std::string url_;
