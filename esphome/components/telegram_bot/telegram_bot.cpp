@@ -40,8 +40,8 @@ void TelegramBotComponent::make_request_(const char *method, std::string body,
   this->request_->send();
 
   if (callback != nullptr) {
-    std::string response = this->request_->get_string();
-    if (response.empty()) {
+    String response = this->request_->get_string();
+    if (response.length() == 0) {
       ESP_LOGD(TAG, "Got empty response for method %s", method);
     } else {
       JsonObject &root = this->json_buffer_.parseObject(response);

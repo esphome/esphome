@@ -80,7 +80,22 @@ WiFiClient *HttpRequestComponent::get_wifi_client_() {
 
 void HttpRequestComponent::close() { this->client_.end(); }
 
-const std::string HttpRequestComponent::get_string() { return std::string(this->client_.getString().c_str()); }
+const String HttpRequestComponent::get_string() {
+  String result = "";
+  char char_buff[128];
+  int len = this->client_.getSize();
+  WiFiClient *stream = this->client_.getStreamPtr();
+
+  while (this->client_.connected() && (len > 0 || len == -1)) {
+    int c = stream->readBytes(char_buff, std::min((size_t) len, sizeof(char_buff)));
+    result += char_buff;
+    if (len > 0) {
+      len -= c;
+    }
+  }
+
+  return result;
+}
 
 }  // namespace http_request
 }  // namespace esphome

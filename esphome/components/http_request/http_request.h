@@ -38,8 +38,7 @@ class HttpRequestComponent : public Component {
   void set_headers(std::list<Header> headers) { this->headers_ = headers; }
   void send();
   void close();
-  const std::string get_string();
-
+  const String get_string();
  protected:
   HTTPClient client_{};
   std::string url_;
