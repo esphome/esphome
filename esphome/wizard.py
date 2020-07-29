@@ -168,8 +168,9 @@ def wizard(path):
             name = cv.valid_name(name)
             break
         except vol.Invalid:
-            safe_print(color("red", "Oh noes, \"{}\" isn't a valid name. Names can only include "
-                                    "numbers, lower-case letters, underscores and hyphens.".format(name)))
+            safe_print(color("red", f"Oh noes, \"{name}\" isn't a valid name. Names can only "
+                                    f"include numbers, lower-case letters, underscores and "
+                                    f"hyphens."))
             name = strip_accents(name).lower().replace(' ', '_')
             name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
             safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
