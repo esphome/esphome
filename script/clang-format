@@ -3,7 +3,6 @@
 from __future__ import print_function
 
 import argparse
-import multiprocessing
 import os
 import re
 import subprocess
@@ -56,7 +55,7 @@ def progress_bar_show(value):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-j', '--jobs', type=int,
-                        default=multiprocessing.cpu_count(),
+                        default=os.cpu_count(),
                         help='number of tidy instances to be run in parallel.')
     parser.add_argument('files', nargs='*', default=[],
                         help='files to be processed (regex on path)')
@@ -72,11 +71,11 @@ def main():
         get_output('clang-format-7', '-version')
     except:
         print("""
-        Oops. It looks like clang-format is not installed. 
-        
+        Oops. It looks like clang-format is not installed.
+
         Please check you can run "clang-format-7 -version" in your terminal and install
         clang-format (v7) if necessary.
-        
+
         Note you can also upload your code as a pull request on GitHub and see the CI check
         output to apply clang-format.
         """)
