@@ -26,6 +26,10 @@ class PrometheusHandler : public AsyncWebHandler, public Component {
     this->base_->init();
     this->base_->add_handler(this);
   }
+  float get_setup_priority() const override {
+    // After WiFi
+    return setup_priority::WIFI - 1.0f;
+  }
 
  protected:
 #ifdef USE_SENSOR

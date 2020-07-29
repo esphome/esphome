@@ -6,6 +6,6 @@ cd "$(dirname "$0")/.."
 
 set -x
 
-script/ci-custom.py
+script/ci-custom.py -c
 script/lint-python -c
 script/lint-cpp -c
