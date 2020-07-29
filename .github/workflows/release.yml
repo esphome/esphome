@@ -226,7 +226,7 @@ jobs:
             cache_tag="beta"
           else
             cache_tag="latest"
-          end
+          fi
 
           # Set env variables so these values don't need to be calculated again
           echo "::set-env name=BUILD_FROM::${build_from}"
