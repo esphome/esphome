@@ -1,4 +1,4 @@
-FROM esphome/esphome-lint-base:2.4.0
+FROM esphome/esphome-lint-base:2.4.1
 
 COPY requirements.txt requirements_test.txt /
 RUN pip3 install --no-cache-dir -r /requirements.txt -r /requirements_test.txt

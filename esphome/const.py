@@ -2,7 +2,7 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 15
-PATCH_VERSION = '0b2'
+PATCH_VERSION = '0b3'
 __short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
 __version__ = f'{__short_version__}.{PATCH_VERSION}'
 
@@ -587,10 +587,10 @@ ICON_GAS_CYLINDER = 'mdi:gas-cylinder'
 ICON_GAUGE = 'mdi:gauge'
 ICON_LIGHTBULB = 'mdi:lightbulb'
 ICON_MAGNET = 'mdi:magnet'
+ICON_MOLECULE_CO2 = 'mdi:molecule-co2'
 ICON_MOTION_SENSOR = 'mdi:motion-sensor'
 ICON_NEW_BOX = 'mdi:new-box'
 ICON_PERCENT = 'mdi:percent'
-ICON_PERIODIC_TABLE_CO2 = 'mdi:periodic-table-co2'
 ICON_POWER = 'mdi:power'
 ICON_PULSE = 'mdi:pulse'
 ICON_RADIATOR = 'mdi:radiator'
