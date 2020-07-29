@@ -7,9 +7,14 @@ import os.path
 import re
 import subprocess
 import sys
-
+import time
+import functools
 
 def find_all(a_str, sub):
+    if not a_str.find(sub):
+        # Optimization: If str is not in whole text, then do not try
+        # on each line
+        return
     for i, line in enumerate(a_str.splitlines()):
         column = 0
         while True:
@@ -60,11 +65,14 @@ def run_check(lint_obj, fname, *args):
 
 def run_checks(lints, fname, *args):
     for lint in lints:
+        start = time.process_time()
         try:
             add_errors(fname, run_check(lint, fname, *args))
         except Exception:
             print(f"Check {lint['func'].__name__} on file {fname} failed:")
             raise
+        duration = time.process_time() - start
+        lint.setdefault('durations', []).append(duration)
 
 
 def _add_check(checks, func, include=None, exclude=None):
@@ -100,6 +108,7 @@ def lint_re_check(regex, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
+        @functools.wraps(func)
         def new_func(fname, content):
             errors = []
             for match in prog.finditer(content):
@@ -113,6 +122,7 @@ def lint_re_check(regex, **kwargs):
                     continue
                 errors.append((lineno, col+1, err))
             return errors
+
         return decor(new_func)
     return decorator
 
@@ -121,6 +131,7 @@ def lint_content_find_check(find, **kwargs):
     decor = lint_content_check(**kwargs)
 
     def decorator(func):
+        @functools.wraps(func)
         def new_func(fname, content):
             find_ = find
             if callable(find):
@@ -310,7 +321,7 @@ def lint_no_arduino_framework_functions(fname, match):
     )
 
 
-@lint_re_check(r'[^\w\d]byte\s+[\w\d]+\s*=.*', include=cpp_include, exclude={
+@lint_re_check(r'[^\w\d]byte\s+[\w\d]+\s*=', include=cpp_include, exclude={
     'esphome/components/tuya/tuya.h',
 })
 def lint_no_byte_datatype(fname, match):
@@ -393,8 +404,8 @@ def lint_pragma_once(fname, content):
     return None
 
 
-@lint_re_check(r'(whitelist|blacklist|slave)', exclude=['script/ci-custom.py'],
-               flags=re.IGNORECASE | re.MULTILINE)
+@lint_re_check(r'(whitelist|Whitelist|WHITELIST|Blacklist|blacklist|BLACKLIST|slave|Slave|SLAVE)',
+               exclude=['script/ci-custom.py'])
 def lint_inclusive_language(fname, match):
     # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
     return ("Avoid the use of whitelist/blacklist/slave.\n"
@@ -478,5 +489,16 @@ for f, errs in sorted(errors.items()):
     for lineno, col, msg in errs:
         print(f"ERROR {f}:{lineno}:{col} - {msg}")
     print()
+
+if '--print-slowest' in sys.argv:
+    lint_times = []
+    for lint in LINT_FILE_CHECKS + LINT_CONTENT_CHECKS + LINT_POST_CHECKS:
+        durations = lint.get('durations', [])
+        lint_times.append((sum(durations), len(durations), lint['func'].__name__))
+    lint_times.sort(key=lambda x: -x[0])
+    for i in range(min(len(lint_times), 10)):
+        dur, invocations, name = lint_times[i]
+        print(f" - '{name}' took {dur:.2f}s total (ran on {invocations} files)")
+    print(f"Total time measured: {sum(x[0] for x in lint_times):.2f}s")
 
 sys.exit(len(errors))
