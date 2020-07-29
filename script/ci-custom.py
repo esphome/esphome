@@ -417,8 +417,8 @@ def lint_pragma_once(fname, content):
     return None
 
 
-@lint_re_check(r'(whitelist|Whitelist|WHITELIST|Blacklist|blacklist|BLACKLIST|slave|Slave|SLAVE)',
-               exclude=['script/ci-custom.py'])
+@lint_re_check(r'(whitelist|blacklist|slave)',
+               exclude=['script/ci-custom.py'], flags=re.IGNORECASE | re.MULTILINE)
 def lint_inclusive_language(fname, match):
     # From https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=49decddd39e5f6132ccd7d9fdc3d7c470b0061bb
     return ("Avoid the use of whitelist/blacklist/slave.\n"
