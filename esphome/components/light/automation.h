@@ -103,7 +103,10 @@ class LightTurnOnTrigger : public Trigger<> {
   LightTurnOnTrigger(LightState *a_light) {
     a_light->add_new_remote_values_callback([this, a_light]() {
       auto is_on = a_light->current_values.is_on();
+      // only trigger when going from off to on
       auto should_trigger = is_on && !last_on_;
+      // Set new state immediately so that trigger() doesn't devolve
+      // into infinite loop
       last_on_ = is_on;
       if (should_trigger) {
         this->trigger();
@@ -121,7 +124,10 @@ class LightTurnOffTrigger : public Trigger<> {
   LightTurnOffTrigger(LightState *a_light) {
     a_light->add_new_remote_values_callback([this, a_light]() {
       auto is_on = a_light->current_values.is_on();
+      // only trigger when going from on to off
       auto should_trigger = !is_on && last_on_;
+      // Set new state immediately so that trigger() doesn't devolve
+      // into infinite loop
       last_on_ = is_on;
       if (should_trigger) {
         this->trigger();
