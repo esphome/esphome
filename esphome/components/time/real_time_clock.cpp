@@ -20,8 +20,18 @@ void RealTimeClock::synchronize_epoch_(uint32_t epoch) {
   struct timeval timev {
     .tv_sec = static_cast<time_t>(epoch), .tv_usec = 0,
   };
+  ESP_LOGVV(TAG, "Got epoch %u (%llu)", epoch, epoch * 1000000ULL);
   timezone tz = {0, 0};
-  settimeofday(&timev, &tz);
+  int ret = settimeofday(&timev, &tz);
+  if (ret == EINVAL) {
+    // Some ESP8266 frameworks abort when timezone parameter is not NULL
+    // while ESP32 expects it not to be NULL
+    ret = settimeofday(&timev, nullptr);
+  }
+
+  if (ret != 0) {
+    ESP_LOGW(TAG, "setimeofday() failed with code %d", ret);
+  }
 
   auto time = this->now();
   char buf[128];
