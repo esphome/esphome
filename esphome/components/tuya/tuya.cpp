@@ -22,8 +22,8 @@ void Tuya::loop() {
 void Tuya::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya:");
   if (this->init_state_ != TuyaInitState::INIT_DONE) {
-    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",  // NOLINT
-                  this->init_state_);
+    ESP_LOGCONFIG(TAG, "  Configuration will be reported when setup is complete. Current init_state: %u",
+                  static_cast<uint8_t>(this->init_state_));
     ESP_LOGCONFIG(TAG, "  If no further output is received, confirm that this is a supported Tuya device.");
     return;
   }
