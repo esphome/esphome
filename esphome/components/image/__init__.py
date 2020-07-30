@@ -21,7 +21,7 @@ IMAGE_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(Image_),
     cv.Required(CONF_FILE): cv.file_,
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_TYPE): cv.string,
+    cv.Optional(CONF_TYPE, default='1'): cv.string,
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 

@@ -87,25 +87,25 @@ void ILI9341Display::update() {
 }
 
 void ILI9341Display::display_() {
-  //we will only update the changed window to the display
+  // we will only update the changed window to the display
   int w = this->x_high_ - this->x_low_ + 1;
   int h = this->y_high_ - this->y_low_ + 1;
 
-  set_addr_window_(this->x_low_,this->y_low_,w, h);
+  set_addr_window_(this->x_low_, this->y_low_, w, h);
   this->start_data_();
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
   for (uint16_t row = 0; row < h; row++) {
-    for(uint16_t col = 0; col < w; col++) {
+    for (uint16_t col = 0; col < w; col++) {
       uint32_t pos = start_pos + (row * width_) + col;
 
       uint16_t color = convert_to_16bit_color_(buffer_[pos]);
       this->write_byte(color >> 8);
-      this->write_byte(color);  
+      this->write_byte(color);
     }
   }
   this->end_data_();
 
-  //invalidate watermarks
+  // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
@@ -113,32 +113,32 @@ void ILI9341Display::display_() {
 }
 
 uint16_t ILI9341Display::convert_to_16bit_color_(uint8_t color_8bit) {
-    int r = color_8bit >> 5;
-    int g = (color_8bit >> 2 )& 0x07;
-    int b = color_8bit & 0x03;
-    uint16_t color = (r * 0x04) << 11;
-    color |= (g * 0x09) << 5;
-    color |= (b * 0x0A);
-    
-    return color;
+  int r = color_8bit >> 5;
+  int g = (color_8bit >> 2) & 0x07;
+  int b = color_8bit & 0x03;
+  uint16_t color = (r * 0x04) << 11;
+  color |= (g * 0x09) << 5;
+  color |= (b * 0x0A);
+
+  return color;
 }
 
 uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
-  //convert 16bit color to 8 bit buffer
+  // convert 16bit color to 8 bit buffer
   uint8_t r = color_16bit >> 11;
-  uint8_t g = (color_16bit >> 5 ) &  0x3F;
+  uint8_t g = (color_16bit >> 5) & 0x3F;
   uint8_t b = color_16bit & 0x1F;
 
-  return((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
+  return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
 }
 
 /**
  * do nothing.
- * we need this function het to override the default behaviour.
+ * we need this function here to override the default behaviour.
  * Otherwise the buffer is cleared at every update
  * */
-void ILI9341Display::fill(int color) {
-  //do nothing.
+void ILI9341Display::fill(Color color) {
+  // do nothing.
 }
 
 void ILI9341Display::fill_internal_(int color) {
@@ -152,18 +152,19 @@ void ILI9341Display::fill_internal_(int color) {
   this->end_data_();
 }
 
-void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, int color) {
+void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x > this->get_width_internal() || x < 0 || y > this->get_height_internal() || y < 0)
     return;
 
   // low and high watermark may speed up drawing from buffer
   this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
-  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;  
+  this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
   this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
   this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
 
-  uint32_t pos = (y*width_) + x;
-  buffer_[pos] = convert_to_8bit_color_(color);
+  uint32_t pos = (y * width_) + x;
+  auto color565 = color.to_rgb_565();
+  buffer_[pos] = convert_to_8bit_color_(color565);
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
@@ -191,7 +192,7 @@ void ILI9341Display::init_lcd_(const uint8_t *init_cmd) {
     send_command(cmd, addr, num_args);
     addr += num_args;
     if (x & 0x80)
-      delay(150); // NOLINT
+      delay(150);  // NOLINT
   }
 }
 
@@ -220,7 +221,7 @@ int ILI9341Display::get_width_internal() { return this->width_; }
 int ILI9341Display::get_height_internal() { return this->height_; }
 
 //   M5Stack display
-void ILI9341_M5Stack::initialize() {
+void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
@@ -228,7 +229,7 @@ void ILI9341_M5Stack::initialize() {
 }
 
 //   24_TFT display
-void ILI9341_24_TFT::initialize() {
+void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;

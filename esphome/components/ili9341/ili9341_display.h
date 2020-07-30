@@ -15,9 +15,9 @@ enum ILI9341Model {
 };
 
 class ILI9341Display : public PollingComponent,
-                public display::DisplayBuffer,
-                public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                      spi::DATA_RATE_40MHZ> {
+                       public display::DisplayBuffer,
+                       public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
@@ -33,7 +33,7 @@ class ILI9341Display : public PollingComponent,
 
   void update() override;
 
-  void fill(int color) override;
+  void fill(Color color) override;
 
   void dump_config() override;
   void setup() override {
@@ -42,7 +42,7 @@ class ILI9341Display : public PollingComponent,
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, int color) override;
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
 
   void init_lcd_(const uint8_t *init_cmd);
@@ -78,13 +78,13 @@ class ILI9341Display : public PollingComponent,
 };
 
 //-----------   M5Stack display --------------
-class ILI9341_M5Stack : public ILI9341Display {
+class ILI9341M5Stack : public ILI9341Display {
  public:
   void initialize() override;
 };
 
 //-----------   ILI9341_24_TFT display --------------
-class ILI9341_24_TFT : public ILI9341Display {
+class ILI9341TFT24 : public ILI9341Display {
  public:
   void initialize() override;
 };
