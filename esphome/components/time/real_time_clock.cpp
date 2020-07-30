@@ -4,6 +4,7 @@
 #ifdef ARDUINO_ARCH_ESP8266
 #include "sys/time.h"
 #endif
+#include "errno.h"
 
 namespace esphome {
 namespace time {
