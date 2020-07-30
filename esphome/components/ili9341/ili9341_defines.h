@@ -5,26 +5,6 @@ namespace ili9341 {
 
 // Color definitions
 // clang-format off
-static const uint16_t BLACK       = 0x0000;  ///<   0,   0,   0
-static const uint16_t NAVY        = 0x000F;  ///<   0,   0, 123
-static const uint16_t DARKGREEN   = 0x03E0;  ///<   0, 125,   0
-static const uint16_t DARKCYAN    = 0x03EF;  ///<   0, 125, 123
-static const uint16_t MAROON      = 0x7800;  ///< 123,   0,   0
-static const uint16_t PURPLE      = 0x780F;  ///< 123,   0, 123
-static const uint16_t OLIVE       = 0x7BE0;  ///< 123, 125,   0
-static const uint16_t LIGHTGREY   = 0xC618;  ///< 198, 195, 198
-static const uint16_t DARKGREY    = 0x7BEF;  ///< 123, 125, 123
-static const uint16_t BLUE        = 0x001F;  ///<   0,   0, 255
-static const uint16_t GREEN       = 0x07E0;  ///<   0, 255,   0
-static const uint16_t CYAN        = 0x07FF;  ///<   0, 255, 255
-static const uint16_t RED         = 0xF800;  ///< 255,   0,   0
-static const uint16_t MAGENTA     = 0xF81F;  ///< 255,   0, 255
-static const uint16_t YELLOW      = 0xFFE0;  ///< 255, 255,   0
-static const uint16_t WHITE       = 0xFFFF;  ///< 255, 255, 255
-static const uint16_t ORANGE      = 0xFD20;  ///< 255, 165,   0
-static const uint16_t GREENYELLOW = 0xAFE5;  ///< 173, 255,  41
-static const uint16_t PINK        = 0xFC18;  ///< 255, 130, 198
-
 static const uint8_t MADCTL_MY    = 0x80;   ///< Bit 7 Bottom to top
 static const uint8_t MADCTL_MX    = 0x40;   ///< Bit 6 Right to left
 static const uint8_t MADCTL_MV    = 0x20;   ///< Bit 5 Reverse Mode

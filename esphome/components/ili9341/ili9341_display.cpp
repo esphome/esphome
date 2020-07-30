@@ -138,15 +138,22 @@ uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
  * Otherwise the buffer is cleared at every update
  * */
 void ILI9341Display::fill(Color color) {
-  // do nothing.
+  auto color565 = color.to_rgb_565();
+  memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
+  this->x_low_ = 0;
+  this->y_low_ = 0;
+  this->x_high_ = this->get_width_internal()-1;
+  this->y_high_ = this->get_height_internal()-1;
 }
 
-void ILI9341Display::fill_internal_(int color) {
+void ILI9341Display::fill_internal_(Color color) {
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
+
+  auto color565 = color.to_rgb_565();
   for (uint32_t i = 0; i < (this->get_width_internal()) * (this->get_height_internal()); i++) {
-    this->write_byte(color >> 8);
-    this->write_byte(color);
+    this->write_byte(color565 >> 8);
+    this->write_byte(color565);
     buffer_[i] = 0;
   }
   this->end_data_();
@@ -225,7 +232,7 @@ void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
-  this->fill_internal_(BLACK);
+  this->fill_internal_(COLOR_BLACK);
 }
 
 //   24_TFT display
@@ -233,7 +240,7 @@ void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
-  this->fill_internal_(BLACK);
+  this->fill_internal_(COLOR_BLACK);
 }
 
 }  // namespace ili9341
