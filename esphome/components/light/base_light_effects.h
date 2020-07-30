@@ -67,9 +67,9 @@ class LambdaLightEffect : public LightEffect {
 class AutomationLightEffect : public LightEffect {
  public:
   AutomationLightEffect(const std::string &name) : LightEffect(name) {}
-  void stop() override { this->trig_->stop(); }
+  void stop() override { this->trig_->stop_action(); }
   void apply() override {
-    if (!this->trig_->is_running()) {
+    if (!this->trig_->is_action_running()) {
       this->trig_->trigger();
     }
   }

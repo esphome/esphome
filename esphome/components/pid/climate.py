@@ -7,6 +7,8 @@ from esphome.const import CONF_ID, CONF_SENSOR
 pid_ns = cg.esphome_ns.namespace('pid')
 PIDClimate = pid_ns.class_('PIDClimate', climate.Climate, cg.Component)
 PIDAutotuneAction = pid_ns.class_('PIDAutotuneAction', automation.Action)
+PIDResetIntegralTermAction = pid_ns.class_('PIDResetIntegralTermAction', automation.Action)
+PIDSetControlParametersAction = pid_ns.class_('PIDSetControlParametersAction', automation.Action)
 
 CONF_DEFAULT_TARGET_TEMPERATURE = 'default_target_temperature'
 
@@ -64,6 +66,18 @@ def to_code(config):
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
 
+@automation.register_action(
+    'climate.pid.reset_integral_term',
+    PIDResetIntegralTermAction,
+    automation.maybe_simple_id({
+        cv.Required(CONF_ID): cv.use_id(PIDClimate),
+    })
+)
+def pid_reset_integral_term(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    yield cg.new_Pvariable(action_id, template_arg, paren)
+
+
 @automation.register_action('climate.pid.autotune', PIDAutotuneAction, automation.maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(PIDClimate),
     cv.Optional(CONF_NOISEBAND, default=0.25): cv.float_,
@@ -76,4 +90,29 @@ def esp8266_set_frequency_to_code(config, action_id, template_arg, args):
     cg.add(var.set_noiseband(config[CONF_NOISEBAND]))
     cg.add(var.set_positive_output(config[CONF_POSITIVE_OUTPUT]))
     cg.add(var.set_negative_output(config[CONF_NEGATIVE_OUTPUT]))
+    yield var
+
+
+@automation.register_action(
+    'climate.pid.set_control_parameters',
+    PIDSetControlParametersAction,
+    automation.maybe_simple_id({
+        cv.Required(CONF_ID): cv.use_id(PIDClimate),
+        cv.Required(CONF_KP): cv.templatable(cv.float_),
+        cv.Optional(CONF_KI, default=0.0): cv.templatable(cv.float_),
+        cv.Optional(CONF_KD, default=0.0): cv.templatable(cv.float_),
+    })
+)
+def set_control_parameters(config, action_id, template_arg, args):
+    paren = yield cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    kp_template_ = yield cg.templatable(config[CONF_KP], args, float)
+    cg.add(var.set_kp(kp_template_))
+
+    ki_template_ = yield cg.templatable(config[CONF_KI], args, float)
+    cg.add(var.set_ki(ki_template_))
+
+    kd_template_ = yield cg.templatable(config[CONF_KD], args, float)
+    cg.add(var.set_kd(kd_template_))
     yield var

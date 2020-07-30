@@ -11,6 +11,8 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ['display']
 MULTI_CONF = True
 
+ImageType = {'binary': 0, 'grayscale': 1, 'rgb': 2}
+
 Image_ = display.display_ns.class_('Image')
 
 CONF_RAW_DATA_ID = 'raw_data_id'
@@ -38,31 +40,41 @@ def to_code(config):
     if CONF_RESIZE in config:
         image.thumbnail(config[CONF_RESIZE])
 
-    if config[CONF_TYPE].startswith('RGB565'):
-        width, height = image.size
-        image = image.convert('RGB')
-        pixels = list(image.getdata())
-        data = [0 for _ in range(height * width * 2)]
-
-        pos = 0
-        for pix in pixels:
-            r = (pix[0] >> 3) & 0x1F
-            g = (pix[1] >> 2) & 0x3F
-            b = (pix[2] >> 3) & 0x1F
-            p = (r << 11) + (g << 5) + b
-            data[pos] = (p >> 8) & 0xFF
-            pos += 1
-            data[pos] = p & 0xFF
-            pos += 1
-        rhs = [HexInt(x) for x in data]
-        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-        cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, 1)
+    if CONF_TYPE in config:
+        if config[CONF_TYPE].startswith('GRAYSCALE'):
+            width, height = image.size
+            image = image.convert('L', dither=Image.NONE)
+            pixels = list(image.getdata())
+            data = [0 for _ in range(height * width)]
+            pos = 0
+            for pix in pixels:
+                data[pos] = pix
+                pos += 1
+            rhs = [HexInt(x) for x in data]
+            prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['grayscale'])
+        elif config[CONF_TYPE].startswith('RGB'):
+            width, height = image.size
+            image = image.convert('RGB')
+            pixels = list(image.getdata())
+            data = [0 for _ in range(height * width * 3)]
+            pos = 0
+            for pix in pixels:
+                data[pos] = pix[0]
+                pos += 1
+                data[pos] = pix[1]
+                pos += 1
+                data[pos] = pix[2]
+                pos += 1
+            rhs = [HexInt(x) for x in data]
+            prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+            cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, ImageType['rgb'])
     else:
         image = image.convert('1', dither=Image.NONE)
         width, height = image.size
         if width > 500 or height > 500:
-            _LOGGER.warning("The image you requested is very big. Please consider using the resize "
-                            "parameter")
+            _LOGGER.warning("The image you requested is very big. Please consider using"
+                            " the resize parameter.")
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
         for y in range(height):

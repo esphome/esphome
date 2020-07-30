@@ -1,0 +1,28 @@
+{
+  "problemMatcher": [
+    {
+      "owner": "flake8",
+      "severity": "error",
+      "pattern": [
+          {
+          "regexp": "^(.*):(\\d+) - ([EFCDNW]\\d{3}.*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+          }
+      ]
+    },
+    {
+      "owner": "pylint",
+      "severity": "error",
+      "pattern": [
+        {
+          "regexp": "^(.*):(\\d+) - (\\[[EFCRW]\\d{4}\\(.*\\),.*\\].*)$",
+          "file": 1,
+          "line": 2,
+          "message": 3
+        }
+      ]
+    }
+  ]
+}

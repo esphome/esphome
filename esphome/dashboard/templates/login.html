@@ -1,79 +1,93 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" id="login-page">
+
 <head>
   <meta charset="UTF-8">
-  <title>ESPHome Dashboard</title>
-  <link rel="stylesheet" href="{{ get_static_file_url('fonts/material-icons.css') }}">
-  <link rel="stylesheet" href="{{ get_static_file_url('materialize.min.css') }}">
-  <link rel="stylesheet" href="{{ get_static_file_url('esphome.css') }}">
-  <link rel="shortcut icon" href="{{ get_static_file_url('favicon.ico') }}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - ESPHome</title>
 
-  <script src="{{ get_static_file_url('materialize.min.js') }}"></script>
+  <link rel="shortcut icon" href="{{ get_static_file_url('images/favicon.ico') }}">
 
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="{{ get_static_file_url('fonts/material-icons/material-icons.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('css/vendor/materialize/materialize.min.css') }}">
+  <link rel="stylesheet" href="{{ get_static_file_url('css/esphome.css') }}">
+
+  <script src="{{ get_static_file_url('js/vendor/jquery/jquery.min.js') }}"></script>
+  <script src="{{ get_static_file_url('js/vendor/materialize/materialize.min.js') }}"></script>
 </head>
+
 <body>
+  <div class="valign-wrapper">
+    <div class="valign">
+      <div class="container">
+        <div class="row">
+          <div class="col s12 m8 offset-m2 l8 offset-l2 xl6 offset-xl3">
+            <div class="card" id="login-card">
+              <div class="card-content">
+                <img src="https://esphome.io/_static/logo-text.svg" alt="ESPHome Logo" class="logo">
+                <span class="version-number center">v{{ version }}</span>
+                <span class="card-title black-text center">Dashboard Login</span>
+                <p class="center">
+                  {% if hassio %}
+                  Login by entering your Home Assistant login credentials.
+                  {% else %}
+                  Login by entering your ESPHome login credentials.
+                  {% end %}
+                </p>
 
-<header>
-<nav>
-  <div class="nav-wrapper indigo">
-      <a class="brand-logo left" href="#">ESPHome Dashboard</a>
-  </div>
-</nav>
+                {% if error is not None %}
+                <div class="alert alert-error">
+                  <span class="title">Error!</span>
+                  {{ escape(error) }}
+                </div>
 
-<div class="ribbon"></div>
-</header>
+                <script>
+                  $("#login-card").addClass("card-error");
+                </script>
+                {% end %}
 
-<main>
-<div class="container">
-  <div class="row">
-    <div class="col card s10 offset-s1 m10 offset-m1 l8 offset-l2">
-      <form action="./login" method="post">
-        <div class="card-content">
-          <span class="card-title">Enter credentials</span>
-          {% if hassio %}
-            <p>
-              Please login using your Home Assistant credentials.
-            </p>
-          {% end %}
-          {% if error is not None %}
-            <p class="error">
-              {{ escape(error) }}
-            </p>
-          {% end %}
-          <div class="row">
-            {% if has_username or hassio %}
-              <div class="input-field col s12">
-                <label for="username">Username</label>
-                <input type="text" class="validate" name="username" id="username" />
+                <form action="./login" method="post" id="login-form">
+                  {% if has_username or hassio %}
+                  <div class="row no-bottom-margin">
+                    <div class="input-field col s12">
+                      <i class="material-icons prefix">person</i>
+                      <input name="username" id="username" type="text">
+                      <label for="username">Username</label>
+                    </div>
+                  </div>
+                  {% end %}
+
+                  <div class="row no-bottom-margin">
+                    <div class="input-field col s12">
+                      <i class="material-icons prefix">lock</i>
+                      <input name="password" id="password" type="password">
+                      <label for="password">Password</label>
+                    </div>
+                  </div>
+                </form>
               </div>
-            {% end %}
-            <div class="input-field col s12">
-              <label for="password">Password</label>
-              <input type="password" class="validate" name="password" id="password" />
+
+              <div class="card-action center">
+                <input type="submit" class="btn blue-grey darken-2" name="action" form="login-form" value="Login">
+              </div>
             </div>
           </div>
         </div>
-        <div class="card-action right-align">
-          <button class="btn indigo waves-effect waves-light" type="submit" name="action">Login</button>
-        </div>
-      </form>
+      </div>
+
+      <footer class="center-align">
+        <p>Copyright © 2019-2020 ESPHome.</p>
+        <p>
+          <a href="{{ docs_link }}" target="_blank" rel="noreferrer">ESPHome
+            {{ version }} Documentation</a>
+        </p>
+        <p>
+          Made with <a href="https://materializecss.com/" target="_blank">Materialize.</a>
+        </p>
+      </footer>
+
     </div>
   </div>
-</div>
-</main>
-
-<footer class="page-footer indigo darken-1">
-  <div class="container">
-
-  </div>
-  <div class="footer-copyright">
-    <div class="container">
-      © 2019 Copyright ESPHome, Made with <a class="grey-text text-lighten-4" href="https://materializecss.com/" target="_blank">Materialize</a>
-        <a class="grey-text text-lighten-4 right" href="{{ docs_link }}"
-           target="_blank">ESPHome {{ version }} Documentation</a>
-    </div>
-  </div>
-</footer>
 </body>
+
 </html>

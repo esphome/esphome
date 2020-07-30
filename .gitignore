@@ -51,8 +51,10 @@ htmlcov/
 .coverage
 .coverage.*
 .cache
+.esphome
 nosetests.xml
 coverage.xml
+cov.xml
 *.cover
 .hypothesis/
 .pytest_cache/

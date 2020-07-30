@@ -4,6 +4,7 @@ from esphome import automation
 from esphome.components import spi
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
+CODEOWNERS = ['@OttoWinter']
 DEPENDENCIES = ['spi']
 AUTO_LOAD = ['binary_sensor']
 MULTI_CONF = True
@@ -17,7 +18,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ON_TAG): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(PN532Trigger),
     }),
-}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA)
+}).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema())
 
 
 def to_code(config):

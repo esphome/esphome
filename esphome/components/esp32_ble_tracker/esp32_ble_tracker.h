@@ -23,7 +23,12 @@ class ESPBTUUID {
 
   static ESPBTUUID from_raw(const uint8_t *data);
 
+  ESPBTUUID as_128bit() const;
+
   bool contains(uint8_t data1, uint8_t data2) const;
+
+  bool operator==(const ESPBTUUID &uuid) const;
+  bool operator!=(const ESPBTUUID &uuid) const { return !(*this == uuid); }
 
   esp_bt_uuid_t get_uuid();
 
@@ -69,6 +74,8 @@ class ESPBTDevice {
   std::string address_str() const;
 
   uint64_t address_uint64() const;
+
+  const uint8_t *address() const { return address_; }
 
   esp_ble_addr_type_t get_address_type() const { return this->address_type_; }
   int get_rssi() const { return rssi_; }

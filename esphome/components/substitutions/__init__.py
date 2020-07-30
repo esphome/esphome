@@ -3,10 +3,10 @@ import re
 
 import esphome.config_validation as cv
 from esphome import core
+from esphome.const import CONF_SUBSTITUTIONS
 
+CODEOWNERS = ['@esphome/core']
 _LOGGER = logging.getLogger(__name__)
-
-CONF_SUBSTITUTIONS = 'substitutions'
 
 VALID_SUBSTITUTIONS_CHARACTERS = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ' \
                                  '0123456789_'
@@ -101,11 +101,15 @@ def _substitute_item(substitutions, item, path):
     return None
 
 
-def do_substitution_pass(config):
-    if CONF_SUBSTITUTIONS not in config:
+def do_substitution_pass(config, command_line_substitutions):
+    if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
     substitutions = config[CONF_SUBSTITUTIONS]
+    if substitutions is None:
+        substitutions = command_line_substitutions
+    elif command_line_substitutions:
+        substitutions = {**substitutions, **command_line_substitutions}
     with cv.prepend_path('substitutions'):
         if not isinstance(substitutions, dict):
             raise cv.Invalid("Substitutions must be a key to value mapping, got {}"
