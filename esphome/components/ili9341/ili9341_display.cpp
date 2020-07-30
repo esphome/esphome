@@ -142,8 +142,8 @@ void ILI9341Display::fill(Color color) {
   memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
   this->x_low_ = 0;
   this->y_low_ = 0;
-  this->x_high_ = this->get_width_internal()-1;
-  this->y_high_ = this->get_height_internal()-1;
+  this->x_high_ = this->get_width_internal() - 1;
+  this->y_high_ = this->get_height_internal() - 1;
 }
 
 void ILI9341Display::fill_internal_(Color color) {
