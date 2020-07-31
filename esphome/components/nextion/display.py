@@ -7,7 +7,7 @@ from . import nextion_ns
 DEPENDENCIES = ['uart']
 AUTO_LOAD = ['binary_sensor']
 AUTO_LOAD = ['switch']
-AUTO_LOAD = ['sensor']
+AUTO_LOAD = ['switch', 'sensor']
 
 Nextion = nextion_ns.class_('Nextion', cg.PollingComponent, uart.UARTDevice)
 NextionRef = Nextion.operator('ref')
