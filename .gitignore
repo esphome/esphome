@@ -120,4 +120,3 @@ tests/build/
 tests/.esphome/
 /.temp-clang-tidy.cpp
 .pio/
-.gitignore
