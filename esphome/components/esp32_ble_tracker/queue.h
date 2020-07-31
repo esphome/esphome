@@ -66,6 +66,11 @@ class BLEEvent {
     gattc_event = e;
     gattc_if = i;
     memcpy(&gattc_param, p, sizeof(esp_ble_gattc_cb_param_t));
+    // Need to also make a copy of notify event data.
+    if (e == ESP_GATTC_NOTIFY_EVT) {
+      memcpy(notify_data, p->notify.value, p->notify.value_len);
+      p->notify.value = notify_data;
+    }
     type_ = 1;
   };
 
@@ -75,6 +80,7 @@ class BLEEvent {
   esp_gattc_cb_event_t gattc_event;
   esp_gatt_if_t gattc_if;
   esp_ble_gattc_cb_param_t gattc_param;
+  uint8_t notify_data[64];
 
   uint8_t type_;  // 0=gap 1=gattc
 };
