@@ -28,7 +28,7 @@ For Switch:
 
 During press or release add the following code to Dual state push button:
 ```
-printh 90 <-- 90 is special code I created to register feedback from witch 
+printh 90 <-- 90 is special code I created to register feedback from switch 
 printh 00 <-- Page ID
 printh 03 <-- ITEM ID could be replaced with prints ID.val,1
 prints bt0.val,1 Where bt0 the id of the button is = equal to id in configuration
