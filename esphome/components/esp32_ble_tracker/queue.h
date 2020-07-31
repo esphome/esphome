@@ -69,7 +69,7 @@ class BLEEvent {
     // Need to also make a copy of notify event data.
     if (e == ESP_GATTC_NOTIFY_EVT) {
       memcpy(notify_data, p->notify.value, p->notify.value_len);
-      p->notify.value = notify_data;
+      gattc_param.notify.value = notify_data;
     }
     type_ = 1;
   };
