@@ -60,10 +60,7 @@ void ILI9341Display::data(uint8_t value) {
 void ILI9341Display::send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->command(command_byte);  // Send the command byte
   this->start_data_();
-  for (int i = 0; i < num_data_bytes; i++) {
-    this->write_byte(*data_bytes);  // Send the data bytes
-    data_bytes++;
-  }
+  this->write_array(data_bytes, num_data_bytes);
   this->end_data_();
 }
 
@@ -132,11 +129,6 @@ uint8_t ILI9341Display::convert_to_8bit_color_(uint16_t color_16bit) {
   return ((b / 0x0A) | ((g / 0x09) << 2) | ((r / 0x04) << 5));
 }
 
-/**
- * do nothing.
- * we need this function here to override the default behaviour.
- * Otherwise the buffer is cleared at every update
- * */
 void ILI9341Display::fill(Color color) {
   auto color565 = color.to_rgb_565();
   memset(this->buffer_, convert_to_8bit_color_(color565), this->get_buffer_length_());
@@ -160,7 +152,7 @@ void ILI9341Display::fill_internal_(Color color) {
 }
 
 void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x > this->get_width_internal() || x < 0 || y > this->get_height_internal() || y < 0)
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
   // low and high watermark may speed up drawing from buffer
