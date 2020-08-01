@@ -9,7 +9,7 @@ from esphome import automation
 DEPENDENCIES = ['esp32_ble_tracker']
 
 ble_client_ns = cg.esphome_ns.namespace('ble_client')
-BLEClient = ble_client_ns.class_('BLEClient', cg.Component, cg.Nameable,
+BLEClient = ble_client_ns.class_('BLEClient', cg.Component,
                                  esp32_ble_tracker.ESPBTClient)
 BLEClientNode = ble_client_ns.class_('BLEClientNode')
 BLEClientNodeConstRef = BLEClientNode.operator('ref').operator('const')
@@ -19,6 +19,8 @@ BLEClientConnectTrigger = ble_client_ns.class_(
 BLEClientDisconnectTrigger = ble_client_ns.class_(
     'BLEClientDisconnectTrigger', automation.Trigger.template(BLEClientNodeConstRef))
 
+# Espressif platformio framework is built with MAX_BLE_CONN to 3, so
+# enforce this in yaml checks.
 MULTI_CONF = 3
 
 CONFIG_SCHEMA = cv.Schema({

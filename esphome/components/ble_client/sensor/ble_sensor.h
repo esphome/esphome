@@ -9,10 +9,10 @@
 
 #include <esp_gattc_api.h>
 
-namespace espbt = esphome::esp32_ble_tracker;
-
 namespace esphome {
 namespace ble_client {
+
+namespace espbt = esphome::esp32_ble_tracker;
 
 class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClientNode {
  public:

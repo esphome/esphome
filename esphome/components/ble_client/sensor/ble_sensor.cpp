@@ -21,7 +21,7 @@ void BLESensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  Service UUID       : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID: %s", this->char_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Descriptor UUID    : %s", this->descr_uuid_.to_string().c_str());
-  ESP_LOGCONFIG(TAG, "  Notifications      : %s", this->notify_ ? "yes" : "no");
+  ESP_LOGCONFIG(TAG, "  Notifications      : %s", YESNO(this->notify_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -31,7 +31,6 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%s] Connected successfully!", this->get_name().c_str());
-        this->publish_state(NAN);
         break;
       }
       break;
@@ -69,7 +68,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         auto status =
             esp_ble_gattc_register_for_notify(this->parent_->gattc_if_, this->parent_->remote_bda_, chr->handle_);
         if (status) {
-          ESP_LOGE(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
+          ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
       } else {
         this->node_state_ = espbt::ClientState::Established;

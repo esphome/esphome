@@ -67,7 +67,7 @@ void BLEClient::connect() {
   ESP_LOGI(TAG, "Attempting BLE connection to %s", this->address_str().c_str());
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, BLE_ADDR_TYPE_PUBLIC, true);
   if (ret) {
-    ESP_LOGE(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
+    ESP_LOGW(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
     this->set_states(espbt::ClientState::Idle);
   } else {
     this->set_states(espbt::ClientState::Connecting);
@@ -96,20 +96,20 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGI(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       if (param->open.status != ESP_GATT_OK) {
-        ESP_LOGE(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
+        ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_states(espbt::ClientState::Idle);
         break;
       }
       this->conn_id_ = param->open.conn_id;
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
-        ESP_LOGE(TAG, "esp_ble_gattc_send_mtu_req failed, status=%d", ret);
+        ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%d", ret);
       }
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
-        ESP_LOGE(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
+        ESP_LOGW(TAG, "cfg_mtu to %s failed, status %d", this->address_str().c_str(), param->cfg_mtu.status);
         this->set_states(espbt::ClientState::Idle);
         break;
       }
@@ -129,12 +129,12 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
-      BLEService *bleService = new BLEService();
-      bleService->uuid_ = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
-      bleService->start_handle_ = param->search_res.start_handle;
-      bleService->end_handle_ = param->search_res.end_handle;
-      bleService->client_ = this;
-      this->services_.push_back(bleService);
+      BLEService *ble_service = new BLEService();
+      ble_service->uuid_ = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
+      ble_service->start_handle_ = param->search_res.start_handle;
+      ble_service->end_handle_ = param->search_res.end_handle;
+      ble_service->client_ = this;
+      this->services_.push_back(ble_service);
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -164,7 +164,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       auto status = esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle_, sizeof(notify_en),
                                                    &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
-        ESP_LOGE(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
+        ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
       }
       break;
     }
@@ -182,8 +182,6 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     this->services_.clear();
   }
 }
-
-uint32_t BLEClient::hash_base() { return 2387463249UL; }
 
 // Parse GATT values into a float for a sensor.
 // Ref: https://www.bluetooth.com/specifications/assigned-numbers/format-types/
@@ -219,7 +217,7 @@ float BLEClient::parse_char_value(uint8_t *value, uint16_t length) {
       return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
                       (int32_t)(value[4]));
   }
-  ESP_LOGE(TAG, "Cannot parse characteristic value of type 0x%x", value[0]);
+  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x", value[0]);
   return NAN;
 }
 
@@ -297,7 +295,7 @@ void BLEService::parse_characteristics() {
       break;
     }
     if (status != ESP_GATT_OK) {
-      ESP_LOGE(TAG, "esp_ble_gattc_get_all_char error, status=%d", status);
+      ESP_LOGW(TAG, "esp_ble_gattc_get_all_char error, status=%d", status);
       break;
     }
     if (count == 0) {
@@ -334,19 +332,19 @@ void BLECharacteristic::parse_descriptors() {
       break;
     }
     if (status != ESP_GATT_OK) {
-      ESP_LOGE(TAG, "esp_ble_gattc_get_all_descr error, status=%d", status);
+      ESP_LOGW(TAG, "esp_ble_gattc_get_all_descr error, status=%d", status);
       break;
     }
     if (count == 0) {
       break;
     }
 
-    BLEDescriptor *bDesc = new BLEDescriptor();
-    bDesc->uuid_ = espbt::ESPBTUUID::from_uuid(result.uuid);
-    bDesc->handle_ = result.handle;
-    bDesc->characteristic_ = this;
-    this->descriptors_.push_back(bDesc);
-    ESP_LOGI(TAG, "   descriptor %s, handle 0x%x", bDesc->uuid_.to_string().c_str(), bDesc->handle_);
+    BLEDescriptor *b_desc = new BLEDescriptor();
+    b_desc->uuid_ = espbt::ESPBTUUID::from_uuid(result.uuid);
+    b_desc->handle_ = result.handle;
+    b_desc->characteristic_ = this;
+    this->descriptors_.push_back(b_desc);
+    ESP_LOGI(TAG, "   descriptor %s, handle 0x%x", b_desc->uuid_.to_string().c_str(), b_desc->handle_);
     offset++;
   }
 }

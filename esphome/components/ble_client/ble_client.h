@@ -76,7 +76,7 @@ class BLEService {
   BLECharacteristic *get_characteristic(uint16_t uuid);
 };
 
-class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
+class BLEClient : public espbt::ESPBTClient, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -129,8 +129,6 @@ class BLEClient : public espbt::ESPBTClient, public Component, public Nameable {
 
   std::vector<BLEClientNode *> nodes_;
   std::vector<BLEService *> services_;
-
-  uint32_t hash_base() override;
 };
 
 }  // namespace ble_client

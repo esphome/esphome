@@ -23,4 +23,3 @@ Current test_.yaml file contents.
 | test2.yaml | ESP32 | ethernet |
 | test3.yaml | ESP8266 | wifi |
 | test4.yaml | ESP32 | ethernet |
-| test5.yaml | ESP32 | wifi + ble |

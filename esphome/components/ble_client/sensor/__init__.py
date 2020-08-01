@@ -7,8 +7,8 @@ from .. import ble_client_ns
 
 DEPENDENCIES = ['ble_client']
 
-CONF_CHAR_UUID = 'char_uuid'
-CONF_DESCR_UUID = 'descr_uuid'
+CONF_CHAR_UUID = 'characteristic_uuid'
+CONF_DESCR_UUID = 'descriptor_uuid'
 
 CONF_NOTIFY = 'notify'
 CONF_ON_NOTIFY = 'on_notify'
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0).extend({
     cv.Optional(CONF_ON_NOTIFY): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLESensorNotifyTrigger),
     }),
-}).extend(cv.polling_component_schema('30s')).extend(ble_client.BLE_CLIENT_SCHEMA))
+}).extend(cv.polling_component_schema('60s')).extend(ble_client.BLE_CLIENT_SCHEMA))
 
 
 def to_code(config):

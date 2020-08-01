@@ -196,7 +196,33 @@ wled:
 
 adalight:
 
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: AA:BB:CC:DD:EE:FF
+    id: ble_foo
+  - mac_address: 11:22:33:44:55:66
+    id: ble_blah
+    on_connect:
+      then:
+       - switch.turn_on: ble1_status
+    on_disconnect:
+      then:
+       - switch.turn_on: ble1_status
+
 sensor:
+  - platform: ble_client
+    ble_client_id: ble_foo
+    name: "Green iTag btn"
+    service_uuid: 'ffe0'
+    characteristic_uuid: 'ffe1'
+    descriptor_uuid: 'ffe2'
+    notify: true
+    update_interval: never
+    on_notify:
+      then:
+        - lambda: |-
+            ESP_LOGD("green_btn", "Button was pressed, val%f", x);
   - platform: adc
     pin: A0
     name: "Living Room Brightness"

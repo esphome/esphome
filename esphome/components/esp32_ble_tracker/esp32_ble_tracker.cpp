@@ -51,10 +51,10 @@ void ESP32BLETracker::loop() {
   BLEEvent *ble_event = this->ble_events_.pop();
   while (ble_event != nullptr) {
     if (ble_event->type_)
-      this->real_gattc_event_handler(ble_event->gattc_event, ble_event->gattc_if, &ble_event->gattc_param);
+      this->real_gattc_event_handler(ble_event->event.gattc.gattc_event, ble_event->event.gattc.gattc_if, &ble_event->event.gattc.gattc_param);
     else
-      this->real_gap_event_handler(ble_event->gap_event, &ble_event->gap_param);
-    delete[] ble_event;
+      this->real_gap_event_handler(ble_event->event.gap.gap_event, &ble_event->event.gap.gap_param);
+    delete ble_event;
     ble_event = this->ble_events_.pop();
   }
 
