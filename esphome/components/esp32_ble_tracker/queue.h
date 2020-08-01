@@ -57,24 +57,24 @@ template<class T> class Queue {
 class BLEEvent {
  public:
   BLEEvent(esp_gap_ble_cb_event_t e, esp_ble_gap_cb_param_t *p) {
-    event.gap.gap_event = e;
-    memcpy(&event.gap.gap_param, p, sizeof(esp_ble_gap_cb_param_t));
-    type_ = 0;
+    this->event_.gap.gap_event = e;
+    memcpy(&this->event_.gap.gap_param, p, sizeof(esp_ble_gap_cb_param_t));
+    this->type_ = 0;
   };
 
   BLEEvent(esp_gattc_cb_event_t e, esp_gatt_if_t i, esp_ble_gattc_cb_param_t *p) {
-    event.gattc.gattc_event = e;
-    event.gattc.gattc_if = i;
-    memcpy(&event.gattc.gattc_param, p, sizeof(esp_ble_gattc_cb_param_t));
+    this->event_.gattc.gattc_event = e;
+    this->event_.gattc.gattc_if = i;
+    memcpy(&this->event_.gattc.gattc_param, p, sizeof(esp_ble_gattc_cb_param_t));
     // Need to also make a copy of notify event data.
     if (e == ESP_GATTC_NOTIFY_EVT) {
-      memcpy(event.gattc.notify_data, p->notify.value, p->notify.value_len);
-      event.gattc.gattc_param.notify.value = event.gattc.notify_data;
+      memcpy(this->event_.gattc.notify_data, p->notify.value, p->notify.value_len);
+      this->event_.gattc.gattc_param.notify.value = this->event_.gattc.notify_data;
     }
-    type_ = 1;
+    this->type_ = 1;
   };
 
-  typedef union {
+  union {
     struct gap_event {
       esp_gap_ble_cb_event_t gap_event;
       esp_ble_gap_cb_param_t gap_param;
@@ -86,9 +86,7 @@ class BLEEvent {
       esp_ble_gattc_cb_param_t gattc_param;
       uint8_t notify_data[64];
     } gattc;
-  } event_t;
-
-  event_t event;
+  } event_;
   uint8_t type_;  // 0=gap 1=gattc
 };
 
