@@ -66,7 +66,7 @@ void MCP9808Sensor::update() {
     temp = (uint16_t)(msb) *16 + lsb / 16.0f;
   }
 
-  if (temp == NAN) {
+  if (isnan(temp)) {
     this->status_set_warning();
     return;
   }
