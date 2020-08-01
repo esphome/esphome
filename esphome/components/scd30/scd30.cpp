@@ -61,11 +61,10 @@ void SCD30Component::setup() {
     }
   }
 
-  if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
+  if(enable_asc_) {
+    asc_enable();
+  } else {
+    asc_disable();
   }
 }
 
@@ -150,6 +149,46 @@ void SCD30Component::update() {
 
     this->status_clear_warning();
   });
+}
+
+void SCD30Component::forced_recalibration() {
+  if (enable_asc_ == true) {
+    ESP_LOGD(TAG, "SCD30 cannot perform FRC with ASC enabled, disabling");
+    asc_disable();
+  }
+  
+  ESP_LOGD(TAG, "SCD30 starting forced recalibration (FRC) with value %d ppm", frc_baseline_);
+
+  if (!this->write_command_(SCD30_CMD_FORCED_CALIBRATION, frc_baseline_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+}
+
+void SCD30Component::asc_enable() {
+  ESP_LOGD(TAG, "SCD30 Enabling automatic calibration (ASC)");
+  
+  if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, true)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+  enable_asc_ = true;
+}
+
+void SCD30Component::asc_disable() {
+  ESP_LOGD(TAG, "SCD30 Disabling automatic calibration (ASC)");
+
+  if (!this->write_command_(SCD30_CMD_AUTOMATIC_SELF_CALIBRATION, false)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error setting automatic self calibration.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+  enable_asc_ = false;
 }
 
 bool SCD30Component::write_command_(uint16_t command) {
