@@ -7,8 +7,8 @@ from .. import ble_client_ns
 
 DEPENDENCIES = ['ble_client']
 
-CONF_CHAR_UUID = 'characteristic_uuid'
-CONF_DESCR_UUID = 'descriptor_uuid'
+CONF_CHARACTERISTIC_UUID = 'characteristic_uuid'
+CONF_DESCRIPTOR_UUID = 'descriptor_uuid'
 
 CONF_NOTIFY = 'notify'
 CONF_ON_NOTIFY = 'on_notify'
@@ -21,8 +21,8 @@ BLESensorNotifyTrigger = ble_client_ns.class_(
 CONFIG_SCHEMA = cv.All(sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0).extend({
     cv.GenerateID(): cv.declare_id(BLESensor),
     cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
-    cv.Required(CONF_CHAR_UUID): esp32_ble_tracker.bt_uuid,
-    cv.Optional(CONF_DESCR_UUID): esp32_ble_tracker.bt_uuid,
+    cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
+    cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
     cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
     cv.Optional(CONF_ON_NOTIFY): automation.validate_automation({
         cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(BLESensorNotifyTrigger),
@@ -40,21 +40,21 @@ def to_code(config):
         uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_SERVICE_UUID])
         cg.add(var.set_service_uuid128(uuid128))
 
-    if len(config[CONF_CHAR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
-        cg.add(var.set_char_uuid16(esp32_ble_tracker.as_hex(config[CONF_CHAR_UUID])))
-    elif len(config[CONF_CHAR_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
-        cg.add(var.set_char_uuid32(esp32_ble_tracker.as_hex(config[CONF_CHAR_UUID])))
-    elif len(config[CONF_CHAR_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_CHAR_UUID])
+    if len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+        cg.add(var.set_char_uuid16(esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])))
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
+        cg.add(var.set_char_uuid32(esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])))
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
+        uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_CHARACTERISTIC_UUID])
         cg.add(var.set_char_uuid128(uuid128))
 
-    if CONF_DESCR_UUID in config:
-        if len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
-            cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
-        elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
-            cg.add(var.set_descr_uuid32(esp32_ble_tracker.as_hex(config[CONF_DESCR_UUID])))
-        elif len(config[CONF_DESCR_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
-            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCR_UUID])
+    if CONF_DESCRIPTOR_UUID in config:
+        if len(config[CONF_DESCRIPTOR_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+            cg.add(var.set_descr_uuid16(esp32_ble_tracker.as_hex(config[CONF_DESCRIPTOR_UUID])))
+        elif len(config[CONF_DESCRIPTOR_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
+            cg.add(var.set_descr_uuid32(esp32_ble_tracker.as_hex(config[CONF_DESCRIPTOR_UUID])))
+        elif len(config[CONF_DESCRIPTOR_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
+            uuid128 = esp32_ble_tracker.as_hex_array(config[CONF_DESCRIPTOR_UUID])
             cg.add(var.set_descr_uuid128(uuid128))
 
     yield cg.register_component(var, config)

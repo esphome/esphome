@@ -5,6 +5,8 @@ esphome:
   name: test1
   platform: ESP32
   board: nodemcu-32s
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     priority: 150.0
     then:
