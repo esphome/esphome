@@ -93,6 +93,7 @@ void SCD30Component::dump_config() {
     ESP_LOGCONFIG(TAG, "  Altitude compensation: %dm", this->altitude_compensation_);
   }
   ESP_LOGCONFIG(TAG, "  Automatic self calibration: %s", ONOFF(this->enable_asc_));
+  ESP_LOGCONFIG(TAG, "  CO2 concentration used for forced calibration: %d ppm", frc_baseline_);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
