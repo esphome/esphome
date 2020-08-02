@@ -18,14 +18,14 @@ ParallelScript = script_ns.class_('ParallelScript', Script)
 
 CONF_SINGLE = 'single'
 CONF_RESTART = 'restart'
-CONF_QUEUE = 'queue'
+CONF_QUEUED = 'queued'
 CONF_PARALLEL = 'parallel'
 CONF_MAX_RUNS = 'max_runs'
 
 SCRIPT_MODES = {
     CONF_SINGLE: SingleScript,
     CONF_RESTART: RestartScript,
-    CONF_QUEUE: QueueingScript,
+    CONF_QUEUED: QueueingScript,
     CONF_PARALLEL: ParallelScript,
 }
 
@@ -33,7 +33,7 @@ SCRIPT_MODES = {
 def check_max_runs(value):
     if CONF_MAX_RUNS not in value:
         return value
-    if value[CONF_MODE] not in [CONF_QUEUE, CONF_PARALLEL]:
+    if value[CONF_MODE] not in [CONF_QUEUED, CONF_PARALLEL]:
         raise cv.Invalid("The option 'max_runs' is only valid in 'queue' and 'parallel' mode.",
                          path=[CONF_MAX_RUNS])
     return value
@@ -65,7 +65,7 @@ def to_code(config):
         if CONF_MAX_RUNS in conf:
             cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
 
-        if conf[CONF_MODE] == CONF_QUEUE:
+        if conf[CONF_MODE] == CONF_QUEUED:
             yield cg.register_component(trigger, conf)
 
         triggers.append((trigger, conf))
