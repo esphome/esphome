@@ -12,7 +12,8 @@ DEPENDENCIES = ['i2c']
 
 scd30_ns = cg.esphome_ns.namespace('scd30')
 SCD30Component = scd30_ns.class_('SCD30Component', cg.PollingComponent, i2c.I2CDevice)
-SCD30ForcedRecalibrationAction = scd30_ns.class_('SCD30ForcedRecalibrationAction', automation.Action)
+SCD30ForcedRecalibrationAction = scd30_ns.class_('SCD30ForcedRecalibrationAction',
+                                                 automation.Action)
 SCD30ASCEnableAction = scd30_ns.class_('SCD30ASCEnableAction', automation.Action)
 SCD30ASCDisableAction = scd30_ns.class_('SCD30ASCDisableAction', automation.Action)
 
@@ -24,8 +25,6 @@ CONF_FRC_BASELINE = 'frc_baseline'
 def remove_altitude_suffix(value):
     return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", '', value)
 
-#def remove_baseline_suffix(value):
-    #return re.sub(r"\s*(?:m(?:\s+a\.s\.l)?)|(?:MAM?SL)$", '', value)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(SCD30Component),
@@ -37,8 +36,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Optional(CONF_ALTITUDE_COMPENSATION): cv.All(remove_altitude_suffix,
                                                     cv.int_range(min=0, max=0xFFFF,
                                                                  max_included=False)),
-    cv.Optional(CONF_FRC_BASELINE): cv.int_range(min=400, max=2000,
-                                                                 max_included=True),
+    cv.Optional(CONF_FRC_BASELINE): cv.int_range(min=400, max=2000, max_included=True),
 }).extend(cv.polling_component_schema('60s')).extend(i2c.i2c_device_schema(0x61))
 
 
@@ -54,7 +52,6 @@ def to_code(config):
     if CONF_FRC_BASELINE in config:
         cg.add(var.set_frc_baseline(config[CONF_FRC_BASELINE]))
 
-
     if CONF_CO2 in config:
         sens = yield sensor.new_sensor(config[CONF_CO2])
         cg.add(var.set_co2_sensor(sens))
@@ -67,9 +64,11 @@ def to_code(config):
         sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
+
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id({
     cv.Required(CONF_ID): cv.use_id(SCD30Component),
 })
+
 
 @automation.register_action('scd30.forced_recalibration', SCD30ForcedRecalibrationAction,
                             CALIBRATION_ACTION_SCHEMA)
@@ -77,8 +76,6 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id({
                             CALIBRATION_ACTION_SCHEMA)
 @automation.register_action('scd30.asc_disable', SCD30ASCDisableAction,
                             CALIBRATION_ACTION_SCHEMA)
-
 def scd30_calibration_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
     yield cg.new_Pvariable(action_id, template_arg, paren)
-    
