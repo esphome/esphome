@@ -421,6 +421,10 @@ sensor:
       name: "CSE7766 Current"
     power:
       name: "CSE776 Power"
+  - platform: ezo
+    id: ph_ezo
+    address: 99
+    unit_of_measurement: "pH"
 
 time:
 - platform: homeassistant
