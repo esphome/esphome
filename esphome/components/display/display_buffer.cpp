@@ -468,7 +468,8 @@ Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return 0;
   const uint32_t pos = (x + y * this->width_);
-  return Color(pgm_read_byte(this->data_start_ + pos) << 24);
+  const uint8_t gray = pgm_read_byte(this->data_start_ + pos);
+  return Color(gray | gray << 8 | gray << 16 | gray << 24);
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
