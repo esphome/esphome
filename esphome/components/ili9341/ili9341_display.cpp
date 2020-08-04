@@ -224,6 +224,7 @@ void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
+  this->invert_display_(true);
   this->fill_internal_(COLOR_BLACK);
 }
 
