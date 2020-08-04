@@ -41,11 +41,11 @@ void WhirlpoolClimate::transmit_state() {
   remote_state[18] = 0x08;
 
   auto powered_on = this->mode != climate::CLIMATE_MODE_OFF;
-  if (powered_on != this->powered_on_assumed_) {
+  if (powered_on != this->powered_on_assumed) {
     // Set power toggle command
     remote_state[2] = 4;
     remote_state[15] = 1;
-    this->powered_on_assumed_ = powered_on;
+    this->powered_on_assumed = powered_on;
   }
   switch (this->mode) {
     case climate::CLIMATE_MODE_AUTO:
@@ -215,14 +215,14 @@ bool WhirlpoolClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     if (powered_on) {
       this->mode = climate::CLIMATE_MODE_OFF;
-      this->powered_on_assumed_ = false;
+      this->powered_on_assumed = false;
     } else {
-      this->powered_on_assumed_ = true;
+      this->powered_on_assumed = true;
     }
   }
 
   // Set received mode
-  if (powered_on_assumed_) {
+  if (powered_on_assumed) {
     auto mode = remote_state[3] & 0x7;
     ESP_LOGV(TAG, "Mode: %02X", mode);
     switch (mode) {
