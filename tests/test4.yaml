@@ -5,7 +5,7 @@ esphome:
   build_path: build/test4
 
 substitutions:
-  devicename: test4
+  devicename: test-4
 
 ethernet:
   type: LAN8720

@@ -24,4 +24,4 @@ def to_code(config):
     if CORE.is_esp32:
         cg.add_library('FS', None)
     # https://github.com/OttoWinter/ESPAsyncWebServer/blob/master/library.json
-    cg.add_library('ESPAsyncWebServer-esphome', '1.2.6')
+    cg.add_library('ESPAsyncWebServer-esphome', '1.2.7')
