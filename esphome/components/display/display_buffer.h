@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { BINARY = 0, GRAYSCALE = 1, RGB = 2 };
+enum BitDepth { BIT_DEPTH_BINARY = 0, BIT_DEPTH_GRAYSCALE = 1, BIT_DEPTH_RGB = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -381,19 +381,18 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height);
-  Image(const uint8_t *data_start, int width, int height, int type);
+  Image(const uint8_t *data_start, int width, int height, BitDepth bit_depth);
   bool get_pixel(int x, int y) const;
   Color get_color_pixel(int x, int y) const;
   Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
-  ImageType get_type() const;
+  BitDepth get_bit_depth() const;
 
  protected:
   int width_;
   int height_;
-  ImageType type_{BINARY};
+  BitDepth bit_depth_;
   const uint8_t *data_start_;
 };
 

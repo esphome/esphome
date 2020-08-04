@@ -206,29 +206,34 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 void DisplayBuffer::image(int x, int y, Image *image) { this->image(x, y, COLOR_ON, image); }
 void DisplayBuffer::image(int x, int y, Color color, Image *image, bool invert) {
-  if (image->get_type() == BINARY) {
-    for (int img_x = 0; img_x < image->get_width(); img_x++) {
-      for (int img_y = 0; img_y < image->get_height(); img_y++) {
-        if (invert)
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_OFF : color);
-        else
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color : COLOR_OFF);
+  switch (image->get_bit_depth()) {
+    case BIT_DEPTH_BINARY:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          if (invert)
+            this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? COLOR_OFF : color);
+          else
+            this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color : COLOR_OFF);
+        }
       }
-    }
-  } else if (image->get_type() == GRAYSCALE) {
-    for (int img_x = 0; img_x < image->get_width(); img_x++) {
-      for (int img_y = 0; img_y < image->get_height(); img_y++) {
-        this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
+      break;
+    case BIT_DEPTH_GRAYSCALE:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
+        }
       }
-    }
-  } else if (image->get_type() == RGB) {
-    for (int img_x = 0; img_x < image->get_width(); img_x++) {
-      for (int img_y = 0; img_y < image->get_height(); img_y++) {
-        this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
+      break;
+    case BIT_DEPTH_RGB:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
+        }
       }
-    }
+      break;
   }
 }
+
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;
@@ -467,11 +472,9 @@ Color Image::get_grayscale_pixel(int x, int y) const {
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
-ImageType Image::get_type() const { return this->type_; }
-Image::Image(const uint8_t *data_start, int width, int height)
-    : width_(width), height_(height), data_start_(data_start) {}
-Image::Image(const uint8_t *data_start, int width, int height, int type)
-    : width_(width), height_(height), type_((ImageType) type), data_start_(data_start) {}
+BitDepth Image::get_bit_depth() const { return this->bit_depth_; }
+Image::Image(const uint8_t *data_start, int width, int height, BitDepth bit_depth)
+    : width_(width), height_(height), bit_depth_(bit_depth), data_start_(data_start) {}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
