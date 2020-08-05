@@ -263,8 +263,7 @@ class DisplayBuffer {
 #endif
 
   /// Draw the `image` with the top-left corner at [x,y] to the screen.
-  void image(int x, int y, Image *image);
-  void image(int x, int y, Color color, Image *image, bool invert = false);
+  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
   /** Get the text bounds of the given string.
    *
