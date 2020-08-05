@@ -1695,6 +1695,7 @@ pcf8574:
 
 mcp23017:
   - id: 'mcp23017_hub'
+    open_drain: 'true'
 
 mcp23008:
   - id: 'mcp23008_hub'
