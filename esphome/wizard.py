@@ -11,6 +11,7 @@ from esphome.helpers import color, get_bool_env, write_file
 from esphome.pins import ESP32_BOARD_PINS, ESP8266_BOARD_PINS
 from esphome.storage_json import StorageJSON, ext_storage_path
 from esphome.util import safe_print
+from esphome.const import ALLOWED_NAME_CHARS
 
 CORE_BIG = r"""    _____ ____  _____  ______
    / ____/ __ \|  __ \|  ____|
@@ -172,7 +173,7 @@ def wizard(path):
                                     f"include numbers, lower-case letters, underscores and "
                                     f"hyphens."))
             name = strip_accents(name).lower().replace(' ', '_')
-            name = ''.join(c for c in name if c in cv.ALLOWED_NAME_CHARS)
+            name = ''.join(c for c in name if c in ALLOWED_NAME_CHARS)
             safe_print("Shall I use \"{}\" as the name instead?".format(color('cyan', name)))
             sleep(0.5)
             name = default_input("(name [{}]): ", name)
