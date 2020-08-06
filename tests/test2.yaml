@@ -292,6 +292,21 @@ text_sensor:
 
 script:
   - id: my_script
+    mode: single
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_queued
+    mode: queued
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_parallel
+    mode: parallel
+    max_runs: 2
+    then:
+      - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_restart
+    mode: restart
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
@@ -316,5 +331,3 @@ interval:
     - logger.log: "Interval Run"
 
 display:
-
-
