@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import i2c
-from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED, CONF_OPEN_DRAIN
+from esphome.const import CONF_ID, CONF_NUMBER, CONF_MODE, CONF_INVERTED, CONF_OPEN_DRAIN_INTERRUPT
 
 DEPENDENCIES = ['i2c']
 MULTI_CONF = True
@@ -20,7 +20,7 @@ MCP23017GPIOPin = mcp23017_ns.class_('MCP23017GPIOPin', cg.GPIOPin)
 
 CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(MCP23017),
-    cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
+    cv.Optional(CONF_OPEN_DRAIN_INTERRUPT, default=False): cv.boolean,
 }).extend(cv.COMPONENT_SCHEMA).extend(i2c.i2c_device_schema(0x20))
 
 
@@ -28,7 +28,7 @@ def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
     yield i2c.register_i2c_device(var, config)
-    cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN]))
+    cg.add(var.set_open_drain_ints(config[CONF_OPEN_DRAIN_INTERRUPT]))
 
 
 CONF_MCP23017 = 'mcp23017'
