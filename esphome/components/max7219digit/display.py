@@ -58,7 +58,7 @@ def to_code(config):
     cg.add(var.set_scroll_delay(config[CONF_SCROLL_DELAY]))
     cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
-    cg.add(var.set_scroll(config[CONF_REVERSE_ENABLE]))
+    cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
 
     if CONF_LAMBDA in config:
         lambda_ = yield cg.process_lambda(config[CONF_LAMBDA], [(MAX7219ComponentRef, 'it')],
