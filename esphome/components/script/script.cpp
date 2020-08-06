@@ -33,7 +33,7 @@ void QueueingScript::execute() {
       return;
     }
 
-    ESP_LOGD(TAG, "Script '%s' queueing new instance (mode: queue)", this->name_.c_str());
+    ESP_LOGD(TAG, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
     this->num_runs_++;
     return;
   }
