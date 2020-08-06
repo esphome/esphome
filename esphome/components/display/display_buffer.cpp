@@ -206,7 +206,7 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
-  switch (image->get_bit_depth()) {
+  switch (image->get_color_depth()) {
     case COLOR_DEPTH_BINARY:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
