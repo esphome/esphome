@@ -1700,6 +1700,7 @@ mcp23017:
 mcp23008:
   - id: 'mcp23008_hub'
     address: 0x22
+    open_drain: 'true'
 
 mcp23016:
   - id: 'mcp23016_hub'
