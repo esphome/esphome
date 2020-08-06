@@ -89,4 +89,5 @@ def to_code(config):
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, COLOR_DEPTH[config[CONF_COLOR_DEPTH]])
+    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height,
+                     COLOR_DEPTH[config[CONF_COLOR_DEPTH]])
