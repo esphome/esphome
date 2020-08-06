@@ -15,9 +15,9 @@ CONF_COLOR_DEPTH = 'color_depth'
 
 ColorDepth = display.display_ns.enum('ColorDepth')
 COLOR_DEPTH = {
-    'BINARY': ColorDepth.BIT_DEPTH_BINARY,
-    'GRAYSCALE': ColorDepth.BIT_DEPTH_GRAYSCALE,
-    'RGB': ColorDepth.BIT_DEPTH_RGB,
+    'BINARY': ColorDepth.COLOR_DEPTH_BINARY,
+    'GRAYSCALE': ColorDepth.COLOR_DEPTH_GRAYSCALE,
+    'RGB': ColorDepth.COLOR_DEPTH_RGB,
 }
 
 Image_ = display.display_ns.class_('Image')
