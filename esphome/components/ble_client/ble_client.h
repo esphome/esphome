@@ -89,6 +89,8 @@ class BLEClient : public espbt::ESPBTClient, public Component {
 
   void set_address(uint64_t address) { address_ = address; }
 
+  void set_enabled(bool enabled);
+
   void register_ble_node(BLEClientNode *node) {
     node->client_ = this;
     node->set_ble_client_parent(this);
@@ -110,6 +112,7 @@ class BLEClient : public espbt::ESPBTClient, public Component {
   esp_bd_addr_t remote_bda_;
   uint16_t conn_id_;
   uint64_t address_;
+  bool enabled_;
   std::string address_str() const;
 
  protected:

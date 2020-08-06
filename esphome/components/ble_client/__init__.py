@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.Schema({
 CONF_BLE_CLIENT_ID = 'ble_client_id'
 
 BLE_CLIENT_SCHEMA = cv.Schema({
-    cv.GenerateID(CONF_BLE_CLIENT_ID): cv.use_id(BLEClient),
+    cv.Required(CONF_BLE_CLIENT_ID): cv.use_id(BLEClient),
 })
 
 
