@@ -4,18 +4,20 @@ from esphome import core
 from esphome.components import display, font
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_ID, CONF_RESIZE, CONF_BIT_DEPTH
+from esphome.const import CONF_FILE, CONF_ID, CONF_RESIZE
 from esphome.core import CORE, HexInt
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ['display']
 MULTI_CONF = True
 
-BitDepth = display.display_ns.enum('BitDepth')
-BIT_DEPTH = {
-    'BINARY': BitDepth.BIT_DEPTH_BINARY,
-    'GRAYSCALE': BitDepth.BIT_DEPTH_GRAYSCALE,
-    'RGB': BitDepth.BIT_DEPTH_RGB,
+CONF_COLOR_DEPTH = 'color_depth'
+
+ColorDepth = display.display_ns.enum('ColorDepth')
+COLOR_DEPTH = {
+    'BINARY': ColorDepth.BIT_DEPTH_BINARY,
+    'GRAYSCALE': ColorDepth.BIT_DEPTH_GRAYSCALE,
+    'RGB': ColorDepth.BIT_DEPTH_RGB,
 }
 
 Image_ = display.display_ns.class_('Image')
@@ -26,7 +28,7 @@ IMAGE_SCHEMA = cv.Schema({
     cv.Required(CONF_ID): cv.declare_id(Image_),
     cv.Required(CONF_FILE): cv.file_,
     cv.Optional(CONF_RESIZE): cv.dimensions,
-    cv.Optional(CONF_BIT_DEPTH, default='BINARY'): cv.enum(BIT_DEPTH, upper=True),
+    cv.Optional(CONF_COLOR_DEPTH, default='BINARY'): cv.enum(COLOR_DEPTH, upper=True),
     cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
 })
 
@@ -52,7 +54,7 @@ def to_code(config):
             _LOGGER.warning("The image you requested is very big. Please consider using"
                             " the resize parameter.")
 
-    if config[CONF_BIT_DEPTH] == 'GRAYSCALE':
+    if config[CONF_COLOR_DEPTH] == 'GRAYSCALE':
         image = image.convert('L', dither=Image.NONE)
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width)]
@@ -61,7 +63,7 @@ def to_code(config):
             data[pos] = pix
             pos += 1
 
-    elif config[CONF_BIT_DEPTH] == 'RGB':
+    elif config[CONF_COLOR_DEPTH] == 'RGB':
         image = image.convert('RGB')
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 3)]
@@ -74,7 +76,7 @@ def to_code(config):
             data[pos] = pix[2]
             pos += 1
 
-    elif config[CONF_BIT_DEPTH] == 'BINARY':
+    elif config[CONF_COLOR_DEPTH] == 'BINARY':
         image = image.convert('1', dither=Image.NONE)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
@@ -87,4 +89,4 @@ def to_code(config):
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, BIT_DEPTH[config[CONF_BIT_DEPTH]])
+    cg.new_Pvariable(config[CONF_ID], prog_arr, width, height, COLOR_DEPTH[config[CONF_COLOR_DEPTH]])

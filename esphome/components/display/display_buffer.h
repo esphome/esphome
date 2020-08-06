@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum BitDepth { BIT_DEPTH_BINARY = 0, BIT_DEPTH_GRAYSCALE = 1, BIT_DEPTH_RGB = 2 };
+enum ColorDepth { COLOR_DEPTH_BINARY = 0, COLOR_DEPTH_GRAYSCALE = 1, COLOR_DEPTH_RGB = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -262,7 +262,14 @@ class DisplayBuffer {
       __attribute__((format(strftime, 5, 0)));
 #endif
 
-  /// Draw the `image` with the top-left corner at [x,y] to the screen.
+  /** Draw the `image` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
   void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
   /** Get the text bounds of the given string.
@@ -380,18 +387,18 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height, BitDepth bit_depth);
+  Image(const uint8_t *data_start, int width, int height, ColorDepth bit_depth);
   bool get_pixel(int x, int y) const;
   Color get_color_pixel(int x, int y) const;
   Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
-  BitDepth get_bit_depth() const;
+  ColorDepth get_color_depth() const;
 
  protected:
   int width_;
   int height_;
-  BitDepth bit_depth_;
+  ColorDepth bit_depth_;
   const uint8_t *data_start_;
 };
 
