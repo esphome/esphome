@@ -28,7 +28,7 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
   void setup() override {
     climate_ir::ClimateIR::setup();
 
-    this->powered_on_assumed_ = this->mode != climate::CLIMATE_MODE_OFF;
+    this->powered_on_assumed = this->mode != climate::CLIMATE_MODE_OFF;
   }
 
   /// Override control to change settings of the climate device.
@@ -39,14 +39,14 @@ class WhirlpoolClimate : public climate_ir::ClimateIR {
 
   void set_model(Model model) { this->model_ = model; }
 
+  // used to track when to send the power toggle command
+  bool powered_on_assumed;
+
  protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   /// Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
-
-  // used to track when to send the power toggle command
-  bool powered_on_assumed_;
 
   bool send_swing_cmd_{false};
   Model model_;
