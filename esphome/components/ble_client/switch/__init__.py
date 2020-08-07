@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import switch, ble_client, esp32_ble_tracker
-from esphome.const import CONF_ID, CONF_INVERTED, CONF_ICON, ICON_RESTART
+from esphome.components import switch, ble_client
+from esphome.const import CONF_ICON, CONF_ID, CONF_INVERTED, ICON_BLUETOOTH
 from .. import ble_client_ns
 
 BleClientSwitch = ble_client_ns.class_('BleClientSwitch', switch.Switch, cg.Component,
@@ -10,6 +10,7 @@ BleClientSwitch = ble_client_ns.class_('BleClientSwitch', switch.Switch, cg.Comp
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(BleClientSwitch),
     cv.Optional(CONF_INVERTED): cv.invalid("BLE client switches do not support inverted mode!"),
+    cv.Optional(CONF_ICON, default=ICON_BLUETOOTH): switch.icon,
 }).extend(ble_client.BLE_CLIENT_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 
 

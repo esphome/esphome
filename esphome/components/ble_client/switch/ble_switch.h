@@ -5,6 +5,9 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/switch/switch.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+#include <esp_gattc_api.h>
+
 namespace esphome {
 namespace ble_client {
 
@@ -24,3 +27,4 @@ class BleClientSwitch : public switch_::Switch, public Component, public BLEClie
 
 }  // namespace ble_client
 }  // namespace esphome
+#endif
