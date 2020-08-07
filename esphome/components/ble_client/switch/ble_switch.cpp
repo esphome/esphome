@@ -2,17 +2,19 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
+#ifdef ARDUINO_ARCH_ESP32
+
 namespace esphome {
 namespace ble_client {
 
 static const char *TAG = "ble_switch";
 
-void BleClientSwitch::write_state(bool state) {
+void BLEClientSwitch::write_state(bool state) {
   this->parent_->set_enabled(state);
   this->publish_state(state);
 }
 
-void BleClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+void BLEClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_REG_EVT:
@@ -30,7 +32,8 @@ void BleClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
   }
 }
 
-void BleClientSwitch::dump_config() { LOG_SWITCH("", "BLE Client Switch", this); }
+void BLEClientSwitch::dump_config() { LOG_SWITCH("", "BLE Client Switch", this); }
 
 }  // namespace ble_client
 }  // namespace esphome
+#endif
