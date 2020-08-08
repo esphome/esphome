@@ -190,7 +190,7 @@ jobs:
           echo "::set-env name=TAG::${TAG}"
       - name: Set up env variables
         run: |
-          base_version="2.5.0"
+          base_version="2.6.0"
 
           if [[ "${{ matrix.build_type }}" == "hassio" ]]; then
             build_from="esphome/esphome-hassio-base-${{ matrix.arch }}:${base_version}"
