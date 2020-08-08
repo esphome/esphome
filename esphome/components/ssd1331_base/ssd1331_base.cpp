@@ -97,12 +97,7 @@ void SSD1331::update() {
 }
 void SSD1331::set_brightness(float brightness) {
   // validation
-  if (brightness > 1)
-    this->brightness_ = 1.0;
-  else if (brightness < 0)
-    this->brightness_ = 0;
-  else
-    this->brightness_ = brightness;
+  this->brightness_ = clamp(brightness, 0, 1);
   // now write the new brightness level to the display
   this->command(SSD1331_CONTRASTA);  // 0x81
   this->command(int(SSD1331_MAX_CONTRASTA * (this->brightness_)));
