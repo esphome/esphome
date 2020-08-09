@@ -20,13 +20,15 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
   this->rx_buffer_.push_back(byte);
   const uint8_t *raw = &this->rx_buffer_[0];
 
+  ESP_LOGVV(TAG, "Processing byte: 0x%02X", byte);
+
   // Byte 0: Start
   if (at == 0)
     return byte == RF_CODE_START;
 
   // Byte 1: Action
   if (at == 1)
-    return byte >= RF_CODE_ACK && byte <= RF_CODE_RFOUT_BUCKET;
+    return byte >= RF_CODE_ACK && byte <= RF_CODE_RFIN_BUCKET;
   uint8_t action = raw[1];
 
   switch (action) {
@@ -57,8 +59,9 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
     }
     case RF_CODE_LEARN_OK_NEW:
     case RF_CODE_ADVANCED_RFIN: {
-      if (byte != RF_CODE_STOP || at > RF_MESSAGE_SIZE + 2)
-        return true;
+      if (byte != RF_CODE_STOP) {
+        return at < (raw[2] + 3);
+      }
 
       RFBridgeAdvancedData data{};
 
@@ -75,6 +78,26 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       this->advancedDataCallback_.call(data);
       break;
     }
+    case RF_CODE_RFIN_BUCKET: {
+      if (byte != RF_CODE_STOP) {
+        return true;
+      }
+
+      uint8_t buckets = raw[2] << 1;
+      std::string str = "";
+      char next_byte[2];
+
+      for (uint32_t i = 0; i <= at; i++) {
+        sprintf(next_byte, "%02X", raw[i]);
+        str += next_byte;
+        if ((i > 3) && buckets) { buckets--; }
+        if ((i < 3) || (buckets % 2) || (i == at - 1)) {
+          str += " ";
+        }
+      }
+      ESP_LOGD(TAG, "Received RFBridge Bucket: %s", str.c_str());
+      break;
+    }
     default:
       ESP_LOGW(TAG, "Unknown action: 0x%02X", action);
       break;
@@ -87,6 +110,15 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
   // return false to reset buffer
   return false;
+}
+
+void RFBridgeComponent::write_byte_str_(std::string codes) {
+  uint8_t code;
+  int size = codes.length();
+  for (int i = 0; i < size; i += 2) {
+    code = strtol(codes.substr(i, 2).c_str(), nullptr, 16);
+    this->write(code);
+  }
 }
 
 void RFBridgeComponent::loop() {
@@ -134,7 +166,7 @@ void RFBridgeComponent::send_advanced_code(RFBridgeAdvancedData data) {
   this->write(data.length & 0xFF);
   this->write((data.protocol >> 8) & 0xFF);
   this->write(data.protocol & 0xFF);
-  this->write_str(data.code.c_str());
+  this->write_byte_str_(data.code);
   this->write(RF_CODE_STOP);
   this->flush();
 }
@@ -170,7 +202,8 @@ void RFBridgeComponent::stop_advanced_sniffing() {
 
 void RFBridgeComponent::send_raw(std::string raw_code) {
   ESP_LOGD(TAG, "Sending Raw Code: %s", raw_code.c_str());
-  this->write_str(raw_code.c_str());
+
+  this->write_byte_str_(raw_code);
   this->flush();
 }
 

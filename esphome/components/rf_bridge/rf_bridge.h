@@ -23,6 +23,7 @@ static const uint8_t RF_CODE_LEARN_NEW = 0xA9;
 static const uint8_t RF_CODE_LEARN_KO_NEW = 0xAA;
 static const uint8_t RF_CODE_LEARN_OK_NEW = 0xAB;
 static const uint8_t RF_CODE_RFOUT_BUCKET = 0xB0;
+static const uint8_t RF_CODE_RFIN_BUCKET = 0xB1;
 static const uint8_t RF_CODE_STOP = 0x55;
 static const uint8_t RF_DEBOUNCE = 200;
 
@@ -60,6 +61,7 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void ack_();
   void decode_();
   bool parse_bridge_byte_(uint8_t byte);
+  void write_byte_str_(std::string codes);
 
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
