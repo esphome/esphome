@@ -206,22 +206,22 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
-  switch (image->get_color_depth()) {
-    case COLOR_DEPTH_BINARY:
+  switch (image->get_type()) {
+    case IMAGE_TYPE_BINARY:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color_on : color_off);
         }
       }
       break;
-    case COLOR_DEPTH_GRAYSCALE:
+    case IMAGE_TYPE_GRAYSCALE:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
         }
       }
       break;
-    case COLOR_DEPTH_RGB:
+    case IMAGE_TYPE_RGB24:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
@@ -470,9 +470,9 @@ Color Image::get_grayscale_pixel(int x, int y) const {
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
-ColorDepth Image::get_color_depth() const { return this->bit_depth_; }
-Image::Image(const uint8_t *data_start, int width, int height, ColorDepth bit_depth)
-    : width_(width), height_(height), bit_depth_(bit_depth), data_start_(data_start) {}
+ImageType Image::get_type() const { return this->type_; }
+Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
+    : width_(width), height_(height), type_(type), data_start_(data_start) {}
 
 DisplayPage::DisplayPage(const display_writer_t &writer) : writer_(writer) {}
 void DisplayPage::show() { this->parent_->show_page(this); }
