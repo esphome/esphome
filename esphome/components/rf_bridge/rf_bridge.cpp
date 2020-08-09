@@ -54,7 +54,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
 
       ESP_LOGD(TAG, "Received RFBridge Code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
                data.high, data.code);
-      this->dataCallback_.call(data);
+      this->data_callback_.call(data);
       break;
     }
     case RF_CODE_LEARN_OK_NEW:
@@ -68,14 +68,14 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       data.length = raw[2];
       data.protocol = raw[3];
       char next_byte[2];
-      for(uint8_t i = 0; i < data.length - 1; i++) {
+      for (uint8_t i = 0; i < data.length - 1; i++) {
         sprintf(next_byte, "%02X", raw[4 + i]);
         data.code += next_byte;
       }
 
-      ESP_LOGD(TAG, "Received RFBridge Advanced Code: length=%d protocol=%d code=%s",
-               data.length, data.protocol, data.code.c_str());
-      this->advancedDataCallback_.call(data);
+      ESP_LOGD(TAG, "Received RFBridge Advanced Code: length=%d protocol=%d code=%s", data.length, data.protocol,
+               data.code.c_str());
+      this->advanced_data_callback_.call(data);
       break;
     }
     case RF_CODE_RFIN_BUCKET: {
@@ -84,13 +84,15 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       }
 
       uint8_t buckets = raw[2] << 1;
-      std::string str = "";
+      std::string str;
       char next_byte[2];
 
       for (uint32_t i = 0; i <= at; i++) {
         sprintf(next_byte, "%02X", raw[i]);
         str += next_byte;
-        if ((i > 3) && buckets) { buckets--; }
+        if ((i > 3) && buckets) {
+          buckets--;
+        }
         if ((i < 3) || (buckets % 2) || (i == at - 1)) {
           str += " ";
         }
@@ -159,7 +161,8 @@ void RFBridgeComponent::send_code(RFBridgeData data) {
 }
 
 void RFBridgeComponent::send_advanced_code(RFBridgeAdvancedData data) {
-  ESP_LOGD(TAG, "Sending advanced code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol, data.code.c_str());
+  ESP_LOGD(TAG, "Sending advanced code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol,
+           data.code.c_str());
   this->write(RF_CODE_START);
   this->write(RF_CODE_RFOUT_NEW);
   this->write((data.length >> 8) & 0xFF);

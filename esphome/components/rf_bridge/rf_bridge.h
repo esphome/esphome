@@ -45,10 +45,10 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   void loop() override;
   void dump_config() override;
   void add_on_code_received_callback(std::function<void(RFBridgeData)> callback) {
-    this->dataCallback_.add(std::move(callback));
+    this->data_callback_.add(std::move(callback));
   }
   void add_on_advanced_code_received_callback(std::function<void(RFBridgeAdvancedData)> callback) {
-    this->advancedDataCallback_.add(std::move(callback));
+    this->advanced_data_callback_.add(std::move(callback));
   }
   void send_code(RFBridgeData data);
   void send_advanced_code(RFBridgeAdvancedData data);
@@ -66,8 +66,8 @@ class RFBridgeComponent : public uart::UARTDevice, public Component {
   std::vector<uint8_t> rx_buffer_;
   uint32_t last_bridge_byte_{0};
 
-  CallbackManager<void(RFBridgeData)> dataCallback_;
-  CallbackManager<void(RFBridgeAdvancedData)> advancedDataCallback_;
+  CallbackManager<void(RFBridgeData)> data_callback_;
+  CallbackManager<void(RFBridgeAdvancedData)> advanced_data_callback_;
 };
 
 class RFBridgeReceivedCodeTrigger : public Trigger<RFBridgeData> {
@@ -159,9 +159,7 @@ template<typename... Ts> class RFBridgeSendRawAction : public Action<Ts...> {
   RFBridgeSendRawAction(RFBridgeComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(std::string, raw)
 
-  void play(Ts... x) {
-    this->parent_->send_raw(this->raw_.value(x...));
-  }
+  void play(Ts... x) { this->parent_->send_raw(this->raw_.value(x...)); }
 
  protected:
   RFBridgeComponent *parent_;
