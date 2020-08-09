@@ -387,7 +387,7 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height, ImageType bit_depth);
+  Image(const uint8_t *data_start, int width, int height, ImageType type);
   bool get_pixel(int x, int y) const;
   Color get_color_pixel(int x, int y) const;
   Color get_grayscale_pixel(int x, int y) const;
