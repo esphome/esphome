@@ -64,14 +64,10 @@ bool TeleInfo::read_chars_until_(bool drop, uint8_t c) {
 
   return false;
 }
-void TeleInfo::setup() {
-  end();
-  state_ = OFF;
-}
+void TeleInfo::setup() { state_ = OFF; }
 void TeleInfo::update() {
   if (state_ == OFF) {
     buf_index_ = 0;
-    begin();
     state_ = ON;
   }
 }
@@ -148,7 +144,6 @@ void TeleInfo::loop() {
 
         publish_value_(std::string(tag_), std::string(val_));
       }
-      end();
       state_ = OFF;
       break;
   }
