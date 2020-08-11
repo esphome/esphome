@@ -68,7 +68,7 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { BINARY = 0, GRAYSCALE = 1, RGB = 2 };
+enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -262,9 +262,15 @@ class DisplayBuffer {
       __attribute__((format(strftime, 5, 0)));
 #endif
 
-  /// Draw the `image` with the top-left corner at [x,y] to the screen.
-  void image(int x, int y, Image *image);
-  void image(int x, int y, Color color, Image *image, bool invert = false);
+  /** Draw the `image` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
   /** Get the text bounds of the given string.
    *
@@ -381,8 +387,7 @@ class Font {
 
 class Image {
  public:
-  Image(const uint8_t *data_start, int width, int height);
-  Image(const uint8_t *data_start, int width, int height, int type);
+  Image(const uint8_t *data_start, int width, int height, ImageType type);
   bool get_pixel(int x, int y) const;
   Color get_color_pixel(int x, int y) const;
   Color get_grayscale_pixel(int x, int y) const;
@@ -393,7 +398,7 @@ class Image {
  protected:
   int width_;
   int height_;
-  ImageType type_{BINARY};
+  ImageType type_;
   const uint8_t *data_start_;
 };
 
