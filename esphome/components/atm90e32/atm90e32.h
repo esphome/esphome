@@ -54,12 +54,12 @@ class ATM90E32Component : public PollingComponent,
   float get_power_factor_a_();
   float get_power_factor_b_();
   float get_power_factor_c_();
-  float get_forward_active_energy_a();
-  float get_forward_active_energy_b();
-  float get_forward_active_energy_c();
-  float get_reverse_active_energy_a();
-  float get_reverse_active_energy_b();
-  float get_reverse_active_energy_c();
+  float get_forward_active_energy_a_();
+  float get_forward_active_energy_b_();
+  float get_forward_active_energy_c_();
+  float get_reverse_active_energy_a_();
+  float get_reverse_active_energy_b_();
+  float get_reverse_active_energy_c_();
   float get_frequency_();
   float get_chip_temperature_();
 
