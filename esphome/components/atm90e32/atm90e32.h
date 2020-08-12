@@ -42,7 +42,6 @@ class ATM90E32Component : public PollingComponent,
   float get_line_voltage_a_();
   float get_line_voltage_b_();
   float get_line_voltage_c_();
-  float get_forward_active_energy_a_();
   float get_line_current_a_();
   float get_line_current_b_();
   float get_line_current_c_();
