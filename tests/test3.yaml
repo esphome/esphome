@@ -858,6 +858,14 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+
+  on_advanced_code_received:
+    - lambda: |-
+        uint32_t test;
+        std::string test_code;
+        test = data.length;
+        test = data.protocol;
+        test_code = data.code;
     - rf_bridge.start_advanced_sniffing
     - rf_bridge.stop_advanced_sniffing
     - rf_bridge.send_advanced_code:
