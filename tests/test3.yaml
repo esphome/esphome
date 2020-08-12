@@ -697,7 +697,7 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
-    
+
 
 cover:
   - platform: endstop
@@ -858,6 +858,14 @@ rf_bridge:
         high: 0x1234
         code: 0x123456
     - rf_bridge.learn
+    - rf_bridge.start_advanced_sniffing
+    - rf_bridge.stop_advanced_sniffing
+    - rf_bridge.send_advanced_code:
+        length: 0x04
+        protocol: 0x01
+        code: 'ABC123'
+    - rf_bridge.send_raw:
+        raw: 'AAA5070008001000ABC12355'
 
 display:
   - platform: max7219digit
