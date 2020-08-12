@@ -58,6 +58,24 @@ void ATM90E32Component::update() {
   if (this->phase_[2].power_factor_sensor_ != nullptr) {
     this->phase_[2].power_factor_sensor_->publish_state(this->get_power_factor_c_());
   }
+  if (this->phase_[0].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[0].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_a_());
+  }
+  if (this->phase_[1].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[1].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_b_());
+  }
+  if (this->phase_[2].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[2].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_c_());
+  }
+  if (this->phase_[0].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[0].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_a_());
+  }
+  if (this->phase_[1].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[1].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_b_());
+  }
+  if (this->phase_[2].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[2].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_c_());
+  }
   if (this->freq_sensor_ != nullptr) {
     this->freq_sensor_->publish_state(this->get_frequency_());
   }
@@ -119,16 +137,22 @@ void ATM90E32Component::dump_config() {
   LOG_SENSOR("  ", "Power A", this->phase_[0].power_sensor_);
   LOG_SENSOR("  ", "Reactive Power A", this->phase_[0].reactive_power_sensor_);
   LOG_SENSOR("  ", "PF A", this->phase_[0].power_factor_sensor_);
+  LOG_SENSOR("  ", "Active Forward Energy A", this->phase_[0].forward_active_energy_sensor_);
+  LOG_SENSOR("  ", "Active Reverse Energy A", this->phase_[0].reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Voltage B", this->phase_[1].voltage_sensor_);
   LOG_SENSOR("  ", "Current B", this->phase_[1].current_sensor_);
   LOG_SENSOR("  ", "Power B", this->phase_[1].power_sensor_);
   LOG_SENSOR("  ", "Reactive Power B", this->phase_[1].reactive_power_sensor_);
   LOG_SENSOR("  ", "PF B", this->phase_[1].power_factor_sensor_);
+  LOG_SENSOR("  ", "Active Forward Energy B", this->phase_[1].forward_active_energy_sensor_);
+  LOG_SENSOR("  ", "Active Reverse Energy B", this->phase_[1].reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Voltage C", this->phase_[2].voltage_sensor_);
   LOG_SENSOR("  ", "Current C", this->phase_[2].current_sensor_);
   LOG_SENSOR("  ", "Power C", this->phase_[2].power_sensor_);
   LOG_SENSOR("  ", "Reactive Power C", this->phase_[2].reactive_power_sensor_);
   LOG_SENSOR("  ", "PF C", this->phase_[2].power_factor_sensor_);
+  LOG_SENSOR("  ", "Active Forward Energy C", this->phase_[2].forward_active_energy_sensor_);
+  LOG_SENSOR("  ", "Active Reverse Energy C", this->phase_[2].reverse_active_energy_sensor_);
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
   LOG_SENSOR("  ", "Chip Temp", this->chip_temperature_sensor_);
 }
@@ -239,6 +263,35 @@ float ATM90E32Component::get_power_factor_c_() {
   int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
   return (float) pf / 1000;
 }
+
+
+float ATM90E32Component::get_forward_active_energy_a_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
+  return (float) val / 100 / 3200;
+}
+float ATM90E32Component::get_forward_active_energy_b_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
+  return (float) val / 100 / 3200;
+}
+float ATM90E32Component::get_forward_active_energy_c_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
+  return (float) val / 100 / 3200;
+}
+float ATM90E32Component::get_reverse_active_energy_a_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
+  return (float) val / 100 / 3200;
+}
+float ATM90E32Component::get_reverse_active_energy_b_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
+  return (float) val / 100 / 3200;
+}
+float ATM90E32Component::get_reverse_active_energy_c_() {
+  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
+  return (float) val / 100 / 3200;
+}
+
+
+
 float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
   return (float) freq / 100;
