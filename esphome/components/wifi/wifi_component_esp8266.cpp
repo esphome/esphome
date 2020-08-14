@@ -552,6 +552,8 @@ bool WiFiComponent::wifi_disconnect_() {
   ETS_UART_INTR_ENABLE();
   return ret;
 }
+bool WiFiComponent::wifi_sleep_begin_() { return WiFi.forceSleepBegin(); }
+bool WiFiComponent::wifi_sleep_awake_() { return WiFi.forceSleepWake(); }
 void WiFiComponent::s_wifi_scan_done_callback(void *arg, STATUS status) {
   global_wifi_component->wifi_scan_done_callback_(arg, status);
 }

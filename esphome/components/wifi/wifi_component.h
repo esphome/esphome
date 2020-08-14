@@ -30,6 +30,8 @@ namespace wifi {
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
+  /** WiFi is disabled. */
+  WIFI_COMPONENT_STATE_DISABLED,
   /** WiFi is in cooldown mode because something went wrong, scanning will begin after a short period of time. */
   WIFI_COMPONENT_STATE_COOLDOWN,
   /** WiFi is in STA-only mode and currently scanning for APs. */
@@ -166,6 +168,9 @@ class WiFiComponent : public Component {
    */
   void set_ap(const WiFiAP &ap);
 
+  void enable();
+  void disable();
+  bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
@@ -189,6 +194,7 @@ class WiFiComponent : public Component {
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+  void start();
   void dump_config() override;
   /// WIFI setup_priority.
   float get_setup_priority() const override;
@@ -251,6 +257,8 @@ class WiFiComponent : public Component {
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
+  bool wifi_sleep_begin_();
+  bool wifi_sleep_awake_();
 
   bool is_captive_portal_active_();
 

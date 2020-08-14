@@ -29,7 +29,9 @@ static const char *TAG = "wifi";
 
 float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
-void WiFiComponent::setup() {
+void WiFiComponent::setup() { this->start(); }
+
+void WiFiComponent::start() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
@@ -107,12 +109,13 @@ void WiFiComponent::loop() {
         break;
       }
       case WIFI_COMPONENT_STATE_OFF:
+      case WIFI_COMPONENT_STATE_DISABLED:
       case WIFI_COMPONENT_STATE_AP:
         break;
     }
 
     if (this->has_ap() && !this->ap_setup_) {
-      if (now - this->last_connected_ > this->ap_timeout_) {
+      if (!this->is_disabled() && now - this->last_connected_ > this->ap_timeout_) {
         ESP_LOGI(TAG, "Starting fallback AP!");
         this->setup_ap_config_();
 #ifdef USE_CAPTIVE_PORTAL
@@ -318,6 +321,25 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", WiFi.dnsIP(0).toString().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", WiFi.dnsIP(1).toString().c_str());
 }
+
+void WiFiComponent::enable() {
+  if (this->state_ == WIFI_COMPONENT_STATE_DISABLED) {
+    ESP_LOGD(TAG, "Enabling WIFI...");
+    this->error_from_callback_ = false;
+    this->wifi_sleep_awake_();
+    this->state_ = WIFI_COMPONENT_STATE_OFF;
+    this->start();
+  }
+}
+
+void WiFiComponent::disable() {
+  ESP_LOGD(TAG, "Disabling WIFI...");
+  this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+  this->wifi_disconnect_();
+  this->wifi_sleep_begin_();
+}
+
+bool WiFiComponent::is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
 
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();

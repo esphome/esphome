@@ -605,6 +605,8 @@ IPAddress WiFiComponent::wifi_soft_ap_ip() {
   return IPAddress(ip.ip.addr);
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
+bool WiFiComponent::wifi_sleep_begin_() { return esp_wifi_set_ps(WIFI_PS_MAX_MODEM) == ESP_OK; }
+bool WiFiComponent::wifi_sleep_awake_() { return wifi_apply_power_save_(); }
 
 }  // namespace wifi
 }  // namespace esphome
