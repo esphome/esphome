@@ -17,26 +17,26 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
 
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    traits.set_supports_brightness(true); // Dimming
+    traits.set_supports_brightness(true);  // Dimming
     traits.set_supports_rgb(false);
-    traits.set_supports_rgb_white_value(true); // hbridge color
+    traits.set_supports_rgb_white_value(true);  // hbridge color
     traits.set_supports_color_temperature(false);
     return traits;
   }
- 
+
   void setup() override {
     this->pwm_tick_count_ = 0;
-    ESP_LOGD("HBridgeLED", "Setup Done!");
+    //ESP_LOGD("HBridgeLED", "Setup Done!");
   }
-  
+
   void update() override {   
-    if (this->pwm_tick_count_ == 0) {   // First LED Direction
+    if (this->pwm_tick_count_ == 0) {  // First LED Direction
       this->pinb_pin_->set_level(this->duty_off_);
       this->pina_pin_->set_level(this->pina_duty_);
       this->pwm_tick_count_ = 1;
-    } else {                          // Second LED Direction
+    } else {  // Second LED Direction
       this->pina_pin_->set_level(this->duty_off_);
-      this->pinb_pin_->set_level(this->pinb_duty_);      
+      this->pinb_pin_->set_level(this->pinb_duty_);
       this->pwm_tick_count_ = 0;
     }
   }
@@ -44,7 +44,6 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
   void write_state(light::LightState *state) override {
-
     float bright;
     state->current_values_as_brightness(&bright);
 
@@ -52,9 +51,8 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
     float red, green, blue, white;
     state->current_values_as_rgbw(&red, &green, &blue, &white);
 
-
     if (white > 0.55) {
-      this->pina_duty_ = (bright * (1-white));
+      this->pina_duty_ = (bright * (1 - white));
       this->pinb_duty_ = bright;
     } else if (white < 0.45) {
       this->pina_duty_ = bright;
@@ -63,9 +61,8 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
       this->pina_duty_ = bright;
       this->pinb_duty_ = bright;
     }
-    
 
-    ESP_LOGD("HBridgeLightOutput", "PinA: %.2f%%       PinB: %.2f%%", this->pina_duty_, this->pinb_duty_);
+    //ESP_LOGD("HBridgeLightOutput", "PinA: %.2f%%       PinB: %.2f%%", this->pina_duty_, this->pinb_duty_);
   }
 
  protected:
