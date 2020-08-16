@@ -26,10 +26,9 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
 
   void setup() override {
     this->pwm_tick_count_ = 0;
-    //ESP_LOGD("HBridgeLED", "Setup Done!");
   }
 
-  void update() override {   
+  void update() override {
     if (this->pwm_tick_count_ == 0) {  // First LED Direction
       this->pinb_pin_->set_level(this->duty_off_);
       this->pina_pin_->set_level(this->pina_duty_);
@@ -61,8 +60,6 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
       this->pina_duty_ = bright;
       this->pinb_duty_ = bright;
     }
-
-    //ESP_LOGD("HBridgeLightOutput", "PinA: %.2f%%       PinB: %.2f%%", this->pina_duty_, this->pinb_duty_);
   }
 
  protected:
