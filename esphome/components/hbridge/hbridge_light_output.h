@@ -24,9 +24,7 @@ class HBRIDGELightOutput : public PollingComponent, public light::LightOutput {
     return traits;
   }
 
-  void setup() override {
-    this->pwm_tick_count_ = 0;
-  }
+  void setup() override { this->pwm_tick_count_ = 0; }
 
   void update() override {
     if (this->pwm_tick_count_ == 0) {  // First LED Direction
