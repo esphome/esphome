@@ -12,6 +12,7 @@ CONFIG_SCHEMA = light.RGB_LIGHT_SCHEMA.extend({
     cv.Required(CONF_PIN_B): cv.use_id(output.FloatOutput),
 })
 
+
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     yield cg.register_component(var, config)
