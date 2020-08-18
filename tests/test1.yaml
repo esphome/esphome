@@ -150,6 +150,19 @@ uart:
     baud_rate: 115200
     rx_buffer_size: 1024
 
+  - id: modbus_uart
+    tx_pin: 25
+    rx_pin: 27
+    baud_rate: 115200
+    stop_bits: 1
+
+modbus:
+  id: modbus_epsolar
+  ctrl_pin: 5    # if you need to set the driver enable (DE) pin high before transmitting data configure it here
+  uart_id: modbus_uart
+
+
+
 ota:
   safe_mode: True
   password: 'superlongpasswordthatnoonewillknow'
@@ -757,6 +770,184 @@ sensor:
     aqi:
       name: "AQI"
       calculation_type: "CAQI"
+
+### Note enabling all sensors will probably cause a stackoverflow
+### https://github.com/esphome/issues/issues/855
+  - platform: epsolar
+    modbus_id: modbus_epsolar
+    id: traceran
+    ## the Modbus device addr 
+    address: 0x1    
+    array_rated_voltage:
+      name: "array_rated_voltage"
+    array_rated_current:
+      name: "array_rated_current"
+    array_rated_power:
+      name: "array_rated_power"
+    battery_rated_voltage:
+      name: "battery_rated_voltage"
+    battery_rated_current:
+      name: "battery_rated_current"
+    battery_rated_power:
+      name: "battery_rated_power"
+    charging_mode:
+      name: "charging_mode"
+    rated_current_of_load:
+      name: "rated_current_of_load"
+    pv_input_voltage:
+      name: "PV array input voltage"
+    pv_input_current:
+      name: "PV array input current"
+    pv_power:
+      name: "PV array input power"
+    battery_power:
+      name: "Battery Power"
+  #    address: 0x3100
+    load_voltage:
+      name: "Load Voltage"
+    load_current:
+      name: "Load Current"
+    load_power:
+      name: "Load Power"
+    battery_temperature:
+      name: "Battery Temperature"
+    device_temperature:
+      name: "Device Temperature"
+    battery_soc:
+      name: "Battery Remaining Capacity"
+    remote_battery_temperature:
+      name: "Remote Battery Temperature"
+    max_pv_voltage_today:
+      name: "Maximum PV voltage today"
+    min_pv_voltage_today:
+      name: "Minimum PV voltage today"
+    max_battery_voltage_today:
+      name: "Maximum battery voltage today"
+    min_battery_today:
+      name: "Minimum battery voltage today"
+    consumed_energy_today:
+      name: "Consumed energy today"
+    consumed_energy_month:
+      name: "Consumed Energy Month"
+    consumed_energy_year:
+      name: "Consumed energy year"
+    consumed_energy_total:
+      name: "Consumed energy total"
+    generated_energy_today:
+      name: "Generated energy today"
+    generated_energy_month:
+      name: "Generated energy month"
+    generated_energy_year:
+      name: "Generated energy year"
+    generated_energy_total:
+      name: "Generated energy total"
+    co2_reduction:
+      name: "CO2 reduction"
+    battery_voltage:
+      name: "Battery voltage"
+    battery_current:
+      name: "Battery current"
+    battery_type:
+      name: "Battery Type"
+    battery_resistence_error:
+      name: "Battery Alert"
+    battery_status:
+      name: "Battery Status"
+    charging_status:
+      name: "Charging Status"
+    discharging_status:
+      name: "Discharging Status"
+    battery_capacity:
+      name: "Battery Capacity"
+    temperature_compensation_coefficient:
+      name: "temperature compensation coefficient"
+    high_volt_disconnect:
+      name: "high volt disconnect"
+    charging_limit_voltage:
+      name: "charging limit voltage"
+    over_voltage_reconnect:
+      name: "Over voltage reconnect"
+    equalization_voltage:
+      name: "Equalization Voltage"
+    boost_voltage:
+      name: "boost voltage"
+    float_voltage:
+      name: "float voltage"
+#    boost_reconnect_voltage:
+#      name: "boost reconnect voltage"
+#    low_voltage_reconnect:
+#      name: "low voltage reconnect"
+#    under_voltage_recover:
+#      name: "under voltage recover"
+#    under_voltage_warning:
+#      name: "under voltage warning"
+#    low_voltage_disconnect:
+#      name: "low voltage disconnect"
+#    discharging_limit_voltage:
+#      name: "discharging limit voltage"
+#    equalization_charging_cycle:
+#      name: "Equalization charging cycle"
+#    battery_temperature_warning_upper_limit:
+#      name: "Battery temperature warning upper limit"
+#    battery_temperature_warning_lower_limit:
+#      name: "Battery temperature warning lower limit"
+#    controller_inner_temperature_upper_limit:
+#      name: "Controller inner temperature upper limit"
+#    controller_inner_temperature_upper_limit_recover:
+#      name: "Controller inner temperature upper limit recover"
+#    power_component_temperature_upper_limit:
+#      name: "Power component temperature upper limit"
+#    power_component_temperature_upper_limit_recover:
+#      name: "Power component temperature upper limit recover"
+#    line_impedance:
+#      name: "Line Impedance"
+#    day_time_threshold_voltage:
+#      name: "Day Time Threshold Voltage"
+    light_signal_startup_delay_time:
+      name: "Light signal startup delay time"
+    night_timethreshold_voltage:
+      name: "Night TimeThreshold Voltage"
+    light_signal_turn_off_delay_time:
+      name: "Light signal turn off delay time"
+    load_control_mode:
+      name: 'Load Control Mode'
+      filters:
+        - lambda: return x + 0.0;
+    is_night:
+      name: "is night"
+    device_overtemperature:
+      name: "Over temperature inside the device"
+    manual_control_load:
+      name: 'manual control the load'
+    enable_load_test_mode:
+      name: 'enable load test mode'
+    force_load_on:
+      name: 'force_load the on/off'
+      filters:
+      - invert:      
+    sync_rtc: true
+
+ ## Any modbus registers not already implemented can be defined here
+ ##      
+    sensors:
+      - id: length_of_night_hours
+        address: 0x9065
+        offset: 0
+        unit_of_measurement: "h" ## for any other unit the value is returned in minutes 
+        name: 'Length of night'
+        modbus_functioncode: read_holding_registers
+        value_type: U_SINGLE
+        scale_factor: 1.0
+
+    binary_sensors:
+      - id: default_load_mode
+        modbus_functioncode: read_holding_registers
+        address: 0x906A
+        offset: 0
+        name: 'Default Load On/Off'
+        bitmask: 1
+    update_interval: 30s      
+
 
 esp32_touch:
   setup_mode: False
@@ -1775,3 +1966,5 @@ sn74hc595:
 
 rtttl:
   output: gpio_19
+
+

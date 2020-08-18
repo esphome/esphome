@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import uart
 from esphome.const import CONF_ID, CONF_ADDRESS
 from esphome.core import coroutine
@@ -12,8 +13,11 @@ ModbusDevice = modbus_ns.class_('ModbusDevice')
 MULTI_CONF = True
 
 CONF_MODBUS_ID = 'modbus_id'
+CONF_CTRL_PIN = 'ctrl_pin'
 CONFIG_SCHEMA = cv.Schema({
     cv.GenerateID(): cv.declare_id(Modbus),
+    cv.Optional(CONF_CTRL_PIN): pins.output_pin,
+
 }).extend(cv.COMPONENT_SCHEMA).extend(uart.UART_DEVICE_SCHEMA)
 
 
@@ -21,11 +25,12 @@ def to_code(config):
     cg.add_global(modbus_ns.using)
     var = cg.new_Pvariable(config[CONF_ID])
     yield cg.register_component(var, config)
-
+    if CONF_CTRL_PIN in config:
+        cg.add(var.set_ctrl_pin(config[CONF_CTRL_PIN]))
     yield uart.register_uart_device(var, config)
 
 
-def modbus_device_schema(default_address):
+def modbus_device_schema(default_address, ctrl_pin_=None):
     schema = {
         cv.GenerateID(CONF_MODBUS_ID): cv.use_id(Modbus),
     }
@@ -33,6 +38,10 @@ def modbus_device_schema(default_address):
         schema[cv.Required(CONF_ADDRESS)] = cv.hex_uint8_t
     else:
         schema[cv.Optional(CONF_ADDRESS, default=default_address)] = cv.hex_uint8_t
+
+    if ctrl_pin_ is not None:
+        schema[cv.Optional(CONF_CTRL_PIN, default=ctrl_pin_)] = pins.output_pin
+
     return cv.Schema(schema)
 
 
