@@ -948,6 +948,14 @@ sensor:
         bitmask: 1
     update_interval: 30s      
 
+  - platform: pzemdc
+    current:
+      name: "PZEM-003 Current"
+    voltage:
+      name: "PZEM-003 Voltage"
+    power:
+      name: "PZEM-003 Power"
+    update_interval: 60s
 
 esp32_touch:
   setup_mode: False
