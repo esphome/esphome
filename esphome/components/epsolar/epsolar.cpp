@@ -58,7 +58,6 @@ void EPSOLAR::dump_config() {
 }
 
 void EPSOLAR::set_realtime_clock_to_now() {
-
   time_t now = ::time(nullptr);
   struct tm *time_info = ::localtime(&now);
   int seconds = time_info->tm_sec;

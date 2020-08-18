@@ -6,9 +6,7 @@ namespace epsolar {
 
 static const char *TAG = "ModbusComponent";
 
-void ModbusComponent::setup() {
-   this->create_register_ranges();
-}
+void ModbusComponent::setup() { this->create_register_ranges(); }
 
 /*
   To work with the existing modbus class and avoid polling for responses a command queue is used.
@@ -203,25 +201,24 @@ void FloatSensorItem::log() { LOG_SENSOR("", sensor_->get_name().c_str(), this->
 
 void BinarySensorItem::log() { LOG_BINARY_SENSOR("", sensor_->get_name().c_str(), this->sensor_); }
 
-
-// Extract bits from value and shift right according to the bitmask 
-// if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.  
-// the result is then shifted right by the postion if the first right set bit in the mask 
+// Extract bits from value and shift right according to the bitmask
+// if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
+// the result is then shifted right by the postion if the first right set bit in the mask
 // Usefull for modbus data where more than one value is packed in a 16 bit register
-// Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as D15 - D8 =  hour, D7 - D0 = minute
-//          To get the hours use mask 0xFF00 and  0x00FF for the minute
-template <typename N> N mask_and_shift_by_rightbit(N data,N mask)
-{
+// Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
+// D15 - D8 =  hour, D7 - D0 = minute
+// To get the hours use mask 0xFF00 and  0x00FF for the minute
+template<typename N> N mask_and_shift_by_rightbit(N data, N mask) {
   auto result = (mask & data);
-  if (result == 0) return result; 
-  for (int pos = 0; pos < sizeof(N) << 3; pos++)
-  {
-    if ((mask & (1 << pos)) != 0)
-      return result >> pos; 
+  if (result == 0) {
+    return result;
   }
-  return 0; 
+  for (int pos = 0; pos < sizeof(N) << 3; pos++) {
+    if ((mask & (1 << pos)) != 0)
+      return result >> pos;
+  }
+  return 0;
 }
-
 
 float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
@@ -229,13 +226,14 @@ float FloatSensorItem::parse_and_publish(const std::vector<uint8_t> &data) {
 
   switch (sensor_value_type) {
     case SensorValueType::U_SINGLE:
-      value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, this->offset) ,this->bitmask) ; // default is 0xFFFF ;
+      value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, this->offset), this->bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::U_DOUBLE:
-      value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values. 
-      break;                                           // define 2 Singlebit regs instead 
+      value = get_data<uint32_t>(data, this->offset);  // Ignore bitmask for double register values.
+      break;                                           // define 2 Singlebit regs instead
     case SensorValueType::S_SINGLE:
-      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset) ,(int16_t)this->bitmask) ; // default is 0xFFFF ;
+      value = mask_and_shift_by_rightbit(get_data<int16_t>(data, this->offset),
+                                         (int16_t) this->bitmask);  // default is 0xFFFF ;
       break;
     case SensorValueType::S_DOUBLE:
       value = get_data<int32_t>(data, this->offset);

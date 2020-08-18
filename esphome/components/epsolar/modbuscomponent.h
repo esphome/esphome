@@ -11,7 +11,7 @@
 namespace esphome {
 namespace epsolar {
 
-using namespace sensor ;
+using namespace sensor;
 struct ModbusCommandItem;
 class ModbusComponent;
 
@@ -53,11 +53,6 @@ inline uint16_t register_from_key(uint32_t key) { return key >> 16; }
 const std::function<float(int64_t)> DIVIDE_BY_100 = [](int64_t val) { return val / 100.0; };
 
 struct SensorItem {
-  //union {
-  //  sensor::Sensor *sensor;
-  //  binary_sensor::BinarySensor *binarysensor;
-  //};
-
   ModbusFunctionCode register_type;
   uint16_t start_address;
   uint8_t offset;
@@ -120,11 +115,9 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
  public:
   std::map<uint32_t, std::unique_ptr<SensorItem>> sensormap;
   std::vector<RegisterRange> register_ranges;
-  void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,uint16_t bitmask,
-                  SensorValueType value_type = SensorValueType::U_SINGLE, float scale_factor = 0.01) {
-
+  void add_sensor(sensor::Sensor *sensor, ModbusFunctionCode register_type, uint16_t start_address, uint8_t offset,
+                  uint16_t bitmask, SensorValueType value_type = SensorValueType::U_SINGLE, float scale_factor = 0.01) {
     auto new_item = make_unique<FloatSensorItem>(sensor);
-    //new_item->sensor = sensor;
     new_item->register_type = register_type;
     new_item->start_address = start_address;
     new_item->offset = offset;
@@ -139,7 +132,6 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   }
   void add_binarysensor(binary_sensor::BinarySensor *sensor, ModbusFunctionCode register_type, uint16_t start_address,
                         uint8_t offset, uint16_t bitmask) {
-
     auto new_item = make_unique<BinarySensorItem>(sensor);
     new_item->register_type = register_type;
     new_item->start_address = start_address;
@@ -147,8 +139,8 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
     new_item->bitmask = bitmask;
     new_item->sensor_value_type = SensorValueType::BIT;
     new_item->last_value = INT64_MIN;
-    // not sure we need it anymore   
-    new_item->transform_expression = [bitmask](int64_t val) { return (val & bitmask & 0x0000FFFFF ) ? 1 : 0; };
+    // not sure we need it anymore
+    new_item->transform_expression = [bitmask](int64_t val) { return (val & bitmask & 0x0000FFFFF) ? 1 : 0; };
     auto key = new_item->getkey();
     sensormap[key] = std::move(new_item);
   }
@@ -157,7 +149,7 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
 
   bool remove_register_range(uint16_t start_address) {
     bool found = false;
-    
+
     for (auto it = this->register_ranges.begin(); it != this->register_ranges.end();) {
       if (it->start_address == start_address) {
         // First delete sensors from the map
@@ -181,16 +173,16 @@ class ModbusComponent : public PollingComponent, public modbus::ModbusDevice {
   }
 
   // find a register by it's address regardless of the offset
-  SensorItem *find_by_register_address(uint16_t register_address)
-  {
-    // Not extemly effienct but the number of registers isn't that large  and the operation is used only in special cases 
-    //   like changing a property during setup 
+  SensorItem *find_by_register_address(uint16_t register_address) {
+    // Not extemly effienct but the number of registers isn't that large
+    // and the operation is used only in special cases
+    // like changing a property during setup
     for (auto &item : this->sensormap) {
       if (register_address == item.second->start_address + item.second->offset) {
-        return item.second.get() ;
+        return item.second.get();
       }
     }
-    return nullptr ;
+    return nullptr;
   }
 
   void update() override;
