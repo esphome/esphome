@@ -134,10 +134,10 @@ void ST7789V::update() {
 void ST7789V::loop() {}
 
 void ST7789V::write_display_data() {
-  uint16_t x1 = 52;   // _offsetx
-  uint16_t x2 = 186;  // _offsetx
-  uint16_t y1 = 40;   // _offsety
-  uint16_t y2 = 279;  // _offsety
+  uint16_t x1 = this->offset_height_;
+  uint16_t x2 = x1 + get_height_internal() - 1;
+  uint16_t y1 = this->offset_width_;
+  uint16_t y2 = y1 + get_width_internal() - 1;
 
   this->enable();
 
@@ -220,11 +220,11 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
 }
 
 int ST7789V::get_height_internal() {
-  return 240;  // 320;
+  return this->height_;
 }
 
 int ST7789V::get_width_internal() {
-  return 135;  // 240;
+  return this->width_;
 }
 
 size_t ST7789V::get_buffer_length_() {
@@ -265,7 +265,7 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
 
   auto color565 = color.to_rgb_565();
 
-  uint16_t pos = (x + y * this->get_width_internal()) * 2;
+  uint32_t pos = (x + y * this->get_width_internal()) * 2;
   this->buffer_[pos++] = (color565 >> 8) & 0xff;
   this->buffer_[pos] = color565 & 0xff;
 }
