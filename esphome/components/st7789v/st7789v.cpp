@@ -219,13 +219,9 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   return write_array(BYTE, size * 2);
 }
 
-int ST7789V::get_height_internal() {
-  return this->height_;
-}
+int ST7789V::get_height_internal() { return this->height_; }
 
-int ST7789V::get_width_internal() {
-  return this->width_;
-}
+int ST7789V::get_width_internal() { return this->width_; }
 
 size_t ST7789V::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
