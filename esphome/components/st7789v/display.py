@@ -7,11 +7,16 @@ from esphome.const import (
     CONF_BRIGHTNESS,
     CONF_CS_PIN,
     CONF_DC_PIN,
+    CONF_HEIGHT,
     CONF_ID,
     CONF_LAMBDA,
     CONF_RESET_PIN,
+    CONF_WIDTH,
 )
 from . import st7789v_ns
+
+CONF_OFFSET_HEIGHT = "offset_height"
+CONF_OFFSET_WIDTH = "offset_width"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -31,6 +36,10 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BRIGHTNESS, default=1.0): cv.percentage,
+            cv.Optional(CONF_HEIGHT, default=240): cv.int_,
+            cv.Optional(CONF_WIDTH, default=135): cv.int_,
+            cv.Optional(CONF_OFFSET_HEIGHT, default=52): cv.int_,
+            cv.Optional(CONF_OFFSET_WIDTH, default=40): cv.int_,
         }
     )
     .extend(cv.polling_component_schema("5s"))
@@ -59,4 +68,9 @@ async def to_code(config):
         )
         cg.add(var.set_writer(lambda_))
 
-    await display.register_display(var, config)
+    cg.add(var.set_height(config[CONF_HEIGHT]))
+    cg.add(var.set_width(config[CONF_WIDTH]))
+    cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))
+    cg.add(var.set_offset_width(config[CONF_OFFSET_WIDTH]))
+
+    yield display.register_display(var, config)
