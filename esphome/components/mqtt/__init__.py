@@ -10,8 +10,8 @@ from esphome.const import CONF_AVAILABILITY, CONF_BIRTH_MESSAGE, CONF_BROKER, CO
     CONF_ID, CONF_KEEPALIVE, CONF_LEVEL, CONF_LOG_TOPIC, CONF_ON_JSON_MESSAGE, CONF_ON_MESSAGE, \
     CONF_PASSWORD, CONF_PAYLOAD, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, CONF_PORT, \
     CONF_QOS, CONF_REBOOT_TIMEOUT, CONF_RETAIN, CONF_SHUTDOWN_MESSAGE, CONF_SSL_FINGERPRINTS, \
-    CONF_STATE_TOPIC, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USERNAME, \
-    CONF_WILL_MESSAGE
+    CONF_STATE_TOPIC, CONF_TOPIC, CONF_TOPIC_PREFIX, CONF_TRIGGER_ID, CONF_USE_NEW_UNIQUE_ID, \
+    CONF_USERNAME, CONF_WILL_MESSAGE
 from esphome.core import coroutine_with_priority, coroutine, CORE
 
 DEPENDENCIES = ['network']
@@ -109,6 +109,7 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_DISCOVERY, default=True): cv.Any(cv.boolean, cv.one_of("CLEAN", upper=True)),
     cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
     cv.Optional(CONF_DISCOVERY_PREFIX, default="homeassistant"): cv.publish_topic,
+    cv.Optional(CONF_USE_NEW_UNIQUE_ID, default=False): cv.boolean,
 
     cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
     cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
@@ -165,6 +166,8 @@ def to_code(config):
     cg.add(var.set_password(config[CONF_PASSWORD]))
     if CONF_CLIENT_ID in config:
         cg.add(var.set_client_id(config[CONF_CLIENT_ID]))
+    if CONF_USE_NEW_UNIQUE_ID in config:
+        cg.add(var.set_use_new_unique_id(config[CONF_USE_NEW_UNIQUE_ID]))
 
     discovery = config[CONF_DISCOVERY]
     discovery_retain = config[CONF_DISCOVERY_RETAIN]

@@ -211,6 +211,8 @@ class MQTTClientComponent : public Component {
   void set_username(const std::string &username) { this->credentials_.username = username; }
   void set_password(const std::string &password) { this->credentials_.password = password; }
   void set_client_id(const std::string &client_id) { this->credentials_.client_id = client_id; }
+  void set_use_new_unique_id(const bool &use_new_unique_id) { this->use_new_unique_id_ = use_new_unique_id; }
+  bool use_new_unique_id() { return this->use_new_unique_id_; }
 
  protected:
   /// Reconnect to the MQTT broker if not already connected.
@@ -251,6 +253,7 @@ class MQTTClientComponent : public Component {
   std::string topic_prefix_{};
   MQTTMessage log_message_;
   int log_level_{ESPHOME_LOG_LEVEL};
+  bool use_new_unique_id_;
 
   std::vector<MQTTSubscription> subscriptions_;
   AsyncMqttClient mqtt_client_;
