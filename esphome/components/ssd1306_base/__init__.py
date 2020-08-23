@@ -41,7 +41,7 @@ def setup_ssd1036(var, config):
         reset = yield cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
     if CONF_BRIGHTNESS in config:
-        cg.add(var.set_brightness(config[CONF_BRIGHTNESS]))
+        cg.add(var.init_brightness(config[CONF_BRIGHTNESS]))
     if CONF_EXTERNAL_VCC in config:
         cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
     if CONF_LAMBDA in config:
