@@ -2,7 +2,7 @@
 
 MAJOR_VERSION = 1
 MINOR_VERSION = 15
-PATCH_VERSION = '0b3'
+PATCH_VERSION = '0b4'
 __short_version__ = f'{MAJOR_VERSION}.{MINOR_VERSION}'
 __version__ = f'{__short_version__}.{PATCH_VERSION}'
 
@@ -25,6 +25,8 @@ ARDUINO_VERSION_ESP32 = {
 # See also https://github.com/platformio/platform-espressif8266/releases
 ARDUINO_VERSION_ESP8266 = {
     'dev': 'https://github.com/platformio/platform-espressif8266.git',
+    '2.7.4': 'espressif8266@2.6.2',
+    '2.7.3': 'espressif8266@2.6.1',
     '2.7.2': 'espressif8266@2.6.0',
     '2.7.1': 'espressif8266@2.5.3',
     '2.7.0': 'espressif8266@2.5.0',
