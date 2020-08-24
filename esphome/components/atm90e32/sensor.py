@@ -3,14 +3,13 @@ import esphome.config_validation as cv
 from esphome.components import sensor, spi
 from esphome.const import \
     CONF_ID, CONF_VOLTAGE, CONF_CURRENT, CONF_POWER, CONF_POWER_FACTOR, CONF_FREQUENCY, \
-    ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
+    CONF_REACTIVE_POWER, ICON_FLASH, ICON_LIGHTBULB, ICON_CURRENT_AC, ICON_THERMOMETER, \
     UNIT_HERTZ, UNIT_VOLT, UNIT_AMPERE, UNIT_WATT, UNIT_EMPTY, UNIT_CELSIUS, UNIT_VOLT_AMPS_REACTIVE
 
 CONF_PHASE_A = 'phase_a'
 CONF_PHASE_B = 'phase_b'
 CONF_PHASE_C = 'phase_c'
 
-CONF_REACTIVE_POWER = 'reactive_power'
 CONF_LINE_FREQUENCY = 'line_frequency'
 CONF_CHIP_TEMPERATURE = 'chip_temperature'
 CONF_GAIN_PGA = 'gain_pga'
