@@ -165,9 +165,7 @@ void RFBridgeComponent::send_advanced_code(RFBridgeAdvancedData data) {
            data.code.c_str());
   this->write(RF_CODE_START);
   this->write(RF_CODE_RFOUT_NEW);
-  this->write((data.length >> 8) & 0xFF);
   this->write(data.length & 0xFF);
-  this->write((data.protocol >> 8) & 0xFF);
   this->write(data.protocol & 0xFF);
   this->write_byte_str_(data.code);
   this->write(RF_CODE_STOP);
