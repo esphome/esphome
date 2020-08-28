@@ -73,7 +73,7 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
         data.code += next_byte;
       }
 
-      ESP_LOGD(TAG, "Received RFBridge Advanced Code: length=%d protocol=%d code=%s", data.length, data.protocol,
+      ESP_LOGD(TAG, "Received RFBridge Advanced Code: length=0x%02X protocol=0x%02X code=0x%s", data.length, data.protocol,
                data.code.c_str());
       this->advanced_data_callback_.call(data);
       break;
