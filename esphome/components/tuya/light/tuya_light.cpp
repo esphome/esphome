@@ -27,7 +27,7 @@ void TuyaLight::setup() {
       auto brightness = float(brightness_int) / 255.0f;
 
       auto call = this->state_->make_call();
-      call.set_brightness(brightness_float);
+      call.set_brightness(brightness);
       call.perform();
     });
   }
