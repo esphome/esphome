@@ -6,15 +6,13 @@ namespace tuya {
 
 static const char *TAG = "tuya.light";
 
-bool TuyaLight::shouldIgnoreDimmerCommand()
-{
-  if (this->ignore_dimmer_cmd_timeout > millis())
-  {
-      ESP_LOGV(TAG, "dimmer_cmd: ignored");
-      return true;
+bool TuyaLight::shouldIgnoreDimmerCommand() {
+  if (this->ignore_dimmer_cmd_timeout > millis()) {
+    ESP_LOGV(TAG, "dimmer_cmd: ignored");
+    return true;
   }
 
-  this->ignore_write_state = true; // Ignore next write_state call
+  this->ignore_write_state = true;  // Ignore next write_state call
   return false;
 }
 
@@ -62,17 +60,16 @@ light::LightTraits TuyaLight::get_traits() {
 void TuyaLight::setup_state(light::LightState *state) { state_ = state; }
 
 void TuyaLight::write_state(light::LightState *state) {
-  if (this->ignore_write_state)
-  {
-      this->ignore_write_state = false;
-      ESP_LOGV(TAG, "write_state: ignored");
-      return;
+  if (this->ignore_write_state) {
+    this->ignore_write_state = false;
+    ESP_LOGV(TAG, "write_state: ignored");
+    return;
   }
 
   float brightness;
   state->current_values_as_brightness(&brightness);
 
-  this->ignore_dimmer_cmd_timeout = millis() + 250; // Ignore serial received dim commands for the next 250ms
+  this->ignore_dimmer_cmd_timeout = millis() + 250;  // Ignore serial received dim commands for the next 250ms
 
   if (brightness == 0.0f) {
     // turning off, first try via switch (if exists), then dimmer

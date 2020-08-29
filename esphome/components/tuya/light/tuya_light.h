@@ -30,8 +30,9 @@ class TuyaLight : public Component, public light::LightOutput {
   optional<uint8_t> switch_id_{};
   uint32_t min_value_ = 0;
   uint32_t max_value_ = 255;
-  bool ignore_write_state = false; // Flag indicating whether write_state calls should be ignored to avoid sending the received value back to the hardware
-  uint32_t ignore_dimmer_cmd_timeout = 0; // Time until which received dimmer commands should be ignored
+  bool ignore_write_state = false;  // Flag indicating whether write_state calls should be ignored to avoid sending the
+                                    // received value back to the hardware
+  uint32_t ignore_dimmer_cmd_timeout = 0;  // Time until which received dimmer commands should be ignored
   light::LightState *state_{nullptr};
 };
 
