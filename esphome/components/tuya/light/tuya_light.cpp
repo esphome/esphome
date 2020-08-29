@@ -24,8 +24,12 @@ void TuyaLight::setup() {
       if (this->shouldIgnoreDimmerCommand())
         return;
 
+      int brightness_int = map(datapoint.value_uint, this->min_value_, this->max_value_, 0, 255);
+      brightness_int = max(brightness_int, 0);
+      auto brightness = float(brightness_int) / 255.0f;
+
       auto call = this->state_->make_call();
-      call.set_brightness(float(datapoint.value_uint) / this->max_value_);
+      call.set_brightness(brightness_float);
       call.perform();
     });
   }
@@ -89,8 +93,8 @@ void TuyaLight::write_state(light::LightState *state) {
     return;
   }
 
-  auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
-  brightness_int = std::max(brightness_int, this->min_value_);
+  auto brightness_int = static_cast<uint32_t>(brightness * 255);
+  brightness_int = map(brightness_int, 0, 255, this->min_value_, this->max_value_);
 
   if (this->dimmer_id_.has_value()) {
     TuyaDatapoint datapoint{};
