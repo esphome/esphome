@@ -6,20 +6,20 @@ namespace tuya {
 
 static const char *TAG = "tuya.light";
 
-bool TuyaLight::shouldIgnoreDimmerCommand() {
-  if (this->ignore_dimmer_cmd_timeout > millis()) {
+bool TuyaLight::should_ignore_dimmer_command_() {
+  if (this->ignore_dimmer_cmd_timeout_ > millis()) {
     ESP_LOGV(TAG, "dimmer_cmd: ignored");
     return true;
   }
 
-  this->ignore_write_state = true;  // Ignore next write_state call
+  this->ignore_write_state_ = true;  // Ignore next write_state call
   return false;
 }
 
 void TuyaLight::setup() {
   if (this->dimmer_id_.has_value()) {
     this->parent_->register_listener(*this->dimmer_id_, [this](TuyaDatapoint datapoint) {
-      if (this->shouldIgnoreDimmerCommand())
+      if (this->should_ignore_dimmer_command_())
         return;
 
       int brightness_int = map(datapoint.value_uint, this->min_value_, this->max_value_, 0, 255);
@@ -33,7 +33,7 @@ void TuyaLight::setup() {
   }
   if (switch_id_.has_value()) {
     this->parent_->register_listener(*this->switch_id_, [this](TuyaDatapoint datapoint) {
-      if (this->shouldIgnoreDimmerCommand())
+      if (this->should_ignore_dimmer_command_())
         return;
 
       auto call = this->state_->make_call();
@@ -60,8 +60,8 @@ light::LightTraits TuyaLight::get_traits() {
 void TuyaLight::setup_state(light::LightState *state) { state_ = state; }
 
 void TuyaLight::write_state(light::LightState *state) {
-  if (this->ignore_write_state) {
-    this->ignore_write_state = false;
+  if (this->ignore_write_state_) {
+    this->ignore_write_state_ = false;
     ESP_LOGV(TAG, "write_state: ignored");
     return;
   }
@@ -69,7 +69,7 @@ void TuyaLight::write_state(light::LightState *state) {
   float brightness;
   state->current_values_as_brightness(&brightness);
 
-  this->ignore_dimmer_cmd_timeout = millis() + 250;  // Ignore serial received dim commands for the next 250ms
+  this->ignore_dimmer_cmd_timeout_ = millis() + 250;  // Ignore serial received dim commands for the next 250ms
 
   if (brightness == 0.0f) {
     // turning off, first try via switch (if exists), then dimmer
