@@ -135,6 +135,14 @@ bool I2CComponent::read_bytes(uint8_t address, uint8_t a_register, uint8_t *data
     delay(conversion);
   return this->raw_receive(address, data, len);
 }
+bool I2CComponent::read_bytes(uint8_t address, uint16_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {
+  if (!this->write_bytes(address, a_register, nullptr, 0))
+    return false;
+
+  if (conversion > 0)
+    delay(conversion);
+  return this->raw_receive(address, data, len);
+}
 bool I2CComponent::read_bytes_raw(uint8_t address, uint8_t *data, uint8_t len) {
   return this->raw_receive(address, data, len);
 }
@@ -147,9 +155,22 @@ bool I2CComponent::read_bytes_16(uint8_t address, uint8_t a_register, uint16_t *
     delay(conversion);
   return this->raw_receive_16(address, data, len);
 }
+bool I2CComponent::read_bytes_16(uint8_t address, uint16_t a_register, uint16_t *data, uint8_t len,
+                                 uint32_t conversion) {
+  if (!this->write_bytes(address, a_register, nullptr, 0))
+    return false;
+
+  if (conversion > 0)
+    delay(conversion);
+  return this->raw_receive_16(address, data, len);
+}
 bool I2CComponent::read_byte(uint8_t address, uint8_t a_register, uint8_t *data, uint32_t conversion) {
   return this->read_bytes(address, a_register, data, 1, conversion);
 }
+bool I2CComponent::read_byte(uint8_t address, uint16_t a_register, uint8_t *data, uint32_t conversion) {
+  return this->read_bytes(address, a_register, data, 1, conversion);
+}
+
 bool I2CComponent::read_byte_16(uint8_t address, uint8_t a_register, uint16_t *data, uint32_t conversion) {
   return this->read_bytes_16(address, a_register, data, 1, conversion);
 }
