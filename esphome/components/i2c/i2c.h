@@ -268,6 +268,8 @@ class I2CDevice {
   /// Write a single 16-bit word of data into the specified register. Return true if successful.
   bool write_byte_16(uint8_t a_register, uint16_t data);
 
+  uint16_t switch_lsb_msb_order(uint16_t a_register);
+
  protected:
   uint8_t address_{0x00};
   I2CComponent *parent_{nullptr};

@@ -159,6 +159,12 @@ bool I2CComponent::write_bytes(uint8_t address, uint8_t a_register, const uint8_
   this->raw_write(address, data, len);
   return this->raw_end_transmission(address);
 }
+bool I2CComponent::write_bytes(uint8_t address, uint16_t a_register, const uint8_t *data, uint8_t len) {
+  this->raw_begin_transmission(address);
+  this->raw_write_16(address, &a_register, 1);
+  this->raw_write(address, data, len);
+  return this->raw_end_transmission(address);
+}
 bool I2CComponent::write_bytes_raw(uint8_t address, const uint8_t *data, uint8_t len) {
   this->raw_begin_transmission(address);
   this->raw_write(address, data, len);
@@ -170,10 +176,22 @@ bool I2CComponent::write_bytes_16(uint8_t address, uint8_t a_register, const uin
   this->raw_write_16(address, data, len);
   return this->raw_end_transmission(address);
 }
+bool I2CComponent::write_bytes_16(uint8_t address, uint16_t a_register, const uint16_t *data, uint8_t len) {
+  this->raw_begin_transmission(address);
+  this->raw_write_16(address, &a_register, 1);
+  this->raw_write_16(address, data, len);
+  return this->raw_end_transmission(address);
+}
 bool I2CComponent::write_byte(uint8_t address, uint8_t a_register, uint8_t data) {
   return this->write_bytes(address, a_register, &data, 1);
 }
+bool I2CComponent::write_byte(uint8_t address, uint16_t a_register, uint8_t data) {
+  return this->write_bytes(address, a_register, &data, 1);
+}
 bool I2CComponent::write_byte_16(uint8_t address, uint8_t a_register, uint16_t data) {
+  return this->write_bytes_16(address, a_register, &data, 1);
+}
+bool I2CComponent::write_byte_16(uint8_t address, uint16_t a_register, uint16_t data) {
   return this->write_bytes_16(address, a_register, &data, 1);
 }
 
@@ -181,25 +199,49 @@ void I2CDevice::set_i2c_address(uint8_t address) { this->address_ = address; }
 bool I2CDevice::read_bytes(uint8_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
   return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);
 }
+bool I2CDevice::read_bytes(uint16_t a_register, uint8_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
+  return this->parent_->read_bytes(this->address_, a_register, data, len, conversion);
+}
 bool I2CDevice::read_byte(uint8_t a_register, uint8_t *data, uint32_t conversion) {  // NOLINT
+  return this->parent_->read_byte(this->address_, a_register, data, conversion);
+}
+bool I2CDevice::read_byte(uint16_t a_register, uint8_t *data, uint32_t conversion) {  // NOLINT
   return this->parent_->read_byte(this->address_, a_register, data, conversion);
 }
 bool I2CDevice::write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) {  // NOLINT
   return this->parent_->write_bytes(this->address_, a_register, data, len);
 }
+bool I2CDevice::write_bytes(uint16_t a_register, const uint8_t *data, uint8_t len) {  // NOLINT
+  return this->parent_->write_bytes(this->address_, a_register, data, len);
+}
 bool I2CDevice::write_byte(uint8_t a_register, uint8_t data) {  // NOLINT
+  return this->parent_->write_byte(this->address_, a_register, data);
+}
+bool I2CDevice::write_byte(uint16_t a_register, uint8_t data) {  // NOLINT
   return this->parent_->write_byte(this->address_, a_register, data);
 }
 bool I2CDevice::read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
   return this->parent_->read_bytes_16(this->address_, a_register, data, len, conversion);
 }
+bool I2CDevice::read_bytes_16(uint16_t a_register, uint16_t *data, uint8_t len, uint32_t conversion) {  // NOLINT
+  return this->parent_->read_bytes_16(this->address_, a_register, data, len, conversion);
+}
 bool I2CDevice::read_byte_16(uint8_t a_register, uint16_t *data, uint32_t conversion) {  // NOLINT
+  return this->parent_->read_byte_16(this->address_, a_register, data, conversion);
+}
+bool I2CDevice::read_byte_16(uint16_t a_register, uint16_t *data, uint32_t conversion) {  // NOLINT
   return this->parent_->read_byte_16(this->address_, a_register, data, conversion);
 }
 bool I2CDevice::write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len) {  // NOLINT
   return this->parent_->write_bytes_16(this->address_, a_register, data, len);
 }
+bool I2CDevice::write_bytes_16(uint16_t a_register, const uint16_t *data, uint8_t len) {  // NOLINT
+  return this->parent_->write_bytes_16(this->address_, a_register, data, len);
+}
 bool I2CDevice::write_byte_16(uint8_t a_register, uint16_t data) {  // NOLINT
+  return this->parent_->write_byte_16(this->address_, a_register, data);
+}
+bool I2CDevice::write_byte_16(uint16_t a_register, uint16_t data) {  // NOLINT
   return this->parent_->write_byte_16(this->address_, a_register, data);
 }
 void I2CDevice::set_i2c_parent(I2CComponent *parent) { this->parent_ = parent; }
@@ -212,14 +254,26 @@ I2CRegister &I2CRegister::operator=(uint8_t value) {
   this->parent_->write_byte(this->register_, value);
   return *this;
 }
+I2CRegister &I2CRegister::operator=(uint16_t value) {
+  this->parent_->write_byte(this->register16_, value);
+  return *this;
+}
 
 I2CRegister &I2CRegister::operator&=(uint8_t value) {
   this->parent_->write_byte(this->register_, this->get() & value);
   return *this;
 }
+I2CRegister &I2CRegister::operator&=(uint16_t value) {
+  this->parent_->write_byte(this->register16_, this->get() & value);
+  return *this;
+}
 
 I2CRegister &I2CRegister::operator|=(uint8_t value) {
   this->parent_->write_byte(this->register_, this->get() | value);
+  return *this;
+}
+I2CRegister &I2CRegister::operator|=(uint16_t value) {
+  this->parent_->write_byte(this->register16_, this->get() | value);
   return *this;
 }
 
@@ -228,9 +282,22 @@ uint8_t I2CRegister::get() {
   this->parent_->read_byte(this->register_, &value);
   return value;
 }
+uint16_t I2CRegister::get() {
+  uint16_t value = 0x0000;
+  this->parent_->read_byte(this->register16_, &value);
+  return value;
+}
 I2CRegister &I2CRegister::operator=(const std::vector<uint8_t> &value) {
   this->parent_->write_bytes(this->register_, value);
   return *this;
+}
+I2CRegister &I2CRegister::operator=(const std::vector<uint16_t> &value) {
+  this->parent_->write_bytes(this->register16_, value);
+  return *this;
+}
+
+unit16_t switch_lsb_msb_order(uint16_t a_register) {
+  return (a_register<<8) | (a_register>>(8));
 }
 
 }  // namespace i2c
