@@ -280,8 +280,8 @@ def mqtt_publish_json_action_to_code(config, action_id, template_arg, args):
 
 
 def get_default_topic_for(data, component_type, name, suffix):
-    whitelist = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
-    sanitized_name = ''.join(x for x in name.lower().replace(' ', '_') if x in whitelist)
+    allowlist = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_'
+    sanitized_name = ''.join(x for x in name.lower().replace(' ', '_') if x in allowlist)
     return '{}/{}/{}/{}'.format(data.topic_prefix, component_type,
                                 sanitized_name, suffix)
 

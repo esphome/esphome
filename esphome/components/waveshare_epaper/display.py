@@ -16,6 +16,7 @@ WaveshareEPaper2P9InB = waveshare_epaper_ns.class_('WaveshareEPaper2P9InB', Wave
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_('WaveshareEPaper4P2In', WaveshareEPaper)
 WaveshareEPaper5P8In = waveshare_epaper_ns.class_('WaveshareEPaper5P8In', WaveshareEPaper)
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_('WaveshareEPaper7P5In', WaveshareEPaper)
+WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_('WaveshareEPaper7P5InV2', WaveshareEPaper)
 
 WaveshareEPaperTypeAModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeAModel')
 WaveshareEPaperTypeBModel = waveshare_epaper_ns.enum('WaveshareEPaperTypeBModel')
@@ -31,6 +32,7 @@ MODELS = {
     '4.20in': ('b', WaveshareEPaper4P2In),
     '5.83in': ('b', WaveshareEPaper5P8In),
     '7.50in': ('b', WaveshareEPaper7P5In),
+    '7.50inv2': ('b', WaveshareEPaper7P5InV2),
 }
 
 
@@ -50,7 +52,7 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
     cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
     cv.Optional(CONF_FULL_UPDATE_EVERY): cv.uint32_t,
-}).extend(cv.polling_component_schema('1s')).extend(spi.SPI_DEVICE_SCHEMA),
+}).extend(cv.polling_component_schema('1s')).extend(spi.spi_device_schema()),
                        validate_full_update_every_only_type_a,
                        cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 

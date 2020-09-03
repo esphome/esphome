@@ -7,6 +7,7 @@ from esphome.core import coroutine_with_priority
 
 AUTO_LOAD = ['web_server_base']
 DEPENDENCIES = ['wifi']
+CODEOWNERS = ['@OttoWinter']
 
 captive_portal_ns = cg.esphome_ns.namespace('captive_portal')
 CaptivePortal = captive_portal_ns.class_('CaptivePortal', cg.Component)

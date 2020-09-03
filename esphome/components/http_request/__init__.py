@@ -4,7 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import CONF_ID, CONF_TIMEOUT, CONF_ESPHOME, CONF_METHOD, \
-    CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266_2_5_1, CONF_URL
+    CONF_ARDUINO_VERSION, ARDUINO_VERSION_ESP8266, CONF_URL
 from esphome.core import CORE, Lambda
 from esphome.core_config import PLATFORMIO_ESP8266_LUT
 
@@ -34,7 +34,7 @@ def validate_framework(config):
         return config
 
     framework = PLATFORMIO_ESP8266_LUT[version] if version in PLATFORMIO_ESP8266_LUT else version
-    if framework < ARDUINO_VERSION_ESP8266_2_5_1:
+    if framework < ARDUINO_VERSION_ESP8266['2.5.1']:
         raise cv.Invalid('This component is not supported on arduino framework version below 2.5.1')
     return config
 

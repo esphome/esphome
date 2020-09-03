@@ -52,7 +52,8 @@ class _Schema(vol.Schema):
         all_required_keys = {key for key in schema if isinstance(key, vol.Required)}
 
         # Keys that may have defaults
-        all_default_keys = {key for key in schema if isinstance(key, vol.Optional)}
+        # This is a list because sets do not guarantee insertion order
+        all_default_keys = [key for key in schema if isinstance(key, vol.Optional)]
 
         # Recursively compile schema
         _compiled_schema = {}

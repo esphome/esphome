@@ -11,9 +11,9 @@ from string import ascii_letters, digits
 import voluptuous as vol
 
 from esphome import core
-from esphome.const import CONF_AVAILABILITY, CONF_COMMAND_TOPIC, CONF_DISCOVERY, CONF_ID, \
-    CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, CONF_PAYLOAD_NOT_AVAILABLE, \
-    CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
+from esphome.const import ALLOWED_NAME_CHARS, CONF_AVAILABILITY, CONF_COMMAND_TOPIC, \
+    CONF_DISCOVERY, CONF_ID, CONF_INTERNAL, CONF_NAME, CONF_PAYLOAD_AVAILABLE, \
+    CONF_PAYLOAD_NOT_AVAILABLE, CONF_RETAIN, CONF_SETUP_PRIORITY, CONF_STATE_TOPIC, CONF_TOPIC, \
     CONF_HOUR, CONF_MINUTE, CONF_SECOND, CONF_VALUE, CONF_UPDATE_INTERVAL, CONF_TYPE_ID, CONF_TYPE
 from esphome.core import CORE, HexInt, IPAddress, Lambda, TimePeriod, TimePeriodMicroseconds, \
     TimePeriodMilliseconds, TimePeriodSeconds, TimePeriodMinutes
@@ -39,8 +39,6 @@ Inclusive = vol.Inclusive
 ALLOW_EXTRA = vol.ALLOW_EXTRA
 UNDEFINED = vol.UNDEFINED
 RequiredFieldInvalid = vol.RequiredFieldInvalid
-
-ALLOWED_NAME_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789_'
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
@@ -104,7 +102,7 @@ def alphanumeric(value):
         raise Invalid("string value is None")
     value = str(value)
     if not value.isalnum():
-        raise Invalid("string value is not alphanumeric")
+        raise Invalid(f"{value} is not alphanumeric")
     return value
 
 
@@ -186,6 +184,7 @@ def ensure_list(*validators):
     None and empty dictionaries are converted to empty lists.
     """
     user = All(*validators)
+    list_schema = Schema([user])
 
     def validator(value):
         check_not_templatable(value)
@@ -193,19 +192,7 @@ def ensure_list(*validators):
             return []
         if not isinstance(value, list):
             return [user(value)]
-        ret = []
-        errs = []
-        for i, val in enumerate(value):
-            try:
-                with prepend_path([i]):
-                    ret.append(user(val))
-            except MultipleInvalid as err:
-                errs.extend(err.errors)
-            except Invalid as err:
-                errs.append(err)
-        if errs:
-            raise MultipleInvalid(errs)
-        return ret
+        return list_schema(value)
 
     return validator
 
@@ -566,6 +553,23 @@ def mac_address(value):
     return core.MACAddress(*parts_int)
 
 
+def bind_key(value):
+    value = string_strict(value)
+    parts = [value[i:i+2] for i in range(0, len(value), 2)]
+    if len(parts) != 16:
+        raise Invalid("Bind key must consist of 16 hexadecimal numbers")
+    parts_int = []
+    if any(len(part) != 2 for part in parts):
+        raise Invalid("Bind key must be format XX")
+    for part in parts:
+        try:
+            parts_int.append(int(part, 16))
+        except ValueError:
+            raise Invalid("Bind key must be hex values from 00 to FF")
+
+    return ''.join(f'{part:02X}' for part in parts_int)
+
+
 def uuid(value):
     return Coerce(uuid_.UUID)(value)
 
@@ -794,7 +798,9 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
+    # pylint: disable=unsupported-membership-test
     def validator(value):
+        # pylint: disable=unsupported-membership-test
         if comp not in CORE.raw_config:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -821,9 +827,16 @@ def percentage(value):
 
 
 def possibly_negative_percentage(value):
-    has_percent_sign = isinstance(value, str) and value.endswith('%')
-    if has_percent_sign:
-        value = float(value[:-1].rstrip()) / 100.0
+    has_percent_sign = False
+    if isinstance(value, str):
+        try:
+            if value.endswith('%'):
+                has_percent_sign = False
+                value = float(value[:-1].rstrip()) / 100.0
+            else:
+                value = float(value)
+        except ValueError:
+            raise Invalid("invalid number")
     if value > 1:
         msg = "Percentage must not be higher than 100%."
         if not has_percent_sign:
@@ -1101,7 +1114,7 @@ def typed_schema(schemas, **kwargs):
     def validator(value):
         if not isinstance(value, dict):
             raise Invalid("Value must be dict")
-        if CONF_TYPE not in value:
+        if key not in value:
             raise Invalid("type not specified!")
         value = value.copy()
         key_v = key_validator(value.pop(key))
@@ -1151,6 +1164,7 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
+        # pylint: disable=unsupported-membership-test
         if self._component not in CORE.raw_config:
             return vol.UNDEFINED
         return self._default
