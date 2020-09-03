@@ -44,14 +44,16 @@ ota:
 logger:
   level: DEBUG
 
+web_server:
+  auth:
+    username: admin
+    password: admin
+
 as3935_i2c:
   irq_pin: GPIO12
 
 
 sensor:
-  - platform: homeassistant
-    entity_id: sensor.hello_world
-    id: ha_hello_world
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
     name: "BLE Google Home Mini RSSI value"
@@ -64,33 +66,6 @@ sensor:
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: "BLE Test Service 128"
-  - platform: ruuvitag
-    mac_address: FF:56:D3:2F:7D:E8
-    humidity:
-      name: "RuuviTag Humidity"
-    temperature:
-      name: "RuuviTag Temperature"
-    pressure:
-      name: "RuuviTag Pressure"
-    acceleration_x:
-      name: "RuuviTag Acceleration X"
-    acceleration_y:
-      name: "RuuviTag Acceleration Y"
-    acceleration_z:
-      name: "RuuviTag Acceleration Z"
-    battery_voltage:
-      name: "RuuviTag Battery Voltage"
-    tx_power:
-      name: "RuuviTag TX Power"
-    movement_counter:
-      name: "RuuviTag Movement Counter"
-    measurement_sequence_number:
-      name: "RuuviTag Measurement Sequence Number"
-  - platform: as3935
-    lightning_energy:
-      name: "Lightning Energy"
-    distance:
-      name: "Distance Storm"
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
@@ -101,6 +76,8 @@ sensor:
       name: "Xiaomi HHCCJCY01 Illuminance"
     conductivity:
       name: "Xiaomi HHCCJCY01 Soil Conductivity"
+    battery_level:
+      name: "Xiaomi HHCCJCY01 Battery Level"
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
@@ -123,51 +100,36 @@ sensor:
       name: "Xiaomi CGG1 Humidity"
     battery_level:
       name: "Xiaomi CGG1 Battery Level"
-  - platform: xiaomi_gcls002
-    mac_address: "94:2B:FF:5C:91:61"
-    temperature:
-      name: "GCLS02 Temperature"
-    moisture:
-      name: "GCLS02 Moisture"
-    conductivity:
-      name: "GCLS02 Soil Conductivity"
-    illuminance:
-      name: "GCLS02 Illuminance"
-  - platform: xiaomi_hhccpot002
-    mac_address: "94:2B:FF:5C:91:61"
-    moisture:
-      name: "HHCCPOT002 Moisture"
-    conductivity:
-      name: "HHCCPOT002 Soil Conductivity"
-  - platform: xiaomi_lywsd03mmc
-    mac_address: "A4:C1:38:4E:16:78"
-    bindkey: "e9efaa6873f9f9c87a5e75a5f814801c"
-    temperature:
-      name: "Xiaomi LYWSD03MMC Temperature"
+  - platform: ruuvitag
+    mac_address: FF:56:D3:2F:7D:E8
     humidity:
-      name: "Xiaomi LYWSD03MMC Humidity"
-    battery_level:
-      name: "Xiaomi LYWSD03MMC Battery Level"
-  - platform: xiaomi_cgd1
-    mac_address: "A4:C1:38:D1:61:7D"
-    bindkey: "c99d2313182473b38001086febf781bd"
+      name: "RuuviTag Humidity"
     temperature:
-      name: "Xiaomi CGD1 Temperature"
-    humidity:
-      name: "Xiaomi CGD1 Humidity"
-    battery_level:
-      name: "Xiaomi CGD1 Battery Level"
-  - platform: xiaomi_jqjcy01ym
-    mac_address: "7A:80:8E:19:36:BA"
-    temperature:
-      name: "JQJCY01YM Temperature"
-    humidity:
-      name: "JQJCY01YM Humidity"
-    formaldehyde:
-      name: "JQJCY01YM Formaldehyde"
-    battery_level:
-      name: "JQJCY01YM Battery Level"
-
+      name: "RuuviTag Temperature"
+    pressure:
+      name: "RuuviTag Pressure"
+    acceleration_x:
+      name: "RuuviTag Acceleration X"
+    acceleration_y:
+      name: "RuuviTag Acceleration Y"
+    acceleration_z:
+      name: "RuuviTag Acceleration Z"
+    battery_voltage:
+      name: "RuuviTag Battery Voltage"
+    tx_power:
+      name: "RuuviTag TX Power"
+    movement_counter:
+      name: "RuuviTag Movement Counter"
+    measurement_sequence_number:
+      name: "RuuviTag Measurement Sequence Number"
+  - platform: homeassistant
+    entity_id: sensor.hello_world
+    id: ha_hello_world
+  - platform: as3935
+    lightning_energy:
+      name: "Lightning Energy"
+    distance:
+      name: "Distance Storm"
 
 time:
 - platform: homeassistant
@@ -180,9 +142,6 @@ esp32_touch:
   setup_mode: True
 
 binary_sensor:
-  - platform: homeassistant
-    entity_id: binary_sensor.hello_world
-    id: ha_hello_world_binary
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
     name: "ESP32 BLE Tracker Google Home Mini"
@@ -199,30 +158,11 @@ binary_sensor:
     name: "ESP32 Touch Pad GPIO27"
     pin: GPIO27
     threshold: 1000
+  - platform: homeassistant
+    entity_id: binary_sensor.hello_world
+    id: ha_hello_world_binary
   - platform: as3935
     name: "Storm Alert"
-  - platform: xiaomi_mue4094rt
-    name: "MUE4094RT Motion"
-    mac_address: "7A:80:8E:19:36:BA"
-    timeout: "5s"
-  - platform: xiaomi_mjyd02yla
-    name: "MJYD02YL-A Motion"
-    mac_address: "50:EC:50:CD:32:02"
-    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
-    idle_time:
-      name: "MJYD02YL-A Idle Time"
-    light:
-      name: "MJYD02YL-A Light Status"
-    battery_level:
-      name: "MJYD02YL-A Battery Level"
-  - platform: xiaomi_wx08zm
-    name: "WX08ZM Activation State"
-    mac_address: "74:a3:4a:b5:07:34"
-    tablet:
-      name: "WX08ZM Tablet Resource"
-    battery_level:
-      name: "WX08ZM Battery Level"
-
 
 esp32_ble_tracker:
   on_ble_advertise:
@@ -316,5 +256,4 @@ interval:
     - logger.log: "Interval Run"
 
 display:
-
 
