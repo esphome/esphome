@@ -5,7 +5,6 @@ from esphome.const import CONF_BATTERY_LEVEL, CONF_HUMIDITY, CONF_MAC_ADDRESS, C
     UNIT_CELSIUS, ICON_THERMOMETER, UNIT_PERCENT, ICON_WATER_PERCENT, ICON_BATTERY, CONF_ID
 
 DEPENDENCIES = ['esp32_ble_tracker']
-AUTO_LOAD = ['xiaomi_ble']
 
 atc_mithermometer_ns = cg.esphome_ns.namespace('atc_mithermometer')
 ATCMiThermometer = atc_mithermometer_ns.class_('ATCMiThermometer',
