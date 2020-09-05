@@ -52,7 +52,7 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
 
 optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::ServiceData &service_data) {
   ParseResult result;
-  if (!service_data.uuid.contains(0x18, 0x1A)) {
+  if (!service_data.uuid.contains(0x1A, 0x18)) {
     ESP_LOGVV(TAG, "parse_header(): no service data UUID magic bytes.");
     return {};
   }
@@ -60,12 +60,12 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
   auto raw = service_data.data;
 
   static uint8_t last_frame_count = 0;
-  if (last_frame_count == raw[16]) {
+  if (last_frame_count == raw[12]) {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
     result.is_duplicate = true;
     return {};
   }
-  last_frame_count = raw[16];
+  last_frame_count = raw[12];
   result.is_duplicate = false;
 
   return result;
@@ -80,31 +80,23 @@ bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseR
   // Byte 15-16 Battery in mV uint16_t
   // Byte 17 frame packet counter
 
-  const uint8_t *raw = message.data();
-  const uint8_t *data = raw + 3;
+  const uint8_t *data = message.data();
+  const int data_length = 13;
 
-  if (message.size() != 17) {
-    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", data_length);
+  if (message.size() != data_length) {
+    ESP_LOGVV(TAG, "parse_message(): payload has wrong size (%d)!", message.size());
     return false;
   }
 
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
-  else if (raw[0] == 0x04) {
-    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.temperature = temperature / 10.0f;
-  }
-  // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
-  else if (raw[0] == 0x06) {
-    const int16_t humidity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    result.humidity = humidity / 10.0f;
-  }
-  // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if (raw[0] == 0x0A) {
-    result.battery_level = data[0];
+  const int16_t temperature = uint16_t(data[7]) | (uint16_t(data[6]) << 8);
+  result.temperature = temperature / 10.0f;
 
-  } else {
-    return false;
-  }
+  // humidity, 1 byte, 8-bit unsigned integer, 1 %
+  result.humidity = data[8];
+
+  // battery, 1 byte, 8-bit unsigned integer, 1 %
+  result.battery_level = data[9];
 
   return true;
 }
