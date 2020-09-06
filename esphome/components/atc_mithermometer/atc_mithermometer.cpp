@@ -13,6 +13,7 @@ void ATCMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 }
 
 bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -40,6 +41,8 @@ bool ATCMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device
       this->humidity_->publish_state(*res->humidity);
     if (res->battery_level.has_value() && this->battery_level_ != nullptr)
       this->battery_level_->publish_state(*res->battery_level);
+    if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
+      this->battery_voltage_->publish_state(*res->battery_voltage);
     success = true;
   }
 
@@ -99,8 +102,8 @@ bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseR
   result.battery_level = data[9];
 
   // battery, 2 bytes, 16-bit unsigned integer,  0.001 V
-  // const int16_t battery_level = uint16_t(data[11]) | (uint16_t(data[10]) << 8);
-  // result.battery_level = battery_level / 1.0e3f;
+  const int16_t battery_voltage = uint16_t(data[11]) | (uint16_t(data[10]) << 8);
+  result.battery_voltage = battery_voltage / 1.0e3f;
 
   return true;
 }
@@ -121,6 +124,9 @@ bool ATCMiThermometer::report_results(const optional<ParseResult> &result, const
   }
   if (result->battery_level.has_value()) {
     ESP_LOGD(TAG, "  Battery Level: %.0f %%", *result->battery_level);
+  }
+  if (result->battery_voltage.has_value()) {
+    ESP_LOGD(TAG, "  Battery Voltage: %.3f V", *result->battery_voltage);
   }
 
   return true;
