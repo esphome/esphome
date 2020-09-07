@@ -14,23 +14,23 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
 
   void set_width(int32_t width) { width_ = width; }
   void set_height(int32_t height) { height_ = height; }
-  void set_light(light::LightState* state) { light_ = static_cast<light::AddressableLight *>(state->get_output()); }
+  void set_light(light::LightState *state) { light_ = static_cast<light::AddressableLight *>(state->get_output()); }
   void set_enabled(bool enabled) { enabled_ = enabled; }
 
   void setup() override;
+  void display();
 
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
-  virtual void update() override;
-  void display();
+  void update() override;
 
   light::AddressableLight *light_;
   bool enabled_;
   int32_t width_;
   int32_t height_;
-  std::vector<Color> buffer_;
+  std::vector<Color> addressable_light_buffer_;
 };
 }  // namespace addressable_light_display
 }  // namespace esphome
