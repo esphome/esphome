@@ -265,7 +265,7 @@ float ATM90E32Component::get_power_factor_c_() {
 }
 float ATM90E32Component::get_forward_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
-  return (float) val * 10 / 3200; // convert register value to WattHours
+  return (float) val * 10 / 3200;  // convert register value to WattHours
 }
 float ATM90E32Component::get_forward_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
