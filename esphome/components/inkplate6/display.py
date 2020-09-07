@@ -2,8 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, i2c
-from esphome.const import CONF_BUSY_PIN, CONF_DC_PIN, CONF_FULL_UPDATE_EVERY, \
-    CONF_ID, CONF_LAMBDA, CONF_MODEL, CONF_PAGES, CONF_RESET_PIN
+from esphome.const import CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_PAGES
 
 DEPENDENCIES = ['i2c']
 
@@ -37,6 +36,9 @@ Inkplate = inkplate_ns.class_('Inkplate', cg.PollingComponent, i2c.I2CDevice,
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(Inkplate),
+    cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
+    cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
+    cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
     # Control pins
     cv.Required(CONF_CKV_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_GMOD_PIN): pins.gpio_output_pin_schema,
@@ -47,8 +49,6 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Required(CONF_SPV_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_VCOM_PIN): pins.gpio_output_pin_schema,
     cv.Required(CONF_WAKEUP_PIN): pins.gpio_output_pin_schema,
-    cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
-    cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
     cv.Optional(CONF_CL_PIN, default=0): pins.internal_gpio_output_pin_schema,
     cv.Optional(CONF_LE_PIN, default=2): pins.internal_gpio_output_pin_schema,
     # Data pins
@@ -78,6 +78,7 @@ def to_code(config):
 
     cg.add(var.set_greyscale(config[CONF_GREYSCALE]))
     cg.add(var.set_partial_updating(config[CONF_PARTIAL_UPDATING]))
+    cg.add(var.set_full_update_every(config[CONF_FULL_UPDATE_EVERY]))
 
     ckv = yield cg.gpio_pin_expression(config[CONF_CKV_PIN])
     cg.add(var.set_ckv_pin(ckv))

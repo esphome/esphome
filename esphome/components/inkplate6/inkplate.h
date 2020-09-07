@@ -21,9 +21,11 @@ class Inkplate : public PollingComponent,
 
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
+    this->initialize_();
     this->block_partial_ = true;
   }
   void set_partial_updating(bool partial_updating) { this->partial_updating_ = partial_updating; }
+  void set_full_update_every(uint32_t full_update_every) { this->full_update_every_ = full_update_every; }
 
   void set_display_data_0_pin(GPIOPin *data) { this->display_data_0_pin_ = data; }
   void set_display_data_1_pin(GPIOPin *data) { this->display_data_1_pin_ = data; }
@@ -118,6 +120,9 @@ class Inkplate : public PollingComponent,
   uint8_t *partial_buffer_{nullptr};
   uint8_t *partial_buffer_2_{nullptr};
 
+  uint32_t full_update_every_;
+  uint32_t partial_updates_{0};
+
   bool block_partial_;
   bool greyscale_;
   bool partial_updating_;
@@ -146,4 +151,4 @@ class Inkplate : public PollingComponent,
 };
 
 }  // namespace inkplate
-}  // namespave esphome
+}  // namespace esphome

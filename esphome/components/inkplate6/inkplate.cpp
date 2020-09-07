@@ -40,18 +40,34 @@ void Inkplate::setup() {
 void Inkplate::initialize_() {
   uint32_t buffer_size = this->get_buffer_length_();
 
-  this->partial_buffer_ = (uint8_t *)ps_malloc(buffer_size);
-  if (this->partial_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
+  if (this->partial_buffer_ != nullptr) {
+    free(this->partial_buffer_);
   }
-  this->partial_buffer_2_ = (uint8_t *)ps_malloc(buffer_size * 2);
-  if (this->partial_buffer_2_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
+  if (this->partial_buffer_2_ != nullptr) {
+    free(this->partial_buffer_2_);
   }
-  memset(this->partial_buffer_, 0, buffer_size);
-  memset(this->partial_buffer_2_, 0, buffer_size * 2);
+  if (this->buffer_ != nullptr) {
+    free(this->buffer_);
+  }
 
-  this->init_internal_(buffer_size);
+  this->buffer_ = (uint8_t *)ps_malloc(buffer_size);
+  if (this->buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate buffer for display!");
+  }
+  if(!this->greyscale_) {
+    this->partial_buffer_ = (uint8_t *)ps_malloc(buffer_size);
+    if (this->partial_buffer_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate partial buffer for display!");
+    }
+    this->partial_buffer_2_ = (uint8_t *)ps_malloc(buffer_size * 2);
+    if (this->partial_buffer_2_ == nullptr) {
+      ESP_LOGE(TAG, "Could not allocate partial buffer 2 for display!");
+    }
+    memset(this->partial_buffer_, 0, buffer_size);
+    memset(this->partial_buffer_2_, 0, buffer_size * 2);
+  }
+
+  memset(this->buffer_, 0, buffer_size);
 }
 float Inkplate::get_setup_priority() const { return setup_priority::PROCESSOR; }
 size_t Inkplate::get_buffer_length_() {
@@ -62,13 +78,13 @@ size_t Inkplate::get_buffer_length_() {
   }
 }
 void Inkplate::update() {
-  ESP_LOGV(TAG, "Update called");
-  unsigned long start_time = millis();
-  ESP_LOGV(TAG, "do_update_ started (%dms)", millis() - start_time);
   this->do_update_();
-  ESP_LOGV(TAG, "do_update_ finished (%dms)", millis() - start_time);
+
+  if (this->full_update_every_ > 0 && this->partial_updates_ >= this->full_update_every_) {
+    this->block_partial_ = true;
+  }
+
   this->display();
-  ESP_LOGV(TAG, "Update finished (%dms)", millis() - start_time);
 }
 void HOT Inkplate::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
@@ -92,12 +108,36 @@ void HOT Inkplate::draw_absolute_pixel_internal(int x, int y, Color color) {
     int x_sub = x % 8;
     uint32_t pos = (x1 + y * (this->get_width_internal() / 8));
     uint8_t current = this->partial_buffer_[pos];
-    this->partial_buffer_[pos] = (~pixelMaskLUT[x_sub] & current) | (color.is_on() ? pixelMaskLUT[x_sub] : 0);
+    this->partial_buffer_[pos] = (~pixelMaskLUT[x_sub] & current) | (color.is_on() ? 0 : pixelMaskLUT[x_sub]);
   }
 }
 void Inkplate::dump_config() {
   LOG_DISPLAY("", "Inkplate", this);
+  ESP_LOGCONFIG(TAG, "  Greyscale: %s", YESNO(this->greyscale_));
+  ESP_LOGCONFIG(TAG, "  Partial Updating: %s", YESNO(this->partial_updating_));
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %d", this->full_update_every_);
   // Log pins
+  LOG_PIN("  CKV Pin: ", this->ckv_pin_);
+  LOG_PIN("  CL Pin: ", this->cl_pin_);
+  LOG_PIN("  GPIO0 Enable Pin: ", this->gpio0_enable_pin_);
+  LOG_PIN("  GMOD Pin: ", this->gmod_pin_);
+  LOG_PIN("  LE Pin: ", this->le_pin_);
+  LOG_PIN("  OE Pin: ", this->oe_pin_);
+  LOG_PIN("  POWERUP Pin: ", this->powerup_pin_);
+  LOG_PIN("  SPH Pin: ", this->sph_pin_);
+  LOG_PIN("  SPV Pin: ", this->spv_pin_);
+  LOG_PIN("  VCOM Pin: ", this->vcom_pin_);
+  LOG_PIN("  WAKEUP Pin: ", this->wakeup_pin_);
+
+  LOG_PIN("  Data 0 Pin: ", this->display_data_0_pin_);
+  LOG_PIN("  Data 1 Pin: ", this->display_data_1_pin_);
+  LOG_PIN("  Data 2 Pin: ", this->display_data_2_pin_);
+  LOG_PIN("  Data 3 Pin: ", this->display_data_3_pin_);
+  LOG_PIN("  Data 4 Pin: ", this->display_data_4_pin_);
+  LOG_PIN("  Data 5 Pin: ", this->display_data_5_pin_);
+  LOG_PIN("  Data 6 Pin: ", this->display_data_6_pin_);
+  LOG_PIN("  Data 7 Pin: ", this->display_data_7_pin_);
+
   LOG_UPDATE_INTERVAL(this);
 }
 void Inkplate::eink_off_() {
@@ -160,7 +200,7 @@ void Inkplate::fill(Color color) {
     for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
       this->buffer_[i] = (fill << 4) | fill;
   } else {
-    uint8_t fill = color.is_on() ? 0xFF : 0x00;
+    uint8_t fill = color.is_on() ? 0x00 : 0xFF;
     for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
       this->partial_buffer_[i] = fill;
   }
@@ -210,7 +250,7 @@ void Inkplate::display1b_() {
     pos = this->get_buffer_length_() - 1;
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      buffer_value =this->buffer_[pos];
+      buffer_value = this->buffer_[pos];
       data = LUTB[(buffer_value >> 4) & 0x0F];
       send = ((data & B00000011) << 4) | (((data & B00001100) >> 2) << 18) | (((data & B00010000) >> 4) << 23) | (((data & B11100000) >> 5) << 25);
       hscan_start_(send);
@@ -295,6 +335,7 @@ void Inkplate::display1b_() {
   vscan_start_();
   eink_off_();
   this->block_partial_ = false;
+  this->partial_updates_ = 0;
   ESP_LOGV(TAG, "Display1b finished (%dms)", millis() - start_time);
 }
 void Inkplate::display3b_() {
@@ -312,7 +353,7 @@ void Inkplate::display3b_() {
   clean_fast_(0, 11);
 
   for (int k = 0; k < 8; k++) {
-    uint8_t pos = (this->get_width_internal() * this->get_height_internal() / 2) - 1;
+    uint32_t pos = this->get_buffer_length_() - 1;
     uint32_t send;
     uint8_t pix1;
     uint8_t pix2;
@@ -323,14 +364,12 @@ void Inkplate::display3b_() {
 
     vscan_start_();
     for (int i = 0; i < this->get_height_internal(); i++) {
-      pixel = 0B00000000;
-      pixel2 = 0B00000000;
       pix1 = this->buffer_[pos--];
       pix2 = this->buffer_[pos--];
       pix3 = this->buffer_[pos--];
       pix4 = this->buffer_[pos--];
-      pixel |= (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
-      pixel2 |= (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
+      pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
+      pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
 
       send = ((pixel & B00000011) << 4) | (((pixel & B00001100) >> 2) << 18) | (((pixel & B00010000) >> 4) << 23) | (((pixel & B11100000) >> 5) << 25);
       hscan_start_(send);
@@ -339,14 +378,12 @@ void Inkplate::display3b_() {
       GPIO.out_w1tc = get_data_pin_mask_() | (1 << this->cl_pin_->get_pin());
 
       for (int j = 0; j < (this->get_width_internal() / 8) - 1; j++) {
-        pixel = 0B00000000;
-        pixel2 = 0B00000000;
         pix1 = this->buffer_[pos--];
         pix2 = this->buffer_[pos--];
         pix3 = this->buffer_[pos--];
         pix4 = this->buffer_[pos--];
-        pixel |= (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
-        pixel2 |= (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
+        pixel = (waveform3Bit[pix1 & 0x07][k] << 6) | (waveform3Bit[(pix1 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix2 & 0x07][k] << 2) | (waveform3Bit[(pix2 >> 4) & 0x07][k] << 0);
+        pixel2 = (waveform3Bit[pix3 & 0x07][k] << 6) | (waveform3Bit[(pix3 >> 4) & 0x07][k] << 4) | (waveform3Bit[pix4 & 0x07][k] << 2) | (waveform3Bit[(pix4 >> 4) & 0x07][k] << 0);
 
         send = ((pixel & B00000011) << 4) | (((pixel & B00001100) >> 2) << 18) | (((pixel & B00010000) >> 4) << 23) | (((pixel & B11100000) >> 5) << 25);
         GPIO.out_w1ts = (send) | (1 << this->cl_pin_->get_pin());
@@ -366,7 +403,7 @@ void Inkplate::display3b_() {
   clean_fast_(3, 1);
   vscan_start_();
   eink_off_();
-  ESP_LOGV(TAG, "Display3b finished");
+  ESP_LOGV(TAG, "Display3b finished (%dms)", millis() - start_time);
 }
 bool Inkplate::partial_update_() {
   ESP_LOGV(TAG, "Partial update called");
@@ -375,6 +412,8 @@ bool Inkplate::partial_update_() {
     return false;
   if (this->block_partial_)
     return false;
+
+  this->partial_updates_++;
 
   uint16_t pos = this->get_buffer_length_() - 1;
   uint32_t send;
@@ -420,8 +459,7 @@ bool Inkplate::partial_update_() {
   eink_off_();
 
   for (int i = 0; i < this->get_buffer_length_(); i++) {
-    this->buffer_[i] &= this->partial_buffer_[i];
-    this->buffer_[i] |= this->partial_buffer_[i];
+    this->buffer_[i] = this->partial_buffer_[i];
   }
   ESP_LOGV(TAG, "Partial update finished (%dms)", millis() - start_time);
   return true;
