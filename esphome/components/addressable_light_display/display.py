@@ -2,11 +2,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, light
 from esphome.const import (
-    CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ADDRESSABLE_LIGHT_ID, CONF_HEIGHT, CONF_WIDTH, CONF_UPDATE_INTERVAL,
+    CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_ADDRESSABLE_LIGHT_ID, CONF_HEIGHT, CONF_WIDTH,
+    CONF_UPDATE_INTERVAL,
 )
 
 addressable_light_display_ns = cg.esphome_ns.namespace('addressable_light_display')
-AddressableLightDisplay = addressable_light_display_ns.class_('AddressableLightDisplay', display.DisplayBuffer, cg.PollingComponent)
+AddressableLightDisplay = addressable_light_display_ns.class_('AddressableLightDisplay', 
+    display.DisplayBuffer, cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(AddressableLightDisplay),
@@ -16,13 +18,13 @@ CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.Optional(CONF_UPDATE_INTERVAL, default='16ms'): cv.positive_time_period_milliseconds,
 }), cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA))
 
+
 def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    light = yield cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
+    wrapped_light = yield cg.get_variable(config[CONF_ADDRESSABLE_LIGHT_ID])
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
-    cg.add(var.set_light(light))
-    #cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(var.set_light(wrapped_light))
 
     yield cg.register_component(var, config)
     yield display.register_display(var, config)
