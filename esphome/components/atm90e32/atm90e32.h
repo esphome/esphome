@@ -20,8 +20,12 @@ class ATM90E32Component : public PollingComponent,
   void set_current_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].current_sensor_ = obj; }
   void set_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_sensor_ = obj; }
   void set_reactive_power_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].reactive_power_sensor_ = obj; }
-  void set_forward_active_energy_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].forward_active_energy_sensor_ = obj; }
-  void set_reverse_active_energy_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].reverse_active_energy_sensor_ = obj; }
+  void set_forward_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].forward_active_energy_sensor_ = obj;
+  }
+  void set_reverse_active_energy_sensor(int phase, sensor::Sensor *obj) {
+    this->phase_[phase].reverse_active_energy_sensor_ = obj;
+  }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].volt_gain_ = gain; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }

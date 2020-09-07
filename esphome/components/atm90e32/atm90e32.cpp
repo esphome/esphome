@@ -263,11 +263,9 @@ float ATM90E32Component::get_power_factor_c_() {
   int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
   return (float) pf / 1000;
 }
-
-
 float ATM90E32Component::get_forward_active_energy_a_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
-  return (float) val * 10 / 3200 ; // convert register value to WattHours 
+  return (float) val * 10 / 3200; // convert register value to WattHours
 }
 float ATM90E32Component::get_forward_active_energy_b_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
@@ -289,9 +287,6 @@ float ATM90E32Component::get_reverse_active_energy_c_() {
   uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
   return (float) val * 10 / 3200;
 }
-
-
-
 float ATM90E32Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
   return (float) freq / 100;
