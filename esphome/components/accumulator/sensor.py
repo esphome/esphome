@@ -13,7 +13,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(AccumulatorSensor),
     cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
 
-    cv.Optional(CONF_RESET_VALUE, default=0.0): cv.float_,
+    cv.Optional(CONF_RESET_VALUE): cv.float_,
     cv.Optional(CONF_SAVE_ON_VALUE_DELTA, default=0.0): cv.positive_float,
     cv.Optional(CONF_SAVE_MIN_INTERVAL, default='0s'): cv.positive_time_period_milliseconds,
     cv.Optional(CONF_SAVE_MAX_INTERVAL, default='0s'): cv.positive_time_period_milliseconds,
@@ -32,6 +32,8 @@ def to_code(config):
     if CONF_RESET_VALUE in config:
         cg.add(var.set_reset(True))
         cg.add(var.set_reset_value(config[CONF_RESET_VALUE]))
+    # else:
+    #     cg.add(var.set_reset(False))
 
     cg.add(var.set_save_on_value_delta(config[CONF_SAVE_ON_VALUE_DELTA]))
     cg.add(var.set_save_min_interval(config[CONF_SAVE_MIN_INTERVAL]))

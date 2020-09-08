@@ -8,8 +8,8 @@ namespace accumulator {
 static const char *TAG = "accumulator";
 
 void AccumulatorSensor::setup() {
+  this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
   if (this->reset_) {
-    this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
     this->rtc_.save(&initial_value_);
     ESP_LOGD(TAG, "Reset initial_value_ in preferences to: %f", this->initial_value_);
   } else {
