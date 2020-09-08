@@ -14,18 +14,18 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
 
   void set_width(int32_t width) { width_ = width; }
   void set_height(int32_t height) { height_ = height; }
-  void set_light(light::LightState *state) { 
+  void set_light(light::LightState *state) {
     light_state_ = state;
     light_ = static_cast<light::AddressableLight *>(state->get_output());
   }
   void set_enabled(bool enabled) {
     if (light_state_) {
-      if (enabled_ && !enabled) { // enabled -> disabled
+      if (enabled_ && !enabled) {  // enabled -> disabled
         // - Tell the parent light to refresh, effectively wiping the display. Also
         //   restores the previous effect (if any).
         light_state_->make_call().set_effect(this->last_effect_).perform();
 
-      } else if (!enabled_ && enabled) { // disabled -> enabled
+      } else if (!enabled_ && enabled) {  // disabled -> enabled
         // - Save the current effect.
         this->last_effect_ = light_state_->get_effect_name();
         // - Disable any current effect.
