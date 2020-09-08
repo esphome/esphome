@@ -24,8 +24,8 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   void reset() { initial_value_ = -sensor_->state; }
 
   void process_sensor_value(float value);
-  bool needs_save(float value);
-  void save(float value);
+  bool needs_save(double value);
+  void save(double value);
 
  protected:
   std::string unit_of_measurement() override { return this->sensor_->get_unit_of_measurement(); }
@@ -39,11 +39,11 @@ class AccumulatorSensor : public sensor::Sensor, public Component {
   float save_on_value_delta_{0.0f};
   int save_min_interval_{0};
   int save_max_interval_{0};
-  float initial_value_{0.0f};
+  double initial_value_{0.0f};
   bool reset_;
 
   // Track last save
-  float last_saved_value_ = 0;
+  double last_saved_value_ = 0;
   uint last_saved_time_ = 0;
 };
 

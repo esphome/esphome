@@ -8,7 +8,7 @@ namespace accumulator {
 static const char *TAG = "accumulator";
 
 void AccumulatorSensor::setup() {
-  this->rtc_ = global_preferences.make_preference<float>(this->get_object_id_hash());
+  this->rtc_ = global_preferences.make_preference<double>(this->get_object_id_hash());
   if (this->reset_) {
     this->rtc_.save(&initial_value_);
     ESP_LOGD(TAG, "Reset initial_value_ in preferences to: %f", this->initial_value_);
@@ -27,14 +27,14 @@ void AccumulatorSensor::setup() {
 void AccumulatorSensor::process_sensor_value(float value) {
   ESP_LOGD(TAG, "process_sensor_value Got: %f, initial_value = %f", value, initial_value_);
 
-  float total = value + initial_value_;
+  double total = value + initial_value_;
   publish_state(total);
   if (needs_save(total)) {
     save(total);
   }
 }
 
-bool AccumulatorSensor::needs_save(float value) {
+bool AccumulatorSensor::needs_save(double value) {
   uint now = millis();
   float value_delta = std::fabs(value - last_saved_value_);
   uint time_since_last_save = now - last_saved_time_;
@@ -43,7 +43,7 @@ bool AccumulatorSensor::needs_save(float value) {
                                 (time_since_last_save >= save_max_interval_ && save_max_interval_ != 0));
 }
 
-void AccumulatorSensor::save(float value) {
+void AccumulatorSensor::save(double value) {
   this->rtc_.save(&value);
   last_saved_value_ = value;
   last_saved_time_ = millis();
