@@ -7,8 +7,9 @@ from esphome.const import (
 )
 
 addressable_light_display_ns = cg.esphome_ns.namespace('addressable_light_display')
-AddressableLightDisplay = addressable_light_display_ns.class_('AddressableLightDisplay', 
-    display.DisplayBuffer, cg.PollingComponent)
+AddressableLightDisplay = addressable_light_display_ns.class_('AddressableLightDisplay',
+                                                              display.DisplayBuffer,
+                                                              cg.PollingComponent)
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(AddressableLightDisplay),

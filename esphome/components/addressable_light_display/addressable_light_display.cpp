@@ -9,7 +9,9 @@ static const char* TAG = "display.addressable_light_display";
 int AddressableLightDisplay::get_width_internal() { return this->width_; }
 int AddressableLightDisplay::get_height_internal() { return this->height_; }
 
-void AddressableLightDisplay::setup() { this->addressable_light_buffer_.resize(this->width_ * this->height_, {0, 0, 0, 0}); };
+void AddressableLightDisplay::setup() {
+  this->addressable_light_buffer_.resize(this->width_ * this->height_, {0, 0, 0, 0});
+}
 
 void AddressableLightDisplay::update() {
   if (!this->enabled_)
@@ -17,7 +19,7 @@ void AddressableLightDisplay::update() {
 
   this->do_update_();
   this->display();
-};
+}
 
 void AddressableLightDisplay::display() {
   bool dirty = false;
@@ -45,10 +47,10 @@ void AddressableLightDisplay::display() {
     }
   }
 
-  if (dirty == true) {
+  if (dirty) {
     this->light_->schedule_show();
   }
-};
+}
 
 void HOT AddressableLightDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
