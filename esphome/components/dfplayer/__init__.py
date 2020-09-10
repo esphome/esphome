@@ -146,6 +146,7 @@ def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     cg.add(var.set_volume(template_))
     yield var
 
+    
 @automation.register_action('dfplayer.volume_up', VolumeUpAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
 }))
@@ -154,6 +155,7 @@ def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
     yield cg.register_parented(var, config[CONF_ID])
     yield var
 
+    
 @automation.register_action('dfplayer.volume_down', VolumeDownAction, cv.Schema({
     cv.GenerateID(): cv.use_id(DFPlayer),
 }))
