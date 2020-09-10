@@ -40,6 +40,8 @@ PreviousAction = dfplayer_ns.class_('PreviousAction', automation.Action)
 PlayFileAction = dfplayer_ns.class_('PlayFileAction', automation.Action)
 PlayFolderAction = dfplayer_ns.class_('PlayFolderAction', automation.Action)
 SetVolumeAction = dfplayer_ns.class_('SetVolumeAction', automation.Action)
+VolumeUpAction = dfplayer_ns.class_('VolumeUpAction', automation.Action)
+VolumeDownAction = dfplayer_ns.class_('VolumeDownAction', automation.Action)
 SetEqAction = dfplayer_ns.class_('SetEqAction', automation.Action)
 SleepAction = dfplayer_ns.class_('SleepAction', automation.Action)
 ResetAction = dfplayer_ns.class_('ResetAction', automation.Action)
@@ -142,6 +144,22 @@ def dfplayer_set_volume_to_code(config, action_id, template_arg, args):
     yield cg.register_parented(var, config[CONF_ID])
     template_ = yield cg.templatable(config[CONF_VOLUME], args, float)
     cg.add(var.set_volume(template_))
+    yield var
+
+@automation.register_action('dfplayer.volume_up', VolumeUpAction, cv.Schema({
+    cv.GenerateID(): cv.use_id(DFPlayer),
+}))
+def dfplayer_volume_up_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
+    yield var
+
+@automation.register_action('dfplayer.volume_down', VolumeDownAction, cv.Schema({
+    cv.GenerateID(): cv.use_id(DFPlayer),
+}))
+def dfplayer_volume_down_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    yield cg.register_parented(var, config[CONF_ID])
     yield var
 
 

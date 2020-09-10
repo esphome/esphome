@@ -154,6 +154,9 @@ template<typename... Ts> class SetDeviceAction : public Action<Ts...>, public Pa
   }
 };
 
+DFPLAYER_SIMPLE_ACTION(VolumeUpAction, volume_up)
+DFPLAYER_SIMPLE_ACTION(VolumeDownAction, volume_down)
+
 template<typename... Ts> class SetVolumeAction : public Action<Ts...>, public Parented<DFPlayer> {
  public:
   TEMPLATABLE_VALUE(uint8_t, volume)
