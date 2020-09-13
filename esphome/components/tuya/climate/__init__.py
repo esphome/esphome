@@ -2,7 +2,6 @@ from esphome.components import climate
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ID, CONF_SWITCH_DATAPOINT
-from esphome.util import Registry
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
 DEPENDENCIES = ['tuya']
