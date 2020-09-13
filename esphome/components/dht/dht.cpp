@@ -92,6 +92,8 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
       delayMicroseconds(500);
       this->pin_->digital_write(true);
       delayMicroseconds(40);
+    } else if (this->model_ == DHT_MODEL_DHT22_TYPE2) {
+      delayMicroseconds(2000);
     } else {
       delayMicroseconds(800);
     }
@@ -186,15 +188,29 @@ bool HOT ICACHE_RAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, 
   }
 
   if (this->model_ == DHT_MODEL_DHT11) {
-    *humidity = data[0];
-    if (*humidity > 100)
-      *humidity = NAN;
-    *temperature = data[2];
+    if (checksum_a == data[4]) {
+      // Data format: 8bit integral RH data + 8bit decimal RH data + 8bit integral T data + 8bit decimal T data + 8bit
+      // check sum - some models always have 0 in the decimal part
+      const uint16_t raw_temperature = uint16_t(data[2]) * 10 + (data[3] & 0x7F);
+      *temperature = raw_temperature / 10.0f;
+      if ((data[3] & 0x80) != 0) {
+        // negative
+        *temperature *= -1;
+      }
+
+      const uint16_t raw_humidity = uint16_t(data[0]) * 10 + data[1];
+      *humidity = raw_humidity / 10.0f;
+    } else {
+      // For compatibily with DHT11 models which might only use 2 bytes checksums, only use the data from these two
+      // bytes
+      *temperature = data[2];
+      *humidity = data[0];
+    }
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
 
-    if ((raw_temperature & 0x8000) != 0)
+    if (this->model_ != DHT_MODEL_DHT22_TYPE2 && (raw_temperature & 0x8000) != 0)
       raw_temperature = ~(raw_temperature & 0x7FFF);
 
     if (raw_temperature == 1 && raw_humidity == 10) {

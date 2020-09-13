@@ -5,10 +5,10 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import LambdaAction
 from esphome.const import CONF_ARGS, CONF_BAUD_RATE, CONF_FORMAT, CONF_HARDWARE_UART, CONF_ID, \
-    CONF_LEVEL, CONF_LOGS, CONF_TAG, CONF_TX_BUFFER_SIZE
+    CONF_LEVEL, CONF_LOGS, CONF_ON_MESSAGE, CONF_TAG, CONF_TRIGGER_ID, CONF_TX_BUFFER_SIZE
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
-from esphome.py_compat import text_type
 
+CODEOWNERS = ['@esphome/core']
 logger_ns = cg.esphome_ns.namespace('logger')
 LOG_LEVELS = {
     'NONE': cg.global_ns.ESPHOME_LOG_LEVEL_NONE,
@@ -64,12 +64,15 @@ def validate_local_no_higher_than_global(value):
     global_level = value.get(CONF_LEVEL, 'DEBUG')
     for tag, level in value.get(CONF_LOGS, {}).items():
         if LOG_LEVEL_SEVERITY.index(level) > LOG_LEVEL_SEVERITY.index(global_level):
-            raise EsphomeError(u"The local log level {} for {} must be less severe than the "
-                               u"global log level {}.".format(level, tag, global_level))
+            raise EsphomeError("The local log level {} for {} must be less severe than the "
+                               "global log level {}.".format(level, tag, global_level))
     return value
 
 
 Logger = logger_ns.class_('Logger', cg.Component)
+LoggerMessageTrigger = logger_ns.class_('LoggerMessageTrigger',
+                                        automation.Trigger.template(cg.int_, cg.const_char_ptr,
+                                                                    cg.const_char_ptr))
 
 CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH = 'esp8266_store_log_strings_in_flash'
 CONFIG_SCHEMA = cv.All(cv.Schema({
@@ -80,6 +83,10 @@ CONFIG_SCHEMA = cv.All(cv.Schema({
     cv.Optional(CONF_LEVEL, default='DEBUG'): is_log_level,
     cv.Optional(CONF_LOGS, default={}): cv.Schema({
         cv.string: is_log_level,
+    }),
+    cv.Optional(CONF_ON_MESSAGE): automation.validate_automation({
+        cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(LoggerMessageTrigger),
+        cv.Optional(CONF_LEVEL, default='WARN'): is_log_level,
     }),
 
     cv.SplitDefault(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH, esp8266=True):
@@ -112,7 +119,7 @@ def to_code(config):
 
     if CORE.is_esp8266 and has_serial_logging and is_at_least_verbose:
         debug_serial_port = HARDWARE_UART_TO_SERIAL[config.get(CONF_HARDWARE_UART)]
-        cg.add_build_flag("-DDEBUG_ESP_PORT={}".format(debug_serial_port))
+        cg.add_build_flag(f"-DDEBUG_ESP_PORT={debug_serial_port}")
         cg.add_build_flag("-DLWIP_DEBUG")
         DEBUG_COMPONENTS = {
             'HTTP_CLIENT',
@@ -127,7 +134,7 @@ def to_code(config):
             # 'MDNS_RESPONDER',
         }
         for comp in DEBUG_COMPONENTS:
-            cg.add_build_flag("-DDEBUG_ESP_{}".format(comp))
+            cg.add_build_flag(f"-DDEBUG_ESP_{comp}")
     if CORE.is_esp32 and is_at_least_verbose:
         cg.add_build_flag('-DCORE_DEBUG_LEVEL=5')
     if CORE.is_esp32 and is_at_least_very_verbose:
@@ -137,6 +144,13 @@ def to_code(config):
 
     # Register at end for safe mode
     yield cg.register_component(log, config)
+
+    for conf in config.get(CONF_ON_MESSAGE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], log,
+                                   LOG_LEVEL_SEVERITY.index(conf[CONF_LEVEL]))
+        yield automation.build_automation(trigger, [(cg.int_, 'level'),
+                                                    (cg.const_char_ptr, 'tag'),
+                                                    (cg.const_char_ptr, 'message')], conf)
 
 
 def maybe_simple_message(schema):
@@ -151,7 +165,7 @@ def maybe_simple_message(schema):
 def validate_printf(value):
     # https://stackoverflow.com/questions/30011379/how-can-i-parse-a-c-format-string-in-python
     # pylint: disable=anomalous-backslash-in-string
-    cfmt = u"""\
+    cfmt = """\
     (                                  # start of capture group 1
     %                                  # literal "%"
     (?:                                # first option
@@ -165,8 +179,8 @@ def validate_printf(value):
     """  # noqa
     matches = re.findall(cfmt, value[CONF_FORMAT], flags=re.X)
     if len(matches) != len(value[CONF_ARGS]):
-        raise cv.Invalid(u"Found {} printf-patterns ({}), but {} args were given!"
-                         u"".format(len(matches), u', '.join(matches), len(value[CONF_ARGS])))
+        raise cv.Invalid("Found {} printf-patterns ({}), but {} args were given!"
+                         "".format(len(matches), ', '.join(matches), len(value[CONF_ARGS])))
     return value
 
 
@@ -182,9 +196,9 @@ LOGGER_LOG_ACTION_SCHEMA = cv.All(maybe_simple_message({
 @automation.register_action(CONF_LOGGER_LOG, LambdaAction, LOGGER_LOG_ACTION_SCHEMA)
 def logger_log_action_to_code(config, action_id, template_arg, args):
     esp_log = LOG_LEVEL_TO_ESP_LOG[config[CONF_LEVEL]]
-    args_ = [cg.RawExpression(text_type(x)) for x in config[CONF_ARGS]]
+    args_ = [cg.RawExpression(str(x)) for x in config[CONF_ARGS]]
 
-    text = text_type(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
+    text = str(cg.statement(esp_log(config[CONF_TAG], config[CONF_FORMAT], *args_)))
 
     lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.void)
     yield cg.new_Pvariable(action_id, template_arg, lambda_)

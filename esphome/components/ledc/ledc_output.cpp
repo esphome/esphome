@@ -22,7 +22,7 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
-  this->apply_frequency(this->frequency_);
+  this->update_frequency(this->frequency_);
   this->turn_off();
   // Attach pin after setting default value
   ledcAttachPin(this->pin_->get_pin(), this->channel_);
@@ -50,7 +50,7 @@ optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
   return {};
 }
 
-void LEDCOutput::apply_frequency(float frequency) {
+void LEDCOutput::update_frequency(float frequency) {
   auto bit_depth_opt = ledc_bit_depth_for_frequency(frequency);
   if (!bit_depth_opt.has_value()) {
     ESP_LOGW(TAG, "Frequency %f can't be achieved with any bit depth", frequency);

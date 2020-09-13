@@ -2,18 +2,56 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_MODE
 
+CODEOWNERS = ['@esphome/core']
 script_ns = cg.esphome_ns.namespace('script')
 Script = script_ns.class_('Script', automation.Trigger.template())
 ScriptExecuteAction = script_ns.class_('ScriptExecuteAction', automation.Action)
 ScriptStopAction = script_ns.class_('ScriptStopAction', automation.Action)
-ScriptWaitAction = script_ns.class_('ScriptWaitAction', automation.Action)
+ScriptWaitAction = script_ns.class_('ScriptWaitAction', automation.Action, cg.Component)
 IsRunningCondition = script_ns.class_('IsRunningCondition', automation.Condition)
+SingleScript = script_ns.class_('SingleScript', Script)
+RestartScript = script_ns.class_('RestartScript', Script)
+QueueingScript = script_ns.class_('QueueingScript', Script, cg.Component)
+ParallelScript = script_ns.class_('ParallelScript', Script)
+
+CONF_SINGLE = 'single'
+CONF_RESTART = 'restart'
+CONF_QUEUED = 'queued'
+CONF_PARALLEL = 'parallel'
+CONF_MAX_RUNS = 'max_runs'
+
+SCRIPT_MODES = {
+    CONF_SINGLE: SingleScript,
+    CONF_RESTART: RestartScript,
+    CONF_QUEUED: QueueingScript,
+    CONF_PARALLEL: ParallelScript,
+}
+
+
+def check_max_runs(value):
+    if CONF_MAX_RUNS not in value:
+        return value
+    if value[CONF_MODE] not in [CONF_QUEUED, CONF_PARALLEL]:
+        raise cv.Invalid("The option 'max_runs' is only valid in 'queue' and 'parallel' mode.",
+                         path=[CONF_MAX_RUNS])
+    return value
+
+
+def assign_declare_id(value):
+    value = value.copy()
+    value[CONF_ID] = cv.declare_id(SCRIPT_MODES[value[CONF_MODE]])(value[CONF_ID])
+    return value
+
 
 CONFIG_SCHEMA = automation.validate_automation({
-    cv.Required(CONF_ID): cv.declare_id(Script),
-})
+    # Don't declare id as cv.declare_id yet, because the ID type
+    # dpeends on the mode. Will be checked later with assign_declare_id
+    cv.Required(CONF_ID): cv.string_strict,
+    cv.Optional(CONF_MODE, default=CONF_SINGLE): cv.one_of(*SCRIPT_MODES, lower=True),
+    cv.Optional(CONF_MAX_RUNS): cv.positive_int,
+}, extra_validators=cv.All(check_max_runs, assign_declare_id))
 
 
 def to_code(config):
@@ -21,6 +59,15 @@ def to_code(config):
     triggers = []
     for conf in config:
         trigger = cg.new_Pvariable(conf[CONF_ID])
+        # Add a human-readable name to the script
+        cg.add(trigger.set_name(conf[CONF_ID].id))
+
+        if CONF_MAX_RUNS in conf:
+            cg.add(trigger.set_max_runs(conf[CONF_MAX_RUNS]))
+
+        if conf[CONF_MODE] == CONF_QUEUED:
+            yield cg.register_component(trigger, conf)
+
         triggers.append((trigger, conf))
 
     for trigger, conf in triggers:
@@ -48,7 +95,9 @@ def script_stop_action_to_code(config, action_id, template_arg, args):
 }))
 def script_wait_action_to_code(config, action_id, template_arg, args):
     paren = yield cg.get_variable(config[CONF_ID])
-    yield cg.new_Pvariable(action_id, template_arg, paren)
+    var = yield cg.new_Pvariable(action_id, template_arg, paren)
+    yield cg.register_component(var, {})
+    yield var
 
 
 @automation.register_condition('script.is_running', IsRunningCondition, automation.maybe_simple_id({

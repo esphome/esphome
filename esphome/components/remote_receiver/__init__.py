@@ -3,7 +3,8 @@ import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import remote_base
 from esphome.const import CONF_BUFFER_SIZE, CONF_DUMP, CONF_FILTER, CONF_ID, CONF_IDLE, \
-    CONF_PIN, CONF_TOLERANCE
+    CONF_PIN, CONF_TOLERANCE, CONF_MEMORY_BLOCKS
+from esphome.core import CORE
 
 AUTO_LOAD = ['remote_base']
 remote_receiver_ns = cg.esphome_ns.namespace('remote_receiver')
@@ -21,12 +22,16 @@ CONFIG_SCHEMA = remote_base.validate_triggers(cv.Schema({
     cv.SplitDefault(CONF_BUFFER_SIZE, esp32='10000b', esp8266='1000b'): cv.validate_bytes,
     cv.Optional(CONF_FILTER, default='50us'): cv.positive_time_period_microseconds,
     cv.Optional(CONF_IDLE, default='10ms'): cv.positive_time_period_microseconds,
+    cv.Optional(CONF_MEMORY_BLOCKS, default=3): cv.Range(min=1, max=8),
 }).extend(cv.COMPONENT_SCHEMA))
 
 
 def to_code(config):
     pin = yield cg.gpio_pin_expression(config[CONF_PIN])
-    var = cg.new_Pvariable(config[CONF_ID], pin)
+    if CORE.is_esp32:
+        var = cg.new_Pvariable(config[CONF_ID], pin, config[CONF_MEMORY_BLOCKS])
+    else:
+        var = cg.new_Pvariable(config[CONF_ID], pin)
 
     yield remote_base.build_dumpers(config[CONF_DUMP])
     yield remote_base.build_triggers(config)

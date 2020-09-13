@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 from __future__ import print_function
 
@@ -61,7 +61,7 @@ def main():
             continue
         file_ = line[0]
         linno = line[1]
-        msg = (u':'.join(line[3:])).strip()
+        msg = (':'.join(line[3:])).strip()
         print_error(file_, linno, msg)
         errors += 1
 
@@ -74,7 +74,7 @@ def main():
             continue
         file_ = line[0]
         linno = line[1]
-        msg = (u':'.join(line[2:])).strip()
+        msg = (':'.join(line[2:])).strip()
         print_error(file_, linno, msg)
         errors += 1
 

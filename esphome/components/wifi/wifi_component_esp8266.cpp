@@ -220,6 +220,7 @@ bool WiFiComponent::wifi_sta_connect_(WiFiAP ap) {
   if (ap.get_password().empty()) {
     conf.threshold.authmode = AUTH_OPEN;
   } else {
+    // Only allow auth modes with at least WPA
     conf.threshold.authmode = AUTH_WPA_PSK;
   }
   conf.threshold.rssi = -127;
@@ -399,6 +400,15 @@ void WiFiComponent::wifi_event_callback(System_Event_t *event) {
       auto it = event->event_info.auth_change;
       ESP_LOGV(TAG, "Event: Changed AuthMode old=%s new=%s", get_auth_mode_str(it.old_mode),
                get_auth_mode_str(it.new_mode));
+      // Mitigate CVE-2020-12638
+      // https://lbsfilm.at/blog/wpa2-authenticationmode-downgrade-in-espressif-microprocessors
+      if (it.old_mode != AUTH_OPEN && it.new_mode == AUTH_OPEN) {
+        ESP_LOGW(TAG, "Potential Authmode downgrade detected, disconnecting...");
+        // we can't call retry_connect() from this context, so disconnect immediately
+        // and notify main thread with error_from_callback_
+        wifi_station_disconnect();
+        global_wifi_component->error_from_callback_ = true;
+      }
       break;
     }
     case EVENT_STAMODE_GOT_IP: {

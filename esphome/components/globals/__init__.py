@@ -4,8 +4,8 @@ from esphome import config_validation as cv, automation
 from esphome import codegen as cg
 from esphome.const import CONF_ID, CONF_INITIAL_VALUE, CONF_RESTORE_VALUE, CONF_TYPE, CONF_VALUE
 from esphome.core import coroutine_with_priority
-from esphome.py_compat import IS_PY3
 
+CODEOWNERS = ['@esphome/core']
 globals_ns = cg.esphome_ns.namespace('globals')
 GlobalsComponent = globals_ns.class_('GlobalsComponent', cg.Component)
 GlobalVarSetAction = globals_ns.class_('GlobalVarSetAction', automation.Action)
@@ -31,12 +31,12 @@ def to_code(config):
         initial_value = cg.RawExpression(config[CONF_INITIAL_VALUE])
 
     rhs = GlobalsComponent.new(template_args, initial_value)
-    glob = cg.Pvariable(config[CONF_ID], rhs, type=res_type)
+    glob = cg.Pvariable(config[CONF_ID], rhs, res_type)
     yield cg.register_component(glob, config)
 
     if config[CONF_RESTORE_VALUE]:
         value = config[CONF_ID].id
-        if IS_PY3 and isinstance(value, str):
+        if isinstance(value, str):
             value = value.encode()
         hash_ = int(hashlib.md5(value).hexdigest()[:8], 16)
         cg.add(glob.set_restore_value(hash_))

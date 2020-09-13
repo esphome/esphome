@@ -1,6 +1,19 @@
 """Python 3 script to automatically generate C++ classes for ESPHome's native API.
 
 It's pretty crappy spaghetti code, but it works.
+
+you need to install protobuf-compiler:
+running protc --version should return
+libprotoc 3.6.1
+
+then run this script with python3 and the files
+
+    esphome/components/api/api_pb2_service.h
+    esphome/components/api/api_pb2_service.cpp
+    esphome/components/api/api_pb2.h
+    esphome/components/api/api_pb2.cpp
+
+will be generated, they still need to be formatted
 """
 
 import re
@@ -10,24 +23,28 @@ from subprocess import call
 
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
+
 import api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
 
-cwd = Path(__file__).parent
+file_header = '// This file was automatically generated with a tool.\n'
+file_header += '// See scripts/api_protobuf/api_protobuf.py\n'
+
+cwd = Path(__file__).resolve().parent
 root = cwd.parent.parent / 'esphome' / 'components' / 'api'
-prot = cwd / 'api.protoc'
-call(['protoc', '-o', prot, '-I', root, 'api.proto'])
+prot = root / 'api.protoc'
+call(['protoc', '-o', str(prot), '-I', str(root), 'api.proto'])
 content = prot.read_bytes()
 
 d = descriptor.FileDescriptorSet.FromString(content)
 
 
-def indent_list(text, padding=u'  '):
+def indent_list(text, padding='  '):
     return [padding + line for line in text.splitlines()]
 
 
-def indent(text, padding=u'  '):
-    return u'\n'.join(indent_list(text, padding))
+def indent(text, padding='  '):
+    return '\n'.join(indent_list(text, padding))
 
 
 def camel_to_snake(name):
@@ -415,7 +432,7 @@ class SInt64Type(TypeInfo):
 
 class RepeatedTypeInfo(TypeInfo):
     def __init__(self, field):
-        super(RepeatedTypeInfo, self).__init__(field)
+        super().__init__(field)
         self._ti = TYPE_INFO[field.type](field)
 
     @property
@@ -617,7 +634,8 @@ def build_message_type(desc):
 
 
 file = d.file[0]
-content = '''\
+content = file_header
+content += '''\
 #pragma once
 
 #include "proto.h"
@@ -627,7 +645,8 @@ namespace api {
 
 '''
 
-cpp = '''\
+cpp = file_header
+cpp += '''\
 #include "api_pb2.h"
 #include "esphome/core/log.h"
 
@@ -712,7 +731,7 @@ def build_service_message_type(mt):
         cout += f'bool {class_name}::{func}(const {mt.name} &msg) {{\n'
         if log:
             cout += f'  ESP_LOGVV(TAG, "{func}: %s", msg.dump().c_str());\n'
-        cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
+        # cout += f'  this->set_nodelay({str(nodelay).lower()});\n'
         cout += f'  return this->send_message_<{mt.name}>(msg, {id_});\n'
         cout += f'}}\n'
     if source in (SOURCE_BOTH, SOURCE_CLIENT):
@@ -739,7 +758,8 @@ def build_service_message_type(mt):
     return hout, cout
 
 
-hpp = '''\
+hpp = file_header
+hpp += '''\
 #pragma once
 
 #include "api_pb2.h"
@@ -750,7 +770,8 @@ namespace api {
 
 '''
 
-cpp = '''\
+cpp = file_header
+cpp += '''\
 #include "api_pb2_service.h"
 #include "esphome/core/log.h"
 

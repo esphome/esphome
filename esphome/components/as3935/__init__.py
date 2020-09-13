@@ -25,7 +25,7 @@ AS3935_SCHEMA = cv.Schema({
     cv.Optional(CONF_SPIKE_REJECTION, default=2): cv.int_range(min=1, max=11),
     cv.Optional(CONF_LIGHTNING_THRESHOLD, default=1): cv.one_of(1, 5, 9, 16, int=True),
     cv.Optional(CONF_MASK_DISTURBER, default=False): cv.boolean,
-    cv.Optional(CONF_DIV_RATIO, default=0): cv.one_of(0, 16, 22, 64, 128, int=True),
+    cv.Optional(CONF_DIV_RATIO, default=0): cv.one_of(0, 16, 32, 64, 128, int=True),
     cv.Optional(CONF_CAPACITANCE, default=0): cv.int_range(min=0, max=15),
 })
 

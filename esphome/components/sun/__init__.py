@@ -3,8 +3,8 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import time
 from esphome.const import CONF_TIME_ID, CONF_ID, CONF_TRIGGER_ID
-from esphome.py_compat import string_types
 
+CODEOWNERS = ['@OttoWinter']
 sun_ns = cg.esphome_ns.namespace('sun')
 
 Sun = sun_ns.class_('Sun')
@@ -32,7 +32,7 @@ ELEVATION_MAP = {
 
 
 def elevation(value):
-    if isinstance(value, string_types):
+    if isinstance(value, str):
         try:
             value = ELEVATION_MAP[cv.one_of(*ELEVATION_MAP, lower=True, space='_')(value)]
         except cv.Invalid:
