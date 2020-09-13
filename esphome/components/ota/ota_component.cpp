@@ -241,6 +241,8 @@ void OTAComponent::handle_() {
       last_progress = now;
       float percentage = (total * 100.0f) / ota_size;
       ESP_LOGD(TAG, "OTA in progress: %0.1f%%", percentage);
+      // slow down OTA update to avoid getting killed by task watchdog (task_wdt)
+      delay(10);
     }
   }
 

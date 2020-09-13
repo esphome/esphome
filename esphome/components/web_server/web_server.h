@@ -41,12 +41,24 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
+
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
   void set_js_url(const char *js_url);
+
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param js_include Local path to web server script.
+   */
+  void set_js_include(const char *js_include);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -60,6 +72,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+#ifdef WEBSERVER_CSS_INCLUDE
+  /// Handle included css request under '/0.css'.
+  void handle_css_request(AsyncWebServerRequest *request);
+#endif
+
+#ifdef WEBSERVER_JS_INCLUDE
+  /// Handle included js request under '/0.js'.
+  void handle_js_request(AsyncWebServerRequest *request);
+#endif
 
   bool using_auth() { return username_ != nullptr && password_ != nullptr; }
 
@@ -122,6 +144,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string text_sensor_json(text_sensor::TextSensor *obj, const std::string &value);
 #endif
 
+#ifdef USE_COVER
+  void on_cover_update(cover::Cover *obj) override;
+
+  /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
+  void handle_cover_request(AsyncWebServerRequest *request, UrlMatch match);
+
+  /// Dump the cover state as a JSON string.
+  std::string cover_json(cover::Cover *obj);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
@@ -135,7 +167,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *username_{nullptr};
   const char *password_{nullptr};
   const char *css_url_{nullptr};
+  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+  const char *js_include_{nullptr};
 };
 
 }  // namespace web_server

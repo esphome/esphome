@@ -38,16 +38,25 @@ def validate_pulse_counter_pin(value):
     return value
 
 
+def validate_count_mode(value):
+    rising_edge = value[CONF_RISING_EDGE]
+    falling_edge = value[CONF_FALLING_EDGE]
+    if rising_edge == 'DISABLE' and falling_edge == 'DISABLE':
+        raise cv.Invalid("Can't set both count modes to DISABLE! This means no counting occurs at "
+                         "all!")
+    return value
+
+
 CONFIG_SCHEMA = sensor.sensor_schema(UNIT_PULSES_PER_MINUTE, ICON_PULSE, 2).extend({
     cv.GenerateID(): cv.declare_id(PulseCounterSensor),
     cv.Required(CONF_PIN): validate_pulse_counter_pin,
     cv.Optional(CONF_COUNT_MODE, default={
         CONF_RISING_EDGE: 'INCREMENT',
         CONF_FALLING_EDGE: 'DISABLE',
-    }): cv.Schema({
+    }): cv.All(cv.Schema({
         cv.Required(CONF_RISING_EDGE): COUNT_MODE_SCHEMA,
         cv.Required(CONF_FALLING_EDGE): COUNT_MODE_SCHEMA,
-    }),
+    }), validate_count_mode),
     cv.Optional(CONF_INTERNAL_FILTER, default='13us'): validate_internal_filter,
 }).extend(cv.polling_component_schema('60s'))
 

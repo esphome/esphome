@@ -9,9 +9,10 @@ from esphome.core import CORE, coroutine, coroutine_with_priority
 
 IS_PLATFORM_COMPONENT = True
 
+CODEOWNERS = ['@esphome/core']
 DEVICE_CLASSES = [
     '', 'awning', 'blind', 'curtain', 'damper', 'door', 'garage',
-    'shade', 'shutter', 'window'
+    'gate', 'shade', 'shutter', 'window'
 ]
 
 cover_ns = cg.esphome_ns.namespace('cover')

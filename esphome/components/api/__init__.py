@@ -8,6 +8,7 @@ from esphome.core import coroutine_with_priority
 
 DEPENDENCIES = ['network']
 AUTO_LOAD = ['async_tcp']
+CODEOWNERS = ['@OttoWinter']
 
 api_ns = cg.esphome_ns.namespace('api')
 APIServer = api_ns.class_('APIServer', cg.Component, cg.Controller)
@@ -102,7 +103,7 @@ def homeassistant_service_to_code(config, action_id, template_arg, args):
 
 def validate_homeassistant_event(value):
     value = cv.string(value)
-    if not value.startswith(u'esphome.'):
+    if not value.startswith('esphome.'):
         raise cv.Invalid("ESPHome can only generate Home Assistant events that begin with "
                          "esphome. For example 'esphome.xyz'")
     return value

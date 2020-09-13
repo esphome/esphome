@@ -17,12 +17,13 @@ namespace light {
  * Not all values have to be populated though, for example a simple monochromatic light only needs
  * to access the state and brightness attributes.
  *
- * PLease note all float values are automatically clamped.
+ * Please note all float values are automatically clamped.
  *
  * state - Whether the light should be on/off. Represented as a float for transitions.
  * brightness - The brightness of the light.
  * red, green, blue - RGB values.
  * white - The white value for RGBW lights.
+ * color_temperature - Temperature of the white value, range from 0.0 (cold) to 1.0 (warm)
  */
 class LightColorValues {
  public:
@@ -173,41 +174,60 @@ class LightColorValues {
   void as_binary(bool *binary) const { *binary = this->state_ == 1.0f; }
 
   /// Convert these light color values to a brightness-only representation and write them to brightness.
-  void as_brightness(float *brightness) const { *brightness = this->state_ * this->brightness_; }
+  void as_brightness(float *brightness, float gamma = 0) const {
+    *brightness = gamma_correct(this->state_ * this->brightness_, gamma);
+  }
 
   /// Convert these light color values to an RGB representation and write them to red, green, blue.
-  void as_rgb(float *red, float *green, float *blue) const {
-    *red = this->state_ * this->brightness_ * this->red_;
-    *green = this->state_ * this->brightness_ * this->green_;
-    *blue = this->state_ * this->brightness_ * this->blue_;
+  void as_rgb(float *red, float *green, float *blue, float gamma = 0, bool color_interlock = false) const {
+    float brightness = this->state_ * this->brightness_;
+    if (color_interlock) {
+      brightness = brightness * (1.0f - this->white_);
+    }
+    *red = gamma_correct(brightness * this->red_, gamma);
+    *green = gamma_correct(brightness * this->green_, gamma);
+    *blue = gamma_correct(brightness * this->blue_, gamma);
   }
 
   /// Convert these light color values to an RGBW representation and write them to red, green, blue, white.
-  void as_rgbw(float *red, float *green, float *blue, float *white) const {
-    this->as_rgb(red, green, blue);
-    *white = this->state_ * this->white_;
+  void as_rgbw(float *red, float *green, float *blue, float *white, float gamma = 0,
+               bool color_interlock = false) const {
+    this->as_rgb(red, green, blue, gamma, color_interlock);
+    *white = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
   }
 
   /// Convert these light color values to an RGBWW representation with the given parameters.
   void as_rgbww(float color_temperature_cw, float color_temperature_ww, float *red, float *green, float *blue,
-                float *cold_white, float *warm_white) const {
-    this->as_rgb(red, green, blue);
+                float *cold_white, float *warm_white, float gamma = 0, bool constant_brightness = false,
+                bool color_interlock = false) const {
+    this->as_rgb(red, green, blue, gamma, color_interlock);
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
-    const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-    *cold_white = this->state_ * this->white_ * (cw_fraction / max_cw_ww);
-    *warm_white = this->state_ * this->white_ * (ww_fraction / max_cw_ww);
+    const float white_level = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+    *cold_white = white_level * cw_fraction;
+    *warm_white = white_level * ww_fraction;
+    if (!constant_brightness) {
+      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
+      *cold_white /= max_cw_ww;
+      *warm_white /= max_cw_ww;
+    }
   }
 
   /// Convert these light color values to an CWWW representation with the given parameters.
-  void as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white, float *warm_white) const {
+  void as_cwww(float color_temperature_cw, float color_temperature_ww, float *cold_white, float *warm_white,
+               float gamma = 0, bool constant_brightness = false) const {
     const float color_temp = clamp(this->color_temperature_, color_temperature_cw, color_temperature_ww);
     const float ww_fraction = (color_temp - color_temperature_cw) / (color_temperature_ww - color_temperature_cw);
     const float cw_fraction = 1.0f - ww_fraction;
-    const float max_cw_ww = std::max(ww_fraction, cw_fraction);
-    *cold_white = this->state_ * this->brightness_ * (cw_fraction / max_cw_ww);
-    *warm_white = this->state_ * this->brightness_ * (ww_fraction / max_cw_ww);
+    const float white_level = gamma_correct(this->state_ * this->brightness_ * this->white_, gamma);
+    *cold_white = white_level * cw_fraction;
+    *warm_white = white_level * ww_fraction;
+    if (!constant_brightness) {
+      const float max_cw_ww = std::max(ww_fraction, cw_fraction);
+      *cold_white /= max_cw_ww;
+      *warm_white /= max_cw_ww;
+    }
   }
 
   /// Compare this LightColorValues to rhs, return true if and only if all attributes match.
