@@ -18,8 +18,8 @@ def validate_uid(value):
                              "long.")
         try:
             x = int(x, 16)
-        except ValueError:
-            raise cv.Invalid("Valid characters for parts of a UID are 0123456789ABCDEF.")
+        except ValueError as err:
+            raise cv.Invalid("Valid characters for parts of a UID are 0123456789ABCDEF.") from err
         if x < 0 or x > 255:
             raise cv.Invalid("Valid values for UID parts (separated by '-') are 00 to FF")
     return value
