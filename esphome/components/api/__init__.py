@@ -152,7 +152,6 @@ def homeassistant_tag_scanned_to_code(config, action_id, template_arg, args):
     cg.add(var.set_service('esphome.tag_scanned'))
     templ = yield cg.templatable(config[CONF_TAG], args, cg.std_string)
     cg.add(var.add_data('tag_id', templ))
-    cg.add(var.add_data('device_id', cg.App.get_name()))
     yield var
 
 
