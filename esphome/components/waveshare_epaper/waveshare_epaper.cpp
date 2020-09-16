@@ -888,5 +888,90 @@ void WaveshareEPaper7P5InV2::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+void WaveshareEPaper7P5InHD::initialize() {
+  this->wait_until_idle_();
+  this->command(0x12);
+  this->wait_until_idle_();
+
+  this->command(0x46);  // Auto Write Red RAM
+  this->data(0xf7);
+  this->wait_until_idle_();
+  this->command(0x47);  // Auto Write  B/W RAM
+  this->data(0xf7);
+  this->wait_until_idle_();
+
+  this->command(0x0C);  // Soft start setting
+  this->data(0xAE);
+  this->data(0xC7);
+  this->data(0xC3);
+  this->data(0xC0);
+  this->data(0x40); 
+
+  this->command(0x01);  // Set MUX as 527
+  this->data(0xAF);
+  this->data(0x02);
+  this->data(0x01);
+
+
+  this->command(0x11);  // Data entry mode      
+  this->data(0x01);
+
+  this->command(0x44); 
+  this->data(0x00); // RAM x address start at 0
+  this->data(0x00); 
+  this->data(0x6F); 
+  this->data(0x03); 
+  this->command(0x45); 
+  this->data(0xAF); 
+  this->data(0x02);
+  this->data(0x00); 
+  this->data(0x00);
+
+
+  this->command(0x3C); // VBD
+  this->data(0x05); // LUT1, for white
+
+  this->command(0x18);
+  this->data(0X80);
+
+
+  this->command(0x22);
+  this->data(0XB1); //Load Temperature and waveform setting.
+  this->command(0x20);
+  this->wait_until_idle_();
+    
+  this->command(0x4E); // set RAM x address count to 0;
+  this->data(0x00);
+  this->data(0x00);
+  this->command(0x4F); 
+  this->data(0x00);
+  this->data(0x00);
+}
+void HOT WaveshareEPaper7P5InHD::display() {
+  uint32_t buf_len = this->get_buffer_length_();
+  // COMMAND DATA START TRANSMISSION NEW DATA
+  this->command(0x13);
+  delay(2);
+  for (uint32_t i = 0; i < buf_len; i++) {
+    this->data(~(this->buffer_[i]));
+  }
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+
+int WaveshareEPaper7P5InHD::get_width_internal() { return 880; }
+int WaveshareEPaper7P5InHD::get_height_internal() { return 528; }
+void WaveshareEPaper7P5InHD::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 7.5inHD");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 }  // namespace waveshare_epaper
 }  // namespace esphome
