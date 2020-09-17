@@ -34,7 +34,7 @@ MODELS = {
     '5.83in': ('b', WaveshareEPaper5P8In),
     '7.50in': ('b', WaveshareEPaper7P5In),
     '7.50inv2': ('b', WaveshareEPaper7P5InV2),
-	'7.50inhd': ('b', WaveshareEPaper7P5InHD)
+    '7.50inhd': ('b', WaveshareEPaper7P5InHD)
 }
 
 
