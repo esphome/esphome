@@ -119,8 +119,9 @@ void PMSX003Component::parse_data_() {
       uint16_t pm_2_5_concentration = this->get_16_bit_uint_(12);
       uint16_t pm_10_0_concentration = this->get_16_bit_uint_(14);
       ESP_LOGD(TAG,
-               "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3, PM1.0 CF1: %u, PM2.5 CF1: %u, PM10.0 CF1: %u",
-               pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration, pm_1_0_cf1, pm_2_5_cf1, pm_10_0_cf1);
+               "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3",
+               pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration);
+      ESP_LOGD(TAG, "Got PM1.0 CF1: %u, PM2.5 CF1: %u, PM10.0 CF1: %u", pm_1_0_cf1, pm_2_5_cf1, pm_10_0_cf1);
       if (this->pm_1_0_sensor_ != nullptr)
         this->pm_1_0_sensor_->publish_state(pm_1_0_concentration);
       if (this->pm_2_5_sensor_ != nullptr)
