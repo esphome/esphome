@@ -24,6 +24,9 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor);
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor);
   void set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor);
+  void set_pm_1_0_cf1_sensor(sensor::Sensor *pm_1_0_cf1_sensor);
+  void set_pm_2_5_cf1_sensor(sensor::Sensor *pm_2_5_cf1_sensor);
+  void set_pm_10_0_cf1_sensor(sensor::Sensor *pm_10_0_cf1_sensor);
   void set_temperature_sensor(sensor::Sensor *temperature_sensor);
   void set_humidity_sensor(sensor::Sensor *humidity_sensor);
   void set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor);
@@ -40,6 +43,9 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};
+  sensor::Sensor *pm_1_0_cf1_sensor_{nullptr};
+  sensor::Sensor *pm_2_5_cf1_sensor_{nullptr};
+  sensor::Sensor *pm_10_0_cf1_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *humidity_sensor_{nullptr};
   sensor::Sensor *formaldehyde_sensor_{nullptr};

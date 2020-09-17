@@ -6,13 +6,18 @@ namespace pmsx003 {
 
 static const char *TAG = "pmsx003";
 
-void PMSX003Component::set_pm_1_0_cf1_sensor(sensor::Sensor *pm_1_0_cf1_sensor) { pm_1_0_cf1_sensor_ = pm_1_0_cf1_sensor; }
-void PMSX003Component::set_pm_2_5_cf1_sensor(sensor::Sensor *pm_2_5_cf1_sensor) { pm_2_5_cf1_sensor_ = pm_2_5_cf1_sensor; }
-void PMSX003Component::set_pm_10_0_cf1_sensor(sensor::Sensor *pm_10_0_cf1_sensor) { pm_10_0_cf1_sensor_ = pm_10_0_cf1_sensor; }
 void PMSX003Component::set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { pm_1_0_sensor_ = pm_1_0_sensor; }
 void PMSX003Component::set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { pm_2_5_sensor_ = pm_2_5_sensor; }
 void PMSX003Component::set_pm_10_0_sensor(sensor::Sensor *pm_10_0_sensor) { pm_10_0_sensor_ = pm_10_0_sensor; }
-
+void PMSX003Component::set_pm_1_0_cf1_sensor(sensor::Sensor *pm_1_0_cf1_sensor) {
+  pm_1_0_cf1_sensor_ = pm_1_0_cf1_sensor;
+}
+void PMSX003Component::set_pm_2_5_cf1_sensor(sensor::Sensor *pm_2_5_cf1_sensor) {
+  pm_2_5_cf1_sensor_ = pm_2_5_cf1_sensor;
+}
+void PMSX003Component::set_pm_10_0_cf1_sensor(sensor::Sensor *pm_10_0_cf1_sensor) {
+  pm_10_0_cf1_sensor_ = pm_10_0_cf1_sensor;
+}
 void PMSX003Component::set_temperature_sensor(sensor::Sensor *temperature_sensor) {
   temperature_sensor_ = temperature_sensor;
 }
