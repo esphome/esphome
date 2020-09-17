@@ -13,11 +13,11 @@ using payload_t = std::vector<uint8_t>;
 
 using servicekey_t = std::array<uint8_t, 8>;
 
-typedef struct
+using packet_t = struct
 {
     uint8_t servicekey[8];
     uint8_t payload[0];
-} packet_t;
+};
 
 enum WifiNowBinarySensorEvent : uint8_t
 {
@@ -50,5 +50,5 @@ enum WifiNowBinarySensorEvent : uint8_t
     COUNT = MULTI_CLICK20 + 1,
 };
 
-}  // namespace wifi_now
-}  // namespace esphome
+} // namespace wifi_now
+} // namespace esphome

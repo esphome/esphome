@@ -46,5 +46,5 @@ uint32_t WifiNowPeer::get_sequenceno()
     return this->sequenceno_;
 }
 
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome

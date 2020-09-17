@@ -53,5 +53,5 @@ protected:
 
 };
 
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome

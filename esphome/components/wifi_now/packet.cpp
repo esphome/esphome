@@ -75,5 +75,5 @@ const payload_t WifiNowPacket::get_payload() const
     }
 }
 
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome

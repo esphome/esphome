@@ -2,6 +2,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.const as ehc
 from esphome.core import CORE, coroutine
 from esphome.components import binary_sensor 
 
@@ -17,23 +18,23 @@ INJECT_ACTION_SCHEMA = cv.Schema({
 @coroutine
 def inject_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    binary_sensors_config = CORE.config[c.CONF_BINARY_SENSOR]
-    for binary_sensor_conf in filter(lambda x: x[c.CONF_ID] == config[c.CONF_SENSOR_ID], binary_sensors_config):
-        for conf in binary_sensor_conf.get(c.CONF_ON_PRESS, []):
-            trigger = yield cg.get_variable(conf[c.CONF_TRIGGER_ID])
+    binary_sensors_config = CORE.config[ehc.CONF_BINARY_SENSOR]
+    for binary_sensor_conf in filter(lambda x: x[ehc.CONF_ID] == config[c.CONF_SENSOR_ID], binary_sensors_config):
+        for conf in binary_sensor_conf.get(ehc.CONF_ON_PRESS, []):
+            trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger( t.BinarySensorEvent.PRESS ,trigger))
-        for conf in binary_sensor_conf.get(c.CONF_ON_RELEASE, []):
-            trigger = yield cg.get_variable(conf[c.CONF_TRIGGER_ID])
+        for conf in binary_sensor_conf.get(ehc.CONF_ON_RELEASE, []):
+            trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger( t.BinarySensorEvent.RELEASE ,trigger))
-        for conf in binary_sensor_conf.get(c.CONF_ON_CLICK, []):
-            trigger = yield cg.get_variable(conf[c.CONF_TRIGGER_ID])
+        for conf in binary_sensor_conf.get(ehc.CONF_ON_CLICK, []):
+            trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger( t.BinarySensorEvent.CLICK ,trigger))
-        for conf in binary_sensor_conf.get(c.CONF_ON_DOUBLE_CLICK, []):
-            trigger = yield cg.get_variable(conf[c.CONF_TRIGGER_ID])
+        for conf in binary_sensor_conf.get(ehc.CONF_ON_DOUBLE_CLICK, []):
+            trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger( t.BinarySensorEvent.DOUBLE_CLICK ,trigger))
         i = 1
-        for conf in binary_sensor_conf.get(c.CONF_ON_MULTI_CLICK, []):
-            trigger = yield cg.get_variable(conf[c.CONF_TRIGGER_ID])
+        for conf in binary_sensor_conf.get(ehc.CONF_ON_MULTI_CLICK, []):
+            trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             event = t.BINARY_SENSOR_EVENTS['multi_click_{}'.format(i)]
             cg.add(var.set_event_trigger( event, trigger))
             i += 1

@@ -72,6 +72,5 @@ bool WifiNowReceiveTrigger::recieve_packet(WifiNowPacket &packet)
     return true;
 }
 
-
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome

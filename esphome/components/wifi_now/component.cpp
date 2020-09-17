@@ -314,7 +314,7 @@ void WifiNowComponent::loop()
                 LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X")
                 ", servicekey = "
                 LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X")
-                "payload size = %i",
+                "payload size = %ul",
                 bssid[0],
                 bssid[1],
                 bssid[2],
@@ -470,6 +470,5 @@ void ICACHE_FLASH_ATTR sendcallback(const uint8_t *bssid, esp_now_send_status_t 
     }
 }
 
-
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome

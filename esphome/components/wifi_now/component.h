@@ -34,7 +34,7 @@ public:
     void add_peer(WifiNowPeer *peer);
     const std::vector<WifiNowPeer*> &get_peers() const;
 
-    void send( const WifiNowPacket &packet, std::function<void(bool)> &&callback = NULL);
+    void send( const WifiNowPacket &packet, std::function<void(bool)> &&callback = nullptr);
     void register_receive_callback(std::function<bool(WifiNowPacket&)> &&callback);
     void register_priorized_receive_callback(std::function<bool(WifiNowPacket&)> &&callback);
 

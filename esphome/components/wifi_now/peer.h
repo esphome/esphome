@@ -29,5 +29,5 @@ protected:
     uint32_t sequenceno_;
 };
 
-} // namespace esphome
 } // namespace wifi_now
+} // namespace esphome
