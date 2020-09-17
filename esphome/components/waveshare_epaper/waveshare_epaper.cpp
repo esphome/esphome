@@ -915,7 +915,7 @@ void WaveshareEPaper7P5InHD::initialize() {
 
   this->command(0x11);
   this->data(0x01);
-  
+
   this->command(0x44);
   this->data(0x00);
   this->data(0x00);
