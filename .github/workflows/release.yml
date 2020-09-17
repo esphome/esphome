@@ -40,6 +40,7 @@ jobs:
     container: esphome/esphome-lint:latest
     # Split clang-tidy check into 4 jobs. Each one will check 1/4th of the .cpp files
     strategy:
+      fail-fast: false
       matrix:
         split: [1, 2, 3, 4]
     steps:
@@ -103,6 +104,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
           test:
           - test1
