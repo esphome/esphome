@@ -222,7 +222,7 @@ void WifiNowComponent::loop() {
       ESP_LOGE(TAG,
                "Packet lost, no dispatcher, bssid = " LOG_SECRET(
                    "%02X:%02X:%02X:%02X:%02X:%02X") ", servicekey = " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%"
-                                                                                 "02X") "payload size = %ul",
+                                                                                 "02X") "payload size = %lu",
                bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], servicekey[0], servicekey[1], servicekey[2],
                servicekey[3], servicekey[4], servicekey[5], servicekey[6], servicekey[7],
                recievequeue_.front().get_payload().size());

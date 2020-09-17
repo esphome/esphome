@@ -28,11 +28,11 @@ def wifi_now_component_to_code(config):
     if ehc.CONF_PASSWORD in config:
         cg.add(var.set_aeskey(get_md5sum_hexint(config[ehc.CONF_PASSWORD])))
     if c.CONF_AESKEY in config:
-        cg.add(var.set_aeskey( *config[c.CONF_AESKEY].as_hex_int()))
+        cg.add(var.set_aeskey(*config[c.CONF_AESKEY].as_hex_int()))
     for conf in config.get(c.CONF_PEERS, []):
         peer = yield peer_to_code(conf)
         cg.add(var.add_peer(peer))
     for conf in config.get(c.CONF_ON_RECEIVE, []):
-        yield receive_trigger_to_code( var, conf)
+        yield receive_trigger_to_code(var, conf)
     yield cg.register_component(var, config)
     yield var

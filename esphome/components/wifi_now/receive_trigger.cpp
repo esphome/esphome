@@ -10,7 +10,8 @@ WifiNowReceiveTrigger::WifiNowReceiveTrigger(WifiNowComponent *component) : comp
 float WifiNowReceiveTrigger::get_setup_priority() const { return setup_priority::DATA; }
 
 void WifiNowReceiveTrigger::setup() {
-  component_->register_receive_callback([this](WifiNowPacket &packet) -> bool { return this->recieve_packet_(packet); });
+  component_->register_receive_callback(
+      [this](WifiNowPacket &packet) -> bool { return this->recieve_packet_(packet); });
 }
 
 void WifiNowReceiveTrigger::set_peer(WifiNowPeer *peer) { peer_ = peer; }
