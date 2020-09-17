@@ -70,6 +70,9 @@ class Inkplate : public PollingComponent,
   bool get_partial_updating() {
     return this->partial_updating_;
   }
+  uint8_t get_temperature() {
+    return this->temperature_;
+  }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
