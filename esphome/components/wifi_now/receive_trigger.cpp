@@ -10,18 +10,18 @@ WifiNowReceiveTrigger::WifiNowReceiveTrigger(WifiNowComponent *component) : comp
 float WifiNowReceiveTrigger::get_setup_priority() const { return setup_priority::DATA; }
 
 void WifiNowReceiveTrigger::setup() {
-  component_->register_receive_callback([this](WifiNowPacket &packet) -> bool { return this->recieve_packet(packet); });
+  component_->register_receive_callback([this](WifiNowPacket &packet) -> bool { return this->recieve_packet_(packet); });
 }
 
 void WifiNowReceiveTrigger::set_peer(WifiNowPeer *peer) { peer_ = peer; }
 
-void WifiNowReceiveTrigger::set_servicekey(const servicekey_t servicekey) { servicekey_ = servicekey; }
+void WifiNowReceiveTrigger::set_servicekey(const servicekey_t &servicekey) { servicekey_ = servicekey; }
 
 void WifiNowReceiveTrigger::set_payload_setters(const std::vector<WifiNowPayloadSetter *> &payload_setters) {
   payload_setters_ = payload_setters;
 }
 
-bool WifiNowReceiveTrigger::recieve_packet(WifiNowPacket &packet) {
+bool WifiNowReceiveTrigger::recieve_packet_(WifiNowPacket &packet) {
   if (peer_) {
     if (peer_->get_bssid() != packet.get_bssid()) {
       return false;

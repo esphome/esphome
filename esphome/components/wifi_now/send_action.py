@@ -12,12 +12,13 @@ from .payload_getter import build_payload_getter_list, validate_payload_getter_l
 
 SEND_SCHEMA = cv.Schema({
     cv.Optional(c.CONF_PEERID): cv.use_id(t.Peer),
-    cv.Optional(ehc.CONF_SERVICE): cv.All( cv.string, cv.Length(min=2)),
+    cv.Optional(ehc.CONF_SERVICE): cv.All(cv.string, cv.Length(min=2)),
     cv.Optional(c.CONF_SERVICEKEY): create_service_key,
     cv.Optional(c.CONF_PAYLOADS): validate_payload_getter_list,
     cv.Optional(c.CONF_ON_FAIL): automation.validate_action_list,
     cv.Optional(c.CONF_ON_SUCCESS): automation.validate_action_list,
     })
+
 
 @automation.register_action(c.ACTION_SEND, t.SendAction, SEND_SCHEMA)
 @coroutine

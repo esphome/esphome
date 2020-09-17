@@ -22,11 +22,11 @@ class WifiNowReceiveTrigger : public Trigger<>, public Component {
   void setup() override;
 
   void set_peer(WifiNowPeer *peer);
-  void set_servicekey(const servicekey_t servicekey);
+  void set_servicekey(const servicekey_t &servicekey);
   void set_payload_setters(const std::vector<WifiNowPayloadSetter *> &payload_setters);
 
  protected:
-  bool recieve_packet(WifiNowPacket &packet);
+  bool recieve_packet_(WifiNowPacket &packet);
 
   WifiNowComponent *component_;
   WifiNowPeer *peer_{nullptr};

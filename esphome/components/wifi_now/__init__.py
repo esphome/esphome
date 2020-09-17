@@ -8,6 +8,7 @@ from . import terminal_action
 
 CONFIG_SCHEMA = component.COMPONENT_SCHEMA
 
+
 @coroutine
 def to_code(config):
     cg.add_define('USE_WIFINOW')

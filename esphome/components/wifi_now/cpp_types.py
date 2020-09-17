@@ -50,4 +50,3 @@ BINARY_SENSOR_EVENTS = {
     'multi_click_19': BinarySensorEvent.MULTI_CLICK19,
     'multi_click_20': BinarySensorEvent.MULTI_CLICK20,
     }
-

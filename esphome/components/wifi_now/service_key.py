@@ -1,6 +1,8 @@
 import esphome.config_validation as cv
+from esphome.core import HexInt
 from esphome.cpp_generator import RawExpression
 from esphome.yaml_util import ESPHomeDumper
+
 
 class ServiceKey:
     def __init__(self, *parts):
@@ -20,6 +22,7 @@ class ServiceKey:
     def as_hex_int(self):
         return [HexInt(i) for i in self.parts]
 
+
 def create_service_key(value):
     value = cv.string_strict(value)
     parts = value.split(':')
@@ -34,5 +37,6 @@ def create_service_key(value):
         except ValueError:
             raise cv.Invalid("Service Key parts must be hexadecimal values from 00 to FF")
     return ServiceKey(*parts_int)
+
 
 ESPHomeDumper.add_multi_representer(ServiceKey, ESPHomeDumper.represent_stringify)

@@ -7,6 +7,7 @@ from esphome.core import coroutine, Lambda
 from . import const as c
 from . import cpp_types as t
 
+
 def maybe_simple_value_or_default(*validators, **kwargs):
     key = kwargs.pop('key', ehc.CONF_VALUE)
     validator = cv.All(*validators)
@@ -18,6 +19,7 @@ def maybe_simple_value_or_default(*validators, **kwargs):
 
     return validate
 
+
 @automation.register_action(c.ACTION_ABORT, t.TerminalAction, cv.All({}))
 @coroutine
 def abort_action_to_code(config, action_id, template_arg, args):
@@ -25,12 +27,18 @@ def abort_action_to_code(config, action_id, template_arg, args):
     lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.bool_)
     yield cg.new_Pvariable(action_id, template_arg, lambda_)
 
-@automation.register_action(c.ACTION_RETRY_SEND, t.TerminalAction, maybe_simple_value_or_default( cv.Schema({
-    cv.Optional(c.CONF_MAX_RETRYS, default=2): cv.int_,
-    }), key=c.CONF_MAX_RETRYS))
+
+@automation.register_action(c.ACTION_RETRY_SEND, t.TerminalAction, maybe_simple_value_or_default(
+    cv.Schema({
+        cv.Optional(c.CONF_MAX_RETRYS, default=2): cv.int_,
+        }), key=c.CONF_MAX_RETRYS)
+    )
 @coroutine
 def retry_action_to_code(config, action_id, template_arg, args):
     max_retrys = config[c.CONF_MAX_RETRYS]
-    text = "if( sendaction->get_send_attempts() < {}) {{sendaction->stop(); sendaction->send(); return true;}} else {{return false;}}".format(max_retrys)
+    text = "if(sendaction->get_send_attempts() < {}) " \
+        "{{sendaction->stop(); sendaction->send(); return true;}} " \
+        "else " \
+        "{{return false;}}".format(max_retrys)
     lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.bool_)
     yield cg.new_Pvariable(action_id, template_arg, lambda_)
