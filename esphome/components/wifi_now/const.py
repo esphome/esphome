@@ -9,7 +9,6 @@ CONF_PAYLOAD_ID = 'payload_id'
 CONF_PAYLOADS = 'payloads'
 CONF_PEERID = 'peerid'
 CONF_PEERS = 'peers'
-CONF_SENSOR_ID = 'sensor_id'
 CONF_SERVICEKEY = 'servicekey'
 CONF_WIFI_NOW = 'wifi_now'
 

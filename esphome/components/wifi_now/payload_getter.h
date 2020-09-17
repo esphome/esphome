@@ -74,7 +74,7 @@ class WifiNowTemplatePayloadGetter<bool, Ts...>
 public:
     void get_payload(payload_t &payload, Ts... x)
     {
-        bool value = this->value_.value(x...) ? 1 : 0;
+        bool value = this->value_.value(x...) ? true : false;
         payload.insert( payload.end(), (const uint8_t*)&value, ((const uint8_t*)&value) + sizeof(value));
     };
 };

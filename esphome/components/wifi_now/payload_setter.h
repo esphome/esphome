@@ -23,8 +23,6 @@ template<typename T, typename... Ts>
 class WifiNowTemplatePayloadSetter
     : public WifiNowPayloadSetter
 {
-    T value_;
-
 public:
     void set_payload( const payload_t &payload, payload_t::const_iterator &it) override
     {
@@ -35,14 +33,16 @@ public:
     {
         return value_;
     }
+
+protected:
+    T value_;
+
 };
 
 template<typename... Ts>
 class WifiNowTemplatePayloadSetter<std::string, Ts...>
     : public WifiNowPayloadSetter
 {
-    std::string  value_;
-
 public:
     void set_payload( const payload_t &payload, payload_t::const_iterator &it) override
     {
@@ -55,14 +55,16 @@ public:
     {
         return value_;
     }
+
+protected:
+    std::string  value_;
+
 };
 
 template<typename... Ts>
 class WifiNowTemplatePayloadSetter<std::vector<uint8_t>, Ts...>
     : public WifiNowPayloadSetter
 {
-    std::vector<uint8_t> value_;
-
 public:
     void set_payload( const payload_t &payload, payload_t::const_iterator &it) override
     {
@@ -75,14 +77,16 @@ public:
     {
         return value_;
     }
+
+protected:
+    std::vector<uint8_t> value_;
+
 };
 
 template<typename... Ts>
 class WifiNowTemplatePayloadSetter<bool, Ts...>
     : public WifiNowPayloadSetter
 {
-    bool value_;
-
 public:
     void set_payload( const payload_t &payload, payload_t::const_iterator &it) override
     {
@@ -92,14 +96,16 @@ public:
     {
         return value_;
     }
+
+protected:
+    bool value_;
+
 };
 
 template<typename... Ts>
 class WifiNowPayloadPayloadSetter
     : public WifiNowPayloadSetter
 {
-    payload_t value_;
-
 public:
     void set_payload( const payload_t &payload, payload_t::const_iterator &it) override
     {
@@ -111,6 +117,10 @@ public:
     {
         return value_;
     }
+
+protected:
+    payload_t value_;
+
 };
 
 }  // namespace wifi_now
