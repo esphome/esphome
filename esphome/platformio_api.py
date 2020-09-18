@@ -22,13 +22,13 @@ def patch_structhash():
     from os import makedirs
 
     def patched_clean_build_dir(build_dir, *args):
-        from platformio import util
+        from platformio import fs
         from platformio.project.helpers import get_project_dir
         platformio_ini = join(get_project_dir(), "platformio.ini")
 
         # if project's config is modified
         if isdir(build_dir) and getmtime(platformio_ini) > getmtime(build_dir):
-            util.rmtree_(build_dir)
+            fs.rmtree(build_dir)
 
         if not isdir(build_dir):
             makedirs(build_dir)

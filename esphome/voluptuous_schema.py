@@ -32,6 +32,7 @@ class _Schema(vol.Schema):
             try:
                 res = extra(res)
             except vol.Invalid as err:
+                # pylint: disable=raise-missing-from
                 raise ensure_multiple_invalid(err)
         return res
 

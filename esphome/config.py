@@ -675,7 +675,7 @@ def _load_config(command_line_substitutions):
     try:
         config = yaml_util.load_yaml(CORE.config_path)
     except EsphomeError as e:
-        raise InvalidYAMLError(e)
+        raise InvalidYAMLError(e) from e
     CORE.raw_config = config
 
     try:
@@ -693,7 +693,7 @@ def load_config(command_line_substitutions):
     try:
         return _load_config(command_line_substitutions)
     except vol.Invalid as err:
-        raise EsphomeError(f"Error while parsing config: {err}")
+        raise EsphomeError(f"Error while parsing config: {err}") from err
 
 
 def line_info(obj, highlight=True):

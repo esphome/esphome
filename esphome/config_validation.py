@@ -224,6 +224,7 @@ def int_(value):
     try:
         return int(value, base)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise Invalid(f"Expected integer, but cannot parse {value} as an integer")
 
 
@@ -423,6 +424,7 @@ def time_period_str_colon(value):
     try:
         parsed = [int(x) for x in value.split(':')]
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise Invalid(TIME_PERIOD_ERROR.format(value))
 
     if len(parsed) == 2:
@@ -527,6 +529,7 @@ def time_of_day(value):
         try:
             date = datetime.strptime(value, '%H:%M:%S %p')
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid(f"Invalid time of day: {err}")
 
     return {
@@ -548,6 +551,7 @@ def mac_address(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("MAC Address parts must be hexadecimal values from 00 to FF")
 
     return core.MACAddress(*parts_int)
@@ -565,6 +569,7 @@ def bind_key(value):
         try:
             parts_int.append(int(part, 16))
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("Bind key must be hex values from 00 to FF")
 
     return ''.join(f'{part:02X}' for part in parts_int)
@@ -686,8 +691,8 @@ def domain(value):
         return value
     try:
         return str(ipv4(value))
-    except Invalid:
-        raise Invalid(f"Invalid domain: {value}")
+    except Invalid as err:
+        raise Invalid(f"Invalid domain: {value}") from err
 
 
 def domain_name(value):
@@ -739,8 +744,8 @@ def _valid_topic(value):
     value = string(value)
     try:
         raw_value = value.encode('utf-8')
-    except UnicodeError:
-        raise Invalid("MQTT topic name/filter must be valid UTF-8 string.")
+    except UnicodeError as err:
+        raise Invalid("MQTT topic name/filter must be valid UTF-8 string.") from err
     if not raw_value:
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
@@ -792,6 +797,7 @@ def mqtt_qos(value):
     try:
         value = int(value)
     except (TypeError, ValueError):
+        # pylint: disable=raise-missing-from
         raise Invalid(f"MQTT Quality of Service must be integer, got {value}")
     return one_of(0, 1, 2)(value)
 
@@ -836,6 +842,7 @@ def possibly_negative_percentage(value):
             else:
                 value = float(value)
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("invalid number")
     if value > 1:
         msg = "Percentage must not be higher than 100%."
@@ -1006,6 +1013,7 @@ def dimensions(value):
         try:
             width, height = int(value[0]), int(value[1])
         except ValueError:
+            # pylint: disable=raise-missing-from
             raise Invalid("Width and height dimensions must be integers")
         if width <= 0 or height <= 0:
             raise Invalid("Width and height must at least be 1")

@@ -7,9 +7,9 @@ from .. import tuya_ns, CONF_TUYA_ID, Tuya
 DEPENDENCIES = ['tuya']
 CODEOWNERS = ['@jesserockz']
 
-CONF_TARGET_TEMPERATURE_DATAPOINT = "target_temperature_datapoint"
-CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
-# CONF_ECO_MODE_DATAPOINT = "eco_mode_datapoint"
+CONF_TARGET_TEMPERATURE_DATAPOINT = 'target_temperature_datapoint'
+CONF_CURRENT_TEMPERATURE_DATAPOINT = 'current_temperature_datapoint'
+CONF_TEMPERATURE_MULTIPLIER = 'temperature_multiplier'
 
 TuyaClimate = tuya_ns.class_('TuyaClimate', climate.Climate, cg.Component)
 
@@ -19,7 +19,7 @@ CONFIG_SCHEMA = cv.All(climate.CLIMATE_SCHEMA.extend({
     cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_TARGET_TEMPERATURE_DATAPOINT): cv.uint8_t,
     cv.Optional(CONF_CURRENT_TEMPERATURE_DATAPOINT): cv.uint8_t,
-    # cv.Optional(CONF_ECO_MODE_DATAPOINT): cv.uint8_t,
+    cv.Optional(CONF_TEMPERATURE_MULTIPLIER, default=1): cv.positive_float,
 }).extend(cv.COMPONENT_SCHEMA), cv.has_at_least_one_key(
     CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT))
 
@@ -38,5 +38,4 @@ def to_code(config):
         cg.add(var.set_target_temperature_id(config[CONF_TARGET_TEMPERATURE_DATAPOINT]))
     if CONF_CURRENT_TEMPERATURE_DATAPOINT in config:
         cg.add(var.set_current_temperature_id(config[CONF_CURRENT_TEMPERATURE_DATAPOINT]))
-    # if CONF_ECO_MODE_DATAPOINT in config:
-    #     cg.add(var.set_eco_mode_id(config[CONF_ECO_MODE_DATAPOINT]))
+    cg.add(var.set_temperature_multiplier(config[CONF_TEMPERATURE_MULTIPLIER]))
