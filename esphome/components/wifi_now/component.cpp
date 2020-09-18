@@ -271,7 +271,7 @@ static void send_internal(const WifiNowPacket &packet, std::function<void(bool)>
   queue.emplace(callback);
 
   uint8_t *bssid = nullptr;
-  if( std::all_of(packet.get_bssid().cbegin(), packet.get_bssid().cend(), [=](uint8_t x) { return x == 0; })) {
+  if (std::all_of(packet.get_bssid().cbegin(), packet.get_bssid().cend(), [=](uint8_t x) { return x == 0; })) {
     bssid = (uint8_t *) packet.get_bssid().data();
   }
 
