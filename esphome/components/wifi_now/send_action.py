@@ -33,7 +33,10 @@ def send_action_to_code(config, action_id, template_arg, args):
     if c.CONF_SERVICEKEY in config:
         cg.add(var.set_servicekey(*config[c.CONF_SERVICEKEY].to_hex_int()))
     if config.get(c.CONF_PAYLOADS):
-        payload_getters = yield build_payload_getter_list(config[c.CONF_PAYLOADS], template_arg, args)
+        payload_getters = yield build_payload_getter_list(
+            config[c.CONF_PAYLOADS],
+            template_arg, args
+            )
         cg.add(var.set_payload_getters(payload_getters))
     ActionPtr = t.SendAction.template(template_arg).operator('ptr')
     args = args + [(ActionPtr, 'sendaction')]

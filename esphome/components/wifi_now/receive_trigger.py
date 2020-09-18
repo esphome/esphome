@@ -32,7 +32,7 @@ def receive_trigger_to_code(component, config):
         cg.add(var.set_servicekey(*config[c.CONF_SERVICEKEY].to_hex_int()))
     payload_setters = yield build_payload_setter_list(
         config[c.CONF_PAYLOADS],
-        cg.TemplateArguments([]), 
+        cg.TemplateArguments([]),
         []
         )
     cg.add(var.set_payload_setters(payload_setters))
