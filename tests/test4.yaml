@@ -87,6 +87,7 @@ climate:
     id: tuya_climate
     switch_datapoint: 1
     target_temperature_datapoint: 3
+    temperature_multiplier: 0.5
 
 switch:
   - platform: tuya
