@@ -219,6 +219,7 @@ void WifiNowComponent::loop() {
     if (!dispatched) {
       auto &bssid = receivequeue_.front().get_bssid();
       auto &servicekey = receivequeue_.front().get_servicekey();
+#ifdef ARDUINO_ARCH_ESP8266
       ESP_LOGE(TAG,
                "Packet lost, no dispatcher, bssid = " LOG_SECRET(
                    "%02X:%02X:%02X:%02X:%02X:%02X") ", servicekey = " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%"
@@ -226,6 +227,16 @@ void WifiNowComponent::loop() {
                bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], servicekey[0], servicekey[1], servicekey[2],
                servicekey[3], servicekey[4], servicekey[5], servicekey[6], servicekey[7],
                receivequeue_.front().get_payload().size());
+#endif
+#ifdef ARDUINO_ARCH_ESP32
+      ESP_LOGE(TAG,
+               "Packet lost, no dispatcher, bssid = " LOG_SECRET(
+                   "%02X:%02X:%02X:%02X:%02X:%02X") ", servicekey = " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%"
+                                                                                 "02X") "payload size = %u",
+               bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], servicekey[0], servicekey[1], servicekey[2],
+               servicekey[3], servicekey[4], servicekey[5], servicekey[6], servicekey[7],
+               receivequeue_.front().get_payload().size());
+#endif
     }
     receivequeue_.pop();
   }
