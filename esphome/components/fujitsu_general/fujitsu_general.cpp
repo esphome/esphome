@@ -77,19 +77,12 @@ const uint16_t FUJITSU_GENERAL_TRL_SPACE = 8000;
 
 const uint32_t FUJITSU_GENERAL_CARRIER_FREQUENCY = 38000;
 
-FujitsuGeneralClimate::FujitsuGeneralClimate() : ClimateIR(FUJITSU_GENERAL_TEMP_MIN, 
-                                                            FUJITSU_GENERAL_TEMP_MAX, 
-                                                            1.0f,
-                                                            true,
-                                                            true,
-                                                            {climate::CLIMATE_FAN_AUTO, 
-                                                            climate::CLIMATE_FAN_LOW, 
-                                                            climate::CLIMATE_FAN_MEDIUM,
-                                                            climate::CLIMATE_FAN_HIGH},
-                                                            {climate::CLIMATE_SWING_OFF, 
-                                                            climate::CLIMATE_SWING_VERTICAL,
-                                                            climate::CLIMATE_SWING_HORIZONTAL,
-                                                            climate::CLIMATE_SWING_BOTH}) {}
+FujitsuGeneralClimate::FujitsuGeneralClimate()
+    : ClimateIR(
+          FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX, 1.0f, true, true,
+          {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+          {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL,
+           climate::CLIMATE_SWING_BOTH}) {}
 
 void FujitsuGeneralClimate::transmit_state() {
   if (this->mode == climate::CLIMATE_MODE_OFF) {
@@ -116,7 +109,8 @@ void FujitsuGeneralClimate::transmit_state() {
   remote_state[15] = FUJITSU_GENERAL_BASE_BYTE15;
 
   // Set temperature
-  auto safecelsius = (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
+  auto safecelsius =
+      (uint8_t) roundf(clamp(this->target_temperature, FUJITSU_GENERAL_TEMP_MIN, FUJITSU_GENERAL_TEMP_MAX));
   remote_state[8] = (byte) safecelsius - 16;
   remote_state[8] = remote_state[8] << 4;
 
