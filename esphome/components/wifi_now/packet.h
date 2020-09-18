@@ -13,7 +13,7 @@ namespace wifi_now {
 
 class WifiNowPacket {
  public:
-  WifiNowPacket(const uint8_t* bssid, const uint8_t* packet, size_t length);
+  WifiNowPacket(const uint8_t *bssid, const uint8_t *packet, size_t length);
 
   WifiNowPacket(const bssid_t &bssid, const servicekey_t &servicekey, const payload_t &payload);
 
