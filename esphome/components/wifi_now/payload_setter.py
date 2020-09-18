@@ -80,14 +80,25 @@ def vector_payload_setter_to_code(config, payload_id, template_arg, args):
     yield templated_payload_setter_to_code(t.payload_t, config, payload_id, template_arg, args)
 
 
-@register_payload_setter(c.PAYLOAD_BINARY_SENSOR_EVENT, t.TemplatePayloadSetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-        }), key=ehc.CONF_ID)
+@register_payload_setter(
+    c.PAYLOAD_BINARY_SENSOR_EVENT,
+    t.TemplatePayloadSetter,
+    cv.maybe_simple_value(
+        cv.Schema({
+            cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
+            }), 
+        key=ehc.CONF_ID
+        )
     )
 @coroutine
 def binary_sensor_event_payload_setter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_setter_to_code(t.BinarySensorEvent, config, payload_id, template_arg, args)
+    yield templated_payload_setter_to_code(
+        t.BinarySensorEvent,
+        config,
+        payload_id,
+        template_arg,
+        args
+        )
 
 
 @register_payload_setter(c.PAYLOAD_PAYLOAD, t.PayloadPayloadSetter, cv.maybe_simple_value(

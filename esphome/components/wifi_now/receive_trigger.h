@@ -26,7 +26,7 @@ class WifiNowReceiveTrigger : public Trigger<>, public Component {
   void set_payload_setters(const std::vector<WifiNowPayloadSetter *> &payload_setters);
 
  protected:
-  bool recieve_packet_(WifiNowPacket &packet);
+  bool receive_packet_(WifiNowPacket &packet);
 
   WifiNowComponent *component_;
   WifiNowPeer *peer_{nullptr};

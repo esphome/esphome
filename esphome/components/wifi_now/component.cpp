@@ -27,7 +27,7 @@ namespace wifi_now {
 static const char *TAG = "wifi_now.component";
 
 static uint32_t sequenceno_;
-static std::queue<WifiNowPacket> recievequeue_;
+static std::queue<WifiNowPacket> receivequeue_;
 static std::map<const bssid_t, std::queue<std::function<void(bool)>>> sendresponsecallbackqueue_;
 static std::queue<std::function<void()>> sendcallbackqueue_;
 static std::vector<std::function<bool(WifiNowPacket &)>> receivecallbacks_;
@@ -211,23 +211,23 @@ void WifiNowComponent::loop() {
     sendcallbackqueue_.pop();
   }
 
-  while (!recievequeue_.empty()) {
+  while (!receivequeue_.empty()) {
     bool dispatched = false;
     for (auto &callback : receivecallbacks_) {
-      dispatched |= callback(recievequeue_.front());
+      dispatched |= callback(receivequeue_.front());
     }
     if (!dispatched) {
-      auto &bssid = recievequeue_.front().get_bssid();
-      auto &servicekey = recievequeue_.front().get_servicekey();
+      auto &bssid = receivequeue_.front().get_bssid();
+      auto &servicekey = receivequeue_.front().get_servicekey();
       ESP_LOGE(TAG,
                "Packet lost, no dispatcher, bssid = " LOG_SECRET(
                    "%02X:%02X:%02X:%02X:%02X:%02X") ", servicekey = " LOG_SECRET("%02X:%02X:%02X:%02X:%02X:%02X:%02X:%"
                                                                                  "02X") "payload size = %lu",
                bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5], servicekey[0], servicekey[1], servicekey[2],
                servicekey[3], servicekey[4], servicekey[5], servicekey[6], servicekey[7],
-               recievequeue_.front().get_payload().size());
+               receivequeue_.front().get_payload().size());
     }
-    recievequeue_.pop();
+    receivequeue_.pop();
   }
 
   ESP_LOGVV(TAG, "exit loop()");
@@ -301,7 +301,7 @@ void ICACHE_FLASH_ATTR receivecallback(uint8_t *bssid, uint8_t *data, uint8_t le
     void ICACHE_FLASH_ATTR receivecallback(const uint8_t *bssid, const uint8_t *data, int len)
 #endif
 {
-  recievequeue_.emplace(bssid, data, len);
+  receivequeue_.emplace(bssid, data, len);
 }
 
 #ifdef ARDUINO_ARCH_ESP8266

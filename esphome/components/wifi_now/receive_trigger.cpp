@@ -11,7 +11,7 @@ float WifiNowReceiveTrigger::get_setup_priority() const { return setup_priority:
 
 void WifiNowReceiveTrigger::setup() {
   component_->register_receive_callback(
-      [this](WifiNowPacket &packet) -> bool { return this->recieve_packet_(packet); });
+      [this](WifiNowPacket &packet) -> bool { return this->receive_packet_(packet); });
 }
 
 void WifiNowReceiveTrigger::set_peer(WifiNowPeer *peer) { peer_ = peer; }
@@ -22,7 +22,7 @@ void WifiNowReceiveTrigger::set_payload_setters(const std::vector<WifiNowPayload
   payload_setters_ = payload_setters;
 }
 
-bool WifiNowReceiveTrigger::recieve_packet_(WifiNowPacket &packet) {
+bool WifiNowReceiveTrigger::receive_packet_(WifiNowPacket &packet) {
   if (peer_) {
     if (peer_->get_bssid() != packet.get_bssid()) {
       return false;

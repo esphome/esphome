@@ -31,7 +31,7 @@ def receive_trigger_to_code(component, config):
     if c.CONF_SERVICEKEY in config:
         cg.add(var.set_servicekey(*config[c.CONF_SERVICEKEY].to_hex_int()))
     payload_setters = yield build_payload_setter_list(config[c.CONF_PAYLOADS],
-            cg.TemplateArguments([]), [])
+                cg.TemplateArguments([]), [])
     cg.add(var.set_payload_setters(payload_setters))
     yield automation.build_automation(var, [], config)
     yield cg.register_component(var, config)

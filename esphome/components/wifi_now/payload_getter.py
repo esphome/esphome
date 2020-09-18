@@ -86,15 +86,23 @@ def vector_payload_getter_to_code(config, payload_id, template_arg, args):
     yield templated_payload_getter_to_code(t.payload_t, config, payload_id, template_arg, args)
 
 
-@register_payload_getter(c.PAYLOAD_BINARY_SENSOR_EVENT, t.TemplatePayloadGetter, cv.maybe_simple_value(
-    cv.Schema({
-        cv.GenerateID(): cv.declare_id(t.TemplatePayloadGetter),
-        cv.Required(ehc.CONF_VALUE): cv.templatable(cv.enum(t.BINARY_SENSOR_EVENTS, lower=True)),
-        }), key=ehc.CONF_VALUE)
+@register_payload_getter(c.PAYLOAD_BINARY_SENSOR_EVENT, t.TemplatePayloadGetter, 
+    cv.maybe_simple_value(
+        cv.Schema({
+            cv.GenerateID(): cv.declare_id(t.TemplatePayloadGetter),
+            cv.Required(ehc.CONF_VALUE): 
+                cv.templatable(cv.enum(t.BINARY_SENSOR_EVENTS, lower=True)
+                ),
+            }), 
+            key=ehc.CONF_VALUE
+        )
     )
 @coroutine
 def binary_sensor_event_payload_getter_to_code(config, payload_id, template_arg, args):
-    yield templated_payload_getter_to_code(t.BinarySensorEvent, config, payload_id, template_arg, args)
+    yield templated_payload_getter_to_code(
+        t.BinarySensorEvent, config,
+        payload_id, template_arg, args
+        )
 
 
 @register_payload_getter(c.PAYLOAD_PAYLOAD, t.PayloadPayloadGetter, cv.maybe_simple_value(

@@ -20,7 +20,10 @@ INJECT_ACTION_SCHEMA = cv.Schema({
 def inject_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     binary_sensors_config = CORE.config[ehc.CONF_BINARY_SENSOR]
-    for binary_sensor_conf in filter(lambda x: x[ehc.CONF_ID] == config[ehc.CONF_SENSOR_ID], binary_sensors_config):
+    for binary_sensor_conf in filter(
+                lambda x: x[ehc.CONF_ID] == config[ehc.CONF_SENSOR_ID],
+                binary_sensors_config
+            ):
         for conf in binary_sensor_conf.get(ehc.CONF_ON_PRESS, []):
             trigger = yield cg.get_variable(conf[ehc.CONF_TRIGGER_ID])
             cg.add(var.set_event_trigger(t.BinarySensorEvent.PRESS, trigger))
