@@ -86,7 +86,7 @@ template<typename... Ts> class WifiNowSendAction : public Action<Ts...>, WifiNow
     waitforcallback_ = true;
     send_attempts_++;
 
-    WifiNowPacket packet(this->peer_ ? this->peer_->get_bssid() : bssid_t(), this->servicekey_, get_payload());
+    WifiNowPacket packet(this->peer_ ? this->peer_->get_bssid() : bssid_t{}, this->servicekey_, get_payload());
     this->component_->send(packet, [=](bool b) { this->sendcallback_(b); });
   }
 

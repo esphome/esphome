@@ -271,7 +271,7 @@ static void send_internal(const WifiNowPacket &packet, std::function<void(bool)>
   queue.emplace(callback);
 
   uint8_t *bssid = nullptr;
-  if (packet.get_bssid() != bssid_t()) {
+  if( std::all_of(packet.get_bssid().cbegin(), packet.get_bssid().cend(), [=](uint8_t x){return x == 0;})) {
     bssid = (uint8_t *) packet.get_bssid().data();
   }
 
@@ -311,7 +311,7 @@ void ICACHE_FLASH_ATTR sendcallback(uint8_t *bssid, uint8_t status)
     void ICACHE_FLASH_ATTR sendcallback(const uint8_t *bssid, esp_now_send_status_t status)
 #endif
 {
-  bssid_t key;
+  bssid_t key{};
   if (bssid != nullptr) {
     std::copy_n(bssid, key.size(), key.begin());
   }

@@ -12,7 +12,7 @@ WifiNowPacket::WifiNowPacket(const uint8_t* bssid, const uint8_t* packetdata, si
   std::copy_n(packetdata, length, packetdata_.begin());
 }
 
-WifiNowPacket::WifiNowPacket(bssid_t bssid, servicekey_t servicekey, payload_t payload)
+WifiNowPacket::WifiNowPacket(const bssid_t &bssid, const servicekey_t &servicekey, const payload_t &payload)
     : bssid_(bssid), packetdata_(sizeof(packet_t) + payload.size()) {
   auto packet = (packet_t*) packetdata_.data();
 
@@ -20,18 +20,17 @@ WifiNowPacket::WifiNowPacket(bssid_t bssid, servicekey_t servicekey, payload_t p
   std::copy(payload.cbegin(), payload.cend(), packet->payload);
 }
 
-const bssid_t WifiNowPacket::get_bssid() const { return bssid_; }
+const bssid_t &WifiNowPacket::get_bssid() const { return bssid_; }
 
-const packetdata_t WifiNowPacket::get_packetdata() const { return packetdata_; }
+const packetdata_t &WifiNowPacket::get_packetdata() const { return packetdata_; }
 
 const servicekey_t WifiNowPacket::get_servicekey() const {
   if (packetdata_.size() < sizeof(packet_t)) {
-    servicekey_t result;
-    result.fill(0);
+    servicekey_t result{};
     return result;
   } else {
     auto packet = (packet_t*) packetdata_.data();
-    servicekey_t result;
+    servicekey_t result{};
     std::copy_n(packet->servicekey, result.size(), result.begin());
     return result;
   }
@@ -39,7 +38,7 @@ const servicekey_t WifiNowPacket::get_servicekey() const {
 
 const payload_t WifiNowPacket::get_payload() const {
   if (packetdata_.size() < sizeof(packet_t)) {
-    return payload_t();
+    return payload_t{};
   } else {
     return payload_t(packetdata_.cbegin() + sizeof(packet_t), packetdata_.cend());
   }

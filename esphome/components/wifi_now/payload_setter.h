@@ -26,7 +26,7 @@ template<typename T, typename... Ts> class WifiNowTemplatePayloadSetter : public
   const T &get_value() const { return value_; }
 
  protected:
-  T value_;
+  T value_{};
 };
 
 template<typename... Ts> class WifiNowTemplatePayloadSetter<std::string, Ts...> : public WifiNowPayloadSetter {
@@ -40,7 +40,7 @@ template<typename... Ts> class WifiNowTemplatePayloadSetter<std::string, Ts...> 
   const std::string &get_value() const { return value_; }
 
  protected:
-  std::string value_;
+  std::string value_{};
 };
 
 template<typename... Ts> class WifiNowTemplatePayloadSetter<std::vector<uint8_t>, Ts...> : public WifiNowPayloadSetter {
@@ -54,7 +54,7 @@ template<typename... Ts> class WifiNowTemplatePayloadSetter<std::vector<uint8_t>
   const std::vector<uint8_t> &get_value() const { return value_; }
 
  protected:
-  std::vector<uint8_t> value_;
+  std::vector<uint8_t> value_{};
 };
 
 template<typename... Ts> class WifiNowTemplatePayloadSetter<bool, Ts...> : public WifiNowPayloadSetter {
@@ -65,7 +65,7 @@ template<typename... Ts> class WifiNowTemplatePayloadSetter<bool, Ts...> : publi
   const bool &get_value() const { return value_; }
 
  protected:
-  bool value_;
+  bool value_{};
 };
 
 template<typename... Ts> class WifiNowPayloadPayloadSetter : public WifiNowPayloadSetter {
@@ -78,7 +78,7 @@ template<typename... Ts> class WifiNowPayloadPayloadSetter : public WifiNowPaylo
   const payload_t &get_value() const { return value_; }
 
  protected:
-  payload_t value_;
+  payload_t value_{};
 };
 
 }  // namespace wifi_now

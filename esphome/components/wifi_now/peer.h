@@ -19,13 +19,10 @@ class WifiNowPeer {
   void set_aeskey(aeskey_t aeskey);
   void set_aeskey(optional<aeskey_t> aeskey);
   const optional<aeskey_t> &get_aeskey() const;
-  void set_sequenceno(uint32_t sequenceno);
-  uint32_t get_sequenceno();
 
  protected:
-  bssid_t bssid_;
-  optional<aeskey_t> aeskey_;
-  uint32_t sequenceno_;
+  bssid_t bssid_{};
+  optional<aeskey_t> aeskey_{};
 };
 
 }  // namespace wifi_now

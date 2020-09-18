@@ -37,8 +37,8 @@ class WifiNowComponent : public Component {
 
  protected:
   uint8_t channel_;
-  optional<aeskey_t> aeskey_;
-  std::vector<WifiNowPeer *> peers_;
+  optional<aeskey_t> aeskey_{};
+  std::vector<WifiNowPeer *> peers_{};
 };
 
 }  // namespace wifi_now

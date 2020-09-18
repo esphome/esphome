@@ -28,7 +28,7 @@ bool WifiNowReceiveTrigger::receive_packet_(WifiNowPacket &packet) {
       return false;
     }
   }
-  if (servicekey_ == servicekey_t()) {
+  if (std::all_of(servicekey_.cbegin(), servicekey_.cend(), [=](uint8_t x){return x == 0;})) {
     auto &payload = packet.get_packetdata();
     auto it = payload.cbegin();
     for (auto setter : payload_setters_) {
