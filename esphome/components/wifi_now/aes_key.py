@@ -34,8 +34,8 @@ def create_aes_key(value):
     for part in parts:
         try:
             parts_int.append(int(part, 16))
-        except ValueError:
-            raise cv.Invalid("AES Key parts must be hexadecimal values from 00 to FF")
+        except ValueError as error:
+            raise cv.Invalid("AES Key parts must be hexadecimal values from 00 to FF") from error
     return AesKey(*parts_int)
 
 

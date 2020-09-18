@@ -34,8 +34,8 @@ def create_service_key(value):
     for part in parts:
         try:
             parts_int.append(int(part, 8))
-        except ValueError:
-            raise cv.Invalid("Service Key parts must be hexadecimal values from 00 to FF")
+        except ValueError as error:
+            raise cv.Invalid("Service Key parts must be hexadecimal values from 00 to FF") from error
     return ServiceKey(*parts_int)
 
 

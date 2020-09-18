@@ -86,7 +86,7 @@ def vector_payload_setter_to_code(config, payload_id, template_arg, args):
     cv.maybe_simple_value(
         cv.Schema({
             cv.GenerateID(): cv.declare_id(t.TemplatePayloadSetter),
-            }), 
+            }),
         key=ehc.CONF_ID
         )
     )
