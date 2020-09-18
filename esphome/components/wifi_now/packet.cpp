@@ -5,7 +5,7 @@
 namespace esphome {
 namespace wifi_now {
 
-static const char* TAG = "wifi_now.packet";
+static const char *TAG = "wifi_now.packet";
 
 WifiNowPacket::WifiNowPacket(const uint8_t *bssid, const uint8_t *packetdata, size_t length) : packetdata_(length) {
   std::copy_n(bssid, bssid_.size(), bssid_.begin());
