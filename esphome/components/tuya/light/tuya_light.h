@@ -27,6 +27,7 @@ class TuyaLight : public Component, public light::LightOutput {
   int32_t min_value_ = 0;
   int32_t max_value_ = 255;
   light::LightState *state_{nullptr};
+  bool inhibit_next_send_ = false;
 };
 
 }  // namespace tuya
