@@ -15,8 +15,9 @@ void TuyaLight::setup() {
       auto lower = std::min(this->min_value_, this->max_value_);
       auto upper = std::max(this->min_value_, this->max_value_);
       auto value = std::min(upper, std::max(lower, static_cast<int32_t>(datapoint.value_uint)));
-      float brightness = float(value - this->min_value_) / (this->max_value_ - this->min_value_);  // Don't use lower/upper here to allow inversion
-      brightness = powf(brightness, 1.0 / this->state_->get_gamma_correct()); // Apply inverse gamma correction
+      float brightness = float(value - this->min_value_) /
+                         (this->max_value_ - this->min_value_);  // Don't use lower/upper here to allow inversion
+      brightness = powf(brightness, 1.0 / this->state_->get_gamma_correct());  // Apply inverse gamma correction
 
       // Handle case where reported value is <= lower bound but not
       // zero, but we don't want light to appear off by setting
@@ -79,7 +80,7 @@ void TuyaLight::write_state(light::LightState *state) {
     TuyaDatapoint datapoint{};
     datapoint.id = *this->dimmer_id_;
     datapoint.type = TuyaDatapointType::INTEGER;
-    datapoint.value_int = is_on ? brightness_int : 0; // Ensure turn off even when min value is set
+    datapoint.value_int = is_on ? brightness_int : 0;  // Ensure turn off even when min value is set
     parent_->set_datapoint_value(datapoint);
   }
 
