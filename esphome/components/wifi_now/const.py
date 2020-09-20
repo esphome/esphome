@@ -1,7 +1,7 @@
 # Additional Constants used in Wifi Now
 
 CONF_AESKEY = 'aeskey'
-CONF_MAX_RETRYS = 'max_retrys'
+CONF_MAX_RETRIES = 'max_retries'
 CONF_ON_FAIL = 'on_fail'
 CONF_ON_RECEIVE = 'on_receive'
 CONF_ON_SUCCESS = 'on_success'

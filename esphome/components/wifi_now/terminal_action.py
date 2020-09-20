@@ -30,15 +30,15 @@ def abort_action_to_code(config, action_id, template_arg, args):
 
 @automation.register_action(c.ACTION_RETRY_SEND, t.TerminalAction, maybe_simple_value_or_default(
     cv.Schema({
-        cv.Optional(c.CONF_MAX_RETRYS, default=2): cv.int_,
-        }), key=c.CONF_MAX_RETRYS)
+        cv.Optional(c.CONF_MAX_RETRIES, default=2): cv.int_,
+        }), key=c.CONF_MAX_RETRIES)
     )
 @coroutine
 def retry_action_to_code(config, action_id, template_arg, args):
-    max_retrys = config[c.CONF_MAX_RETRYS]
+    max_retries = config[c.CONF_MAX_RETRIES]
     text = "if(sendaction->get_send_attempts() < {}) " \
         "{{sendaction->stop(); sendaction->send(); return true;}} " \
         "else " \
-        "{{return false;}}".format(max_retrys)
+        "{{return false;}}".format(max_retries)
     lambda_ = yield cg.process_lambda(Lambda(text), args, return_type=cg.bool_)
     yield cg.new_Pvariable(action_id, template_arg, lambda_)
