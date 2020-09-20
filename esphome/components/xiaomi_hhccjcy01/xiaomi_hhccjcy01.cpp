@@ -14,6 +14,7 @@ void XiaomiHHCCJCY01::dump_config() {
   LOG_SENSOR("  ", "Moisture", this->moisture_);
   LOG_SENSOR("  ", "Conductivity", this->conductivity_);
   LOG_SENSOR("  ", "Illuminance", this->illuminance_);
+  LOG_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
 bool XiaomiHHCCJCY01::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -50,6 +51,8 @@ bool XiaomiHHCCJCY01::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       this->conductivity_->publish_state(*res->conductivity);
     if (res->illuminance.has_value() && this->illuminance_ != nullptr)
       this->illuminance_->publish_state(*res->illuminance);
+    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
+      this->battery_level_->publish_state(*res->battery_level);
     success = true;
   }
 
