@@ -101,6 +101,8 @@ sensor:
       name: "Xiaomi HHCCJCY01 Illuminance"
     conductivity:
       name: "Xiaomi HHCCJCY01 Soil Conductivity"
+    battery_level:
+      name: "Xiaomi HHCCJCY01 Battery Level"
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
