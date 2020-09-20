@@ -61,7 +61,7 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
 
   static uint8_t last_frame_count = 0;
   if (last_frame_count == raw[12]) {
-    ESP_LOGVV(TAG, "parse_xiaomi_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
+    ESP_LOGVV(TAG, "parse_header(): duplicate data packet received (%d).", static_cast<int>(last_frame_count));
     result.is_duplicate = true;
     return {};
   }
@@ -72,7 +72,6 @@ optional<ParseResult> ATCMiThermometer::parse_header(const esp32_ble_tracker::Se
 }
 
 bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseResult &result) {
-
   // Byte 0-5 mac in correct order
   // Byte 6-7 Temperature in uint16
   // Byte 8 Humidity in percent
@@ -97,10 +96,6 @@ bool ATCMiThermometer::parse_message(const std::vector<uint8_t> &message, ParseR
 
   // battery, 1 byte, 8-bit unsigned integer,  1.0 %
   result.battery_level = data[9];
-
-  // battery, 2 bytes, 16-bit unsigned integer,  0.001 V
-  // const int16_t battery_level = uint16_t(data[11]) | (uint16_t(data[10]) << 8);
-  // result.battery_level = battery_level / 1.0e3f;
 
   return true;
 }
