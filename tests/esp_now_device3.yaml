@@ -1,0 +1,23 @@
+substitutions:
+  devicename: esp_now_device3
+  upper_devicename: Device 3
+  #deviceplatform: ESP8266
+  #deviceboard: esp01_1m
+  deviceplatform: ESP32
+  deviceboard: esp-wrover-kit
+  wifissid: wifi1_ssid
+  wifipassword: wifi1_password
+  appassword: ap1_password
+  apipassword: api1_password
+  otapassword: ota1_password
+
+  loglevel: debug
+
+  passwordsuffix: now1_passwordsuffix
+  partner_1: device1
+  partner_2: device2
+  partner_3: device4
+
+<<: !include wifi_now_includes/MainWifi_inc.yaml
+# <<: !include wifi_now_includes/MainNoWifi_inc.yaml
+<<: !include wifi_now_includes/Components_inc.yaml

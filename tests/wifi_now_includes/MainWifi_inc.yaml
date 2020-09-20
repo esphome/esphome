@@ -1,0 +1,24 @@
+esphome:
+  name: $devicename
+  platform: $deviceplatform
+  board: $deviceboard
+
+logger:
+  baud_rate: 115200
+  level: $loglevel
+
+wifi:
+  ssid: $wifissid
+  password: $wifipassword
+
+  ap:
+    ssid: "${upper_devicename} Fallback"
+    password: $appassword
+
+captive_portal:
+
+api:
+  password: $apipassword
+
+ota:
+  password: $otapassword

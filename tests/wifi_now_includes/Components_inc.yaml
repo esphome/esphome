@@ -1,0 +1,295 @@
+wifi_now:
+  channel: 2
+  password: "master${passwordsuffix}"
+  peers:
+    - id: device1
+      bssid: 01:01:01:01:01:01
+      password: "child{passwordsuffix}"
+    - id: device2
+      bssid: 02:02:02:02:02:02
+      password: "child{passwordsuffix}"
+    - id: device3
+      bssid: 03:03:03:03:03:03
+      password: "child{passwordsuffix}"
+    - id: device4
+      bssid: 04:04:04:04:04:04
+      password: "child{passwordsuffix}"
+  on_receive:
+    - service: BinarySensor1
+      payloads:
+        - binary_sensor_event: BinarySensor1EventValue
+      then:
+        - wifi_now.inject:
+            sensor_id: BinarySensor1
+            payload_id: BinarySensor1EventValue
+    - service: Sensor2
+      payloads:
+        - float: Sensor2FloatValue
+      then:
+        - sensor.template.publish:
+            id: Sensor2
+            state: !lambda 'return id(Sensor2FloatValue)->get_value();'
+    - service: TextSensor3
+      payloads:
+        - string: TextSensor3TextValue
+      then:
+        - text_sensor.template.publish:
+            id: TextSensor3
+            state: !lambda 'return id(TextSensor3TextValue)->get_value();'
+    - service: PayloadTest
+      payloads:
+        - bool: PayloadTestBooleanValue
+        - float: PayloadTestFloatValue
+        - int: PayloadTestIntValue
+        - string: PayloadTestStringValue
+        - vector: PayloadTestVectorValue
+        - binary_sensor_event: PayloadTestEventValue
+      then:
+        - binary_sensor.template.publish:
+            id: BinarySensor1
+            state: !lambda 'return id(PayloadTestBooleanValue)->get_value();'
+        - sensor.template.publish:
+            id: Sensor2
+            state: !lambda 'return id(PayloadTestFloatValue)->get_value();'
+        - sensor.template.publish:
+            id: Sensor2
+            state: !lambda 'return id(PayloadTestIntValue)->get_value();'
+        - text_sensor.template.publish:
+            id: TextSensor3
+            state: !lambda 'return id(TextSensor3TextValue)->get_value();'
+        - text_sensor.template.publish:
+            id: TextSensor3
+            state: !lambda 'return std::string( (char*)id(PayloadTestVectorValue)->get_value().data(), (char*)id(PayloadTestVectorValue)->get_value().data() + (char*)id(PayloadTestVectorValue)->get_value().size());'
+          - wifi_now.inject:
+            id: BinarySensor1
+            payload_id: PayloadTestEventValue
+                
+binary_sensor:
+  - platform: gpio
+    id: pin0
+    pin:
+      number: 0
+      mode: INPUT_PULLUP
+      inverted: True
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_1
+              service: BinarySensor1
+              payloads:
+                - binary_sensor_event: multi_click_3
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_1
+              service: Sensor2
+              payloads:
+                - float: !lambda |- 
+                    #ifdef ARDUINO_ARCH_ESP8266
+                    return ((float)os_random())/100;
+                    #else
+                    return ((float)esp_random())/100;
+                    #endif
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.5s
+        then:
+          - wifi_now.send:
+              peerid: $partner_1
+              service: TextSensor3
+              payloads:
+                - string: Some Text
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+
+  - platform: gpio
+    id: pin2
+    pin:
+      number: 2
+      mode: INPUT_PULLUP
+      inverted: True
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_2
+              service: BinarySensor1
+              payloads:
+                - binary_sensor_event: multi_click_3
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_2
+              service: Sensor2
+              payloads:
+                - float: !lambda |- 
+                    #ifdef ARDUINO_ARCH_ESP8266
+                    return ((float)os_random())/100;
+                    #else
+                    return ((float)esp_random())/100;
+                    #endif
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.5s
+        then:
+          - wifi_now.send:
+              peerid: $partner_2
+              service: TextSensor3
+              payloads:
+                - string: Some Text
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+
+  - platform: gpio
+    id: pin3
+    pin:
+      number: 3
+      mode: INPUT_PULLUP
+      inverted: True
+    filters:
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_3
+              service: BinarySensor1
+              payloads:
+                - binary_sensor_event: multi_click_3
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at most 1s
+          - ON for at most 1s
+          - OFF for at least 0.2s
+        then:
+          - wifi_now.send:
+              peerid: $partner_3
+              service: Sensor2
+              payloads:
+                - float: !lambda |- 
+                    #ifdef ARDUINO_ARCH_ESP8266
+                    return ((float)os_random())/100;
+                    #else
+                    return ((float)esp_random())/100;
+                    #endif
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+      - timing:
+          - ON for at most 1s
+          - OFF for at least 0.5s
+        then:
+          - wifi_now.send:
+              peerid: $partner_3
+              service: TextSensor3
+              payloads:
+                - string: Some Text
+              on_fail:
+                - wifi_now.retry_send: 3
+                - wifi_now.abort:
+              on_success:
+                - logger.log: Success
+
+  - platform: template
+    id: BinarySensor1
+    name: "${upper_devicename} Binary Sensor 1"
+    on_multi_click:
+      - timing:
+          - ON for at most 1s
+        then:
+          - logger.log: Multi click 1
+      - timing:
+          - ON for at most 2s
+        then:
+          - logger.log: Multi click 2
+      - timing:
+          - ON for at most 3s
+        then:
+          - logger.log: Multi click 3
+      - timing:
+          - ON for at most 4s
+        then:
+          - logger.log: Multi click 4
+  
+sensor:
+  - platform: template
+    id: Sensor2
+    name: "${upper_devicename} Sensor 2"
+    on_value:
+      - then:
+        - logger.log: Sensor 2 value
+
+text_sensor:
+  - platform: template
+    id: TextSensor3
+    name: "${upper_devicename} Text Sensor 3"
+    on_value:
+      - then:
+        - logger.log: Sensor 3 value
