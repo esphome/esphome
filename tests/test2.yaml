@@ -169,7 +169,14 @@ sensor:
       name: "JQJCY01YM Formaldehyde"
     battery_level:
       name: "JQJCY01YM Battery Level"
-
+  - platform: atc_mithermometer
+    mac_address: "A4:C1:38:4E:16:78"
+    temperature:
+      name: "ATC Temperature"
+    humidity:
+      name: "ATC Humidity"
+    battery_level:
+      name: "ATC Battery-Level"
 
 time:
 - platform: homeassistant
