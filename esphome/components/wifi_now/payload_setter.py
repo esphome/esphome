@@ -66,7 +66,7 @@ def float_payload_setter_to_code(config, payload_id, template_arg, args):
         }), key=ehc.CONF_ID)
     )
 @coroutine
-def float_payload_setter_to_code(config, payload_id, template_arg, args):
+def int_payload_setter_to_code(config, payload_id, template_arg, args):
     yield templated_payload_setter_to_code(cg.int_, config, payload_id, template_arg, args)
 
 

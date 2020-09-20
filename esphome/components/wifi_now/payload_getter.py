@@ -64,6 +64,17 @@ def float_payload_getter_to_code(config, payload_id, template_arg, args):
     yield templated_payload_getter_to_code(cg.float_, config, payload_id, template_arg, args)
 
 
+@register_payload_getter(c.PAYLOAD_INT, t.TemplatePayloadGetter, cv.maybe_simple_value(
+    cv.Schema({
+        cv.GenerateID(): cv.declare_id(t.TemplatePayloadGetter),
+        cv.Required(ehc.CONF_VALUE): cv.templatable(cv.int_),
+        }), key=ehc.CONF_VALUE)
+    )
+@coroutine
+def int_payload_getter_to_code(config, payload_id, template_arg, args):
+    yield templated_payload_getter_to_code(cg.int_, config, payload_id, template_arg, args)
+
+
 @register_payload_getter(c.PAYLOAD_STRING, t.TemplatePayloadGetter, cv.maybe_simple_value(
     cv.Schema({
         cv.GenerateID(): cv.declare_id(t.TemplatePayloadGetter),
