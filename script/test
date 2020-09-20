@@ -10,3 +10,8 @@ esphome tests/test1.yaml compile
 esphome tests/test2.yaml compile
 esphome tests/test3.yaml compile
 esphome tests/test4.yaml compile
+
+esphome tests/esp_now_device1.yaml compile
+esphome tests/esp_now_device2.yaml compile
+esphome tests/esp_now_device3.yaml compile
+esphome tests/esp_now_device4.yaml compile
