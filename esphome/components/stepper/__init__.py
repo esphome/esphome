@@ -28,6 +28,7 @@ def validate_acceleration(value):
     try:
         value = float(value)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid(f"Expected acceleration as floating point number, got {value}")
 
     if value <= 0:
@@ -48,6 +49,7 @@ def validate_speed(value):
     try:
         value = float(value)
     except ValueError:
+        # pylint: disable=raise-missing-from
         raise cv.Invalid(f"Expected speed as floating point number, got {value}")
 
     if value <= 0:
