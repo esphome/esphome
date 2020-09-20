@@ -9,6 +9,12 @@ static const char *TAG = "tuya.light";
 void TuyaLight::setup() {
   if (this->dimmer_id_.has_value()) {
     this->parent_->register_listener(*this->dimmer_id_, [this](TuyaDatapoint datapoint) {
+      // Ignore dimmer values received once switch is off, such as during switch-off
+      // fade out. This allows restoring the present brightness on next switch on
+      if (!this->state_->current_values.is_on()) {
+        return;
+      }
+
       this->inhibit_next_send_ = true;
 
       // Clip value to expected range, allowing for inverted range
