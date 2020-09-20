@@ -59,7 +59,7 @@ wifi_now:
             state: !lambda 'return id(TextSensor3TextValue)->get_value();'
         - text_sensor.template.publish:
             id: TextSensor3
-            state: !lambda 'return std::string( (char*)id(PayloadTestVectorValue)->get_value().data(), (char*)id(PayloadTestVectorValue)->get_value().data() + (char*)id(PayloadTestVectorValue)->get_value().size());'
+            state: !lambda 'return std::string( (char*)id(PayloadTestVectorValue)->get_value().data(), (char*)id(PayloadTestVectorValue)->get_value().data() + id(PayloadTestVectorValue)->get_value().size());'
         - wifi_now.inject:
             sensor_id: BinarySensor1
             payload_id: PayloadTestEventValue
