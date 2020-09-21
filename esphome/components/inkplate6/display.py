@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, i2c
-from esphome.const import CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_PAGES
+from esphome.const import CONF_FULL_UPDATE_EVERY, CONF_ID, CONF_LAMBDA, CONF_PAGES, CONF_WAKEUP_PIN
 
 DEPENDENCIES = ['i2c']
 
@@ -27,15 +27,14 @@ CONF_POWERUP_PIN = 'powerup_pin'
 CONF_SPH_PIN = 'sph_pin'
 CONF_SPV_PIN = 'spv_pin'
 CONF_VCOM_PIN = 'vcom_pin'
-CONF_WAKEUP_PIN = 'wakeup_pin'
 
 
-inkplate_ns = cg.esphome_ns.namespace('inkplate')
-Inkplate = inkplate_ns.class_('Inkplate', cg.PollingComponent, i2c.I2CDevice,
+inkplate6_ns = cg.esphome_ns.namespace('inkplate6')
+Inkplate6 = inkplate6_ns.class_('Inkplate6', cg.PollingComponent, i2c.I2CDevice,
                               display.DisplayBuffer)
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
-    cv.GenerateID(): cv.declare_id(Inkplate),
+    cv.GenerateID(): cv.declare_id(Inkplate6),
     cv.Optional(CONF_GREYSCALE, default=False): cv.boolean,
     cv.Optional(CONF_PARTIAL_UPDATING, default=True): cv.boolean,
     cv.Optional(CONF_FULL_UPDATE_EVERY, default=10): cv.uint32_t,
