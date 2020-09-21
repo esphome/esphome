@@ -1,6 +1,6 @@
 substitutions:
-  devicename: esp_now_device3
-  upper_devicename: Device 3
+  devicename: esp_now_device4
+  upper_devicename: Device 4
   #deviceplatform: ESP8266
   #deviceboard: esp01_1m
   deviceplatform: ESP32
