@@ -30,8 +30,7 @@ CONF_VCOM_PIN = 'vcom_pin'
 
 
 inkplate6_ns = cg.esphome_ns.namespace('inkplate6')
-Inkplate6 = inkplate6_ns.class_('Inkplate6', cg.PollingComponent, i2c.I2CDevice,
-                              display.DisplayBuffer)
+Inkplate6 = inkplate6_ns.class_('Inkplate6', cg.PollingComponent, i2c.I2CDevice, display.DisplayBuffer)
 
 CONFIG_SCHEMA = cv.All(display.FULL_DISPLAY_SCHEMA.extend({
     cv.GenerateID(): cv.declare_id(Inkplate6),
@@ -111,7 +110,6 @@ def to_code(config):
 
     le = yield cg.gpio_pin_expression(config[CONF_LE_PIN])
     cg.add(var.set_le_pin(le))
-
 
     display_data_0 = yield cg.gpio_pin_expression(config[CONF_DISPLAY_DATA_0_PIN])
     cg.add(var.set_display_data_0_pin(display_data_0))
